@@ -1,0 +1,79 @@
+# Messaging: policy and templates
+
+## Notification policy
+
+Order for every message to a worker:
+1. **Web push** (free). Works on Android; on iPhone only once the portal is added to the home screen.
+2. **WhatsApp template** (about 2p each incl. Twilio fee; business-initiated messages must use
+   approved templates).
+3. **SMS fallback** (about 4p each). Only if WhatsApp isn't delivered within 60 seconds, or the
+   worker has no WhatsApp.
+
+Rules:
+- Quiet hours per firm (default 22:00–07:00). Non-urgent waits. Urgent may override if the firm
+  allows it.
+- Max 3 shift offers per worker per day unless urgent.
+- One message per event. Never send the same template twice for the same entity on the same day
+  (idempotency key).
+- Every outbound message is stored in `messages` and logged in `events`.
+- Replies to an inbound WhatsApp inside the 24-hour window are "service" messages: first 1,000
+  per number per month free (from 1 October 2026), then charged per message.
+- Workers can reply STOP to SMS; honour it and mark the channel opted-out.
+
+## Sign-off
+
+Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". Never a person's name.
+
+## WhatsApp templates (submit for approval in Phase 7; category shown is our expectation — confirm on approval)
+
+| Name | Category | Body (variables in braces) |
+|---|---|---|
+| `login_link` | Utility | "Here's your {firm} shifts link: {link}. It works for 15 minutes and only for you. — {firm} Shift Team" |
+| `shift_offer` | Utility | "Shift available: {date} {start}–{end} at {site} ({role}). Tap to take it: {link}. First to accept gets it. — {firm} Shift Team" |
+| `shift_urgent` | Utility | "URGENT: we need a {role} at {site} today {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" |
+| `shift_filled` | Utility | "Thanks for replying. That shift on {date} at {site} has now been filled. Open shifts: {link}. — {firm} Shift Team" |
+| `shift_confirmed` | Utility | "Confirmed: {date} {start}–{end} at {site} ({role}). Details and instructions: {link}. — {firm} Shift Team" |
+| `shift_reminder_24h` | Utility | "Reminder: tomorrow {start}–{end} at {site}. Details: {link}. Can't make it? Cancel in the app as early as you can. — {firm} Shift Team" |
+| `shift_reminder_2h` | Utility | "Your shift at {site} starts at {start}. Meeting point and instructions: {link}. — {firm} Shift Team" |
+| `cancellation_ack` | Utility | "We've recorded your cancellation of {date} {start} at {site} (ref {ref}). — {firm} Shift Team" |
+| `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" |
+| `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. {note} — {firm} Shift Team" |
+| `credential_expiring` | Utility | "Your {credential} expires on {date}. Renew it and send the new details to the office so you can keep taking shifts. — {firm} Shift Team" |
+| `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" |
+| `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" |
+
+## Instant replies on the shifts line (keyword first)
+
+| Worker types | Reply |
+|---|---|
+| "shifts", "work", "available" | "Open shifts you're eligible for: {link}" |
+| "cancel" | "To cancel a shift, tap here and choose the shift: {link}. It's recorded instantly." |
+| "pay", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in)." |
+| "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}." + create request |
+| anything else | Haiku classifies → one of the above, or a request for the office |
+
+## SMS (fallback only, keep under 160 characters)
+
+- Login: "{firm} shifts link (15 min): {link}"
+- Offer: "{firm}: shift {date} {start} at {site}. Take it: {link}"
+- Urgent: "{firm} URGENT: {role} needed {site} today {start}. {link}"
+- Confirmed: "{firm}: confirmed {date} {start} at {site}. {link}"
+
+## Push (title / body)
+
+- Offer: "Shift available" / "{date} {start} at {site}. Tap to take it."
+- Urgent: "Urgent shift" / "{role} needed at {site} today {start}."
+- Filled: "Shift filled" / "That one's gone. See other open shifts."
+- Reminder: "Tomorrow: {site}" / "{start}–{end}. Tap for instructions."
+- Request update: "Request {status}" / "{type} — tap to view."
+
+## Call-to-text recording (voice)
+
+"Thanks for calling {firm}. We've just sent a link to your phone where you can see your shifts,
+take open shifts or cancel straight away. To leave a message for the office, speak after the tone."
+
+## Office notifications
+
+- Escalation: push + email "Unfilled: {role} at {site} {start} — {n} offers sent, none accepted."
+- Unknown number message, failed Sheets sync, domain verified/failed, credential expiries (weekly),
+  pay digest (per schedule).

@@ -271,4 +271,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 
 | Date | Phase | Hours | What got done |
 |---|---|---|---|
-| | | | |
+| 2026-09-27 | 0 | 1 | Phase 0 scaffold built, verified, audited and closed; pushed to GitHub, CI green; e2e passing locally |

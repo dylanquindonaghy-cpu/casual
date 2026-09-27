@@ -22,9 +22,14 @@
 | `GET /api/health` | Uptime check | DB + queue ping. |
 | Stage 2: `POST /api/webhooks/ses` | SNS | Inbound email notification → fetch from S3 → `classify-email`. |
 
-Workers never call APIs directly; the portal uses server actions:
+Workers never call APIs directly; the portal uses server actions. Built so far (Phase 1): request
+a login link (`src/app/login/actions.ts`), use it (`src/app/l/actions.ts`), log out and refresh the
+session token (`src/app/session-actions.ts`), ask for and check a pay-page code
+(`src/app/pay/actions.ts`); office login, link login, logout and refresh (`src/app/office/**`). Actions return a result and the browser navigates
+itself: they never call `redirect()`, because Next renders an action's redirect target by fetching
+it from the server's own origin, which loses the firm's Host header. Planned:
 
-`requestLoginLink(mobile)` · `verifyOtp(code)` · `takeShift(shiftId)` · `cancelShift(assignmentId, reason)` ·
+`takeShift(shiftId)` · `cancelShift(assignmentId, reason)` ·
 `createRequest(type, payload)` · `setAvailability(dates)` · `raisePayQuery(form)` · `updateNotificationPrefs(...)`
 
 Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),
@@ -38,7 +43,8 @@ Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/c
 | Job | Trigger | Payload | What it does | Retry |
 |---|---|---|---|---|
 | `classify-message` | webhook | `{firm_id, message_id}` | Keyword match first (shifts, cancel, pay, help, stop). Else Haiku → zod-validated `{intent, shift_ref?, confidence}`. Low confidence → `requests` for the office. Reply with the right link. | 3× backoff |
-| `send-portal-link` | voice webhook, login | `{firm_id, worker_id or mobile, purpose}` | Sends WhatsApp template; SMS fallback if not delivered in 60 s. | 3× |
+| `send-portal-link` | voice webhook, login | `{firmId, idempotencyKey, purpose, subjectId}` (ids only; `subjectId` null for an unknown number or address; `purpose` worker_login or office_login) | Login (Phase 1): creates the one-time link (the token exists only inside the job), sends the `login_link` WhatsApp template to a worker or the `office_login_link` email to an office user, logs `auth.link_sent`. Queued for every request, known number or not; a retry after sending does nothing. SMS fallback if not delivered in 60 s (Phase 4/7). | 3× |
+| `send-login-code` | pay-page step-up | `{firmId, idempotencyKey, sessionId}` | Creates the 6-digit code (only inside the job), retires the session's earlier code, stores an HMAC (SESSION_SECRET, bound to the session), sends `login_code`, logs `auth.otp_sent`. | 3× |
 | `notify` | many | `{firm_id, worker_id, template, vars, priority}` | Applies the notification policy: push → WhatsApp → SMS; respects quiet hours unless urgent. Writes `events`. | 3× |
 | `offer-wave` | cancel/urgent | `{firm_id, shift_id, wave}` | If shift still open: rank eligible workers, send wave to next N, record `offers`, schedule next wave in `wave_minutes`. Stop when filled. | 3× |
 | `escalate-shift` | scheduled at start − X h | `{firm_id, shift_id}` | If still unfilled: notify resourcer (push + email); mark shift "needs attention". | 3× |
@@ -76,7 +82,12 @@ When the office cancels, moves or shortens a shift with workers assigned:
 
 ## Errors and observability
 
-- Structured logs (JSON), phone numbers masked, request IDs.
+- Structured logs (JSON), phone numbers masked, request IDs. `src/lib/log`: one JSON line per
+  event; every string is masked (phone numbers in any format, emails), secret and name fields are
+  replaced, database error details and drizzle's query parameters are withheld. `src/proxy.ts`
+  gives every request a fresh `x-request-id` (client values are overwritten); pages and actions
+  log through `requestLog()`. Jobs log `queue`, `jobId` and `firmId`. pg-boss errors keep only
+  whitelisted fields and repeat at most once a minute.
 - Alerts to the founder: job failure after final retry, webhook signature failures spike,
   sync errors, health check down, Twilio delivery error rate > 5%.
 - Weekly digest of job stats.

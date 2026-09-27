@@ -8,6 +8,27 @@
       "when": 1790512219663,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790529773323,
+      "tag": "0001_rls_setup",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790529864069,
+      "tag": "0002_phase1_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790529872147,
+      "tag": "0003_firm_directory",
+      "breakpoints": true
     }
   ]
 }

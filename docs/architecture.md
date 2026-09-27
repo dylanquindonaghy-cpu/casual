@@ -34,12 +34,36 @@ mornings). Reliability matters far more than scale.
 ## Tenancy
 
 - Every request resolves a firm from the hostname: `firmslug.<our-domain>` or the firm's own
-  custom domain (lookup in `firms.custom_domain`).
-- The scoped DB client opens a transaction and runs `SET LOCAL app.current_firm_id = '<id>'`.
-  RLS policies on every table check `firm_id = current_setting('app.current_firm_id')::uuid`.
-- Jobs carry `firm_id` in their payload and use the same scoped client.
-- A small number of system tasks (e.g. Caddy's domain check) use a separate, read-only role.
-- Tests: for each table, a Firm A session cannot read or write Firm B rows.
+  custom domain (lookup in `firms.custom_domain`, Phase 8). `src/proxy.ts` rejects hosts we don't
+  serve (404) without touching the database; pages and actions call `getCurrentFirm()` for the
+  firm itself (ADR-012). Slugs: 2-20 characters a-z, 0-9 and hyphens; `www`, `portal`, `api`,
+  `app`, `admin` and punycode (`xn--`) are refused. Dev: `http://<slug>.localhost:3000`.
+- **Three database roles** (ADR-011):
+  - `shiftdesk_app` for the web and the worker's data access. No superuser, no BYPASSRLS, owns
+    nothing, member of no role, no TRUNCATE, no temp tables.
+  - `shiftdesk_jobs` for the worker's pg-boss connection only. It owns the `pgboss` schema.
+  - The owner (Lightsail master user; locally the `shiftdesk_owner` role) runs migrations,
+    `db:seed` and nothing else. The web and worker never hold its credentials.
+- **The scoped client** (`withFirm(firmId, tx => ...)` in `src/lib/db/scoped.ts`) opens a
+  transaction and runs `select set_config('app.current_firm_id', $1, true)`: `SET LOCAL` with a
+  bound parameter, ended by COMMIT/ROLLBACK so a pooled connection never carries a firm into the
+  next request. Nesting throws. The pool refuses to run as a superuser, a BYPASSRLS role or a
+  table owner. ESLint blocks app code from importing the raw pool, the owner connection or `pg`.
+- **RLS** is enabled and forced on every table, with one policy:
+  `firm_id = (select app_current_firm_id())`, where `app_current_firm_id()` returns NULL when no
+  firm is set, so a query outside `withFirm` sees nothing and can write nothing.
+- **Before the firm is known** (host lookup), `resolveFirmBySlug()` calls `app_resolve_firm()`,
+  a `SECURITY DEFINER` function with a pinned `search_path` that returns only directory fields
+  (id, slug, name, timezone, sign-off). Only the app role may execute it.
+- **Jobs** extend a zod envelope `{ firmId, idempotencyKey }` (`src/lib/jobs/firm-job.ts`); the
+  worker runs each handler inside `withFirm(payload.firmId)`. The web queues a job inside its own
+  `withFirm` transaction (`sendFirmJob`), taking `firmId` from that transaction. An RLS policy on
+  `pgboss.job_common` rejects any job whose `firmId` isn't the current firm, so the web can't
+  start work in another firm. Payloads carry ids only (pgboss tables have no RLS).
+- Tests (all as `shiftdesk_app`): every table's catalogue entry (`rls.every-table`), Firm A
+  can't read, change, insert into or point at Firm B's rows with a control showing Firm B can
+  (`tenancy.isolation`), the same probes catch a deliberately broken policy (`rls.mutation`),
+  plus `scoped-client`, `directory`, `jobs.envelope` and `lint.db-boundary`.
 
 ## Login
 
@@ -47,12 +71,45 @@ mornings). Reliability matters far more than scale.
 1. Enter mobile number on the firm's portal.
 2. If the number belongs to an active worker in this firm, send a one-time link by WhatsApp
    (template) or SMS. Same response either way, so numbers can't be probed.
-3. Link token: random 32 bytes, stored as a hash, single use, 15-minute expiry.
-4. Session cookie: httpOnly, secure, 30 days, rotated on use.
-5. Pay pages need an OTP step-up (6 digits, 10 minutes, 5 attempts).
-6. Rate limits per number and per IP.
+3. Link token: random 32 bytes, stored as a hash, single use, 15-minute expiry. The token goes
+   in the URL fragment (`/l#<token>`), never the path or query string: browsers don't send the
+   fragment to the server, so it never reaches request logs, proxies or Referer headers.
+4. Session cookie `__Host-sd_session`: httpOnly, Secure, SameSite=Lax, host-only (the `__Host-`
+   prefix stops another firm's subdomain setting it). The session lasts 30 days from login; its
+   token is replaced daily by a server action while the portal is in use, and the old token keeps
+   working for 60 seconds. Every lookup checks the session kind and that the worker is still
+   active. Only token hashes are stored. The link page asks "Log me in" (a POST), so link
+   previews and email scanners can't use the link up.
+5. Pay pages need a step-up code (`src/lib/auth/step-up.ts`): 6 digits by WhatsApp, 10 minutes,
+   5 tries, one live code per session (asking again replaces it), 3 requests per worker per 15
+   minutes and 10 a day. After a reload the page offers the code field while a sent code still
+   works. Created inside the `send-login-code` job and stored as an HMAC bound to the session.
+   Each try is taken by one conditional UPDATE (parallel guesses can't get more than 5), then
+   compared in constant time. A correct code opens the pay pages for 30 minutes
+   (`sessions.stepped_up_until`).
+6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 10 link
+   requests per IP (anything typed, junk included) and 3 per number; 20 failed link uses per IP
+   (successful logins don't count). Checked IP first, stopping at the first refusal, so a refused
+   IP can't use up a worker's allowance. Link requests are counted in their own transaction before
+   the real work (a request that fails still counts), with one conditional upsert (parallel
+   requests can't lose a count). Failed link uses are counted in the login's own transaction,
+   after a check of the current count, so a burst can let a few extra through (a soft limit:
+   it exists to stop guessing and log flooding). Buckets are HMACs (SESSION_SECRET) of the number or IP, never the value; IPv6 counts
+   per /64. The IP is `X-Real-IP` only, which Caddy sets (Phase 8); without it all clients share
+   one bucket. A refusal says "Too many tries. Try again in {n} minutes."; `auth.rate_limited` is
+   logged once per window, when a limit is first reached. Known and unknown numbers are treated
+   identically. Known trade-off: people behind one shared IP (venue Wi-Fi, mobile carrier NAT)
+   share the per-IP request limit (docs/runbooks.md).
 
 **Office users:** email magic link; roles `admin`, `resourcer`, `payroll`. Add TOTP later.
+Same flow as workers (`src/lib/auth/office-login.ts`, shared parts in `link-login.ts`): work
+email → the same answer whether or not it's known → `send-portal-link` emails a one-time link to
+`/office/l#<token>` (15 minutes, single use, hashed) → a 30-day session in the `__Host-sd_office`
+cookie (a worker and an office session can exist side by side; neither works as the other).
+Limits: 3 links per address and 10 per IP every 15 minutes. Each office area lists the roles
+that may use it (`src/lib/auth/roles.ts`); pages check with `requireOfficeArea()` and a role
+without access gets the not-found page. Disabling an office user ends their sessions at their
+next request.
 
 ## Roster plugs
 

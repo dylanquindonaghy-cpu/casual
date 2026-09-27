@@ -102,3 +102,52 @@ the controller and signs the DPA listing sub-processors). Staff: one line in the
 notice about automated handling. Anyone significantly affected by an automated decision can ask
 for a human. Pay disputes always go to a person.
 **Consequences:** low friction, no deception, compliant.
+
+## ADR-011: Three database roles, forced RLS, a firm directory function and a guarded job queue
+
+**Context:** Postgres superusers and table owners bypass RLS, and the dev database user was a
+superuser, so tenancy tests would have passed without testing anything (Phase 0 review). The
+production owner (Lightsail master) is not a superuser, so migrations that only ever ran as a
+superuser could fail for the first time on deploy. Before a request knows its firm (host lookup)
+the app must read `firms` without a firm set. Jobs carry a firm id that the worker trusts.
+**Decision:**
+- Roles: `shiftdesk_app` (web + worker data; restricted), `shiftdesk_jobs` (worker's pg-boss;
+  owns `pgboss`), and the owner (migrations and admin scripts only; never in the web or worker
+  env). Locally the owner is a NOLOGIN, non-superuser `shiftdesk_owner` role that the admin URL
+  switches to (`options=-c role=shiftdesk_owner`), so dev, CI and prod run migrations the same
+  way. Tests connect as `shiftdesk_app` and abort if it could bypass RLS.
+- RLS enabled and **forced** on every table (binds the owner too), one tenant policy per table,
+  composite `(firm_id, x_id)` foreign keys. drizzle-kit writes tables and policies; `db:migrate`
+  applies FORCE and grants from `src/lib/db/admin/access.ts`.
+- Host lookup through one owner-owned `SECURITY DEFINER` function returning directory fields only,
+  instead of a separate read-only role (fewer moving parts, no role memberships).
+- pg-boss owned by `shiftdesk_jobs`, not the web's role: owning it would let the web queue (or
+  schedule) work for any firm. The web may only insert into `pgboss.job_common`, and an RLS
+  policy there requires the job's `firmId` to equal the current firm.
+**Options:** app role owning pgboss (simpler, but a way round RLS); a separate read-only
+directory role (needs role memberships the managed master user may not be able to grant).
+**Consequences:** every new table needs a `TABLE_ACCESS` entry and isolation fixtures (tests fail
+by name without them). `pg_dump` as the owner sees no firm rows under forced RLS: backups use
+Lightsail snapshots, firm exports go through the app. Local dev databases from Phase 0 need a
+one-time `npm run db:reset`.
+**Revisit when:** a second service needs database access, or pg-boss changes its table layout
+(the `rls.every-table` test checks the `job_common` policies still exist).
+
+## ADR-012: Host → firm in two steps: shape check in proxy.ts, firm lookup in each page and action
+
+**Context:** PLAN.md asks for host → firm resolution "as middleware". Next 16 renamed middleware to
+`proxy.ts` (Node.js runtime by default). Its docs advise against database work there (it runs on
+every request, prefetches included), and a firm check in a layout does not stop the page itself
+from rendering.
+**Decision:** `src/proxy.ts` parses the Host header (`src/lib/tenancy/host.ts`, no database): the
+base domain is the ShiftDesk home page, `<slug>.<base>` is a firm's portal, and every other host
+gets a plain 404 before any page runs. It also sets the request ID. Every page, server action
+and route handler that touches firm data then calls `getCurrentFirm()`, which resolves the slug
+through `app_resolve_firm()` (cached per render) and shows the 404 page for unknown firms. Only
+the Host header is read, never `X-Forwarded-Host` (client-controllable when Next is reached
+directly).
+**Consequences:** one directory lookup per render or action. Pages and actions reach firm data
+through `withCurrentFirm(fn)` (`getCurrentFirm()` then `withFirm(firm.id)`); ESLint stops
+`src/app` importing `withFirm` directly, so a page can't pick a firm id from input. Custom domains (Phase 8) extend
+`parseHost` and `app_resolve_firm`.
+

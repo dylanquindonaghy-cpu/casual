@@ -8,9 +8,13 @@ export default defineConfig({
   test: {
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
     globalSetup: ["tests/setup/global-db.ts"],
-    // Integration tests share one real database; run files one at a time.
+    setupFiles: ["tests/setup/env.ts"],
+    // A test with no assertions fails instead of passing silently.
+    expect: { requireAssertions: true },
+    // Integration tests share one real database (and some alter policies inside transactions);
+    // run files one at a time.
     fileParallelism: false,
     testTimeout: 20_000,
-    hookTimeout: 30_000,
+    hookTimeout: 60_000,
   },
 });

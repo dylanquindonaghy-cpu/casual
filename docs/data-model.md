@@ -1,14 +1,26 @@
 # Data model
 
-Every table has `id uuid`, `firm_id uuid` (except `firms`), `created_at timestamptz`, and an
-RLS policy. Times in UTC. Money in pence. Phones in E.164.
+Every table has `id uuid` (`events`: a `bigint` identity), `firm_id uuid` (except `firms`),
+`created_at timestamptz`, RLS enabled **and forced**, and the tenant policy. Times in UTC. Money in
+pence. Phones in E.164. The Drizzle schema in `src/lib/db/schema/` is the source of truth; the
+DDL below is a readable sketch.
+
+**Links between firm tables use composite foreign keys**, e.g. `(firm_id, worker_id) →
+workers(firm_id, id)`, so every parent has `unique (firm_id, id)`. Postgres checks foreign keys
+without RLS, so a plain `worker_id → workers(id)` would let Firm A point a row at Firm B's
+worker. Links to `firms(id)` itself are plain: the policy's `WITH CHECK` pins `firm_id`.
+
+**Exceptions to "every table has firm_id":** the `drizzle` schema (migration history, owner only)
+and the `pgboss` schema (library-owned job queue). pgboss has no RLS on its own tables, so job
+payloads carry ids only, never names, numbers, tokens or codes; the app role may only insert jobs
+for its own firm (see architecture.md, Tenancy).
 
 ## Tables at a glance
 
 | Table | What it holds | Phase |
 |---|---|---|
 | firms | Name, slug, sector, branding, custom domain, settings | 1 |
-| office_users | Resourcers, payroll, admins | 1 |
+| office_users | Resourcers, payroll, admins (email, role, status) | 1 |
 | workers | Casual staff: name, mobile, email, status, roles | 1 |
 | credentials | Licences/cards per worker: type, number, expiry, status | 1 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
@@ -21,7 +33,8 @@ RLS policy. Times in UTC. Money in pence. Phones in E.164.
 | pay_records | Imported hours, rates, pay dates | 3 |
 | pay_queries | Structured pay questions + grouping key + status | 6 |
 | events | Append-only action log (the evidence trail) | 1 |
-| magic_links / sessions / otp_codes | Login | 1 |
+| magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
+| auth_throttle | Rate-limit counters for login and OTP requests (HMAC-keyed buckets) | 1 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Adapter type + config + last sync | 2 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
@@ -51,15 +64,39 @@ RLS policy. Times in UTC. Money in pence. Phones in E.164.
 create table firms (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  slug text not null unique,
+  slug text not null unique,            -- 2-20 chars a-z0-9-; not www/portal/api/app/admin/xn--
   sector text not null,                 -- 'security' | 'rail' | 'construction' | 'cleaning'
   custom_domain text unique,
   domain_verified boolean not null default false,
-  brand_logo_url text,
-  brand_primary_color text,
+  brand_logo_url text,                  -- https:// only
+  brand_primary_color text,             -- #rrggbb only
   timezone text not null default 'Europe/London',
   settings jsonb not null default '{}',
   created_at timestamptz not null default now()
+);
+
+create table office_users (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  email text not null,                  -- stored lowercase
+  name text not null,
+  role text not null,                   -- admin | resourcer | payroll
+  status text not null default 'active', -- active | disabled (never deleted)
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, email)
+);
+
+create table sites (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  name text not null,
+  address_line1 text, address_line2 text, town text, postcode text,
+  lat numeric(9,6), lng numeric(9,6),   -- Stage 3 only
+  notes text,
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, name)
 );
 
 create table workers (
@@ -72,19 +109,20 @@ create table workers (
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
   created_at timestamptz not null default now(),
+  unique (firm_id, id),
   unique (firm_id, mobile_e164)
 );
 
 create table credentials (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  worker_id uuid not null references workers(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers(firm_id, id)
   type text not null,                    -- 'SIA_DS', 'SIA_SG', 'PTS', 'SENTINEL', 'CSCS', 'DBS'...
   number text,
   expires_on date,
   status text not null default 'valid',  -- valid | expired | applied | suspended
   verified_at timestamptz,
-  verified_by uuid,
+  verified_by uuid,                      -- (firm_id, verified_by) -> office_users(firm_id, id)
   created_at timestamptz not null default now()
 );
 
@@ -197,7 +235,7 @@ create table pay_queries (
 );
 
 create table events (
-  id bigserial primary key,
+  id bigint generated always as identity primary key,  -- no sequence grant needed
   firm_id uuid not null references firms(id),
   actor_type text not null,              -- worker | office | system | ai
   actor_id uuid,
@@ -207,14 +245,94 @@ create table events (
   data jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
--- events is append-only: revoke update/delete from the app role.
+-- events is append-only: the app role has SELECT and INSERT only, and events has only
+-- select and insert policies. data never holds tokens, codes, phones, emails or IPs
+-- (recordEvent() refuses anything the log masker would change).
+-- Login events (kind worker or office): auth.link_requested (entity login_request; data {kind, matched}),
+-- auth.link_sent (magic_link; {purpose, channel, providerMessageId}), auth.link_rejected
+-- (magic_link or none; {kind, reason: unknown|used|expired|wrong_kind|inactive}), auth.login
+-- (session; actor worker/office), auth.session_rotated, auth.logout, auth.rate_limited
+-- (login_request, magic_link or session; {limit: "login:mobile" | "login:ip" | "office:email" |
+-- "office:ip" | "link_fail:ip" | "otp:worker" | "otp:worker_day"}; once per window, when the
+-- limit is first reached). Pay-page codes: auth.otp_requested (session),
+-- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
 
--- RLS pattern (repeat for every firm-scoped table):
+-- Login (Phase 1). kind says whose row it is; a CHECK ties kind to exactly one subject column.
+create table magic_links (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  kind text not null,                    -- worker | office
+  worker_id uuid,                        -- (firm_id, worker_id) -> workers, on delete cascade
+  office_user_id uuid,                   -- (firm_id, office_user_id) -> office_users, cascade
+  token_hash bytea not null unique,      -- sha256 of 32 random bytes; the raw token is never stored
+  request_id uuid not null unique,       -- the login request; makes the send job safe to retry
+  expires_at timestamptz not null,       -- 15 minutes
+  sent_at timestamptz,
+  used_at timestamptz,                   -- single use: one conditional UPDATE sets it
+  created_at timestamptz not null default now()
+);
+
+create table sessions (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  kind text not null,                    -- worker | office
+  worker_id uuid, office_user_id uuid,   -- composite FKs as above
+  token_hash bytea not null unique,      -- sha256 of the cookie value
+  prev_token_hash bytea unique,          -- the token before the last rotation...
+  prev_valid_until timestamptz,          -- ...still accepted for 60 s
+  expires_at timestamptz not null,       -- 30 days from login
+  rotated_at timestamptz not null,
+  revoked_at timestamptz,
+  stepped_up_until timestamptz,          -- set by a correct OTP (pay pages)
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
+);
+
+create table otp_codes (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  session_id uuid not null,              -- (firm_id, session_id) -> sessions, cascade
+  code_hash bytea not null,              -- HMAC-SHA256 with SESSION_SECRET
+  expires_at timestamptz not null,       -- 10 minutes
+  attempts int not null default 0,       -- 0..5
+  consumed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+-- one live code per session:
+create unique index otp_codes_one_live_per_session on otp_codes (session_id) where consumed_at is null;
+
+create table auth_throttle (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  bucket text not null,                  -- e.g. 'login:mobile:<hmac>'; never a raw number or IP
+  window_start timestamptz not null,
+  hits int not null default 0,
+  created_at timestamptz not null default now(),
+  unique (firm_id, bucket, window_start)
+);
+
+-- The firm for the current transaction. NULL when unset, so policies fail closed. The nullif
+-- matters: a pooled connection that ran a firm transaction returns '' afterwards, not NULL.
+create function app_current_firm_id() returns uuid language sql stable as
+  $$ select nullif(current_setting('app.current_firm_id', true), '')::uuid $$;
+
+-- RLS pattern (every firm table; generated by drizzle-kit from the schema):
 alter table workers enable row level security;
-create policy firm_isolation on workers
-  using (firm_id = current_setting('app.current_firm_id')::uuid)
-  with check (firm_id = current_setting('app.current_firm_id')::uuid);
+alter table workers force row level security;   -- applied by db:migrate: binds the owner too
+create policy firm_isolation on workers for all to public
+  using (firm_id = (select app_current_firm_id()))
+  with check (firm_id = (select app_current_firm_id()));
+-- (select ...) makes Postgres evaluate the function once per query, not once per row.
+-- firms uses id instead of firm_id, plus a directory_read policy for the owner only, used by
+-- the app_resolve_firm() function (host -> firm before any firm is known).
 ```
+
+**Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`
+applies `src/lib/db/admin/access.ts` after the migrations: FORCE on every table and exactly the
+listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS). A new table without an
+entry there fails the migrate. Adding a table: Drizzle schema + `.enableRLS()` + the tenant
+policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
+`tests/helpers/tenant-rows.ts` (the isolation tests fail by name until they exist).
 
 ## Retention (defaults, per firm)
 
@@ -224,5 +342,9 @@ create policy firm_isolation on workers
 | Call audio | Don't store by default (30 days if enabled) |
 | Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) |
 | Workers and credentials | Until the firm deletes them |
+| Magic links and OTP codes | 7 days after expiry |
+| Sessions | 30 days after expiry or revocation |
+| Rate-limit counters (auth_throttle) | 1 day |
+| Finished pg-boss jobs | 1 day (ids-only payloads) |
 
 A nightly job purges expired data and writes an event for each purge run.

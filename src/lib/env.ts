@@ -1,33 +1,117 @@
 import { z } from "zod";
 
-// Only the variables Phase 0 uses. Later phases add theirs here, so every
-// consumer gets a validated value instead of reading process.env directly.
-export const envSchema = z
+// Environment, split by who may read it (docs/decisions.md ADR-011):
+// - app: web and worker. Data access only through the restricted app role.
+// - worker: adds the pg-boss connection and the messaging transport.
+// - admin: scripts only (migrate, seed, db:reset). The web and worker never parse owner credentials.
+// Consumers get validated values instead of reading process.env directly.
+
+export const APP_DB_ROLE = "shiftdesk_app";
+export const JOBS_DB_ROLE = "shiftdesk_jobs";
+
+type Source = Record<string, string | undefined>;
+
+const postgresUrl = z.url({ protocol: /^postgres(ql)?$/ });
+const nodeEnv = z.enum(["development", "test", "production"]).default("development");
+
+// The user pg will really connect as. As in pg-connection-string: a ?user= parameter overrides
+// the URL's username, the last one wins when repeated, and an empty one falls back.
+export function urlUser(url: string): string {
+  const u = new URL(url);
+  return u.searchParams.getAll("user").at(-1) || decodeURIComponent(u.username);
+}
+
+// A friendly early error. The real check (role attributes) runs on the first connection.
+const connectsAs = (role: string) =>
+  postgresUrl.refine((url) => urlUser(url) === role, {
+    message: `must connect as the ${role} role (see .env.example)`,
+  });
+
+// The value in .env.example: fine locally, refused in production.
+const EXAMPLE_SECRET = "dev-only-secret-change-me-in-prod-0123456789";
+
+const appFields = {
+  NODE_ENV: nodeEnv,
+  DATABASE_URL: connectsAs(APP_DB_ROLE),
+  // Keys the HMACs for rate-limit buckets and one-time codes. 32+ characters.
+  SESSION_SECRET: z.string().min(32, { message: "must be at least 32 characters" }),
+  // Firms get <slug>.<APP_BASE_DOMAIN>. Includes the port in dev (localhost:3000).
+  APP_BASE_DOMAIN: z
+    .string()
+    .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:\d{1,5})?$/, {
+      message: "must be a lowercase host name, optionally with a port (e.g. localhost:3000)",
+    }),
+};
+
+const realSecret = (e: { NODE_ENV: string; SESSION_SECRET: string }) =>
+  e.NODE_ENV !== "production" || e.SESSION_SECRET !== EXAMPLE_SECRET;
+const realSecretMessage = {
+  path: ["SESSION_SECRET"],
+  message: "the .env.example value must never be used in production",
+};
+
+export const appEnvSchema = z.object(appFields).refine(realSecret, realSecretMessage);
+
+export const workerEnvSchema = z
   .object({
-    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-    DATABASE_URL_TEST: z.url({ protocol: /^postgres(ql)?$/ }).optional(),
+    ...appFields,
+    DATABASE_JOBS_URL: connectsAs(JOBS_DB_ROLE),
     // "twilio" is added with the Twilio transport in Phase 4. Until then it is a config error.
     MESSAGING_TRANSPORT: z.enum(["console"]).default("console"),
+    // Dev and e2e only: the console transport also appends messages here (see console.ts).
+    CONSOLE_OUTBOX_FILE: z
+      .string()
+      .regex(/^\.dev\//)
+      .optional(),
   })
+  .refine(realSecret, realSecretMessage)
   // Production must never silently print messages instead of sending them.
   .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "console", {
     path: ["MESSAGING_TRANSPORT"],
     message: "console transport is not allowed when NODE_ENV=production",
   });
 
-export type Env = z.infer<typeof envSchema>;
+export const adminEnvSchema = z
+  .object({
+    NODE_ENV: nodeEnv,
+    DATABASE_ADMIN_URL: postgresUrl,
+    DATABASE_URL: connectsAs(APP_DB_ROLE),
+    DATABASE_JOBS_URL: connectsAs(JOBS_DB_ROLE),
+  })
+  .refine((e) => ![APP_DB_ROLE, JOBS_DB_ROLE].includes(urlUser(e.DATABASE_ADMIN_URL)), {
+    path: ["DATABASE_ADMIN_URL"],
+    message: "must be the owner, not the app or jobs role",
+  });
 
-export function parseEnv(source: Record<string, string | undefined>): Env {
-  const result = envSchema.safeParse(source);
+export type AppEnv = z.infer<typeof appEnvSchema>;
+export type WorkerEnv = z.infer<typeof workerEnvSchema>;
+export type AdminEnv = z.infer<typeof adminEnvSchema>;
+
+function parseWith<T>(schema: z.ZodType<T>, source: Source): T {
+  const result = schema.safeParse(source);
   if (!result.success) {
     throw new Error(`Invalid environment:\n${z.prettifyError(result.error)}`);
   }
   return result.data;
 }
 
-let cached: Env | undefined;
-export function env(): Env {
-  cached ??= parseEnv(process.env);
-  return cached;
+export const parseAppEnv = (source: Source): AppEnv => parseWith(appEnvSchema, source);
+export const parseWorkerEnv = (source: Source): WorkerEnv => parseWith(workerEnvSchema, source);
+export const parseAdminEnv = (source: Source): AdminEnv => parseWith(adminEnvSchema, source);
+
+let app: AppEnv | undefined;
+let worker: WorkerEnv | undefined;
+let admin: AdminEnv | undefined;
+
+export function appEnv(): AppEnv {
+  app ??= parseAppEnv(process.env);
+  return app;
+}
+export function workerEnv(): WorkerEnv {
+  worker ??= parseWorkerEnv(process.env);
+  return worker;
+}
+export function adminEnv(): AdminEnv {
+  admin ??= parseAdminEnv(process.env);
+  return admin;
 }

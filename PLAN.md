@@ -78,16 +78,16 @@ One firm uses the product for real for 4 weeks, paid (£299 upfront), and we can
 **Goal:** firms, workers and office users exist; each firm is sealed off; workers log in by a link.
 Docs: `docs/data-model.md`, `docs/architecture.md` (Tenancy, Login).
 
-- [ ] Schema: firms, office_users, workers, credentials, sites, events, magic_links, sessions, otp_codes
-- [ ] RLS on every table using `app.current_firm_id`; scoped DB client sets it per request/job
-- [ ] Host → firm resolution (subdomain now; custom domain later) as middleware
-- [ ] Worker login: enter mobile → one-time link (15 min, single use, stored hashed) → 30-day session
-- [ ] OTP step-up (6 digits, 10 min) for pay pages
-- [ ] Office login: email magic link; roles `admin`, `resourcer`, `payroll`
-- [ ] Rate limit login requests per number and per IP
-- [ ] Seed script: the two demo firms in `docs/testing.md` (Acme Events, Northline Rail Labour)
-- [ ] Structured JSON logging with phone-number masking; request IDs
-- [ ] Tests: `rls.every-table`, `tenancy.isolation`, expired/used links rejected, events written
+- [x] Schema: firms, office_users, workers, credentials, sites, events, magic_links, sessions, otp_codes
+- [x] RLS on every table using `app.current_firm_id`; scoped DB client sets it per request/job
+- [x] Host → firm resolution (subdomain now; custom domain later) as middleware
+- [x] Worker login: enter mobile → one-time link (15 min, single use, stored hashed) → 30-day session
+- [x] OTP step-up (6 digits, 10 min) for pay pages
+- [x] Office login: email magic link; roles `admin`, `resourcer`, `payroll`
+- [x] Rate limit login requests per number and per IP
+- [x] Seed script: the two demo firms in `docs/testing.md` (Acme Events, Northline Rail Labour)
+- [x] Structured JSON logging with phone-number masking; request IDs
+- [x] Tests: `rls.every-table`, `tenancy.isolation`, expired/used links rejected, events written
 
 **Done when:** a worker from Firm A can never see Firm B data (tested); login works in console mode.
 
@@ -256,16 +256,67 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
 
-- **Phase 1 blocker:** the dev/CI Postgres user (`shiftdesk`) is a superuser, and superusers
-  bypass RLS. Phase 1 must run the app and the tenancy tests as a non-superuser role (no
-  `BYPASSRLS`), or `rls.every-table` / `tenancy.isolation` would pass without testing anything.
+- ~~**Phase 1 blocker:** the dev/CI Postgres user is a superuser, which bypasses RLS.~~ Resolved
+  in Phase 1 (ADR-011): app, jobs and owner roles; tests run as `shiftdesk_app`.
 - CI security layer from `docs/testing.md`: `npm audit` and a secrets scan. Note: drizzle-kit
   0.31 currently pulls 4 moderate advisories (old esbuild in `@esbuild-kit`, dev-only tooling).
-- Before Phase 1 code (from the Phase 0 guardrails review): wrap or hide the raw `createDb`
-  so app code can only get the firm-scoped client; a zod job-envelope base (`{ firmId }`) that
-  every firm job payload extends; redact pg-boss error logging in `src/worker/boss.ts`.
+- From the Phase 0 guardrails review: ~~hide the raw `createDb`~~, ~~a zod job envelope~~ and
+  ~~redact pg-boss error logging~~ (all done in Phase 1).
 - Invariant: fail if `twilio` is imported anywhere under `tests/` (when the SDK arrives, Phase 4).
-- CI e2e job needs a Postgres service once e2e covers DB-backed flows (Phase 3).
+- CI e2e job needs a Postgres service once e2e covers DB-backed flows (moved into Phase 1 with
+  the worker-login e2e test).
+- Phase 8: custom domains in the host lookup (`app_resolve_firm` resolves subdomain slugs only)
+  and the Caddy `ask` endpoint. The proxy 404s every host but `<base>` and `<slug>.<base>`, so
+  decide then which hosts health checks (`localhost:3000/api/health`), Caddy (`web:3000`) and
+  webhooks may use.
+- A short negative cache for unknown firm slugs if random subdomains ever cost noticeable load
+  (each one is one `app_resolve_firm()` call).
+- Phase 8: branding. The database only accepts `#rrggbb` colours and `https://` logos; still never
+  render brand fields raw into CSS or HTML.
+- Phase 8: Caddy sets `X-Real-IP` (the app's only source of the client IP) and the web port is
+  never published; Postgres TLS with `sslmode=verify-full` and the RDS CA bundle; a compose
+  `migrate` service that alone holds `DATABASE_ADMIN_URL`.
+- Phase 4/7: SMS fallback for login links and codes, with an ASCII " - " sign-off (an em dash
+  turns an SMS into UCS-2 and 3 segments).
+- Phase 3: pay data loaders and the "Raise a pay query" action must each call
+  `steppedUpWorker()` (src/lib/auth/current-worker.ts) themselves, not rely on the /pay page
+  having shown the code gate.
+- Before Twilio (Phase 4), send-login-code too: make a retried job a no-op (a unique request id
+  on otp_codes, like magic_links.request_id; a schema change). Today a retry after a real send
+  sends a second code that replaces the first.
+- Before Twilio (Phase 4): send-portal-link sends inside its database transaction. Commit the
+  unsent link first, then send, then mark it sent (today a commit failing after a real send leaves
+  a delivered link that doesn't work, and the retry sends a second message). Also skip login
+  requests more than a few minutes old (after the worker was down).
+- When an office settings screen lets a firm edit `sign_off`: validate it (ends "Shift Team",
+  never a person's name).
+- When an office-users admin screen exists: use one email rule for storing and logging in (the
+  database accepts `a@b`, which login's stricter check would never match).
+- Per-IP login limits are per firm (auth_throttle is firm-scoped); a cross-firm IP limit needs a
+  non-tenant table. Revisit if abuse shows up.
+- Before the pilot: review the per-IP login limit (10 per 15 minutes) against how the pilot firm
+  onboards staff. A briefing on venue Wi-Fi shares one IP (see runbooks). Options: a higher
+  limit, or a per-firm setting.
+- auth_throttle holds HMACs of phone numbers; with SESSION_SECRET those can be reversed (UK
+  mobiles are ~10^9), so treat the rows as pseudonymous personal data: the 1-day purge (Phase 8
+  retention job) matters.
+- The app role gets UPDATE on `firms` (settings, branding) only when a feature edits a firm
+  (Phase 5/8), with event logging.
+- Sessions: detect a rotated-out token being used again (revoke all of that person's sessions).
+- Link page: show "number ending 123" before "Log me in", and ask before replacing a session
+  that's already there (a forwarded link would otherwise log the colleague into the sender's
+  account).
+- `db:reset` and the seed accept any database on this machine. An SSH tunnel to production also
+  looks like localhost: never open one while a dev `.env` points through it (or add a marker
+  table that only dev databases have).
+- A `db:rotate-app-password` script (the runbook has the manual steps). Create roles from a
+  pre-computed SCRAM verifier so a plaintext password never reaches a server log that records DDL.
+- Remove the app's DELETE grant on `office_users` (they are disabled, never deleted) once the
+  isolation tests' delete control is split per privilege.
+- Phase 2: eligibility must compute expiry from `credentials.expires_on`, not trust `status`.
+- Demo seed, still to add (see docs/testing.md): requests and Northline's mocked sheet (Phase 2),
+  Acme's Saturday event day with the 6am dropout and pay records (Phase 3), the short-notice firm
+  cancellation (Phase 5), 12 pay queries, 9 about one rate change (Phase 6).
 
 ## Hours log
 

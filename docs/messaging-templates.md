@@ -28,7 +28,9 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 
 | Name | Category | Body (variables in braces) |
 |---|---|---|
-| `login_link` | Utility | "Here's your {firm} shifts link: {link}. It works for 15 minutes and only for you. — {firm} Shift Team" |
+| `login_link` | Utility | "Here's your {firm} shifts link: {link}. It works for 15 minutes and only for you. — {firm} Shift Team" ({link} is `https://<portal>/l#<token>`; one per login request, so it is exempt from the once-a-day rule) |
+| `login_code` | Utility | "Your {firm} code is {code}. It works for 10 minutes. Don't share it with anyone. — {firm} Shift Team" (pay-page step-up; one per request, exempt from the once-a-day rule. Meta's authentication category has fixed wording without a sign-off: decide in Phase 7) |
+| `office_login_link` | Email | Subject "Your {firm} office login link". Body: "Here's your link to the {firm} office dashboard: {link}. It works for 15 minutes, once, and only for you. If you didn't ask for it, you can ignore this email. — {firm} Shift Team" (console transport in Phase 1; SES later) |
 | `shift_offer` | Utility | "Shift available: {date} {start}–{end} at {site} ({role}). Tap to take it: {link}. First to accept gets it. — {firm} Shift Team" |
 | `shift_urgent` | Utility | "URGENT: we need a {role} at {site} today {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" |
 | `shift_filled` | Utility | "Thanks for replying. That shift on {date} at {site} has now been filled. Open shifts: {link}. — {firm} Shift Team" |

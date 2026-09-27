@@ -94,11 +94,16 @@ docs/
 
 ## Commands
 
-- `npm run dev` — web app
+- `npm run dev` — web app and job worker together (`npm run dev:web` for the web app alone).
+  Firms: `http://acme.localhost:3000`, `http://northline.localhost:3000` (after `npm run db:seed`)
 - `npm run worker` — job worker
 - `npm run db:up` — start local Postgres (Docker)
 - `npm run db:migrate` / `npm run db:seed`
-- `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e`
+- `npm run db:reset` — local only: recreate the dev database with the owner/app/jobs roles and migrate
+- `npm run db:generate` — write a migration from `src/lib/db/schema/`. Never use `drizzle-kit push`
+  or `drizzle-kit migrate`: only `db:migrate` also forces RLS, applies grants and installs pg-boss
+- `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e` (its own web app and worker on
+  port 3100 and its own `*_e2e` database; stop `npm run dev` first)
 - `./scripts/verify.sh` — runs all of the above and writes the verified stamp
 
 (Create these scripts in Phase 0 if missing.)
@@ -109,7 +114,11 @@ docs/
 - Money as integer pence. Phone numbers as E.164.
 - No `any`. Validate every external input with zod at the boundary.
 - Small modules. Pure functions for rules so they're easy to test.
-- Every new table gets `firm_id`, `created_at`, RLS policy and a cross-tenant test.
+- Every new table gets `firm_id`, `created_at`, `.enableRLS()` with the tenant policy, a
+  `TABLE_ACCESS` entry (`src/lib/db/admin/access.ts`) and isolation fixtures
+  (`tests/helpers/tenant-rows.ts`). Links between firm tables are composite `(firm_id, x_id)` FKs.
+- App code reaches the database only through `withFirm()` (and `resolveFirmBySlug()` for host
+  lookup). Firm jobs extend `firmJobEnvelope`; payloads carry ids only.
 - Dev messaging uses `MESSAGING_TRANSPORT=console` (prints outbound messages). Never hit
   Twilio from tests.
 

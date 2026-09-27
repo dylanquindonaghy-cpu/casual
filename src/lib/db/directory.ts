@@ -1,0 +1,57 @@
+import { sql } from "drizzle-orm";
+import type { Pool } from "pg";
+import { z } from "zod";
+import { signOffFor } from "../tenancy/sign-off";
+import { appPool, assertSafeAppConnection, drizzleFor } from "./pool";
+
+// Host -> firm lookup, before any firm is known. The app role can't read firms without a firm
+// set, so this calls app_resolve_firm() (drizzle/0003_firm_directory.sql), which returns only
+// public directory fields.
+
+const rowSchema = z.object({
+  id: z.uuid(),
+  slug: z.string(),
+  name: z.string(),
+  timezone: z.string(),
+  sign_off: z.string().nullable(),
+});
+
+export interface FirmDirectoryEntry {
+  id: string;
+  slug: string;
+  name: string;
+  timezone: string;
+  // "[Firm name] Shift Team" unless the firm set its own (golden rule 8).
+  signOff: string;
+}
+
+export type ResolveFirmBySlug = (slug: string) => Promise<FirmDirectoryEntry | null>;
+
+export function createDirectory(pool: Pool): ResolveFirmBySlug {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async (slug) => {
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select * from app_resolve_firm(${slug})`);
+    if (result.rows.length === 0) return null;
+    const row = rowSchema.parse(result.rows[0]);
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      timezone: row.timezone,
+      signOff: signOffFor(row.name, row.sign_off),
+    };
+  };
+}
+
+let defaultDirectory: ResolveFirmBySlug | undefined;
+
+export function resolveFirmBySlug(slug: string): Promise<FirmDirectoryEntry | null> {
+  defaultDirectory ??= createDirectory(appPool());
+  return defaultDirectory(slug);
+}

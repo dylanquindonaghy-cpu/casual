@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createBoss } from "@/worker/boss";
 import { registerJobs } from "@/worker/jobs";
 import { HELLO_QUEUE } from "@/worker/jobs/hello";
-import { testDatabaseUrl } from "../setup/test-db";
+import { urls } from "../helpers/db";
 
 async function waitForFinalState(boss: PgBoss, id: string, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
@@ -15,11 +15,11 @@ async function waitForFinalState(boss: PgBoss, id: string, timeoutMs = 15_000) {
   throw new Error(`job ${id} did not finish within ${timeoutMs} ms`);
 }
 
-describe("worker (real pg-boss on the test database)", () => {
+describe("worker (real pg-boss on the test database, as the jobs role)", () => {
   let boss: PgBoss;
 
   beforeAll(async () => {
-    boss = createBoss(testDatabaseUrl());
+    boss = createBoss(urls.jobs);
     await boss.start();
     await registerJobs(boss);
   });

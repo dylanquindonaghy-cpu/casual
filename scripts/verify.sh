@@ -23,18 +23,23 @@ run() {  # run <name> <command...>
 ok=true
 run typecheck npm run --silent typecheck || ok=false
 run lint      npm run --silent lint      || ok=false
-run test      npm test --silent          || ok=false
+# Verbose names every test in test.log (the auditor greps it); the JSON lets invariants.sh
+# reject skipped or todo tests, which Vitest itself reports as a pass.
+rm -f .claude/state/vitest.json
+run test      npm test --silent -- --reporter=verbose --reporter=json \
+                --outputFile.json=.claude/state/vitest.json || ok=false
+e2e=false
 if [ -f playwright.config.ts ] && [ "${RUN_E2E:-0}" = "1" ]; then
-  run e2e npm run --silent e2e || ok=false
+  if run e2e npm run --silent e2e; then e2e=true; else ok=false; fi
 fi
 # Optional project-specific invariants (RLS on every table, no secrets, etc.) if present.
 [ -x scripts/invariants.sh ] && { run invariants scripts/invariants.sh || ok=false; }
 
 h=$(tree_hash)
 if $ok; then
-  printf '{"ok":true,"tree":"%s","at":"%s"}\n' "$h" "$(date -u +%FT%TZ)" > "$STATE"
-  echo "VERIFIED tree=$h"
+  printf '{"ok":true,"tree":"%s","e2e":%s,"at":"%s"}\n' "$h" "$e2e" "$(date -u +%FT%TZ)" > "$STATE"
+  echo "VERIFIED tree=$h e2e=$e2e"
 else
-  printf '{"ok":false,"tree":"%s","at":"%s"}\n' "$h" "$(date -u +%FT%TZ)" > "$STATE"
+  printf '{"ok":false,"tree":"%s","e2e":%s,"at":"%s"}\n' "$h" "$e2e" "$(date -u +%FT%TZ)" > "$STATE"
   echo "NOT VERIFIED"; exit 1
 fi

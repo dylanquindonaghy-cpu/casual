@@ -12,3 +12,6 @@ next-env.d.ts
 secrets/
 *.pem
 *service-account*.json
+
+# Dev-only files (the console transport outbox holds message bodies)
+.dev/

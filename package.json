@@ -7,7 +7,8 @@
     "node": ">=22.9"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "next dev",
     "build": "next build",
     "start": "next start",
     "worker": "node --env-file-if-exists=.env --import tsx src/worker/index.ts",
@@ -21,13 +22,15 @@
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
-    "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts"
+    "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts",
+    "db:reset": "node --env-file-if-exists=.env --import tsx scripts/db-reset.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.3",
     "next": "^16.3.6",
     "pg": "^8.23.0",
     "pg-boss": "^12.35.0",
+    "pg-connection-string": "^2.14.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zod": "^4.6.5"

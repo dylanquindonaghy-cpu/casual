@@ -57,14 +57,14 @@ One firm uses the product for real for 4 weeks, paid (£299 upfront), and we can
 
 **Goal:** a clean, testable skeleton that makes the golden rules easy to follow.
 
-- [ ] Next.js + TypeScript strict + Tailwind + ESLint + Prettier
-- [ ] Docker Compose for local Postgres; `db:up`, `db:migrate`, `db:seed` scripts
-- [ ] Drizzle set up; first empty migration runs
-- [ ] Vitest wired to a real test database; Playwright installed
-- [ ] `src/worker/index.ts` with pg-boss connected and a hello-world job
-- [ ] `MESSAGING_TRANSPORT=console` transport stub
-- [ ] `.env.example` filled in; `.gitignore` covers `.env*`
-- [ ] GitHub repo + CI (typecheck, lint, test on push)
+- [x] Next.js + TypeScript strict + Tailwind + ESLint + Prettier
+- [x] Docker Compose for local Postgres; `db:up`, `db:migrate`, `db:seed` scripts
+- [x] Drizzle set up; first empty migration runs
+- [x] Vitest wired to a real test database; Playwright installed
+- [x] `src/worker/index.ts` with pg-boss connected and a hello-world job
+- [x] `MESSAGING_TRANSPORT=console` transport stub
+- [x] `.env.example` filled in; `.gitignore` covers `.env*`
+- [x] GitHub repo + CI (typecheck, lint, test on push)
 
 **Done when:** `npm test` and CI pass on a fresh clone; worker picks up a test job.
 

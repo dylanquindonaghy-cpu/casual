@@ -1,0 +1,20 @@
+# Local development database only. Production uses Lightsail managed Postgres (docs/architecture.md).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: shiftdesk
+      POSTGRES_PASSWORD: shiftdesk
+      POSTGRES_DB: shiftdesk
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - shiftdesk-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shiftdesk -d shiftdesk"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  shiftdesk-pg:

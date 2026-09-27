@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shiftdesk
+          POSTGRES_PASSWORD: shiftdesk
+          POSTGRES_DB: shiftdesk_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shiftdesk -d shiftdesk_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      DATABASE_URL: postgres://shiftdesk:shiftdesk@localhost:5432/shiftdesk
+      DATABASE_URL_TEST: postgres://shiftdesk:shiftdesk@localhost:5432/shiftdesk_test
+      MESSAGING_TRANSPORT: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Same script as local: typecheck, lint, test, invariants.
+      - run: ./scripts/verify.sh
+      - name: Upload verify logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-logs
+          path: .claude/state/*.log
+
+  e2e:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://shiftdesk:shiftdesk@localhost:5432/shiftdesk
+      MESSAGING_TRANSPORT: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/

@@ -256,7 +256,16 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
 
--
+- **Phase 1 blocker:** the dev/CI Postgres user (`shiftdesk`) is a superuser, and superusers
+  bypass RLS. Phase 1 must run the app and the tenancy tests as a non-superuser role (no
+  `BYPASSRLS`), or `rls.every-table` / `tenancy.isolation` would pass without testing anything.
+- CI security layer from `docs/testing.md`: `npm audit` and a secrets scan. Note: drizzle-kit
+  0.31 currently pulls 4 moderate advisories (old esbuild in `@esbuild-kit`, dev-only tooling).
+- Before Phase 1 code (from the Phase 0 guardrails review): wrap or hide the raw `createDb`
+  so app code can only get the firm-scoped client; a zod job-envelope base (`{ firmId }`) that
+  every firm job payload extends; redact pg-boss error logging in `src/worker/boss.ts`.
+- Invariant: fail if `twilio` is imported anywhere under `tests/` (when the SDK arrives, Phase 4).
+- CI e2e job needs a Postgres service once e2e covers DB-backed flows (Phase 3).
 
 ## Hours log
 

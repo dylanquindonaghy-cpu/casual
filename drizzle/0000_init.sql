@@ -1,0 +1,2 @@
+-- Phase 0: intentionally empty. Proves the migration pipeline runs end to end.
+-- Phase 1 adds the first tables (firms, workers, ...) with RLS.

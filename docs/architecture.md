@@ -132,9 +132,10 @@ interface RosterPlug {
 ```
 
 Reads return records keyed by `ref` (our id for native, the sheet or file's row key otherwise,
-stored as `shifts.external_ref`); writes take our ids, and each adapter maps between them. Every
-adapter checks its source's data with the zod schemas in `plug.ts` (`rosterStaffSchema`,
-`rosterShiftSchema`) and computes notice with `noticeHours()` (`src/lib/roster/notice.ts`) from
+stored as `shifts.external_ref`); writes take our ids, and each adapter maps between them.
+Adapters reading an outside source (Sheets, CSV) check its data with the zod schemas in `plug.ts`
+(`rosterStaffSchema`, `rosterShiftSchema`); the native adapter maps our own rows, whose CHECKs
+already hold. Every adapter computes notice with `noticeHours()` (`src/lib/roster/notice.ts`) from
 `cancel.at`, never from when the call runs (a retried job must not shrink a worker's notice). A
 plug records; it never decides eligibility (the rules engine does, before `assign`). Adapters that
 write our tables are built on the caller's `withFirm` transaction, and the caller writes the
@@ -146,7 +147,7 @@ behaviour, the `[from, to)` window, and another firm's rows out of reach.
 
 | Adapter | When | Notes |
 |---|---|---|
-| Native | Firm has no rota system, or wants ours | Our tables are the source of truth. |
+| Native | Firm has no rota system, or wants ours | Our tables are the source of truth. `nativeRosterPlug(tx, { clock })` in `src/lib/roster/native.ts`, on the caller's `withFirm` transaction. `assign` locks the shift row, creates any missing open slot rows up to the headcount, then does the one conditional update; the shift becomes `filled` with its last slot and `open` again on a cancel. |
 | Google Sheets | Most target firms | Firm shares the sheet with our service account. Column mapping per firm. Sync every 1–2 min on event days, less otherwise. Batch writes. Never read the sheet per request (Google rate limits). |
 | CSV/Excel | Onboarding and firms emailing spreadsheets | Import workers, credentials, shifts, pay records. |
 | Approve-only | Any system we can read but not write | We prepare the change; office applies it with one tap. |

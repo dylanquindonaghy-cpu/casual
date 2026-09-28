@@ -932,3 +932,78 @@ Full list with alternatives: `docs/overnight-log.md`, this task's entry.
 
 Nothing new on screen. To run just these tests: `npx vitest run tests/unit/roster.contract.test.ts
 tests/unit/roster.plug.test.ts`. You should see "69 passed".
+
+---
+
+## 2026-09-28: Phase 2, task 3: the native adapter (0.3 h)
+
+### Time
+
+0.3 hours of Claude's working time (17:32 to 17:50 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=5db71de30fa855ae e2e=true`: type checks, lint, all
+  833 tests (up from 802), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+The first real **adapter**: the RosterPlug for firms whose rota lives in our own database (the
+"native" source, for firms with no other system). It lives in `src/lib/roster/native.ts`.
+
+- It lists a firm's staff and shifts straight from our tables.
+- **Taking a shift.** It first **locks** the shift's row: other requests for the same shift wait
+  their turn for a few milliseconds. Then it gives the person the lowest free place with one
+  database statement that only succeeds if the place is still empty ("first yes wins", golden
+  rule 4). When the last place goes, the shift is marked filled.
+- **Places are made when needed.** If a shift was created without its empty places (rows in the
+  assignments table), they are made on the spot, up to the headcount.
+- **Cancelling.** Only a confirmed booking can be cancelled, not a worked or missed shift, and not
+  an offer. The booking's row stays, recording when the person asked, why, who cancelled and the
+  notice hours. A new empty row reopens the place, and a full shift becomes open again.
+- **No transaction of its own.** It works inside the caller's database **transaction** (a group of
+  changes that all happen or none do), so a future "take shift" button can check the rules, book
+  and log in one go.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Lock the shift row, then the one conditional update | The lock keeps the shift's "filled/open" status right when two people take its last places together; the conditional update alone already stops double booking | The conditional update alone (status could go wrong) |
+| Make missing empty places on demand | Every way of creating shifts would otherwise have to remember to make them, and a forgotten one makes a shift look full | Trust every creator |
+| Only confirmed bookings can be cancelled; the cancel can't be dated before the booking | Declining an offer isn't a cancellation, and notice can't be counted from before the booking existed (found by the safety review) | Allow any status and any time |
+| A lighter lock ("no key update") | Doesn't hold up other tables that point at the shift (found by the safety review) | A full row lock |
+
+### What the new tests prove
+
+`tests/integration/roster.native.test.ts` (31 tests), on the real database, as the same limited
+database login the app uses:
+
+- The 19 shared contract checks that apply to a source the app can always write. (The other 2
+  are for sources the app may only read.)
+- **10 people tapping "take" at the same moment**, for a 1-place, a 3-place and a 2-place shift
+  (the last with no empty places made beforehand): exactly as many people as places get one,
+  each on a different place, and the rest are told it's filled. As a check that this test can
+  fail, the protections were removed for a moment: then all 10 got "assigned".
+- What a cancel stores (asked time, trimmed reason, "cancelled by the firm", 26.50 hours' notice)
+  and the new empty row; a cancel dated before the booking is refused; an offer or a
+  worked/missed shift can't be cancelled; a lowered headcount is respected; a rollback of the
+  caller's transaction undoes a booking; nonsense ids get "not found", not a database error.
+
+### Parked, open, and things that need Dylan
+
+- **Please read the decision table** in `docs/overnight-log.md` (this task's entry).
+- **A question for you:** what should an "offered" place mean (a place held for one person
+  until they accept)? For now, cancelling only works on confirmed bookings.
+- Parked in `PLAN.md`: nothing may use `assign` before the rules engine and the action log for
+  bookings exist (both later Phase 2 tasks); results should say when a shift became full or
+  reopened (Phase 4's urgent offers need it); lowering a headcount below its booked places
+  (Phase 5).
+
+### How to see it working
+
+Nothing new on screen yet. To run the tests yourself: `npx vitest run
+tests/integration/roster.native.test.ts` (the database must be running: `npm run db:up`). You
+should see "31 passed".

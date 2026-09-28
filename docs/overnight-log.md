@@ -244,3 +244,92 @@ for `assign` plus a worker lock (rules engine / atomic assign tasks); saving pen
 
 **Commit:** `adb8743 Phase 2: RosterPlug interface ...` on `build/overnight`. **Push:** succeeded
 (`950bbd6..adb8743`). **CI:** not checked (`gh` isn't installed here).
+
+## 2026-09-28 17:32 UTC: Phase 2, "Native adapter (our tables are the rota) — for firms with nothing else"
+
+**Plan.** `src/lib/roster/native.ts`: `nativeRosterPlug(tx, { clock })`, a `RosterPlug` over our
+own tables, built on the caller's `withFirm` transaction (as plug.ts says). Tests:
+`tests/integration/roster.native.test.ts` runs the shared contract (the 19 checks that apply; the 2
+read-only ones don't, since native is always writable) against it on
+the real database, as the restricted app role, each call in its own `withFirm` transaction (like
+one web request each), plus native-only tests: a 10-way race for one slot (the existing `race()`
+barrier helper), slot rows created on demand, what the database stores on cancel, that a rollback
+of the caller's transaction undoes the plug's writes, and garbage ids.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| `assign` locks the shift row (`select ... for update`), then does the documented conditional `UPDATE ... WHERE worker_id IS NULL` on the lowest open slot | The lock serialises takers of one shift, so `shifts.status` goes to `filled` exactly when the last slot goes (without it, two takers of a 2-slot shift can each see "1 of 2" and never mark it filled). The conditional update still guarantees first yes wins on its own (golden rule 4) | Conditional update alone (status can drift); `SKIP LOCKED` (same drift) |
+| Missing open slot rows (up to the headcount) are created on demand by `assign` (`insert ... on conflict do nothing` against the one-live-row-per-slot index) | Every path that makes shifts (office, CSV, sheet sync, seed) would otherwise have to remember to create slot rows, and a forgotten one makes a shift look full | Rely on every creator to insert slot rows |
+| `markCancelled` only cancels an `offered` or `confirmed` slot; a `completed` or `no_show` one is `not_assigned` | A worked or missed shift can't be cancelled after the fact | Allow any live status |
+| A cancel stores `cancelled_at = cancel.at` (when the person asked), the reason, `cancelled_worker`/`cancelled_firm` and the notice hours, then inserts a new open row for the slot and reopens a `filled` shift | Evidence for the notice report (golden rule 12) and the slot can be taken again | Clearing the worker off the row |
+| Times written by the plug (`confirmed_at`) come from the injected clock, not SQL `now()` | Same rule as the auth code: tests can pin time exactly | `now()` |
+| Reads map our rows straight to `RosterStaff`/`RosterShift` (ref = our id) without re-parsing them | Our own tables aren't external input; their CHECKs already hold. The contract still parses every row it gets | Parse every row (one odd legacy row would break the whole listing) |
+| Ids that aren't UUIDs are `not_found` (checked with zod before any SQL) | A bad id from a URL must not become a database error | Let Postgres raise 22P02 |
+
+**Built.** `src/lib/roster/native.ts` and `tests/integration/roster.native.test.ts` (19 contract
+checks + 12 native-only tests). A deliberate break (removing the shift lock and the `worker_id IS
+NULL` condition, in a scratch copy, then restored) made both 10-way race tests fail: every one of
+the 10 got "assigned". So the race test has teeth.
+
+**Root causes found while building:** (1) a TypeScript error: an `interface` isn't a
+`Record<string, unknown>` for drizzle's raw `execute<T>()`; a `type` alias is. (2) 7 test
+failures, `startsAt.getTime is not a function`: drizzle's raw `execute()` returns timestamps as
+text (only its query builder maps them to `Date`). Reads moved to the query builder; raw SQL kept
+for the conditional writes.
+
+**Guardrails review** (`guardrails-reviewer`): verdict SAFE TO COMMIT, no FIX FIRST. SHOULD FIX
+items, all fixed except where noted:
+
+1. A cancel of a slot above a lowered headcount reopened a still-full shift: **fixed** (reopen
+   only when the slot row is reinserted) + test.
+2. No lower bound on `cancel.at` (a cancel could be dated before the booking, inflating notice):
+   **fixed**: a `cancel.at` before the row's `confirmed_at` is refused; the seed's bookings moved
+   to a week before NOW; + test. (A database CHECK `cancelled_at >= confirmed_at` would be a
+   schema change: not done.)
+3. An `offered` row cancelled by the worker was stored as a worker cancellation with notice:
+   **fixed**: only `confirmed` bookings can be cancelled (declining an offer isn't a cancel;
+   what `offered` means is still open for Dylan) + test.
+4. `getShifts` can report a holder above a lowered headcount, which fails `rosterShiftSchema`;
+   and architecture.md said every adapter parses: **doc fixed** (outside sources parse; native
+   maps its own rows); the headcount case **parked** for Phase 5.
+5. `.for("update")` → `.for("no key update")`: **fixed** (doesn't block foreign-key checks
+   against the shift).
+6. Race test never raced the on-demand slot rows: **fixed**: a third race case with no slot rows
+   made beforehand.
+7. Log said "all 21 checks": **corrected** to the 19 that apply.
+
+Notes parked in `PLAN.md`: results should say whether the shift filled or reopened (Phase 4 needs
+it); a fixed lock order once a worker lock exists; nothing may call `assign` before the rules
+engine and events. Written into native.ts: every writer of a shift's slots must lock the shift row
+first. The cancelled-status list is now built from the shared constant.
+
+**Verify:** `VERIFIED tree=5db71de30fa855ae e2e=true` (833 tests, 10 e2e), first run.
+
+**claims-auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preliminary check: `.claude/state/verified.json` = `{"ok":true,"tree":"5db71de30fa855ae","e2e":true,"at":"2026-09-28T17:47:27Z"}`; `./.claude/hooks/tree-hash.sh` = `5db71de30fa855ae` — matches. Proceeding.
+
+Claims (task bullet: "Native adapter (our tables are the rota) — for firms with nothing else"):
+
+- Implements the `RosterPlug` interface (listStaff, getShifts, assign, markCancelled, canWrite) on our own tables — PROVEN. `src/lib/roster/native.ts:47-243`, `nativeRosterPlug()`. Runs inside the caller's `withFirm` tx (no own transaction), matching the interface contract in `src/lib/roster/plug.ts:1-22`.
+- Passes the shared RosterPlug contract suite against a real Postgres DB, real app role, real RLS — PROVEN. `tests/integration/roster.native.test.ts:145` (`describeRosterContract(...)`) using `tests/helpers/roster-contract.ts`. Log: `.claude/state/test.log:26-44`, 19 contract cases all `✓`, including tenant isolation ("another firm's staff and shifts are out of reach", `test.log:44`).
+- Atomic assign, "first yes wins", double-assign impossible under a real concurrent race — PROVEN. `src/lib/roster/native.ts:146-184` (row-locked shift + single conditional `UPDATE ... WHERE a.worker_id IS NULL ... RETURNING`). Race test uses real concurrent Postgres connections with a barrier (`tests/helpers/race.ts:9-35`, `max: n` pool, all transactions gated until all arrive — not a fake sequential loop). Three parametrised cases (1/1, 3/3, 2/2 winners, incl. slot rows created on demand) pass at `.claude/state/test.log:45-47`.
+- Cancellation preserves the cancelled row as evidence, reopens the slot, computes notice hours, blocks cancelling non-`confirmed`/backdated rows, and correctly leaves slots above a lowered headcount closed — PROVEN. Code: `src/lib/roster/native.ts:186-241`. Tests: `test.log:50-54` (all pass), including the lowered-headcount edge cases and the worked/no-show and pre-booking-date guards.
+- Slots created on demand when a shift has no pre-existing slot rows — PROVEN. `src/lib/roster/native.ts:73-79` (`openMissingSlots`); test `test.log:48`.
+
+Fakes found: none. No `.only`/`.skip`/TODO/"not implemented" in `src/lib/roster/native.ts`, `tests/integration/roster.native.test.ts`, `tests/helpers/roster-contract.ts`, or `tests/helpers/race.ts` (checked by grep). The race test uses genuinely concurrent DB connections (barrier + separate pool), not a mock of the thing under test. Test.log timestamp (18:46) and tree hash (18:47) both correspond to the current working tree, including the two untracked files (`tree-hash.sh` hashes untracked files too, confirmed by reading the script).
+
+Note (not a defect, just status): PLAN.md line 107 still shows `- [ ] Native adapter ...` unchecked — consistent with the workflow ("never tick a task yourself... run `/close-task`... and only then ticks the task"), so this audit is presumably the gate before ticking, not evidence against DONE.
+
+To reach DONE: nothing — implementation and tests for this specific task are proven on disk and in the passing verified run. (Whoever is driving `/close-task` should now tick PLAN.md line 107 and commit `src/lib/roster/native.ts` and `tests/integration/roster.native.test.ts`, which are currently untracked.)
+```
+
+**Ticked** in `PLAN.md` after the DONE verdict. **Needs Dylan:** what an `offered` slot means
+(cancels are limited to confirmed bookings until then).
+
+**Hours:** 0.3 h (17:32 to 17:50 UTC). Phase 2 so far: 1.2 h of the 30-40 h estimate.

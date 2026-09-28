@@ -104,7 +104,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
 
 - [x] Schema: shifts, assignments, requests, offers, credential_rules (per sector/role)
 - [x] `RosterPlug` interface: `listStaff`, `getShifts`, `assign`, `markCancelled`, `canWrite`
-- [ ] Native adapter (our tables are the rota) — for firms with nothing else
+- [x] Native adapter (our tables are the rota) — for firms with nothing else
 - [ ] Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min
       on event days, batch writes, never read the sheet per request
 - [ ] CSV/Excel import for workers, credentials and shifts
@@ -335,6 +335,16 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   manual override; and lock the worker (`select ... for update` on the worker row, or an advisory
   lock) in the same transaction as the eligibility check, so two tabs can't book overlapping
   shifts past the overlap, rest or weekly-hours checks.
+- Phase 5 headcount edits: a holder in a slot above a lowered headcount makes the native
+  `getShifts` report a shift that fails `rosterShiftSchema` (slots 1..headcount). Don't lower a
+  headcount below its held slots (cancel those bookings first, with notice), or decide how to show
+  them.
+- Events task / Phase 4: `AssignResult` and `CancelResult` don't say whether the shift became
+  `filled` or reopened; the offer wave after a dropout needs to know. Add it to the results (or
+  re-read in the caller). When a worker lock is added (atomic assign), fix one lock order (worker
+  then shift) and retry on deadlock (40P01).
+- Nothing may call a roster plug's `assign` before the rules engine and the `EligibilityPass`
+  exist, nor before callers write events (both later Phase 2 tasks).
 - Read-only sources (`canWrite: false`): `needs_approval` records nothing. Before any read-only
   source goes live, save the pending change (a `requests` row plus an event with `cancel.at` and
   the notice hours at request time) so a worker's cancellation is never lost.
@@ -356,3 +366,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-27 | 1 | 4.5 | Phase 1 built, verified and audited: 10 RLS-sealed tables, three database logins, worker/office login, pay-page codes, rate limits, action log, masked logging, demo seed; 595 tests + 10 e2e; pushed on `build/overnight` (0.6 h proposal + 3.9 h build; see `docs/work-log.md`) |
 | 2026-09-28 | 2 | 0.5 | Schema: shifts, assignments, requests, offers, credential_rules; 5 RLS-sealed tables, 23 database checks, no deletes of rota evidence, firm-first unique keys (review fix); 733 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.4 | `RosterPlug` interface: boundary schemas, notice-hours function, 21-check adapter contract proven against 13 kinds of broken plug; 802 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.3 | Native adapter: first-yes-wins booking on our own tables (shift lock + one conditional update), cancel evidence and reopening, 19 contract checks + 10-way race tests on the real database; 833 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

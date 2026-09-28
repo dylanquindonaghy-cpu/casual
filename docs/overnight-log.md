@@ -587,3 +587,96 @@ To reach DONE: nothing — this task's claims are all PROVEN on the current, ver
 
 **Commit:** `e617e1a Phase 2: CSV/Excel import ...` on `build/overnight`. **Push:** succeeded.
 **CI:** not checked (`gh` isn't installed here).
+
+## 2026-09-28 19:21 UTC: Phase 2, "Rules engine (pure functions): credential in date for the role; qualification match; no overlapping assignment; minimum rest; weekly hours cap; firm "applied" allowance; returns `{ ok, reasons[] }`"
+
+**Plan.** `src/lib/rules/eligibility.ts`: `checkEligibility(input)`, a pure function (no database,
+no clock: callers pass everything in), running the checks of `docs/rules-and-credentials.md` in
+order and collecting every reason for the screen. `src/lib/rules/reasons.ts`: the plain-English
+reasons (copy rules in docs/screens.md). `tests/unit/rules.table.test.ts`: every case in the doc's
+table, one test each, plus the edges below. The doc is updated to match.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Result is `{ ok, reasons, codes }` (codes parallel to reasons), plus an `EligibilityPass` only when ok | PLAN asks for `{ ok, reasons[] }`; codes let the office override exactly checks 6–8 and let callers log why; the pass is the parked "only the rules engine can make one" token for the atomic assign task | Strings only |
+| The office may override only rest, weekly hours and unavailable (checks 6–8), never credentials (3–4) or anything else | The doc says so; overrides are returned so the caller can log them with a reason | Any check overridable |
+| A credential passes only if its status is `valid` **and** its expiry is on or after the shift's local start date; `expired` or `suspended` status fails even with a future date | Parked item: never trust `status` alone; and a status the office set is a decision | Trust either one |
+| No credential rule for the role (`requiredTypes: null`) fails; an empty list passes | Fail closed (added to the doc in the schema task) | Treat missing as "needs none" |
+| "Applied" counts only when no valid credential of that type exists; allowed while (applied in use + 1) / (deployed + 1) ≤ allowance % | The doc's worked cases (2/11 fails at 15%, 2/21 passes) | Other ratios |
+| Rest is the gap between this shift and any other booking that doesn't overlap it, before or after | The doc's cases (22:00 → 09:00 ok, → 08:00 fails at 11 h) | Rest only against the previous shift |
+| Weekly hours: Monday to Sunday in the firm's time zone, the week the shift starts in, other bookings clipped to that week | A calendar week is how rotas are planned; clipping keeps a Sunday night shift from counting twice | A rolling 7 days |
+| New check: a shift that has already started can't be taken ("This shift has already started.") | The review of the roster plugs noted the plug will book a past shift if asked: the rules engine is the gate | Leave it to each caller |
+| Unavailable dates are firm-local `yyyy-mm-dd` strings; a night shift is blocked if either calendar day it touches is marked | Availability is a calendar day, not an instant | Date objects |
+| Credential names come from the input (`names`), falling back to the code | The credential packs task (next but one) owns the names; no second copy here | Hard-code names now |
+
+**Built.** `src/lib/rules/eligibility.ts` (`checkEligibility`, `eligibilityInputSchema`,
+`isEligibilityPass`), `src/lib/rules/reasons.ts`, `tests/unit/rules.table.test.ts` (58 tests: all
+19 cases in the doc's table by name, plus edges). Docs updated.
+
+**Root causes found while building:** (1) Docker Desktop had stopped (the tests couldn't reach
+Postgres). Started it from WSL (`cmd.exe /c start "Docker Desktop.exe"`), then `npm run db:up`:
+local tooling only. (2) One test failed because its helper put the 41st booked hour on Saturday
+morning, 7 hours before the shift, so the rest check (correctly) failed too; the helper now puts
+extra hours on Monday.
+
+**Guardrails review** (`guardrails-reviewer`): verdict FIX FIRST, two credential holes (golden
+rule 6), both reproduced by the reviewer. All fixed with tests:
+
+1. A night shift passed with a licence expiring at midnight (only the start date was checked).
+   **Fixed**: the credential must be in date for every local day the shift touches.
+2. A suspended credential plus an "applied" one passed on the allowance. **Fixed**: a suspended
+   credential of the type fails whatever else is held.
+3. Bad input (NaN or negative settings, an unpadded date) let workers through. **Fixed**: the input
+   is parsed with a zod schema and anything malformed throws; tests for each.
+4. Wrong expiry wording (a future date shown as "before this shift"). **Fixed**: only dates before
+   the shift ends are used; a credential marked expired says so. Texts asserted.
+5. Hours spilling into the next week weren't checked. **Fixed**: every week the shift touches.
+6. The pass shared its overrides array with the result. **Fixed**: a frozen copy.
+7. The applied-allowance wording assumed SIA. **Fixed**: it names the credential; a per-type
+   allowance is parked.
+8. The doc said an expired status is set on the expiry day, contradicting "in date on its expiry
+   day". **Fixed**: the scan sets it the day after.
+- Notes acted on: office may override "shift already started" (flagged for Dylan in PLAN.md);
+  a booking passed with the shift's own id is skipped; a travel-buffer clash has its own wording and
+  isn't reported twice; "1 hour's rest"; the architecture doc's check list; spring-forward rest
+  and 00:30 BST expiry tests. Parked: per-type allowance, role display names, loader duties.
+
+**Verify:** `VERIFIED tree=35f4a825346aeca7 e2e=true` (1122 tests, 10 e2e), first full run.
+
+**claims-auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"35f4a825346aeca7","e2e":true,"at":"2026-09-28T19:40:11Z"}`; `./.claude/hooks/tree-hash.sh` = `35f4a825346aeca7`. Match, ok:true — proceeding.
+
+Claims (PLAN.md line 111-112 bullet, unchecked `[ ]` — correctly not self-ticked per golden rule 13):
+
+- Pure function, no DB/clock, returns `{ ok, reasons[] }` — PROVEN. `src/lib/rules/eligibility.ts:155-292` `checkEligibility()`; no db/clock imports; `EligibilityResult` interface at :105-111 has `ok: boolean; reasons: string[]` plus `codes`/`overridden`/`pass` (extension consistent with the updated doc, `docs/rules-and-credentials.md:36-41`). Purity asserted by test "is pure: it never changes its input..." (rules.table.test.ts:472-480), passing in `.claude/state/test.log:the same test name`.
+- Credential in date for the role — PROVEN. `eligibility.ts:182-220` (per-day expiry via `lastDay`, valid/expired/suspended/applied handling). Tests: "Licence expires the day before the shift", "on the shift date", "Missing required credential", night-shift/expiry edge tests (rules.table.test.ts:88-108, ~493-540). All pass in test.log lines 515-533+.
+- Qualification match (role) — PROVEN. `eligibility.ts:179-180`. Test "Wrong role: roles = ['steward']..." (line 529 test.log) passes.
+- No overlapping assignment — PROVEN. `eligibility.ts:222-238` (travel buffer, day-labelled reasons). Tests "Overlap by 1 minute", "the travel buffer turns a near miss into an overlap", "an overlap on another day says which day" — all pass (test.log:522 and later).
+- Minimum rest — PROVEN. `eligibility.ts:240-248`. Tests "Back-to-back with 11 h rest -> ok", "...10 h rest -> fail", spring/DST rest edge test — pass (test.log:523-524).
+- Weekly hours cap — PROVEN. `eligibility.ts:250-260` (Mon–Sun local, clipped per week, DST-aware). Tests "Weekly cap 48 ... ok/fail", Sunday-night dual-week test, October clock-change test — pass (test.log:525-526).
+- Firm "applied" allowance — PROVEN. `eligibility.ts:198-202` (share = (inUse+1)/(deployed+1) ≤ pct/100). Tests "Applied, allowance 15%, 10 deployed... fail", "...20 deployed... ok", "Applied, allowance 0 -> fail" — pass (test.log:519-521).
+
+Fakes found: none. No `.only`/`.skip`/`xit` in `tests/unit/rules.table.test.ts` (grep confirmed empty). No `TODO`/`not implemented`/stub in `src/lib/rules/`. Test suite covers 48 `it` blocks including a 500-case randomized fuzz test that never throws on valid-typed input and a throws-on-malformed-input suite (NaN settings, bad dates, unknown timezone, attempted override of non-overridable codes). Full run: `.claude/state/test.log` tail shows `Test Files 44 passed (44)`, `Tests 1122 passed (1122)`, no failures; the two "error" log lines found are intentional negative-path assertions in unrelated job tests (`jobs.envelope.test.ts`, `sheets.jobs.test.ts`), not real failures.
+
+Cross-check against spec: `docs/rules-and-credentials.md` "Test cases" table (19 rows, lines 113-135) all present as identically-named tests in `tests/unit/rules.table.test.ts:82-243`, and `docs/testing.md:31` names exactly this file. Doc's function-shape section was updated in this diff to match the implementation (added `now`/`timeZone`, `codes`, night-shift/DST/override clarifications) — consistent, not retrofitted to hide a gap.
+
+Process evidence: `docs/overnight-log.md` (new entry, lines 590-644) records a `guardrails-reviewer` round that found real credential holes (night-shift midnight-expiry bug, suspended+applied bypass, malformed-input bypass, wrong expiry wording, cross-week hours miss, shared-array mutation on the pass) — all with matching fix + test evidence visible in the test file (e.g. "credentials over a whole night, and suspensions" describe block, "never throws on odd but typed input (500 generated cases)"). This is real adversarial testing, not self-graded.
+
+Scope note: the Phase 2 "Done when" also requires "a seeded Sheet syncs both ways" and "double-assign impossible under a race test" — those are separate, already-checked-off tasks (Sheets adapter) and a not-yet-done task (Atomic assign / `assign.race`, still `[ ]` in PLAN.md, correctly left unticked and flagged with parking notes in PLAN.md for the loader wiring). This audit covers only the rules-engine bullet as given; the phase-level done-when is not yet fully met but that is expected and not claimed complete.
+
+To reach DONE: nothing — this task's claims are all PROVEN on the current, verified tree (hash `35f4a825346aeca7`).
+```
+
+(Count check: the file has 58 tests; the auditor's "48 `it` blocks" counts `it(` calls, and the
+`it.each` tables expand to more tests.)
+
+**Ticked** in `PLAN.md` after the DONE verdict. **Needs Dylan:** confirm the office may override
+"shift already started".
+
+**Hours:** 0.4 h (19:21 to 19:43 UTC). Phase 2 so far: 3.0 h of the 30-40 h estimate.

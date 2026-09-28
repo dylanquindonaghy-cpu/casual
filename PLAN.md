@@ -108,7 +108,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
 - [x] Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min
       on event days, batch writes, never read the sheet per request
 - [x] CSV/Excel import for workers, credentials and shifts
-- [ ] Rules engine (pure functions): credential in date for the role; qualification match;
+- [x] Rules engine (pure functions): credential in date for the role; qualification match;
       no overlapping assignment; minimum rest; weekly hours cap; firm "applied" allowance;
       returns `{ ok, reasons[] }`
 - [ ] Credential packs seeded from `docs/rules-and-credentials.md` (security live; rail and
@@ -330,9 +330,20 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   `notice_hours` in one pure function (the database stores what the app computes).
 - `shifts.status = 'filled'` is derived from the slots; whoever fills or reopens a slot updates it
   in the same transaction (atomic assign task).
-- Rules engine / atomic assign tasks: make `RosterPlug.assign` take an `EligibilityPass` that only
-  the rules engine can create (a branded type), with a logged-reason variant for the office's
-  manual override; and lock the worker (`select ... for update` on the worker row, or an advisory
+- **Dylan to confirm:** the office may override "shift already started" (to book a late
+  replacement onto a shift that has begun); workers never can. Remove `started` from
+  `OVERRIDABLE_CODES` if not wanted.
+- Credential packs task: the "applied" allowance is one firm-wide percentage for every credential
+  type; make it per type (it's an SIA approved-contractor rule), and give roles display names too
+  ("a uniformed guard", not "an uniformed guard"; the a/an rule only looks at the first letter).
+- The rules loader (atomic assign task) must pass credential `names` (else a code like "RAIL DA"
+  shows), exclude this worker from `appliedInUseCount`/`deployedCount`, fetch bookings for every
+  week the shift touches, and never include the shift being checked (or pass its `shiftId`).
+- Atomic assign task: `checkEligibility()` now returns an `EligibilityPass` (only it can make one;
+  `isEligibilityPass()` checks). Make `RosterPlug.assign` require one, add a loader that builds the
+  rules input from the database (credentials, the role's rule, other bookings, availability,
+  settings), log office overrides with their reason, and route the Sheets sync's bookings through
+  it before `SHEETS_TRANSPORT=google` is allowed. Also lock the worker (`select ... for update` on the worker row, or an advisory
   lock) in the same transaction as the eligibility check, so two tabs can't book overlapping
   shifts past the overlap, rest or weekly-hours checks.
 - Phase 5 headcount edits: a holder in a slot above a lowered headcount makes the native
@@ -400,3 +411,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.3 | Native adapter: first-yes-wins booking on our own tables (shift lock + one conditional update), cancel evidence and reopening, 19 contract checks + 10-way race tests on the real database; 833 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.8 | Google Sheets adapter: two-way sync with a three-way merge, column mapping by header, sync job every minute on event days, one read and one batch write per sync, service-account client tested with a fake network; not live until the rules engine; 1004 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.6 | CSV/Excel import for workers, credentials and shifts: CSV and .xlsx readers with size and zip-bomb limits, columns by header name, dry run, row-numbered problems, `npm run import`; 1064 tests + 10 e2e; verified and audited DONE (round 2) (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.4 | Rules engine: pure `checkEligibility()` (started, active, role, credentials in date for the whole shift, applied allowance, overlap, rest, weekly cap, unavailable, blocked site), plain-English reasons, office overrides limited to 0 and 6-8, an eligibility pass; 1122 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

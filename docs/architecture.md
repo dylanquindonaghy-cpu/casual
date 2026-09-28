@@ -185,18 +185,25 @@ office puts in its sheet (credentials in date, golden rule 6).
 
 ## Rules engine
 
-Pure functions in `src/lib/rules/`. Input: worker, their credentials, the shift, the worker's
-other assignments, firm settings. Output: `{ ok: boolean, reasons: string[] }`.
+Pure functions in `src/lib/rules/` (`checkEligibility()`). Input: worker, their credentials, the
+shift (with its role's required credential types), the worker's other assignments, unavailable
+dates, firm settings, `now` and the firm's time zone. Output: `{ ok, reasons, codes, overridden }`
+plus an `EligibilityPass` when ok (only this function makes one; `isEligibilityPass()` checks).
+Full table of checks and test cases: `docs/rules-and-credentials.md`.
 
-Checks:
-1. Every credential the role needs is present and in date on the shift date.
-2. Firm "applied/in progress" allowance (e.g. SIA ACS firms may deploy a capped share of staff
+Checks, in order (all failures are reported):
+0. The shift hasn't started (the office may override for a late replacement).
+1. The worker's account is active.
+2. Qualification/role match.
+3. Every credential the role needs is present, valid and in date for every day the shift touches;
+   a suspended one always fails; no rule for the role fails.
+4. Firm "applied/in progress" allowance (e.g. SIA ACS firms may deploy a capped share of staff
    whose licence is in progress — cap is a firm setting; confirm current SIA rules).
-3. Qualification/role match.
-4. No overlapping assignment (including travel buffer if set).
-5. Minimum rest between shifts.
-6. Weekly hours cap.
-7. Worker not blocked for this site/client.
+5. No overlapping assignment (including travel buffer if set).
+6. Minimum rest between shifts (office may override).
+7. Weekly hours cap, in every Monday-Sunday week the shift touches (office may override).
+8. Not marked unavailable (office may override).
+9. Worker not blocked for this site/client.
 
 Credential rules are data (`credential_rules` table) per sector and role:
 

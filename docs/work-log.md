@@ -1185,3 +1185,80 @@ Full list: `docs/overnight-log.md`, this task's entry.
 3. Dry run: `npm run import -- --firm acme --kind workers --as acme.admin@example.com workers.csv`
    You should see "Dry run (nothing saved): would create 1, update 0, leave 0 unchanged, skip 0."
 4. Add `--apply` to the same command to save it. Running it again says "leave 1 unchanged".
+
+---
+
+## 2026-09-28: Phase 2, task 6: the rules engine (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (19:21 to 19:43 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=35f4a825346aeca7 e2e=true`: type checks, lint, all
+  1122 tests (up from 1064), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+The **rules engine** decides whether a worker may take a shift. It is one **pure function**
+(`checkEligibility` in `src/lib/rules/eligibility.ts`): give it the same facts and it always gives
+the same answer, and it never looks anything up itself. That makes it easy to test as a table, and
+it keeps golden rule 1: code decides, never an AI.
+
+It checks, in order, and lists every reason that applies:
+
+0. the shift hasn't started;
+1. the worker's account is active;
+2. the worker has the shift's role;
+3. every licence or card the role needs is valid and in date for the whole shift (a night shift
+   needs it until the morning); a suspended one always blocks; a role with no rule set up blocks;
+4. a licence still "applied for" counts only within the firm's small allowance;
+5. no clash with another booking (including travel time, if the firm sets one);
+6. enough rest between shifts (11 hours by default);
+7. the week's hours stay under the cap (48 by default), Monday to Sunday;
+8. not on a day the worker marked unavailable;
+9. not a site the worker is blocked from.
+
+Each reason is written for the worker, e.g. "Your SIA door supervisor licence expired on 3 Oct.
+Renew it, then send the new number to the office." The office may **override** rest, weekly hours,
+unavailability and a started shift (with a reason it logs), but never licences. When the answer is
+yes, the result includes a **pass**, a token only this function can make, which the booking code
+will require (next tasks).
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A licence must be both "valid" and in date; a suspended one always blocks | Never trust the status alone; found by the safety review: a suspended licence could slip through beside an "applied" one | Trust either |
+| In date for every day the shift touches | A night shift ending at 06:00 needs the licence after midnight (found by the review) | Only the start day |
+| Nonsense input (a missing number, a badly written date) stops with an error | It must never wave a worker through (found by the review) | Treat it as zero |
+| A new "already started" check, which the office (not the worker) can override | The booking code would otherwise book a shift after the fact; the office may need a late replacement | Leave it to each caller |
+| Weeks run Monday to Sunday in London time, counting real hours | How rotas are planned; the October clock change has a 25-hour Sunday | A rolling 7 days |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+`tests/unit/rules.table.test.ts` (58): all 19 cases in the table in
+`docs/rules-and-credentials.md`, one test each, named as in the doc; night shifts and licence
+expiry; suspended versus applied; the travel buffer; rest across the spring clock change; weeks
+across the October clock change and Sunday-night shifts; overrides only where allowed (asking to
+override a licence is refused); the pass can't be forged; the function never changes its input;
+nonsense input is refused; 500 generated cases never crash.
+
+### Parked, open, and things that need Dylan
+
+- **A question for you:** should the office be able to book someone onto a shift that has
+  already started (a late replacement)? It can now; workers can't. If not, it's a one-word change.
+- Next tasks will load the facts from the database and make booking require the pass; the Sheets
+  sync's bookings will go through it before Sheets can go live.
+- Parked in `PLAN.md`: the "applied" allowance should be per credential type (it's an SIA rule);
+  roles need display names (the "a"/"an" rule only looks at the first letter).
+
+### How to see it working
+
+Nothing on screen yet. To run the tests: `npx vitest run tests/unit/rules.table.test.ts` (the
+database must be running: `npm run db:up`). You should see "58 passed".

@@ -1019,3 +1019,32 @@ missing is a guarantee that they stay complete:
 No product code changes, so no guardrails review is needed for this task (tests and docs only).
 
 **Decisions:** none needing Dylan: this task only proves existing behaviour.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=85d3506cca296042 e2e=true` (1257 tests in 55 files, 10 e2e).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preconditions checked first:
+- `.claude/state/verified.json` = `{"ok":true,"tree":"85d3506cca296042","e2e":true,"at":"2026-09-28T21:54:40Z"}`
+- `./.claude/hooks/tree-hash.sh` = `85d3506cca296042` — matches. Proceeding.
+
+Claims (PLAN.md Phase 2 test task + "Done when" line):
+
+- **rules.table tests, every case in the doc — PROVEN.** `docs/rules-and-credentials.md:159-182` lists 19 table-driven cases. `/home/dylan/shiftdesk-starter/tests/unit/rules.table.test.ts:83-249` implements one `it(...)` per case, named after the doc row, calling the real `checkEligibility()` from `src/lib/rules/eligibility.ts` (no mocking). A dedicated meta-test, `/home/dylan/shiftdesk-starter/tests/unit/rules.doc-parity.test.ts`, parses both files and fails if any doc row lacks a matching test or any test isn't in the doc (`rules.doc-parity.test.ts:34-52`). All 24 assertions (19 cases + 3 meta + 2 more) pass in `.claude/state/test.log:4-24`.
+
+- **assign.race: double-assign impossible under a race — PROVEN.** `/home/dylan/shiftdesk-starter/tests/integration/assign.race.test.ts` uses real Postgres connections (`appRolePool`), a genuine multi-connection barrier (`tests/helpers/race.ts:9-35`) so transactions truly overlap, and calls the production `bookShift()` (`src/lib/roster/book.ts:143`). The underlying atomic assign is a single conditional `UPDATE ... WHERE ... worker_id is null ... status = 'open' ... RETURNING` (`src/lib/roster/native.ts:191-202`) — exactly golden rule 4. Tests cover 1-of-10 and 3-of-10 races, one worker double-booking, overlapping shifts, weekly-cap race, applied-allowance race, and double-cancel race. All pass: `.claude/state/test.log:289-292` (full file, 8 tests, all green per `.claude/state/vitest.json`).
+
+- **sheets.sync: a seeded Sheet syncs both ways — PROVEN.** `/home/dylan/shiftdesk-starter/tests/integration/sheets.sync.test.ts` (966 lines) tests the real `syncSheet()` (`src/lib/roster/sheets/sync.ts`, 686 lines, no stubs/TODOs) and `sheetsRosterPlug()` against an in-memory fake of the Google Sheets *client* boundary only (`tests/helpers/fake-sheets.ts` — a legitimate fake of the external API, not a mock of the sync logic under test). Sections cover sheet-into-tables (`sheets.sync.test.ts:265-459`) and tables-back-into-sheet (`:460+`), including conflict merges, stale-write retries, and race-safe leases, verified against real DB rows via direct SQL queries. 55 tests total in this file, all pass (`.claude/state/test.log:45-99`).
+
+Fakes found: none. No `.only`/`.skip`/`.todo` anywhere (`grep` across all four files returned nothing); confirmed globally by `.claude/state/invariants.log`: "ok: no .only/.skip/.todo in tests" and "1257 tests: 1257 passed, 0 failed, 0 skipped, 0 todo". `vitest.json` independently confirms `numFailedTests:0, numPendingTests:0, numTodoTests:0` across 279 suites / 1257 tests.
+
+To reach DONE: nothing — already DONE.
+```
+
+**Ticked** in PLAN.md. **Phase 2 is complete.** **Hours:** 0.1 (21:50 to 21:56 UTC). Phase 2 in
+total: 5.0 h of its 30–40 h estimate (well under, not over).
+**Commit:** `9673147`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

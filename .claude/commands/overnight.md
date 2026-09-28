@@ -30,9 +30,9 @@ delivers **one** task from `PLAN.md`, end to end, then schedules the next run. E
 
 ## One run
 
-1. `git status` and `git branch --show-current`. If not on `build/overnight`, switch to it. If
-   the tree has uncommitted work from an earlier run, read the decision log to see where it
-   stopped and finish that task first.
+1. Note the start time (`date -u +%FT%TZ`). `git status` and `git branch --show-current`. If
+   not on `build/overnight`, switch to it. If the tree has uncommitted work from an earlier run,
+   read the decision log to see where it stopped and finish that task first.
 2. Pick the first unchecked `[ ]` task in the earliest unfinished phase of `PLAN.md` (skip
    ones the decision log marks blocked). If none is left in the current phase, move to the next
    phase. If every phase is done or blocked, write the morning summary and stop the loop.
@@ -43,19 +43,37 @@ delivers **one** task from `PLAN.md`, end to end, then schedules the next run. E
    everything under FIX FIRST, and anything else that's cheap.
 6. `/close-task` exactly as written, with `RUN_E2E=1 ./scripts/verify.sh`. At most 3 audit
    rounds. If still NOT DONE after 3: don't tick, record what's open in the decision log, commit
-   the work as `WIP: <task> (not verified)`, push, and **stop the loop** (golden rule 13).
-7. On DONE (task ticked): `git add -A`, commit `<Phase N>: <task>` with the auditor's verdict
-   line in the body, then `timeout 60 git push origin build/overnight`. If the push fails
+   the work as `WIP: <task> (not verified)` (hours logged too), push, and **stop the loop**
+   (golden rule 13).
+7. On DONE (task ticked): log the hours (see "Hours and work log"), then `git add -A`, commit
+   `<Phase N>: <task>` with the auditor's verdict line in the body, then
+   `timeout 60 git push origin build/overnight`. If the push fails
    (no credentials, no network), keep the commit, note it in the log and carry on: never set
    up credentials, change git config or retry in a loop. If `gh` is installed, note the CI run
    (`gh run list --branch build/overnight --limit 1`) without waiting for it, and if an earlier
    run's CI failed, fix that first in this run.
 8. Append the task's entry to the decision log. Schedule the next run (ScheduleWakeup, 60s).
 
+## Hours and work log (Dylan asked for this: he doesn't log hours himself)
+
+- **Hours:** end time minus the start time from step 1, to one decimal. Add a row to the
+  "Hours log" table at the bottom of `PLAN.md`: date, phase, hours, one-line summary ending
+  with `(see docs/work-log.md)`. Then total each phase and compare with its estimate in
+  `PLAN.md`; if a phase is more than 30% over, say so in the decision log.
+- **In-depth note:** append a section to `docs/work-log.md` (newest at the bottom), written in
+  plain English for someone new to programming: short sentences, and a few words explaining
+  each technical term the first time it appears. Per task: time spent; the result (verify line,
+  test totals, auditor verdict, commit, pushed or not); what was built, in plain words, then the
+  key facts and numbers; decisions made (table: decision, why, what else was considered); what
+  the new tests prove; what's parked or needs Dylan; how to see it working, if there's anything
+  to see. Only claims you can point to in the code, tests or docs.
+
 ## Decision log
 
 `docs/overnight-log.md`, newest at the bottom. Per task: date/time, task text, plan, every
 decision Dylan would normally have approved (with the reason and the alternative), guardrails
 findings and fixes, verify line, auditor verdict (verbatim), commit hash, CI run, anything
-parked. At the end: a "Morning summary" section - what's done, what's blocked and why, what
-needs Dylan (decisions to confirm, accounts to create, things to check by hand).
+parked. At the end: a "Morning summary" section - what's done, hours per phase against the
+estimates, what's blocked and why, what needs Dylan (decisions to confirm, accounts to create,
+things to check by hand). Write it for a beginner: if Dylan must do something, give numbered
+steps saying exactly what to type or click and what he should see.

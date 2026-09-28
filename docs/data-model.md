@@ -11,9 +11,11 @@ without RLS, so a plain `worker_id → workers(id)` would let Firm A point a row
 worker. Links to `firms(id)` itself are plain: the policy's `WITH CHECK` pins `firm_id`.
 
 **Exceptions to "every table has firm_id":** the `drizzle` schema (migration history, owner only)
-and the `pgboss` schema (library-owned job queue). pgboss has no RLS on its own tables, so job
-payloads carry ids only, never names, numbers, tokens or codes; the app role may only insert jobs
-for its own firm (see architecture.md, Tenancy).
+and the `pgboss` schema (library-owned job queue). The jobs role owns the pgboss tables, so the
+worker's queue connection isn't firm-restricted inside the queue: job payloads carry ids only,
+never names, numbers, tokens or codes. `pgboss.job_common` has RLS enabled (not forced) with two
+policies for the app role only, so the web may only insert jobs for its own firm (see
+architecture.md, Tenancy).
 
 ## Tables at a glance
 

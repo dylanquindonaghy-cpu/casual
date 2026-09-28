@@ -7,8 +7,9 @@ import { log, type Logger } from "../log";
 // Firm jobs: every payload extends this envelope, and every handler runs inside
 // withFirm(payload.firmId), so RLS scopes all of its work to that firm.
 //
-// Payloads and handler outputs carry ids only. pgboss tables have no RLS, so never put a phone
-// number, email, name, token or code in either. Tokens and codes are generated inside the job.
+// Payloads and handler outputs carry ids only. The jobs role owns the pgboss tables and isn't
+// firm-restricted there (job_common's RLS binds only the app role), so never put a phone number,
+// email, name, token or code in either. Tokens and codes are generated inside the job.
 
 export const firmJobEnvelope = z.object({
   firmId: z.uuid(),

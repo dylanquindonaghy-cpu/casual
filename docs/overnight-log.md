@@ -22,8 +22,12 @@ don't stop the build; commit and push per task on `build/overnight`.
 - verify.sh: `VERIFIED tree=7c0303e01c7dc68b e2e=true` (31 files, 595 tests)
 - claims-auditor: `VERDICT: DONE`
 - Commit: `cef6425 Phase 1: tenancy, data model, login` on `build/overnight`
-- Push: **failed**, WSL git has no GitHub credentials (`could not read Username`). The commit is
-  local only until Dylan sets up credentials and pushes.
+- Push: first attempt **failed** (`could not read Username`): git's credential helper path had an
+  unescaped space in "Program Files". Fixed on 2026-09-28 (the helper path is now escaped) and
+  `build/overnight` pushed to GitHub. Pushes from WSL now work through the Windows credential
+  manager.
+- Hours: Phase 1 took 4.5 h (0.6 h proposal, 3.9 h build); logged in `PLAN.md` with the in-depth
+  note in `docs/work-log.md`. From now on each task logs its own hours the same way.
 - Decision: after 3 failed audit rounds on a task, the loop stops (golden rule 13) rather than
   skipping to the next task. Tasks it can't finish without a real outside service are recorded
   as blocked and skipped, not stopped on.

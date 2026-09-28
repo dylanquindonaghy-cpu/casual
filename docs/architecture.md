@@ -59,7 +59,8 @@ mornings). Reliability matters far more than scale.
   worker runs each handler inside `withFirm(payload.firmId)`. The web queues a job inside its own
   `withFirm` transaction (`sendFirmJob`), taking `firmId` from that transaction. An RLS policy on
   `pgboss.job_common` rejects any job whose `firmId` isn't the current firm, so the web can't
-  start work in another firm. Payloads carry ids only (pgboss tables have no RLS).
+  start work in another firm. That RLS is enabled but not forced and binds only the app role;
+the jobs role owns the pgboss tables and isn't firm-restricted there, so payloads carry ids only.
 - Tests (all as `shiftdesk_app`): every table's catalogue entry (`rls.every-table`), Firm A
   can't read, change, insert into or point at Firm B's rows with a control showing Firm B can
   (`tenancy.isolation`), the same probes catch a deliberately broken policy (`rls.mutation`),

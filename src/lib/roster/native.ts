@@ -269,3 +269,18 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
     },
   };
 }
+
+// Keeps an open or filled shift's status true to its slots after its headcount changed (a sheet
+// sync, an import): filled when every place within the headcount is held, else open. Draft and
+// cancelled shifts are left alone. Inside the caller's withFirm transaction.
+export async function refreshShiftStatus(tx: FirmTx, shiftId: string): Promise<void> {
+  await tx.execute(sql`
+    update shifts s set status = case
+        when (select count(*) from assignments a
+               where a.shift_id = s.id and a.worker_id is not null
+                 and a.status not in ${CANCELLED}
+                 and a.slot <= s.headcount) >= s.headcount
+        then 'filled' else 'open' end
+     where s.id = ${shiftId} and s.status in ('open', 'filled')
+  `);
+}

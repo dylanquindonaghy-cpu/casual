@@ -4,16 +4,15 @@ import {
   assignments,
   CANCELLED_ASSIGNMENT_STATUSES,
   firms,
-  magicLinks,
   rosterSources,
-  sessions,
   shifts,
   sites,
   workers,
 } from "../../db/schema";
 import type { FirmTx, WithFirm } from "../../db/scoped";
 import { recordEvent } from "../../events/record";
-import { sheetsRosterPlug } from "../native";
+import { refreshShiftStatus, sheetsRosterPlug } from "../native";
+import { upsertWorker } from "../workers";
 import { noticeHours } from "../notice";
 import { cellRange, columnRange, tabRange } from "./a1";
 import { SheetsError, type SheetsClient } from "./client";
@@ -26,7 +25,6 @@ import {
   type ParsedSheet,
   type SheetProblem,
   type SheetShift,
-  type SheetStaff,
 } from "./parse";
 
 // One sync of a firm's Google Sheet with our mirror of it (docs/architecture.md, Roster plugs;
@@ -301,77 +299,6 @@ const system = (action: string, entityType: string, entityId: string, data: obje
   data: { source: "sheets", ...data },
 });
 
-// The worker fields the sheet owns.
-const pick = {
-  firstName: workers.firstName,
-  lastName: workers.lastName,
-  mobileE164: workers.mobileE164,
-  roles: workers.roles,
-  status: workers.status,
-};
-
-// Staff: by the sheet's staff id; a worker who exists here with the same mobile and no staff id
-// yet (e.g. from a CSV import) is linked rather than duplicated. Every change is logged by field
-// name (never values). A worker the office blocked here stays blocked whatever the sheet says, and
-// a changed mobile signs the worker out everywhere (login goes by mobile number).
-async function mirrorStaff(tx: FirmTx, person: SheetStaff, now: Date): Promise<void> {
-  const fields = {
-    firstName: person.firstName,
-    lastName: person.lastName,
-    mobileE164: person.mobileE164,
-    roles: person.roles,
-    status: person.status,
-  };
-  const [byRef] = await tx
-    .select({ ...pick, id: workers.id })
-    .from(workers)
-    .where(eq(workers.externalRef, person.ref));
-  const [byMobile] = byRef
-    ? []
-    : await tx
-        .select({ ...pick, id: workers.id })
-        .from(workers)
-        .where(and(eq(workers.mobileE164, person.mobileE164), isNull(workers.externalRef)));
-  const existing = byRef ?? byMobile;
-  if (!existing) {
-    const [added] = await tx
-      .insert(workers)
-      .values({ firmId: sql`app_current_firm_id()`, ...fields, externalRef: person.ref })
-      .returning({ id: workers.id });
-    if (added) await recordEvent(tx, system("worker.added", "worker", added.id, {}));
-    return;
-  }
-  const next = { ...fields, status: existing.status === "blocked" ? "blocked" : fields.status };
-  const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) =>
-    k === "roles" ? existing.roles.join(",") !== next.roles.join(",") : existing[k] !== next[k],
-  );
-  if (changed.length === 0 && byRef) return;
-  await tx
-    .update(workers)
-    .set(byRef ? next : { ...next, externalRef: person.ref })
-    .where(eq(workers.id, existing.id));
-  let signedOut = 0;
-  if (changed.includes("mobileE164")) {
-    const revoked = await tx
-      .update(sessions)
-      .set({ revokedAt: now })
-      .where(and(eq(sessions.workerId, existing.id), isNull(sessions.revokedAt)))
-      .returning({ id: sessions.id });
-    await tx
-      .update(magicLinks)
-      .set({ usedAt: now })
-      .where(and(eq(magicLinks.workerId, existing.id), isNull(magicLinks.usedAt)));
-    signedOut = revoked.length;
-  }
-  await recordEvent(
-    tx,
-    system(byRef ? "worker.updated" : "worker.linked", "worker", existing.id, {
-      fields: changed,
-      ...(signedOut > 0 ? { sessionsRevoked: signedOut } : {}),
-    }),
-  );
-}
-
 async function mirror(
   tx: FirmTx,
   sheet: ParsedSheet,
@@ -383,7 +310,20 @@ async function mirror(
 
   for (const person of sheet.staff) {
     try {
-      await tx.transaction((sp) => mirrorStaff(sp, person, now));
+      await tx.transaction((sp) =>
+        upsertWorker(
+          sp,
+          {
+            ref: person.ref,
+            firstName: person.firstName,
+            lastName: person.lastName,
+            mobileE164: person.mobileE164,
+            roles: person.roles,
+            status: person.status,
+          },
+          { source: "sheets", actor: { type: "system" }, now },
+        ),
+      );
     } catch (err) {
       if (!isUniqueViolation(err)) throw err;
       problems.push({ tab: "staff", row: person.row, problem: "duplicate_mobile" });
@@ -400,10 +340,12 @@ async function mirror(
 
   const siteNames = [...new Set(sheet.shifts.flatMap((s) => (s.siteName ? [s.siteName] : [])))];
   for (const name of siteNames) {
-    await tx
+    const [added] = await tx
       .insert(sites)
       .values({ firmId: sql`app_current_firm_id()`, name })
-      .onConflictDoNothing({ target: [sites.firmId, sites.name] });
+      .onConflictDoNothing({ target: [sites.firmId, sites.name] })
+      .returning({ id: sites.id });
+    if (added) await recordEvent(tx, system("site.created", "site", added.id, {}));
   }
   const siteIds = new Map(
     (await tx.select({ id: sites.id, name: sites.name }).from(sites)).map((s) => [s.name, s.id]),
@@ -528,17 +470,8 @@ async function mirror(
         .where(eq(shifts.id, shiftId));
     }
 
-    // The sheet may have changed the headcount: keep open / filled true to the slots (counting
-    // only slots within the headcount, as the plug does).
-    await tx.execute(sql`
-      update shifts s set status = case
-          when (select count(*) from assignments a
-                 where a.shift_id = s.id and a.worker_id is not null
-                   and a.status not in ${sql.raw(`(${CANCELLED_ASSIGNMENT_STATUSES.map((c) => `'${c}'`).join(", ")})`)}
-                   and a.slot <= s.headcount) >= s.headcount
-          then 'filled' else 'open' end
-       where s.id = ${shiftId} and s.status in ('open', 'filled')
-    `);
+    // The sheet may have changed the headcount: keep open / filled true to the slots.
+    await refreshShiftStatus(tx, shiftId);
   }
 
   return { writes, booked, cancelled, notBooked, problems };

@@ -448,3 +448,139 @@ Google service account (Dylan, parked with steps) and the rules engine (next Pha
 
 **Commit:** `3717d73 Phase 2: Google Sheets adapter ...` on `build/overnight`. **Push:** succeeded.
 **CI:** not checked (`gh` isn't installed here).
+
+## 2026-09-28 18:43 UTC: Phase 2, "CSV/Excel import for workers, credentials and shifts"
+
+**Plan.** `src/lib/imports/`: `table.ts` (a file's bytes to rows, with size and row limits; CSV or
+.xlsx by content), `csv.ts` (RFC 4180 CSV: quotes, embedded newlines, BOM, comma/semicolon/tab),
+`xlsx.ts` (a small .xlsx reader on Node's zlib: first sheet, shared and inline strings, numbers,
+Excel dates to dd/mm/yyyy and HH:mm; zip-bomb and size guards), `columns.ts` (header names and
+aliases per kind), `import.ts` (`runImport`: validates every row at the boundary, then creates or
+updates workers, credentials or shifts in the caller's `withFirm` transaction, logs each change,
+reports skipped rows by row number and code). A dry run does exactly the same inside a savepoint
+and rolls it back, so the preview can't differ from the real thing. Worker create/update logic
+moves out of the Sheets sync into `src/lib/roster/workers.ts`, shared by both. `scripts/import.ts`
+(`npm run import`) lets an admin import a file for a firm from the terminal (dry run unless
+`--apply`) until the office screens exist (Phase 5).
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Read .xlsx with our own ~200-line reader on Node's zlib, tested against files written by `exceljs` (a dev-only dependency) | No new runtime dependency parsing untrusted uploads; strict limits (5 MB file, 20 MB unpacked, 5,000 rows); the tests use an independent writer, so the reader isn't graded by itself | `exceljs` or SheetJS at runtime (large dependency trees; SheetJS's npm build is outdated) |
+| Old binary .xls files are refused with "save as .xlsx or .csv" | Rare now, and a whole second parser | Support them |
+| Columns found by header text with common aliases (Mobile / Phone / Mobile number; Expires / Expiry date...) | Firms' spreadsheets name things differently | Fixed column order |
+| Workers: matched by Staff ID if given, else by mobile; same rules as the Sheets sync (blocked stays blocked, a changed mobile signs the worker out), one shared function | One behaviour for every way workers arrive | Separate import rules |
+| Credentials: matched by worker (Staff ID or mobile) and type; an existing one of that type is updated, else created. Imported credentials are not marked verified | The office verifies separately (docs/screens.md) | Always insert (duplicates on re-import) |
+| Shifts: key = the file's Shift ID, or one derived from site, role and times when there's none, so importing the same file twice updates rather than duplicates | Offices rarely have shift ids | Always insert |
+| A shift with live bookings can't have its times, role or a lower headcount changed by an import (the row is skipped and reported) | A firm-initiated move must be logged per worker with notice (golden rule 12); that belongs to the office's edit screen (Phase 5) | Apply and log moves from the import |
+| Excel numbers that look like a UK mobile without its leading 0 (7700900123) get the 0 back | Excel strips leading zeros from numbers typed into a cell | Reject them |
+| Skipped rows reported by row number and a code only, never their contents | They can hold names and numbers, and results are logged | Echo the bad value |
+
+**Built.** `src/lib/imports/` (errors, csv, xlsx, table, columns, import, messages, from-file),
+`src/lib/roster/workers.ts` (`upsertWorker`, now also used by the Sheets sync),
+`refreshShiftStatus()` in `src/lib/roster/native.ts` (shared by sync and import),
+`scripts/import.ts` (`npm run import`), `exceljs@4.4.0` as a dev dependency (production audit
+clean; its `uuid` brings 2 moderate dev-only advisories, parked). Tests:
+`tests/unit/imports.files.test.ts` (38), `tests/integration/imports.test.ts` (22). A hand-run dry
+run against the local Acme demo firm printed the summary and saved nothing.
+
+**Guardrails review** (`guardrails-reviewer`): verdict FIX FIRST, three data-integrity bugs, each
+reproduced by the reviewer. All fixed with tests:
+
+- F1: a workers file without Staff IDs imported only its first row (every row shared the same
+  "no id" key). **Fixed** (the Staff ID key only when there is one) + a 3-row test.
+- F2: a credentials re-import reset a suspended credential to valid and wiped number and expiry
+  when those cells were blank. **Fixed**: on update, blank or missing cells leave fields alone;
+  `valid` is the default only for new credentials; an expired one given a new future expiry is a
+  renewal (rules doc); an explicit Status cell applies as written (the office's decision). Tests.
+- F3: lowering a booked shift's headcount could leave a booking above the headcount. **Fixed**:
+  any headcount decrease on a shift with live bookings is refused (as the decision table said);
+  runbook and copy corrected. Test with the booking in slot 2.
+- S1: a tiny .xlsx could exhaust memory (a cell at column XFD on 8,000 rows) or stall on
+  unclosed tags. **Fixed**: columns and rows are counted while reading (empty formatting rows
+  skipped), the XML scanning is indexOf-based (linear), attribute text is capped. Tests.
+- S2: `&#99999999;` threw a raw error; `&#0;` made a NUL Postgres refuses. **Fixed**: out-of-range
+  references are `bad_xlsx`, control characters dropped. Tests.
+- S3: the script could print a database error quoting a row. **Fixed**: unknown errors print a
+  code only ("The import failed (23505). Nothing was saved.").
+- S4: terminal imports were logged as the office user. **Fixed**: their events carry
+  `via: "cli"`. Test.
+- S5: shifts already started could be created or reopened. **Fixed**: `shift_started` problem for
+  new or changed started shifts. Test.
+- Notes: a unique violation is `duplicate_mobile` only for the workers' mobile key (else
+  `duplicate_row`); `site.created` events (import and Sheets sync) and `verificationCleared` on
+  credential updates; cross-firm tests for credentials, shift ids and sites; the runbook warns that
+  a shift file without ids treats a changed time as a new shift. Parked: one transaction per file
+  on the web, CSV vs Sheets ownership of worker fields, zod for row checks.
+
+**Verify:** `VERIFIED tree=d365b50cb322d78c e2e=true` (1064 tests, 10 e2e), first full run.
+
+**claims-auditor, round 1, verbatim:**
+
+```
+VERDICT: NOT DONE (task not yet closed — but implementation and tests are solid; see below)
+
+Note on process: PLAN.md line 110 `- [ ] CSV/Excel import for workers, credentials and shifts` is still unchecked, and there is no Hours-log entry for it (last entry, PLAN.md:401, is for the prior Sheets-adapter task). Per CLAUDE.md, a task counts as done only once `/close-task` ticks it after verify + audit. Since it hasn't been ticked/logged, the correct verdict at this moment is NOT DONE on process grounds, even though the underlying work looks complete and well-tested. If the intent was "is the work itself complete and provable," see the claim-by-claim evidence below — all PROVEN.
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"d365b50cb322d78c","e2e":true,"at":"2026-09-28T19:11:55Z"}`; `./.claude/hooks/tree-hash.sh` → `d365b50cb322d78c` (matches, including uncommitted changes — the hook hashes `git diff HEAD` + untracked files). Verify did pass on the current tree.
+
+Claims:
+- Import workers from CSV/Excel — PROVEN. Code: `src/lib/imports/import.ts:214-255` (matches by Staff ID or mobile, snake_case roles via `normaliseRole`, blank fields left alone), shared `upsertWorker()` in `src/lib/roster/workers.ts:55-142`. Tests: `tests/integration/imports.test.ts:252-257` (creates, dedupes on re-import, leaves blank fields alone, skips bad rows, dry run writes nothing) — all pass per `.claude/state/test.log:252-257`.
+- Import credentials from CSV/Excel — PROVEN. Code: `src/lib/imports/import.ts:257-339` (find by Staff ID/mobile, type uppercased, renewal logic, never resets a suspended credential or wipes a value). Tests: `imports.test.ts` "importing credentials" block; log lines 258-261, 268-269 pass.
+- Import shifts from CSV/Excel — PROVEN. Code: `src/lib/imports/import.ts:342-438` (dedupe by Shift ID or site/role/time hash, keeps times/role/headcount-floor when booked, refuses started shifts). Tests: log lines 262-264, 270-271 pass.
+- Handles both CSV and true Excel (.xlsx) — PROVEN. `src/lib/imports/csv.ts` (delimiter sniffing, quoting, CRLF, BOM) and `src/lib/imports/xlsx.ts` (own zip/XML reader: dates, 1904 system, zip-bomb/size/row/column limits, encrypted-part and hostile-workbook refusals). Tests: `tests/unit/imports.files.test.ts`, verified against files written by the independent `exceljs` library (not self-mocked) — log lines 515-552, all pass.
+- Tenant isolation on import — PROVEN. `imports.test.ts:214-224` "an import into one firm never touches another firm's worker with the same mobile"; `:654` "another firm's staff IDs, shift IDs and site names are separate" — both pass (log 257, and the later line for 654 also shows passing in the full log).
+- Every change logged as an event (golden rule 5) — PROVEN. `recordEvent()` calls at `import.ts:152-165` (`import.completed`), `:207` (`site.created`), `:313`/`:333` (`credential.added`/`updated`), `:408`/`:436` (`shift.created`/`changed`), `workers.ts:102`/`:137` (`worker.added`/`updated`/`linked`). Dry run confirmed to write zero events (`imports.test.ts:202-212`).
+- Terminal import path (`npm run import`) works end-to-end against a real DB as a real office user, dry-run by default — PROVEN. `scripts/import.ts`, `src/lib/imports/from-file.ts` (uses `withFirm`, requires an active admin/resourcer). Test: log line 266 "imports a file for a firm as one of its office users: a dry run first, then --apply" — pass.
+- Docs updated to describe the feature — PROVEN. `docs/architecture.md:155` describes `readTable()`/`runImport()` matching the implementation.
+
+Fakes found: none. No `.only`/`.skip`/`TODO`/`not implemented` in `src/lib/imports/`, `src/lib/roster/workers.ts`, `scripts/import.ts`, or the two new test files (grep confirmed empty). `.claude/state/invariants.log` also confirms "no .only/.skip/.todo in tests" and "1064 tests: 1064 passed, 0 failed, 0 skipped, 0 todo". Excel round-trip is checked against an independent writer (exceljs), not a self-consistent mock.
+
+To reach DONE:
+1. Run `/close-task` (or otherwise tick PLAN.md line 110 and add an Hours-log row) now that verify.sh and this audit confirm the code and tests are real and passing — the only missing piece is that the task hasn't actually been closed/logged yet.
+```
+
+Round 1's only open item was the tick itself, which the process allows only after a DONE
+verdict. I did not tick on a NOT DONE. I re-ran the auditor unchanged (same inputs, same files,
+same verified tree) as round 2.
+
+**claims-auditor, round 2, verbatim:**
+
+```
+VERDICT: DONE
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"d365b50cb322d78c",...}`; `./.claude/hooks/tree-hash.sh` = `d365b50cb322d78c`. Match, ok:true. Proceeding.
+
+Claims (task: "CSV/Excel import for workers, credentials and shifts"):
+
+- **File reading: CSV and .xlsx, with size/row/column/zip-bomb guards** — PROVEN. Code: `src/lib/imports/table.ts:9-33`, `src/lib/imports/csv.ts` (RFC4180 parser, delimiter sniffing), `src/lib/imports/xlsx.ts` (hand-rolled zip/XML reader, zip-bomb caps via `MAX_UNPACKED_BYTES`). Tests: `tests/unit/imports.files.test.ts` — `parseCsv`, `readTable`, `readXlsx (files written by exceljs)`, `readXlsx guards` describe blocks, all passing per `.claude/state/test.log:515-532` (e.g. "refuses too many rows", "refuses an old binary .xls", "refuses a part that unpacks past the limit, even when its declared size lies"). Notably tests use `exceljs` (an independent writer) to generate the xlsx fixtures, not the code under test — a real cross-check, not a self-referential mock.
+
+- **Import workers (by Staff ID or mobile, upsert, idempotent, partial-field updates)** — PROVEN. Code: `src/lib/imports/import.ts:214-255`, shared `upsertWorker` in `src/lib/roster/workers.ts`. Tests: `tests/integration/imports.test.ts` "importing workers" block, e.g. "creates workers, with column aliases, UK number formats and roles in snake_case", "importing the same file again changes nothing; a changed row updates by Staff ID, or by mobile without one", "a column the file doesn't have, or a blank email or status, leaves that field alone" — all passing (`test.log:252-257`).
+
+- **Import credentials (find worker, create/update, never wipe/un-suspend, renewal logic)** — PROVEN. Code: `import.ts:257-339`. Tests: "importing credentials" block + "re-importing credentials never resets a suspended one or wipes a number or expiry" and "an expired credential given a new future expiry (and no status) is a renewal: valid again" — all passing (`test.log:258-261,269`).
+
+- **Import shifts (dedupe by ref or site/role/time key, protect booked/started shifts)** — PROVEN. Code: `import.ts:342-438`. Tests: "importing shifts" block, "a booked shift's headcount can't go down, even when the booking sits in a higher slot", "shifts that have already started are never created or changed by an import" — all passing (`test.log:262-264,270-271`).
+
+- **Tenant isolation for imports** — PROVEN. Test: "an import into one firm never touches another firm's worker with the same mobile" (`tests/integration/imports.test.ts:214-224`) and "another firm's staff IDs, shift IDs and site names are separate" (`:654-672`) — real cross-firm DB assertions, both passing (`test.log:257,273`).
+
+- **Dry run (preview = savepoint rollback, writes nothing)** — PROVEN. Code: `import.ts:169-179` (`DryRun` class thrown inside a nested transaction, caught and rolled back). Test: "a dry run reports exactly what would happen and writes nothing, not even events" — passing (`test.log:256`).
+
+- **Every change logged (golden rule 5), by field name not value** — PROVEN. Code: `recordEvent` calls throughout `import.ts` and `workers.ts` (e.g. `import.ts:152-165`, `workers.ts:126-129`, logging `fields: changed` not values). Test: "sites created by an import are logged, and an import run from the terminal says so" — passing (`test.log:272`).
+
+- **CLI entry point (`npm run import`, dry-run-first, `--apply`)** — PROVEN. Code: `scripts/import.ts`, `src/lib/imports/from-file.ts`; `package.json:27` wires `"import"` script. Test: "importFromFile (npm run import) > imports a file for a firm as one of its office users: a dry run first, then --apply" — passing (`test.log:266`).
+
+- **Docs updated** — PROVEN. `docs/architecture.md:155` adds a full CSV/Excel row describing `src/lib/imports/`; `docs/runbooks.md:105-123` adds an operator runbook section; `docs/api-and-jobs.md:37` references `importCsv`.
+
+Full-suite state: `.claude/state/invariants.log` — "no .only/.skip/.todo in tests"; "1064 tests: 1064 passed, 0 failed, 0 skipped, 0 todo"; "every test ran and passed". `tree-hash.sh` includes untracked files (`git diff HEAD` + `git ls-files --others`), so the verified stamp genuinely covers the new `src/lib/imports/`, `scripts/import.ts`, `src/lib/roster/workers.ts` and test files, not a stale run.
+
+Fakes found: none. No `.only`/`.skip`, no `TODO`/`not implemented`, no hardcoded returns found in `src/lib/imports/*.ts`, `scripts/import.ts`, or the two test files. Unit tests cross-check against an independent xlsx writer (exceljs) rather than mocking the reader itself.
+
+Note (context, not a blocker for this task): the Phase 2 bullets below this one in `PLAN.md` (Rules engine, credential packs, expiry scan, atomic assign, `rules.table`/`assign.race`/`sheets.sync` tests) are still unchecked, so the Phase-level "Done when" (rules tests pass; Sheet syncs both ways; double-assign impossible under a race) is not yet satisfied — but that is separate, still-pending work, not part of the CSV/Excel import task audited here.
+
+To reach DONE: nothing — this task's claims are all PROVEN on the current, verified tree.
+```
+
+**Ticked** in `PLAN.md` after the round-2 DONE verdict.
+
+**Hours:** 0.6 h (18:43 to 19:18 UTC). Phase 2 so far: 2.6 h of the 30-40 h estimate.

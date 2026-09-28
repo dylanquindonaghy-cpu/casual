@@ -1099,3 +1099,89 @@ Full list: `docs/overnight-log.md` and ADR-013 in `docs/decisions.md`.
 Nothing on screen yet, and no real sheet can sync. To run the tests:
 `npx vitest run tests/integration/sheets.sync.test.ts` (with `npm run db:up` running). You
 should see "49 passed".
+
+---
+
+## 2026-09-28: Phase 2, task 5: CSV and Excel import (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (18:43 to 19:18 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=d365b50cb322d78c e2e=true`: type checks, lint, all
+  1064 tests (up from 1004), the 10 browser tests and the rule checks passed.
+- The independent auditor said `VERDICT: NOT DONE` on round 1, only because the task wasn't ticked
+  yet (every claim was PROVEN), and `VERDICT: DONE` on round 2 with the same files.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+Firms keep lists of staff, licences and shifts in spreadsheets and email them around. This task
+lets ShiftDesk read those files and load them in:
+
+- **Two file types.** A **CSV** file (plain text, one row per line, commas between cells; Excel in
+  some countries uses semicolons, which also work) or an **Excel workbook** (.xlsx). An old .xls
+  file gets a clear message: save it as .xlsx or .csv.
+- **Columns by name.** The first row must be headers, and common names are understood ("Mobile",
+  "Phone" or "Mobile number"; "Expiry" or "Expiry date"...), in any order.
+- **Three kinds:** workers, credentials (licences and cards) and shifts.
+- **Safe to repeat.** Importing the same file twice changes nothing the second time. A worker is
+  matched by Staff ID if the file has one, otherwise by mobile number.
+- **Try first.** A **dry run** does the whole import, reports what would happen, then undoes it,
+  so the preview can never differ from the real thing.
+- **Clear reports.** Rows that can't be used are skipped and listed by row number with a plain
+  reason ("Row 4: the mobile number isn't a phone number we can read"), never by what was in them.
+- **Evidence.** Every change is logged with the office user who ran the import.
+- **Until the office screen exists** (Phase 5), an admin can run it from the terminal with
+  `npm run import`.
+
+Key facts: files up to 5 MB and 5,000 rows; the Excel reader is about 250 lines using Node's
+built-in unzip, with limits against "zip bombs" (tiny files that unpack to gigabytes); the same
+worker rules as the Google Sheets sync (one shared function).
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Our own small Excel reader, tested against files made by a well-known library (`exceljs`, used by the tests only) | No large new library parsing files people upload; the tests don't grade the reader against itself | A big spreadsheet library at runtime |
+| A blank cell leaves a field as it is | A re-import must never wipe a licence's expiry or un-suspend it (found by the safety review) | Blank means "clear it" |
+| A booked shift's times and role can't change by import, and its headcount can't go down | Moving a booked shift must be logged per worker with notice (golden rule 12): the office's shift editor (Phase 5) | Apply the change and log it |
+| Shifts that have started can't be imported or changed | History isn't rewritten (same rule as the Sheets sync) | Allow it |
+| Leading zeros Excel removed from mobiles (7700900123) are put back | Excel does that to numbers typed in a cell | Reject those rows |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/unit/imports.files.test.ts` (38): CSV quirks (quotes, line breaks inside cells, BOM,
+  semicolons, tabs); Excel files made by `exceljs` with text, numbers, TRUE/FALSE, formulas,
+  dates, times and the 1904 date system; size, row and column limits; hostile files (zip bombs,
+  a lying size, encrypted parts, unclosed tags, a cell at column XFD, odd character codes) refused
+  quickly.
+- `tests/integration/imports.test.ts` (22), on the real database: workers, credentials and shifts
+  created and updated; a second import changes nothing; bad rows reported by number; a dry run
+  writes nothing, not even log entries; a file with no Staff IDs imports every row; a suspended
+  licence stays suspended; a renewal makes an expired licence valid; booked and started shifts
+  protected; another firm's data untouched; the terminal command end to end.
+
+### Parked, open, and things that need Dylan
+
+- **Please read the decision table** in `docs/overnight-log.md` (this task's entry).
+- The office upload screen is Phase 5 (it will use the same code and wording). Pay records
+  import (Phase 3/6) will add a kind to the same importer.
+- `exceljs` brings two moderate warnings into `npm audit` for development tools only; the app's
+  own dependencies have none.
+
+### How to see it working
+
+1. Start the database (`npm run db:up`) and make sure the demo data is loaded (`npm run db:seed`).
+2. Make a small file, e.g. `workers.csv`, with fake data:
+   ```
+   First name,Last name,Mobile,Roles
+   Dora,Demo,07700 900199,steward
+   ```
+3. Dry run: `npm run import -- --firm acme --kind workers --as acme.admin@example.com workers.csv`
+   You should see "Dry run (nothing saved): would create 1, update 0, leave 0 unchanged, skip 0."
+4. Add `--apply` to the same command to save it. Running it again says "leave 1 unchanged".

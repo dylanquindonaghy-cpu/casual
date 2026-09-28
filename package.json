@@ -23,7 +23,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
     "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts",
-    "db:reset": "node --env-file-if-exists=.env --import tsx scripts/db-reset.ts"
+    "db:reset": "node --env-file-if-exists=.env --import tsx scripts/db-reset.ts",
+    "import": "node --env-file-if-exists=.env --import tsx scripts/import.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.3",
@@ -46,6 +47,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.6",
     "eslint-config-prettier": "^10.1.8",
+    "exceljs": "4.4.0",
     "prettier": "^3.9.9",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",

@@ -34,7 +34,7 @@ it from the server's own origin, which loses the firm's Host header. Planned:
 
 Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),
 `cancelShiftByFirm(shiftId, reason)`, `makeUrgent(shiftId)`, `offerTo(shiftId, workerIds)`,
-`assignManually(shiftId, workerId, override?)`, `markNoShow`, `resolveRequest`, `importCsv(kind, file)`,
+`assignManually(shiftId, workerId, override?)`, `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/`, dry run first; the screen is Phase 5),
 `upsertCredential`, `verifyCredential`, `resolvePayQueryGroup`, `updateSettings`, `verifyDomain`,
 `exportWorkerData(workerId)`, `deleteWorker(workerId)`.
 

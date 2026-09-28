@@ -107,7 +107,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
 - [x] Native adapter (our tables are the rota) — for firms with nothing else
 - [x] Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min
       on event days, batch writes, never read the sheet per request
-- [ ] CSV/Excel import for workers, credentials and shifts
+- [x] CSV/Excel import for workers, credentials and shifts
 - [ ] Rules engine (pure functions): credential in date for the role; qualification match;
       no overlapping assignment; minimum rest; weekly hours cap; firm "applied" allowance;
       returns `{ ok, reasons[] }`
@@ -367,6 +367,15 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   and bad rows (Phase 5 Today view). Today they are only in the database and events.
 - Demo seed: Northline's mocked sheet. Local dev has no sheet transport (`SHEETS_TRANSPORT=none`);
   a file-backed dev transport would let the demo sync a sheet on a laptop.
+- Phase 5 office import screen (`/office/workers` "import CSV", shifts CSV import): an upload plus
+  `readTable()` + `runImport()` with a dry-run preview first, and `FILE_ERROR_TEXT` / `PROBLEM_TEXT`
+  for the copy. Pay records import (Phase 3/6) adds a kind to the same importer.
+- Imports, before the Phase 5 upload screen: the whole file is one transaction (holding shift
+  locks until it ends), fine for the terminal script; for the web, consider a background job. A
+  CSV row without a Staff ID can update a worker the Sheets sync owns (until the next sync puts the
+  sheet's values back). Row checks are hand-written (tested), not zod schemas: convert if they grow.
+- `exceljs` (dev-only, used by tests to write real .xlsx files) brings 2 moderate `uuid` advisories
+  into `npm audit`; production dependencies audit clean. Revisit with the CI security layer.
 - Read-only sources (`canWrite: false`): `needs_approval` records nothing. Before any read-only
   source goes live, save the pending change (a `requests` row plus an event with `cancel.at` and
   the notice hours at request time) so a worker's cancellation is never lost.
@@ -390,3 +399,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.4 | `RosterPlug` interface: boundary schemas, notice-hours function, 21-check adapter contract proven against 13 kinds of broken plug; 802 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.3 | Native adapter: first-yes-wins booking on our own tables (shift lock + one conditional update), cancel evidence and reopening, 19 contract checks + 10-way race tests on the real database; 833 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.8 | Google Sheets adapter: two-way sync with a three-way merge, column mapping by header, sync job every minute on event days, one read and one batch write per sync, service-account client tested with a fake network; not live until the rules engine; 1004 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.6 | CSV/Excel import for workers, credentials and shifts: CSV and .xlsx readers with size and zip-bomb limits, columns by header name, dry run, row-numbered problems, `npm run import`; 1064 tests + 10 e2e; verified and audited DONE (round 2) (see docs/work-log.md) |

@@ -102,6 +102,28 @@ but never changes an existing password. Rotate by hand as the owner:
   filled. The portal booking stands; tell the office.
 - Bad rows are listed by row number and code in the `roster.synced` outcome (never their contents).
 
+## Importing workers, credentials or shifts from a spreadsheet
+
+Until the office import screen exists (Phase 5), from the project folder (real data only after
+Gate B's paperwork is signed):
+
+1. Save the spreadsheet as .xlsx or .csv. Row 1 must be the headers. Accepted headers:
+   - workers: First name, Last name, Mobile (required); Staff ID, Email, Roles, Status.
+   - credentials: Type (e.g. SIA DS), plus Staff ID or Mobile to find the worker; Number,
+     Expires (07/11/2027), Status.
+   - shifts: Date, Start, End, Role (required); Shift ID, Site, Needed, Instructions.
+2. Dry run: `npm run import -- --firm <slug> --kind workers --as <office email> <file>`. It prints
+   what it would create, update and skip, and why each skipped row was skipped.
+3. Fix the rows it names in the spreadsheet if you like, then run the same command with `--apply`.
+
+A row whose mobile matches an existing worker updates that worker (mobile is who they are). On a
+credential, a blank cell leaves that field as it is (a re-import never un-suspends a licence or
+wipes an expiry); an expired licence given a new future expiry becomes valid. A shift with people
+booked can't have its times or role changed, or its number needed lowered, by an import: use the
+office shift editor (Phase 5). Shifts that have started can't be imported or changed. A shifts
+file without Shift IDs matches shifts by site, role and times, so changing a time in such a file
+adds a new shift and leaves the old one (and anyone booked on it) as it was.
+
 ## Custom domain not working
 
 - Check the CNAME points to `portal.<our-domain>`.

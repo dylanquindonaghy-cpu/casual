@@ -1,0 +1,324 @@
+import { sql } from "drizzle-orm";
+import {
+  type AnyPgColumn,
+  boolean,
+  check,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  unique,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { createdAt, firmIsolation, timestamptz } from "./helpers";
+import { officeUsers, workers } from "./people";
+import { firms, SECTORS, sites } from "./tenancy";
+
+// The rota (Phase 2). Links between firm tables are composite (firm_id, x_id) foreign keys, as in
+// people.ts. Every unique key starts with firm_id: Postgres checks unique indexes before foreign
+// keys, so a key without it would let Firm A tell from the error code whether Firm B's slot is
+// filled (by pointing a row at Firm B's shift). None of the foreign keys has an ON DELETE action: shifts, assignments, requests and offers are the
+// evidence behind the notice report, so deleting a worker, site or shift they point at fails
+// instead of erasing or orphaning that history. The app role can't delete these rows at all
+// (TABLE_ACCESS); shifts and assignments are cancelled, never removed.
+
+// Roles are data ('steward', 'door_supervisor', 'track_operative'...), matched exactly between
+// shifts, credential_rules and workers.roles, so they share one spelling rule.
+const roleFormat = (column: AnyPgColumn) => sql`${column} ~ '^[a-z][a-z0-9_]*$'`;
+
+export const SHIFT_STATUSES = ["draft", "open", "filled", "cancelled"] as const;
+export const SHIFT_SOURCES = ["native", "sheets", "csv"] as const;
+
+export const ASSIGNMENT_STATUSES = [
+  "open",
+  "offered",
+  "confirmed",
+  "cancelled_worker",
+  "cancelled_firm",
+  "no_show",
+  "completed",
+] as const;
+// A cancelled row keeps its worker, reason and notice hours; a new open row reopens the slot.
+export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_firm"] as const;
+
+export const REQUEST_TYPES = ["time_change", "swap", "availability", "general"] as const;
+export const REQUEST_STATUSES = [
+  "open",
+  "approved",
+  "declined",
+  "auto_resolved",
+  "escalated",
+] as const;
+
+export const OFFER_CHANNELS = ["push", "whatsapp", "sms"] as const;
+export const OFFER_RESPONSES = ["accepted", "declined", "expired", "filled_elsewhere"] as const;
+
+// Which credentials a role needs. Seeded per firm from its sector's pack
+// (docs/rules-and-credentials.md); the rules engine looks a shift's role up here. Type codes are
+// data, never an enum of SIA types (golden rule 6).
+export const credentialRules = pgTable(
+  "credential_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    // The pack the rule belongs to. A firm working in two sectors keeps both packs' rules; a role
+    // name belongs to one pack per firm (unique below), so clashing names must differ.
+    sector: text("sector", { enum: SECTORS }).notNull(),
+    role: text("role").notNull(),
+    // Every listed type is required. Any-of groups ("SIA_DS or SIA_SG") can be modelled later.
+    requiredTypes: text("required_types").array().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("credential_rules_firm_id_role_key").on(t.firmId, t.role),
+    check(
+      "credential_rules_sector_check",
+      sql`${t.sector} in ('security', 'rail', 'construction', 'cleaning')`,
+    ),
+    check("credential_rules_role_format", roleFormat(t.role)),
+    // A flat list of type codes like credentials.type: no NULL or blank elements (they would
+    // never match a credential), no nested arrays, and no commas inside an element (the
+    // cardinality comparison). An empty list means "needs none".
+    check(
+      "credential_rules_required_types_format",
+      sql`coalesce(array_ndims(${t.requiredTypes}), 1) = 1
+        and array_position(${t.requiredTypes}, null) is null
+        and (cardinality(${t.requiredTypes}) = 0
+          or (array_to_string(${t.requiredTypes}, ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'
+            and cardinality(string_to_array(array_to_string(${t.requiredTypes}, ','), ','))
+              = cardinality(${t.requiredTypes})))`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+export const shifts = pgTable(
+  "shifts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    siteId: uuid("site_id"),
+    role: text("role").notNull(),
+    startsAt: timestamptz("starts_at").notNull(),
+    endsAt: timestamptz("ends_at").notNull(),
+    headcount: integer("headcount").notNull().default(1),
+    isUrgent: boolean("is_urgent").notNull().default(false),
+    status: text("status", { enum: SHIFT_STATUSES }).notNull().default("open"),
+    source: text("source", { enum: SHIFT_SOURCES }).notNull().default("native"),
+    // The row's id in the firm's own rota (a sheet row key or CSV reference), for upserts.
+    externalRef: text("external_ref"),
+    instructions: text("instructions"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("shifts_firm_id_id_key").on(t.firmId, t.id),
+    // One shift per row of a sheet or import. NULLs don't collide, so native shifts are free.
+    unique("shifts_firm_id_source_external_ref_key").on(t.firmId, t.source, t.externalRef),
+    foreignKey({
+      name: "shifts_site_fk",
+      columns: [t.firmId, t.siteId],
+      foreignColumns: [sites.firmId, sites.id],
+    }),
+    index("shifts_firm_id_starts_at_idx").on(t.firmId, t.startsAt),
+    check("shifts_role_format", roleFormat(t.role)),
+    check("shifts_ends_after_start", sql`${t.endsAt} > ${t.startsAt}`),
+    check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
+    check("shifts_status_check", sql`${t.status} in ('draft', 'open', 'filled', 'cancelled')`),
+    check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// One row per holder of a slot (1..headcount). An unfilled slot is a row with no worker; first
+// yes wins with one statement that also requires the shift to still be open (golden rule 4):
+//   update assignments a set worker_id = $1, status = 'confirmed', confirmed_at = now()
+//     from shifts s
+//    where a.id = $2 and a.worker_id is null
+//      and s.firm_id = a.firm_id and s.id = a.shift_id and s.status = 'open'
+//   returning a.id
+export const assignments = pgTable(
+  "assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    shiftId: uuid("shift_id").notNull(),
+    slot: integer("slot").notNull(),
+    workerId: uuid("worker_id"),
+    status: text("status", { enum: ASSIGNMENT_STATUSES }).notNull().default("open"),
+    offeredAt: timestamptz("offered_at"),
+    confirmedAt: timestamptz("confirmed_at"),
+    cancelledAt: timestamptz("cancelled_at"),
+    cancelReason: text("cancel_reason"),
+    // Shift start minus cancelled_at, in hours. Negative when cancelled after the start.
+    noticeHours: numeric("notice_hours", { precision: 8, scale: 2 }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("assignments_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "assignments_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }),
+    foreignKey({
+      name: "assignments_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    // One live holder per slot: a cancelled row stays as evidence and a new open row reopens it.
+    uniqueIndex("assignments_one_live_per_slot")
+      .on(t.firmId, t.shiftId, t.slot)
+      .where(sql`status not in ('cancelled_worker', 'cancelled_firm')`),
+    // Nobody holds two live slots on the same shift.
+    uniqueIndex("assignments_one_live_per_worker")
+      .on(t.firmId, t.shiftId, t.workerId)
+      .where(sql`worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm')`),
+    index("assignments_firm_id_worker_id_idx").on(t.firmId, t.workerId),
+    check(
+      "assignments_status_check",
+      sql`${t.status} in ('open', 'offered', 'confirmed', 'cancelled_worker', 'cancelled_firm', 'no_show', 'completed')`,
+    ),
+    check("assignments_slot_positive", sql`${t.slot} >= 1`),
+    // An open slot has no worker; every other state belongs to one.
+    check(
+      "assignments_worker_matches_status",
+      sql`(${t.status} = 'open') = (${t.workerId} is null)`,
+    ),
+    check(
+      "assignments_offered_at_set",
+      sql`${t.status} <> 'offered' or ${t.offeredAt} is not null`,
+    ),
+    check(
+      "assignments_confirmed_at_set",
+      sql`${t.status} not in ('confirmed', 'no_show', 'completed') or ${t.confirmedAt} is not null`,
+    ),
+    // Golden rule 12: every cancellation, by the worker or the firm, records when, why and how
+    // much notice was given.
+    check(
+      "assignments_cancel_evidence",
+      sql`${t.status} not in ('cancelled_worker', 'cancelled_firm')
+        or (${t.cancelledAt} is not null and ${t.noticeHours} is not null
+            and ${t.cancelReason} is not null and length(btrim(${t.cancelReason})) > 0)`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// Time changes, swaps, availability and general asks for the office. payload is validated in
+// code (zod) per type.
+export const requests = pgTable(
+  "requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    shiftId: uuid("shift_id"),
+    type: text("type", { enum: REQUEST_TYPES }).notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    status: text("status", { enum: REQUEST_STATUSES }).notNull().default("open"),
+    resolvedBy: uuid("resolved_by"),
+    resolvedAt: timestamptz("resolved_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("requests_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "requests_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    foreignKey({
+      name: "requests_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }),
+    foreignKey({
+      name: "requests_resolved_by_fk",
+      columns: [t.firmId, t.resolvedBy],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
+    index("requests_firm_id_status_idx").on(t.firmId, t.status),
+    check(
+      "requests_type_check",
+      sql`${t.type} in ('time_change', 'swap', 'availability', 'general')`,
+    ),
+    check(
+      "requests_status_check",
+      sql`${t.status} in ('open', 'approved', 'declined', 'auto_resolved', 'escalated')`,
+    ),
+    check(
+      "requests_shift_required",
+      sql`${t.type} not in ('time_change', 'swap') or ${t.shiftId} is not null`,
+    ),
+    check("requests_payload_object", sql`jsonb_typeof(${t.payload}) = 'object'`),
+    // Unresolved requests carry no resolution; an office decision always names who and when.
+    check(
+      "requests_resolution",
+      sql`(${t.status} in ('open', 'escalated') and ${t.resolvedAt} is null and ${t.resolvedBy} is null)
+        or (${t.status} = 'auto_resolved' and ${t.resolvedAt} is not null)
+        or (${t.status} in ('approved', 'declined') and ${t.resolvedAt} is not null and ${t.resolvedBy} is not null)`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// Each offer sent in a wave (Phase 4 sends them) and the worker's response.
+export const offers = pgTable(
+  "offers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    shiftId: uuid("shift_id").notNull(),
+    workerId: uuid("worker_id").notNull(),
+    wave: integer("wave").notNull(),
+    channel: text("channel", { enum: OFFER_CHANNELS }).notNull(),
+    sentAt: timestamptz("sent_at").notNull().defaultNow(),
+    respondedAt: timestamptz("responded_at"),
+    response: text("response", { enum: OFFER_RESPONSES }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("offers_firm_id_id_key").on(t.firmId, t.id),
+    // One offer per worker per wave, so a retried offer-wave job (key shift:wave) sends nothing new.
+    unique("offers_firm_id_shift_id_worker_id_wave_key").on(
+      t.firmId,
+      t.shiftId,
+      t.workerId,
+      t.wave,
+    ),
+    foreignKey({
+      name: "offers_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }),
+    foreignKey({
+      name: "offers_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    // The daily offer cap counts a worker's offers by sent_at.
+    index("offers_firm_id_worker_id_sent_at_idx").on(t.firmId, t.workerId, t.sentAt),
+    check("offers_wave_positive", sql`${t.wave} >= 1`),
+    check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms')`),
+    check(
+      "offers_response_check",
+      sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere')`,
+    ),
+    check("offers_response_has_time", sql`(${t.response} is null) = (${t.respondedAt} is null)`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();

@@ -11,6 +11,9 @@ import * as schema from "../schema";
 
 export type Privilege = "SELECT" | "INSERT" | "UPDATE" | "DELETE";
 const CRUD: readonly Privilege[] = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+// Evidence tables: rows change state (cancelled, resolved, responded) but are never deleted by
+// the app, so the notice report can't lose history (golden rules 5 and 12).
+const NO_DELETE: readonly Privilege[] = ["SELECT", "INSERT", "UPDATE"];
 
 export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Firms are created by an admin script. No Phase 1 feature edits a firm.
@@ -24,6 +27,12 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   sessions: CRUD,
   otp_codes: CRUD,
   auth_throttle: CRUD,
+  // The office edits which credentials a role needs (logged as events).
+  credential_rules: CRUD,
+  shifts: NO_DELETE,
+  assignments: NO_DELETE,
+  requests: NO_DELETE,
+  offers: NO_DELETE,
 };
 
 export function schemaTableNames(): string[] {

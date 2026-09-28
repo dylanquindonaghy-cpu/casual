@@ -736,3 +736,114 @@ printed in the terminal instead.
 Optional: add the line `CONSOLE_OUTBOX_FILE=.dev/outbox.jsonl` to your `.env` and every message is
 also saved as one line in that file (the `.dev/` folder is ignored by git). The browser tests use
 the same mechanism, with `.dev/e2e-outbox.jsonl`.
+
+---
+
+## 2026-09-28: Phase 2, task 1: the rota tables (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (16:37 to 17:04 UTC), in the unattended overnight loop.
+It covered reading the docs, building, a safety review, two full verification runs and the audit.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=75c75b23ec0d408d e2e=true`: type checks, lint, all
+  733 tests (up from 595) and the 10 browser tests passed, and the project's own rule checks
+  (invariants) passed.
+- The independent auditor (`claims-auditor`) gave `VERDICT: DONE`.
+- Committed on the `build/overnight` branch as "Phase 2: Schema: shifts, assignments, requests,
+  offers, credential_rules (per sector/role)". Whether the push worked is in
+  `docs/overnight-log.md`.
+
+### What was built
+
+Five new database tables, the place where the rota itself will live. A **table** is like one
+sheet in a spreadsheet: rows and named columns. Nothing on screen changes yet; the portal pages
+that use these tables come in Phase 3.
+
+- **shifts**: one row per shift: site, role (for example `steward`), start and end time, how many
+  people it needs (**headcount**), an urgent flag, a status (draft, open, filled, cancelled) and
+  where it came from (our own rota, a Google Sheet or a CSV import).
+- **assignments**: one row per person holding a **slot** on a shift. A shift needing 4 stewards
+  has slots 1 to 4. An empty slot is a row with no worker. When someone cancels, their row stays
+  (with the time, the reason and the **notice hours**, meaning how long before the start they
+  cancelled) and a new empty row reopens the slot. That keeps the evidence the notice report needs.
+- **requests**: time changes, swaps, availability and general questions for the office.
+- **offers**: each shift offer sent to a worker in a **wave** (a batch of offers), and their answer.
+  Sending them comes in Phase 4.
+- **credential_rules**: which licences or cards a role needs, for example `door_supervisor` needs
+  `SIA_DS`. Each rule is labelled with its sector pack (security, rail, construction, cleaning).
+
+Key facts and numbers:
+
+- Every new table has the firm's id on every row and the same firm-sealing rule as the Phase 1
+  tables (**row level security**, or RLS: the database itself hides other firms' rows).
+- 8 new links between tables (**foreign keys**, a column that must point at a real row in another
+  table), all including the firm's id, so a row can never point at another firm's shift or worker.
+  15 such links now exist, and each one has a test.
+- 23 new database rules (**CHECK constraints**) refuse bad data even if app code gets it wrong. For
+  example: a shift must end after it starts; a headcount is 1 to 1000; a cancellation must record
+  when, why and the notice hours; an approved request must say which office user decided and when.
+- The app can read, add and change shifts, assignments, requests and offers, but **cannot delete
+  them**. They are evidence. Credential rules can be deleted (the office will edit them).
+- The database also refuses two people holding the same slot, and one person holding two slots on
+  the same shift. This backs up golden rule 4 ("first yes wins").
+- One migration file: `drizzle/0004_phase2_roster.sql` (a **migration** is a numbered script that
+  changes the database's structure).
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A cancelled assignment keeps its row; a new empty row reopens the slot | The notice report needs who cancelled, when and with how much notice | Wiping the worker off the row (loses evidence) |
+| The app can't delete shifts, assignments, requests or offers | They are the evidence behind the notice report (golden rules 5 and 12) | Full delete rights like the Phase 1 tables |
+| Deleting a worker, site or office user that rota rows point at fails | History is never silently lost. Phase 8's "delete my data" will need its own careful step (parked) | Deleting the history too, or blanking the worker (a filled slot would look empty) |
+| Every "must be unique" rule starts with the firm's id | Found by the safety review: without it, one firm could tell from an error message whether another firm's slot was filled. A new test now checks every table for this | Leaving the keys as they were (a small leak between firms) |
+| Taking a shift only works while the shift is `open` | Found by the safety review: a cancelled shift's empty slots must not be takeable | Checking the slot only |
+| No credential rule for a role means "not eligible" | A forgotten or deleted rule must never quietly drop a licence check (written into `docs/rules-and-credentials.md` for the rules engine task) | Treating "no rule" as "needs nothing" |
+| Credential rules carry a sector label | A firm working in two sectors (rail and civils) keeps both packs' rules | Using the firm's single sector |
+| Roles must be written `like_this` and credential codes `LIKE_THIS` | A typo would silently never match | No format rules |
+
+The full list, with every alternative, is in `docs/overnight-log.md`.
+
+### What the new tests prove
+
+- `tests/integration/roster.schema.test.ts` (39 tests, new): each database rule above refuses a
+  bad row, next to a **control** (the same row, fixed, is accepted), so a test can't pass by
+  accident. It also proves another firm only ever gets a "no such shift" error, never a hint that
+  a slot is filled, and that the "first yes wins" update fills an open slot once and does nothing
+  for a second person, or when the shift isn't open.
+- `tenancy.isolation`, `rls.every-table` and `rls.mutation` now cover the 5 new tables and the 8 new
+  links automatically, because the test fixtures (the fake rows each test firm gets) include them.
+- One isolation test was split in two ("can't update" and "can't delete"), because the new tables
+  allow updating but not deleting. Every old check still runs.
+- `rls.every-table` has a new check: every "must be unique" rule on a firm table starts with the
+  firm's id (except random login tokens, which can't be guessed).
+- `tenancy.current-firm` now compares with the real number of workers in the test firm instead of
+  a fixed "1", since each test firm now has two fake workers.
+
+### Parked, open, and things that need Dylan
+
+- **Please read the decision table** in `docs/overnight-log.md` (this task's entry). These are
+  database design choices you would normally approve.
+- Not built yet (later Phase 2 tasks): the roster adapters, the rules engine, the credential packs,
+  the concurrent "10 people tap at once" race test, and the Google Sheets sync.
+- Parked in `PLAN.md`: GDPR worker delete and the retention purge need their own path (the app
+  can't delete rota rows); retiring empty slots when a shift is cancelled or shrunk (Phase 5);
+  "any of these licences" rules (for example SIA guard or door supervisor); logging credential rule
+  edits; checking role spelling in `workers.roles` on import.
+- One older Phase 1 rule had the same small leak (a pay-page code rule); fixed in the same
+  migration.
+
+### How to see it working
+
+There is nothing new on screen. To look at the new tables:
+
+1. Start the database: `npm run db:up`
+2. **Once**, rebuild your local dev database (fake data only): `npm run db:reset`. It should end
+   with "Recreated shiftdesk, applied migrations and loaded the demo firms."
+3. Open a database prompt: `docker exec -it shiftdesk-starter-postgres-1 psql -U shiftdesk -d shiftdesk`
+4. Type `\d shifts` and press Enter. You'll see the columns and the rules (`Check constraints:`).
+   Try `\d assignments` too. Type `\q` to leave. The tables are empty until the demo seed adds
+   Acme's Saturday event in Phase 3.

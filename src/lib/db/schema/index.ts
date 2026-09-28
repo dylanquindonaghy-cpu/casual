@@ -3,4 +3,5 @@
 export * from "./auth";
 export * from "./events";
 export * from "./people";
+export * from "./roster";
 export * from "./tenancy";

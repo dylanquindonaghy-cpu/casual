@@ -62,7 +62,16 @@ describe("withCurrentFirm", () => {
       );
       return { ...r.rows[0], name: firm.name };
     });
-    expect(seen).toEqual({ firm: A.firmId, workers: 1, name: `Test Firm ${A.slug}` });
+    // Ground truth as the superuser: Firm A's own workers, and more than that across all firms.
+    const truth = await su.query<{ mine: number; total: number }>(
+      `select (select count(*)::int from workers where firm_id = $1) as mine,
+              (select count(*)::int from workers) as total`,
+      [A.firmId],
+    );
+    const { mine, total } = truth.rows[0] ?? { mine: -1, total: -1 };
+    expect(mine).toBeGreaterThan(0);
+    expect(total).toBeGreaterThan(mine);
+    expect(seen).toEqual({ firm: A.firmId, workers: mine, name: `Test Firm ${A.slug}` });
   });
 
   it("never opens a firm transaction for a host that isn't a firm", async () => {

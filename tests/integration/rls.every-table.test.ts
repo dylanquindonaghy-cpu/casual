@@ -211,6 +211,33 @@ it("every foreign key between firm tables includes firm_id on both sides", async
   }
 });
 
+// Postgres checks unique indexes before foreign keys, so a unique key without firm_id lets one
+// firm probe another's rows: point a row at Firm B's parent and read a duplicate-key error
+// instead of a foreign-key one. Exceptions: unguessable values (sha256 token hashes, a
+// server-made random request id) and the firm directory itself.
+it("every unique key on a firm table starts with firm_id (except unguessable tokens)", async () => {
+  const { rows } = await su.query<{ name: string; first: string }>(
+    `select i.relname as name, a.attname::text as first
+       from pg_index x
+       join pg_class i on i.oid = x.indexrelid
+       join pg_class t on t.oid = x.indrelid
+       join pg_attribute a on a.attrelid = t.oid and a.attnum = x.indkey[0]
+      where t.relnamespace = 'public'::regnamespace and t.relname <> 'firms'
+        and x.indisunique and not x.indisprimary
+      order by 1`,
+  );
+  const unguessable = [
+    "magic_links_request_id_unique",
+    "magic_links_token_hash_unique",
+    "sessions_prev_token_hash_unique",
+    "sessions_token_hash_unique",
+  ];
+  expect(rows.length).toBeGreaterThan(unguessable.length);
+  expect(rows.filter((r) => unguessable.includes(r.name)).map((r) => r.name)).toEqual(unguessable);
+  const leaky = rows.filter((r) => r.first !== "firm_id" && !unguessable.includes(r.name));
+  expect(leaky).toEqual([]);
+});
+
 describe("the job queue (pgboss schema)", () => {
   it("the app role may only enqueue: SELECT on queue, INSERT and SELECT(id) on job_common", async () => {
     const { rows } = await su.query(

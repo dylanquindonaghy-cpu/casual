@@ -102,7 +102,7 @@ Docs: `docs/data-model.md`, `docs/architecture.md` (Tenancy, Login).
 **Goal:** shifts exist, eligibility is decided by tested code, and a firm's Google Sheet can be the source.
 Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` (Credentials).
 
-- [ ] Schema: shifts, assignments, requests, offers, credential_rules (per sector/role)
+- [x] Schema: shifts, assignments, requests, offers, credential_rules (per sector/role)
 - [ ] `RosterPlug` interface: `listStaff`, `getShifts`, `assign`, `markCancelled`, `canWrite`
 - [ ] Native adapter (our tables are the rota) — for firms with nothing else
 - [ ] Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min
@@ -311,9 +311,31 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   table that only dev databases have).
 - A `db:rotate-app-password` script (the runbook has the manual steps). Create roles from a
   pre-computed SCRAM verifier so a plaintext password never reaches a server log that records DDL.
-- Remove the app's DELETE grant on `office_users` (they are disabled, never deleted) once the
-  isolation tests' delete control is split per privilege.
+- Remove the app's DELETE grant on `office_users` (they are disabled, never deleted). The
+  isolation tests' delete control is now split per privilege (Phase 2), so only the grant and a
+  check that nothing deletes office users remain.
 - Phase 2: eligibility must compute expiry from `credentials.expires_on`, not trust `status`.
+- Phase 8 GDPR worker delete: rota rows (assignments, requests, offers) block a plain `delete from
+  workers` (their foreign keys have no ON DELETE action, on purpose). Design anonymise-or-purge
+  that keeps the notice report's evidence for its retention period.
+- Phase 8 retention purge: the app role has no DELETE on shifts, assignments, requests or offers,
+  so the purge job needs its own narrow path (a purge function or role) and writes an event per run.
+- Phase 5 shift edits: lowering a shift's headcount, or cancelling a shift, leaves open slot rows
+  the app can't delete or cancel (a cancelled row needs a worker). Taking one is blocked while the
+  shift isn't `open` (the documented first-yes-wins statement checks it), but decide then how to
+  retire them (a `withdrawn` status, or a narrow delete of open rows only). Slot numbers <=
+  headcount are enforced in code only (a CHECK can't see the shift).
+- Atomic assign task: also make `offered → confirmed` one conditional update
+  (`where worker_id = $me and status = 'offered'`) so it can't race an office cancel; compute
+  `notice_hours` in one pure function (the database stores what the app computes).
+- `shifts.status = 'filled'` is derived from the slots; whoever fills or reopens a slot updates it
+  in the same transaction (atomic assign task).
+- Credential rule edits and deletes (office settings, Phase 5): log old and new `required_types`
+  in `events`, since a rule change changes eligibility after the fact.
+- "Any of" credentials (e.g. `SIA_SG` or `SIA_DS` for a guard): `credential_rules` supports "all
+  of" only. Needed before the security pack goes live if a firm accepts either licence.
+- Phase 2 CSV import / office worker editing: validate `workers.roles` as snake_case with zod
+  (shifts and credential_rules enforce it in the database; workers.roles doesn't yet).
 - Demo seed, still to add (see docs/testing.md): requests and Northline's mocked sheet (Phase 2),
   Acme's Saturday event day with the 6am dropout and pay records (Phase 3), the short-notice firm
   cancellation (Phase 5), 12 pay queries, 9 about one rate change (Phase 6).
@@ -324,3 +346,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 |---|---|---|---|
 | 2026-09-27 | 0 | 1 | Phase 0 scaffold built, verified, audited and closed; pushed to GitHub, CI green; e2e passing locally |
 | 2026-09-27 | 1 | 4.5 | Phase 1 built, verified and audited: 10 RLS-sealed tables, three database logins, worker/office login, pay-page codes, rate limits, action log, masked logging, demo seed; 595 tests + 10 e2e; pushed on `build/overnight` (0.6 h proposal + 3.9 h build; see `docs/work-log.md`) |
+| 2026-09-28 | 2 | 0.5 | Schema: shifts, assignments, requests, offers, credential_rules; 5 RLS-sealed tables, 23 database checks, no deletes of rota evidence, firm-first unique keys (review fix); 733 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

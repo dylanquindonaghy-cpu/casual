@@ -69,27 +69,43 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
     expect(await inFirm(app, A.firmId, (c) => countById(c, table, id))).toBe(0);
   });
 
-  it("Firm A can't update or delete Firm B's row (control: Firm B can)", async () => {
+  // Update and delete are checked separately: the rota's evidence tables (shifts, assignments,
+  // requests, offers) grant UPDATE but not DELETE.
+  it("Firm A can't update Firm B's row (control: Firm B can)", async () => {
     const id = B.rows[table];
-    if (can(table, "UPDATE") && can(table, "DELETE")) {
+    if (can(table, "UPDATE")) {
       // Control, rolled back: Firm B can change its own row.
       expect(await inFirm(app, B.firmId, (c) => touchById(c, table, id))).toBe(1);
-      expect(await inFirm(app, B.firmId, (c) => deleteById(c, table, id))).toBe(1);
-      // Committed attempts from Firm A change nothing, silently (RLS hides the row).
+      // A committed attempt from Firm A changes nothing, silently (RLS hides the row).
       expect(await inFirm(app, A.firmId, (c) => touchById(c, table, id), { commit: true })).toBe(0);
-      expect(await inFirm(app, A.firmId, (c) => deleteById(c, table, id), { commit: true })).toBe(
-        0,
-      );
       const truth = await su.query(`select 1 from public.${table} where id = $1`, [id]);
       expect(truth.rowCount).toBe(1);
     } else {
-      // firms and events: the app role has no UPDATE/DELETE at all, in any firm.
+      // firms and events: the app role has no UPDATE at all, in any firm.
       for (const firmId of [A.firmId, B.firmId]) {
         const upd = await pgError(inFirm(app, firmId, (c) => touchById(c, table, id)));
         expect(upd).toMatchObject({
           code: "42501",
           message: expect.stringMatching(/permission denied/),
         });
+      }
+    }
+  });
+
+  it("Firm A can't delete Firm B's row (control: Firm B can)", async () => {
+    const id = B.rows[table];
+    if (can(table, "DELETE")) {
+      // Control, rolled back: Firm B can delete its own row.
+      expect(await inFirm(app, B.firmId, (c) => deleteById(c, table, id))).toBe(1);
+      // A committed attempt from Firm A deletes nothing, silently (RLS hides the row).
+      expect(await inFirm(app, A.firmId, (c) => deleteById(c, table, id), { commit: true })).toBe(
+        0,
+      );
+      const truth = await su.query(`select 1 from public.${table} where id = $1`, [id]);
+      expect(truth.rowCount).toBe(1);
+    } else {
+      // firms, events and the rota's evidence tables: the app role has no DELETE, in any firm.
+      for (const firmId of [A.firmId, B.firmId]) {
         const del = await pgError(inFirm(app, firmId, (c) => deleteById(c, table, id)));
         expect(del).toMatchObject({
           code: "42501",

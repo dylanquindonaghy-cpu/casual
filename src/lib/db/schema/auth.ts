@@ -129,9 +129,10 @@ export const otpCodes = pgTable(
       columns: [t.firmId, t.sessionId],
       foreignColumns: [sessions.firmId, sessions.id],
     }).onDelete("cascade"),
-    // One live code per session: a new request retires the old code first.
+    // One live code per session: a new request retires the old code first. firm_id leads so a
+    // collision can't reveal another firm's session (unique indexes run before foreign keys).
     uniqueIndex("otp_codes_one_live_per_session")
-      .on(t.sessionId)
+      .on(t.firmId, t.sessionId)
       .where(sql`consumed_at is null`),
     check("otp_codes_attempts_range", sql`${t.attempts} between 0 and 5`),
     firmIsolation(t.firmId),

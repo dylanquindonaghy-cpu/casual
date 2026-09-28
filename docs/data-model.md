@@ -5,6 +5,11 @@ Every table has `id uuid` (`events`: a `bigint` identity), `firm_id uuid` (excep
 pence. Phones in E.164. The Drizzle schema in `src/lib/db/schema/` is the source of truth; the
 DDL below is a readable sketch.
 
+**Every unique key on a firm table starts with `firm_id`** (except random token hashes).
+Postgres checks unique indexes before foreign keys, so a key like `(shift_id, slot)` would let
+Firm A point a row at Firm B's shift and learn from a duplicate-key error that the slot is filled.
+`rls.every-table` checks this for every index.
+
 **Links between firm tables use composite foreign keys**, e.g. `(firm_id, worker_id) →
 workers(firm_id, id)`, so every parent has `unique (firm_id, id)`. Postgres checks foreign keys
 without RLS, so a plain `worker_id → workers(id)` would let Firm A point a row at Firm B's
@@ -28,9 +33,9 @@ architecture.md, Tenancy).
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | sites | Venues/sites (address; lat/lng kept for Stage 3) | 1 |
 | shifts | Site, role, start/end, headcount, urgent flag, source | 2 |
-| assignments | Worker on a shift: offered → accepted → confirmed → cancelled/completed | 2 |
+| assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed | 2 |
 | requests | Time changes, swaps, general asks, and their status | 2 |
-| offers | Each offer sent in a wave and the response | 4 |
+| offers | Each offer sent in a wave and the response (table Phase 2; sending Phase 4) | 2 |
 | messages | Every inbound/outbound message (WhatsApp, SMS, email, voice, portal) | 7 |
 | pay_records | Imported hours, rates, pay dates | 3 |
 | pay_queries | Structured pay questions + grouping key + status | 6 |
@@ -128,73 +133,103 @@ create table credentials (
   created_at timestamptz not null default now()
 );
 
+-- The rota (Phase 2, src/lib/db/schema/roster.ts). Its foreign keys have no ON DELETE action:
+-- deleting a worker, site, shift or office user that rota rows point at fails, so history is
+-- never erased or orphaned. The app role may not DELETE shifts, assignments, requests or offers
+-- (SELECT, INSERT, UPDATE only): they are cancelled or resolved, never removed.
+-- Roles ('steward', 'door_supervisor', 'track_operative'...) are snake_case in shifts and
+-- credential_rules (a CHECK), so they match workers.roles exactly.
+
 create table credential_rules (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  role text not null,                    -- 'steward', 'door_supervisor', 'track_operative'...
-  required_types text[] not null,        -- any-of groups can be modelled later
-  created_at timestamptz not null default now()
+  sector text not null,                  -- the pack: security | rail | construction | cleaning
+  role text not null,                    -- snake_case; one pack per role name in a firm
+  required_types text[] not null,        -- all required; flat list of type codes ('SIA_DS'),
+                                         -- no NULL, blank or comma-joined elements; '{}' = needs
+                                         -- none. No row for a role = not eligible (fail closed).
+                                         -- Any-of groups can be modelled later.
+  created_at timestamptz not null default now(),
+  unique (firm_id, role)
 );
 
 create table shifts (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  site_id uuid,
-  role text not null,
+  site_id uuid,                          -- (firm_id, site_id) -> sites(firm_id, id)
+  role text not null,                    -- snake_case
   starts_at timestamptz not null,
-  ends_at timestamptz not null,
-  headcount int not null default 1,
+  ends_at timestamptz not null,          -- check: ends_at > starts_at
+  headcount int not null default 1,      -- 1..1000
   is_urgent boolean not null default false,
   status text not null default 'open',   -- draft | open | filled | cancelled
   source text not null default 'native', -- native | sheets | csv
-  external_ref text,
+  external_ref text,                     -- the row's key in the firm's sheet or import
   instructions text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, source, external_ref) -- one shift per sheet/import row (NULLs don't collide)
 );
 
+-- One row per holder of a slot. A cancellation keeps its row (worker, reason, notice hours) and
+-- a new open row reopens the slot, so only one "live" row (not cancelled) may exist per slot.
 create table assignments (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  shift_id uuid not null references shifts(id),
-  slot int not null,                     -- 1..headcount; unique per shift
-  worker_id uuid references workers(id), -- null = unfilled slot
+  shift_id uuid not null,                -- (firm_id, shift_id) -> shifts(firm_id, id)
+  slot int not null,                     -- 1..headcount (>= 1 checked; <= headcount in code)
+  worker_id uuid,                        -- (firm_id, worker_id) -> workers; null = unfilled slot
   status text not null default 'open',   -- open | offered | confirmed | cancelled_worker | cancelled_firm | no_show | completed
-  offered_at timestamptz,
-  confirmed_at timestamptz,
-  cancelled_at timestamptz,
-  cancel_reason text,
-  notice_hours numeric,                  -- starts_at - cancelled_at, in hours
+  offered_at timestamptz,                -- required when offered
+  confirmed_at timestamptz,              -- required when confirmed, no_show or completed
+  cancelled_at timestamptz,              -- cancelled_*: cancelled_at, a non-blank cancel_reason
+  cancel_reason text,                    --   and notice_hours are all required (golden rule 12)
+  notice_hours numeric(8,2),             -- starts_at - cancelled_at, in hours; negative if after the start
   created_at timestamptz not null default now(),
-  unique (shift_id, slot)
+  unique (firm_id, id),
+  check ((status = 'open') = (worker_id is null))
 );
+create unique index assignments_one_live_per_slot on assignments (firm_id, shift_id, slot)
+  where status not in ('cancelled_worker', 'cancelled_firm');
+create unique index assignments_one_live_per_worker on assignments (firm_id, shift_id, worker_id)
+  where worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm');
 
--- First yes wins (one statement):
--- update assignments set worker_id = $1, status = 'confirmed', confirmed_at = now()
---   where id = $2 and worker_id is null returning id;
+-- First yes wins (one statement; the shift must still be open, so the open slots of a draft,
+-- filled or cancelled shift can't be taken):
+-- update assignments a set worker_id = $1, status = 'confirmed', confirmed_at = now()
+--   from shifts s
+--  where a.id = $2 and a.worker_id is null
+--    and s.firm_id = a.firm_id and s.id = a.shift_id and s.status = 'open'
+-- returning a.id;
 
 create table requests (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  worker_id uuid not null references workers(id),
-  shift_id uuid references shifts(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers
+  shift_id uuid,                         -- (firm_id, shift_id) -> shifts; required for time_change and swap
   type text not null,                    -- time_change | swap | availability | general
-  payload jsonb not null default '{}',
+  payload jsonb not null default '{}',   -- a JSON object; shape validated in code per type
   status text not null default 'open',   -- open | approved | declined | auto_resolved | escalated
-  resolved_by uuid,
+  resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users
   resolved_at timestamptz,
-  created_at timestamptz not null default now()
+  -- open/escalated: neither set. approved/declined: both set. auto_resolved: resolved_at only.
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
 );
 
 create table offers (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  shift_id uuid not null references shifts(id),
-  worker_id uuid not null references workers(id),
-  wave int not null,
+  shift_id uuid not null,                -- (firm_id, shift_id) -> shifts
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers
+  wave int not null,                     -- >= 1
   channel text not null,                 -- push | whatsapp | sms
   sent_at timestamptz not null default now(),
-  responded_at timestamptz,
-  response text                          -- accepted | declined | expired | filled_elsewhere
+  responded_at timestamptz,              -- set exactly when response is set
+  response text,                         -- accepted | declined | expired | filled_elsewhere
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, shift_id, worker_id, wave) -- a retried offer-wave job (key shift:wave) sends nothing new
 );
 
 create table messages (
@@ -301,7 +336,7 @@ create table otp_codes (
   created_at timestamptz not null default now()
 );
 -- one live code per session:
-create unique index otp_codes_one_live_per_session on otp_codes (session_id) where consumed_at is null;
+create unique index otp_codes_one_live_per_session on otp_codes (firm_id, session_id) where consumed_at is null;
 
 create table auth_throttle (
   id uuid primary key default gen_random_uuid(),
@@ -331,7 +366,8 @@ create policy firm_isolation on workers for all to public
 
 **Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`
 applies `src/lib/db/admin/access.ts` after the migrations: FORCE on every table and exactly the
-listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS). A new table without an
+listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS; no DELETE on `events`,
+`shifts`, `assignments`, `requests` or `offers`). A new table without an
 entry there fails the migrate. Adding a table: Drizzle schema + `.enableRLS()` + the tenant
 policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 `tests/helpers/tenant-rows.ts` (the isolation tests fail by name until they exist).

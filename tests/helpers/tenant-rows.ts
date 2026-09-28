@@ -7,14 +7,19 @@ import { uniqueSlug } from "./db";
 // entry here fails those tests by name, so a new table can't be left untested.
 
 export const EXPECTED_TABLES = [
+  "assignments",
   "auth_throttle",
+  "credential_rules",
   "credentials",
   "events",
   "firms",
   "magic_links",
+  "offers",
   "office_users",
   "otp_codes",
+  "requests",
   "sessions",
+  "shifts",
   "sites",
   "workers",
 ] as const;
@@ -28,6 +33,10 @@ export interface Tenant {
   officeUserId: string;
   sessionId: string;
   spareSessionId: string; // a session with no live code, for otp_codes inserts
+  // The rota rows point at their own worker and site, not rows.workers / rows.sites: their
+  // foreign keys have no ON DELETE action, and the isolation tests delete those two (rolled back).
+  rosterWorkerId: string;
+  rosterSiteId: string;
 }
 
 let seq = 0;
@@ -36,6 +45,13 @@ const next = () => (seq += 1);
 const fakeMobile = () => `+447700900${String(next() % 1000).padStart(3, "0")}`;
 const hash = () => randomBytes(32);
 const later = () => new Date(Date.now() + 60 * 60 * 1000);
+// A shift starting tomorrow at 09:00 UTC for 8 hours (the exact time doesn't matter here).
+const shiftTimes = () => {
+  const start = new Date();
+  start.setUTCDate(start.getUTCDate() + 1);
+  start.setUTCHours(9, 0, 0, 0);
+  return [start, new Date(start.getTime() + 8 * 60 * 60 * 1000)] as const;
+};
 
 async function one(pool: Pool, text: string, values: unknown[]): Promise<string> {
   const result = await pool.query<{ id: string }>(`${text} returning id::text as id`, values);
@@ -107,6 +123,42 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into auth_throttle (firm_id, bucket, window_start, hits) values ($1, $2, now(), 1)",
     [firmId, `test:${next()}`],
   );
+  const rosterWorkerId = await one(
+    su,
+    "insert into workers (firm_id, first_name, last_name, mobile_e164, roles) values ($1, 'Rota', 'Worker', $2, '{steward}')",
+    [firmId, fakeMobile()],
+  );
+  const rosterSiteId = await one(su, "insert into sites (firm_id, name) values ($1, $2)", [
+    firmId,
+    `Rota site ${next()}`,
+  ]);
+  const credentialRuleId = await one(
+    su,
+    "insert into credential_rules (firm_id, sector, role, required_types) values ($1, 'security', 'door_supervisor', '{SIA_DS}')",
+    [firmId],
+  );
+  const [startsAt, endsAt] = shiftTimes();
+  const shiftId = await one(
+    su,
+    "insert into shifts (firm_id, site_id, role, starts_at, ends_at, headcount) values ($1, $2, 'steward', $3, $4, 2)",
+    [firmId, rosterSiteId, startsAt, endsAt],
+  );
+  const assignmentId = await one(
+    su,
+    `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+     values ($1, $2, 1, $3, 'confirmed', now())`,
+    [firmId, shiftId, rosterWorkerId],
+  );
+  const requestId = await one(
+    su,
+    "insert into requests (firm_id, worker_id, shift_id, type) values ($1, $2, $3, 'time_change')",
+    [firmId, rosterWorkerId, shiftId],
+  );
+  const offerId = await one(
+    su,
+    "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
+    [firmId, shiftId, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -114,6 +166,8 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     officeUserId,
     sessionId,
     spareSessionId,
+    rosterWorkerId,
+    rosterSiteId,
     rows: {
       firms: firmId,
       workers: workerId,
@@ -125,6 +179,11 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       sessions: sessionId,
       otp_codes: otpCodeId,
       auth_throttle: throttleId,
+      credential_rules: credentialRuleId,
+      shifts: shiftId,
+      assignments: assignmentId,
+      requests: requestId,
+      offers: offerId,
     },
   };
 }
@@ -178,6 +237,26 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into auth_throttle (firm_id, bucket, window_start, hits) values ($1, $2, now(), 1)",
     values: [firmId, `probe:${next()}`],
   }),
+  credential_rules: (firmId) => ({
+    text: "insert into credential_rules (firm_id, sector, role, required_types) values ($1, 'rail', $2, '{PTS,SENTINEL}')",
+    values: [firmId, `probe_role_${next()}`],
+  }),
+  shifts: (firmId, p) => ({
+    text: "insert into shifts (firm_id, site_id, role, starts_at, ends_at) values ($1, $2, 'steward', $3, $4)",
+    values: [firmId, p.rosterSiteId, ...shiftTimes()],
+  }),
+  assignments: (firmId, p) => ({
+    text: "insert into assignments (firm_id, shift_id, slot) values ($1, $2, $3)",
+    values: [firmId, p.rows.shifts, 1 + next()],
+  }),
+  requests: (firmId, p) => ({
+    text: "insert into requests (firm_id, worker_id, type) values ($1, $2, 'general')",
+    values: [firmId, p.rosterWorkerId],
+  }),
+  offers: (firmId, p) => ({
+    text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",
+    values: [firmId, p.rows.shifts, p.rosterWorkerId, 1 + next()],
+  }),
 };
 
 // Every composite foreign key between firm tables. `own` supplies the row's other parents;
@@ -214,5 +293,39 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   otp_codes_session_fk: (firmId, _own, other) => ({
     text: "insert into otp_codes (firm_id, session_id, code_hash, expires_at) values ($1, $2, $3, $4)",
     values: [firmId, other.spareSessionId, hash(), later()],
+  }),
+  shifts_site_fk: (firmId, _own, other) => ({
+    text: "insert into shifts (firm_id, site_id, role, starts_at, ends_at) values ($1, $2, 'steward', $3, $4)",
+    values: [firmId, other.rosterSiteId, ...shiftTimes()],
+  }),
+  assignments_shift_fk: (firmId, _own, other) => ({
+    text: "insert into assignments (firm_id, shift_id, slot) values ($1, $2, $3)",
+    values: [firmId, other.rows.shifts, 1 + next()],
+  }),
+  assignments_worker_fk: (firmId, own, other) => ({
+    text: `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+           values ($1, $2, $3, $4, 'confirmed', now())`,
+    values: [firmId, own.rows.shifts, 1 + next(), other.workerId],
+  }),
+  requests_worker_fk: (firmId, _own, other) => ({
+    text: "insert into requests (firm_id, worker_id, type) values ($1, $2, 'general')",
+    values: [firmId, other.workerId],
+  }),
+  requests_shift_fk: (firmId, own, other) => ({
+    text: "insert into requests (firm_id, worker_id, shift_id, type) values ($1, $2, $3, 'swap')",
+    values: [firmId, own.rosterWorkerId, other.rows.shifts],
+  }),
+  requests_resolved_by_fk: (firmId, own, other) => ({
+    text: `insert into requests (firm_id, worker_id, type, status, resolved_by, resolved_at)
+           values ($1, $2, 'availability', 'approved', $3, now())`,
+    values: [firmId, own.rosterWorkerId, other.officeUserId],
+  }),
+  offers_shift_fk: (firmId, own, other) => ({
+    text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
+    values: [firmId, other.rows.shifts, own.rosterWorkerId, 1 + next()],
+  }),
+  offers_worker_fk: (firmId, own, other) => ({
+    text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
+    values: [firmId, own.rows.shifts, other.workerId, 1 + next()],
   }),
 };

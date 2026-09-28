@@ -1,6 +1,7 @@
 import type { Queue } from "pg-boss";
 import { SEND_LOGIN_CODE_QUEUE } from "../../lib/auth/send-login-code";
 import { SEND_PORTAL_LINK_QUEUE } from "../../lib/auth/send-portal-link";
+import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/credentials/scan";
 import {
   SHEETS_SYNC_EXPIRE_SECONDS,
   SHEETS_SYNC_QUEUE,
@@ -25,14 +26,22 @@ export function firmQueue(name: string): QueueSpec {
 }
 
 // Firm job queues are added here as their jobs are built.
-const FIRM_QUEUE_NAMES: readonly string[] = [SEND_PORTAL_LINK_QUEUE, SEND_LOGIN_CODE_QUEUE];
+const FIRM_QUEUE_NAMES: readonly string[] = [
+  SEND_PORTAL_LINK_QUEUE,
+  SEND_LOGIN_CODE_QUEUE,
+  CREDENTIAL_SCAN_QUEUE,
+];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
 
 export const QUEUES: readonly QueueSpec[] = [
   { name: HELLO_QUEUE },
-  // A cron with no firm and an empty payload; it only queues firm jobs.
+  // Crons with no firm and an empty payload; they only queue firm jobs.
   { name: SHEETS_TICK_QUEUE, options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 } },
+  {
+    name: CREDENTIAL_SCAN_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
   ...FIRM_QUEUE_NAMES.map(firmQueue),
   {
     ...sheetsSync,

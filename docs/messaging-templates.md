@@ -41,6 +41,7 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 | `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" |
 | `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. {note} — {firm} Shift Team" |
 | `credential_expiring` | Utility | "Your {credential} expires on {date}. Renew it and send the new details to the office so you can keep taking shifts. — {firm} Shift Team" |
+| `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
 | `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" |
 | `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" |
 
@@ -79,3 +80,10 @@ take open shifts or cancel straight away. To leave a message for the office, spe
 - Escalation: push + email "Unfilled: {role} at {site} {start} — {n} offers sent, none accepted."
 - Unknown number message, failed Sheets sync, domain verified/failed, credential expiries (weekly),
   pay digest (per schedule).
+- `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
+  is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
+  days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these
+  people can't take shifts that need them):" then "- {name}: {credential}, expired {date}" lines
+  (an empty section is left out; at most 40 lines a section, then "- and {n} more"); "When someone
+  sends you their new details, record the new expiry date so they can take shifts again."; "—
+  {firm} Shift Team".

@@ -769,3 +769,44 @@ To reach DONE: nothing further for this specific bullet — tick it via `/close-
 
 **Commit:** `0f68a10 Phase 2: Credential packs ...` on `build/overnight`. **Push:** succeeded.
 **CI:** not checked (`gh` isn't installed here).
+
+## 2026-09-28 20:06 UTC: Phase 2, "Credential expiry scan job (30/14/7-day warnings; block on expiry)"
+
+**Plan.** `src/lib/credentials/expiry.ts`: a pure planner (what to do with one credential today:
+warn at 30, 14 or 7 days, mark expired, or nothing). `src/lib/credentials/scan.ts`: the
+`credential-scan` firm job (warn workers by WhatsApp, mark expired credentials and tell the worker,
+send the office a weekly list on Mondays, log everything) and a `credential-scan-tick` cron that
+queues it for every firm once a day. Two columns on `credentials` record which warning went out for
+which expiry date. New message copy in `src/lib/messaging/templates.ts` and
+`docs/messaging-templates.md`. Messages go through the console transport only: nothing real is sent.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Warnings go out when a threshold is crossed, not only on the exact day; one message even if several were crossed (e.g. a credential imported 5 days before expiry gets one "7-day" warning, not three) | A day the worker was down, or a late import, must not skip or triple a warning | Exact-day matching (misses warnings) |
+| Two columns on `credentials`: `expiry_warned_for` (the expiry date the warnings are about) and `expiry_warned_days` (the last threshold sent). A new expiry date (a renewal) automatically starts the warnings again | No code that renews a credential has to remember to reset anything | Look warnings up in the events log each time |
+| Runs daily at 08:00 London time (pg-boss cron with a time zone), not 06:00 | 06:00 is inside the default quiet hours (22:00-07:00, docs/messaging-templates.md). Blocking doesn't wait for the scan: the rules engine already refuses an expired credential by its date from midnight | 06:00 as in the old job table (doc updated) |
+| Only credentials with status `valid` and an expiry date are warned or expired; the status flips to `expired` the day after the expiry date | The doc's rule (in date on its expiry day); applied and suspended ones have their own paths | Also touch applied ones |
+| Only active workers are messaged; an inactive worker's credential still flips to expired | No messages to people who've left; the record stays true | Message everyone |
+| The weekly office list goes to active admins and resourcers on Mondays, once (an event marks it sent that day), and only when there is something to list | "Office gets a weekly list" (rules doc); payroll doesn't place staff | Every office user; send an empty list |
+| Messages are sent inside the job's transaction, after the rows are marked | A failed transaction retries and may repeat a message (never lose one); the real queue-then-send outbox comes with Twilio in Phase 4 (already parked for login links) | Send after commit (a crash loses the warning) |
+| One scan per firm at a time (a Postgres advisory lock keyed on the firm), plus row locks on the credentials it may change | Two overlapping scans (a retry during a slow run) must not send a message twice or the office list twice | Rely on pg-boss's one-a-day singleton only |
+| The scan is for the date in its job key (`credential-scan:<date>`), not the clock when it runs | A Monday job retried after midnight still sends Monday's list; the job needs no clock | Read the clock in the job (the tick already decided the date) |
+
+**Guardrails review (round 1): FIX FIRST ×2, both reproduced by the reviewer, both fixed with regression tests.**
+
+| Finding | Root cause | Fix | Test |
+|---|---|---|---|
+| FIX FIRST: a renewal imported while the scan is expiring the same credential ends "expired" with the new future date (blocked for good; the scan only looks at valid rows) | `runImport` read the credential without a lock, so it saw the old "valid" status, then its UPDATE waited for the scan's lock and wrote the new date over "expired" without turning it valid | The import's read now locks the row (`for update`): it waits for the scan, then sees "expired" and renews it | `credential.scan` "a renewal imported while the scan is expiring…": waits until the import is actually blocked on the lock, then checks the row ends valid. Proven to fail without the fix (status "expired"), pass with it |
+| FIX FIRST: on a Monday, one failing email (an office address the database accepts but email can't use, like `ops@localhost`, or a list over the 20,000-character limit) rolled back the whole scan after the WhatsApp messages had gone, so every retry repeated them | The workers' part and the office list were one transaction | The scan is now a firm task with two transactions: workers first (committed), then the list. Invalid addresses are skipped and counted (`skipped` in the event). At most 40 lines a section, then "- and N more"; names cut to 80 characters | "a list that can't be sent never undoes or repeats…", "skips an office address…", "caps a long list…" (checks the email passes the transport's own size check); unit test for the cap |
+| A worker with an old row and a newer renewed row of the same type got a false "expired" message and appeared on the office list | Each row was judged alone | A row is "superseded" when the worker holds another valid row of that type lasting longer or never expiring: no warning, no message, not listed; still marked expired (event says `superseded: true`) | "a renewal recorded as a new row…" |
+| The office email pointed at "the worker's page", which doesn't exist yet | Copy written ahead of the Phase 5 screen | Now: "When someone sends you their new details, record the new expiry date so they can take shifts again." | unit + integration copy tests |
+| The two warning columns could be set one without the other | Check covered the values only | Check now also requires both set or both empty (migration 0008 regenerated before any commit; local dev database rebuilt with `db:reset` + `db:seed`) | "the warning columns are set together or not at all" |
+| The job used the clock, not the date it was queued for; job and tick used different clocks | Design | Date from the payload (validated as a real calendar date) | bad date dead-letters (`credential-scan:2026-02-30`) |
+
+Not fixed (parked in PLAN.md, or for Dylan): "block on expiry" at assignment rests on the rules engine, and `assign()` doesn't call it yet (the next task, "Atomic assign"); rows are locked while messages are sent (fine with the console transport; revisit with the outbox); quiet hours per firm (Phase 4 `notify`); the office email check in the database is looser than the email validator (addresses are skipped, not fixed); the demo seed has no credential expiring within 30 days, so `npm run dev` shows no warning yet.
+
+**Implementation root causes noted while building:** (1) A test expected one expiry on 22 Oct, but the inactive worker's licence had also passed its date and, by design, is marked expired too: the test was wrong, the code right; fixed the expectation and asserted that row. (2) `relation "newer" does not exist`: a Drizzle `alias()` renders as its bare name inside a raw `sql` template, so the subquery's FROM had no table; it now names the table and the alias.
+
+**Needs Dylan:** confirm the two new `credentials` columns (schema), the new `credential_expired` WhatsApp copy and the weekly office email copy (copy is product), and 08:00 as the send time.

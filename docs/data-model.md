@@ -133,6 +133,10 @@ create table credentials (
   status text not null default 'valid',  -- valid | expired | applied | suspended
   verified_at timestamptz,
   verified_by uuid,                      -- (firm_id, verified_by) -> office_users(firm_id, id)
+  -- Expiry warnings (credential-scan): the expiry date the warnings sent so far were about, and
+  -- the last threshold sent. A new expires_on (a renewal) means none sent yet for it.
+  expiry_warned_for date,
+  expiry_warned_days smallint,           -- 30 | 14 | 7; set together with expiry_warned_for (check)
   created_at timestamptz not null default now()
 );
 
@@ -326,6 +330,10 @@ create table events (
 -- "office:ip" | "link_fail:ip" | "otp:worker" | "otp:worker_day"}; once per window, when the
 -- limit is first reached). Pay-page codes: auth.otp_requested (session),
 -- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
+-- Credential expiry (actor system): credential.expiry_warning (credential; {type, expiresOn, days,
+-- daysLeft, channel, providerMessageId}), credential.expired (credential; {type, expiresOn,
+-- notified, superseded?, channel, providerMessageId}), credential.weekly_list_sent (firm; {date,
+-- recipients, skipped, expiring, expired}: counts only, never the names in the email).
 
 -- Login (Phase 1). kind says whose row it is; a CHECK ties kind to exactly one subject column.
 create table magic_links (

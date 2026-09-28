@@ -2,6 +2,13 @@ import type { PgBoss } from "pg-boss";
 import { systemClock, type Clock } from "../../lib/auth/clock";
 import { sendLoginCodeJob } from "../../lib/auth/send-login-code";
 import { sendPortalLinkJob } from "../../lib/auth/send-portal-link";
+import {
+  credentialScanFirmTask,
+  CREDENTIAL_SCAN_CRON,
+  CREDENTIAL_SCAN_TICK_QUEUE,
+  CREDENTIAL_SCAN_TZ,
+  runCredentialScanTick,
+} from "../../lib/credentials/scan";
 import { listFirmIds } from "../../lib/db/directory";
 import { withFirm } from "../../lib/db/scoped";
 import {
@@ -32,6 +39,15 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   for (const queue of QUEUES) await boss.createQueue(queue.name, queue.options);
   await registerFirmJob(boss, sendPortalLinkJob);
   await registerFirmJob(boss, sendLoginCodeJob);
+
+  // Credential expiry: always on (messages go through the configured transport).
+  await registerFirmTask(boss, credentialScanFirmTask);
+  await boss.work(CREDENTIAL_SCAN_TICK_QUEUE, async () => {
+    await runCredentialScanTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+  });
+  await boss.schedule(CREDENTIAL_SCAN_TICK_QUEUE, CREDENTIAL_SCAN_CRON, null, {
+    tz: CREDENTIAL_SCAN_TZ,
+  });
 
   if (deps.sheets) {
     const clock = deps.clock ?? systemClock;

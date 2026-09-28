@@ -57,6 +57,13 @@
       "when": 1790624826847,
       "tag": "0007_credential_types",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790627618831,
+      "tag": "0008_credential_expiry_warnings",
+      "breakpoints": true
     }
   ]
 }

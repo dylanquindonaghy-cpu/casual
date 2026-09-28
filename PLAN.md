@@ -113,7 +113,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
       returns `{ ok, reasons[] }`
 - [x] Credential packs seeded from `docs/rules-and-credentials.md` (security live; rail and
       construction types present but unused until a firm needs them)
-- [ ] Credential expiry scan job (30/14/7-day warnings; block on expiry)
+- [x] Credential expiry scan job (30/14/7-day warnings; block on expiry)
 - [ ] Atomic assign ("first yes wins") + re-check live source before confirming
 - [ ] Every assign/cancel writes events with `notice_hours`
 - [ ] Tests: `rules.table` (every case in the doc), `assign.race`, `sheets.sync`
@@ -403,6 +403,16 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Demo seed, still to add (see docs/testing.md): requests and Northline's mocked sheet (Phase 2),
   Acme's Saturday event day with the 6am dropout and pay records (Phase 3), the short-notice firm
   cancellation (Phase 5), 12 pay queries, 9 about one rate change (Phase 6).
+- Credential expiry messages go straight to the transport. Once Phase 4's `notify` job exists,
+  send them through it (push first, per-firm quiet hours), and through the queue-then-send outbox
+  when Twilio is connected, so a retried scan can't repeat a message.
+- Credential expiry and existing bookings: a worker already booked on a shift after their
+  credential's expiry date isn't flagged anywhere yet. Add "booked after expiry" to the office's
+  weekly list or the Today screen (Phase 5), and re-check at assignment (Phase 2 atomic assign).
+- Office renewal screen (Phase 5): recording a new expiry date sets status `valid` again (the
+  warning columns reset themselves by date) and logs `credential.renewed` with old and new dates.
+- `credential-scan-tick` skips a missed 08:00 (pg-boss `missed: skip`); the next day's run catches
+  up. If workers are often down at 08:00, use `missed: "once"` plus a quiet-hours check in the job.
 
 ## Hours log
 
@@ -417,3 +427,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.6 | CSV/Excel import for workers, credentials and shifts: CSV and .xlsx readers with size and zip-bomb limits, columns by header name, dry run, row-numbered problems, `npm run import`; 1064 tests + 10 e2e; verified and audited DONE (round 2) (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.4 | Rules engine: pure `checkEligibility()` (started, active, role, credentials in date for the whole shift, applied allowance, overlap, rest, weekly cap, unavailable, blocked site), plain-English reasons, office overrides limited to 0 and 6-8, an eligibility pass; 1122 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.3 | Credential packs: security, rail, construction and cleaning packs as data held to the doc by a test, per-firm `credential_types`, `applyCredentialPack()` in the demo seed, "applied" counted only for SIA licences; 1154 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.6 | Credential expiry scan: daily 08:00 job warns workers at 30, 14 and 7 days (one message per threshold, restarts on renewal), marks credentials expired the day after and tells the worker, Monday list for the office; import renewal race and Monday rollback fixed after review; 1185 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

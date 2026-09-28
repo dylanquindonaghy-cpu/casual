@@ -131,9 +131,17 @@ the current SIA rule before enabling.
 
 ## Expiry warnings
 
-- Daily scan: warn worker at 30, 14 and 7 days; office gets a weekly list.
-- The day **after** the expiry date: status → `expired` (a credential is in date on its expiry day);
-  worker sees a red banner; offers stop automatically.
+- Daily scan (`credential-scan`, 08:00 London time): warn worker at 30, 14 and 7 days; office gets
+  a weekly list (Mondays: expiring in the next 30 days, expired in the last 7).
+- A warning goes out when a threshold is **crossed**, once per threshold per expiry date. If
+  several were crossed at once (a late import, a day the scan didn't run), one message goes, for
+  the nearest. Only `valid` credentials with an expiry date, and only active workers, are warned.
+  A row the worker has already replaced (another valid row of the same type that lasts longer or
+  never expires) gets no warning or message and isn't on the office list; it is still marked
+  expired when its date passes.
+- The day **after** the expiry date: status → `expired` (a credential is in date on its expiry day)
+  and the worker gets `credential_expired`; worker sees a red banner; offers stop automatically.
+  Blocking never waits for the scan: rule 3 already fails a `valid` credential with a past date.
 - Office can record a renewal (new number + expiry) → status `valid` → offers resume.
 
 ## Test cases (table-driven, all must pass)

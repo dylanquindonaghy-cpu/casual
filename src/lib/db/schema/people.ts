@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { check, date, foreignKey, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  date,
+  foreignKey,
+  pgTable,
+  smallint,
+  text,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
 import { firms } from "./tenancy";
 
@@ -90,6 +99,11 @@ export const credentials = pgTable(
       .default("valid"),
     verifiedAt: timestamptz("verified_at"),
     verifiedBy: uuid("verified_by"),
+    // Expiry warnings (src/lib/credentials/expiry.ts): the expiry date the warnings sent so far
+    // were about, and the last threshold sent (30, 14 or 7 days). A new expiry date (a renewal)
+    // means none sent yet for it.
+    expiryWarnedFor: date("expiry_warned_for", { mode: "string" }),
+    expiryWarnedDays: smallint("expiry_warned_days"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -105,6 +119,11 @@ export const credentials = pgTable(
       foreignColumns: [officeUsers.firmId, officeUsers.id],
     }),
     check("credentials_type_format", sql`${t.type} ~ '^[A-Z][A-Z0-9_]*$'`),
+    // Both set or both empty: a threshold is always about a particular expiry date.
+    check(
+      "credentials_expiry_warned_days",
+      sql`(${t.expiryWarnedFor} is null) = (${t.expiryWarnedDays} is null) and ${t.expiryWarnedDays} in (30, 14, 7)`,
+    ),
     check(
       "credentials_status_check",
       sql`${t.status} in ('valid', 'expired', 'applied', 'suspended')`,

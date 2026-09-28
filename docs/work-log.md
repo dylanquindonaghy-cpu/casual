@@ -1332,3 +1332,92 @@ Full list: `docs/overnight-log.md`, this task's entry.
 2. `docker exec -it shiftdesk-starter-postgres-1 psql -U shiftdesk -d shiftdesk`
 3. Type `select code, name, applied_allowed from credential_types;` and press Enter: you'll see both
    demo firms' licence types. Type `\q` to leave.
+
+## 2026-09-28: Phase 2, task 8: credential expiry scan (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (20:06 to 20:42 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=ed3035ffbc0a1821 e2e=true`: type checks, lint, all
+  1185 tests (up from 1154), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+Licences run out. This task adds a **scheduled job** (a piece of work the background worker runs
+by itself on a timetable, here every morning at 08:00 London time) that keeps an eye on every
+licence and card with an expiry date.
+
+- **Warnings to the worker.** 30, 14 and 7 days before a licence expires, the worker gets a
+  WhatsApp message: "Your SIA door supervisor licence expires on 5 Nov. Renew it and send the new
+  details to the office so you can keep taking shifts." Each warning goes once. If the job missed
+  a few days, or a licence was imported only 5 days before it expires, the worker gets one
+  message (the 7-day one), not three at once.
+- **Expiry.** A licence is still good on its expiry date. The day after, the job marks it
+  "expired" and tells the worker they can't take shifts that need it until they renew.
+- **"Block on expiry".** The shift rules (built two tasks ago) already refuse a licence whose date
+  has passed, from midnight, whatever the job has done. The job makes the record match, so the
+  office and the worker see "expired" too. A test checks both: refused before the job runs, and
+  after.
+- **The office's Monday list.** On Mondays, admins and resourcers get one email: whose licences
+  expire in the next 30 days and whose expired in the last week. Payroll doesn't get it, since
+  they don't place staff.
+- **Renewals.** When a new expiry date is recorded (today, by importing the credentials file
+  again), the warnings start again for the new date. Nothing has to be reset by hand.
+- **Everything is logged** in the action log: each warning, each expiry, each Monday list (counts
+  only, never names or phone numbers).
+- Two new columns on the `credentials` table remember which warning went out for which expiry date.
+- Messages only print to the terminal (the "console transport"). Nothing real is sent.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Warn when a threshold is crossed, one message even if several were | A missed day or a late import must not skip or triple a warning | Only on the exact day |
+| 08:00, not 06:00 as the old plan said | 06:00 is inside the default quiet hours (22:00 to 07:00) | 06:00 |
+| People who have left get no messages; their licences still get marked expired | No messages to ex-staff; the record stays true | Message everyone |
+| The Monday list goes out in a separate step from the workers' messages | Found by the safety review: one bad office email address used to undo the whole run, so workers got the same message again on every retry | One step for everything |
+| A licence the worker has already replaced with a newer one gets no warning | Otherwise they'd be told "you can't take shifts" while holding a valid licence | Judge each row alone |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### Two problems the safety review found (both fixed and tested)
+
+1. **Renewal at the wrong moment.** If the office imported a renewed licence in the same instant
+   the job was marking the old one expired, the licence could end up "expired" with its new
+   future date, so the worker stayed blocked. The import now waits its turn (it **locks** the
+   row: the database lets only one change to it at a time). A new test sets up exactly that
+   moment and checks the licence ends up valid. The test was also run without the fix, and failed.
+2. **Monday rollback.** Explained in the decisions table above. The list is also capped at 40
+   lines per section ("and 5 more"), so a very long list can't break the email.
+
+### What the new tests prove
+
+- `tests/unit/credential.expiry.test.ts` (15 tests): exactly when a warning or an expiry happens,
+  including month ends, leap years, the October clock change, renewals, and "applied" or
+  "suspended" licences being left alone; Mondays only for the list; the message wording.
+- `tests/integration/credential.scan.test.ts` (16 tests, on the real database): warnings once per
+  threshold; the next one two weeks later; expiry the day after (not on the day) with the message;
+  blocked before and after the job; two runs at once still send each message once; the Monday
+  list (right people, right lines, only once a day, not when empty); one firm never touches
+  another's; the daily timer queues one job per firm per day; the review's problems above.
+
+### Parked, open, and things that need Dylan
+
+- **Please look over** the two new `credentials` columns, the new "expired" WhatsApp message and
+  the Monday email wording (`docs/messaging-templates.md`), and 08:00 as the send time.
+- Parked in `PLAN.md`: send these through the Phase 4 notification job (push first, per-firm quiet
+  hours); flag workers already booked on shifts after their licence expires; the office renewal
+  screen (Phase 5); catching up a missed 08:00 the same day.
+
+### How to see it working
+
+There's no screen for this yet. The tests show it:
+
+1. `npm run db:up` (starts the local database, if it isn't running).
+2. `npm test -- credential` runs just the credential tests (4 files). You should see `Tests  41 passed (41)`
+   and no failures.

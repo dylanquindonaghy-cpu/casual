@@ -297,7 +297,10 @@ function rowImporter(
         .from(credentials)
         .where(and(eq(credentials.workerId, worker.id), eq(credentials.type, type)))
         .orderBy(desc(credentials.createdAt))
-        .limit(1);
+        .limit(1)
+        // Locked, so a renewal waits for a credential scan that is marking this row expired, then
+        // sees "expired" and makes it valid again (never writes a new date over a stale status).
+        .for("update");
       if (!existing) {
         const [added] = await tx
           .insert(credentials)

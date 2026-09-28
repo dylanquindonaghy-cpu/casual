@@ -79,3 +79,18 @@ export function nextDay(wall: WallTime): WallTime {
   const d = new Date(Date.UTC(wall.year, wall.month - 1, wall.day + 1));
   return { ...wall, year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// The calendar date an instant falls on in the zone, as yyyy-mm-dd.
+export function localDateOf(instant: Date, timeZone: string): string {
+  const w = wallTimeOf(instant, timeZone);
+  return `${w.year}-${pad(w.month)}-${pad(w.day)}`;
+}
+
+// A yyyy-mm-dd date moved by whole calendar days (negative goes back).
+export function addDays(isoDate: string, days: number): string {
+  const [y = 2000, m = 1, d = 1] = isoDate.split("-").map(Number);
+  const moved = new Date(Date.UTC(y, m - 1, d + days));
+  return `${moved.getUTCFullYear()}-${pad(moved.getUTCMonth() + 1)}-${pad(moved.getUTCDate())}`;
+}

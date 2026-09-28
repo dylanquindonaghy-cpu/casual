@@ -140,3 +140,7 @@ status; logging credential-rule edits; any-of credentials; zod check of `workers
 the office_users DELETE grant (now unblocked).
 
 **Hours:** 0.5 h (16:37 to 17:04 UTC). Phase 2 so far: 0.5 h of the 30-40 h estimate.
+
+**Commit:** `5cdc003 Phase 2: Schema: shifts, assignments, requests, offers, credential_rules (per
+sector/role)` on `build/overnight`. **Push:** succeeded (`b957b94..5cdc003`). **CI:** not checked
+(`gh` isn't installed here); see the Actions tab on GitHub for the `build/overnight` run.

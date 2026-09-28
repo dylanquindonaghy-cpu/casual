@@ -41,6 +41,11 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await expect(page.getByText("Nothing open right now.")).toBeVisible();
   await page.getByRole("link", { name: "Back to my shifts" }).click();
   await expect(page).toHaveURL(`${acme}/`);
+  await page.getByRole("link", { name: "My requests" }).click();
+  await expect(page).toHaveURL(`${acme}/requests`);
+  await expect(page.getByText("No requests yet.")).toBeVisible();
+  await page.getByRole("link", { name: "Back to my shifts" }).click();
+  await expect(page).toHaveURL(`${acme}/`);
   await page.getByRole("link", { name: "Past 30 days" }).click();
   await expect(page).toHaveURL(`${acme}/?view=past`);
   await expect(page.getByText("No shifts in the last 30 days.")).toBeVisible();

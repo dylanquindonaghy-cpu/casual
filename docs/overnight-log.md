@@ -1281,3 +1281,48 @@ To reach DONE: nothing further for this bullet's own claims. Before ticking, com
 
 **Ticked** in PLAN.md. **Hours:** 0.3 (22:47 to 23:08 UTC). Phase 3 so far: 1.0 h of its 35–45 h estimate.
 **Commit:** `c6943f0`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-28 23:12 UTC: Phase 3, "Request a time change or swap: creates a request for the office"
+
+**Plan.** The `requests` table exists (Phase 2). This task lets a worker create a time-change or
+swap request for one of their upcoming shifts, and see its status:
+- `src/lib/portal/request-kinds.ts` (browser-safe, no database imports): the two kinds, their
+  fields, the payload check, the outcome shape and the status wording.
+- `src/lib/portal/requests.ts`: `createRequest()` (only for the worker's own confirmed booking on a
+  shift that hasn't started; one open request per shift and kind; inserts the row and a
+  `request.created` event, never the typed text), `myRequests()` (the list with status),
+  `requestableShifts()` (the worker's upcoming bookings, for the form).
+- Pages: `/requests` (My requests: kind, shift, status, reference; "New request") and
+  `/requests/new` (pick the shift and the kind, a short form, then "Request sent." with a
+  reference). My shifts gets "Ask for a change" on each upcoming booking and a "My requests" link.
+- Tests: the service on the real database; the payload check, the list and the answers (unit);
+  the client-boundary test covers the new form.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Time change: the start and finish the worker asks for (their local times) and an optional note; swap: who could take it (optional, free text) and an optional note | Enough for the office to act; free text stays on the request row, never in the log | Pick a colleague from a list (would show other workers' names) |
+| Only on the worker's own confirmed booking, before the shift starts | A request about someone else's shift, or a past one, isn't the worker's to make | Any shift |
+| One open request per shift and kind: asking again shows the existing one's reference | Stops accidental duplicates for the office | Allow many |
+| Statuses in words: open and escalated → "Waiting for the office"; approved → "Approved"; declined → "Declined"; auto-resolved → "Sorted" | Plain words; escalation is internal | Show the raw status |
+| General questions and availability wait for their own tasks (profile, office) | This task is time change or swap | Build all four kinds now |
+| The office isn't emailed about a new request yet; it shows in the Phase 5 requests queue | Office notifications are Phase 5 | Email the office now |
+
+**Guardrails review (round 1): SAFE TO COMMIT, nothing to fix first; the lesser items fixed or parked.**
+
+| Finding | Fix | Test |
+|---|---|---|
+| Only the sequential duplicate case was tested | Five identical requests sent at the same moment (each in its own transaction, released together): one stored, four told it's waiting | integration "five identical requests sent together…" |
+| Cancelled shifts weren't excluded from the form or the service | `shifts.status <> 'cancelled'` in both | integration (not_yours, requestable list) |
+| The confirmation had no "when" and didn't repeat the ask | "Sent at 09:14 on Mon 2 Nov." and "You asked for 15:00 to 23:00." | unit, integration |
+| The action accepted any number of field keys | A strict object of the four fields | — |
+| The service didn't check its own ids | uuid check (not_yours) | — |
+| "Check the times" was vague for equal start and finish | "The new start and finish must be different." | — |
+| Docs drift (My shifts row, form messages); stale component name | screens.md updated; `ShiftActions` | — |
+
+Parked (PLAN.md): Phase 5 approval rules (time change = firm move/curtail with notice; swap
+through the rules and `bookShift`), auto-resolving open requests on cancel, reference clashes,
+request notes and health details, and (schema, needs Dylan) a partial unique index against
+duplicates. **Needs Dylan:** the free-text "Who could take it?" (another worker's name, stored on
+the request only).

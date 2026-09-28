@@ -148,7 +148,7 @@ function NextShift({ shift, timeZone, now }: MyShiftsViewProps & { shift: MyShif
       <p className="mt-1 text-2xl font-bold">{shiftWhen(shift.startsAt, shift.endsAt, timeZone)}</p>
       <p className="mt-1">{roleLabel(shift.role)}</p>
       <ShiftDetails shift={shift} />
-      <CancelIfAllowed shift={shift} now={now} />
+      <ShiftActions shift={shift} now={now} />
     </section>
   );
 }
@@ -185,13 +185,23 @@ function ShiftDetails({ shift }: { shift: MyShift }) {
   );
 }
 
-// A confirmed booking the worker can still cancel here: not once the shift has started (then it's
-// a conversation with the office).
-function CancelIfAllowed({ shift, now }: { shift: MyShift; now: Date }) {
+// What the worker can still do about a confirmed booking before it starts: ask the office for a
+// change (a time change or a swap), or cancel it. Once it has started, both are the office's.
+function ShiftActions({ shift, now }: { shift: MyShift; now: Date }) {
   if (shift.status !== "confirmed" || shift.startsAt.getTime() <= now.getTime()) return null;
-  // Keyed by the booking: after a cancellation the list reloads and the next shift moves into this
-  // card; a fresh key means it starts with its own, empty cancel state.
-  return <CancelShift key={shift.assignmentId} shiftId={shift.shiftId} />;
+  return (
+    <>
+      <Link
+        href={`/requests/new?shift=${shift.shiftId}`}
+        className="mt-3 block w-full rounded-xl border-2 border-slate-400 px-4 py-4 text-center text-lg font-semibold"
+      >
+        Ask for a change
+      </Link>
+      {/* Keyed by the booking: after a cancellation the list reloads and the next shift moves
+          into this card; a fresh key means it starts with its own, empty cancel state. */}
+      <CancelShift key={shift.assignmentId} shiftId={shift.shiftId} />
+    </>
+  );
 }
 
 // An upcoming shift in the list: tap it to open the same details as the next shift's card.
@@ -214,7 +224,7 @@ function UpcomingRow({ shift, timeZone, now }: MyShiftsViewProps & { shift: MySh
           {!shift.site && !shift.instructions && (
             <p className="mt-2 text-base text-slate-600">No site or instructions yet.</p>
           )}
-          <CancelIfAllowed shift={shift} now={now} />
+          <ShiftActions shift={shift} now={now} />
         </div>
       </details>
     </li>

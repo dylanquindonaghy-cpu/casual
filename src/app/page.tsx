@@ -33,8 +33,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           notices={notices}
         />
         <Link
+          href="/requests"
+          className="mt-8 block w-full rounded-xl border-2 border-slate-900 px-4 py-4 text-center text-lg font-semibold"
+        >
+          My requests
+        </Link>
+        <Link
           href="/pay"
-          className="mt-8 block w-full rounded-xl bg-slate-900 px-4 py-4 text-center text-lg font-semibold text-white"
+          className="mt-3 block w-full rounded-xl bg-slate-900 px-4 py-4 text-center text-lg font-semibold text-white"
         >
           See your pay
         </Link>

@@ -333,6 +333,9 @@ create table events (
 -- "office:ip" | "link_fail:ip" | "otp:worker" | "otp:worker_day"}; once per window, when the
 -- limit is first reached). Pay-page codes: auth.otp_requested (session),
 -- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
+-- Worker requests (src/lib/portal/requests.ts): request.created (request; actor worker; {type,
+-- shiftId}): the typed note and any colleague's name stay on the row (requests.payload:
+-- time_change {start, end, note} local "HH:MM" times; swap {swapWith, note}).
 -- Cancelling (src/lib/roster/cancel.ts): shift.cancelled (assignment; actor worker or office; {by:
 -- worker|firm, shiftId, workerId, noticeHours}); the reason a person typed is only on the row
 -- (assignments.cancel_reason). The Sheets sync's adds source and its fixed reason ("Removed on the

@@ -1851,3 +1851,68 @@ Full list: `docs/overnight-log.md`, this task's entry.
 The demo data has no bookings yet (the demo-seed task adds them), so there's nothing to cancel
 on screen locally. The tests show it: `npm test -- cancel` runs the cancellation tests (3 files);
 you should see `Tests  20 passed (20)` and no failures.
+
+## 2026-09-28: Phase 3, task 4: Request a time change or swap (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (23:12 to 23:33 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=8c424d3ace0f9733 e2e=true`: type checks, lint, all
+  1328 tests (up from 1311), the 10 browser tests and the rule checks passed. A production build
+  (`npm run build`) was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+- **"Ask for a change"** on each upcoming shift in My shifts opens a short form:
+  - **"Change the times"**: the new start and finish they'd like; or
+  - **"Swap with someone"**: optionally, who could take it;
+  - plus an optional note for the office. Then "Send request".
+- **A confirmation**: "Request sent.", which shift, the times asked for, when it was sent, a
+  reference, and the firm's sign-off.
+- **My requests** (a new page, linked from the home page): each request with its shift and its
+  status in plain words ("Waiting for the office", "Approved", "Declined", "Sorted").
+- Only for their own booked shifts that haven't started, and only one open request per shift and
+  kind. Asking again shows the waiting one's reference.
+- The request is saved for the office (the office's queue to approve or decline comes in Phase 5),
+  and the action log records that it was made. The typed note and any colleague's name stay on
+  the request, never in the log.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Two kinds now: change the times, or swap | That's this task; general questions and availability come with their own tasks | All four kinds |
+| "Who could take it?" is free text | Picking from a list would show other workers' names (Dylan to confirm) | A colleague picker |
+| One open request per shift and kind | No accidental duplicates for the office | Allow many |
+| Statuses in plain words; "escalated" reads as still waiting | Escalation is the office's own business | Show the raw status |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/requests.test.ts` (7 tests, real database): a request is saved for the
+  office and logged without the typed text; one open per shift and kind, even with five taps at
+  the same moment; only for the worker's own upcoming bookings (not someone else's, not started,
+  not cancelled, not another firm's); bad form input is refused; the list and the shifts offered.
+- `tests/unit/portal.requests.test.ts` (9 tests): the form's checks, the confirmation and answers,
+  My requests, and the form's first screen, rendered to HTML.
+- The browser login test now also opens My requests ("No requests yet.").
+
+### Parked, open, and things that need Dylan
+
+- **Please confirm:** the free-text "Who could take it?" (it can hold a colleague's name).
+- Parked in `PLAN.md`: what approving a request must do (Phase 5: notice hours for a time
+  change; a swap goes through the rules); closing open requests when a booking is cancelled;
+  telling the office and the worker (Phases 4 and 5); a database rule against duplicates (needs
+  Dylan).
+
+### How to see it working
+
+1. Log in as in the earlier tasks (`npm run dev`, then `http://acme.localhost:3000/login`).
+2. On My shifts, tap "My requests": it says "No requests yet." (the demo data has no bookings to
+   ask about until the demo-seed task).

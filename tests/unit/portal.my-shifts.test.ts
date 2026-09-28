@@ -172,6 +172,10 @@ describe("My shifts page body", () => {
       ],
     });
     expect(html.match(/>Cancel this shift</g)).toHaveLength(2);
+    // And "Ask for a change" (a time change or swap request) for each.
+    expect(html.match(/href="\/requests\/new\?shift=[^"]+"[^>]*>Ask for a change</g)).toHaveLength(
+      2,
+    );
   });
 
   it("shows the last 30 days with what happened, or says there's nothing", () => {

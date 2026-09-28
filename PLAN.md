@@ -134,7 +134,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] My shifts (upcoming, past), with site, times, role, instructions
 - [x] Open shifts I'm eligible for, with a "Take shift" button (rules + atomic assign)
 - [x] Cancel a shift: instant confirmation, reason, notice period recorded
-- [ ] Request a time change or swap: creates a request for the office
+- [x] Request a time change or swap: creates a request for the office
 - [ ] Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)
 - [ ] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
 - [ ] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
@@ -389,11 +389,25 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 5: let the office look a booking up by the 8-character reference on the worker's
   confirmation.
 - Open shifts cards: the pay rate "if the firm shows it" comes with pay data (Phase 6).
+- **Dylan to confirm:** a swap request's "Who could take it? (optional)" is free text, so it can
+  hold another worker's name (stored on the request only, never in the log or shown to others).
 - **Dylan to confirm:** add `npm run build` to `scripts/verify.sh`. A client component importing
   database code passed every check but broke the production build (caught in review; a unit test
   now follows client imports, but only a build proves the bundle). verify.sh can't be changed
   without Dylan.
-- Server actions (`takeShiftAction`, `cancelShiftAction`): no tests of their own input handling
+- Worker requests, for Phase 5: approving a time change is a firm-initiated move or curtailment
+  (log notice hours per worker, golden rules 5 and 12); approving a swap must put the colleague
+  through the rules and `bookShift()` (golden rule 6). Open requests stay "Waiting for the office"
+  after the booking is cancelled: auto-resolve them then. Office lookup by the 8-character
+  reference must cope with two ids sharing a prefix. Request notes can hold health details (like
+  cancel reasons: consider codes).
+- Schema, needs Dylan's OK: a partial unique index on requests `(firm_id, worker_id, shift_id,
+  type) where status in ('open','escalated')`, so any future path can't add duplicates (today the
+  shift lock does it, tested).
+- Worker requests: the office isn't told about a new one until the Phase 5 requests queue (and
+  its email/push); the worker isn't told of the answer until `request_update` (Phase 4 notify).
+  "General question" and "availability" requests come with their own tasks (profile, office).
+- Server actions (`takeShiftAction`, `cancelShiftAction`, `createRequestAction`): no tests of their own input handling
   (logged out, a bad id, an invalid reason); they need the request's host and session. Add with
   the Playwright flow (Phase 3) or a small action-test helper.
 - Worker cancellations store the quick reason as text ("I'm unwell" is health-related). Consider
@@ -478,3 +492,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 3 | 0.4 | My shifts: the portal home shows the next shift in a card (London times, role, site, maps button, instructions), every later shift opening to the same details, the last 30 days, a licence banner and plain empty states; 1275 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.3 | Open shifts: only shifts the rules let the worker take (next 28 days, filters by day, site and role), "Take shift" booking through the one booking path with an on-card confirmation (what, when, reference, sign-off) or a plain answer; 1290 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.3 | Cancel a shift: "Cancel this shift" on My shifts, quick reasons, instant confirmation (the shift, notice given, when recorded, the booking reference, sign-off), recorded through the Phase 2 cancel path; the review caught a broken production build (fixed, and a new test guards it); 1311 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 3 | 0.4 | Worker requests: "Ask for a change" on My shifts (a time change or a swap for their own upcoming shift), a confirmation with a reference, and My requests with each status in plain words; one open request per shift and kind (tested with taps at once); 1328 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

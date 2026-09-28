@@ -1755,7 +1755,7 @@ Full list: `docs/overnight-log.md`, this task's entry.
 
 ### What the new tests prove
 
-- `tests/integration/open-shifts.test.ts` (9 tests, real database): only shifts the worker could
+- `tests/integration/open-shifts.test.ts` (8 tests, real database): only shifts the worker could
   take are listed (not full, not theirs, not the wrong role, not draft, cancelled, started or
   too far off, not another firm's, and not ones the rules refuse); the filters; a long list with
   the first 50 checked and a filter reaching later ones; "Take shift" books and confirms; every

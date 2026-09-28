@@ -1174,3 +1174,32 @@ in the rendered `<form>`; React writes `class` first; the check now matches the 
 (3) The client button can't render outside Next (its router needs the app), so the unit test gives
 it a stand-in router; the button's server call isn't exercised there (the integration tests cover
 `takeShift`).
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=d258fad28aa6407b e2e=true` (1290 tests in 59 files, 10 e2e).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Scope note: audited only the specific unchecked bullet "Open shifts I'm eligible for, with a 'Take shift' button (rules + atomic assign)" in PLAN.md Phase 3 (line 135). The Phase 3 "Done when" line (worker can take AND cancel in <30s, full demo script) is NOT claimed done here — "Cancel a shift" and later bullets (demo seed, Playwright login→take→cancel flow) remain unchecked and out of scope for this task.
+
+Step 1 check: `.claude/state/verified.json` → `{"ok":true,"tree":"d258fad28aa6407b","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` → `d258fad28aa6407b`. Match confirmed, proceeding.
+
+Claims:
+- Open shifts list, only shifts worker is eligible for (rules on current rows) — PROVEN — `src/lib/portal/open-shifts.ts:50-164` (filters status/role/window/dedupe, then re-checks each candidate via `previewBooking`); test `tests/integration/open-shifts.test.ts:44-88` ("lists only the open shifts this worker could take, soonest first", "leaves out a shift the rules refuse, e.g. for a licence out of date by then"); `.claude/state/test.log:275-276` both green.
+- Filters by day/site/role, with choices and truncation for long lists — PROVEN — `src/lib/portal/open-shifts.ts:79-136`, `src/app/shifts/open/page.tsx:9-38`; tests `tests/integration/open-shifts.test.ts:90-137` and unit render tests `tests/unit/portal.open-shifts.test.ts:49-105`; log lines 277-278, 1001-1004.
+- "Take shift" button, one tap, plain-English confirmation/outcomes — PROVEN — `src/app/shifts/open/take-shift-button.tsx`, `take-shift-result.tsx`, server action `src/app/shifts/open/actions.ts:12-24`, logic `src/lib/portal/take-shift.ts:34-93`; tests `tests/integration/open-shifts.test.ts:140-219` (booked, filled, already_assigned, not_eligible, gone, source_stale) and unit render tests `tests/unit/portal.open-shifts.test.ts:108-161`; log lines 279-281, 1005-1007.
+- Atomic assign (first yes wins) reused for worker bookings — PROVEN — `takeShift` → `bookShift` → `plug.assign` single conditional UPDATE, `src/lib/roster/book.ts:161-241`; race safety proven by `tests/integration/assign.race.test.ts` (10 concurrent bookers → exactly N booked, overlap/weekly-cap/applied-allowance races), unaffected by the `book.ts` refactor in this diff (extracted `previewBooking`, `officeCanPlace`, `plugFor` — pure refactor, no logic change per `git diff`); log lines 268-274 all green.
+- Preview never issues a bookable pass (no double-use risk) — PROVEN — `src/lib/roster/book.ts:133-146`, test `tests/integration/open-shifts.test.ts:221-238` ("gives the rules' answer but never a pass"); log line 282.
+- Docs kept in sync — PROVEN — `docs/screens.md` `/shifts/open` row rewritten to match implementation; `docs/api-and-jobs.md` `takeShift` entry updated from "planned" to "built" with actual file paths.
+- Full verify pipeline (typecheck, lint, unit+integration, e2e) green on this exact tree — PROVEN — `.claude/state/verified.json` ok:true, e2e:true; `.claude/state/test.log` tail: "Test Files 59 passed (59)", "Tests 1290 passed (1290)".
+
+Fakes found: none — no `.only`/`.skip`, no TODO/not-implemented in the new/changed files, no mocking of the rules or booking logic under test (tests hit a real Postgres via `withFirm`/`appRolePool`), assertions are concrete (exact shift-id arrays, exact outcome objects).
+
+To reach DONE: nothing (for this bullet). To close out Phase 3 as a whole, "Cancel a shift", the Playwright take→cancel e2e, and the demo seed are still separate unchecked bullets.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.3 (22:23 to 22:44 UTC). Phase 3 so far: 0.7 h of its 35–45 h estimate.
+**Commit:** `55feaab`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

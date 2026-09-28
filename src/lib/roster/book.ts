@@ -18,7 +18,7 @@ import { localDateOf } from "../time/zoned";
 import { loadEligibilityInput } from "./eligibility-input";
 import { nativeRosterPlug, sheetsRosterPlug } from "./native";
 import { noticeHours } from "./notice";
-import type { AssignResult, RosterSource } from "./plug";
+import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 
 // Booking a shift: the one path every "yes" goes through (docs/architecture.md, "Take an open
 // shift"; golden rules 1, 4 and 5).
@@ -53,7 +53,8 @@ export const SHEET_COPY_FRESH_MS = 20 * MINUTE;
 const OFFICE_ROLES_THAT_PLACE = ["admin", "resourcer"] as const;
 
 // Ids as the database writes them (lower case), so they match the pass the rules issue.
-const uuid = z.uuid().transform((id) => id.toLowerCase());
+export const rosterId = z.uuid().transform((id) => id.toLowerCase());
+const uuid = rosterId;
 
 // Strict: a worker's request carrying overrides is refused, not quietly stripped.
 export const bookingRequestSchema = z.strictObject({
@@ -156,8 +157,9 @@ export async function bookShift(
       return { status: "invalid_reason" };
     }
   }
-  const clock = deps.clock ?? systemClock;
-  return retryAborted(() => run(firmId, (tx) => bookInTransaction(tx, request, clock.now())));
+  // The request's time, taken once: a retry books at the same moment, with the same notice.
+  const now = (deps.clock ?? systemClock).now();
+  return retryAborted(() => run(firmId, (tx) => bookInTransaction(tx, request, now)));
 }
 
 async function bookInTransaction(
@@ -166,19 +168,7 @@ async function bookInTransaction(
   now: Date,
 ): Promise<BookingResult> {
   const { shiftId, workerId, by } = request;
-  if (by.type === "office") {
-    const [placer] = await tx
-      .select({ id: officeUsers.id })
-      .from(officeUsers)
-      .where(
-        and(
-          eq(officeUsers.id, by.id),
-          eq(officeUsers.status, "active"),
-          inArray(officeUsers.role, [...OFFICE_ROLES_THAT_PLACE]),
-        ),
-      );
-    if (!placer) return { status: "not_allowed" };
-  }
+  if (by.type === "office" && !(await officeCanPlace(tx, by.id))) return { status: "not_allowed" };
 
   const check = await checkBooking(tx, {
     shiftId,
@@ -203,9 +193,7 @@ async function bookInTransaction(
     return { status: "source_stale" };
   }
 
-  const clock = { now: () => now };
-  const plug =
-    check.source === "sheets" ? sheetsRosterPlug(tx, { clock }) : nativeRosterPlug(tx, { clock });
+  const plug = plugFor(tx, check.source, now);
   const assigned = await plug.assign(shiftId, workerId, result.pass);
   if (assigned.status !== "assigned") return assigned;
 
@@ -232,6 +220,28 @@ async function bookInTransaction(
     slot: assigned.slot,
     overridden: result.overridden,
   };
+}
+
+// Only active admins and resourcers place or cancel staff (payroll doesn't).
+export async function officeCanPlace(tx: FirmTx, officeUserId: string): Promise<boolean> {
+  const [placer] = await tx
+    .select({ id: officeUsers.id })
+    .from(officeUsers)
+    .where(
+      and(
+        eq(officeUsers.id, officeUserId),
+        eq(officeUsers.status, "active"),
+        inArray(officeUsers.role, [...OFFICE_ROLES_THAT_PLACE]),
+      ),
+    );
+  return placer !== undefined;
+}
+
+// The plug for a shift, by where the shift came from: our own tables for native and imported
+// shifts, our copy of the sheet for Sheets shifts. Its clock is the request's time.
+export function plugFor(tx: FirmTx, source: RosterSource, now: Date): RosterPlug {
+  const clock = { now: () => now };
+  return source === "sheets" ? sheetsRosterPlug(tx, { clock }) : nativeRosterPlug(tx, { clock });
 }
 
 // The firm's enabled sheet synced successfully recently enough to book against our copy of it.

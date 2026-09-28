@@ -1522,3 +1522,75 @@ There's no screen yet (the "Take shift" button is Phase 3). The tests show it:
 1. `npm run db:up` (starts the local database, if it isn't running).
 2. `npm test -- assign.race booking` runs the race and booking tests (3 files). You should see
    `Tests  22 passed (22)` and no failures.
+
+## 2026-09-28: Phase 2, task 10: every booking and cancellation logged with notice hours (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (21:26 to 21:47 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=ca174e72e9d2ad95 e2e=true`: type checks, lint, all
+  1236 tests (up from 1222), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+The new zero-hours rules (Employment Rights Act, expected 2027) are about **notice**: how many
+hours before a shift someone was booked, or cancelled. Firms will need proof. This task makes sure
+that proof exists for every booking and every cancellation.
+
+- **Cancelling.** A new function, `cancelBooking()`, is the one way a person cancels: a worker
+  cancelling their own shift, or the office cancelling someone's. It records who cancelled, when,
+  why and the hours of notice on the booking, frees the place for someone else, and writes the
+  action log entry, all at once.
+- **Always recorded.** A cancellation is never refused because of what the reason says. The
+  reason stays on the booking record (which can be corrected or anonymised later) and is kept out
+  of the action log, which can never be changed. A typed reason might name someone or mention
+  their health.
+- **Rules.** A worker can't cancel once the shift has started: that's a conversation with the
+  office. The office can until the shift ends, and the late (negative) notice is recorded. After
+  the end, it's a no-show or a completed shift (Phase 5).
+- **Nothing slips through.** A test walks through every way a booking can be made or cancelled
+  (the worker, the office, the office's Google Sheet adding or removing a name). It checks that
+  each one left exactly one log entry with the right notice hours. Another test makes sure no other
+  code can cancel a booking directly.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The typed reason stays on the booking, not in the action log | The log is permanent and must never hold personal details (found by the safety review) | A tidied copy in the log |
+| No cancelling by the office after a shift ends | A past shift is a no-show or completed (Phase 5); reopening its place would show a false gap (found by the safety review) | Allow it |
+| Notice counts from when the request reaches us | Instant for the portal; the office recording an earlier phone call comes with the Phase 5 screen | Accept an earlier time now |
+| "Short notice" is flagged in the Phase 5 report, not in the log | The threshold is a firm setting and the 2027 rules aren't final | Store a flag at the time |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/cancel.test.ts` (11 tests): worker and office cancellations store the
+  evidence and log the notice hours (to the minute: 30 minutes before the start is 0.5 hours);
+  who may cancel; started and ended shifts; the reason never reaches the log; another firm's
+  bookings are out of reach; a deadlock is retried.
+- `tests/integration/notice-log.test.ts`: every booking and cancellation, by every path, has
+  exactly one log entry with its notice hours, matching what's stored on the booking.
+- `tests/integration/assign.race.test.ts`: a double tap on "cancel" cancels once.
+
+### Parked, open, and things that need Dylan
+
+- **Please confirm:** sending someone home part-way through a shift counts as cutting it short
+  (a Phase 5 feature, with notice logged), not a cancellation.
+- Parked in `PLAN.md`: the worker's "we've recorded your cancellation" WhatsApp and starting offer
+  waves after a late cancellation (Phase 3/4); the office recording when a worker actually rang
+  (Phase 5); a Google Sheet shift set to Draft keeps its workers without a notice record.
+
+### How to see it working
+
+There's no screen yet. The tests show it:
+
+1. `npm run db:up` (starts the local database, if it isn't running).
+2. `npm test -- cancel notice-log` runs the cancellation and notice-log tests (2 files). You
+   should see `Tests  12 passed (12)` and no failures.

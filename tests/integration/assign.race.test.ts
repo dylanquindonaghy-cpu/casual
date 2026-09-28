@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { bookShift, type BookingResult } from "@/lib/roster/book";
+import { cancelBooking } from "@/lib/roster/cancel";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool, urls } from "../helpers/db";
 import { barrier } from "../helpers/race";
@@ -179,5 +180,51 @@ describe("assign.race: first yes wins under real concurrency", () => {
         codes: ["applied_over_allowance"],
       });
     }
+  });
+
+  it("a double tap on cancel: cancelled once, one event, the place reopened once", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    const shiftId = await f.shift();
+    await f.booking(sam, shiftId);
+    const pool = new Pool({ connectionString: urls.app, max: 4 });
+    try {
+      const run = createWithFirm(pool);
+      const together = barrier(4);
+      const gated: WithFirm = (id, fn) =>
+        run(id, async (tx) => {
+          await tx.execute(sql`select 1`);
+          await together();
+          return fn(tx);
+        });
+      const results = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          cancelBooking(
+            gated,
+            f.firmId,
+            { shiftId, workerId: sam, reason: "Unwell", by: { type: "worker", id: sam } },
+            { clock },
+          ),
+        ),
+      );
+      expect(results.map((r) => r.status).sort()).toEqual([
+        "cancelled",
+        "not_assigned",
+        "not_assigned",
+        "not_assigned",
+      ]);
+    } finally {
+      await pool.end();
+    }
+    const { rows } = await su.query<{ status: string }>(
+      "select status from assignments where shift_id = $1 order by created_at",
+      [shiftId],
+    );
+    expect(rows.map((r) => r.status)).toEqual(["cancelled_worker", "open"]);
+    const { rows: logged } = await su.query<{ n: number }>(
+      "select count(*)::int as n from events where firm_id = $1 and action = 'shift.cancelled'",
+      [f.firmId],
+    );
+    expect(logged[0]?.n).toBe(1);
   });
 });

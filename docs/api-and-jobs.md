@@ -31,11 +31,13 @@ it from the server's own origin, which loses the firm's Host header. Planned:
 
 `takeShift(shiftId)` (calls `bookShift()` in `src/lib/roster/book.ts` with the session's worker;
 results: booked, not_eligible with reasons, filled, already_assigned, not_open, not_found,
-source_stale) · `cancelShift(assignmentId, reason)` ·
+source_stale) · `cancelShift(shiftId, reason)` (calls `cancelBooking()` in
+`src/lib/roster/cancel.ts`; results: cancelled with notice hours, not_assigned, started, not_found) ·
 `createRequest(type, payload)` · `setAvailability(dates)` · `raisePayQuery(form)` · `updateNotificationPrefs(...)`
 
 Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),
-`cancelShiftByFirm(shiftId, reason)`, `makeUrgent(shiftId)`, `offerTo(shiftId, workerIds)`,
+`cancelShiftByFirm(shiftId, reason)`, `cancelBookingByFirm(shiftId, workerId, reason)`
+(`cancelBooking()` with `by: office`), `makeUrgent(shiftId)`, `offerTo(shiftId, workerIds)`,
 `assignManually(shiftId, workerId, override?)` (`bookShift()` with `by: office`; overrides only
 of checks 0 and 6-8, with a reason; active admins and resourcers only), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/`, dry run first; the screen is Phase 5),
 `upsertCredential`, `verifyCredential`, `resolvePayQueryGroup`, `updateSettings`, `verifyDomain`,

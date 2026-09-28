@@ -3,9 +3,10 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // One booking path (ADR-014): only the booking code may run the rules for a booking, check a
-// booking, or call a roster plug's assign. Anywhere else, a pass could be minted from made-up input
-// and used to book around the real rows, the authorisation and the action log. Tests are exempt
-// (the contract suite mints passes on purpose).
+// booking, or call a roster plug's assign; only the cancel path and the sync may cancel.
+// Anywhere else, a pass could be minted from made-up input to book around the real rows, the
+// authorisation and the action log, or a cancellation could skip its notice-hours event. Tests
+// are exempt (the contract suite mints passes on purpose).
 
 const ROOT = join(process.cwd(), "src");
 
@@ -41,6 +42,12 @@ const CALLS: [string, RegExp, string[]][] = [
     "a plug's assign(",
     /(?<!Object)\.assign\(/,
     ["src/lib/roster/book.ts", "src/lib/roster/sheets/sync.ts"],
+  ],
+  // Cancellations: every one writes its event with the notice hours (cancel.ts, or the sync).
+  [
+    "a plug's markCancelled(",
+    /\.markCancelled\(/,
+    ["src/lib/roster/cancel.ts", "src/lib/roster/sheets/sync.ts"],
   ],
 ];
 

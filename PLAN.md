@@ -115,7 +115,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
       construction types present but unused until a firm needs them)
 - [x] Credential expiry scan job (30/14/7-day warnings; block on expiry)
 - [x] Atomic assign ("first yes wins") + re-check live source before confirming
-- [ ] Every assign/cancel writes events with `notice_hours`
+- [x] Every assign/cancel writes events with `notice_hours`
 - [ ] Tests: `rules.table` (every case in the doc), `assign.race`, `sheets.sync`
 
 **Done when:** rules tests pass; a seeded Sheet syncs both ways; double-assign impossible under a race test.
@@ -343,7 +343,7 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   `getShifts` report a shift that fails `rosterShiftSchema` (slots 1..headcount). Don't lower a
   headcount below its held slots (cancel those bookings first, with notice), or decide how to show
   them.
-- Events task / Phase 4: `AssignResult` and `CancelResult` don't say whether the shift became
+- Phase 4: `AssignResult` and `CancelResult` don't say whether the shift became
   `filled` or reopened; the offer wave after a dropout needs to know. Add it to the results (or
   re-read in the caller). (Lock order is now shift then worker everywhere, and `bookShift()`
   retries on deadlock: keep it so for any new writer.)
@@ -360,13 +360,25 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Booking: the office's override reason is free text in `events.data`. `bookShift()` refuses one
   holding a phone number or email address, but a name could still get in. Use reason codes (plus
   a note kept on the assignment row) when the Phase 5 manual-assign screen is built.
-- Phase 3 `takeShift` action: take the firm from `getCurrentFirm()` (ADR-012), never from input,
-  and the worker from the session; `src/app` can't import `withFirm`, so add a small lib wrapper.
+- Phase 3 `takeShift` and `cancelShift` actions: take the firm from `getCurrentFirm()` (ADR-012),
+  never from input, and the worker from the session; `src/app` can't import `withFirm`, so add a
+  small lib wrapper.
+- A Sheets shift set to Draft in the sheet keeps its confirmed workers, with only a
+  `shift.status_changed` event and no per-worker notice. Decide (with the vanished-row question)
+  whether Draft on a booked shift means a firm cancellation.
 - Phase 5 `updateSettings`: validate the rules settings (`rulesSettingsSchema`) when they're
   written. A broken value makes every booking fail and the Sheets sync book no names.
 - Booking: the day's "applied" count checks others' credentials against the day the shift starts
   and counts shifts starting that day, while the rules check the applicant to the shift's last
   day. Fine for day shifts; revisit if firms rely on the allowance for night work.
+- Cancelling: the worker's `cancellation_ack` WhatsApp ("We've recorded your cancellation of…")
+  and the urgent-window check that starts offer waves come with Phase 3/4 (`notify`, offer waves).
+- Phase 5 office cancel screen: let the office record when the worker actually asked (a phone call
+  at 07:10), so notice counts from then (`markCancelled` already takes `cancel.at`); flag short
+  notice in the notice report against `short_notice_threshold_hours`, not in the events.
+- **Dylan to confirm:** sending someone home part-way through a shift is a curtailment (Phase 5
+  "curtail", notice logged), not a cancellation; the office can cancel a started shift today only
+  to record a late cancellation.
 - **Dylan to confirm:** (1) "re-check the live source" for a Sheets shift means our copy synced in
   the last 20 minutes (ADR-014), not a read of the sheet per booking; (2) a name the office types
   into its sheet overrides the rest (11 h) and weekly-hours (48 h) limits and availability.
@@ -437,3 +449,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.3 | Credential packs: security, rail, construction and cleaning packs as data held to the doc by a test, per-firm `credential_types`, `applyCredentialPack()` in the demo seed, "applied" counted only for SIA licences; 1154 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.6 | Credential expiry scan: daily 08:00 job warns workers at 30, 14 and 7 days (one message per threshold, restarts on renewal), marks credentials expired the day after and tells the worker, Monday list for the office; import renewal race and Monday rollback fixed after review; 1185 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.6 | Atomic assign: one booking path (`bookShift`: who may book whom, rules on the current rows, fresh-copy check for Sheets shifts, one conditional update, logged), single-use eligibility pass required by every roster plug, worker and applied-day locks, sheet names checked by the rules; 1222 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.4 | Events with notice hours: `cancelBooking` (worker or office, reason kept on the row, never in the log; no cancelling after the end), every booking and cancellation by every path logged with notice hours (proven by a whole-log test), sync events aligned; 1236 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

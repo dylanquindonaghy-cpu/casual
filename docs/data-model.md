@@ -333,6 +333,10 @@ create table events (
 -- "office:ip" | "link_fail:ip" | "otp:worker" | "otp:worker_day"}; once per window, when the
 -- limit is first reached). Pay-page codes: auth.otp_requested (session),
 -- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
+-- Cancelling (src/lib/roster/cancel.ts): shift.cancelled (assignment; actor worker or office; {by:
+-- worker|firm, shiftId, workerId, noticeHours}); the reason a person typed is only on the row
+-- (assignments.cancel_reason). The Sheets sync's adds source and its fixed reason ("Removed on the
+-- rota sheet", "Shift cancelled on the rota sheet").
 -- Booking (src/lib/roster/book.ts): shift.assigned (assignment; actor worker or office; {by:
 -- worker|firm, shiftId, workerId, slot, noticeHours, overridden?, reason?}); from the Sheets sync
 -- the same with source: sheets and reason "Put on the rota sheet by the office".

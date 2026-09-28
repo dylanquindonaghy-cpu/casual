@@ -392,6 +392,8 @@ describe("sheets.sync: from the sheet into our tables", () => {
     expect(event?.data).toEqual({
       source: "sheets",
       by: "firm",
+      shiftId: await idOf("shifts", f.firmId, "P1"),
+      workerId: await idOf("workers", f.firmId, "N001"),
       reason: REMOVED_ON_SHEET,
       noticeHours: 35,
     });

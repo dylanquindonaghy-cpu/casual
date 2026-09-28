@@ -444,7 +444,11 @@ async function mirror(
         });
         if (result.status === "cancelled") {
           cancelled += 1;
-          await logCancel(tx, result.assignmentId, result.noticeHours, CANCELLED_ON_SHEET);
+          await logCancel(
+            tx,
+            { ...result, shiftId, workerId: holder.workerId },
+            CANCELLED_ON_SHEET,
+          );
         }
       }
     }
@@ -539,7 +543,7 @@ async function mergeShift(
     });
     if (result.status === "cancelled") {
       cancelled += 1;
-      await logCancel(tx, result.assignmentId, result.noticeHours, REMOVED_ON_SHEET);
+      await logCancel(tx, { ...result, shiftId, workerId: holder.workerId }, REMOVED_ON_SHEET);
     }
   }
   const held = new Set(ours.map((h) => h.ref));
@@ -626,18 +630,20 @@ async function mergeShift(
 
 const holdersOf = (row: SheetShift) => row.assigned.map((a) => a.staffRef);
 
+// The same shape as a person's cancellation (cancel.ts), plus the fixed reason: never free text.
 async function logCancel(
   tx: FirmTx,
-  assignmentId: string,
-  hours: number,
+  cancel: { assignmentId: string; shiftId: string; workerId: string; noticeHours: number },
   reason: string,
 ): Promise<void> {
   await recordEvent(
     tx,
-    system("shift.cancelled", "assignment", assignmentId, {
+    system("shift.cancelled", "assignment", cancel.assignmentId, {
       by: "firm",
+      shiftId: cancel.shiftId,
+      workerId: cancel.workerId,
       reason,
-      noticeHours: hours,
+      noticeHours: cancel.noticeHours,
     }),
   );
 }

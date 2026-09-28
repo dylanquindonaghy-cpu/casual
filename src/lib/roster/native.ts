@@ -257,8 +257,9 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
       `);
       if (cancelled.rowCount !== 1) return { status: "not_assigned" }; // changed under us
       // The cancelled row stays as evidence; a new open row reopens the slot, and a filled shift
-      // is open again. A slot above a lowered headcount isn't reopened, so the shift stays as is.
-      if (row.slot <= shift.headcount) {
+      // is open again. A slot above a lowered headcount isn't reopened, so the shift stays as is,
+      // and neither is a slot on a shift that has started (nobody can take it: it's history).
+      if (row.slot <= shift.headcount && shift.startsAt.getTime() > clock.now().getTime()) {
         await tx.execute(sql`
           insert into assignments (firm_id, shift_id, slot)
           values (${shift.firmId}, ${shiftId}, ${row.slot})

@@ -932,3 +932,44 @@ To reach DONE: nothing — all claims PROVEN with passing tests re-run live on t
 
 **Ticked** in PLAN.md. **Hours:** 0.6 (20:46 to 21:22 UTC). Phase 2 so far: 4.5 h of its 30–40 h estimate.
 **Commit:** `954727d`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-28 21:26 UTC: Phase 2, "Every assign/cancel writes events with `notice_hours`"
+
+**Plan.** Bookings already log `shift.assigned` with `noticeHours` (the portal/office path from the
+last task, and the Sheets sync), and the sync's cancellations and time changes log theirs. What's
+missing is the cancellation path for people:
+- `src/lib/roster/cancel.ts`: `cancelBooking()`, the one path for a worker cancelling their own
+  booking or the office cancelling someone's (golden rule 12). Its own transaction (retried on a
+  deadlock): who may cancel whom, the plug's `markCancelled` (which stores the reason and the
+  notice hours on the assignment row), then the `shift.cancelled` event with `by`, `shiftId`,
+  `workerId`, `noticeHours` and the reason.
+- The booking boundary test also keeps `markCancelled` to the cancel path and the sync.
+- A "notice log is complete" test: across every path (portal booking, office booking, worker
+  cancel, office cancel, sheet booking, sheet removal), each booking and each cancellation has
+  exactly one event, and each cancellation event's notice hours equal the row's.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| A cancellation is always recorded, whatever the reason says. The reason is kept only on the assignment row (`cancel_reason`), never in the event (**changed after review**: first version put a "clean" reason in the event) | The notice record matters more than tidy text; a typed reason can name someone or mention their health, and events are append-only for 12 months, while the row can be corrected or anonymised | Refuse the cancellation until the reason is clean; a masked copy in the event |
+| Workers can't cancel a shift that has started (`started`); the office can until it ends (negative notice recorded, the place not reopened), and not after (`ended`; **added after review**) | A late cancellation is a conversation with the office; a past shift is a no-show or completed (Phase 5), and reopening its place would show a false gap | Let anyone cancel at any time |
+| Cancellations need no fresh copy of the sheet: a Sheets shift's cancellation is recorded straight away and the next sync takes the name out of the sheet | Refusing a cancellation would lose notice evidence | Apply the booking's freshness rule |
+| Notice counts from when the request reaches us (the clock) | Portal requests are instant; an office recording a phone call from earlier ("asked at 07:10") comes with the Phase 5 screen (parked) | Accept an `askedAt` now |
+| Short notice isn't flagged in the event: the notice report (Phase 5) flags it against the firm's current `short_notice_threshold_hours` | The threshold is configurable and still a placeholder until the 2027 rules | Store a flag at the time |
+
+**Guardrails review (round 1): FIX FIRST ×2, both fixed with tests; the lesser items fixed or parked.**
+
+| Finding | Root cause | Fix | Test |
+|---|---|---|---|
+| FIX FIRST: a worker's typed reason (names, health) went into the append-only events table | The event copied any reason without a phone number or email | The reason stays only on the assignment row; events carry who, which shift and booking, and the notice hours | `cancel` "is always recorded, whatever the reason says…" checks no event text holds the reason |
+| FIX FIRST: the office could cancel bookings on shifts that had ended, reopening places on past shifts | No end-time check; the plug reopened any cancelled place | `ended` once the shift has ended; the native plug no longer reopens a place on a started shift | `cancel` "can cancel once the shift has started… without reopening", "can't cancel once the shift has ended" |
+| Lesser: the "started" check read the shift without a lock | The select had no row lock | `for no key update` (the same shift-first order) | existing tests |
+| Lesser: a retry moved the notice hours | `clock.now()` was read on each attempt (in `book.ts` too) | `now` taken once, before the retries, in both paths | retry tests |
+| Lesser: the sync's `shift.cancelled` lacked `shiftId`/`workerId` | Older event shape | Added | `sheets.sync` removal test |
+| Lesser: no committed concurrency test for cancels | — | `assign.race` "a double tap on cancel": 4 at once, cancelled once, one event, the place reopened once | itself |
+| Lesser: numeric `.sort()` sorted as text in the notice-log test | Default sort | Numeric comparator | itself |
+
+Parked (PLAN.md): the "filled or reopened" result item re-labelled Phase 4; `cancelShift` takes the
+firm from `getCurrentFirm()`; a Sheets shift set to Draft keeps its workers without per-worker
+notice. **Needs Dylan:** "sent home part-way" is a curtailment, not a cancellation.

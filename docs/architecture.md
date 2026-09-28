@@ -248,8 +248,18 @@ then send the new number to the office").
 
 **Cancel**
 1. Worker taps Cancel → reason → confirm.
-2. Store `cancelled_at`, compute `notice_hours = starts_at - cancelled_at`, write event.
-3. If inside the firm's urgent window: mark shift urgent → start offer waves.
+2. `cancelBooking()` (`src/lib/roster/cancel.ts`, the one path for people; the office uses it too,
+   golden rule 12): the plug stores `cancelled_at`, the reason, who cancelled and
+   `notice_hours = starts_at - cancelled_at` on the row, frees the place, and the `shift.cancelled`
+   event is written in the same transaction. Always recorded. The reason is typed by a person, so it
+   stays on the row (which can be corrected or anonymised) and never goes into the append-only
+   event. A worker can't cancel a shift that has started; the office can until it ends (negative
+   notice; the place isn't reopened). No fresh sheet copy is needed.
+3. If inside the firm's urgent window: mark shift urgent → start offer waves (Phase 4).
+
+Every booking and every cancellation, by every path (portal, office, the Sheets sync), writes one
+event with its notice hours (`tests/integration/notice-log.test.ts`), and only `cancel.ts` and the
+sync may call a plug's `markCancelled` (`tests/unit/booking.boundary.test.ts`).
 
 **Offer waves (pg-boss)**
 1. Rank eligible workers (fair rotation: fewest hours this week first; or first come first served).

@@ -127,7 +127,8 @@ export interface RosterPlug {
   // Throws unless `pass` is an unused EligibilityPass for exactly this worker and shift (checked
   // before anything else, and used up whatever the result).
   assign(shiftId: string, workerId: string, pass: EligibilityPass): Promise<AssignResult>;
-  // Frees the person's slot (it can be taken again) and records the reason, who cancelled and
+  // Frees the person's slot (it can be taken again; the native plug doesn't reopen a place on a
+  // shift that has started, since nobody can take it) and records the reason, who cancelled and
   // the notice hours counted from cancel.at. Throws on a blank reason, or a cancel.at later than
   // the plug's clock (notice can't be claimed for a request not made yet).
   markCancelled(shiftId: string, workerId: string, cancel: CancelInput): Promise<CancelResult>;

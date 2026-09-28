@@ -27,8 +27,13 @@ import { firms, SECTORS, sites } from "./tenancy";
 // (TABLE_ACCESS); shifts and assignments are cancelled, never removed.
 
 // Roles are data ('steward', 'door_supervisor', 'track_operative'...), matched exactly between
-// shifts, credential_rules and workers.roles, so they share one spelling rule.
-const roleFormat = (column: AnyPgColumn) => sql`${column} ~ '^[a-z][a-z0-9_]*$'`;
+// shifts, credential_rules and workers.roles, so they share one spelling rule. The roster
+// adapters' zod schemas use the same pattern (src/lib/roster/plug.ts).
+export const ROLE_PATTERN = "^[a-z][a-z0-9_]*$";
+// It is pasted into SQL text below, so it must stay a simple pattern: no quote or backslash (which
+// would break the SQL, and where JS and Postgres regexes start to differ).
+if (/['\\]/.test(ROLE_PATTERN)) throw new Error("ROLE_PATTERN must not contain ' or \\");
+const roleFormat = (column: AnyPgColumn) => sql`${column} ~ ${sql.raw(`'${ROLE_PATTERN}'`)}`;
 
 export const SHIFT_STATUSES = ["draft", "open", "filled", "cancelled"] as const;
 export const SHIFT_SOURCES = ["native", "sheets", "csv"] as const;

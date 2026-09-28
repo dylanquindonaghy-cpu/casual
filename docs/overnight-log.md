@@ -144,3 +144,100 @@ the office_users DELETE grant (now unblocked).
 **Commit:** `5cdc003 Phase 2: Schema: shifts, assignments, requests, offers, credential_rules (per
 sector/role)` on `build/overnight`. **Push:** succeeded (`b957b94..5cdc003`). **CI:** not checked
 (`gh` isn't installed here); see the Actions tab on GitHub for the `build/overnight` run.
+
+## 2026-09-28 17:07 UTC: Phase 2, "`RosterPlug` interface: `listStaff`, `getShifts`, `assign`, `markCancelled`, `canWrite`"
+
+**Plan.** `src/lib/roster/plug.ts`: the `RosterPlug` interface, the shapes it returns
+(`RosterStaff`, `RosterShift`), zod schemas every adapter uses to check data from its source at the
+boundary, and result types for `assign` and `markCancelled`. `src/lib/roster/notice.ts`: one pure
+`noticeHours()` function. A shared **contract suite** (`tests/helpers/roster-contract.ts`): named
+checks every adapter must pass (native, Sheets and CSV run it in their own tasks), against a fixed
+scenario each adapter seeds into its own source. It runs now against an in-memory reference
+adapter (`tests/helpers/memory-roster-plug.ts`, a test double), plus "the contract can fail"
+checks with deliberately broken variants (like `rls.mutation`). Unit tests for the schemas and
+`noticeHours()`. `docs/architecture.md` updated.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Reads return records keyed by `ref`, the source's own key (our worker/shift id for native, the sheet or CSV row key otherwise); writes take our ids (`assign(shiftId, workerId)`, as in architecture.md) | The sync job upserts by `(source, external_ref)`; the portal only knows our ids. Each adapter maps between them | Refs everywhere (the portal would need to know sheet keys) or ids everywhere (a sheet row has no id until synced) |
+| `markCancelled(shiftId, workerId, { reason, by: "worker" \| "firm" })` | Golden rule 12: a firm cancel is logged like a worker cancel, and the database needs `cancelled_worker` vs `cancelled_firm`. A blank reason is refused | `reason` only (can't tell who cancelled) |
+| Results are tagged unions: assign → `assigned` / `filled` / `already_assigned` / `not_open` / `not_found` / `needs_approval`; cancel → `cancelled` (with `noticeHours`) / `not_assigned` / `not_found` / `needs_approval` | Each outcome needs different copy ("Just filled", etc.); matches the auth code's result style | Throwing errors for normal outcomes |
+| `canWrite: false` means `assign`/`markCancelled` change nothing and return `needs_approval` | architecture.md: "prepare the change, office taps approve". The approve queue itself comes later | Throwing on write |
+| The plug doesn't check eligibility | "AI reads, code decides" stays in one place: the rules engine, called by the take-shift service before `assign` | Rules inside every adapter |
+| `getShifts(from, to)` returns shifts *starting* in `[from, to)`, every status (draft and cancelled included), with who holds each slot | The sync job mirrors the whole source; the portal filters. A window must end after it starts | Open shifts only |
+| `noticeHours(startsAt, cancelledAt)`: hours to 2 decimals, rounded half away from zero, negative after the start, never `-0` | Matches `assignments.notice_hours numeric(8,2)` exactly; one function for every adapter (parked from the schema task) | Each adapter computing its own |
+| `ROLE_PATTERN` is exported from the schema and used by both the database CHECK and the zod schema | One spelling rule by construction, not by a test that keeps two copies in step | Two copies |
+| The in-memory adapter lives in `tests/helpers`, not `src` | It is a test double that proves the contract suite; no firm uses it | A "memory" source in the app |
+
+**Built.** `src/lib/roster/plug.ts` (interface, boundary schemas, result types, and the decisions
+above written into its header), `src/lib/roster/notice.ts`, `ROLE_PATTERN` and `WORKER_STATUSES`
+shared from the schema (no migration change: drift check clean),
+`tests/helpers/roster-contract.ts` (21 named checks), `tests/helpers/memory-roster-plug.ts` (13
+faults), `tests/unit/roster.contract.test.ts` and `tests/unit/roster.plug.test.ts`.
+
+**Guardrails review** (`guardrails-reviewer`): verdict FIX FIRST, one item.
+
+- FIX FIRST 1: the "office cancellation is recorded the same way (golden rule 12)" check could
+  never fail: nothing read back what an adapter stored, so an adapter that saved every cancel as
+  the worker's, or dropped the reason, would pass. **Fixed**: the fixture now has
+  `cancellations()` (for native: the assignments row's status, reason and notice hours); both
+  cancel checks assert who, why and the notice hours; new `ignore_by` and `drop_reason` faults
+  prove the checks catch it.
+- SHOULD FIX 2 (notice counted from when the call runs): **fixed**: `cancel.at` (when the person
+  asked) is required, notice counts from it, and a `cancel.at` after the plug's clock is refused.
+  Two new checks and two faults (`notice_from_clock`, `future_at_ok`). Parked: saving the pending
+  change on `needs_approval`.
+- SHOULD FIX 3 (who owns the transaction and the event row): **decided and written into
+  plug.ts**: adapters that write our tables are built on the caller's `withFirm` transaction; the
+  caller writes the `events` row from the result in the same transaction. The "at once" check is
+  renamed to say what it proves (one plug, calls in flight); the cross-connection race stays with
+  `assign.race`.
+- SHOULD FIX 4 (eligibility pass and worker lock): **parked** for the rules engine and atomic
+  assign tasks (they don't exist yet; a branded type now would have no creator).
+- SHOULD FIX 5 (no cross-firm check in the contract): **fixed**: the harness must supply two
+  firms; a new check requires the other firm's rows to be unlisted, `not_found` by id and
+  unchanged, with a `cross_firm` fault proving it can fail.
+- Notes: worker statuses now one shared list (`WORKER_STATUSES`); the pasted `ROLE_PATTERN`
+  refuses `'` or `\`; the real venue name in test data replaced by the seed's "Acme Demo Arena";
+  plug.ts now says the plug assigns inactive workers or past shifts if asked (the rules engine
+  must stop that) and that staff views must leave out drafts. Not changed: the memory double
+  reports `source: "native"` (harmless), and `rosterShiftSchema` doesn't force "filled" to mean
+  every slot held (a derived status that may lag; the read must not fail on it).
+
+**Verify:** `VERIFIED tree=20703b1cd636b217 e2e=true` (802 tests, 10 e2e), first run.
+
+**claims-auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Task audited: PLAN.md Phase 2 bullet — "`RosterPlug` interface: `listStaff`, `getShifts`, `assign`, `markCancelled`, `canWrite`" (still unchecked `[ ]` in PLAN.md at the time of this audit — auditor does not tick it).
+
+Step 1 gate: `.claude/state/verified.json` → `{"ok":true,"tree":"20703b1cd636b217","e2e":true,...}`. `./.claude/hooks/tree-hash.sh` → `20703b1cd636b217`. Match, so proceeding.
+
+Claims:
+- Interface defines all 5 members with correct signatures — PROVEN — `src/lib/db/schema/roster.ts:32` (ROLE_PATTERN, SHIFT_SOURCES, SHIFT_STATUSES) and `src/lib/roster/plug.ts:114-129` declare `RosterPlug { source, canWrite, listStaff(), getShifts(from,to), assign(shiftId,workerId), markCancelled(shiftId,workerId,cancel) }` exactly matching the bullet, plus `AssignResult`/`CancelResult` result-type unions (lines 93-112) and zod schemas `rosterStaffSchema`/`rosterShiftSchema`/`shiftWindowSchema`/`cancelInputSchema` (lines 34-91).
+- Schema/type validation is real, not a stub — PROVEN — `tests/unit/roster.plug.test.ts:37-135` exercises `rosterStaffSchema`, `rosterShiftSchema`, `shiftWindowSchema`, `cancelInputSchema` with accept/reject cases, plus `ROLE_PATTERN` cross-checked against live Postgres CHECK constraints (`roster.ts:36`, test lines 122-135) so zod and DB agree. `noticeHours()` (`src/lib/roster/notice.ts:7-11`) covers rounding, DST, negative notice (test lines 137-170).
+- A general contract suite exists so every adapter (native/Sheets/CSV) is checked identically — PROVEN — `tests/helpers/roster-contract.ts` defines 20 `ContractCheck`s covering listStaff, getShifts (window, copies), assign (first-yes-wins, concurrent race, multi-slot, already_assigned, not_open, not_found), markCancelled (store evidence, notice from `cancel.at` not clock, blank reason/future `at` rejected, not_assigned), read-only mode, and cross-firm isolation.
+- Contract suite is actually run and is not a fake — PROVEN — `tests/unit/roster.contract.test.ts` runs `describeRosterContract()` against a full in-memory reference adapter (`tests/helpers/memory-roster-plug.ts`), and separately proves every check can fail via 15 deliberately-broken "fault" variants (`double_assign`, `ignore_window`, `zero_notice`, `cross_firm`, etc., lines 59-82) — this rules out vacuous/tautological tests.
+- No fakes/skips — PROVEN — `grep` for `.skip`, `.only`, `TODO`, `not implemented` across `src/lib/roster/`, `tests/helpers/{roster-contract,memory-roster-plug}.ts`, `tests/unit/roster.{contract,plug}.test.ts` returned nothing.
+- Tests actually pass in the logged run for the current tree — PROVEN — `.claude/state/test.log:572-608` and `:717-` show every `roster.contract.test.ts` and `roster.plug.test.ts` test with `✓`, and the run summary at the end of the log reads "Test Files 34 passed (34) / Tests 802 passed (802)". `test.log` mtime (Sep 28 18:26) postdates the `verified.json` timestamp write and matches the current tree hash.
+- Docs updated consistently — PROVEN — `docs/architecture.md:115-156` documents the same interface shape, result unions, contract-suite guarantees and adapter table; matches `src/lib/roster/plug.ts` verbatim in shape.
+
+Fakes found: none.
+
+Scope note: only the interface bullet was in scope here. The next unchecked bullets (native adapter, Sheets adapter, rules engine, race test, `sheets.sync`) are correctly still unchecked in PLAN.md and were not claimed as done — the Phase 2 "Done when" (rules tests pass, Sheet syncs both ways, race-proof double-assign) is a phase-level bar for later tasks, not this one; the interface task doesn't yet require an adapter, and none was found or claimed.
+
+To reach DONE: nothing further needed for this specific bullet.
+```
+
+(Count check: the contract has 21 checks, `grep -c '^    name: '`; the auditor's "20" is a
+miscount. "15 fault variants" is the 15 fault cases, covering 13 kinds of fault.)
+
+**Ticked** in `PLAN.md` after the DONE verdict. **Parked** (in `PLAN.md`): an `EligibilityPass`
+for `assign` plus a worker lock (rules engine / atomic assign tasks); saving pending changes on
+`needs_approval` before any read-only source goes live.
+
+**Hours:** 0.4 h (17:07 to 17:29 UTC). Phase 2 so far: 0.9 h of the 30-40 h estimate.

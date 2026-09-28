@@ -117,14 +117,32 @@ next request.
 The firm's rota can live in different places. The app talks to all of them the same way:
 
 ```ts
+// src/lib/roster/plug.ts (one plug per firm)
 interface RosterPlug {
-  listStaff(): Promise<Staff[]>;
-  getShifts(from: Date, to: Date): Promise<Shift[]>;
-  assign(shiftId: string, workerId: string): Promise<Result>;
-  markCancelled(shiftId: string, workerId: string, reason: string): Promise<Result>;
-  canWrite: boolean; // false: prepare the change, office taps approve
+  readonly source: "native" | "sheets" | "csv";
+  readonly canWrite: boolean; // false: nothing changes, writes return needs_approval, office taps approve
+  listStaff(): Promise<RosterStaff[]>;                    // keyed by ref, the source's own key
+  getShifts(from: Date, to: Date): Promise<RosterShift[]>; // starting in [from, to), every status, with slot holders
+  assign(shiftId: string, workerId: string): Promise<AssignResult>;
+  //   assigned {assignmentId, slot} | filled | already_assigned | not_open | not_found | needs_approval
+  markCancelled(shiftId: string, workerId: string,
+    cancel: { reason: string; by: "worker" | "firm"; at: Date }): // at: when the person asked
+    Promise<CancelResult>; // cancelled {assignmentId, noticeHours} | not_assigned | not_found | needs_approval
 }
 ```
+
+Reads return records keyed by `ref` (our id for native, the sheet or file's row key otherwise,
+stored as `shifts.external_ref`); writes take our ids, and each adapter maps between them. Every
+adapter checks its source's data with the zod schemas in `plug.ts` (`rosterStaffSchema`,
+`rosterShiftSchema`) and computes notice with `noticeHours()` (`src/lib/roster/notice.ts`) from
+`cancel.at`, never from when the call runs (a retried job must not shrink a worker's notice). A
+plug records; it never decides eligibility (the rules engine does, before `assign`). Adapters that
+write our tables are built on the caller's `withFirm` transaction, and the caller writes the
+`events` row from the result in that same transaction. On `needs_approval` nothing is recorded;
+the caller keeps the pending change for the office. Every adapter must pass the shared contract
+suite, `describeRosterContract()` in `tests/helpers/roster-contract.ts`: first yes wins, slot
+order, cancel and reopen, the stored cancellation evidence (who, why, notice hours), read-only
+behaviour, the `[from, to)` window, and another firm's rows out of reach.
 
 | Adapter | When | Notes |
 |---|---|---|

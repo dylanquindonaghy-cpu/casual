@@ -847,3 +847,88 @@ There is nothing new on screen. To look at the new tables:
 4. Type `\d shifts` and press Enter. You'll see the columns and the rules (`Check constraints:`).
    Try `\d assignments` too. Type `\q` to leave. The tables are empty until the demo seed adds
    Acme's Saturday event in Phase 3.
+
+---
+
+## 2026-09-28: Phase 2, task 2: the RosterPlug interface (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (17:07 to 17:29 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=20703b1cd636b217 e2e=true`: type checks, lint, all
+  802 tests (up from 733), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight` as "Phase 2: `RosterPlug` interface ..."; push result in
+  `docs/overnight-log.md`.
+
+### What was built
+
+A firm's rota can live in different places: in our own tables ("native"), in the firm's Google
+Sheet, or in CSV files (spreadsheet exports). A **RosterPlug** is one agreed way for the app to
+talk to any of them, so the rest of the app never needs to know which one a firm uses. This task
+wrote down that agreement, which programmers call an **interface**: a list of what every plug must
+be able to do, without the code that does it. The code for each source (an **adapter**) comes in
+the next tasks.
+
+What every plug must do:
+
+- `listStaff`: list the people in the rota.
+- `getShifts(from, to)`: list the shifts starting in that time window, with who holds each place.
+- `assign`: give a free place on a shift to someone. The first person to say yes wins; nobody is
+  ever double-booked.
+- `markCancelled`: free someone's place, recording who cancelled (the worker or the office), why,
+  and how many hours' notice they gave.
+- `canWrite`: say whether the app may change this rota. If not, changes wait for the office.
+
+Key facts:
+
+- **Checks at the door.** Every plug checks the data it gets from its source with shared rules (a
+  mobile number must be in international form, a shift must end after it starts, one person holds
+  at most one place on a shift), before the app uses it. This is **validation**, done with a
+  library called zod.
+- **Notice hours in one place.** `noticeHours()` works out the notice a worker gave, to two
+  decimals, exactly as the database stores it. It counts from when the person *asked* to cancel,
+  so a slow or retried background job can never make their notice look shorter.
+- **A shared test suite for every plug.** 21 named checks (a **contract**) that the native, Sheets
+  and CSV adapters must each pass later, the same way. Today they run against a simple plug kept
+  in memory, made only for testing (a **test double**).
+- **Proof the checks can fail.** 13 deliberately broken versions of the test plug (one that
+  double-books, one that forgets the cancel reason, one that reaches another firm's rows...) are
+  each caught by the check meant for them. A test that can't fail proves nothing.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Reads name rows by the source's own key; writes use our ids | The sheet sync matches rows by the sheet's key; the portal only knows our ids | One kind of key everywhere (breaks one side or the other) |
+| A cancellation says who cancelled (worker or office) and when they asked | Golden rule 12, and a late job mustn't shrink the notice a worker gave | A reason only |
+| Plugs don't decide who may take a shift | The rules engine decides, in one place (golden rule 1) | Every adapter checking licences itself |
+| For our own tables, the plug works inside the caller's database transaction, and the caller writes the action-log row | The check, the booking and its log entry succeed or fail together | Each plug writing its own log entry |
+| A read-only plug changes nothing and says "needs approval" | The office applies it by hand, as architecture.md describes | Failing with an error |
+
+Full list with alternatives: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/unit/roster.contract.test.ts` (37 tests): the 21 contract checks pass on the test plug,
+  and each of 15 fault cases (13 kinds of fault) is caught, with a passing control next to each.
+- `tests/unit/roster.plug.test.ts` (32 tests): the door checks accept good data and refuse bad
+  data; `noticeHours()` is right at every edge (half-way rounding, just after the start, the
+  October clock change); the database and the door checks use one role-spelling rule.
+
+### Parked, open, and things that need Dylan
+
+- **Please read the decision table** in `docs/overnight-log.md` (this task's entry).
+- Parked in `PLAN.md`: `assign` should require a "passed the rules" token that only the rules
+  engine can create, and lock the worker while checking, so two browser tabs can't book
+  overlapping shifts; read-only sources must save a pending cancellation before they go live.
+- Next task: the native adapter (our own tables), which must pass the same 21 checks against the
+  real database.
+
+### How to see it working
+
+Nothing new on screen. To run just these tests: `npx vitest run tests/unit/roster.contract.test.ts
+tests/unit/roster.plug.test.ts`. You should see "69 passed".

@@ -8,6 +8,7 @@ import { firms } from "./tenancy";
 // another firm's row. Links to firms(id) itself are fine: WITH CHECK pins firm_id.
 
 export const OFFICE_ROLES = ["admin", "resourcer", "payroll"] as const;
+export const WORKER_STATUSES = ["active", "inactive", "blocked"] as const;
 
 export const officeUsers = pgTable(
   "office_users",
@@ -48,9 +49,7 @@ export const workers = pgTable(
     lastName: text("last_name").notNull(),
     mobileE164: text("mobile_e164").notNull(),
     email: text("email"),
-    status: text("status", { enum: ["active", "inactive", "blocked"] })
-      .notNull()
-      .default("active"),
+    status: text("status", { enum: WORKER_STATUSES }).notNull().default("active"),
     roles: text("roles")
       .array()
       .notNull()

@@ -241,3 +241,6 @@ for `assign` plus a worker lock (rules engine / atomic assign tasks); saving pen
 `needs_approval` before any read-only source goes live.
 
 **Hours:** 0.4 h (17:07 to 17:29 UTC). Phase 2 so far: 0.9 h of the 30-40 h estimate.
+
+**Commit:** `adb8743 Phase 2: RosterPlug interface ...` on `build/overnight`. **Push:** succeeded
+(`950bbd6..adb8743`). **CI:** not checked (`gh` isn't installed here).

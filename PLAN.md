@@ -131,7 +131,7 @@ Docs: `docs/rules-and-credentials.md`, `docs/api-and-jobs.md`.
 **Goal:** the thing you demo on calls. Mobile first. Instant answers.
 Docs: `docs/product-spec.md` (Staff stories).
 
-- [ ] My shifts (upcoming, past), with site, times, role, instructions
+- [x] My shifts (upcoming, past), with site, times, role, instructions
 - [ ] Open shifts I'm eligible for, with a "Take shift" button (rules + atomic assign)
 - [ ] Cancel a shift: instant confirmation, reason, notice period recorded
 - [ ] Request a time change or swap: creates a request for the office
@@ -376,6 +376,11 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 5 office cancel screen: let the office record when the worker actually asked (a phone call
   at 07:10), so notice counts from then (`markCancelled` already takes `cancel.at`); flag short
   notice in the notice report against `short_notice_threshold_hours`, not in the events.
+- Demo seed task (Phase 3): the e2e login test expects Acme's worker 07700 900100 to have no
+  bookings (it checks My shifts' empty state). Keep that worker unbooked in the demo seed, or move
+  the check to a worker who stays unbooked.
+- **Dylan to confirm:** the My shifts banner also shows expired credentials (the spec asked only for
+  "expires within 30 days"), limited to what the worker's roles need.
 - **Dylan to confirm:** sending someone home part-way through a shift is a curtailment (Phase 5
   "curtail", notice logged), not a cancellation; the office can cancel a started shift today only
   to record a late cancellation.
@@ -451,3 +456,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.6 | Atomic assign: one booking path (`bookShift`: who may book whom, rules on the current rows, fresh-copy check for Sheets shifts, one conditional update, logged), single-use eligibility pass required by every roster plug, worker and applied-day locks, sheet names checked by the rules; 1222 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.4 | Events with notice hours: `cancelBooking` (worker or office, reason kept on the row, never in the log; no cancelling after the end), every booking and cancellation by every path logged with notice hours (proven by a whole-log test), sync events aligned; 1236 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.1 | Phase 2 tests: a parity check holding `rules.table` to every case in the rules doc (proven to fail on an untested case), race and Sheets test descriptions brought up to date; 1257 tests + 10 e2e; verified and audited DONE. Phase 2 complete: 5.0 h of the 30–40 h estimate (see docs/work-log.md) |
+| 2026-09-28 | 3 | 0.4 | My shifts: the portal home shows the next shift in a card (London times, role, site, maps button, instructions), every later shift opening to the same details, the last 30 days, a licence banner and plain empty states; 1275 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

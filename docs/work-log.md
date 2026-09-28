@@ -1641,3 +1641,71 @@ Nothing new from this task. The decisions waiting for Dylan from Phase 2 are lis
 1. `npm run db:up` (starts the local database, if it isn't running).
 2. `npm test -- rules assign.race sheets.sync` runs the three suites and the parity check (4
    files). You should see `Tests  146 passed (146)` and no failures.
+
+## 2026-09-28: Phase 3, task 1: My shifts (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (21:59 to 22:20 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=1397a185b66cb82b e2e=true`: type checks, lint, all
+  1275 tests (up from 1257), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+The first screen of the staff portal (Phase 3 is the part you demo). When a worker logs in, the
+home page is now **My shifts**, built for a phone:
+
+- **Your next shift**, in a big card: the day and times in UK time ("Sat 7 Nov, 14:00 to 22:00";
+  a night shift says "22:00 to 06:00 Sun"), the role, the venue and its address, an "Open in maps"
+  button, and the shift's instructions ("Report to Gate C at 13:30"). Once the shift starts, the
+  card says "On now".
+- **Coming up**: the other booked shifts. Tapping one opens the same details, with no extra
+  loading. It uses a built-in browser feature (`<details>`), so it works even on a weak signal.
+- **Past 30 days**: a toggle shows recent shifts with what happened ("Worked", "Marked as not
+  attended", "Booked").
+- **A licence banner** when a licence the worker's jobs need expires within 30 days or has expired,
+  in the same words as the WhatsApp warning. It stays quiet if they've already renewed or applied.
+- **Plain empty states**: "No shifts booked yet." with a "See open shifts" button (that page is
+  the next task).
+- Each worker sees only their own shifts, only at their own firm.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A shift stays on the screen until it ends, even once the office has marked it | A worker running late still needs the address and instructions | Hide it at the start time |
+| Cancelled bookings don't show in the list | The list is "my shifts"; cancellations get their own confirmation | Show them crossed out |
+| The banner also shows expired licences, only for the worker's jobs | Expired is what the worker most needs to see (Dylan to confirm) | Only "expiring soon" |
+| "Open in maps" is just a link to Google Maps | Nothing is sent anywhere until the worker taps it | No map link |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/my-shifts.test.ts` (10 tests, real database): which bookings show and in
+  what order; the 30-day window; a shift in progress stays; the site and instructions come
+  through; another worker's or firm's shifts and licences never show; the banner's rules.
+- `tests/unit/portal.my-shifts.test.ts` (10 tests): times in UK time (including a night shift over
+  the October clock change), the page rendered to HTML with fake shifts, checked for every part
+  of the screen spec.
+- The browser test for logging in now also checks the empty My shifts screen and the toggle.
+
+### Parked, open, and things that need Dylan
+
+- **Please confirm:** the banner showing expired licences, not only ones expiring soon.
+- Parked in `PLAN.md`: the browser test expects demo worker 07700 900100 to have no bookings;
+  the demo-seed task must keep it that way or move the check.
+
+### How to see it working
+
+1. `npm run db:up`, then `npm run dev` (starts the app; leave it running).
+2. Open `http://acme.localhost:3000/login` on your computer and enter `07700 900100`.
+3. The login link appears in the terminal where `npm run dev` runs (nothing is really sent). Open
+   it and tap "Log me in".
+4. You'll see "Hello" and the My shifts page. The demo data has no shifts yet (that comes with the
+   demo-seed task), so it shows "No shifts booked yet."; tap "Past 30 days" to see the toggle.

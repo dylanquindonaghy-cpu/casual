@@ -1048,3 +1048,46 @@ To reach DONE: nothing — already DONE.
 **Ticked** in PLAN.md. **Phase 2 is complete.** **Hours:** 0.1 (21:50 to 21:56 UTC). Phase 2 in
 total: 5.0 h of its 30–40 h estimate (well under, not over).
 **Commit:** `9673147`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-28 21:59 UTC: Phase 3, "My shifts (upcoming, past), with site, times, role, instructions"
+
+**Plan.** The portal's home page (`/` on a firm's address) becomes My shifts (docs/screens.md):
+- `src/lib/portal/my-shifts.ts`: `myShifts()` (the worker's upcoming bookings, or the last 30
+  days') and `credentialNotices()` (the banner: credentials expiring within 30 days or expired),
+  both inside the firm's `withFirm`, for the logged-in worker only.
+- `src/lib/portal/format.ts`: pure display helpers (a shift's day and times in London time, the
+  role in words, a maps link from the site's address).
+- `src/app/my-shifts-view.tsx`: the page body (next shift card with site, time, role,
+  instructions and a map link; the list; the Upcoming / Past 30 days toggle; the banner; empty
+  states), plain server-rendered HTML, no client JavaScript. `src/app/page.tsx` loads and renders it.
+- Tests: the loader on the real database (which bookings show, order, the 30-day window, site
+  details, another worker's or firm's rows never show, the banner's credentials); the helpers
+  (unit); the view rendered to HTML (unit); the e2e login test checks the empty state.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Upcoming = bookings on shifts that haven't ended and aren't cancelled (a shift in progress still shows, marked "On now", even once the office has marked it); past = confirmed, completed or no-show bookings on shifts that ended in the last 30 days, newest first, including a shift the sheet cancelled after it started (**both refined after review**) | The worker at a venue needs today's shift and its instructions; "past 30 days" is the spec | Hide a shift once it starts |
+| Cancelled bookings don't show in either list | The list is "my shifts"; cancellations get their own confirmation (the cancel task) and the office's notice report | Show them struck through |
+| The banner shows credentials the worker's roles need that expire within 30 days or have expired, not ones already replaced by a newer valid one or being renewed (an application in progress), in the same words as the WhatsApp warnings (**narrowed after review**) | The spec's banner, plus the expired case the worker most needs to see; an old card for work they no longer do, or one they're already renewing, isn't worth a red banner | Only "expiring"; every credential |
+| Map link = a Google Maps search link built from the site's address and postcode (just a link the worker taps: no call to Google from our side) | Workers find venues from their phone's maps | No map link |
+| The "See open shifts" link in the empty state points at `/shifts/open`, built by the next task | The copy is the spec's | Leave the link out until then |
+
+**Guardrails review (round 1): SAFE TO COMMIT; one fix before ticking, done, plus most lesser items.**
+
+| Finding | Fix | Test |
+|---|---|---|
+| Only the next shift showed its address, maps link and instructions ("with site, times, role, instructions" for every shift) | Each upcoming row opens (`<details>`, no JavaScript) to the same details as the next shift's card | unit "shows a later shift's address, maps button and instructions inside its row" |
+| The banner told a worker renewing their licence to renew it | An application in progress counts as renewing: no notice for that type | integration "says nothing about a credential the worker has replaced or is renewing" |
+| Expired notices never went away and ignored roles | Only credentials the worker's roles need (by the firm's rules) | integration "lists what the worker's roles need…" |
+| Past hid shifts the sheet cancelled after they started (their bookings are history) | The cancelled-shift filter applies to Upcoming only | integration past test |
+| A shift marked no-show mid-shift vanished from the screen | Upcoming includes marked bookings while the shift is on | integration "keeps a shift in progress on screen…" |
+| Past "confirmed" had no label (the doc says "booked") | "Booked" | unit past test |
+| "Open in maps" was a small tap target | Full-width button | — |
+| The screen-only banner copy wasn't in the messaging doc | Added to docs/messaging-templates.md | — |
+| Missing tests: notices isolation, a night shift over the clock change | Added | integration, unit |
+
+Parked (PLAN.md): the e2e empty-state check depends on the demo seed leaving worker 07700 900100
+unbooked. Not done (nits): the page's `searchParams` type (kept like the other pages); a shift
+starting at midnight reads "00:00". **Needs Dylan:** the banner showing expired credentials.

@@ -52,6 +52,11 @@ export function credentialExpiredMessage(
   return `Your ${credential} expired on ${date}. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
 }
 
+// On screen only (the My shifts banner): a credential the office marked expired with no date.
+export function credentialMarkedExpiredMessage(firm: FirmVoice, credential: string): string {
+  return `Your ${credential} is marked as expired. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
+}
+
 // credential_weekly_list (email to admins and resourcers, Mondays): what expires in the next 30
 // days and what expired in the last week, one line per credential, at most
 // WEEKLY_LIST_MAX_LINES per section (then "- and {n} more"), so the email stays within its limit.

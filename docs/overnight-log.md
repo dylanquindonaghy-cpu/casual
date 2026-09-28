@@ -906,3 +906,29 @@ for Sheets shifts, and sheet names overriding rest, weekly hours and availabilit
 `plug.ts`: it matched `checkEligibility(` inside a comment; the test now strips comments (the list
 of allowed callers didn't change). (2) A Python edit didn't apply because Prettier had reflowed a
 comment; the assertion stopped it before writing anything, and it was re-run on the current text.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=f03c073ac6b9d2fe e2e=true` (1222 tests in 52 files, 10 e2e).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"f03c073ac6b9d2fe","e2e":true}`. `./.claude/hooks/tree-hash.sh` → `f03c073ac6b9d2fe`. Hashes match, ok=true. Proceeding.
+
+Claims (task: "Atomic assign ('first yes wins') + re-check live source before confirming"):
+
+- Atomic assign is a single conditional UPDATE, zero rows = already filled — PROVEN. `/home/dylan/shiftdesk-starter/src/lib/roster/native.ts:189-201` (`assign()`): one `update assignments ... where a.worker_id is null and s.status = 'open' ... returning`; `if (!taken) return { status: "filled" }`. Exercised by `tests/integration/assign.race.test.ts:82-158` (10 concurrent `bookShift` calls for 1/3 slots via a real barrier in `tests/helpers/race.ts`, genuine separate Postgres connections, no mocking of `bookShift` or the plug) — all pass: `.claude/state/test.log:4-9` and reconfirmed with a fresh run just now (`npx vitest run tests/integration/assign.race.test.ts ...` → `Test Files 5 passed, Tests 140 passed`, exit 0).
+- Worker/shift locking prevents double-booking across overlap, weekly cap, applied-allowance races — PROVEN. `src/lib/roster/book.ts:91-127` (`checkBooking`: `for("no key update")` locks on shift and worker, advisory xact lock per firm+day for applied-allowance races). Tests: `assign.race.test.ts:110-182` (overlap, weekly cap, applied-allowance races), all green in the fresh run.
+- Re-check live source before confirming (Sheets freshness) — PROVEN. `src/lib/roster/book.ts:202-204,238-245` (`sheetCopyFresh`: refuses with `source_stale` unless `rosterSources.lastSyncedAt` within `SHEET_COPY_FRESH_MS` and the source is enabled); native/CSV shifts unaffected. Test: `tests/integration/booking.test.ts:265-296` ("books a Sheets shift only while the copy of the sheet is fresh" — covers fresh, 21-min-stale, never-synced, and disabled-source cases) plus `:298-306` (ineligibility is reported even when stale). Both pass in the fresh run.
+- Decides on live rows, not stale reads (re-check against current DB state) — PROVEN. `tests/integration/booking.test.ts:"decides on the rows as they are now, not as they were when the page was shown"` (log line 309) passes.
+- Deadlock retry (whole transaction re-run, not partial) — PROVEN. `src/lib/db/retry.ts` (`retryAborted`, 3 attempts, retries only 40P01/40001). Test: `booking.test.ts` "runs the whole booking again after a deadlock, at most three times in all" (log line 318), passes.
+
+Fakes found: none. No `.only`/`.skip`/`xit`/`xdescribe`/TODO/not-implemented in `book.ts`, `native.ts`, `assign.race.test.ts`, `booking.test.ts`, or the race helpers. The race helper (`tests/helpers/race.ts`) uses a real arrival-count barrier across genuinely separate pooled connections — not a fake/serial simulation. Nothing under test is mocked (real Postgres via Docker, `shiftdesk-starter-postgres-1` healthy).
+
+To reach DONE: nothing — all claims PROVEN with passing tests re-run live on the current (verified) tree. Note for the calling agent: the PLAN.md checkbox for this line (and the sibling "Tests: rules.table/assign.race/sheets.sync" line) are still unticked `[ ]` — per CLAUDE.md rule 13 only `/close-task` may tick them; this audit doesn't do so, but confirms the work backing them is real.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.6 (20:46 to 21:22 UTC). Phase 2 so far: 4.5 h of its 30–40 h estimate.
+**Commit:** `954727d`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

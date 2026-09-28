@@ -316,7 +316,7 @@ create table events (
   firm_id uuid not null references firms(id),
   actor_type text not null,              -- worker | office | system | ai
   actor_id uuid,
-  action text not null,                  -- e.g. 'shift.taken', 'shift.cancelled', 'offer.sent'
+  action text not null,                  -- e.g. 'shift.assigned', 'shift.cancelled', 'offer.sent'
   entity_type text not null,
   entity_id uuid,
   data jsonb not null default '{}',

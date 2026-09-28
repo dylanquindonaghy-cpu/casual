@@ -1002,3 +1002,20 @@ To reach DONE: nothing — evidence supports ticking both PLAN.md bullets for th
 is its own task, so it gets its own run, verify and audit (not ticked here).
 **Hours:** 0.4 (21:26 to 21:47 UTC). Phase 2 so far: 4.9 h of its 30–40 h estimate.
 **Commit:** `a48c6e8`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-28 21:50 UTC: Phase 2, "Tests: `rules.table` (every case in the doc), `assign.race`, `sheets.sync`"
+
+**Plan.** The three test files exist from earlier tasks (`tests/unit/rules.table.test.ts` with a
+test named after every row of the doc's "Test cases" table; `tests/integration/assign.race.test.ts`
+from the atomic assign task; `tests/integration/sheets.sync.test.ts` from the Sheets task). What's
+missing is a guarantee that they stay complete:
+- `rules.table`: a parity check that reads the doc's "Test cases" table and fails if any row has no
+  test named after it (so a case added to the doc can't go untested), and that the test suite
+  names no case the doc doesn't have.
+- `assign.race`: the doc's race-test paragraph still says `takeShift` and a `shift.taken` event;
+  the code is `bookShift()` and `shift.assigned`. Doc and test brought into line (the race test
+  also checks exactly one `shift.assigned` event, and "just filled" for everyone else).
+- `sheets.sync`: the testing doc's one-line description updated to what the suite proves.
+No product code changes, so no guardrails review is needed for this task (tests and docs only).
+
+**Decisions:** none needing Dylan: this task only proves existing behaviour.

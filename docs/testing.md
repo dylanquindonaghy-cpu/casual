@@ -30,12 +30,16 @@ without breaking a 6am cancellation.
   3 slots, exactly 3); one worker in two tabs can't book two overlapping shifts, or pass a weekly
   cap twice (the worker lock).
 - `webhook.idempotent.test.ts` — same Twilio MessageSid twice → one `messages` row, one job.
-- `rules.table.test.ts` — all cases in `docs/rules-and-credentials.md`.
+- `rules.table.test.ts` — all cases in `docs/rules-and-credentials.md` (held to the doc by
+  `rules.doc-parity.test.ts`), then the edges: overrides, the pass, clock changes, purity.
 - `waves.timing.test.ts` — fake clock: wave 1 → 15 min → wave 2; stops on fill; escalation fires.
 - `notify.policy.test.ts` — push → WhatsApp → SMS ordering; quiet hours; daily cap; idempotency.
 - `notice.report.test.ts` — worker cancel, firm cancel/move/curtail all produce correct notice hours and flags.
 - `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly.
-- `sheets.sync.test.ts` — column mapping, batch writes, never more than N reads per minute.
+- `sheets.sync.test.ts` — a seeded (fake) Google Sheet syncs both ways: staff, sites, shifts and
+  who holds each come in (one read per sync, columns by header); bookings made here go back in one
+  batch write; the three-way merge (office and portal changes at once), sheet names through the
+  rules, conflicts, bad rows, failures, leases and deadlock retries; the shared roster contract.
 
 ## Fixtures and the demo seed
 

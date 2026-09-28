@@ -1594,3 +1594,50 @@ There's no screen yet. The tests show it:
 1. `npm run db:up` (starts the local database, if it isn't running).
 2. `npm test -- cancel notice-log` runs the cancellation and notice-log tests (2 files). You
    should see `Tests  12 passed (12)` and no failures.
+
+## 2026-09-28: Phase 2, task 11: the Phase 2 tests (0.1 h). Phase 2 complete
+
+### Time
+
+0.1 hours of Claude's working time (21:50 to 21:56 UTC), in the unattended overnight loop.
+**Phase 2 in total: 5.0 hours** against an estimate of 30–40 hours.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=85d3506cca296042 e2e=true`: type checks, lint, all
+  1257 tests (up from 1236), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+The three test suites this task names already existed from earlier tasks: the rules table, the
+booking race and the Google Sheets sync. This task makes sure they stay complete:
+
+- **A "parity" test** (a test that checks two things say the same) reads the rules document's
+  table of test cases and the rules test file. It fails if a case in the document has no test,
+  or a test covers a case the document doesn't list. So nobody can add a rule case to the
+  document and forget to test it. It was tried once with a made-up case added to the document,
+  and it failed as it should.
+- **The documents now match the code.** The race test's description used old names
+  (`takeShift`, `shift.taken`); it now says `bookShift()` and `shift.assigned`, and lists every
+  race the tests run. The Sheets test's description now says what it proves.
+
+### What Phase 2 delivered (all 11 tasks)
+
+Shifts and bookings in the database, sealed per firm. One booking path where tested code decides
+who can take a shift ("first yes wins", proven by races on the real database). A two-way Google
+Sheets sync (tested against a fake Google; the real account isn't connected). File imports.
+Licence packs for four industries. Daily licence-expiry warnings. A complete notice log for every
+booking and cancellation. 1257 tests in all.
+
+### Parked, open, and things that need Dylan
+
+Nothing new from this task. The decisions waiting for Dylan from Phase 2 are listed in
+`PLAN.md` (Parking lot, "Dylan to confirm") and will be gathered in the morning summary.
+
+### How to see it working
+
+1. `npm run db:up` (starts the local database, if it isn't running).
+2. `npm test -- rules assign.race sheets.sync` runs the three suites and the parity check (4
+   files). You should see `Tests  146 passed (146)` and no failures.

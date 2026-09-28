@@ -11,7 +11,7 @@ export type ActorType = "worker" | "office" | "system" | "ai";
 export interface EventInput {
   actorType: ActorType;
   actorId?: string | null;
-  action: string; // e.g. "auth.login", "shift.taken"
+  action: string; // e.g. "auth.login", "shift.assigned"
   entityType: string;
   entityId?: string | null;
   data?: Record<string, unknown>;

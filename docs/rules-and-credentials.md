@@ -182,5 +182,10 @@ the current SIA rule before enabling.
 
 ## Race test (integration)
 
-Two workers call `takeShift` for the last slot at the same time: exactly one succeeds, the
-other gets "just filled", and only one `events` row of type `shift.taken` exists.
+`tests/integration/assign.race.test.ts`: ten eligible workers call `bookShift()` for the last
+slot at the same moment (each in its own transaction, released together from a barrier): exactly
+one is booked, the other nine get `filled` ("just filled"), and exactly one `shift.assigned` event
+exists. The same for 3 places among 10. Also raced: one worker in two tabs on overlapping shifts,
+on the same shift, and past a weekly cap; two applicants for the day's last "applied" place; a
+double tap on cancel. `tests/unit/rules.doc-parity.test.ts` fails if a case in the table above has
+no test in `rules.table.test.ts`, or that file tests a case the table doesn't list.

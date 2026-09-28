@@ -810,3 +810,39 @@ Not fixed (parked in PLAN.md, or for Dylan): "block on expiry" at assignment res
 **Implementation root causes noted while building:** (1) A test expected one expiry on 22 Oct, but the inactive worker's licence had also passed its date and, by design, is marked expired too: the test was wrong, the code right; fixed the expectation and asserted that row. (2) `relation "newer" does not exist`: a Drizzle `alias()` renders as its bare name inside a raw `sql` template, so the subquery's FROM had no table; it now names the table and the alias.
 
 **Needs Dylan:** confirm the two new `credentials` columns (schema), the new `credential_expired` WhatsApp copy and the weekly office email copy (copy is product), and 08:00 as the send time.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=ed3035ffbc0a1821 e2e=true` (1185 tests in 48 files, 10 e2e).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preconditions checked:
+- `.claude/state/verified.json`: `{"ok":true,"tree":"ed3035ffbc0a1821","e2e":true,"at":"2026-09-28T20:40:30Z"}`
+- `./.claude/hooks/tree-hash.sh` → `ed3035ffbc0a1821` — matches. Tree hash covers `git diff HEAD` + untracked files, so it does cover the currently uncommitted new files (this task's work is uncommitted on branch `build/overnight`).
+
+Task: PLAN.md line 116, "Credential expiry scan job (30/14/7-day warnings; block on expiry)" (still unchecked `[ ]`, correctly — CLAUDE.md forbids self-ticking; this audit precedes any tick).
+
+Claims:
+- **30/14/7-day warning logic, once per threshold crossed, resets on renewal** — PROVEN. Pure function `expiryAction` in `/home/dylan/shiftdesk-starter/src/lib/credentials/expiry.ts:35-45`. Exercised by `/home/dylan/shiftdesk-starter/tests/unit/credential.expiry.test.ts:31-104` (nearest-threshold-only, renewal reset, month/leap/DST day counting). All pass: `.claude/state/test.log:1039-1046`.
+- **Blocks on expiry (status flips the day after expiry date; rules engine already refuses by date regardless of status)** — PROVEN. `warnAndExpire` in `/home/dylan/shiftdesk-starter/src/lib/credentials/scan.ts:207-239` sets `status: "expired"` conditionally (`eq(credentials.status,'valid')` guard). Test `credential-scan: expiry (block on expiry) > marks a credential expired the day after its date (not on it) and tells the worker` in `/home/dylan/shiftdesk-starter/tests/integration/credential.scan.test.ts:324-397` directly calls `checkEligibility` before and after the scan to prove blocking is independent of the scan (`before.codes`/`after.codes` contain `credential_expired`). Passed: `test.log:6`.
+- **Daily scan job + per-firm tick, idempotent, one scan at a time (advisory lock), firm-scoped** — PROVEN. `runCredentialScanTick`/`scanCredentials`/`lockFirmScan` in `scan.ts:97-101,362-388`; queue wiring registered in `/home/dylan/shiftdesk-starter/src/worker/jobs/index.ts:44` and `/home/dylan/shiftdesk-starter/src/worker/jobs/queues.ts:4`. Tests: dedupe-per-day tick (`test.log:11`), concurrent double-scan sends each message once (`test.log:7`), cross-tenant isolation (`test.log:10`), worker registers both queues + cron `0 8 * * *` Europe/London (`test.log:15`), dead-letter on bad payload (`test.log:14`), lock-contention race with a concurrent renewal import (`credential-scan: failures and races`, `test.log:16-17,19-22`).
+- **Office Monday weekly list, capped, skips bad addresses, transactionally independent of worker warnings** — PROVEN. `sendWeeklyList` in `scan.ts:249-334`, `WEEKLY_LIST_MAX_LINES` in `/home/dylan/shiftdesk-starter/src/lib/messaging/templates.ts:58`. Tests cover sending, "nothing to list"/"no recipients", address-skip-and-count, 40-line cap with overflow line, and that an email failure never re-sends or loses worker warnings (`test.log:8-9,19-22`).
+- **Every state change logged as an events row** (`credential.expiry_warning`, `credential.expired`, `credential.weekly_list_sent`) — PROVEN. `recordEvent` calls at `scan.ts:192-205, 225-238, 321-332`; asserted directly in tests, e.g. `credential.scan.test.ts:215-238, 361-386, 479-481`.
+- **DB schema for warning state (`expiry_warned_for`/`expiry_warned_days`), applied via migration** — PROVEN. Columns + CHECK constraint in `/home/dylan/shiftdesk-starter/src/lib/db/schema/people.ts:105-106,122-125`; migration `/home/dylan/shiftdesk-starter/drizzle/0008_credential_expiry_warnings.sql` and journal entry present (`drizzle/meta/_journal.json` diff, idx 8). Constraint itself exercised against the real Postgres and rejected bad combinations: `credential.scan.test.ts:847-864`, passed `test.log:22`. `invariants.log`: "schema and migrations in sync".
+
+Fakes found: none. No `.only`/`.skip`/`.todo` in the new test files (checked directly; also `invariants.log`: "no .only/.skip/.todo in tests"). Tests run against a real Postgres (`superuserPool`/`appRolePool`) per project convention, not mocks of the code under test; only the outbound messaging transport is a capturing test double (`captureTransport`), which is the project's standard test seam, not a mock of the logic being verified.
+
+Supporting run evidence: `.claude/state/test.log` — 1185/1185 tests passed across 48 files (including all `credential.expiry.test.ts` and `credential.scan.test.ts` cases listed above); `.claude/state/invariants.log` confirms 1185 passed/0 skipped/0 todo; `.claude/state/typecheck.log` empty (clean); `.claude/state/lint.log` clean; `.claude/state/e2e.log` 10/10 passed.
+
+To reach DONE: nothing — verdict is DONE. (Note: PLAN.md checkbox at line 116 is still unticked, which is correct per CLAUDE.md — only `/close-task` should tick it, not this audit.)
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.6 (20:06 to 20:42 UTC). Phase 2 so far: 3.9 h of its 30–40 h estimate (not over).
+**Commit:** `e417feb`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+**Parked** (PLAN.md): route expiry messages through Phase 4 `notify` and the outbox; flag bookings after
+a credential's expiry; the Phase 5 renewal screen (`credential.renewed` event); `missed: "once"` for the tick.
+**Auditor note carried forward:** "block on expiry" at booking time rests on the rules engine; `assign()`
+calling it is the next task ("Atomic assign").

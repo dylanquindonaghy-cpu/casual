@@ -29,9 +29,10 @@ session token (`src/app/session-actions.ts`), ask for and check a pay-page code
 itself: they never call `redirect()`, because Next renders an action's redirect target by fetching
 it from the server's own origin, which loses the firm's Host header. Planned:
 
-`takeShift(shiftId)` (calls `bookShift()` in `src/lib/roster/book.ts` with the session's worker;
-results: booked, not_eligible with reasons, filled, already_assigned, not_open, not_found,
-source_stale) · `cancelShift(shiftId, reason)` (calls `cancelBooking()` in
+`takeShift(shiftId)` (built: `takeShiftAction` in `src/app/shifts/open/actions.ts` → `takeShift()`
+in `src/lib/portal/take-shift.ts` → `bookShift()`, with the firm from the host and the worker from
+the session; outcomes: booked with a confirmation, filled, already_assigned, gone, not_eligible
+with reasons, try_again, logged_out, error) · `cancelShift(shiftId, reason)` (calls `cancelBooking()` in
 `src/lib/roster/cancel.ts`; results: cancelled with notice hours, not_assigned, started, not_found) ·
 `createRequest(type, payload)` · `setAvailability(dates)` · `raisePayQuery(form)` · `updateNotificationPrefs(...)`
 

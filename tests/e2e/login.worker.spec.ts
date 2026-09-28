@@ -35,7 +35,12 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
   // My shifts: this seeded worker has no bookings yet; the toggle shows the last 30 days.
   await expect(page.getByText("No shifts booked yet.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "See open shifts" })).toBeVisible();
+  await page.getByRole("link", { name: "See open shifts" }).click();
+  await expect(page).toHaveURL(`${acme}/shifts/open`);
+  await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
+  await expect(page.getByText("Nothing open right now.")).toBeVisible();
+  await page.getByRole("link", { name: "Back to my shifts" }).click();
+  await expect(page).toHaveURL(`${acme}/`);
   await page.getByRole("link", { name: "Past 30 days" }).click();
   await expect(page).toHaveURL(`${acme}/?view=past`);
   await expect(page.getByText("No shifts in the last 30 days.")).toBeVisible();

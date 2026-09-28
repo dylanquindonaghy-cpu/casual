@@ -1709,3 +1709,68 @@ Full list: `docs/overnight-log.md`, this task's entry.
    it and tap "Log me in".
 4. You'll see "Hello" and the My shifts page. The demo data has no shifts yet (that comes with the
    demo-seed task), so it shows "No shifts booked yet."; tap "Past 30 days" to see the toggle.
+
+## 2026-09-28: Phase 3, task 2: Open shifts with "Take shift" (0.3 h)
+
+### Time
+
+0.3 hours of Claude's working time (22:23 to 22:44 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=d258fad28aa6407b e2e=true`: type checks, lint, all
+  1290 tests (up from 1275), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+The second portal screen, **Open shifts**, where a worker picks up work:
+
+- **Only shifts they can take.** Every open shift in the next 28 days, in one of their jobs,
+  with a place left, is checked by the rules (licence in date, rest, weekly hours...) against the
+  current data. Shifts that fail aren't listed at all.
+- **Filters** by day, site and role. It's a simple form that works without JavaScript.
+- **Each card** shows the time, role, venue and address, and how many places are left, with a big
+  "Take shift" button.
+- **One tap books it.** The booking goes through the same locked booking path from Phase 2 (first
+  yes wins), and the answer appears on the card:
+  - "You're booked.", with the day and times, the role and venue, a reference like `3F2A9C1B` and
+    the firm's sign-off. The worker can screenshot it, as the spec asks.
+  - Or a plain answer: "Just filled. Someone else took this shift a moment ago." (with a button to
+    see the rest), the rules' reasons, or "try again in a few minutes".
+- The firm comes from the web address and the worker from their login. The browser only says
+  which shift, so nobody can book for someone else.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The next 28 days; at most 50 shifts checked per page, with a note when there are more | Each shift is checked by the rules one at a time; a faster batch check is parked for before the pilot | Every future shift (slow) |
+| The confirmation appears on the card, no new page | Quick on a phone; still has what, when, a reference and the sign-off | A separate confirmation page |
+| "Booked" is always shown if the booking worked, even if the details can't be read afterwards | Never tell someone "something went wrong" when they're booked (found by the safety review) | — |
+| No pay rate on the cards yet | Pay data comes in Phase 6 | — |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/open-shifts.test.ts` (9 tests, real database): only shifts the worker could
+  take are listed (not full, not theirs, not the wrong role, not draft, cancelled, started or
+  too far off, not another firm's, and not ones the rules refuse); the filters; a long list with
+  the first 50 checked and a filter reaching later ones; "Take shift" books and confirms; every
+  other answer; the preview of the rules never hands out a booking permission.
+- `tests/unit/portal.open-shifts.test.ts` (7 tests): the page and every answer after "Take shift",
+  rendered to HTML and checked against the screen spec's words.
+- The browser login test now also opens Open shifts from My shifts and comes back.
+
+### Parked, open, and things that need Dylan
+
+- Parked in `PLAN.md`, before the pilot: a faster batch check for the list, and a limit on how
+  often "Take shift" can be tapped. Later: the office looking up a booking by its reference.
+
+### How to see it working
+
+1. Log in as in the last task (`npm run dev`, then `http://acme.localhost:3000/login`).
+2. On My shifts, tap "See open shifts". The demo data has no shifts yet (the demo-seed task adds
+   them), so it says "Nothing open right now."

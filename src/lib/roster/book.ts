@@ -127,6 +127,24 @@ export async function checkBooking(
   };
 }
 
+// The rules' answer for one worker and shift, on the current rows, for showing (the open shifts
+// list): no locks, and never a pass, so nothing can book with it. Booking re-checks everything
+// under locks in bookShift(). Null when the shift or worker isn't there.
+export async function previewBooking(
+  tx: FirmTx,
+  request: { shiftId: string; workerId: string; now: Date },
+): Promise<{ ok: boolean; reasons: string[]; codes: RuleCode[] } | null> {
+  if (!uuid.safeParse(request.shiftId).success || !uuid.safeParse(request.workerId).success) {
+    return null;
+  }
+  // Only these three fields: a worker's preview never carries the office's overrides.
+  const { shiftId, workerId, now } = request;
+  const input = await loadEligibilityInput(tx, { shiftId, workerId, now });
+  if (!input) return null;
+  const { ok, reasons, codes } = checkEligibility(input);
+  return { ok, reasons, codes };
+}
+
 // Whether the rules may count one of the worker's applications in progress for this shift: a
 // type the role needs, that may count "applied" at this firm, held as applied. (Holding a valid
 // one too only means the lock wasn't needed.)

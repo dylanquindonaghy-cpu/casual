@@ -1121,3 +1121,56 @@ To reach DONE: nothing — this bullet's claims are all PROVEN, verify.sh is gre
 
 **Ticked** in PLAN.md. **Hours:** 0.4 (21:59 to 22:20 UTC). Phase 3 so far: 0.4 h of its 35–45 h estimate.
 **Commit:** `d174d2f`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-28 22:23 UTC: Phase 3, "Open shifts I'm eligible for, with a "Take shift" button (rules + atomic assign)"
+
+**Plan.**
+- `src/lib/roster/book.ts`: `previewBooking()`: the rules on the current rows for one worker and
+  shift, without locks and without handing out a pass (for listing only; booking still goes
+  through `bookShift()`).
+- `src/lib/portal/open-shifts.ts`: `openShiftsFor()`: open shifts starting in the next 28 days, in
+  one of the worker's roles, with a place left and not already theirs, kept only if the rules say
+  yes; optional filters (day, site, role).
+- `src/lib/portal/take-shift.ts`: `takeShift()`: `bookShift()` for the logged-in worker, plus what
+  the confirmation needs (the shift's day and times, role, site, a reference).
+- `src/app/shifts/open/`: the page (cards with time, site, role, "Take shift"; filters as a plain
+  form), the server action (firm from the host, worker from the session, never from input), and
+  a small client button that shows the result in plain words: the booking confirmation with a
+  reference, "Just filled", the rules' reasons, or "try again shortly" for a stale sheet copy.
+- Tests: the list and the take path on the real database; the page and the result copy rendered
+  (unit); the e2e login test follows "See open shifts" to the empty state.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| The list covers the next 28 days in the worker's roles; the filters narrow the query itself, then at most 50 shifts are checked by the rules, and the page says when there were more (**refined after review**) | Each shift is checked by the rules one at a time (about ten small queries each); enough for a pilot firm's month | Every future shift (slow); a batched rules loader (parked, needed before the pilot) |
+| After "Take shift", the result shows in place on the card (no page change): "You're booked." with the day, times, role, site, a reference (the first 8 characters of the booking id) and the sign-off; then "See my shifts" | Spec: every action ends with a confirmation the worker can screenshot (what, when, reference) | A separate confirmation page |
+| "Just filled" says so and offers the refreshed list; a rules refusal shows the reasons and "If you think this is wrong, ask the office." (the "Ask the office to review" button comes with the blocked-shift task) | docs/architecture.md: "Just filled — here are similar shifts" | — |
+| No pay rate on the cards yet | No pay data exists until Phase 6 (the spec says "if firm shows it") | — |
+
+**Guardrails review (round 1): SAFE TO COMMIT, nothing to fix first; the lesser items fixed or parked.**
+
+| Finding | Fix | Test |
+|---|---|---|
+| A booking that worked could show "Something went wrong" if reading its details afterwards failed (and the reference was lost) | The answer is "booked" with the reference whatever happens to that read; the details show when available | integration "still says booked, with the reference…", unit "still confirms the booking…" |
+| The 50-shift limit applied before the rules and the filters, so a filter could miss later shifts, silently | Filters go into the query; the choices come from every open shift in the window; `truncated` and a note when there were more | integration "checks the first 50, says there were more, and a filter reaches the later ones"; unit truncated note |
+| `previewBooking` passed the caller's object on (overrides could slip in), had no id check, and "never a pass" wasn't tested | Only shift, worker and time are passed; ids checked; test that the result has no pass | integration "previewBooking gives the rules' answer but never a pass…" |
+| Small tap targets ("Back to my shifts", "Show all open shifts", "See my shifts") | Full-width buttons | — |
+| The decision log's refusal wording differed from the screen | Log corrected | — |
+| A double tap could replace the confirmation with "already booked" | A second tap before the answer sends nothing | — |
+| The page had no session refresher (My shifts has one) | `SessionKeeper` added | — |
+| Nits: instructions loaded but not shown; reasons keyed by text | Instructions dropped from the list data; keyed by position | — |
+
+Parked (PLAN.md): the batched rules loader is now "before the pilot" (a page view holds a
+connection for up to ~500 small queries); the e2e check of "Nothing open right now." joins the
+demo-seed note; the office looking a booking up by its reference (Phase 5); a rate limit on "Take
+shift" (every refused tap writes an event).
+
+**Implementation root causes noted while building:** (1) the list test first missed the two-place
+shift: it ended 10 hours before the worker's own booking, under the 11 hours' rest, so the rules
+rightly refused it; the fixture's booking moved later. (2) A unit check assumed `method` came first
+in the rendered `<form>`; React writes `class` first; the check now matches the attribute anywhere.
+(3) The client button can't render outside Next (its router needs the app), so the unit test gives
+it a stand-in router; the button's server call isn't exercised there (the integration tests cover
+`takeShift`).

@@ -1007,3 +1007,95 @@ database login the app uses:
 Nothing new on screen yet. To run the tests yourself: `npx vitest run
 tests/integration/roster.native.test.ts` (the database must be running: `npm run db:up`). You
 should see "31 passed".
+
+---
+
+## 2026-09-28: Phase 2, task 4: the Google Sheets adapter (0.8 h)
+
+### Time
+
+0.8 hours of Claude's working time (17:52 to 18:41 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=b9d4915e8408d4fb e2e=true`: type checks, lint, all
+  1004 tests (up from 833), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+- **Built but not switched on:** no real Google Sheet can be synced yet. The overnight rules
+  forbid creating Google accounts, and the sync mustn't run for real until the rules engine (a
+  later Phase 2 task) checks the names an office types into its sheet.
+
+### What was built
+
+Most target firms keep their rota in a Google Sheet and will keep editing it. This task lets
+ShiftDesk keep a **mirror** (a copy in our own database) of that sheet, in step both ways:
+
+- **From the sheet in:** staff, sites and shifts are copied in, keyed by the sheet's own "Staff ID"
+  and "Shift ID" columns (so sorting the sheet doesn't confuse it). Dates and times are read as
+  London time, including the clock changes and night shifts that end the next morning.
+- **From the portal back out:** when a worker takes or cancels a shift in the portal, the next
+  sync writes their staff id into (or out of) the shift's "Assigned" cell in the sheet.
+- **Both at once:** if the office and a worker change the same shift between two syncs, a
+  **three-way merge** compares the sheet now, the portal now, and the sheet as it was after the
+  last sync, so both sides' changes survive. A worker already told "you're booked" is never
+  bumped; if the office adds a name to a shift that just filled, that name isn't booked and a
+  "clash" is logged for the office.
+- **Office changes are evidence too:** a name removed in the sheet counts as a cancellation by
+  the firm, with notice hours; new times are logged per booked worker as moved or cut short
+  (golden rule 12).
+- **Gentle on Google:** a sync reads the sheet once and writes at most once (Google limits
+  requests per minute). A background **job** (a task the worker process runs on a timer) syncs
+  each firm every minute on event days and every 15 minutes otherwise. Page views never touch
+  Google.
+- **The Google login** for our "service account" (a robot Google account that firms share their
+  sheet with) is written and tested with a fake network and a throwaway key made inside the test.
+
+Key facts: 1 new table (`roster_sources`: which sheet, which columns, last sync), 3 new columns,
+1 new locked-down database function (`app_firm_ids()`: firm ids only, for the timer), 2 new jobs,
+a column mapping that finds columns by their header text.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Mirror the sheet and sync it, instead of reading it live | Google's limits and speed; a worker must never wait on Google | Reading the sheet on every page view |
+| Three-way merge of who holds each shift | Both the office's and the workers' changes survive | Last change wins (one side's edits silently lost) |
+| Started shifts are history | A sync must never book, cancel or change a shift after the fact | Treat all shifts the same (the review found this polluted the notice evidence) |
+| Before writing, re-read each target row and skip it if the office just edited it | Never overwrite a change made in the same minute (found by the review) | Only check the row hadn't moved |
+| A worker blocked here stays blocked; a changed mobile signs them out | Login goes by mobile number, so the sheet mustn't be a way round the office (found by the review) | Let the sheet overwrite everything |
+| Leave the live switch off (`SHEETS_TRANSPORT=none`) | The sheet's names are booked without credential checks until the rules engine exists (golden rule 6; found by the review) | Report sheet names as "not booked" (the write-back would erase them from the office's sheet) |
+
+Full list: `docs/overnight-log.md` and ADR-013 in `docs/decisions.md`.
+
+### What the new tests prove
+
+- `tests/integration/sheets.sync.test.ts` (49): the 19 shared contract checks for the Sheets plug;
+  a seeded sheet syncs in and out; office adds, removes, re-times and cancels; portal bookings
+  and cancels reach the sheet in one write; both sides at once; a failed write loses nothing; a
+  row that moved or a cell edited mid-sync isn't overwritten; bad rows are reported by row number
+  only; history is left alone; every change is logged; the lease stops two syncs overlapping.
+- `tests/integration/sheets.jobs.test.ts` (8): the timer queues a sync only for firms that are due,
+  backs off while failing, and the job runs one firm only.
+- Unit tests: `sheets.parse` (44), `sheets.merge` (25, incl. the timing rules), `sheets.google`
+  (15), `time.zoned` (13, incl. every quarter hour of 2026 through the clock changes).
+
+### Parked, open, and things that need Dylan
+
+- **To make Sheets live, later (after the rules engine task):**
+  1. In Google Cloud Console, create a project, then a service account; download its JSON key.
+  2. Put the key file in the project's `secrets/` folder (git ignores it; never commit it).
+  3. Share a test copy of a rota sheet with the service account's email address, as Editor.
+  4. Claude then adds `google` as an allowed `SHEETS_TRANSPORT`, and you set
+     `SHEETS_TRANSPORT=google` and `GOOGLE_SERVICE_ACCOUNT_JSON_PATH=./secrets/<file>.json` in
+     `.env`, and run one sync by hand.
+- Parked in `PLAN.md`: sheet bookings must pass the credential checks first; rows or staff that
+  disappear from the sheet; telling the office about sync errors and clashes (Phase 5); big-sheet
+  performance; a demo sheet for Northline.
+- **Please read the decision table** in `docs/overnight-log.md` (this task's entry) and ADR-013.
+
+### How to see it working
+
+Nothing on screen yet, and no real sheet can sync. To run the tests:
+`npx vitest run tests/integration/sheets.sync.test.ts` (with `npm run db:up` running). You
+should see "49 passed".

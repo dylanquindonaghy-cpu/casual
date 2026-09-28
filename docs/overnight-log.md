@@ -336,3 +336,112 @@ To reach DONE: nothing — implementation and tests for this specific task are p
 
 **Commit:** `9d4c8f1 Phase 2: Native adapter ...` on `build/overnight`. **Push:** succeeded.
 **CI:** not checked (`gh` isn't installed here).
+
+## 2026-09-28 17:52 UTC: Phase 2, "Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min on event days, batch writes, never read the sheet per request"
+
+**Hard limit applied:** no Google account, service account or real sheet is created or called.
+Everything is built and tested against a fake Sheets service (docs/testing.md already specifies
+"Sheets adapter against a mocked Sheets API"); the real Google client is written and tested with a
+fake network and a throwaway key generated inside the test. "Create the service account, share a
+test sheet, run one real sync" is parked for Dylan.
+
+**Plan.**
+- Schema (migration 0005): `roster_sources` (one per firm: kind `sheets`, spreadsheet id, column
+  mapping, last sync, last error code, a sync lease); `workers.external_ref` (the sheet's staff
+  id, unique per firm); `shifts.synced_holders` (what the sheet's "assigned" cell held after the
+  last successful sync: the base for a three-way merge); function `app_firm_ids()` so the worker's
+  once-a-minute tick can visit each firm.
+- `src/lib/time/zoned.ts`: London wall-clock date and time to UTC (DST-aware, no library).
+- `src/lib/roster/sheets/`: `mapping.ts` (per-firm column mapping, by header name), `parse.ts`
+  (sheet rows to `RosterStaff`/`RosterShift` through the zod boundary schemas, bad rows reported
+  by row number without their contents), `merge.ts` (pure three-way merge of who holds a shift),
+  `client.ts` (the `SheetsClient` interface: one batch read, one batch write), `google.ts` (the
+  real client: service-account JWT signed with node:crypto, token cache, fetch injected),
+  `sync.ts` (the sync), `cadence.ts` (due every minute on event days, every 15 otherwise),
+  `jobs.ts` (the `sheets-sync` firm job and the `sheets-sync-tick` cron).
+- The Sheets RosterPlug: the native plug over the mirrored tables, with refs = the sheet's ids.
+  Portal requests never touch the sheet; only the sync job does.
+- Tests: `sheets.sync` (named in docs/testing.md) end to end on the real database with the fake
+  sheet, the shared contract against the Sheets plug, and unit tests for each piece.
+
+**Built.** Migrations `0005_phase2_sheets` (roster_sources, workers.external_ref,
+shifts.synced_holders) and `0006_firm_ids` (hand-written `app_firm_ids()`), regenerated once
+before commit (a column added after the review; local dev database rebuilt with `db:reset`);
+`src/lib/time/zoned.ts`; `src/lib/roster/sheets/` (a1, client, mapping, parse, merge, google,
+cadence, sync, jobs); `sheetsRosterPlug` beside the native plug; `FirmTask`/`runFirmTask` in the
+job runner; the tick and sync wired into the worker behind a Sheets client; env
+`SHEETS_TRANSPORT`. Tests: `sheets.sync` (19 contract checks + 30 sync tests), `sheets.jobs` (8),
+`sheets.parse`, `sheets.merge`, `sheets.google`, `time.zoned`, a definer test for `app_firm_ids()`.
+
+**Root causes found while building:** one test expectation was wrong: when the office swaps a
+name and the portal adds one at once, the newcomer from the sheet takes the freed slot 1, so the
+cell (written in slot order) reads "N003, N002", not "N002, N003". Fixed the test.
+
+**Guardrails review** (`guardrails-reviewer`): verdict FIX FIRST.
+
+- FIX FIRST 1: the sync books the office's sheet names with no eligibility or credential check
+  (golden rule 6; and my own parking note said nothing may call `assign` before the rules
+  engine). **Fixed by gating:** `SHEETS_TRANSPORT` accepts only `none`, so no real sheet can sync
+  until the rules engine checks sheet bookings (the same way Twilio is deferred). The worker
+  builds no Google client. Parked with exact steps. (Reporting sheet names as "not booked" was
+  rejected: the write-back would then erase the office's names from its sheet.)
+- SHOULD FIX 2 (an office edit between read and write was overwritten): **fixed**: the pre-write
+  read takes each target row's id *and* Assigned cells in one request; a changed cell is skipped
+  and merged next sync. Test.
+- SHOULD FIX 3 (stale merge base after a failed or skipped write): **fixed**: the base becomes the
+  cell as read in the mirror transaction, then the written value after a successful write. Test
+  (office re-adds a name after a failed write: booked again).
+- SHOULD FIX 4 (a holder with no staff id froze the shift silently): **fixed**: problem code
+  `holder_not_in_sheet`, a conflict event, and the open/filled recompute still runs. Test.
+- SHOULD FIX 5 (past shifts rewritten as firm cancellations; history booked on a first sync):
+  **fixed**: started shifts are mirrored but never booked, cancelled or re-timed. Tests.
+- SHOULD FIX 6 (worker fields overwritten silently; login is by mobile): **fixed**: events by
+  field name (`worker.added`, `worker.updated`, `worker.linked`), a worker blocked here stays
+  blocked, a changed mobile revokes sessions and unused login links. Tests.
+- SHOULD FIX 7 (lease not fenced; job expiry longer than the lease): **fixed**: every later write
+  to roster_sources is fenced on the claimed lease time; a lost lease returns `busy` and changes
+  nothing; the queue expires jobs after 4 minutes (lease 5). Tests.
+- SHOULD FIX 8 (failures retried every minute with an event each time): **fixed**:
+  `last_attempted_at` column, back-off to 5 min (event day) / 30 min, `roster.sync_failed` only
+  when the code changes. Tests.
+- SHOULD FIX 9 (shift-level events missing): **fixed**: `shift.created`, `shift.changed` (field
+  names), `shift.status_changed`. Test.
+- SHOULD FIX 10 (no definer test for `app_firm_ids()`): **fixed** (directory.test).
+- Notes: recompute now uses the shared cancelled-status list and only slots within the headcount;
+  the env var name in google.ts's comment corrected; `SHEETS_TRANSPORT=google` can't be set at all
+  now. Parked: the web can also call `app_firm_ids()` (ids only); lock/row churn on big sheets;
+  telling workers about sheet-made changes (Phase 4/5).
+
+**Verify:** `VERIFIED tree=b9d4915e8408d4fb e2e=true` (1004 tests, 10 e2e), first full run.
+
+**claims-auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE (for this task line only — see scope note below)
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"b9d4915e8408d4fb",...}`; `./.claude/hooks/tree-hash.sh` = `b9d4915e8408d4fb`. Match, ok=true. Proceeded with audit.
+
+Claims (task = PLAN.md:108-109, "Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min on event days, batch writes, never read the sheet per request"):
+
+- Service account auth — PROVEN. `src/lib/roster/sheets/google.ts:26-38` (`loadServiceAccountKey`), `:66-81` (`serviceAccountJwt`, RS256), `:92-173` (`googleSheetsClient`, token caching/refresh). Tests: `tests/unit/sheets.google.test.ts` (`serviceAccountJwt`, `googleSheetsClient` token/refresh/error-code cases) — all pass, `.claude/state/test.log:669-682`.
+- Column mapping per firm — PROVEN. `src/lib/roster/sheets/mapping.ts:15-75` (`sheetMappingSchema`, header lookup by text, `DEFAULT_SHEET_MAPPING`); stored per-firm in `roster_sources.mapping` jsonb, `src/lib/db/schema/roster.ts:340-370`. Tested: `tests/unit/sheets.parse.test.ts` "finds columns by header text in any order and any case" — `test.log:686`.
+- Sync job every 1–2 min on event days — PROVEN. `src/lib/roster/sheets/cadence.ts:12-33` (`EVENT_DAY_EVERY_MS = MINUTE`, `sheetsSyncDue`), `src/lib/roster/sheets/jobs.ts:23-90` (cron `* * * * *`, singleton key, lease coordination). Tests: `tests/unit/sheets.merge.test.ts` (`sheetsSyncDue` cases, `test.log` sheets.merge section) and `tests/integration/sheets.jobs.test.ts` ("queues one sync for each firm that is due", "backs off while a firm's syncs are failing", "schedules the tick every minute" — `test.log:365-374`).
+- Batch writes — PROVEN. `google.ts:160-171` `batchUpdate` sends one POST with all cell writes; `sync.ts` docstring lines 40-42 states one batch write per sync. Test `tests/integration/sheets.sync.test.ts:438-461` "a booking made in the portal reaches the sheet in one batch write" asserts `writes: 1` via `FakeSheets` call counter.
+- Never read the sheet per request — PROVEN. `src/lib/roster/native.ts:47-56` (`sheetsRosterPlug` doc comment: "It never reads or writes the sheet... 'never read the sheet per request'"); `sheetsRosterPlug`/`nativeRosterPlug` share `tableRosterPlug` (native.ts:60+) which only queries our DB tables. Test `sheets.sync.test.ts:438-449` explicitly proves a portal booking + `listStaff` call leave `fake.reads`/`fake.writes` unchanged.
+- "A seeded Sheet syncs both ways" (Phase done-when) — PROVEN. `tests/integration/sheets.sync.test.ts` sections "from the sheet into our tables" and "from our tables back to the sheet", all passing (`test.log:43-56`).
+- "Double-assign impossible under a race test" (Phase done-when, as applied to this adapter) — PROVEN. `tests/helpers/roster-contract.ts:268-281` runs two concurrent `assign` calls, each via its own `withFirm` transaction (`tests/integration/sheets.sync.test.ts:163-177`, real Postgres pool `appRolePool(8)`), against `src/lib/roster/native.ts:172-203`'s atomic conditional `UPDATE ... WHERE worker_id IS NULL` under `for("no key update")` row lock — golden rule 4. Passing as part of the Sheets adapter's own contract suite: `test.log:32` "two assign calls in flight together on one plug for the last slot: exactly one gets it".
+
+Fakes found: none in the Sheets code/tests — no `.only`/`.skip`/`.todo` (`grep` clean), `invariants.log` confirms "no .only/.skip/.todo in tests" and "1004 tests: 1004 passed, 0 failed, 0 skipped, 0 todo". No mocking of the thing under test: `googleSheetsClient` is tested against an injected `fetch` (network boundary), and the sync/roster-plug tests run against real Postgres.
+
+Scope note (not a fake, but important): the Sheets client is deliberately **not wired into the running worker yet**. `src/lib/env.ts:70` restricts `SHEETS_TRANSPORT` to `z.enum(["none"])`; `src/worker/index.ts:20-22` sets `const sheets = undefined` with a comment explaining this is intentional until the (separate, still unchecked) rules engine exists to vet sheet-booked names against credential rules (golden rule 6). This gating is itself tested (`sheets.jobs.test.ts` "with/without a Sheets client" cases, `test.log:373-374`) and documented in `PLAN.md:346-352,360-363`. PLAN.md still has this exact bullet unchecked (`PLAN.md:108-109`), consistent with it awaiting this audit before ticking.
+
+Also out of scope for this task but relevant to the Phase 2 "Done when" line as a whole: the **rules engine** (`- [ ] Rules engine...`, `PLAN.md:111-113`) and a standalone `assign.race.test.ts` / `rules.table.test.ts` (`PLAN.md:119`, `docs/testing.md:29,31`) do not exist yet (`find src/lib/rules` → not found; no `tests/**/assign.race*` or `rules.table*` files). These are separate, still-open PLAN.md bullets, not part of the "Google Sheets adapter" line item — Phase 2 overall is not complete, but that is not this task's claim.
+
+To reach DONE: nothing further for this specific task line ("Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min on event days, batch writes, never read the sheet per request") — all sub-claims are PROVEN with passing, non-fake tests on the current verified tree. If the intent was to audit the whole Phase 2 "Done when" line, note separately that the rules engine and its dedicated tests remain unimplemented.
+```
+
+**Ticked** in `PLAN.md` after the DONE verdict. **Not blocked, but not live:** a real sync needs a
+Google service account (Dylan, parked with steps) and the rules engine (next Phase 2 tasks);
+`SHEETS_TRANSPORT` stays `none` until both exist.
+
+**Hours:** 0.8 h (17:52 to 18:41 UTC). Phase 2 so far: 2.0 h of the 30-40 h estimate.

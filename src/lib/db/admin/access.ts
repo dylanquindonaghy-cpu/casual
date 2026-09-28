@@ -33,6 +33,8 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   assignments: NO_DELETE,
   requests: NO_DELETE,
   offers: NO_DELETE,
+  // Sheet connection settings (office settings later; the sync updates its status columns).
+  roster_sources: CRUD,
 };
 
 export function schemaTableNames(): string[] {

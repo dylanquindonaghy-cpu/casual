@@ -63,6 +63,11 @@ export const workerEnvSchema = z
       .string()
       .regex(/^\.dev\//)
       .optional(),
+    // Google Sheets sync. Only "none" for now: the sync would book the names an office puts in
+    // its sheet, and until the rules engine checks those bookings (credentials in date, golden
+    // rule 6) it must not run for real. "google" (with GOOGLE_SERVICE_ACCOUNT_JSON_PATH, a key
+    // file in the git-ignored secrets/) is added then, like "twilio" for messaging.
+    SHEETS_TRANSPORT: z.enum(["none"]).default("none"),
   })
   .refine(realSecret, realSecretMessage)
   // Production must never silently print messages instead of sending them.

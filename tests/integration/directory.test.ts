@@ -77,6 +77,26 @@ describe("app_resolve_firm hardening", () => {
     );
   });
 
+  it("app_firm_ids() is set up the same way: owner, pinned search_path, app role only, ids only", async () => {
+    const { rows } = await su.query<{
+      definer: boolean;
+      config: string[];
+      acl: string[];
+      result: string;
+    }>(
+      `select prosecdef as definer, proconfig as config, proacl::text[] as acl,
+              pg_get_function_result(oid) as result
+         from pg_proc where oid = 'app_firm_ids()'::regprocedure`,
+    );
+    const fn = rows[0];
+    expect(fn?.definer).toBe(true);
+    expect(fn?.config).toEqual(["search_path=pg_catalog, pg_temp"]);
+    expect(fn?.result).toBe("SETOF uuid");
+    expect(fn?.acl.filter((entry) => entry.startsWith("="))).toEqual([]);
+    expect(fn?.acl.some((entry) => entry.startsWith("shiftdesk_app=X/"))).toBe(true);
+    expect(fn?.acl.some((entry) => entry.startsWith("shiftdesk_jobs="))).toBe(false);
+  });
+
   it("runs as its owner with a pinned search_path, and only the app role may call it", async () => {
     const { rows } = await su.query<{
       definer: boolean;

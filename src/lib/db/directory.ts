@@ -55,3 +55,28 @@ export function resolveFirmBySlug(slug: string): Promise<FirmDirectoryEntry | nu
   defaultDirectory ??= createDirectory(appPool());
   return defaultDirectory(slug);
 }
+
+// Every firm's id, for the worker's scheduled jobs, which then visit each firm inside its own
+// withFirm transaction. Through app_firm_ids() (drizzle/0006_firm_ids.sql): ids only.
+export type ListFirmIds = () => Promise<string[]>;
+
+export function createFirmIdLister(pool: Pool): ListFirmIds {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async () => {
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select app_firm_ids() as id`);
+    return result.rows.map((r) => z.uuid().parse(r.id));
+  };
+}
+
+let defaultLister: ListFirmIds | undefined;
+
+export function listFirmIds(): Promise<string[]> {
+  defaultLister ??= createFirmIdLister(appPool());
+  return defaultLister();
+}

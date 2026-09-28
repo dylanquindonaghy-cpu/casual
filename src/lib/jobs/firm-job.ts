@@ -30,6 +30,15 @@ export function defineFirmJob<P extends FirmJobEnvelope>(job: FirmJob<P>): FirmJ
   return job;
 }
 
+// A firm job that needs several transactions, e.g. with network calls between them (holding a
+// transaction open across a call to Google would hold its locks too). The handler gets withFirm
+// bound to the payload's firm: asking for any other firm throws.
+export interface FirmTask<P extends FirmJobEnvelope> {
+  queue: string;
+  schema: z.ZodType<P>;
+  task: (payload: P, run: WithFirm) => Promise<unknown>;
+}
+
 export type FirmSendOptions = Omit<SendOptions, "db" | "id">;
 
 // Queues a firm job inside the current withFirm transaction, so it commits or rolls back with
@@ -37,7 +46,7 @@ export type FirmSendOptions = Omit<SendOptions, "db" | "id">;
 // and the database policy on pgboss.job_common rejects any other firm (see admin/jobs.ts).
 export async function sendFirmJob<P extends FirmJobEnvelope>(
   tx: FirmTx,
-  job: FirmJob<P>,
+  job: Pick<FirmJob<P>, "queue" | "schema">,
   payload: Omit<P, "firmId">,
   options?: FirmSendOptions,
 ): Promise<string | null> {
@@ -82,6 +91,33 @@ export async function runFirmJob<P extends FirmJobEnvelope>(
   run: WithFirm = withFirm,
   logger: Logger = log,
 ): Promise<JobResult> {
+  return runValidated(job, input, logger, (payload) =>
+    run(payload.firmId, (tx) => job.handler(payload, tx)),
+  );
+}
+
+// The same for a FirmTask: validated payload, one result per job, codes only on failure.
+export async function runFirmTask<P extends FirmJobEnvelope>(
+  task: FirmTask<P>,
+  input: { id: string; data: unknown },
+  run: WithFirm = withFirm,
+  logger: Logger = log,
+): Promise<JobResult> {
+  return runValidated(task, input, logger, (payload) => {
+    const bound: WithFirm = (firmId, fn) => {
+      if (firmId !== payload.firmId) throw new Error("a firm task may only use its own firm");
+      return run(firmId, fn);
+    };
+    return task.task(payload, bound);
+  });
+}
+
+async function runValidated<P extends FirmJobEnvelope>(
+  job: { queue: string; schema: z.ZodType<P> },
+  input: { id: string; data: unknown },
+  logger: Logger,
+  work: (payload: P) => Promise<unknown>,
+): Promise<JobResult> {
   const jobLog = logger.child({ queue: job.queue, jobId: input.id });
   const parsed = job.schema.safeParse(input.data);
   if (!parsed.success) {
@@ -91,7 +127,7 @@ export async function runFirmJob<P extends FirmJobEnvelope>(
   }
   const payload = parsed.data;
   try {
-    const output = await run(payload.firmId, (tx) => job.handler(payload, tx));
+    const output = await work(payload);
     return { id: input.id, status: "completed", output: output ?? null };
   } catch (err) {
     const code = errorCode(err);

@@ -151,3 +151,27 @@ through `withCurrentFirm(fn)` (`getCurrentFirm()` then `withFirm(firm.id)`); ESL
 `src/app` importing `withFirm` directly, so a page can't pick a firm id from input. Custom domains (Phase 8) extend
 `parseHost` and `app_resolve_firm`.
 
+## ADR-013: Google Sheets sync: a mirrored rota with a three-way merge
+
+**Context:** most target firms keep their rota in a Google Sheet and will keep editing it while
+workers book in the portal. Google's quota is per minute, reads are slow, and a request must never
+wait on Google (architecture.md: never read the sheet per request).
+**Decision:** the sheet is mirrored into our own tables by a sync job (every minute on event days,
+every 15 otherwise); the portal books against the mirror with the same first-yes-wins code as
+native firms (`sheetsRosterPlug`). Who holds each shift is merged three ways against what the sheet
+held after the last sync (`shifts.synced_holders`), so both sides' changes survive; a confirmed
+portal booking always stands. The sheet's staff and shift id columns are the keys (row numbers
+move when the office sorts). One batch read and at most one batch write per sync; the base moves
+only after a successful write, so a failed write is retried, never lost. Our service account's key
+lives in the worker's environment (`GOOGLE_SERVICE_ACCOUNT_JSON_PATH`), never in the database.
+**Options:** read-through (the sheet as the live source for every request: quota and latency);
+last-writer-wins (office edits and portal bookings overwrite each other); an outbox of pending
+sheet writes (more state, same result as the merge base).
+**Consequences:** the office sees portal bookings in the sheet within about a minute on event
+days. A name added in the sheet to an already-full shift isn't booked (logged as a conflict).
+Started shifts are history: a sync never books, cancels or re-times them. A worker blocked here
+stays blocked; a mobile changed in the sheet signs the worker out. The sheet's names are booked
+without the rules engine, so the live transport stays off (`SHEETS_TRANSPORT` is `none` only)
+until the rules engine checks them.
+**Revisit when:** a firm needs one row per slot instead of an "Assigned" list, or sheets get big
+enough that one read per minute is too slow.

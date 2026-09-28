@@ -81,9 +81,26 @@ but never changes an existing password. Rotate by hand as the owner:
 
 ## Google Sheets sync failing
 
-- Permission: the firm removed the service account → ask them to re-share.
-- Rate limit: increase sync interval, batch writes, never per-request reads.
-- Column mapping changed: settings → roster source → re-map; sync resumes.
+`roster_sources.last_error_code` (and each `roster.sync_failed` event) says why:
+
+- `sheet_not_shared`: the firm removed the service account → ask them to re-share the sheet with
+  its email (Editor).
+- `sheet_not_found`: wrong spreadsheet id, or the sheet was deleted → check the id in settings.
+- `missing_column` / `duplicate_column`: a header the mapping names was renamed, removed or
+  doubled → fix the header in the sheet, or re-map in settings; the next sync resumes.
+- `sheets_rate_limited`: Google's per-minute quota → the sync already reads once and writes at most
+  once; check nothing else is using the service account.
+- `sheets_unavailable` / `sheets_auth_failed` / `sheets_bad_response`: Google side or our key →
+  check Google's status page and the key file; syncs retry every tick.
+- `bad_mapping`: the stored mapping doesn't parse → fix it in settings.
+- While a firm's syncs fail, retries back off to every 5 minutes on event days (30 otherwise), and
+  `roster.sync_failed` is logged only when the code changes.
+- Nothing booked in the portal is lost while syncs fail: the next successful sync writes it.
+- A `holder_not_in_sheet` problem: someone with no staff id in the sheet holds that shift. Add them
+  to the staff tab (with a staff id); the shift's holders sync again after that.
+- A clash (`roster.sheet_conflict`): the office added a name to a shift the portal had already
+  filled. The portal booking stands; tell the office.
+- Bad rows are listed by row number and code in the `roster.synced` outcome (never their contents).
 
 ## Custom domain not working
 

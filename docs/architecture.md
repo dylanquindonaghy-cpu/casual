@@ -55,6 +55,9 @@ mornings). Reliability matters far more than scale.
 - **Before the firm is known** (host lookup), `resolveFirmBySlug()` calls `app_resolve_firm()`,
   a `SECURITY DEFINER` function with a pinned `search_path` that returns only directory fields
   (id, slug, name, timezone, sign-off). Only the app role may execute it.
+- **Scheduled jobs that visit every firm** (the Sheets sync tick) list firms through
+  `app_firm_ids()` (`listFirmIds()`), another `SECURITY DEFINER` function that returns ids only,
+  then work inside each firm's own `withFirm` transaction.
 - **Jobs** extend a zod envelope `{ firmId, idempotencyKey }` (`src/lib/jobs/firm-job.ts`); the
   worker runs each handler inside `withFirm(payload.firmId)`. The web queues a job inside its own
   `withFirm` transaction (`sendFirmJob`), taking `firmId` from that transaction. An RLS policy on
@@ -148,13 +151,37 @@ behaviour, the `[from, to)` window, and another firm's rows out of reach.
 | Adapter | When | Notes |
 |---|---|---|
 | Native | Firm has no rota system, or wants ours | Our tables are the source of truth. `nativeRosterPlug(tx, { clock })` in `src/lib/roster/native.ts`, on the caller's `withFirm` transaction. `assign` locks the shift row, creates any missing open slot rows up to the headcount, then does the one conditional update; the shift becomes `filled` with its last slot and `open` again on a cancel. |
-| Google Sheets | Most target firms | Firm shares the sheet with our service account. Column mapping per firm. Sync every 1–2 min on event days, less otherwise. Batch writes. Never read the sheet per request (Google rate limits). |
+| Google Sheets | Most target firms | Firm shares the sheet with our service account. Column mapping per firm, by header text (`roster_sources.mapping`, `src/lib/roster/sheets/mapping.ts`): a staff tab with a staff id column, a shifts tab with a shift id column and an "Assigned" column listing staff ids in slot order. Sync every minute on event days, every 15 minutes otherwise. One batch read and at most one batch write per sync. Never read the sheet per request (Google rate limits): the portal uses `sheetsRosterPlug`, our mirror of the sheet, and only the sync job touches Google. |
 | CSV/Excel | Onboarding and firms emailing spreadsheets | Import workers, credentials, shifts, pay records. |
 | Approve-only | Any system we can read but not write | We prepare the change; office applies it with one tap. |
 
 Firms already on Deputy or Parim are not targets, so no plugs for them are planned.
 
 **Before confirming any assignment, re-read the live source** (for Sheets, re-fetch that row).
+
+**The Sheets sync** (`src/lib/roster/sheets/sync.ts`, run by the `sheets-sync` job): claim the
+firm's sync lease; read the sheet once; in one transaction mirror staff (by staff id; a worker
+with the same mobile and no staff id is linked) and shifts (by shift id), then merge who holds each
+shift three ways: the sheet now, our bookings now, and what the sheet held after the last sync
+(`shifts.synced_holders`). A name removed on either side is removed; a booking made here is always
+kept (the worker was told it's confirmed); a name added in the sheet is booked while places
+remain, and any left over is logged as a conflict for the office. The office's changes in the sheet
+are applied through the roster plug and logged like any firm change (golden rule 12): a removed
+name is a cancellation by the firm with notice hours, a "Cancelled" status cancels each booking,
+new times are logged per booked worker as moved or curtailed, and new shifts, changed fields and
+status changes each get an event. Shifts that have started are mirrored but their bookings are
+history: never booked, cancelled or re-timed by a sync (so a first sync books no old names). The
+merge base becomes the "Assigned" cell as read. Then one batch write puts our bookings back into
+every cell that differs, after re-reading (one request) each target row's id and "Assigned" cells:
+a row that moved or a cell the office edited meanwhile is left for the next sync. Each written cell
+becomes the new base. A failed or skipped write loses nothing: the next sync pushes the same
+bookings and still sees any newer office edit. Draft rows' names are left alone. Bad rows are
+skipped and reported by row number and a code, never their contents. Staff changes are logged by
+field name; a worker blocked here stays blocked whatever the sheet says, and a changed mobile
+revokes the worker's sessions and unused login links (login goes by mobile). The sync's lease on
+`roster_sources` fences every later write, so an overrunning sync can't clobber the next one.
+**Not live yet:** `SHEETS_TRANSPORT` accepts only `none` until the rules engine checks the names an
+office puts in its sheet (credentials in date, golden rule 6).
 
 ## Rules engine
 

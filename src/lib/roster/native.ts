@@ -45,7 +45,22 @@ type LockedShift = {
 };
 
 export function nativeRosterPlug(tx: FirmTx, deps: { clock?: Clock } = {}): RosterPlug {
-  const clock = deps.clock ?? systemClock;
+  return tableRosterPlug(tx, "native", deps.clock ?? systemClock);
+}
+
+// The Google Sheets roster plug for portal and office requests: our mirror of the firm's sheet
+// (kept in step by the sync job, src/lib/roster/sheets/sync.ts) with the same booking rules, and
+// refs that are the sheet's own staff and shift ids. It never reads or writes the sheet: the
+// next sync carries bookings made here back to it (docs/architecture.md, "never read the sheet
+// per request").
+export function sheetsRosterPlug(tx: FirmTx, deps: { clock?: Clock } = {}): RosterPlug {
+  return tableRosterPlug(tx, "sheets", deps.clock ?? systemClock);
+}
+
+function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock): RosterPlug {
+  // Native refs are our ids; Sheets refs are the sheet's ids where the row came from the sheet.
+  const refOf = (id: string, externalRef: string | null) =>
+    source === "sheets" ? (externalRef ?? id) : id;
 
   // Takers and cancellers of one shift queue on its row, so the shift's status (open / filled)
   // always matches its slots. Each later statement in READ COMMITTED sees the previous commit.
@@ -79,13 +94,14 @@ export function nativeRosterPlug(tx: FirmTx, deps: { clock?: Clock } = {}): Rost
   }
 
   return {
-    source: "native",
+    source,
     canWrite: true,
 
     async listStaff(): Promise<RosterStaff[]> {
       const rows = await tx
         .select({
           id: workers.id,
+          externalRef: workers.externalRef,
           firstName: workers.firstName,
           lastName: workers.lastName,
           mobileE164: workers.mobileE164,
@@ -94,7 +110,11 @@ export function nativeRosterPlug(tx: FirmTx, deps: { clock?: Clock } = {}): Rost
         })
         .from(workers)
         .orderBy(asc(workers.lastName), asc(workers.firstName), asc(workers.id));
-      return rows.map(({ id, ...person }) => ({ ref: id, ...person, roles: [...person.roles] }));
+      return rows.map(({ id, externalRef, ...person }) => ({
+        ref: refOf(id, externalRef),
+        ...person,
+        roles: [...person.roles],
+      }));
     },
 
     async getShifts(from: Date, to: Date): Promise<RosterShift[]> {
@@ -103,6 +123,7 @@ export function nativeRosterPlug(tx: FirmTx, deps: { clock?: Clock } = {}): Rost
       const rows = await tx
         .select({
           id: shifts.id,
+          externalRef: shifts.externalRef,
           siteName: sites.name,
           role: shifts.role,
           startsAt: shifts.startsAt,
@@ -120,11 +141,16 @@ export function nativeRosterPlug(tx: FirmTx, deps: { clock?: Clock } = {}): Rost
           shiftId: assignments.shiftId,
           slot: assignments.slot,
           workerId: assignments.workerId,
+          workerRef: workers.externalRef,
         })
         .from(assignments)
         .innerJoin(
           shifts,
           and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+        )
+        .leftJoin(
+          workers,
+          and(eq(workers.firmId, assignments.firmId), eq(workers.id, assignments.workerId)),
         )
         .where(
           and(
@@ -134,11 +160,13 @@ export function nativeRosterPlug(tx: FirmTx, deps: { clock?: Clock } = {}): Rost
           ),
         )
         .orderBy(asc(assignments.slot));
-      return rows.map(({ id, ...shift }) => ({
-        ref: id,
+      return rows.map(({ id, externalRef, ...shift }) => ({
+        ref: refOf(id, externalRef),
         ...shift,
         assigned: holders.flatMap((h) =>
-          h.shiftId === id && h.workerId ? [{ slot: h.slot, staffRef: h.workerId }] : [],
+          h.shiftId === id && h.workerId
+            ? [{ slot: h.slot, staffRef: refOf(h.workerId, h.workerRef) }]
+            : [],
         ),
       }));
     },

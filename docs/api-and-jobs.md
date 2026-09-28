@@ -50,7 +50,8 @@ Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/c
 | `escalate-shift` | scheduled at start − X h | `{firm_id, shift_id}` | If still unfilled: notify resourcer (push + email); mark shift "needs attention". | 3× |
 | `offer-expire` | scheduled +wave_minutes | `{firm_id, offer_id}` | Mark expired offers; tell workers if filled elsewhere. | 3× |
 | `shift-reminder` | cron hourly | — | 24 h and 2 h before start: reminder to assigned workers (cuts no-shows). | — |
-| `sheets-sync` | cron (every 1–2 min on event days, 15 min otherwise) | `{firm_id}` | Pull shifts/staff from the sheet; push confirmed assignments; batch writes; record `last_sync_at`; alert office on auth/permission errors. | 5× |
+| `sheets-sync-tick` | cron every minute (`* * * * *`), no firm | — | Lists firms (`app_firm_ids()`); for each with an enabled sheet that is due (every minute on an event day: a shift on now, in the last 6 h or the next 24 h; else every 15 min; while syncs are failing, every 5 min on an event day, else 30), queues one `sheets-sync`. Scheduled only when the worker has a Sheets client (`SHEETS_TRANSPORT=google`). | — |
+| `sheets-sync` | the tick | `{firmId, idempotencyKey}` (`sheets-sync:<minute>`; firm-scoped singleton key, 50 s) | A firm task (`runFirmTask`: several transactions, network between them). Expires after 4 minutes, inside the sync's 5-minute lease. `syncSheet()`: lease, one batch read, mirror + three-way merge in one transaction, at most one id-column read and one batch write, then record the merge base, `last_synced_at` and a `roster.synced` event. Failures store a code in `roster_sources.last_error_code` and log `roster.sync_failed` (once per new code, not every retry). Office alerts on errors: Phase 5. | pg-boss default |
 | `credential-scan` | cron daily 06:00 | `{firm_id}` | Expiring in 30/14/7 days → warn worker + office. Expired → status `expired`, block. | — |
 | `pay-digest` | cron per firm setting | `{firm_id}` | Group open pay queries by `group_key`; Haiku one-liner per group; email payroll; mark `in_digest`. | 3× |
 | `metrics-rollup` | cron daily 00:30 | `{firm_id}` | Fill `metrics_daily` from events and messages. | — |
@@ -58,7 +59,9 @@ Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/c
 | `domain-verify` | office action | `{firm_id}` | Check CNAME resolves to us; set `domain_verified`; notify. | 5× |
 
 **Idempotency keys:** `offer-wave` uses `${shift_id}:${wave}`; `notify` uses
-`${worker_id}:${template}:${entity_id}:${date}`; `sheets-sync` uses `${firm_id}` as a singleton.
+`${worker_id}:${template}:${entity_id}:${date}`; `sheets-sync` uses a firm-scoped singleton key
+(one per firm per 50 s) plus the sync's own lease on `roster_sources`, so two syncs of one firm
+never overlap.
 
 ## Offer-wave ranking
 

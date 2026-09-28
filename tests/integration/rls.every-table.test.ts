@@ -293,14 +293,18 @@ describe("the rest of the public schema", () => {
     expect(rows).toEqual([]);
   });
 
-  it("the app role can execute exactly two functions: app_current_firm_id and app_resolve_firm", async () => {
+  it("the app role can execute exactly three functions: app_current_firm_id, app_firm_ids and app_resolve_firm", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
           and has_function_privilege('shiftdesk_app', p.oid, 'EXECUTE')
         order by 1`,
     );
-    expect(rows.map((r) => r.fn)).toEqual(["app_current_firm_id", "app_resolve_firm"]);
+    expect(rows.map((r) => r.fn)).toEqual([
+      "app_current_firm_id",
+      "app_firm_ids",
+      "app_resolve_firm",
+    ]);
   });
 
   it("the app and jobs roles have no rights on any sequence (identity columns don't need them)", async () => {

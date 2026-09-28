@@ -105,7 +105,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
 - [x] Schema: shifts, assignments, requests, offers, credential_rules (per sector/role)
 - [x] `RosterPlug` interface: `listStaff`, `getShifts`, `assign`, `markCancelled`, `canWrite`
 - [x] Native adapter (our tables are the rota) — for firms with nothing else
-- [ ] Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min
+- [x] Google Sheets adapter: service account, column mapping per firm, sync job every 1–2 min
       on event days, batch writes, never read the sheet per request
 - [ ] CSV/Excel import for workers, credentials and shifts
 - [ ] Rules engine (pure functions): credential in date for the role; qualification match;
@@ -345,6 +345,28 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   then shift) and retry on deadlock (40P01).
 - Nothing may call a roster plug's `assign` before the rules engine and the `EligibilityPass`
   exist, nor before callers write events (both later Phase 2 tasks).
+- **Before any Sheets firm goes live:** names the office puts in its sheet are booked without the
+  rules engine (the sheet is the office's own rota). Once the rules engine exists, a sheet booking
+  must pass the credential checks (3 and 4, never overridable, golden rule 6): flag it to the office
+  instead of booking it. Only then add `google` to `SHEETS_TRANSPORT` (it accepts only `none` now)
+  and wire `googleSheetsClient` into `src/worker/index.ts`.
+- Sheets sync performance: it updates only changed rows but locks every sheet shift row for the
+  mirror transaction, so portal bookings for that firm wait for the sync. Fine for pilot-sized
+  sheets; for big ones, skip unchanged rows before locking and limit to a time window.
+- `app_firm_ids()` is callable by the web too (it shares the app role). Ids only and low risk; a
+  worker-only role would be least privilege (revisit with ADR-011).
+- Workers aren't told when an office edit in the sheet cancels, moves or books them (Phase 4
+  notifications / Phase 5 firm-initiated changes).
+- Connect the real Google Sheets (needs Dylan): create a Google Cloud project and a service
+  account, download its key into `secrets/` (git-ignored), share a test sheet with the service
+  account's email, set `SHEETS_TRANSPORT=google` and `GOOGLE_SERVICE_ACCOUNT_JSON_PATH`, run one sync
+  by hand. The client (`src/lib/roster/sheets/google.ts`) is tested only against a fake network.
+- Sheets: rows or staff that disappear from the sheet are left as they are here (not cancelled or
+  deactivated). Decide with the pilot firm; flag them to the office first.
+- Sheets: tell the office about sync errors (`last_error_code`), clashes (`roster.sheet_conflict`)
+  and bad rows (Phase 5 Today view). Today they are only in the database and events.
+- Demo seed: Northline's mocked sheet. Local dev has no sheet transport (`SHEETS_TRANSPORT=none`);
+  a file-backed dev transport would let the demo sync a sheet on a laptop.
 - Read-only sources (`canWrite: false`): `needs_approval` records nothing. Before any read-only
   source goes live, save the pending change (a `requests` row plus an event with `cancel.at` and
   the notice hours at request time) so a worker's cancellation is never lost.
@@ -367,3 +389,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.5 | Schema: shifts, assignments, requests, offers, credential_rules; 5 RLS-sealed tables, 23 database checks, no deletes of rota evidence, firm-first unique keys (review fix); 733 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.4 | `RosterPlug` interface: boundary schemas, notice-hours function, 21-check adapter contract proven against 13 kinds of broken plug; 802 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.3 | Native adapter: first-yes-wins booking on our own tables (shift lock + one conditional update), cancel evidence and reopening, 19 contract checks + 10-way race tests on the real database; 833 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.8 | Google Sheets adapter: two-way sync with a three-way merge, column mapping by header, sync job every minute on event days, one read and one batch write per sync, service-account client tested with a fake network; not live until the rules engine; 1004 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

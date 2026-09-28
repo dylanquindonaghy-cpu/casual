@@ -18,6 +18,7 @@ export const EXPECTED_TABLES = [
   "office_users",
   "otp_codes",
   "requests",
+  "roster_sources",
   "sessions",
   "shifts",
   "sites",
@@ -44,6 +45,8 @@ const next = () => (seq += 1);
 // Ofcom's drama range only (+447700900000-999), never a real number.
 const fakeMobile = () => `+447700900${String(next() % 1000).padStart(3, "0")}`;
 const hash = () => randomBytes(32);
+// A made-up spreadsheet id in Google's shape (44 url-safe characters). No such sheet exists.
+const fakeSpreadsheetId = () => `test_${randomBytes(30).toString("base64url")}`.slice(0, 44);
 const later = () => new Date(Date.now() + 60 * 60 * 1000);
 // A shift starting tomorrow at 09:00 UTC for 8 hours (the exact time doesn't matter here).
 const shiftTimes = () => {
@@ -154,6 +157,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into requests (firm_id, worker_id, shift_id, type) values ($1, $2, $3, 'time_change')",
     [firmId, rosterWorkerId, shiftId],
   );
+  const rosterSourceId = await one(
+    su,
+    `insert into roster_sources (firm_id, kind, spreadsheet_id, mapping)
+     values ($1, 'sheets', $2, '{"version": 1}')`,
+    [firmId, fakeSpreadsheetId()],
+  );
   const offerId = await one(
     su,
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
@@ -184,6 +193,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       assignments: assignmentId,
       requests: requestId,
       offers: offerId,
+      roster_sources: rosterSourceId,
     },
   };
 }
@@ -252,6 +262,12 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   requests: (firmId, p) => ({
     text: "insert into requests (firm_id, worker_id, type) values ($1, $2, 'general')",
     values: [firmId, p.rosterWorkerId],
+  }),
+  // A disabled one: each firm may have only one enabled source (the fixture's).
+  roster_sources: (firmId) => ({
+    text: `insert into roster_sources (firm_id, kind, enabled, spreadsheet_id, mapping)
+           values ($1, 'sheets', false, $2, '{"version": 1}')`,
+    values: [firmId, fakeSpreadsheetId()],
   }),
   offers: (firmId, p) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",

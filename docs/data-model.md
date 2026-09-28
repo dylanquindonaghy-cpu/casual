@@ -43,7 +43,7 @@ architecture.md, Tenancy).
 | magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
 | auth_throttle | Rate-limit counters for login and OTP requests (HMAC-keyed buckets) | 1 |
 | push_subscriptions | Web push endpoints per worker | 4 |
-| roster_sources | Adapter type + config + last sync | 2 |
+| roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
 
 ## Firm settings (jsonb on `firms.settings`)
@@ -115,9 +115,11 @@ create table workers (
   email text,
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
+  external_ref text,                     -- the sheet's staff id (Sheets firms); null otherwise
   created_at timestamptz not null default now(),
   unique (firm_id, id),
-  unique (firm_id, mobile_e164)
+  unique (firm_id, mobile_e164),
+  unique (firm_id, external_ref)
 );
 
 create table credentials (
@@ -166,6 +168,8 @@ create table shifts (
   source text not null default 'native', -- native | sheets | csv
   external_ref text,                     -- the row's key in the firm's sheet or import
   instructions text,
+  synced_holders text[],                 -- Sheets: the "Assigned" cell's staff ids after the last
+                                         -- successful sync (the three-way merge's base)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, source, external_ref) -- one shift per sheet/import row (NULLs don't collide)
@@ -231,6 +235,23 @@ create table offers (
   unique (firm_id, id),
   unique (firm_id, shift_id, worker_id, wave) -- a retried offer-wave job (key shift:wave) sends nothing new
 );
+
+-- Where a firm's rota lives when it isn't our tables (native firms have no row). No secrets:
+-- the firm shares its sheet with our service account; the key is in the worker's environment.
+create table roster_sources (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  kind text not null,                    -- 'sheets'
+  enabled boolean not null default true,
+  spreadsheet_id text not null,          -- ^[A-Za-z0-9_-]{20,100}$
+  mapping jsonb not null,                -- tabs and header names (src/lib/roster/sheets/mapping.ts)
+  last_synced_at timestamptz,
+  last_attempted_at timestamptz,         -- the last sync that ran, success or not (for back-off)
+  last_error_code text,                  -- a code only (^[a-z_]{1,50}$), never a message or cell
+  sync_started_at timestamptz,           -- the sync's lease (5 minutes)
+  created_at timestamptz not null default now()
+);
+create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
 
 create table messages (
   id uuid primary key default gen_random_uuid(),
@@ -361,7 +382,8 @@ create policy firm_isolation on workers for all to public
   with check (firm_id = (select app_current_firm_id()));
 -- (select ...) makes Postgres evaluate the function once per query, not once per row.
 -- firms uses id instead of firm_id, plus a directory_read policy for the owner only, used by
--- the app_resolve_firm() function (host -> firm before any firm is known).
+-- the app_resolve_firm() function (host -> firm before any firm is known) and app_firm_ids()
+-- (every firm's id, for the worker's scheduled jobs; ids only).
 ```
 
 **Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`

@@ -121,6 +121,10 @@ export const shifts = pgTable(
     // The row's id in the firm's own rota (a sheet row key or CSV reference), for upserts.
     externalRef: text("external_ref"),
     instructions: text("instructions"),
+    // Sheets only: the staff ids the sheet's "assigned" cell held after the last successful sync.
+    // The base of the three-way merge between the sheet and bookings made here
+    // (src/lib/roster/sheets/merge.ts). Null until first synced.
+    syncedHolders: text("synced_holders").array(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -324,6 +328,47 @@ export const offers = pgTable(
       sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere')`,
     ),
     check("offers_response_has_time", sql`(${t.response} is null) = (${t.respondedAt} is null)`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+export const ROSTER_SOURCE_KINDS = ["sheets"] as const;
+
+// Where a firm's rota lives when it isn't our own tables (native firms have no row). The column
+// mapping is validated in code (src/lib/roster/sheets/mapping.ts). Credentials are ours, not the
+// firm's: the firm shares its sheet with our service account, so nothing secret is stored here.
+export const rosterSources = pgTable(
+  "roster_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    kind: text("kind", { enum: ROSTER_SOURCE_KINDS }).notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    spreadsheetId: text("spreadsheet_id").notNull(),
+    mapping: jsonb("mapping").$type<Record<string, unknown>>().notNull(),
+    lastSyncedAt: timestamptz("last_synced_at"),
+    // The last sync that ran, success or not: failures back off from it (cadence.ts).
+    lastAttemptedAt: timestamptz("last_attempted_at"),
+    // A short code only (e.g. "sheet_not_shared"), never a message or a cell's contents.
+    lastErrorCode: text("last_error_code"),
+    // A sync holds this lease while it runs, so two syncs of one firm never overlap.
+    syncStartedAt: timestamptz("sync_started_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    // One enabled source per firm; an old one can be kept, disabled.
+    uniqueIndex("roster_sources_one_enabled_per_firm")
+      .on(t.firmId)
+      .where(sql`enabled`),
+    check("roster_sources_kind_check", sql`${t.kind} in ('sheets')`),
+    check(
+      "roster_sources_spreadsheet_id_format",
+      sql`${t.spreadsheetId} ~ '^[A-Za-z0-9_-]{20,100}$'`,
+    ),
+    check("roster_sources_mapping_object", sql`jsonb_typeof(${t.mapping}) = 'object'`),
+    check("roster_sources_error_code_format", sql`${t.lastErrorCode} ~ '^[a-z_]{1,50}$'`),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

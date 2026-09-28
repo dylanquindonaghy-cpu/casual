@@ -54,11 +54,19 @@ export const workers = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    // The person's id in the firm's own rota (a Google Sheet's staff id column), for syncing.
+    // Null for workers who exist only here.
+    externalRef: text("external_ref"),
     createdAt: createdAt(),
   },
   (t) => [
     unique("workers_firm_id_id_key").on(t.firmId, t.id),
     unique("workers_firm_id_mobile_key").on(t.firmId, t.mobileE164),
+    unique("workers_firm_id_external_ref_key").on(t.firmId, t.externalRef),
+    check(
+      "workers_external_ref_format",
+      sql`${t.externalRef} = btrim(${t.externalRef}) and length(${t.externalRef}) between 1 and 200`,
+    ),
     check("workers_mobile_e164_check", sql`${t.mobileE164} ~ '^[+][1-9][0-9]{6,14}$'`),
     check("workers_status_check", sql`${t.status} in ('active', 'inactive', 'blocked')`),
     firmIsolation(t.firmId),

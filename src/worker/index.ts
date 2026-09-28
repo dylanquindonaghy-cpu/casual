@@ -15,7 +15,11 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-const boss = createBoss(workerEnv().DATABASE_JOBS_URL);
+const env = workerEnv();
+const boss = createBoss(env.DATABASE_JOBS_URL);
+// No Sheets client yet (SHEETS_TRANSPORT is "none" until the rules engine checks sheet bookings):
+// then googleSheetsClient({ key: loadServiceAccountKey(path) }) from lib/roster/sheets/google.
+const sheets = undefined;
 
 async function shutdown(signal: string): Promise<void> {
   log.info("worker stopping", { signal });
@@ -26,7 +30,7 @@ process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
 await boss.start();
-await registerJobs(boss);
+await registerJobs(boss, { sheets });
 // Plain line kept for humans and for Playwright's readiness check.
 console.log("[worker] started, listening for jobs");
 log.info("worker started");

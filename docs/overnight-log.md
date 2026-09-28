@@ -1203,3 +1203,52 @@ To reach DONE: nothing (for this bullet). To close out Phase 3 as a whole, "Canc
 
 **Ticked** in PLAN.md. **Hours:** 0.3 (22:23 to 22:44 UTC). Phase 3 so far: 0.7 h of its 35–45 h estimate.
 **Commit:** `55feaab`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-28 22:48 UTC: Phase 3, "Cancel a shift: instant confirmation, reason, notice period recorded"
+
+**Plan.** `cancelBooking()` (Phase 2) already records the cancellation, the reason and the notice
+hours, and logs the event. This task gives the worker the screen for it:
+- `src/lib/portal/cancel-shift.ts`: `cancelMyShift()`: `cancelBooking()` for the logged-in worker,
+  plus what the confirmation needs (day and times, site, the notice given, the booking's reference,
+  the sign-off).
+- `src/app/shifts/actions.ts`: the server action (firm from the host, worker from the session;
+  only the shift id and the reason come from the browser).
+- `src/app/shifts/cancel-shift.tsx` (client): "Cancel this shift" on each upcoming shift in My
+  shifts that hasn't started → quick reasons ("I'm unwell", "Travel problem", "Family or caring",
+  "Something else" with a short note) → "Confirm cancellation" or "Keep this shift" → the
+  confirmation: "We've recorded your cancellation.", the shift, "You gave {n} hours' notice.",
+  "Reference: {8 characters}", the sign-off.
+- Tests: the wrapper on the real database; the confirmation, the notice wording and the button's
+  placement rendered (unit).
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Cancel lives on My shifts (in the next-shift card and each upcoming shift's details), not a separate shift page | One tap from where the worker sees the shift; under 30 seconds (the phase's "Done when") | A `/shifts/[id]` page first |
+| Three quick reasons ("I'm unwell", "Travel problem", "Family or caring") plus "Something else" with a note (required, up to 200 characters) | Faster than typing on a phone; the office still gets a reason every time (golden rule 12) | A free-text box |
+| The confirmation shows the notice given ("You gave 2 days' notice."), in hours under 48, days from 48 | "Notice period recorded": the worker sees what was recorded | Show nothing about notice |
+| The reference is the booking's (same 8 characters as its booking confirmation) | One reference per booking, easy for the office to match | A new reference per cancellation |
+| No "Cancel" once the shift has started (the button isn't shown; the service refuses too) | Phase 2 rule: a late cancellation is a conversation with the office | — |
+| The WhatsApp `cancellation_ack` isn't sent yet | Comes with the notification job (Phase 4); the on-screen confirmation is instant | Send it from the action now |
+
+**Guardrails review (round 1): FIX FIRST ×3, all fixed; most lesser items too.**
+
+| Finding | Root cause | Fix | Test |
+|---|---|---|---|
+| FIX FIRST: `next build` failed: the My shifts page couldn't be bundled for the browser (7 "Module not found": dns, fs, net, tls...) | The cancel button (a client component) imported values from `cancel-shift.ts`, which imports the database layer, so pg was pulled into the browser bundle; type checks, lint and tests can't see this, and `verify.sh` doesn't build | The browser-safe parts (reasons, notice wording, outcome type) moved to `src/lib/portal/cancel-reasons.ts`, which imports nothing from the server | New `tests/unit/client-boundary.test.ts`: follows every client component's value imports and fails on src/lib/db/, pg or Node built-ins; proven to fail with the bad import put back. `npm run build` run by hand: succeeds |
+| FIX FIRST: after a cancellation, the next shift moving into the card would still show the old confirmation | The cancel component wasn't keyed, and `router.refresh()` keeps client state | Keyed by the booking id | — |
+| FIX FIRST: "Something went wrong" had no way to try again | Only "Back to my shifts" was offered | "Try again" re-sends the same reason | unit copy |
+| Lesser: choice and note weren't checked with zod | — | `z.enum` of the reasons and `z.string().max(200)` in the action | — |
+| Lesser: reason rows were small tap targets | `py-2` | `min-h-12 py-3` | — |
+| Lesser: a retry after a lost answer said "not booked" with no hint | — | "If you've just cancelled it, it's recorded." | unit |
+| Lesser: the confirmation said how much notice, not when it was recorded | — | "Recorded at 09:14 on Mon 2 Nov." | unit, integration |
+| Lesser: out-of-date comment; the decision log said four quick reasons | — | Corrected | — |
+
+Parked (PLAN.md): a production build in `verify.sh` (it's a verify change, so it needs Dylan);
+tests of the server actions' input handling (they need the request's host and session); reason
+codes instead of text on the row for worker cancellations ("I'm unwell" is health-related).
+
+**Implementation root causes noted while building:** the My shifts unit test broke when the page
+gained the cancel button: the button uses Next's router, which doesn't exist outside a running app;
+the test now gives it a stand-in router, as the Open shifts test does.

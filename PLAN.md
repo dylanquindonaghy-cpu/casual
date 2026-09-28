@@ -133,7 +133,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 
 - [x] My shifts (upcoming, past), with site, times, role, instructions
 - [x] Open shifts I'm eligible for, with a "Take shift" button (rules + atomic assign)
-- [ ] Cancel a shift: instant confirmation, reason, notice period recorded
+- [x] Cancel a shift: instant confirmation, reason, notice period recorded
 - [ ] Request a time change or swap: creates a request for the office
 - [ ] Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)
 - [ ] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
@@ -389,6 +389,15 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 5: let the office look a booking up by the 8-character reference on the worker's
   confirmation.
 - Open shifts cards: the pay rate "if the firm shows it" comes with pay data (Phase 6).
+- **Dylan to confirm:** add `npm run build` to `scripts/verify.sh`. A client component importing
+  database code passed every check but broke the production build (caught in review; a unit test
+  now follows client imports, but only a build proves the bundle). verify.sh can't be changed
+  without Dylan.
+- Server actions (`takeShiftAction`, `cancelShiftAction`): no tests of their own input handling
+  (logged out, a bad id, an invalid reason); they need the request's host and session. Add with
+  the Playwright flow (Phase 3) or a small action-test helper.
+- Worker cancellations store the quick reason as text ("I'm unwell" is health-related). Consider
+  reason codes (with the office override reasons, Phase 5).
 - **Dylan to confirm:** the My shifts banner also shows expired credentials (the spec asked only for
   "expires within 30 days"), limited to what the worker's roles need.
 - **Dylan to confirm:** sending someone home part-way through a shift is a curtailment (Phase 5
@@ -468,3 +477,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.1 | Phase 2 tests: a parity check holding `rules.table` to every case in the rules doc (proven to fail on an untested case), race and Sheets test descriptions brought up to date; 1257 tests + 10 e2e; verified and audited DONE. Phase 2 complete: 5.0 h of the 30–40 h estimate (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.4 | My shifts: the portal home shows the next shift in a card (London times, role, site, maps button, instructions), every later shift opening to the same details, the last 30 days, a licence banner and plain empty states; 1275 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.3 | Open shifts: only shifts the rules let the worker take (next 28 days, filters by day, site and role), "Take shift" booking through the one booking path with an on-card confirmation (what, when, reference, sign-off) or a plain answer; 1290 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 3 | 0.3 | Cancel a shift: "Cancel this shift" on My shifts, quick reasons, instant confirmation (the shift, notice given, when recorded, the booking reference, sign-off), recorded through the Phase 2 cancel path; the review caught a broken production build (fixed, and a new test guards it); 1311 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

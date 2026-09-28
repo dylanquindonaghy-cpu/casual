@@ -1,12 +1,14 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MyShiftsView, type MyShiftsViewProps } from "@/app/my-shifts-view";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 
 // My shifts (docs/screens.md, `/`): the display helpers, then the page body rendered to HTML with
-// fake shifts, checked for what the screen spec promises.
+// fake shifts, checked for what the screen spec promises. The "Cancel this shift" button uses
+// Next's router, which only exists inside a running app: a stand-in router is given here.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
 
 const TZ = "Europe/London";
 const at = (iso: string) => new Date(iso);
@@ -152,13 +154,24 @@ describe("My shifts page body", () => {
     expect(words).not.toContain("No shifts booked yet.");
   });
 
-  it("marks a shift that has started as on now", () => {
+  it("marks a shift that has started as on now, with no cancel button (that's for the office)", () => {
     const html = render({
       now: at("2026-11-07T15:00:00Z"),
       shifts: [shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") })],
     });
     expect(text(html)).toContain("On now");
     expect(text(html)).not.toContain("Your next shift");
+    expect(text(html)).not.toContain("Cancel this shift");
+  });
+
+  it("offers Cancel this shift on every upcoming booking that hasn't started", () => {
+    const html = render({
+      shifts: [
+        shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") }),
+        shift({ startsAt: at("2026-11-08T14:00:00Z"), endsAt: at("2026-11-08T22:00:00Z") }),
+      ],
+    });
+    expect(html.match(/>Cancel this shift</g)).toHaveLength(2);
   });
 
   it("shows the last 30 days with what happened, or says there's nothing", () => {

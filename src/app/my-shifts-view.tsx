@@ -9,11 +9,12 @@ import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/porta
 import type { CredentialNotice, MyShift, ShiftsView } from "@/lib/portal/my-shifts";
 import { shortDate } from "@/lib/rules/reasons";
 import { wallTimeOf } from "@/lib/time/zoned";
+import { CancelShift } from "./shifts/cancel-shift";
 
 // My shifts (docs/screens.md, `/`): the next shift in a card (time, role, site, map link,
 // instructions), the rest in a list where each opens to the same details, a toggle to the last 30
-// days, and a banner for credentials that expire soon or have expired. Plain server-rendered HTML
-// (the list opens with <details>): nothing here needs JavaScript.
+// days, and a banner for credentials that expire soon or have expired. Server-rendered HTML (the list
+// opens with <details>); only "Cancel this shift" is a small client component.
 
 export interface MyShiftsViewProps {
   firstName: string;
@@ -147,6 +148,7 @@ function NextShift({ shift, timeZone, now }: MyShiftsViewProps & { shift: MyShif
       <p className="mt-1 text-2xl font-bold">{shiftWhen(shift.startsAt, shift.endsAt, timeZone)}</p>
       <p className="mt-1">{roleLabel(shift.role)}</p>
       <ShiftDetails shift={shift} />
+      <CancelIfAllowed shift={shift} now={now} />
     </section>
   );
 }
@@ -183,6 +185,15 @@ function ShiftDetails({ shift }: { shift: MyShift }) {
   );
 }
 
+// A confirmed booking the worker can still cancel here: not once the shift has started (then it's
+// a conversation with the office).
+function CancelIfAllowed({ shift, now }: { shift: MyShift; now: Date }) {
+  if (shift.status !== "confirmed" || shift.startsAt.getTime() <= now.getTime()) return null;
+  // Keyed by the booking: after a cancellation the list reloads and the next shift moves into this
+  // card; a fresh key means it starts with its own, empty cancel state.
+  return <CancelShift key={shift.assignmentId} shiftId={shift.shiftId} />;
+}
+
 // An upcoming shift in the list: tap it to open the same details as the next shift's card.
 function UpcomingRow({ shift, timeZone, now }: MyShiftsViewProps & { shift: MyShift }) {
   return (
@@ -203,6 +214,7 @@ function UpcomingRow({ shift, timeZone, now }: MyShiftsViewProps & { shift: MySh
           {!shift.site && !shift.instructions && (
             <p className="mt-2 text-base text-slate-600">No site or instructions yet.</p>
           )}
+          <CancelIfAllowed shift={shift} now={now} />
         </div>
       </details>
     </li>

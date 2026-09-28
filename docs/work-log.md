@@ -1774,3 +1774,80 @@ Full list: `docs/overnight-log.md`, this task's entry.
 1. Log in as in the last task (`npm run dev`, then `http://acme.localhost:3000/login`).
 2. On My shifts, tap "See open shifts". The demo data has no shifts yet (the demo-seed task adds
    them), so it says "Nothing open right now."
+
+## 2026-09-28: Phase 3, task 3: Cancel a shift (0.3 h)
+
+### Time
+
+0.3 hours of Claude's working time (22:47 to 23:08 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=a3532626d7a9356c e2e=true`: type checks, lint, all
+  1311 tests (up from 1290), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round (and ran a production build
+  itself, which succeeded).
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+- **"Cancel this shift"** on My shifts, under every booked shift that hasn't started yet.
+- **Why?** The worker picks a quick reason ("I'm unwell", "Travel problem", "Family or caring"),
+  or "Something else" with a short note. Then "Confirm cancellation", or "Keep this shift" if they
+  change their mind.
+- **Instant confirmation** they can screenshot: "We've recorded your cancellation.", the shift, how
+  much notice they gave ("You gave 2 days' notice."), when it was recorded, the booking's
+  reference, and the firm's sign-off.
+- It's recorded through the cancellation code from Phase 2: the reason and the notice hours go on
+  the booking, and one entry goes in the action log (the typed note never does).
+- Once a shift has started, the button is gone. A late cancellation is a conversation with the
+  office.
+
+### A problem the safety review caught (fixed)
+
+The first version **broke the production build** (the version of the app a real server runs). In
+Next.js, a **client component** is a piece of the page that runs in the worker's browser.
+Everything it imports is sent to the browser too. The cancel button imported a helper file that
+also talks to the database, so the browser bundle tried to include database code, which can't
+run in a browser. The type checks and tests all passed, because they don't build the app. The
+fix: the browser-safe parts moved to their own file. A new test now follows every client
+component's imports and fails if any of them reaches database code. It was tried with the
+mistake put back, and it failed as it should. I also ran a full build by hand, and it succeeded.
+
+The review also caught an old confirmation that could stay on screen after the list reloaded,
+and a missing "Try again" after an error. Both are fixed.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Cancel sits on My shifts, not a separate page | One tap from where the worker sees the shift: under 30 seconds | A shift detail page first |
+| Quick reasons, plus "Something else" with a note | Faster on a phone; the office always gets a reason | A free-text box |
+| Show the notice given and when it was recorded | "Notice period recorded": the worker sees what was kept | Say nothing about notice |
+| The reference is the booking's (same as its booking confirmation) | One reference per booking, easy for the office to match | A new one per cancellation |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/cancel-shift.test.ts` (3 tests, real database): a cancellation is recorded
+  (reason and notice on the booking, one log entry) and confirmed; too late once started; not
+  booked; another firm's booking is out of reach.
+- `tests/unit/portal.cancel-shift.test.ts` (6 tests): the reasons, the notice wording ("2 days'",
+  "5 hours'", "less than an hour's"), and the confirmation's words.
+- `tests/unit/client-boundary.test.ts`: no browser component reaches database code.
+- The My shifts tests: the cancel button shows on upcoming shifts, and not on one that's on now.
+
+### Parked, open, and things that need Dylan
+
+- **Please decide:** add a production build (`npm run build`) to `scripts/verify.sh`, so a broken
+  build can never be marked verified. I'm not allowed to change that script.
+- Parked in `PLAN.md`: tests of the server actions' own input checks (with the Playwright task);
+  reason codes instead of text for cancellations; the "we've recorded your cancellation" WhatsApp
+  (Phase 4).
+
+### How to see it working
+
+The demo data has no bookings yet (the demo-seed task adds them), so there's nothing to cancel
+on screen locally. The tests show it: `npm test -- cancel` runs the cancellation tests (3 files);
+you should see `Tests  20 passed (20)` and no failures.

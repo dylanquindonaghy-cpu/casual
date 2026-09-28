@@ -32,8 +32,7 @@ it from the server's own origin, which loses the firm's Host header. Planned:
 `takeShift(shiftId)` (built: `takeShiftAction` in `src/app/shifts/open/actions.ts` → `takeShift()`
 in `src/lib/portal/take-shift.ts` → `bookShift()`, with the firm from the host and the worker from
 the session; outcomes: booked with a confirmation, filled, already_assigned, gone, not_eligible
-with reasons, try_again, logged_out, error) · `cancelShift(shiftId, reason)` (calls `cancelBooking()` in
-`src/lib/roster/cancel.ts`; results: cancelled with notice hours, not_assigned, started, not_found) ·
+with reasons, try_again, logged_out, error) · `cancelShift(shiftId, reason)` (built: `cancelShiftAction(shiftId, choice, note)` in `src/app/shifts/actions.ts` → `cancelMyShift()` in `src/lib/portal/cancel-shift.ts` → `cancelBooking()`; firm from the host, worker from the session; outcomes: cancelled with the notice given and the booking's reference, started, not_booked, invalid_reason, logged_out, error) ·
 `createRequest(type, payload)` · `setAvailability(dates)` · `raisePayQuery(form)` · `updateNotificationPrefs(...)`
 
 Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),

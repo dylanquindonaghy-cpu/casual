@@ -584,3 +584,6 @@ To reach DONE: nothing — this task's claims are all PROVEN on the current, ver
 **Ticked** in `PLAN.md` after the round-2 DONE verdict.
 
 **Hours:** 0.6 h (18:43 to 19:18 UTC). Phase 2 so far: 2.6 h of the 30-40 h estimate.
+
+**Commit:** `e617e1a Phase 2: CSV/Excel import ...` on `build/overnight`. **Push:** succeeded.
+**CI:** not checked (`gh` isn't installed here).

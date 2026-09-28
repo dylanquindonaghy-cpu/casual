@@ -445,3 +445,6 @@ Google service account (Dylan, parked with steps) and the rules engine (next Pha
 `SHEETS_TRANSPORT` stays `none` until both exist.
 
 **Hours:** 0.8 h (17:52 to 18:41 UTC). Phase 2 so far: 2.0 h of the 30-40 h estimate.
+
+**Commit:** `3717d73 Phase 2: Google Sheets adapter ...` on `build/overnight`. **Push:** succeeded.
+**CI:** not checked (`gh` isn't installed here).

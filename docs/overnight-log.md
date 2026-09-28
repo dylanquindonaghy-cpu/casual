@@ -766,3 +766,6 @@ To reach DONE: nothing further for this specific bullet — tick it via `/close-
 **Ticked** in `PLAN.md` after the DONE verdict.
 
 **Hours:** 0.3 h (19:45 to 20:03 UTC). Phase 2 so far: 3.3 h of the 30-40 h estimate.
+
+**Commit:** `0f68a10 Phase 2: Credential packs ...` on `build/overnight`. **Push:** succeeded.
+**CI:** not checked (`gh` isn't installed here).

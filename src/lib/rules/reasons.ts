@@ -37,6 +37,8 @@ export const REASONS = {
   credential_marked_expired: (name: string) =>
     `Your ${name} is marked as expired. Renew it, then send the new number to the office.`,
   credential_suspended: (name: string) => `Your ${name} is suspended. Contact the office.`,
+  applied_not_allowed: (name: string) =>
+    `Your ${name} is still being processed. This shift needs a valid one. Send it to the office when you have it.`,
   applied_over_allowance: (name: string) =>
     `Your ${name} is still being processed. Only a few people waiting for theirs can work each day, and today's places are taken.`,
   overlap: (time: string, day: string | null) =>

@@ -111,7 +111,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
 - [x] Rules engine (pure functions): credential in date for the role; qualification match;
       no overlapping assignment; minimum rest; weekly hours cap; firm "applied" allowance;
       returns `{ ok, reasons[] }`
-- [ ] Credential packs seeded from `docs/rules-and-credentials.md` (security live; rail and
+- [x] Credential packs seeded from `docs/rules-and-credentials.md` (security live; rail and
       construction types present but unused until a firm needs them)
 - [ ] Credential expiry scan job (30/14/7-day warnings; block on expiry)
 - [ ] Atomic assign ("first yes wins") + re-check live source before confirming
@@ -333,11 +333,15 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - **Dylan to confirm:** the office may override "shift already started" (to book a late
   replacement onto a shift that has begun); workers never can. Remove `started` from
   `OVERRIDABLE_CODES` if not wanted.
-- Credential packs task: the "applied" allowance is one firm-wide percentage for every credential
-  type; make it per type (it's an SIA approved-contractor rule), and give roles display names too
-  ("a uniformed guard", not "an uniformed guard"; the a/an rule only looks at the first letter).
-- The rules loader (atomic assign task) must pass credential `names` (else a code like "RAIL DA"
-  shows), exclude this worker from `appliedInUseCount`/`deployedCount`, fetch bookings for every
+- Roles need display names ("a uniformed guard", not "an uniformed guard"; the a/an rule only looks
+  at the first letter): a label on credential_rules, set by the pack, when the office settings
+  screen edits rules.
+- Any-of credential rules: an SIA door supervisor licence also covers security guarding, but the
+  pack's security_officer rule asks for SIA_SG only. Model "any of" before a firm hits it.
+- Imports: warn about credential types a firm hasn't set up (today they import, and the rules engine
+  finds them missing).
+- The rules loader (atomic assign task) must pass credential `names` and `appliedAllowedTypes`
+  from the firm's `credential_types` (else a code like "RAIL DA" shows), exclude this worker from `appliedInUseCount`/`deployedCount`, fetch bookings for every
   week the shift touches, and never include the shift being checked (or pass its `shiftId`).
 - Atomic assign task: `checkEligibility()` now returns an `EligibilityPass` (only it can make one;
   `isEligibilityPass()` checks). Make `RosterPlug.assign` require one, add a loader that builds the
@@ -412,3 +416,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.8 | Google Sheets adapter: two-way sync with a three-way merge, column mapping by header, sync job every minute on event days, one read and one batch write per sync, service-account client tested with a fake network; not live until the rules engine; 1004 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.6 | CSV/Excel import for workers, credentials and shifts: CSV and .xlsx readers with size and zip-bomb limits, columns by header name, dry run, row-numbered problems, `npm run import`; 1064 tests + 10 e2e; verified and audited DONE (round 2) (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.4 | Rules engine: pure `checkEligibility()` (started, active, role, credentials in date for the whole shift, applied allowance, overlap, rest, weekly cap, unavailable, blocked site), plain-English reasons, office overrides limited to 0 and 6-8, an eligibility pass; 1122 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.3 | Credential packs: security, rail, construction and cleaning packs as data held to the doc by a test, per-firm `credential_types`, `applyCredentialPack()` in the demo seed, "applied" counted only for SIA licences; 1154 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

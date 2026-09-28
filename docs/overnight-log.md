@@ -683,3 +683,86 @@ To reach DONE: nothing — this task's claims are all PROVEN on the current, ver
 
 **Commit:** `520a92a Phase 2: Rules engine ...` on `build/overnight`. **Push:** succeeded.
 **CI:** not checked (`gh` isn't installed here).
+
+## 2026-09-28 19:45 UTC: Phase 2, "Credential packs seeded from `docs/rules-and-credentials.md` (security live; rail and construction types present but unused until a firm needs them)"
+
+**Plan.** `src/lib/rules/packs.ts`: the credential packs as data (per sector: credential types
+with the names workers know them by, and default role rules), copied from the doc's table; a test
+reads the doc's table and fails if the two ever differ. A new per-firm table `credential_types`
+(code, name, sector, whether "applied" may count). `applyCredentialPack(tx, sector)` adds a pack's
+types and role rules to a firm without touching anything the firm already has. The demo seed
+applies security to Acme and rail to Northline. The rules engine gets the per-type "applied" rule
+(parked from the last task).
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Packs are data in code (`packs.ts`), checked against the doc's table by a test; each firm gets its own copy in `credential_types` when a pack is applied | Every table keeps `firm_id` and RLS (no global table); a firm can later add its own types (site tickets) or rename one | One shared `credential_types` table without `firm_id` (breaks the tenancy rule) |
+| "Security live; rail and construction present but unused": all four packs exist in the catalogue; a firm gets only its sector's pack. Northline (rail) gets the rail pack in the demo | That's what "present until a firm needs them" means in practice | Seed every pack into every firm |
+| Applying a pack never overwrites: types and rules the firm already has stay as they are; an event is logged only when something was added | Re-running the seed or re-applying a pack must not undo the office's edits, and a no-op isn't an event | Upsert (would reset firm edits) |
+| Default role rules: steward → STEWARD_L2; door_supervisor → SIA_DS; security_officer → SIA_SG; close_protection_officer → SIA_CP; track_operative and lookout → PTS, SENTINEL, RAIL_DA; labourer → CSCS; plant_operator → CSCS + CPCS_NPORS; site_supervisor → CSCS + SMSTS_SSSTS; cleaner → none | From the doc's table and the demo firms' roles. RTW and FIRST_AID are types but not role rules (RTW is firm-level; first aid is per site) | Leave rules for the office to write |
+| "Applied" counts only for types marked so (SIA_DS, SIA_SG, SIA_CP), within the firm's allowance % | It's an SIA approved-contractor rule; an applied PTS must never pass (found by the last review) | One firm-wide % for every type |
+| `credentials.type` doesn't get a foreign key to `credential_types` | Imports and older rows can hold codes a firm hasn't set up; the rules engine simply finds them missing | A foreign key (would block imports) |
+
+**Built.** Migration `0007_credential_types`; `src/lib/rules/packs.ts` (4 sector packs + the
+any-sector right-to-work type, 14 types, 10 default role rules); `src/lib/credentials/apply-pack.ts`;
+the demo seed applies each firm's sector pack; the rules engine takes `appliedAllowedTypes`. Tests:
+`tests/unit/credential.packs.test.ts` (reads the doc's two tables and compares every column but
+Notes and the formal name), `tests/integration/credential.packs.test.ts`, a seed test that each demo
+firm's roles all have rules, isolation fixtures for the new table, 5 new rules-table cases. Local dev
+database migrated and re-seeded (fake data).
+
+**Caught while building:** I first wrote the applied-PTS test to match the output instead of
+checking the output: it said "marked as expired" for a card that is only in progress. Added a proper
+reason ("still being processed ... needs a valid one") and corrected the test.
+
+**Guardrails review** (`guardrails-reviewer`): verdict SAFE TO COMMIT, no FIX FIRST. SHOULD FIX, all
+done:
+
+1. An "applied" credential with a future expiry still got "marked as expired". **Fixed** (only
+   dates before the shift ends count as expired) + 4 table cases (future expiry, applied beside an
+   old expired card, no type allowing applied, 0% allowance).
+2. The pack event recorded only counts. **Fixed**: it records exactly the types (with
+   `appliedAllowed`) and role rules added; a note in TABLE_ACCESS that office edits to
+   `credential_types` must be logged.
+3. The doc claimed a test kept the packs in step, but names, the applied flag and the role rules
+   weren't compared. **Fixed**: the doc's table now has "Shown to workers as" and "Applied may
+   count" columns and a default role rules table, and the test compares all of them.
+- Notes: the seed's packs now come from each firm's sector (can't disagree); SIA_CP's allowance is
+  flagged "confirm before use" in the doc. Not done: a separate refusal code for "applied but this
+  type needs a valid one" (it uses `credential_missing` with its own wording); the sector list is
+  written twice in CHECK constraints, as for `credential_rules`. **Needs Dylan:** look over the
+  `credential_types` table design before merging to main.
+
+**Verify:** `VERIFIED tree=d747529f50a1e6ab e2e=true` (1154 tests, 10 e2e), first full run.
+
+**claims-auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE (for this task's claims — the PLAN.md checkbox itself is still unticked `[ ]` and should be ticked by /close-task, not by me)
+
+Preconditions checked:
+- `.claude/state/verified.json` = `{"ok":true,"tree":"d747529f50a1e6ab","e2e":true,"at":"2026-09-28T20:00:51Z"}`
+- `./.claude/hooks/tree-hash.sh` = `d747529f50a1e6ab` — matches. Proceeding.
+
+Claims (task: "Credential packs seeded from docs/rules-and-credentials.md (security live; rail and construction types present but unused until a firm needs them)"):
+
+- Packs defined as data matching the doc exactly (types + default role rules for security/rail/construction/cleaning) — PROVEN. Code: `/home/dylan/shiftdesk-starter/src/lib/rules/packs.ts` (CREDENTIAL_PACKS, ANY_SECTOR_TYPES). Test: `/home/dylan/shiftdesk-starter/tests/unit/credential.packs.test.ts` parses both doc tables from `docs/rules-and-credentials.md` and diffs them against the code (rows 45–94 "match the doc"). Log: `.claude/state/test.log:1125-1130` all ✓.
+
+- `applyCredentialPack()` copies a sector's types + role rules into a firm, never overwrites existing edits, logs an event only when something was added, stays within the firm — PROVEN. Code: `/home/dylan/shiftdesk-starter/src/lib/credentials/apply-pack.ts` (`onConflictDoNothing`, `recordEvent` only if `typesAdded+rulesAdded>0`). Test: `/home/dylan/shiftdesk-starter/tests/integration/credential.packs.test.ts` (4 cases: apply once, re-apply no-op/no-overwrite, two sectors on one firm, cross-firm isolation) — real Postgres, app-role pool, not mocked. Log: `.claude/state/test.log:796-799` all ✓.
+
+- Schema/tenancy plumbing for the new `credential_types` table (RLS, TABLE_ACCESS grant, isolation fixture) — PROVEN. `/home/dylan/shiftdesk-starter/src/lib/db/schema/roster.ts:65-99` (`.enableRLS()`, firm-scoped unique/check constraints), migration `/home/dylan/shiftdesk-starter/drizzle/0007_credential_types.sql` (RLS policy present), `/home/dylan/shiftdesk-starter/src/lib/db/admin/access.ts:32-33` (`credential_types: CRUD`), `/home/dylan/shiftdesk-starter/tests/helpers/tenant-rows.ts` adds it to `EXPECTED_TABLES`, `createTenant`, and `INSERTS` (cross-tenant probe). Covered by the generic `rls.every-table`/`tenancy.isolation` suites (not test-named specifically per table, but the fixture participates in them).
+
+- "Security live; rail/construction present but unused until a firm needs them" — PROVEN, and matches the doc's own framing ("the demo's Northline gets rail"). Demo seed (`/home/dylan/shiftdesk-starter/src/lib/db/admin/seed.ts:82-84`) applies each demo firm's own sector pack (Acme=security, Northline=rail per `seed-data.ts:203,268`); no seeded firm is construction/cleaning, so those packs sit unused in code as intended. Test: `/home/dylan/shiftdesk-starter/tests/integration/seed.test.ts:173-206` ("the demo seed's credential packs … Acme gets the security pack and Northline the rail pack") — `.claude/state/test.log:414` ✓.
+
+Fakes found: none. No `.only`/`.skip`/`xit`, no TODO/"not implemented" in `src/lib/credentials/` or `src/lib/rules/packs.ts`, assertions are concrete row-level equality checks against a real DB, not mocks of the thing under test. Full run: 46 test files / 1154 tests, 0 failed, 0 pending (`.claude/state/test.log` tail; `.claude/state/vitest.json`: `numFailedTests:0`). `typecheck.log` and `lint.log` both clean.
+
+Note: only this bullet's claims were in scope (per the audit brief). The remaining unchecked Phase 2 bullets (expiry scan job, atomic assign, assign/cancel events, `rules.table`/`assign.race`/`sheets.sync` tests) are separate, still-pending work and are not what's being closed here — the Phase-level "Done when" is not yet satisfied, only this one task.
+
+To reach DONE: nothing further for this specific bullet — tick it via `/close-task`, not manually.
+```
+
+**Ticked** in `PLAN.md` after the DONE verdict.
+
+**Hours:** 0.3 h (19:45 to 20:03 UTC). Phase 2 so far: 3.3 h of the 30-40 h estimate.

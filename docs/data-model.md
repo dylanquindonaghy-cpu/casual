@@ -31,6 +31,7 @@ architecture.md, Tenancy).
 | workers | Casual staff: name, mobile, email, status, roles | 1 |
 | credentials | Licences/cards per worker: type, number, expiry, status | 1 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
+| credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
 | sites | Venues/sites (address; lat/lng kept for Stage 3) | 1 |
 | shifts | Site, role, start/end, headcount, urgent flag, source | 2 |
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed | 2 |
@@ -141,6 +142,17 @@ create table credentials (
 -- (SELECT, INSERT, UPDATE only): they are cancelled or resolved, never removed.
 -- Roles ('steward', 'door_supervisor', 'track_operative'...) are snake_case in shifts and
 -- credential_rules (a CHECK), so they match workers.roles exactly.
+
+create table credential_types (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  code text not null,                    -- ^[A-Z][A-Z0-9_]*$, as in credentials.type
+  name text not null,                    -- as workers know it: "SIA door supervisor licence"
+  sector text not null,                  -- the pack: security | rail | construction | cleaning | any
+  applied_allowed boolean not null default false,  -- "applied" may count (SIA licences)
+  created_at timestamptz not null default now(),
+  unique (firm_id, code)
+);
 
 create table credential_rules (
   id uuid primary key default gen_random_uuid(),

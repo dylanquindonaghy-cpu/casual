@@ -29,6 +29,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   auth_throttle: CRUD,
   // The office edits which credentials a role needs (logged as events).
   credential_rules: CRUD,
+  // Seeded from a pack; the office may add or rename types (logged as events, applied_allowed
+  // changes especially: they change who may work).
+  credential_types: CRUD,
   shifts: NO_DELETE,
   assignments: NO_DELETE,
   requests: NO_DELETE,

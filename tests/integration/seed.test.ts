@@ -22,7 +22,11 @@ async function snapshot() {
     `select 'workers' as table, array_agg(id::text order by id) as ids from workers where firm_id = any($1)
      union all select 'credentials', array_agg(id::text order by id) from credentials where firm_id = any($1)
      union all select 'sites', array_agg(id::text order by id) from sites where firm_id = any($1)
-     union all select 'office_users', array_agg(id::text order by id) from office_users where firm_id = any($1)`,
+     union all select 'office_users', array_agg(id::text order by id) from office_users where firm_id = any($1)
+     union all select 'credential_types', array_agg(id::text order by id) from credential_types where firm_id = any($1)
+     union all select 'credential_rules', array_agg(id::text order by id) from credential_rules where firm_id = any($1)
+     union all select 'pack_events', array_agg(id::text order by id) from events
+       where firm_id = any($1) and action = 'credential_pack.applied'`,
     [[ACME, NORTHLINE]],
   );
   return rows;
@@ -163,5 +167,42 @@ describe("the demo seed", () => {
     await run();
     const { rows } = await su.query("select status from workers where id = $1", [id]);
     expect(rows[0]).toEqual({ status: "active" });
+  });
+});
+
+describe("the demo seed's credential packs", () => {
+  it("Acme gets the security pack and Northline the rail pack, covering every role their workers have", async () => {
+    const rules = async (firmId: string) =>
+      (
+        await su.query<{ role: string; required_types: string[] }>(
+          "select role, required_types from credential_rules where firm_id = $1 order by role",
+          [firmId],
+        )
+      ).rows;
+    const workerRoles = async (firmId: string) =>
+      (
+        await su.query<{ role: string }>(
+          "select distinct unnest(roles) as role from workers where firm_id = $1 order by 1",
+          [firmId],
+        )
+      ).rows.map((r) => r.role);
+    for (const [firmId, sector] of [
+      [ACME, "security"],
+      [NORTHLINE, "rail"],
+    ] as const) {
+      const byRole = new Map((await rules(firmId)).map((r) => [r.role, r.required_types]));
+      for (const role of await workerRoles(firmId)) expect(byRole.has(role)).toBe(true);
+      const { rows } = await su.query<{ sector: string }>(
+        "select distinct sector from credential_types where firm_id = $1 order by 1",
+        [firmId],
+      );
+      expect(rows.map((r) => r.sector)).toEqual(["any", sector]);
+    }
+    expect((await rules(ACME)).find((r) => r.role === "door_supervisor")?.required_types).toEqual([
+      "SIA_DS",
+    ]);
+    expect(
+      (await rules(NORTHLINE)).find((r) => r.role === "track_operative")?.required_types,
+    ).toEqual(["PTS", "SENTINEL", "RAIL_DA"]);
   });
 });

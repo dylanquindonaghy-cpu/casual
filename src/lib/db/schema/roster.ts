@@ -62,6 +62,42 @@ export const REQUEST_STATUSES = [
 export const OFFER_CHANNELS = ["push", "whatsapp", "sms"] as const;
 export const OFFER_RESPONSES = ["accepted", "declined", "expired", "filled_elsewhere"] as const;
 
+// The credential types a firm uses: code, the name workers know it by, and whether an application
+// "in progress" may count within the firm's allowance (an SIA approved-contractor rule, so only
+// SIA licences by default). Seeded per firm from its sector's pack (src/lib/rules/packs.ts);
+// a firm may add its own. credentials.type holds the code (no foreign key: imports and older
+// rows may hold codes a firm hasn't set up, and the rules engine simply finds them missing).
+export const CREDENTIAL_TYPE_SECTORS = [...SECTORS, "any"] as const;
+
+export const credentialTypes = pgTable(
+  "credential_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    // The pack it came from; "any" for types every sector uses (right to work).
+    sector: text("sector", { enum: CREDENTIAL_TYPE_SECTORS }).notNull(),
+    appliedAllowed: boolean("applied_allowed").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("credential_types_firm_id_code_key").on(t.firmId, t.code),
+    check("credential_types_code_format", sql`${t.code} ~ '^[A-Z][A-Z0-9_]*$'`),
+    check(
+      "credential_types_name_length",
+      sql`${t.name} = btrim(${t.name}) and length(${t.name}) between 1 and 100`,
+    ),
+    check(
+      "credential_types_sector_check",
+      sql`${t.sector} in ('security', 'rail', 'construction', 'cleaning', 'any')`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
 // Which credentials a role needs. Seeded per firm from its sector's pack
 // (docs/rules-and-credentials.md); the rules engine looks a shift's role up here. Type codes are
 // data, never an enum of SIA types (golden rule 6).

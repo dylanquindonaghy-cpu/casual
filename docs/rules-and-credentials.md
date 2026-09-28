@@ -23,6 +23,7 @@ type EligibilityInput = {
     weeklyHoursCap: number;             // default 48 (firm may set lower)
     travelBufferMinutes: number;        // default 0
     appliedAllowancePct: number;        // e.g. 15 (SIA ACS), else 0
+    appliedAllowedTypes: string[];      // types where "applied" may count (credential_types.applied_allowed)
     appliedInUseCount: number;          // how many "applied" workers are already deployed that day
     deployedCount: number;              // total deployed that day (for the % check)
     blockedSites: string[];
@@ -78,30 +79,55 @@ close to your booking at [time] to travel between them."
 
 ## Credential packs (data, per sector)
 
-Stored in `credential_types` (seeded) and `credential_rules` (per firm and role, each rule
-labelled with its sector pack; a role name belongs to one pack in a firm). Typical validity
-is a guide only: the expiry on the card/certificate is what we store and use.
+The packs are data in `src/lib/rules/packs.ts`. `tests/unit/credential.packs.test.ts` reads both
+tables below and fails if the code and this doc differ in any column except Notes and the formal
+Name. A firm gets its sector's pack when it is set up: `applyCredentialPack()` copies the types into
+the firm's own `credential_types` (code, the name workers see, whether "applied" may count) and adds
+the pack's default role rules to `credential_rules` (per firm and role, each rule labelled with its
+sector pack; a role name belongs to one pack in a firm). Anything the firm already has is left
+exactly as it is, and the event records exactly what was added. Every sector's pack exists; only
+security is live, and a firm only ever gets the packs it needs (the demo's Northline gets rail).
+Typical validity is a guide only: the expiry on the card/certificate is what we store and use.
 
-| Sector | Type code | Name | Typical validity (confirm per firm) | Notes |
-|---|---|---|---|---|
-| Security/events | `SIA_DS` | SIA Door Supervisor licence | 3 years | Check on the SIA register at onboarding and monthly. |
-| Security/events | `SIA_SG` | SIA Security Guard licence | 3 years | |
-| Security/events | `SIA_CP` | SIA Close Protection | 3 years | |
-| Security/events | `STEWARD_L2` | NVQ Level 2 Spectator Safety | No expiry | Firm may require refresher. |
-| Security/events | `FIRST_AID` | First aid at work | 3 years | |
-| Rail | `PTS` | Personal Track Safety | Renewal typically every 2 years | |
-| Rail | `SENTINEL` | Sentinel card / sponsorship | Ongoing | Primary sponsor recorded. |
-| Rail | `RAIL_DA` | Drugs & alcohol screening | Recent test required (e.g. within 3 months for new sponsorship) | Random tests thereafter. |
-| Rail | `RAIL_MEDICAL` | Safety-critical medical | Varies | |
-| Construction/civils | `CSCS` | CSCS card (type: labourer/skilled/etc.) | Typically 5 years | Card type matters for the role. |
-| Construction/civils | `CPCS_NPORS` | Plant operator cards | Varies | |
-| Construction/civils | `SMSTS_SSSTS` | Site supervision | 5 years | |
-| Cleaning/various | `DBS` | DBS check | No fixed expiry; firm policy (or update service) | Site-dependent. |
-| Any | `RTW` | Right to work | Per document | Firm-level requirement, not per shift. |
+| Sector | Type code | Name | Shown to workers as | Applied may count | Typical validity (confirm per firm) | Notes |
+|---|---|---|---|---|---|---|
+| Security/events | `SIA_DS` | SIA Door Supervisor licence | SIA door supervisor licence | yes | 3 years | Check on the SIA register at onboarding and monthly. |
+| Security/events | `SIA_SG` | SIA Security Guard licence | SIA security guard licence | yes | 3 years | |
+| Security/events | `SIA_CP` | SIA Close Protection | SIA close protection licence | yes | 3 years | Confirm the SIA allowance covers close protection before a firm uses it. |
+| Security/events | `STEWARD_L2` | NVQ Level 2 Spectator Safety | Level 2 spectator safety qualification | no | No expiry | Firm may require refresher. |
+| Security/events | `FIRST_AID` | First aid at work | first aid at work certificate | no | 3 years | |
+| Rail | `PTS` | Personal Track Safety | PTS card | no | Renewal typically every 2 years | |
+| Rail | `SENTINEL` | Sentinel card / sponsorship | Sentinel card | no | Ongoing | Primary sponsor recorded. |
+| Rail | `RAIL_DA` | Drugs & alcohol screening | drugs and alcohol test | no | Recent test required (e.g. within 3 months for new sponsorship) | Random tests thereafter. |
+| Rail | `RAIL_MEDICAL` | Safety-critical medical | rail safety-critical medical | no | Varies | |
+| Construction/civils | `CSCS` | CSCS card (type: labourer/skilled/etc.) | CSCS card | no | Typically 5 years | Card type matters for the role. |
+| Construction/civils | `CPCS_NPORS` | Plant operator cards | plant operator card (CPCS or NPORS) | no | Varies | |
+| Construction/civils | `SMSTS_SSSTS` | Site supervision | site supervision certificate (SMSTS or SSSTS) | no | 5 years | |
+| Cleaning/various | `DBS` | DBS check | DBS check | no | No fixed expiry; firm policy (or update service) | Site-dependent. |
+| Any | `RTW` | Right to work | right to work check | no | Per document | Firm-level requirement, not per shift. |
+
+Default role rules (every listed type is needed; `RTW` and `FIRST_AID` are types but no role's
+default rule; cleaning needs DBS per site, not per role):
+
+| Pack | Role | Needs |
+|---|---|---|
+| security | `steward` | `STEWARD_L2` |
+| security | `door_supervisor` | `SIA_DS` |
+| security | `security_officer` | `SIA_SG` |
+| security | `close_protection_officer` | `SIA_CP` |
+| rail | `track_operative` | `PTS`, `SENTINEL`, `RAIL_DA` |
+| rail | `lookout` | `PTS`, `SENTINEL`, `RAIL_DA` |
+| construction | `labourer` | `CSCS` |
+| construction | `plant_operator` | `CSCS`, `CPCS_NPORS` |
+| construction | `site_supervisor` | `CSCS`, `SMSTS_SSSTS` |
+| cleaning | `cleaner` | none |
 
 **Applied/in progress allowance:** SIA approved contractors have been able to deploy a capped
 share of staff whose licence application is in progress (reported as up to 15%). Model it as a
-firm setting `appliedAllowancePct`; default 0. Confirm the current SIA rule before enabling.
+firm setting `appliedAllowancePct`; default 0; and it counts only for credential types marked
+`applied_allowed` (the three SIA licences). Any other type in progress: "Your [name] is still
+being processed. This shift needs a valid one. Send it to the office when you have it." Confirm
+the current SIA rule before enabling.
 
 ## Expiry warnings
 

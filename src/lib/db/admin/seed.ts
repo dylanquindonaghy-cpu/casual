@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
+import { applyCredentialPack } from "../../credentials/apply-pack";
 import { createWithFirm, type FirmTx } from "../scoped";
 import { credentials, officeUsers, sites, workers } from "../schema";
 import { seedFirms, type SeedFirm } from "./seed-data";
@@ -79,6 +80,8 @@ async function provisionFirm(owner: Client, firm: SeedFirm): Promise<void> {
 
 async function loadFirm(tx: FirmTx, firm: SeedFirm): Promise<void> {
   const firmId = firm.id;
+  // The sector's credential types and default role rules first; existing ones stay as they are.
+  await applyCredentialPack(tx, firm.sector, { type: "system" });
   await tx
     .insert(sites)
     .values(firm.sites.map((s) => ({ ...s, firmId })))

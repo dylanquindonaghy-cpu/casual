@@ -48,6 +48,7 @@ function input(
       weeklyHoursCap: 48,
       travelBufferMinutes: 0,
       appliedAllowancePct: 0,
+      appliedAllowedTypes: ["SIA_DS"],
       appliedInUseCount: 0,
       deployedCount: 0,
       blockedSites: [],
@@ -641,5 +642,79 @@ describe("input that doesn't make sense is refused, never waved through", () => 
 
   it("an unknown time zone", () => {
     expect(() => checkEligibility({ ...input(), timeZone: "Europe/Atlantis" })).toThrow();
+  });
+});
+
+describe("the applied allowance is per credential type", () => {
+  it("an application in progress counts only for types that allow it (SIA licences), never e.g. a PTS card", () => {
+    const appliedPts = input({
+      shift: { requiredTypes: ["PTS"] },
+      credentials: [{ type: "PTS", status: "applied", expiresOn: null }],
+      settings: { appliedAllowancePct: 15, deployedCount: 50 },
+    });
+    const result = checkEligibility(appliedPts);
+    expect(result.codes).toEqual(["credential_missing"]);
+    expect(result.reasons).toEqual([
+      "Your PTS card is still being processed. This shift needs a valid one. Send it to the office when you have it.",
+    ]);
+    // The same numbers pass for an SIA licence, which allows it.
+    expect(
+      codes(
+        input({
+          credentials: [{ type: "SIA_DS", status: "applied", expiresOn: null }],
+          settings: { appliedAllowancePct: 15, deployedCount: 50 },
+        }),
+      ),
+    ).toEqual(OK);
+  });
+
+  it("an 'applied' credential with a future expiry, for a type that needs a valid one, is still 'being processed'", () => {
+    const result = checkEligibility(
+      input({
+        shift: { requiredTypes: ["PTS"] },
+        credentials: [{ type: "PTS", status: "applied", expiresOn: "2027-01-01" }],
+      }),
+    );
+    expect(result.codes).toEqual(["credential_missing"]);
+    expect(result.reasons).toEqual([
+      "Your PTS card is still being processed. This shift needs a valid one. Send it to the office when you have it.",
+    ]);
+  });
+
+  it("an 'applied' credential beside an old expired one reports the old expiry", () => {
+    const result = checkEligibility(
+      input({
+        shift: { requiredTypes: ["PTS"] },
+        credentials: [
+          { type: "PTS", status: "applied", expiresOn: null },
+          { type: "PTS", status: "valid", expiresOn: "2026-09-01" },
+        ],
+      }),
+    );
+    expect(result.codes).toEqual(["credential_expired"]);
+    expect(result.reasons).toEqual([
+      "Your PTS card expired on 1 Sep. Renew it, then send the new number to the office.",
+    ]);
+  });
+
+  it("with no type allowing 'applied', even an SIA licence in progress needs to be valid", () => {
+    const result = checkEligibility(
+      input({
+        credentials: [{ type: "SIA_DS", status: "applied", expiresOn: null }],
+        settings: { appliedAllowedTypes: [], appliedAllowancePct: 15, deployedCount: 50 },
+      }),
+    );
+    expect(result.codes).toEqual(["credential_missing"]);
+  });
+
+  it("a type that allows 'applied' still needs the firm's allowance: 0% refuses", () => {
+    expect(
+      codes(
+        input({
+          credentials: [{ type: "SIA_DS", status: "applied", expiresOn: null }],
+          settings: { appliedAllowancePct: 0, deployedCount: 50 },
+        }),
+      ),
+    ).toEqual(["applied_over_allowance"]);
   });
 });

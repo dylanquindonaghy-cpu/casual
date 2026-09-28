@@ -10,6 +10,7 @@ export const EXPECTED_TABLES = [
   "assignments",
   "auth_throttle",
   "credential_rules",
+  "credential_types",
   "credentials",
   "events",
   "firms",
@@ -140,6 +141,11 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into credential_rules (firm_id, sector, role, required_types) values ($1, 'security', 'door_supervisor', '{SIA_DS}')",
     [firmId],
   );
+  const credentialTypeId = await one(
+    su,
+    "insert into credential_types (firm_id, code, name, sector, applied_allowed) values ($1, 'SIA_DS', 'SIA door supervisor licence', 'security', true)",
+    [firmId],
+  );
   const [startsAt, endsAt] = shiftTimes();
   const shiftId = await one(
     su,
@@ -189,6 +195,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       otp_codes: otpCodeId,
       auth_throttle: throttleId,
       credential_rules: credentialRuleId,
+      credential_types: credentialTypeId,
       shifts: shiftId,
       assignments: assignmentId,
       requests: requestId,
@@ -250,6 +257,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   credential_rules: (firmId) => ({
     text: "insert into credential_rules (firm_id, sector, role, required_types) values ($1, 'rail', $2, '{PTS,SENTINEL}')",
     values: [firmId, `probe_role_${next()}`],
+  }),
+  credential_types: (firmId) => ({
+    text: "insert into credential_types (firm_id, code, name, sector) values ($1, $2, 'Probe card', 'rail')",
+    values: [firmId, `PROBE_${next()}`],
   }),
   shifts: (firmId, p) => ({
     text: "insert into shifts (firm_id, site_id, role, starts_at, ends_at) values ($1, $2, 'steward', $3, $4)",

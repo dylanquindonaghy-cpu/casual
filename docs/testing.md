@@ -49,7 +49,7 @@ D&A dates, night possessions, one short-notice firm cancellation.
 
 **What exists when.** `npm run db:seed` (also run by `npm run db:reset`) grows with each phase.
 Phase 1 loads both firms, their sites, office users (admin, resourcer, payroll), workers and
-credentials: Acme's 60 workers (5 expired SIA, 3 applied) and Northline's 30 with PTS, Sentinel
+credentials (Phase 2 adds each firm's credential pack: security for Acme, rail for Northline): Acme's 60 workers (5 expired SIA, 3 applied) and Northline's 30 with PTS, Sentinel
 and drugs and alcohol dates. Still to come: requests and Northline's mocked sheet (Phase 2), Acme's
 Saturday event day and pay records (Phase 3), the short-notice firm cancellation (Phase 5) and pay
 queries (Phase 6). Numbers are in Ofcom's drama range (+447700900000-999), emails are

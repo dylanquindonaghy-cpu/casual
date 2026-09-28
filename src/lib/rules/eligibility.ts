@@ -84,6 +84,9 @@ export const eligibilityInputSchema = z.object({
     weeklyHoursCap: z.number().positive(), // default 48
     travelBufferMinutes: z.number().min(0), // default 0
     appliedAllowancePct: z.number().min(0).max(100), // e.g. 15 (SIA ACS), else 0
+    // The credential types an application in progress may count for (credential_types.applied_allowed:
+    // SIA licences in the security pack). Any other type needs a valid credential.
+    appliedAllowedTypes: z.array(z.string()),
     appliedInUseCount: count, // "applied" staff already deployed that day, not counting this worker
     deployedCount: count, // everyone deployed that day, not counting this worker
     blockedSites: z.array(z.string()), // sites this worker may not work at
@@ -195,11 +198,18 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
         (c) => c.status === "valid" && (c.expiresOn === null || c.expiresOn >= lastDay),
       );
       if (inDate) continue;
-      if (held.some((c) => c.status === "applied")) {
+      const applied = held.some((c) => c.status === "applied");
+      if (applied && settings.appliedAllowedTypes.includes(type)) {
         const pct = settings.appliedAllowancePct;
         const share = (settings.appliedInUseCount + 1) / (settings.deployedCount + 1);
         if (pct > 0 && share <= pct / 100) continue;
         fail("applied_over_allowance", REASONS.applied_over_allowance(name(type)));
+      } else if (
+        applied &&
+        !held.some((c) => c.status === "expired" || (c.expiresOn !== null && c.expiresOn < lastDay))
+      ) {
+        // In progress, for a type where only a valid credential counts.
+        fail("credential_missing", REASONS.applied_not_allowed(name(type)));
       } else if (held.length > 0) {
         // Out of date by its expiry, or marked expired by the office.
         const dated = held

@@ -1262,3 +1262,73 @@ nonsense input is refused; 500 generated cases never crash.
 
 Nothing on screen yet. To run the tests: `npx vitest run tests/unit/rules.table.test.ts` (the
 database must be running: `npm run db:up`). You should see "58 passed".
+
+---
+
+## 2026-09-28: Phase 2, task 7: credential packs (0.3 h)
+
+### Time
+
+0.3 hours of Claude's working time (19:45 to 20:03 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=d747529f50a1e6ab e2e=true`: type checks, lint, all
+  1154 tests (up from 1122), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+A **credential pack** is the standard list of licences and cards for one industry, and which
+ones each job role needs. For security: SIA licences, the stewarding qualification and first aid;
+a door supervisor needs an SIA door supervisor licence, a steward needs the stewarding
+qualification. There are packs for security, rail, construction and cleaning, copied from the table
+in `docs/rules-and-credentials.md`.
+
+- When a firm is set up, it gets its own copy of its industry's pack: the licence types (with the
+  name workers see, like "SIA door supervisor licence") in a new table, `credential_types`, and the
+  default role rules in `credential_rules`. The firm can then change them without affecting anyone
+  else, and applying the pack again never undoes its changes.
+- The demo firms now have theirs: Acme (security) and Northline (rail). Construction and cleaning
+  packs are ready for when a firm needs them.
+- "Still being processed" licences (the SIA lets approved firms use a few staff whose licence is on
+  its way) now count only for the three SIA licences, never for, say, a rail PTS card.
+- A test reads the doc's tables and fails if the code and the doc ever differ.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Each firm gets its own copy of the pack | Every table stays sealed per firm; a firm can add its own site tickets | One shared list for everyone |
+| Applying a pack never overwrites | Re-running the seed must not undo the office's edits | Replace every time |
+| "Applied" counts only for SIA licences | It's an SIA rule; found by the last safety review | One setting for every licence |
+| The doc is the source of truth, and a test holds the code to it | A person reads the doc, not the code | Keep two separate copies and hope |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/unit/credential.packs.test.ts`: the packs match the doc's two tables exactly; every role
+  rule only names its own pack's types; codes are unique; the demo firms' roles are covered.
+- `tests/integration/credential.packs.test.ts`: applying a pack adds the right types and rules and
+  records exactly what it added; applying again adds nothing and keeps the firm's edits; a firm can
+  take two packs; another firm is untouched.
+- The seed test: each demo firm's workers' roles all have a rule. The table-isolation tests now
+  cover `credential_types` too. Five new rules cases for "still being processed" licences.
+
+### Parked, open, and things that need Dylan
+
+- **Please look over** the new `credential_types` table (in `docs/data-model.md`) and this task's
+  decisions in `docs/overnight-log.md` before the branch is merged.
+- **To confirm with the SIA:** whether the "applied" allowance covers close protection licences
+  (the doc flags it).
+- Parked in `PLAN.md`: "any of" rules (a door supervisor licence also covers security guarding),
+  role display names, warning on imports of licence types a firm hasn't set up.
+
+### How to see it working
+
+1. `npm run db:up`, then `npm run db:reset` (rebuilds your local demo database, fake data only).
+2. `docker exec -it shiftdesk-starter-postgres-1 psql -U shiftdesk -d shiftdesk`
+3. Type `select code, name, applied_allowed from credential_types;` and press Enter: you'll see both
+   demo firms' licence types. Type `\q` to leave.

@@ -88,7 +88,7 @@ export interface SeedFirm {
   id: string;
   name: string;
   slug: string;
-  sector: "security" | "rail";
+  sector: "security" | "rail"; // its credential pack (src/lib/rules/packs.ts) is applied too
   settings: Record<string, unknown>;
   sites: { id: string; name: string; town: string; postcode: string }[];
   officeUsers: {

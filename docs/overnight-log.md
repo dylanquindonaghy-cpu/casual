@@ -1252,3 +1252,32 @@ codes instead of text on the row for worker cancellations ("I'm unwell" is healt
 **Implementation root causes noted while building:** the My shifts unit test broke when the page
 gained the cancel button: the button uses Next's router, which doesn't exist outside a running app;
 the test now gives it a stand-in router, as the Open shifts test does.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=a3532626d7a9356c e2e=true` (1311 tests in 62 files, 10 e2e).
+`npm run build` run by hand after the fix: succeeds.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE (for this specific bullet — "Cancel a shift: instant confirmation, reason, notice period recorded". Phase 3's overall "Done when" line is not fully met: later bullets — request/swap, demo seed, Playwright login→take→cancel→request→pay flow — remain unchecked `[ ]` in PLAN.md and are out of scope here.)
+
+Step 1: `.claude/state/verified.json` → `{"ok":true,"tree":"a3532626d7a9356c","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` → `a3532626d7a9356c`. Match confirmed (tree-hash includes uncommitted diff + untracked files, so it covers all new cancel-shift files even though nothing is committed yet).
+
+Claims:
+- Cancel button on every upcoming, not-yet-started booking; hidden once started — PROVEN — `src/app/my-shifts-view.tsx:190-195` (`CancelIfAllowed`); test `tests/unit/portal.my-shifts.test.ts:157-175` ("no cancel button" / "offers Cancel this shift on every upcoming booking"), green at `.claude/state/test.log:1000-1001`.
+- Instant on-screen confirmation (no reload): shift, notice given, recorded-at time, reference, sign-off — PROVEN — `src/app/shifts/cancel-shift.tsx:31-65` (client state swap, no navigation), `src/app/shifts/cancel-shift-result.tsx:1-48`; unit test `tests/unit/portal.cancel-shift.test.ts:55-90`, green at `test.log:1152-1153`; end-to-end at the service layer against real Postgres in `tests/integration/cancel-shift.test.ts:34-72` (exact outcome object), green at `test.log:847`.
+- Reason captured and stored on the booking — PROVEN — `src/lib/portal/cancel-reasons.ts:28-35` (validation), `src/lib/roster/native.ts:254` (`cancel_reason` column write); integration test asserts `cancel_reason: "Travel problem"` on the row (`tests/integration/cancel-shift.test.ts:56-64`, `test.log:847`); unit edge cases `tests/unit/portal.cancel-shift.test.ts:25-39`, `test.log:1149-1150`.
+- Notice period computed and recorded (and shown to worker) — PROVEN — `src/lib/roster/native.ts:250` (`noticeHours`), stored as `notice_hours`; integration test asserts `notice: 53` hours matching a shift 53h out (`test.log:847`); minute-level test `tests/integration/cancel.test.ts` "30 minutes before the start is 0.5 hours" (`test.log:458`); event row also carries `noticeHours` (`src/lib/roster/cancel.ts:88-100`), confirmed by `tests/integration/notice-log.test.ts` (`test.log:669`).
+- Safe/scoped: only own booking, not after start, tenant-isolated, double-tap safe, one event logged — PROVEN — `src/lib/roster/cancel.ts:54-56,76-78`; `tests/integration/cancel-shift.test.ts:74-109` ("too late once started", "never reaches another firm's booking"), `test.log:848-849`; `tests/integration/assign.race.test.ts` "a double tap on cancel: cancelled once, one event, the place reopened once", `test.log:284`.
+- New client component doesn't break the production bundle — PROVEN — `tests/unit/client-boundary.test.ts` (negative-control test proves it would catch the db-import mistake), `test.log:1253`; I independently reran `npm run build` myself (not just trusting the log) — succeeded cleanly.
+
+Fakes found: none. No `.only`/`.skip`/TODO/not-implemented in the changed files; integration tests hit a real Postgres via `withFirm`/`appRolePool`, no mocking of the unit under test; assertions are concrete (exact outcome objects, exact DB row values), not snapshot-only.
+
+Disclosed (not fake) gaps, honestly parked in `PLAN.md`/`docs/overnight-log.md`: no direct test of `cancelShiftAction` itself (session/uuid/zod branches) — mirrors the same accepted gap on the sibling `takeShiftAction`, already ticked done for the prior task; no Playwright click-through yet (separate, later PLAN.md bullet); work is uncommitted (all new files untracked, `git status` shows `??`/`M`) — doesn't affect the verify stamp but nothing has been committed/pushed for this task yet.
+
+To reach DONE: nothing further for this bullet's own claims. Before ticking, commit the work (it's currently uncommitted) and note in the log which task this covers.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.3 (22:47 to 23:08 UTC). Phase 3 so far: 1.0 h of its 35–45 h estimate.
+**Commit:** `c6943f0`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

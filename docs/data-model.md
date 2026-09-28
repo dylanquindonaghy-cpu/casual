@@ -59,6 +59,9 @@ architecture.md, Tenancy).
   "escalate_hours_before_start": 3,
   "quiet_hours": { "start": "22:00", "end": "07:00", "urgent_override": true },
   "credential_applied_allowance_pct": 15,
+  "min_rest_hours": 11,
+  "weekly_hours_cap": 48,
+  "travel_buffer_minutes": 0,
   "approve_mode": true,
   "sign_off": "Acme Events Shift Team"
 }
@@ -330,6 +333,12 @@ create table events (
 -- "office:ip" | "link_fail:ip" | "otp:worker" | "otp:worker_day"}; once per window, when the
 -- limit is first reached). Pay-page codes: auth.otp_requested (session),
 -- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
+-- Booking (src/lib/roster/book.ts): shift.assigned (assignment; actor worker or office; {by:
+-- worker|firm, shiftId, workerId, slot, noticeHours, overridden?, reason?}); from the Sheets sync
+-- the same with source: sheets and reason "Put on the rota sheet by the office".
+-- shift.booking_refused (shift; {by, workerId, codes}) when the rules turn a booking down, and
+-- roster.sheet_booking_refused (shift; {source, workerId, codes}) for a sheet name (codes may
+-- include settings_invalid when the firm's rules settings are broken).
 -- Credential expiry (actor system): credential.expiry_warning (credential; {type, expiresOn, days,
 -- daysLeft, channel, providerMessageId}), credential.expired (credential; {type, expiresOn,
 -- notified, superseded?, channel, providerMessageId}), credential.weekly_list_sent (firm; {date,

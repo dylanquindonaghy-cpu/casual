@@ -55,6 +55,8 @@ describe("the contract suite", () => {
   const LISTED = "listStaff returns everyone in the source by ref, each a valid RosterStaff";
   const TENANCY =
     "another firm's staff and shifts are out of reach: never listed, not_found by id, left unchanged";
+  const PASS =
+    "assign refuses without an unused eligibility pass for exactly that person and shift, and changes nothing";
 
   const cases: [MemoryFault, string][] = [
     ["double_assign", FIRST_YES],
@@ -72,6 +74,7 @@ describe("the contract suite", () => {
     ["bad_mobile", LISTED],
     ["ids_as_refs", LISTED],
     ["cross_firm", TENANCY],
+    ["ignore_pass", PASS],
   ];
 
   it.each(cases)("catches a plug with the %s fault in: %s", async (fault, name) => {

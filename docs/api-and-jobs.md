@@ -29,12 +29,15 @@ session token (`src/app/session-actions.ts`), ask for and check a pay-page code
 itself: they never call `redirect()`, because Next renders an action's redirect target by fetching
 it from the server's own origin, which loses the firm's Host header. Planned:
 
-`takeShift(shiftId)` · `cancelShift(assignmentId, reason)` ·
+`takeShift(shiftId)` (calls `bookShift()` in `src/lib/roster/book.ts` with the session's worker;
+results: booked, not_eligible with reasons, filled, already_assigned, not_open, not_found,
+source_stale) · `cancelShift(assignmentId, reason)` ·
 `createRequest(type, payload)` · `setAvailability(dates)` · `raisePayQuery(form)` · `updateNotificationPrefs(...)`
 
 Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),
 `cancelShiftByFirm(shiftId, reason)`, `makeUrgent(shiftId)`, `offerTo(shiftId, workerIds)`,
-`assignManually(shiftId, workerId, override?)`, `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/`, dry run first; the screen is Phase 5),
+`assignManually(shiftId, workerId, override?)` (`bookShift()` with `by: office`; overrides only
+of checks 0 and 6-8, with a reason; active admins and resourcers only), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/`, dry run first; the screen is Phase 5),
 `upsertCredential`, `verifyCredential`, `resolvePayQueryGroup`, `updateSettings`, `verifyDomain`,
 `exportWorkerData(workerId)`, `deleteWorker(workerId)`.
 

@@ -9,6 +9,7 @@ import {
   type RosterPlug,
   type RosterShift,
 } from "@/lib/roster/plug";
+import { checkEligibility, type EligibilityPass } from "@/lib/rules/eligibility";
 
 // The RosterPlug contract: what every adapter (native, Sheets, CSV) must do, checked the same way
 // for each. An adapter's test seeds SCENARIO into its own source (our tables, a mocked sheet...)
@@ -138,6 +139,44 @@ export interface ContractCheck {
   run(f: RosterFixture, theirs?: RosterFixture): Promise<void>;
 }
 
+// A pass for the contract's bookings. Plugs record and the rules decide, so the contract mints
+// each pass from a minimal input that passes: it says nothing about the person (the booking path,
+// src/lib/roster/book.ts, checks the real rows); it lets the contract book through assign.
+export function passFor(shiftId: string, workerId: string): EligibilityPass {
+  const startsAt = new Date(NOW.getTime() + 365 * 24 * HOUR);
+  const result = checkEligibility({
+    now: NOW,
+    timeZone: "Europe/London",
+    worker: { id: workerId, status: "active", roles: ["contract"] },
+    credentials: [],
+    shift: {
+      id: shiftId,
+      role: "contract",
+      siteId: null,
+      requiredTypes: [],
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + HOUR),
+    },
+    otherAssignments: [],
+    unavailableDates: [],
+    settings: {
+      minRestHours: 11,
+      weeklyHoursCap: 48,
+      travelBufferMinutes: 0,
+      appliedAllowancePct: 0,
+      appliedAllowedTypes: [],
+      appliedInUseCount: 0,
+      deployedCount: 0,
+      blockedSites: [],
+    },
+  });
+  if (!result.pass) throw new Error("the contract's pass input should always pass");
+  return result.pass;
+}
+
+export const book = (plug: RosterPlug, shiftId: string, workerId: string) =>
+  plug.assign(shiftId, workerId, passFor(shiftId, workerId));
+
 const shiftOf = async (f: RosterFixture, key: ShiftKey): Promise<RosterShift> => {
   const list = await f.plug.getShifts(WINDOW.from, WINDOW.to);
   const found = list.find((s) => s.ref === f.refs.shifts[key]);
@@ -235,6 +274,33 @@ const getShiftsChecks: ContractCheck[] = [
 
 const assignChecks: ContractCheck[] = [
   {
+    name: "assign refuses without an unused eligibility pass for exactly that person and shift, and changes nothing",
+    mode: "writable",
+    async run(f) {
+      const { open, pair } = f.ids.shifts;
+      const { alice, bob } = f.ids.staff;
+      const forged = { workerId: alice, shiftId: open, overridden: [] };
+      const refused = [
+        undefined, // none at all
+        forged, // looks like a pass, but the rules engine never issued it
+        passFor(open, bob), // someone else's
+        passFor(pair, alice), // another shift's
+      ];
+      for (const pass of refused) {
+        await expect(
+          f.plug.assign(open, alice, pass as unknown as EligibilityPass),
+        ).rejects.toThrow();
+      }
+      expect(await holdersOf(f, "open")).toEqual([]);
+      // A pass is used up by its booking: kept and shown again later, it books nothing.
+      const pass = passFor(open, alice);
+      expect((await f.plug.assign(open, alice, pass)).status).toBe("assigned");
+      expect((await f.plug.markCancelled(open, alice, byWorker)).status).toBe("cancelled");
+      await expect(f.plug.assign(open, alice, pass)).rejects.toThrow();
+      expect(await holdersOf(f, "open")).toEqual([]);
+    },
+  },
+  {
     name: "a writable source says canWrite true and names one of the known sources",
     mode: "writable",
     async run(f) {
@@ -246,7 +312,7 @@ const assignChecks: ContractCheck[] = [
     name: "assign fills the free slot; the shift then shows the holder and is filled",
     mode: "writable",
     async run(f) {
-      const result = await f.plug.assign(f.ids.shifts.open, f.ids.staff.alice);
+      const result = await book(f.plug, f.ids.shifts.open, f.ids.staff.alice);
       expect(result).toEqual({ status: "assigned", assignmentId: expect.any(String), slot: 1 });
       expect(await holdersOf(f, "open")).toEqual([{ slot: 1, staffRef: f.refs.staff.alice }]);
       expect((await shiftOf(f, "open")).status).toBe("filled");
@@ -256,10 +322,10 @@ const assignChecks: ContractCheck[] = [
     name: "first yes wins: the next person is told it's filled, and nothing changes",
     mode: "writable",
     async run(f) {
-      expect((await f.plug.assign(f.ids.shifts.open, f.ids.staff.alice)).status).toBe("assigned");
-      expect(await f.plug.assign(f.ids.shifts.open, f.ids.staff.bob)).toEqual({ status: "filled" });
+      expect((await book(f.plug, f.ids.shifts.open, f.ids.staff.alice)).status).toBe("assigned");
+      expect(await book(f.plug, f.ids.shifts.open, f.ids.staff.bob)).toEqual({ status: "filled" });
       expect(await holdersOf(f, "open")).toEqual([{ slot: 1, staffRef: f.refs.staff.alice }]);
-      expect(await f.plug.assign(f.ids.shifts.booked, f.ids.staff.alice)).toEqual({
+      expect(await book(f.plug, f.ids.shifts.booked, f.ids.staff.alice)).toEqual({
         status: "filled",
       });
       expect(await holdersOf(f, "booked")).toEqual([{ slot: 1, staffRef: f.refs.staff.bob }]);
@@ -272,8 +338,8 @@ const assignChecks: ContractCheck[] = [
     mode: "writable",
     async run(f) {
       const results = await Promise.all([
-        f.plug.assign(f.ids.shifts.open, f.ids.staff.alice),
-        f.plug.assign(f.ids.shifts.open, f.ids.staff.bob),
+        book(f.plug, f.ids.shifts.open, f.ids.staff.alice),
+        book(f.plug, f.ids.shifts.open, f.ids.staff.bob),
       ]);
       expect(results.map((r) => r.status).sort()).toEqual(["assigned", "filled"]);
       expect(await holdersOf(f, "open")).toHaveLength(1);
@@ -283,12 +349,12 @@ const assignChecks: ContractCheck[] = [
     name: "a two-person shift fills slot 1 then slot 2, and is open until both are taken",
     mode: "writable",
     async run(f) {
-      expect(await f.plug.assign(f.ids.shifts.pair, f.ids.staff.alice)).toMatchObject({
+      expect(await book(f.plug, f.ids.shifts.pair, f.ids.staff.alice)).toMatchObject({
         status: "assigned",
         slot: 1,
       });
       expect((await shiftOf(f, "pair")).status).toBe("open");
-      expect(await f.plug.assign(f.ids.shifts.pair, f.ids.staff.bob)).toMatchObject({
+      expect(await book(f.plug, f.ids.shifts.pair, f.ids.staff.bob)).toMatchObject({
         status: "assigned",
         slot: 2,
       });
@@ -303,8 +369,8 @@ const assignChecks: ContractCheck[] = [
     name: "the same person can't take two slots on one shift",
     mode: "writable",
     async run(f) {
-      expect((await f.plug.assign(f.ids.shifts.pair, f.ids.staff.alice)).status).toBe("assigned");
-      expect(await f.plug.assign(f.ids.shifts.pair, f.ids.staff.alice)).toEqual({
+      expect((await book(f.plug, f.ids.shifts.pair, f.ids.staff.alice)).status).toBe("assigned");
+      expect(await book(f.plug, f.ids.shifts.pair, f.ids.staff.alice)).toEqual({
         status: "already_assigned",
       });
       expect(await holdersOf(f, "pair")).toEqual([{ slot: 1, staffRef: f.refs.staff.alice }]);
@@ -315,7 +381,7 @@ const assignChecks: ContractCheck[] = [
     mode: "writable",
     async run(f) {
       for (const key of ["draft", "cancelled"] as const) {
-        expect(await f.plug.assign(f.ids.shifts[key], f.ids.staff.alice)).toEqual({
+        expect(await book(f.plug, f.ids.shifts[key], f.ids.staff.alice)).toEqual({
           status: "not_open",
         });
         expect(await holdersOf(f, key)).toEqual([]);
@@ -326,8 +392,8 @@ const assignChecks: ContractCheck[] = [
     name: "an unknown shift or person is not_found",
     mode: "writable",
     async run(f) {
-      expect(await f.plug.assign(randomUUID(), f.ids.staff.alice)).toEqual({ status: "not_found" });
-      expect(await f.plug.assign(f.ids.shifts.open, randomUUID())).toEqual({ status: "not_found" });
+      expect(await book(f.plug, randomUUID(), f.ids.staff.alice)).toEqual({ status: "not_found" });
+      expect(await book(f.plug, f.ids.shifts.open, randomUUID())).toEqual({ status: "not_found" });
       expect(await f.plug.markCancelled(randomUUID(), f.ids.staff.bob, byWorker)).toEqual({
         status: "not_found",
       });
@@ -365,7 +431,7 @@ const cancelChecks: ContractCheck[] = [
       ]);
       expect(await holdersOf(f, "booked")).toEqual([]);
       expect((await shiftOf(f, "booked")).status).toBe("open");
-      expect(await f.plug.assign(f.ids.shifts.booked, f.ids.staff.alice)).toMatchObject({
+      expect(await book(f.plug, f.ids.shifts.booked, f.ids.staff.alice)).toMatchObject({
         status: "assigned",
         slot: 1,
       });
@@ -450,7 +516,7 @@ const readOnlyChecks: ContractCheck[] = [
     async run(f) {
       expect(f.plug.canWrite).toBe(false);
       const before = await f.plug.getShifts(WINDOW.from, WINDOW.to);
-      expect(await f.plug.assign(f.ids.shifts.open, f.ids.staff.alice)).toEqual({
+      expect(await book(f.plug, f.ids.shifts.open, f.ids.staff.alice)).toEqual({
         status: "needs_approval",
       });
       expect(await f.plug.markCancelled(f.ids.shifts.booked, f.ids.staff.bob, byWorker)).toEqual({
@@ -484,10 +550,10 @@ const tenancyChecks: ContractCheck[] = [
       // Both firms hold the same scenario, so a leak shows up as extra rows.
       expect(await mine.plug.listStaff()).toHaveLength(SCENARIO.staff.length);
       expect(await mine.plug.getShifts(WINDOW.from, WINDOW.to)).toHaveLength(inWindow.length);
-      expect(await mine.plug.assign(theirs.ids.shifts.open, mine.ids.staff.alice)).toEqual({
+      expect(await book(mine.plug, theirs.ids.shifts.open, mine.ids.staff.alice)).toEqual({
         status: "not_found",
       });
-      expect(await mine.plug.assign(mine.ids.shifts.open, theirs.ids.staff.alice)).toEqual({
+      expect(await book(mine.plug, mine.ids.shifts.open, theirs.ids.staff.alice)).toEqual({
         status: "not_found",
       });
       expect(

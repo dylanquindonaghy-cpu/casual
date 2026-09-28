@@ -26,7 +26,9 @@ without breaking a 6am cancellation.
 - `scoped-client.test.ts`, `directory.test.ts`, `jobs.envelope.test.ts`, `lint.db-boundary.test.ts`
   — the firm is set per transaction; host lookup exposes directory fields only; jobs run and are
   queued inside their own firm; app code can't import the raw pool.
-- `assign.race.test.ts` — 10 concurrent `takeShift` calls for 1 slot → exactly 1 success.
+- `assign.race.test.ts` — 10 concurrent `bookShift` calls for 1 slot → exactly 1 success (and for
+  3 slots, exactly 3); one worker in two tabs can't book two overlapping shifts, or pass a weekly
+  cap twice (the worker lock).
 - `webhook.idempotent.test.ts` — same Twilio MessageSid twice → one `messages` row, one job.
 - `rules.table.test.ts` — all cases in `docs/rules-and-credentials.md`.
 - `waves.timing.test.ts` — fake clock: wave 1 → 15 min → wave 2; stops on fill; escalation fires.

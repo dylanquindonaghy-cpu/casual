@@ -1421,3 +1421,104 @@ There's no screen for this yet. The tests show it:
 1. `npm run db:up` (starts the local database, if it isn't running).
 2. `npm test -- credential` runs just the credential tests (4 files). You should see `Tests  41 passed (41)`
    and no failures.
+
+## 2026-09-28: Phase 2, task 9: atomic assign ("first yes wins") (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (20:46 to 21:22 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=f03c073ac6b9d2fe e2e=true`: type checks, lint, all
+  1222 tests (up from 1185), the 10 browser tests and the rule checks passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+This is the heart of the product: what happens when someone says "yes" to a shift.
+
+- **One booking path.** Every booking now goes through one function, `bookShift()`, whether a
+  worker taps "Take shift" or the office places someone. (The screens that call it come in
+  Phase 3 and Phase 5; this task builds and tests the engine behind them.) Inside one
+  **transaction** (a group of database changes that all happen or none do), it:
+  1. checks who may book whom: a worker only themselves; in the office only active admins and
+     resourcers, not payroll;
+  2. **locks** the shift and then the worker (a lock makes anyone else wanting the same row wait
+     their turn), so two browser tabs can't both book one person onto clashing shifts;
+  3. reads the latest data from the database and runs the shift rules again (licence in date,
+     role, rest, weekly hours...): never trusting what the page showed a minute ago;
+  4. **re-checks the live source.** For our own shifts, the database is the source, and step 3
+     already read it. For a shift from a firm's Google Sheet, our copy of the sheet must have
+     synced in the last 20 minutes, or the booking is not confirmed ("try again shortly"). We never
+     read Google during a booking (Google limits how often we may ask);
+  5. books the place with one database statement that only works if the place is still free:
+     "first yes wins". If someone else got there first, the answer is "just filled";
+  6. writes the action log entry: who booked, which shift, how many hours' notice. A refusal by
+     the rules is logged too, with the reason codes.
+- **No way around the rules.** When the rules say yes, they hand back a one-time permission slip
+  (an "eligibility pass") for exactly that worker and shift. The code that books places refuses to
+  do anything without one, and each slip works once. A test also checks that nothing else in the
+  app can call the booking step directly.
+- **The office's own sheet.** Names the office types into its Google Sheet now go through the same
+  rules. The office may override rest, weekly hours and availability (it's their rota), but never a
+  missing or expired licence, the wrong role, an inactive account or a double booking. A refused
+  name isn't booked and is logged for the office.
+- **The office's overrides.** The office may push past rest, weekly hours, availability, or a shift
+  that has just started, but must give a reason, which goes into the action log. Licences can never
+  be overridden.
+- **"Applied" licences.** Some security firms may use a small share of staff whose SIA licence is
+  still being processed. Bookings that rely on this now queue up per day, so two people can't both
+  take the day's last allowed place at the same instant.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| For a Google Sheet shift, "re-check the live source" = our copy synced in the last 20 minutes | Reading Google on every booking is slow and hits its limits (an earlier decision, ADR-013) | Read the sheet on every booking |
+| Lock the shift, then the worker (then the day, for "applied" bookings) | Two tabs can't double-book a person; one order means two bookings can't block each other forever | No worker lock |
+| If the database has to cancel one of two clashing transactions (a "deadlock"), run it again, up to three times | Nothing outside the transaction has happened yet, so a rerun is safe | Fail the booking |
+| The office's sheet may override rest and hours, never licences | Golden rule 6 (licences in date) | Book whatever the sheet says |
+| Accepting an offer waits for Phase 4 | What "offered" means is still for Dylan to decide | Build it now |
+
+Full list: `docs/overnight-log.md`, this task's entry, and the new ADR-014 in `docs/decisions.md`.
+
+### What the safety review found (all fixed and tested)
+
+- Some test phone numbers were outside the range Ofcom keeps for fiction; now inside it.
+- Sheet bookings that overrode a rule didn't log a reason or the notice hours; now they do.
+- A booking the rules refused left nothing in the action log; now it does.
+- I had written that bookings and the Sheets sync could never block each other. That was wrong:
+  they can, rarely. The database then stops one; both sides now retry.
+
+### What the new tests prove
+
+- `tests/integration/assign.race.test.ts`: 10 people tapping "Take shift" at the same moment on
+  a shift with one place, on the real database: exactly one gets it. The same for 3 places. One
+  person in two tabs can't book two clashing shifts, or pass a weekly-hours limit twice. Two
+  "applied" workers can't both take the day's last allowed place. The two-tabs and "applied"
+  tests were each run once with their lock removed, and failed, so they really test the locks.
+- `tests/integration/booking.test.ts` (13 tests): the booking rules above, the office's overrides
+  and reasons, who may book, the Google Sheet freshness check, retries.
+- `tests/integration/eligibility-input.test.ts` (6 tests): the rules are given exactly the firm's
+  current data.
+- `tests/unit/booking.boundary.test.ts`: only the booking code may book.
+- The shared roster contract gained a check (no pass, someone else's, or a used one: refused),
+  run against all three plug types; sync tests for refused names, overrides and failures.
+
+### Parked, open, and things that need Dylan
+
+- **Please confirm:** (1) the 20-minute rule for Google Sheet shifts; (2) names typed into the
+  office's sheet overriding the rest and weekly-hours limits.
+- Parked in `PLAN.md`: accepting offers (Phase 4); availability and blocked sites have nowhere to
+  be stored yet; the office's override reason is free text (use reason codes with the Phase 5
+  screen); a shift row deleted from a sheet stays bookable; connect the real Google account.
+
+### How to see it working
+
+There's no screen yet (the "Take shift" button is Phase 3). The tests show it:
+
+1. `npm run db:up` (starts the local database, if it isn't running).
+2. `npm test -- assign.race booking` runs the race and booking tests (3 files). You should see
+   `Tests  22 passed (22)` and no failures.

@@ -114,7 +114,7 @@ Docs: `docs/architecture.md` (Roster plugs, Rules engine), `docs/compliance.md` 
 - [x] Credential packs seeded from `docs/rules-and-credentials.md` (security live; rail and
       construction types present but unused until a firm needs them)
 - [x] Credential expiry scan job (30/14/7-day warnings; block on expiry)
-- [ ] Atomic assign ("first yes wins") + re-check live source before confirming
+- [x] Atomic assign ("first yes wins") + re-check live source before confirming
 - [ ] Every assign/cancel writes events with `notice_hours`
 - [ ] Tests: `rules.table` (every case in the doc), `assign.race`, `sheets.sync`
 
@@ -325,11 +325,10 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   shift isn't `open` (the documented first-yes-wins statement checks it), but decide then how to
   retire them (a `withdrawn` status, or a narrow delete of open rows only). Slot numbers <=
   headcount are enforced in code only (a CHECK can't see the shift).
-- Atomic assign task: also make `offered → confirmed` one conditional update
-  (`where worker_id = $me and status = 'offered'`) so it can't race an office cancel; compute
-  `notice_hours` in one pure function (the database stores what the app computes).
-- `shifts.status = 'filled'` is derived from the slots; whoever fills or reopens a slot updates it
-  in the same transaction (atomic assign task).
+- Phase 4 offer waves: accepting an offer (`offered → confirmed`) must be one conditional update
+  (`where worker_id = $me and status = 'offered'`) so it can't race an office cancel, and go
+  through `checkBooking()` like every booking (moved from the atomic assign task: what "offered"
+  means is still open for Dylan).
 - **Dylan to confirm:** the office may override "shift already started" (to book a late
   replacement onto a shift that has begun); workers never can. Remove `started` from
   `OVERRIDABLE_CODES` if not wanted.
@@ -340,31 +339,39 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   pack's security_officer rule asks for SIA_SG only. Model "any of" before a firm hits it.
 - Imports: warn about credential types a firm hasn't set up (today they import, and the rules engine
   finds them missing).
-- The rules loader (atomic assign task) must pass credential `names` and `appliedAllowedTypes`
-  from the firm's `credential_types` (else a code like "RAIL DA" shows), exclude this worker from `appliedInUseCount`/`deployedCount`, fetch bookings for every
-  week the shift touches, and never include the shift being checked (or pass its `shiftId`).
-- Atomic assign task: `checkEligibility()` now returns an `EligibilityPass` (only it can make one;
-  `isEligibilityPass()` checks). Make `RosterPlug.assign` require one, add a loader that builds the
-  rules input from the database (credentials, the role's rule, other bookings, availability,
-  settings), log office overrides with their reason, and route the Sheets sync's bookings through
-  it before `SHEETS_TRANSPORT=google` is allowed. Also lock the worker (`select ... for update` on the worker row, or an advisory
-  lock) in the same transaction as the eligibility check, so two tabs can't book overlapping
-  shifts past the overlap, rest or weekly-hours checks.
 - Phase 5 headcount edits: a holder in a slot above a lowered headcount makes the native
   `getShifts` report a shift that fails `rosterShiftSchema` (slots 1..headcount). Don't lower a
   headcount below its held slots (cancel those bookings first, with notice), or decide how to show
   them.
 - Events task / Phase 4: `AssignResult` and `CancelResult` don't say whether the shift became
   `filled` or reopened; the offer wave after a dropout needs to know. Add it to the results (or
-  re-read in the caller). When a worker lock is added (atomic assign), fix one lock order (worker
-  then shift) and retry on deadlock (40P01).
-- Nothing may call a roster plug's `assign` before the rules engine and the `EligibilityPass`
-  exist, nor before callers write events (both later Phase 2 tasks).
-- **Before any Sheets firm goes live:** names the office puts in its sheet are booked without the
-  rules engine (the sheet is the office's own rota). Once the rules engine exists, a sheet booking
-  must pass the credential checks (3 and 4, never overridable, golden rule 6): flag it to the office
-  instead of booking it. Only then add `google` to `SHEETS_TRANSPORT` (it accepts only `none` now)
-  and wire `googleSheetsClient` into `src/worker/index.ts`.
+  re-read in the caller). (Lock order is now shift then worker everywhere, and `bookShift()`
+  retries on deadlock: keep it so for any new writer.)
+- **Before any Sheets firm goes live:** the sheet's names now go through the rules (refused ones
+  are logged `roster.sheet_booking_refused`). What's left: connect the real Google service account
+  (steps parked), then add `google` to `SHEETS_TRANSPORT` (it accepts only `none` now) and wire
+  `googleSheetsClient` into `src/worker/index.ts`. Show the office `roster.sheet_booking_refused`
+  and `roster.sheet_conflict` (Phase 5): the refused name drops out of its sheet at the next write.
+- A shift row the office deletes from its sheet stays in our copy and stays bookable (the sync
+  ignores vanished rows). Decide what a vanished row means (a firm cancellation with notice, or a
+  flag for the office) before any Sheets firm goes live.
+- Booking: availability (Phase 3 `/profile`) and blocked sites (Phase 5) have no store yet, so
+  `loadEligibilityInput()` passes empty lists; fill them when the stores exist.
+- Booking: the office's override reason is free text in `events.data`. `bookShift()` refuses one
+  holding a phone number or email address, but a name could still get in. Use reason codes (plus
+  a note kept on the assignment row) when the Phase 5 manual-assign screen is built.
+- Phase 3 `takeShift` action: take the firm from `getCurrentFirm()` (ADR-012), never from input,
+  and the worker from the session; `src/app` can't import `withFirm`, so add a small lib wrapper.
+- Phase 5 `updateSettings`: validate the rules settings (`rulesSettingsSchema`) when they're
+  written. A broken value makes every booking fail and the Sheets sync book no names.
+- Booking: the day's "applied" count checks others' credentials against the day the shift starts
+  and counts shifts starting that day, while the rules check the applicant to the shift's last
+  day. Fine for day shifts; revisit if firms rely on the allowance for night work.
+- **Dylan to confirm:** (1) "re-check the live source" for a Sheets shift means our copy synced in
+  the last 20 minutes (ADR-014), not a read of the sheet per booking; (2) a name the office types
+  into its sheet overrides the rest (11 h) and weekly-hours (48 h) limits and availability.
+- Booking: a Sheets shift is confirmed only against a copy synced in the last 20 minutes
+  (`SHEET_COPY_FRESH_MS`); tighten it on event days if pilots see sheet-side clashes.
 - Sheets sync performance: it updates only changed rows but locks every sheet shift row for the
   mirror transaction, so portal bookings for that firm wait for the sync. Fine for pilot-sized
   sheets; for big ones, skip unchanged rows before locking and limit to a time window.
@@ -408,7 +415,8 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   when Twilio is connected, so a retried scan can't repeat a message.
 - Credential expiry and existing bookings: a worker already booked on a shift after their
   credential's expiry date isn't flagged anywhere yet. Add "booked after expiry" to the office's
-  weekly list or the Today screen (Phase 5), and re-check at assignment (Phase 2 atomic assign).
+  weekly list or the Today screen (Phase 5). (New bookings are safe: `bookShift()` re-runs the
+  rules, so a credential that expires before the shift ends is refused.)
 - Office renewal screen (Phase 5): recording a new expiry date sets status `valid` again (the
   warning columns reset themselves by date) and logs `credential.renewed` with old and new dates.
 - `credential-scan-tick` skips a missed 08:00 (pg-boss `missed: skip`); the next day's run catches
@@ -428,3 +436,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 2 | 0.4 | Rules engine: pure `checkEligibility()` (started, active, role, credentials in date for the whole shift, applied allowance, overlap, rest, weekly cap, unavailable, blocked site), plain-English reasons, office overrides limited to 0 and 6-8, an eligibility pass; 1122 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.3 | Credential packs: security, rail, construction and cleaning packs as data held to the doc by a test, per-firm `credential_types`, `applyCredentialPack()` in the demo seed, "applied" counted only for SIA licences; 1154 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 2 | 0.6 | Credential expiry scan: daily 08:00 job warns workers at 30, 14 and 7 days (one message per threshold, restarts on renewal), marks credentials expired the day after and tells the worker, Monday list for the office; import renewal race and Monday rollback fixed after review; 1185 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 2 | 0.6 | Atomic assign: one booking path (`bookShift`: who may book whom, rules on the current rows, fresh-copy check for Sheets shifts, one conditional update, logged), single-use eligibility pass required by every roster plug, worker and applied-day locks, sheet names checked by the rules; 1222 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Clock } from "@/lib/auth/clock";
 import { noticeHours } from "@/lib/roster/notice";
+import { consumeEligibilityPass } from "@/lib/rules/eligibility";
 import {
   cancelInputSchema,
   rosterShiftSchema,
@@ -38,7 +39,8 @@ export type MemoryFault =
   | "write_read_only" // a read-only plug still writes
   | "bad_mobile" // listStaff returns a number that isn't E.164
   | "ids_as_refs" // listStaff reports our ids instead of the source's refs
-  | "cross_firm"; // lookups and listings reach other fixtures' ("firms'") rows
+  | "cross_firm" // lookups and listings reach other fixtures' ("firms'") rows
+  | "ignore_pass"; // assign books without checking (or using up) the eligibility pass
 
 interface Person extends RosterStaff {
   id: string;
@@ -132,7 +134,8 @@ export function memoryRosterFixture(opts: {
         }));
     },
 
-    async assign(shiftId, workerId): Promise<AssignResult> {
+    async assign(shiftId, workerId, pass): Promise<AssignResult> {
+      if (!faults.has("ignore_pass")) consumeEligibilityPass(pass, { workerId, shiftId });
       if (!writes) return { status: "needs_approval" };
       const s = shifts.get(shiftId);
       if (!s || !people.has(workerId)) return { status: "not_found" };

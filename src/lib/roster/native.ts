@@ -3,6 +3,7 @@ import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { assignments, CANCELLED_ASSIGNMENT_STATUSES, shifts, sites, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { consumeEligibilityPass, type EligibilityPass } from "../rules/eligibility";
 import { noticeHours } from "./notice";
 import {
   cancelInputSchema,
@@ -171,7 +172,8 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
       }));
     },
 
-    async assign(shiftId: string, workerId: string): Promise<AssignResult> {
+    async assign(shiftId: string, workerId: string, pass: EligibilityPass): Promise<AssignResult> {
+      consumeEligibilityPass(pass, { workerId, shiftId });
       if (!isId(shiftId) || !isId(workerId)) return { status: "not_found" };
       const shift = await lockShift(shiftId);
       if (!shift || !(await workerExists(workerId))) return { status: "not_found" };

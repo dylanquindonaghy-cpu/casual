@@ -118,6 +118,23 @@ export function isEligibilityPass(value: unknown): value is EligibilityPass {
   return typeof value === "object" && value !== null && issued.has(value);
 }
 
+// For roster plugs, before they book: the pass must be one checkEligibility() issued, for exactly
+// this worker and shift, and not used before. It is used up here, so a pass kept around can never
+// book anything later. Anything else throws (a caller skipping the rules is a bug, not a result).
+export function consumeEligibilityPass(
+  pass: unknown,
+  booking: { workerId: string; shiftId: string },
+): EligibilityPass {
+  if (!isEligibilityPass(pass)) {
+    throw new Error("booking without an eligibility pass (a used pass counts as none)");
+  }
+  if (pass.workerId !== booking.workerId || pass.shiftId !== booking.shiftId) {
+    throw new Error("the eligibility pass is for another worker or shift");
+  }
+  issued.delete(pass);
+  return pass;
+}
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const dateOf = (w: Pick<WallTime, "year" | "month" | "day">) =>
   `${w.year}-${pad(w.month)}-${pad(w.day)}`;

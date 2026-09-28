@@ -126,8 +126,9 @@ interface RosterPlug {
   readonly canWrite: boolean; // false: nothing changes, writes return needs_approval, office taps approve
   listStaff(): Promise<RosterStaff[]>;                    // keyed by ref, the source's own key
   getShifts(from: Date, to: Date): Promise<RosterShift[]>; // starting in [from, to), every status, with slot holders
-  assign(shiftId: string, workerId: string): Promise<AssignResult>;
+  assign(shiftId: string, workerId: string, pass: EligibilityPass): Promise<AssignResult>;
   //   assigned {assignmentId, slot} | filled | already_assigned | not_open | not_found | needs_approval
+  //   throws unless pass is an unused EligibilityPass for exactly this worker and shift
   markCancelled(shiftId: string, workerId: string,
     cancel: { reason: string; by: "worker" | "firm"; at: Date }): // at: when the person asked
     Promise<CancelResult>; // cancelled {assignmentId, noticeHours} | not_assigned | not_found | needs_approval
@@ -140,7 +141,8 @@ Adapters reading an outside source (Sheets, CSV) check its data with the zod sch
 (`rosterStaffSchema`, `rosterShiftSchema`); the native adapter maps our own rows, whose CHECKs
 already hold. Every adapter computes notice with `noticeHours()` (`src/lib/roster/notice.ts`) from
 `cancel.at`, never from when the call runs (a retried job must not shrink a worker's notice). A
-plug records; it never decides eligibility (the rules engine does, before `assign`). Adapters that
+plug records; it never decides eligibility (the rules engine does, before `assign`, whose
+`EligibilityPass` it demands and uses up). Adapters that
 write our tables are built on the caller's `withFirm` transaction, and the caller writes the
 `events` row from the result in that same transaction. On `needs_approval` nothing is recorded;
 the caller keeps the pending change for the office. Every adapter must pass the shared contract
@@ -157,7 +159,20 @@ behaviour, the `[from, to)` window, and another firm's rows out of reach.
 
 Firms already on Deputy or Parim are not targets, so no plugs for them are planned.
 
-**Before confirming any assignment, re-read the live source** (for Sheets, re-fetch that row).
+**Booking** (`src/lib/roster/book.ts`): every "yes" goes through `bookShift()` (people) or
+`checkBooking()` (the Sheets sync). Inside one transaction: lock the shift, then the worker (so two
+tabs can't both pass the overlap, rest or weekly-hours checks), then, only for a booking relying on
+the "applied" allowance, the firm's day; build the rules input from the current rows
+(`loadEligibilityInput()` in `eligibility-input.ts`); run the rules (a refusal is logged
+`shift.booking_refused` with the codes); **re-check the live source**; then the plug's one
+conditional update and the `shift.assigned` event. Only `book.ts` and the sync may run the rules
+for a booking or call a plug's `assign` (`tests/unit/booking.boundary.test.ts`). The live source is our tables for native and imported shifts (the lock and
+the conditional update work on them directly). For a shift from a Google Sheet it's the sheet,
+which is never read per request (ADR-013): the booking is confirmed only if our copy of the sheet
+synced successfully in the last 20 minutes, else `source_stale` (ADR-014). A deadlock (possible
+only against the Sheets sync, whose long transaction takes worker locks before later shift locks)
+retries the whole booking, twice at most; the sync retries its own database step the same way. A worker books only themselves;
+the office (active admins and resourcers) may override checks 0 and 6-8 with a reason.
 
 **The Sheets sync** (`src/lib/roster/sheets/sync.ts`, run by the `sheets-sync` job): claim the
 firm's sync lease; read the sheet once; in one transaction mirror staff (by staff id; a worker
@@ -180,8 +195,13 @@ skipped and reported by row number and a code, never their contents. Staff chang
 field name; a worker blocked here stays blocked whatever the sheet says, and a changed mobile
 revokes the worker's sessions and unused login links (login goes by mobile). The sync's lease on
 `roster_sources` fences every later write, so an overrunning sync can't clobber the next one.
-**Not live yet:** `SHEETS_TRANSPORT` accepts only `none` until the rules engine checks the names an
-office puts in its sheet (credentials in date, golden rule 6).
+A name the office puts in its sheet is booked through `checkBooking()` with the office's overrides
+(rest, weekly hours, availability; started shifts are never booked by a sync), logged with the
+reason "Put on the rota sheet by the office" and the notice hours: a name that fails
+anything else (credentials, role, account, a double booking, a blocked site; golden rule 6) isn't
+booked, is logged `roster.sheet_booking_refused` with the reason codes, and, like a name added to a
+full shift, drops out of the sheet at the next write. **Not live yet:** `SHEETS_TRANSPORT` accepts
+only `none` until the real service account is connected (parked).
 
 ## Rules engine
 
@@ -221,8 +241,9 @@ then send the new number to the office").
 
 **Take an open shift**
 1. Worker opens Open shifts → only eligible shifts listed (rules engine).
-2. Tap "Take shift" → server re-checks rules → re-reads live source →
-   `UPDATE assignments ... WHERE shift slot is unfilled` (one statement).
+2. Tap "Take shift" → `bookShift()`: lock the shift and the worker → re-check the rules on the
+   current rows → re-check the live source → `UPDATE assignments ... WHERE shift slot is unfilled`
+   (one statement).
 3. 1 row changed: confirm + event. 0 rows: "Just filled — here are similar shifts."
 
 **Cancel**
@@ -307,7 +328,7 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 |---|---|
 | Same webhook twice | Unique `provider_message_id`; `INSERT ... ON CONFLICT DO NOTHING`. |
 | Two people take the same shift | Single conditional UPDATE; loser sees "just filled". |
-| Stale rota copy | Re-read live source before confirming. |
+| Stale rota copy | Rules re-run on the current rows inside the booking transaction; a Sheets shift is confirmed only against a copy synced in the last 20 minutes. |
 | Server restart mid-wave | pg-boss jobs are stored in Postgres and resume. |
 | App down on an event morning | Twilio fallback forwards calls to the manager; status alert to you. |
 | AI returns junk | zod validation; fallback to office queue. |

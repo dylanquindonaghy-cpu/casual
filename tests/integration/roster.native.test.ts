@@ -8,6 +8,7 @@ import { appRolePool, superuserPool, uniqueSlug } from "../helpers/db";
 import { fulfilled, race } from "../helpers/race";
 import { Rollback } from "../helpers/rls-probe";
 import {
+  book,
   describeRosterContract,
   NOW,
   SCENARIO,
@@ -110,7 +111,7 @@ async function perCallPlug(firmId: string): Promise<RosterPlug> {
     canWrite,
     listStaff: () => call((p) => p.listStaff()),
     getShifts: (from, to) => call((p) => p.getShifts(from, to)),
-    assign: (shiftId, workerId) => call((p) => p.assign(shiftId, workerId)),
+    assign: (shiftId, workerId, pass) => call((p) => p.assign(shiftId, workerId, pass)),
     markCancelled: (shiftId, workerId, cancel) =>
       call((p) => p.markCancelled(shiftId, workerId, cancel)),
   };
@@ -222,7 +223,7 @@ describe("native adapter only", () => {
       const results = fulfilled(
         await race(10, firmId, (tx) => {
           const workerId = workers[next++] ?? "";
-          return nativeRosterPlug(tx, { clock }).assign(shiftId, workerId);
+          return book(nativeRosterPlug(tx, { clock }), shiftId, workerId);
         }),
       );
       expect(results).toHaveLength(10);
@@ -245,13 +246,13 @@ describe("native adapter only", () => {
     const [a, b, c] = await addWorkers(firmId, 3);
     const shiftId = await addShift(firmId, 2, 0);
     const plug = await perCallPlug(firmId);
-    expect(await plug.assign(shiftId, a ?? "")).toMatchObject({ status: "assigned", slot: 1 });
+    expect(await book(plug, shiftId, a ?? "")).toMatchObject({ status: "assigned", slot: 1 });
     expect(await liveRows(shiftId)).toEqual([
       { slot: 1, worker_id: a, status: "confirmed" },
       { slot: 2, worker_id: null, status: "open" },
     ]);
-    expect(await plug.assign(shiftId, b ?? "")).toMatchObject({ status: "assigned", slot: 2 });
-    expect(await plug.assign(shiftId, c ?? "")).toEqual({ status: "filled" });
+    expect(await book(plug, shiftId, b ?? "")).toMatchObject({ status: "assigned", slot: 2 });
+    expect(await book(plug, shiftId, c ?? "")).toEqual({ status: "filled" });
     expect(await liveRows(shiftId)).toHaveLength(2);
   });
 
@@ -261,8 +262,8 @@ describe("native adapter only", () => {
     const shiftId = await addShift(firmId, 2, 2);
     await su.query("update shifts set headcount = 1 where id = $1", [shiftId]);
     const plug = await perCallPlug(firmId);
-    expect(await plug.assign(shiftId, a ?? "")).toMatchObject({ status: "assigned", slot: 1 });
-    expect(await plug.assign(shiftId, b ?? "")).toEqual({ status: "filled" });
+    expect(await book(plug, shiftId, a ?? "")).toMatchObject({ status: "assigned", slot: 1 });
+    expect(await book(plug, shiftId, b ?? "")).toEqual({ status: "filled" });
     expect(await shiftStatus(shiftId)).toBe("filled");
   });
 
@@ -313,7 +314,7 @@ describe("native adapter only", () => {
       plug.markCancelled(ids.shifts.booked, ids.staff.bob, { ...worker, at: beforeBooking }),
     ).rejects.toThrow(/before the booking/);
     // A booking made at NOW can't be cancelled "an hour ago" either.
-    await plug.assign(ids.shifts.open, ids.staff.alice);
+    await book(plug, ids.shifts.open, ids.staff.alice);
     await expect(
       plug.markCancelled(ids.shifts.open, ids.staff.alice, {
         ...worker,
@@ -349,8 +350,8 @@ describe("native adapter only", () => {
     const [a, b] = await addWorkers(firmId, 2);
     const shiftId = await addShift(firmId, 2, 2);
     const plug = await perCallPlug(firmId);
-    await plug.assign(shiftId, a ?? "");
-    await plug.assign(shiftId, b ?? "");
+    await book(plug, shiftId, a ?? "");
+    await book(plug, shiftId, b ?? "");
     await su.query("update shifts set headcount = 1 where id = $1", [shiftId]);
     expect(await plug.markCancelled(shiftId, b ?? "", worker)).toMatchObject({
       status: "cancelled",
@@ -380,7 +381,8 @@ describe("native adapter only", () => {
     const { firmId, ids } = await seedScenario();
     await expect(
       withFirm(firmId, async (tx) => {
-        const result = await nativeRosterPlug(tx, { clock }).assign(
+        const result = await book(
+          nativeRosterPlug(tx, { clock }),
           ids.shifts.open,
           ids.staff.alice,
         );
@@ -395,8 +397,8 @@ describe("native adapter only", () => {
   it("ids that aren't UUIDs are not_found, not a database error", async () => {
     const { firmId, ids } = await seedScenario();
     const plug = await perCallPlug(firmId);
-    expect(await plug.assign("not-a-uuid", ids.staff.alice)).toEqual({ status: "not_found" });
-    expect(await plug.assign(ids.shifts.open, "1; drop table shifts")).toEqual({
+    expect(await book(plug, "not-a-uuid", ids.staff.alice)).toEqual({ status: "not_found" });
+    expect(await book(plug, ids.shifts.open, "1; drop table shifts")).toEqual({
       status: "not_found",
     });
     expect(await plug.markCancelled("", ids.staff.bob, worker)).toEqual({ status: "not_found" });

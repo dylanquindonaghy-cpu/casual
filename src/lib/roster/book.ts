@@ -1,0 +1,245 @@
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { z } from "zod";
+import { MINUTE, systemClock, type Clock } from "../auth/clock";
+import { officeUsers, rosterSources, shifts, workers } from "../db/schema";
+import type { FirmTx, WithFirm } from "../db/scoped";
+import { recordEvent } from "../events/record";
+import { retryAborted } from "../db/retry";
+import { maskText } from "../log/mask";
+import {
+  checkEligibility,
+  OVERRIDABLE_CODES,
+  type EligibilityInput,
+  type EligibilityResult,
+  type OverridableCode,
+  type RuleCode,
+} from "../rules/eligibility";
+import { localDateOf } from "../time/zoned";
+import { loadEligibilityInput } from "./eligibility-input";
+import { nativeRosterPlug, sheetsRosterPlug } from "./native";
+import { noticeHours } from "./notice";
+import type { AssignResult, RosterSource } from "./plug";
+
+// Booking a shift: the one path every "yes" goes through (docs/architecture.md, "Take an open
+// shift"; golden rules 1, 4 and 5).
+//
+// bookShift(): a worker taking a shift, or the office placing someone. In its own transaction:
+//   1. who may book whom: a worker only themselves; an office user only while active and an admin
+//      or resourcer; only the office may override, only checks 0 and 6-8, always with a reason;
+//   2. checkBooking(): lock the shift, then the worker, load the current rows and run the rules
+//      (never what the page showed a moment ago);
+//   3. re-check the live source: our tables for native and imported shifts (the lock and the
+//      conditional update below work on them directly); for a shift from a Google Sheet, our copy
+//      must have synced in the last SHEET_COPY_FRESH_MS, or nothing is confirmed (the sheet itself
+//      is never read per request, ADR-013);
+//   4. the plug's one conditional update (first yes wins), with the rules' single-use pass;
+//   5. the shift.assigned event, in the same transaction. A refusal by the rules is logged too
+//      (shift.booking_refused, with the reason codes).
+// A deadlock retries the whole transaction (twice at most): nothing outside it has happened yet.
+//
+// checkBooking(): step 2 alone, for the Sheets sync (names the office put in its sheet), which
+// runs inside its own long transaction.
+//
+// Locks, in this order: the shift, then the worker, then (only when the booking would rely on the
+// firm's "applied" allowance) the firm's day. The worker lock makes two bookings for one person
+// queue, so two tabs can't both pass the overlap, rest or weekly-hours checks; the day lock does
+// the same for two applied workers and the allowance. Two portal bookings can't deadlock each
+// other. The Sheets sync can still deadlock with a portal booking (in one long transaction it
+// takes worker locks, from its staff updates and earlier bookings, before later shift locks):
+// Postgres then aborts one side, nothing is double-booked, and both retry (bookShift here, the
+// sync's mirror transaction there).
+
+export const SHEET_COPY_FRESH_MS = 20 * MINUTE;
+const OFFICE_ROLES_THAT_PLACE = ["admin", "resourcer"] as const;
+
+// Ids as the database writes them (lower case), so they match the pass the rules issue.
+const uuid = z.uuid().transform((id) => id.toLowerCase());
+
+// Strict: a worker's request carrying overrides is refused, not quietly stripped.
+export const bookingRequestSchema = z.strictObject({
+  shiftId: uuid,
+  workerId: uuid,
+  by: z.discriminatedUnion("type", [
+    z.strictObject({ type: z.literal("worker"), id: uuid }),
+    z.strictObject({
+      type: z.literal("office"),
+      id: uuid,
+      overrides: z.array(z.enum(OVERRIDABLE_CODES)).max(OVERRIDABLE_CODES.length).default([]),
+      reason: z.string().trim().max(500).optional(),
+    }),
+  ]),
+});
+export type BookingRequest = z.input<typeof bookingRequestSchema>;
+
+export type BookingResult =
+  | { status: "booked"; assignmentId: string; slot: number; overridden: OverridableCode[] }
+  // The rules said no: reasons in plain English for the person, codes for the office.
+  | { status: "not_eligible"; reasons: string[]; codes: RuleCode[] }
+  // Our copy of the firm's sheet is too old to confirm against: try again shortly.
+  | { status: "source_stale" }
+  // The office user can't place staff (disabled, or payroll).
+  | { status: "not_allowed" }
+  // An override without a reason, or a reason holding a phone number or email address (it goes
+  // into the action log, which never holds personal details).
+  | { status: "invalid_reason" }
+  | Exclude<AssignResult, { status: "assigned" }>;
+
+export type BookingCheck =
+  | { status: "not_found" }
+  | { status: "checked"; source: RosterSource; startsAt: Date; result: EligibilityResult };
+
+export async function checkBooking(
+  tx: FirmTx,
+  request: { shiftId: string; workerId: string; now: Date; overrides?: OverridableCode[] },
+): Promise<BookingCheck> {
+  if (!uuid.safeParse(request.shiftId).success || !uuid.safeParse(request.workerId).success) {
+    return { status: "not_found" };
+  }
+  const [shift] = await tx
+    .select({ source: shifts.source, startsAt: shifts.startsAt })
+    .from(shifts)
+    .where(eq(shifts.id, request.shiftId))
+    .for("no key update");
+  const [worker] = await tx
+    .select({ id: workers.id })
+    .from(workers)
+    .where(eq(workers.id, request.workerId))
+    .for("no key update");
+  if (!shift || !worker) return { status: "not_found" };
+  let input = await loadEligibilityInput(tx, request);
+  if (!input) return { status: "not_found" };
+  if (reliesOnApplied(input)) {
+    // Queue behind anyone else booking that day on an application in progress, then count again:
+    // the day's applied and deployed counts now include whoever got there first.
+    const day = localDateOf(shift.startsAt, input.timeZone);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended('applied-day:' || app_current_firm_id()::text || ':' || ${day}, 0))`,
+    );
+    input = await loadEligibilityInput(tx, request);
+    if (!input) return { status: "not_found" };
+  }
+  return {
+    status: "checked",
+    source: shift.source,
+    startsAt: shift.startsAt,
+    result: checkEligibility(input),
+  };
+}
+
+// Whether the rules may count one of the worker's applications in progress for this shift: a
+// type the role needs, that may count "applied" at this firm, held as applied. (Holding a valid
+// one too only means the lock wasn't needed.)
+function reliesOnApplied(input: EligibilityInput): boolean {
+  const { settings, credentials, shift } = input;
+  if (settings.appliedAllowancePct <= 0) return false;
+  return (shift.requiredTypes ?? []).some(
+    (type) =>
+      settings.appliedAllowedTypes.includes(type) &&
+      credentials.some((c) => c.type === type && c.status === "applied"),
+  );
+}
+
+export async function bookShift(
+  run: WithFirm,
+  firmId: string,
+  raw: BookingRequest,
+  deps: { clock?: Clock } = {},
+): Promise<BookingResult> {
+  const request = bookingRequestSchema.parse(raw);
+  if (request.by.type === "worker" && request.by.id !== request.workerId) {
+    throw new Error("a worker can only book themselves");
+  }
+  if (request.by.type === "office") {
+    const { overrides, reason } = request.by;
+    if (overrides.length > 0 && !reason) return { status: "invalid_reason" };
+    if (reason !== undefined && (reason === "" || maskText(reason) !== reason)) {
+      return { status: "invalid_reason" };
+    }
+  }
+  const clock = deps.clock ?? systemClock;
+  return retryAborted(() => run(firmId, (tx) => bookInTransaction(tx, request, clock.now())));
+}
+
+async function bookInTransaction(
+  tx: FirmTx,
+  request: z.output<typeof bookingRequestSchema>,
+  now: Date,
+): Promise<BookingResult> {
+  const { shiftId, workerId, by } = request;
+  if (by.type === "office") {
+    const [placer] = await tx
+      .select({ id: officeUsers.id })
+      .from(officeUsers)
+      .where(
+        and(
+          eq(officeUsers.id, by.id),
+          eq(officeUsers.status, "active"),
+          inArray(officeUsers.role, [...OFFICE_ROLES_THAT_PLACE]),
+        ),
+      );
+    if (!placer) return { status: "not_allowed" };
+  }
+
+  const check = await checkBooking(tx, {
+    shiftId,
+    workerId,
+    now,
+    overrides: by.type === "office" ? by.overrides : [],
+  });
+  if (check.status === "not_found") return { status: "not_found" };
+  const { result } = check;
+  if (!result.pass) {
+    await recordEvent(tx, {
+      actorType: by.type,
+      actorId: by.id,
+      action: "shift.booking_refused",
+      entityType: "shift",
+      entityId: shiftId,
+      data: { by: by.type === "worker" ? "worker" : "firm", workerId, codes: result.codes },
+    });
+    return { status: "not_eligible", reasons: result.reasons, codes: result.codes };
+  }
+  if (check.source === "sheets" && !(await sheetCopyFresh(tx, now))) {
+    return { status: "source_stale" };
+  }
+
+  const clock = { now: () => now };
+  const plug =
+    check.source === "sheets" ? sheetsRosterPlug(tx, { clock }) : nativeRosterPlug(tx, { clock });
+  const assigned = await plug.assign(shiftId, workerId, result.pass);
+  if (assigned.status !== "assigned") return assigned;
+
+  const reason = by.type === "office" ? by.reason : undefined;
+  await recordEvent(tx, {
+    actorType: by.type,
+    actorId: by.id,
+    action: "shift.assigned",
+    entityType: "assignment",
+    entityId: assigned.assignmentId,
+    data: {
+      by: by.type === "worker" ? "worker" : "firm",
+      shiftId,
+      workerId,
+      slot: assigned.slot,
+      noticeHours: noticeHours(check.startsAt, now),
+      ...(result.overridden.length > 0 ? { overridden: result.overridden } : {}),
+      ...(reason ? { reason } : {}),
+    },
+  });
+  return {
+    status: "booked",
+    assignmentId: assigned.assignmentId,
+    slot: assigned.slot,
+    overridden: result.overridden,
+  };
+}
+
+// The firm's enabled sheet synced successfully recently enough to book against our copy of it.
+async function sheetCopyFresh(tx: FirmTx, now: Date): Promise<boolean> {
+  const [source] = await tx
+    .select({ lastSyncedAt: rosterSources.lastSyncedAt })
+    .from(rosterSources)
+    .where(and(eq(rosterSources.kind, "sheets"), eq(rosterSources.enabled, true)));
+  const synced = source?.lastSyncedAt;
+  return synced != null && now.getTime() - synced.getTime() <= SHEET_COPY_FRESH_MS;
+}

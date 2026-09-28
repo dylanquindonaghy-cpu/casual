@@ -846,3 +846,63 @@ To reach DONE: nothing — verdict is DONE. (Note: PLAN.md checkbox at line 116 
 a credential's expiry; the Phase 5 renewal screen (`credential.renewed` event); `missed: "once"` for the tick.
 **Auditor note carried forward:** "block on expiry" at booking time rests on the rules engine; `assign()`
 calling it is the next task ("Atomic assign").
+
+## 2026-09-28 20:46 UTC: Phase 2, "Atomic assign ("first yes wins") + re-check live source before confirming"
+
+**Plan.** One booking path that every "yes" goes through:
+- `src/lib/roster/eligibility-input.ts`: `loadEligibilityInput()` builds the rules engine's input
+  from the database (the shift and its role's credential rule, the worker and their credentials,
+  their other bookings within a week and a day either side, the firm's rules settings with
+  defaults, credential names and which types may count "applied", the day's applied/deployed
+  counts not counting this worker).
+- `src/lib/roster/book.ts`: `checkBooking()` (lock the shift, then the worker; load; check) and
+  `bookShift()`, the booking entry point: its own transaction (retried on a deadlock), who may book
+  whom, re-checks the live source, the rules, then the plug's one conditional update, then the
+  `shift.assigned` event.
+- `RosterPlug.assign(shiftId, workerId, pass)`: now needs an `EligibilityPass` for exactly that
+  worker and shift, used once (`consumeEligibilityPass()`), so nothing can book around the rules.
+  The native/Sheets plug, the in-memory test plug and the shared contract suite are updated (new
+  contract checks: no pass, someone else's pass, a used pass all throw).
+- The Sheets sync books the names the office puts in its sheet through `checkBooking()` too, with
+  the four office overrides (rest, weekly hours, unavailable, started); a name that fails anything
+  else (credentials, role, account, double booking, site) isn't booked and is logged.
+- Tests: `tests/integration/eligibility-input.test.ts`, `tests/integration/booking.test.ts`,
+  `tests/integration/assign.race.test.ts`, contract additions, sync tests for refused names.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| "Re-check the live source" = inside the booking transaction, lock and re-read the shift and slots and re-run the rules on current rows (never what the page showed); for a shift from a Google Sheet, refuse to confirm (`source_stale`) unless the sheet copy synced successfully in the last 20 minutes | ADR-013 forbids reading Google per request (rate limits, latency); the conditional update already works on the current rows. 20 minutes = the 15-minute quiet cadence plus slack; a failing sync goes stale within 20 minutes | Re-fetch the sheet row per booking (the old line in architecture.md, now updated) |
+| One lock order in the booking step, shift then worker (then the firm's day for a booking relying on the "applied" allowance, added after review); `bookShift()` and the sync's database step retry twice on deadlock (40P01) | Two portal bookings can't deadlock; the worker lock stops two tabs booking overlapping shifts past the overlap, rest or hours checks. **Corrected after review:** the sync can still deadlock with a portal booking (its long transaction takes worker locks before later shift locks), so both sides retry | Worker then shift (as the old parked note said) |
+| The pass is single-use and must name the same worker and shift | A pass kept around can't book anything later | A pass valid for its transaction |
+| A worker may book only themselves; an office user must be active and an admin or resourcer; only the office may override, only codes 0 and 6-8, always with a reason (1-500 characters, no phone numbers or emails, since it goes into the action log) | Golden rules 1 and 5; payroll doesn't place staff | Leave all authorisation to the (future) server actions |
+| Sheet names are office bookings with the four overridable checks overridden (the office typed them); refused ones are logged `roster.sheet_booking_refused` with the codes and left out, like a name added to a full shift | Golden rule 6: credentials are never overridable; the office's own rota decides rest and hours | Book whatever the sheet says (the old behaviour, which kept Sheets from going live) |
+| Other bookings = `confirmed` and `completed` rows on shifts that aren't cancelled; availability and blocked sites are empty lists until their stores exist | No availability or blocked-site table yet (Phase 3 profile, Phase 5 office) | Invent the tables now (out of scope) |
+| Rules settings from `firms.settings`: `min_rest_hours` (default 11), `weekly_hours_cap` (48), `travel_buffer_minutes` (0), `credential_applied_allowance_pct` (0); a value that doesn't make sense makes the booking fail (never silently loosens a rule) | The doc's defaults; fail closed | Ignore bad values |
+| `offered → confirmed` (accepting an offer) waits for Phase 4 offer waves | What "offered" means is still open for Dylan; no offers are made yet | Build the accept path now |
+
+**Guardrails review (round 1): FIX FIRST ×4, all fixed with tests; most lesser items fixed too.**
+
+| Finding | Root cause | Fix | Test |
+|---|---|---|---|
+| FIX FIRST: the booking fixture's phone numbers (+447700910001 up) were outside Ofcom's drama range | `10000 + n` pushed the digits past 900999 | `+447700900` + three digits | all booking tests use the fixture |
+| FIX FIRST: sheet names booked with overrides logged no reason, notice hours, shift or worker | The sync's event kept its old shape | Fixed reason "Put on the rota sheet by the office", plus `noticeHours`, `shiftId`, `workerId` | two `sheets.sync` tests check the exact event |
+| FIX FIRST: a booking the rules refused left no event (golden rule 5 lists credential checks) | Only the sync logged refusals | `shift.booking_refused` {by, workerId, codes}, in the same transaction | `booking` "refuses a worker the rules turn down…" |
+| FIX FIRST: the "one lock order, no deadlock" claim was false for the sync | The sync's single transaction locks workers (staff updates, earlier bookings) before later shifts | Claims corrected (code comment, ADR-014, this log); new `retryAborted()` (`src/lib/db/retry.ts`) wraps both `bookShift()` and the sync's database step (safe: it re-runs on the same read of the sheet) | `sheets.sync` "a deadlock in the sync's database step runs it again…" |
+| Lesser: anything could mint a pass and call `assign` | Nothing kept callers to the booking code | `tests/unit/booking.boundary.test.ts`: only `book.ts` (and the rules' own file) call `checkEligibility`, only `book.ts` and the sync call `checkBooking` and a plug's `assign` | itself (exact caller lists) |
+| Lesser: two applied workers could both take the day's last allowed place | The allowance counts were read without a lock | A booking relying on "applied" takes a per-firm, per-day advisory lock after the worker lock, then counts again | `assign.race` "two workers on applications in progress…", proven to fail without the lock |
+| Lesser: upper-case ids made `bookShift()` throw | The pass carries the database's lower-case ids | Ids lower-cased at the boundary | `booking` "takes ids in any letter case" |
+| Lesser: the sync passed `started` as an override | All four overridable codes were passed | `SHEET_OVERRIDES` = rest, weekly_hours, unavailable | existing sync tests |
+| Lesser: broken rules settings failed the whole sync | The loader threw inside the mirror transaction | `RulesSettingsError`, caught per name in the sync (logged `settings_invalid`); cancellations and time changes still go through | `sheets.sync` "a firm with broken rules settings…" |
+
+Parked (PLAN.md): free-text override reasons in events (reason codes with the Phase 5 screen);
+`takeShift` must take the firm from `getCurrentFirm()`; validate settings on write (Phase 5); the
+applied count's day approximation for night shifts; a vanished sheet row stays bookable; no event
+when a booking fills a shift (older, derived status). **Needs Dylan:** the 20-minute freshness rule
+for Sheets shifts, and sheet names overriding rest, weekly hours and availability.
+
+**Implementation root causes noted while building:** (1) the boundary test first flagged
+`plug.ts`: it matched `checkEligibility(` inside a comment; the test now strips comments (the list
+of allowed callers didn't change). (2) A Python edit didn't apply because Prettier had reflowed a
+comment; the assertion stopped it before writing anything, and it was re-run on the current text.

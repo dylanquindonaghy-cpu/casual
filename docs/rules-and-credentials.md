@@ -1,7 +1,19 @@
 # Rules engine and credentials
 
 Pure functions in `src/lib/rules/`. No database access inside the rules — callers load data,
-rules decide. This makes them easy to test in tables.
+rules decide. This makes them easy to test in tables. The loader is
+`loadEligibilityInput()` (`src/lib/roster/eligibility-input.ts`): the role's credential rule (none:
+`null`), the worker's credentials, their `confirmed` and `completed` bookings on shifts that aren't
+cancelled from 8 days before to 8 days after the shift (never the shift itself), credential names
+and `applied_allowed` types from `credential_types`, the day's deployed and applied counts (others
+booked on shifts starting that local day; "applied" = working on an application in progress for a
+type their role needs), and the settings below from `firms.settings`. Availability and blocked
+sites are empty until their stores exist. A pass (`EligibilityPass`) is single-use and names one
+worker and one shift; roster plugs refuse to book without it (`consumeEligibilityPass()`).
+
+Settings keys (`firms.settings`, defaults in brackets): `min_rest_hours` (11),
+`weekly_hours_cap` (48), `travel_buffer_minutes` (0), `credential_applied_allowance_pct` (0). A
+value that makes no sense fails the booking rather than loosening a rule.
 
 ## Function shape
 

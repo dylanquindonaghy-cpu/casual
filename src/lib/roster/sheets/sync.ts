@@ -11,6 +11,9 @@ import {
 } from "../../db/schema";
 import type { FirmTx, WithFirm } from "../../db/scoped";
 import { recordEvent } from "../../events/record";
+import { retryAborted } from "../../db/retry";
+import { checkBooking } from "../book";
+import { RulesSettingsError } from "../eligibility-input";
 import { refreshShiftStatus, sheetsRosterPlug } from "../native";
 import { upsertWorker } from "../workers";
 import { noticeHours } from "../notice";
@@ -51,6 +54,11 @@ export const SYNC_LEASE_MS = 5 * MINUTE;
 export const REMOVED_ON_SHEET = "Removed on the rota sheet";
 export const CANCELLED_ON_SHEET = "Shift cancelled on the rota sheet";
 export const CHANGED_ON_SHEET = "Times changed on the rota sheet";
+export const ADDED_ON_SHEET = "Put on the rota sheet by the office";
+// A name in the office's own sheet may override these (never credentials, role, account, a
+// double booking or a blocked site; golden rule 6). "Started" isn't among them: a sync never books
+// a shift that has started.
+export const SHEET_OVERRIDES = ["rest", "weekly_hours", "unavailable"] as const;
 
 export type SyncOutcome =
   | { status: "no_source" }
@@ -150,15 +158,19 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
       throw err;
     }
 
-    const mirrored = await run(firmId, async (tx) => {
-      const [held] = await tx
-        .select({ id: rosterSources.id })
-        .from(rosterSources)
-        .where(ours)
-        .for("update");
-      if (!held) throw new LeaseLost();
-      return mirror(tx, parsed, clock, now);
-    });
+    // All database work on the sheet as read: if Postgres aborts it to break a deadlock with a
+    // portal booking (book.ts), it runs again on the same read.
+    const mirrored = await retryAborted(() =>
+      run(firmId, async (tx) => {
+        const [held] = await tx
+          .select({ id: rosterSources.id })
+          .from(rosterSources)
+          .where(ours)
+          .for("update");
+        if (!held) throw new LeaseLost();
+        return mirror(tx, parsed, clock, now);
+      }),
+    );
 
     let written: PendingWrite[] = [];
     if (mirrored.writes.length > 0) {
@@ -535,14 +547,55 @@ async function mergeShift(
   for (const ref of merged.holders) {
     if (held.has(ref)) continue;
     const workerId = workerIds.get(ref);
-    const result = workerId ? await plug.assign(shiftId, workerId) : null;
-    if (result?.status === "assigned") {
+    // A name in the office's sheet is the office placing someone: the rules still decide, with the
+    // office's overrides (SHEET_OVERRIDES). Anything else they refuse isn't booked, and the refusal
+    // is logged for the office. A firm whose rules settings are broken books no sheet names until
+    // they're fixed, but the rest of the sync (cancellations, time changes) still goes through.
+    let check: Awaited<ReturnType<typeof checkBooking>> | null = null;
+    if (workerId) {
+      try {
+        check = await checkBooking(tx, { shiftId, workerId, now, overrides: [...SHEET_OVERRIDES] });
+      } catch (err) {
+        if (!(err instanceof RulesSettingsError)) throw err;
+        unbooked += 1;
+        await recordEvent(
+          tx,
+          system("roster.sheet_booking_refused", "shift", shiftId, {
+            workerId,
+            codes: ["settings_invalid"],
+          }),
+        );
+        continue;
+      }
+    }
+    if (!workerId || check?.status !== "checked") {
+      unbooked += 1;
+      continue;
+    }
+    if (!check.result.pass) {
+      unbooked += 1;
+      await recordEvent(
+        tx,
+        system("roster.sheet_booking_refused", "shift", shiftId, {
+          workerId,
+          codes: check.result.codes,
+        }),
+      );
+      continue;
+    }
+    const result = await plug.assign(shiftId, workerId, check.result.pass);
+    if (result.status === "assigned") {
       booked += 1;
       await recordEvent(
         tx,
         system("shift.assigned", "assignment", result.assignmentId, {
           by: "firm",
+          shiftId,
+          workerId,
           slot: result.slot,
+          noticeHours: noticeHours(check.startsAt, now),
+          reason: ADDED_ON_SHEET,
+          ...(check.result.overridden.length > 0 ? { overridden: check.result.overridden } : {}),
         }),
       );
     } else {

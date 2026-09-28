@@ -170,8 +170,39 @@ sheet writes (more state, same result as the merge base).
 **Consequences:** the office sees portal bookings in the sheet within about a minute on event
 days. A name added in the sheet to an already-full shift isn't booked (logged as a conflict).
 Started shifts are history: a sync never books, cancels or re-times them. A worker blocked here
-stays blocked; a mobile changed in the sheet signs the worker out. The sheet's names are booked
-without the rules engine, so the live transport stays off (`SHEETS_TRANSPORT` is `none` only)
-until the rules engine checks them.
+stays blocked; a mobile changed in the sheet signs the worker out. The sheet's names go through
+the rules engine with the office's overrides (ADR-014); one that fails a credential, role,
+account, double-booking or site check isn't booked and is logged for the office. The live
+transport stays off (`SHEETS_TRANSPORT` is `none` only) until the real service account is
+connected.
 **Revisit when:** a firm needs one row per slot instead of an "Assigned" list, or sheets get big
 enough that one read per minute is too slow.
+
+## ADR-014: One booking path; "re-check the live source" means current rows and a fresh sheet copy
+
+**Context:** the architecture said to re-read the live source before confirming a booking ("for
+Sheets, re-fetch that row"), while ADR-013 forbids reading Google per request. The rules engine
+issues an `EligibilityPass`, but nothing forced a booking through it.
+**Decision:** every booking goes through `bookShift()` (people) or `checkBooking()` (the Sheets
+sync) in `src/lib/roster/book.ts`: lock the shift, then the worker; load the rules input from the
+current rows; run the rules; re-check the live source; the plug's one conditional update; the
+event, all in one transaction. `RosterPlug.assign` demands a single-use pass for exactly that
+worker and shift. The live source for our own and imported shifts is our tables (already current
+under the lock). For a Sheets shift, the booking is confirmed only if our copy synced successfully
+within 20 minutes (the quiet cadence, 15, plus slack); otherwise `source_stale`. Locks are taken
+shift, then worker, then (only for a booking relying on the "applied" allowance) the firm's day,
+so two portal bookings can't deadlock. The Sheets sync can still deadlock with a portal booking
+(its one long transaction takes worker locks before later shift locks): Postgres aborts one side,
+nothing is double-booked, and both retry (`retryAborted()`: `bookShift()`, and the sync's
+database step on the same read of the sheet). A refusal by the rules is logged
+(`shift.booking_refused`, codes only).
+**Options:** re-fetch the sheet row per booking (quota, latency, and a request waiting on Google);
+confirm against any copy however old (a failing sync would take bookings the sheet never sees);
+lock the worker first (the opposite order to the sync's).
+**Consequences:** a Sheets firm whose sync has been failing for 20 minutes can't take portal
+bookings until it recovers (the worker is told to try again shortly). Two tabs can't double-book
+one person. The office's overrides are limited to checks 0 and 6-8 and always carry a reason in
+the action log. Bookings relying on the "applied" allowance queue per firm and day, so two
+applicants can't both take the day's last allowed place.
+**Revisit when:** event-day bookings need a tighter freshness window than 20 minutes, or a
+sheet row deleted by the office must stop being bookable before the sync notices (parked).

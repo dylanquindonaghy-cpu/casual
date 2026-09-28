@@ -26,6 +26,7 @@ import {
   type StaffCells,
 } from "../helpers/fake-sheets";
 import {
+  book as bookWithPass,
   describeRosterContract,
   NOW,
   SCENARIO,
@@ -78,6 +79,13 @@ async function sheetFirm(staff: string[][], shifts: string[][]): Promise<SheetFi
     "insert into roster_sources (firm_id, kind, spreadsheet_id, mapping) values ($1, 'sheets', $2, $3)",
     [firmId, sheetId, JSON.stringify(DEFAULT_SHEET_MAPPING)],
   );
+  // The sync books the sheet's names through the rules engine, which fails closed on a role
+  // with no credential rule: these roles need no credential (tests of refused names add one).
+  await su.query(
+    `insert into credential_rules (firm_id, sector, role, required_types)
+     select $1, 'rail', r, '{}' from unnest(array['track_operative', 'coss', 'steward', 'door_supervisor']) r`,
+    [firmId],
+  );
   const fake = new FakeSheets();
   fake.create(sheetId, { Staff: [STAFF_HEADER, ...staff], Shifts: [SHIFT_HEADER, ...shifts] });
   return { firmId, sheetId, fake };
@@ -116,8 +124,12 @@ const eventsOf = async (firmId: string, action: string) =>
     )
   ).rows;
 
+// A portal booking straight on the Sheets plug (these tests are about the sync, not the rules:
+// bookShift in book.ts is the real booking path and has its own tests).
 const book = (firmId: string, shiftId: string, workerId: string, when = NOW) =>
-  withFirm(firmId, (tx) => sheetsRosterPlug(tx, { clock: at(when) }).assign(shiftId, workerId));
+  withFirm(firmId, (tx) =>
+    bookWithPass(sheetsRosterPlug(tx, { clock: at(when) }), shiftId, workerId),
+  );
 
 // --- The shared contract, for the Sheets plug over a synced sheet ----------------------------
 
@@ -171,7 +183,7 @@ async function contractFixture(): Promise<RosterFixture> {
     canWrite,
     listStaff: () => call((p) => p.listStaff()),
     getShifts: (from, to) => call((p) => p.getShifts(from, to)),
-    assign: (shiftId, workerId) => call((p) => p.assign(shiftId, workerId)),
+    assign: (shiftId, workerId, pass) => call((p) => p.assign(shiftId, workerId, pass)),
     markCancelled: (shiftId, workerId, cancel) =>
       call((p) => p.markCancelled(shiftId, workerId, cancel)),
   };
@@ -343,7 +355,16 @@ describe("sheets.sync: from the sheet into our tables", () => {
     expect(await sync(f)).toMatchObject({ booked: 1, writes: 0 });
     expect(await holdersOf(f.firmId, "P1")).toEqual(["N001", "N002"]);
     const assigned = await eventsOf(f.firmId, "shift.assigned");
-    expect(assigned.at(-1)?.data).toEqual({ source: "sheets", by: "firm", slot: 2 });
+    // P1 starts 37 hours after NOW: the booking gave 37 hours' notice.
+    expect(assigned.at(-1)?.data).toEqual({
+      source: "sheets",
+      by: "firm",
+      shiftId: await idOf("shifts", f.firmId, "P1"),
+      workerId: await idOf("workers", f.firmId, "N002"),
+      slot: 2,
+      noticeHours: 37,
+      reason: "Put on the rota sheet by the office",
+    });
   });
 
   it("a name the office removes in the sheet is a cancellation by the firm, with notice hours, logged", async () => {
@@ -811,5 +832,133 @@ describe("sheets.sync: leases and failures", () => {
       [f.firmId],
     );
     expect(rows[0]?.last_attempted_at).toEqual(new Date(NOW.getTime() + 10 * 60_000));
+  });
+});
+
+describe("sheets.sync: the rules decide who the sheet can book", () => {
+  it("a name that fails a credential check isn't booked; the refusal is logged with the reasons", async () => {
+    const f = await sheetFirm(
+      [ADA, BEN, CAL].map(staffRow),
+      [{ ...P1, assigned: "" }, P2].map(shiftRow),
+    );
+    await sync(f);
+    // Track work now needs a PTS card; only Ben has one.
+    await su.query(
+      "update credential_rules set required_types = '{PTS}' where firm_id = $1 and role = 'track_operative'",
+      [f.firmId],
+    );
+    const ada = await idOf("workers", f.firmId, "N001");
+    const ben = await idOf("workers", f.firmId, "N002");
+    await su.query(
+      "insert into credentials (firm_id, worker_id, type, expires_on) values ($1, $2, 'PTS', '2028-01-01')",
+      [f.firmId, ben],
+    );
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002");
+    expect(await sync(f)).toMatchObject({ booked: 1, notBooked: 1, writes: 1 });
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N002"]);
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    expect(await eventsOf(f.firmId, "roster.sheet_booking_refused")).toEqual([
+      {
+        entity_id: shiftId,
+        data: { source: "sheets", workerId: ada, codes: ["credential_missing"] },
+      },
+    ]);
+    // As with a name added to a full shift, the sheet is put back in step with the bookings.
+    expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N002");
+    expect(await eventsOf(f.firmId, "shift.assigned")).toHaveLength(1);
+  });
+
+  it("the office's own rota may override rest and weekly hours, and the log says so", async () => {
+    // Ada on Saturday night (22:00-06:00) and again Sunday 10:00: four hours' rest.
+    const SUNDAY: ShiftCells = {
+      ref: "P3",
+      date: "08/11/2026",
+      start: "10:00",
+      end: "18:00",
+      role: "Track Operative",
+      assigned: "N001",
+    };
+    const f = await sheetFirm([ADA, BEN, CAL].map(staffRow), [P1, SUNDAY].map(shiftRow));
+    expect(await sync(f)).toMatchObject({ booked: 2, notBooked: 0 });
+    const sunday = await idOf("shifts", f.firmId, "P3");
+    const { rows } = await su.query<{ data: Record<string, unknown> }>(
+      `select e.data from events e join assignments a on a.id = e.entity_id
+        where e.firm_id = $1 and e.action = 'shift.assigned' and a.shift_id = $2`,
+      [f.firmId, sunday],
+    );
+    expect(rows.map((r) => r.data)).toEqual([
+      {
+        source: "sheets",
+        by: "firm",
+        shiftId: sunday,
+        workerId: await idOf("workers", f.firmId, "N001"),
+        slot: 1,
+        noticeHours: 49, // Sunday 10:00 GMT is 49 hours after NOW (Friday 09:00)
+        reason: "Put on the rota sheet by the office",
+        overridden: ["rest"],
+      },
+    ]);
+  });
+
+  it("a double booking in the sheet is never overridden: the second shift isn't booked", async () => {
+    const CLASH: ShiftCells = {
+      ref: "P4",
+      date: "07/11/2026",
+      start: "23:00",
+      end: "05:00",
+      role: "Track Operative",
+      assigned: "N001",
+    };
+    const f = await sheetFirm([ADA, BEN, CAL].map(staffRow), [P1, CLASH].map(shiftRow));
+    expect(await sync(f)).toMatchObject({ booked: 1, notBooked: 1 });
+    const [refused] = await eventsOf(f.firmId, "roster.sheet_booking_refused");
+    expect(refused?.data).toMatchObject({ codes: ["overlap"] });
+  });
+});
+
+describe("sheets.sync: failures in the booking step", () => {
+  it("a firm with broken rules settings books no sheet names, but the rest of the sync goes through", async () => {
+    const f = await sheetFirm([ADA, BEN, CAL].map(staffRow), [P1, P2].map(shiftRow));
+    await sync(f);
+    await su.query("update firms set settings = $1 where id = $2", [
+      JSON.stringify({ weekly_hours_cap: "lots" }),
+      f.firmId,
+    ]);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N002"); // Ada off, Ben on
+    const later = new Date(NOW.getTime() + HOUR);
+    expect(await sync(f, later)).toMatchObject({
+      status: "synced",
+      booked: 0,
+      cancelled: 1,
+      notBooked: 1,
+    });
+    expect(await holdersOf(f.firmId, "P1")).toEqual([]);
+    const [refused] = await eventsOf(f.firmId, "roster.sheet_booking_refused");
+    expect(refused?.data).toMatchObject({ codes: ["settings_invalid"] });
+  });
+
+  it("a deadlock in the sync's database step runs it again on the same read of the sheet", async () => {
+    const f = await northline();
+    // Calls: 1 claims the lease, 2 is the database step (aborted once here), then the retry, then
+    // the final step.
+    let calls = 0;
+    const flaky: WithFirm = (firmId, fn) => {
+      calls += 1;
+      if (calls === 2) {
+        return Promise.reject(Object.assign(new Error("deadlock detected"), { code: "40P01" }));
+      }
+      return withFirm(firmId, fn);
+    };
+    const outcome = await syncSheet({
+      run: flaky,
+      firmId: f.firmId,
+      client: f.fake,
+      clock: at(NOW),
+    });
+    expect(outcome).toMatchObject({ status: "synced", booked: 1 });
+    expect(calls).toBe(4);
+    expect(f.fake.reads).toBe(1);
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001"]);
+    expect(await eventsOf(f.firmId, "roster.sync_failed")).toEqual([]);
   });
 });

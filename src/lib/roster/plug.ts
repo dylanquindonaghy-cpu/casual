@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { WORKER_STATUSES } from "../db/schema/people";
 import { ROLE_PATTERN, SHIFT_SOURCES, SHIFT_STATUSES } from "../db/schema/roster";
+import type { EligibilityPass } from "../rules/eligibility";
 
 // The rota can live in different places (docs/architecture.md, Roster plugs): our own tables
 // (native), a firm's Google Sheet, or CSV files. The app talks to all of them through one
@@ -13,7 +14,9 @@ import { ROLE_PATTERN, SHIFT_SOURCES, SHIFT_STATUSES } from "../db/schema/roster
 //
 // A plug records; it doesn't decide. Eligibility (worker status, credentials, rest, hours, a
 // shift already started) is the rules engine's job, checked by the caller before assign (golden
-// rule 1). So a plug will assign an inactive worker or a past shift if asked; callers must not.
+// rule 1): assign takes the EligibilityPass checkEligibility() issued for that worker and shift,
+// and uses it up (consumeEligibilityPass), so nothing can book around the rules. The booking
+// path is src/lib/roster/book.ts (bookShift for people, checkBooking for the Sheets sync).
 //
 // Transactions and the action log: adapters that write our tables (native) are built on the
 // caller's withFirm transaction, so the caller's eligibility check, the assign or cancel, and the
@@ -121,7 +124,9 @@ export interface RosterPlug {
   // who holds which slot. Throws on a window that doesn't end after it starts.
   getShifts(from: Date, to: Date): Promise<RosterShift[]>;
   // First yes wins: fills the lowest free slot, or reports why not. Never double-assigns.
-  assign(shiftId: string, workerId: string): Promise<AssignResult>;
+  // Throws unless `pass` is an unused EligibilityPass for exactly this worker and shift (checked
+  // before anything else, and used up whatever the result).
+  assign(shiftId: string, workerId: string, pass: EligibilityPass): Promise<AssignResult>;
   // Frees the person's slot (it can be taken again) and records the reason, who cancelled and
   // the notice hours counted from cancel.at. Throws on a blank reason, or a cancel.at later than
   // the plug's clock (notice can't be claimed for a request not made yet).

@@ -1326,3 +1326,34 @@ through the rules and `bookShift`), auto-resolving open requests on cancel, refe
 request notes and health details, and (schema, needs Dylan) a partial unique index against
 duplicates. **Needs Dylan:** the free-text "Who could take it?" (another worker's name, stored on
 the request only).
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=8c424d3ace0f9733 e2e=true` (1328 tests in 64 files, 10 e2e).
+`npm run build` run by hand: succeeds.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"8c424d3ace0f9733","e2e":true,"at":"2026-09-28T23:30:40Z"}`; `./.claude/hooks/tree-hash.sh` = `8c424d3ace0f9733`. Match confirmed — proceeding with audit.
+
+Claims:
+- Worker can request a time change for one of their own upcoming shifts, creating a request for the office — PROVEN. Code: `src/lib/portal/requests.ts:36-114` (`createRequest`), schema types in `src/lib/portal/request-kinds.ts:8-41`. Test: `tests/integration/requests.test.ts:40-88` ("stores a time change for the worker's own upcoming shift and logs it without the text") — passing in `.claude/state/test.log:468`.
+- Worker can request a swap — PROVEN. Same `createRequest` path with `kind: "swap"`. Test: `tests/integration/requests.test.ts:102-108` (swap branch of "keeps one open request…") and `tests/unit/portal.requests.test.ts:48-56` — passing at `.claude/state/test.log:469,1021`.
+- Request goes to the office as a pending item, not auto-decided (golden rule 1: AI/code doesn't decide) — PROVEN. Row inserted with `status: "open"` (default), no approval logic here; `docs/screens.md:43` documents `/office/requests` as the queue (Phase 5, correctly out of scope and left unticked in PLAN.md).
+- State change logged as an append-only event without leaking typed free text (golden rule 5 + privacy) — PROVEN. `src/lib/portal/requests.ts:94-101` writes `request.created` with only `{type, shiftId}`; test asserts the `note` text is absent from the `events` row (`tests/integration/requests.test.ts:76-87`).
+- Only the worker's own confirmed, not-yet-started booking can be requested against; cross-tenant isolation holds — PROVEN. `src/lib/portal/requests.ts:48-68` (row lock, `ne(status,'cancelled')`, `gt(startsAt, now)`); test `tests/integration/requests.test.ts:118-153` covers another firm's shift, unbooked shift, cancelled booking/shift, already-started shift, all rejected with `not_yours`, and confirms 0 rows written across both firms — passing at `.claude/state/test.log:470`.
+- Duplicate requests for the same shift+kind are prevented, including concurrently — PROVEN. `tests/integration/requests.test.ts:90-116` (sequential) and `:178-213` (five simultaneous transactions via a real barrier in `tests/helpers/race.ts`, one created, four `already_open`) — passing at `.claude/state/test.log:469,472`.
+- Worker can see request status ("My requests") and start a new one from "My shifts" — PROVEN. `src/app/requests/page.tsx`, `src/app/requests/requests-list.tsx`, link wired from `src/app/page.tsx:35-40` and `src/app/my-shifts-view.tsx:193-197`; e2e assertion added in `tests/e2e/login.worker.spec.ts:44-48`, passing in `.claude/state/e2e.log` (test #5) with `verified.json.e2e:true`.
+- Client component keeps database code out of the browser bundle — PROVEN. `request-kinds.ts` has no DB imports; the generic `tests/unit/client-boundary.test.ts` auto-discovers `src/app/requests/new/request-form.tsx` and passes (`.claude/state/test.log:1268`).
+- Copy matches `docs/screens.md` (golden rule 11) — PROVEN by direct comparison: `docs/screens.md:16-17` strings match `src/app/requests/request-result.tsx` and `requests-list.tsx` verbatim.
+- `requests` table has `firm_id`, RLS, TABLE_ACCESS entry — PROVEN (pre-existing from Phase 2, reused unchanged): `src/lib/db/schema/roster.ts:264-320` (`.enableRLS()`, `firmIsolation`), `src/lib/db/admin/access.ts:37`; `scripts/invariants.sh` "schema and migrations in sync" passed (`.claude/state/invariants.log`).
+
+Fakes found: none. No `.only`/`.skip`, no empty-assertion tests, no mocking of the code under test (integration tests hit a real Postgres via `withFirm`/`appRolePool`), no hardcoded return short-circuits. `scripts/invariants.sh` independently confirms 1328/1328 tests passed with 0 skipped/todo.
+
+To reach DONE: nothing further for this bullet's claims. (Note: the PLAN.md checkbox for this line is still `[ ]` — correctly unticked, since only `/close-task` after this audit should tick it. The separate, still-open checklist items "Playwright: login → take shift → cancel → request → pay OTP" and the Phase 5 office-side approval flow are out of scope for this bullet and correctly left undone.)
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.4 (23:12 to 23:33 UTC). Phase 3 so far: 1.4 h of its 35–45 h estimate.
+**Commit:** `97fadec`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

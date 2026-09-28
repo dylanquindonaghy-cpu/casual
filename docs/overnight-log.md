@@ -1091,3 +1091,33 @@ total: 5.0 h of its 30–40 h estimate (well under, not over).
 Parked (PLAN.md): the e2e empty-state check depends on the demo seed leaving worker 07700 900100
 unbooked. Not done (nits): the page's `searchParams` type (kept like the other pages); a shift
 starting at midnight reads "00:00". **Needs Dylan:** the banner showing expired credentials.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=1397a185b66cb82b e2e=true` (1275 tests in 57 files, 10 e2e).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Setup check: `.claude/state/verified.json` = `{"ok":true,"tree":"1397a185b66cb82b","e2e":true,"at":"2026-09-28T22:18:16Z"}`; `./.claude/hooks/tree-hash.sh` = `1397a185b66cb82b` — matches. Proceeded with audit.
+
+Task: PLAN.md line 134, "My shifts (upcoming, past), with site, times, role, instructions" (still `[ ]`, not yet ticked — correct, since only the auditor/hook may tick it).
+
+Claims:
+- Upcoming shifts list (soonest first, excludes cancelled/offered, keeps in-progress shift even if marked no_show) — PROVEN — `src/lib/portal/my-shifts.ts:57-109` (`myShifts`); integration tests `tests/integration/my-shifts.test.ts:42` ("lists the worker's upcoming bookings..."), `:70` ("leaves out cancelled bookings..."), `:114` ("keeps a shift in progress..."), all passing per `.claude/state/test.log:589-593`.
+- Past shifts (last 30 days, newest first, status labelled Worked/Marked as not attended/Booked) — PROVEN — `src/lib/portal/my-shifts.ts:71-75`, `src/app/my-shifts-view.tsx:212-231` (`ShiftRow`, `PAST_LABELS`); test `tests/integration/my-shifts.test.ts:87` ("shows the last 30 days, newest first..."), passing at `test.log:591`; unit test `tests/unit/portal.my-shifts.test.ts:164`, passing at `test.log:990`.
+- Site shown (name, address, maps link) — PROVEN — `src/lib/portal/format.ts:35-48` (`siteAddress`, `mapLink`), `src/app/my-shifts-view.tsx:155-184` (`ShiftDetails`); asserted in `tests/unit/portal.my-shifts.test.ts:109-153` and integration test asserting real DB-joined site fields (`tests/integration/my-shifts.test.ts:53-66`).
+- Times shown (day/time, London timezone, night-shift/midnight/DST edge cases) — PROVEN — `src/lib/portal/format.ts:15-26` (`shiftWhen`); extensively tested `tests/unit/portal.my-shifts.test.ts:15-33`, passing at `test.log:984`.
+- Role shown — PROVEN — `src/lib/portal/format.ts:29-32` (`roleLabel`); tested `tests/unit/portal.my-shifts.test.ts:36-37`, `:138`.
+- Instructions shown (upcoming card and each row's `<details>`) — PROVEN — `src/app/my-shifts-view.tsx:176-182`; tested `tests/unit/portal.my-shifts.test.ts:144-146`, `:219-248`; integration test confirms instructions come from the real `shifts.instructions` column (`tests/integration/my-shifts.test.ts:48,58`).
+- Tenant isolation (golden rule 2, required for any new query) — PROVEN — `tests/integration/my-shifts.test.ts:122-129` ("never shows another firm's bookings, even for its worker's id"), passing at `test.log:593`.
+- Wired into the actual route and matches the doc spec — PROVEN — `src/app/page.tsx:15-38` calls `myShifts`/`credentialNotices` and renders `MyShiftsView`; `docs/screens.md:12` names these exact files and describes the same copy/behaviour found in the code; e2e test exercises the live page in a real browser against a seeded DB (`tests/e2e/login.worker.spec.ts:33-38`), passing in `.claude/state/e2e.log` (test #5).
+
+Fakes found: none. No `.only`/`.skip`/`.todo` (confirmed by `.claude/state/invariants.log`: "ok: no .only/.skip/.todo in tests", "1275 tests: 1275 passed, 0 failed, 0 skipped, 0 todo"). Integration tests hit a real Postgres via `appRolePool`/RLS, not a mock of the code under test. Unit tests render the real `MyShiftsView` component via `renderToStaticMarkup`, not a stub.
+
+To reach DONE: nothing — this bullet's claims are all PROVEN, verify.sh is green on the current tree, and e2e (including this page) passed. (Note: the Phase 3 "Done when" line covers take/cancel-shift and the full demo script, which are separate, still-unticked PLAN.md bullets — not in scope for this single task, and not claimed here.)
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.4 (21:59 to 22:20 UTC). Phase 3 so far: 0.4 h of its 35–45 h estimate.
+**Commit:** `d174d2f`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

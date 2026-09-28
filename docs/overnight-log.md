@@ -973,3 +973,32 @@ missing is the cancellation path for people:
 Parked (PLAN.md): the "filled or reopened" result item re-labelled Phase 4; `cancelShift` takes the
 firm from `getCurrentFirm()`; a Sheets shift set to Draft keeps its workers without per-worker
 notice. **Needs Dylan:** "sent home part-way" is a curtailment, not a cancellation.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=ca174e72e9d2ad95 e2e=true` (1236 tests in 54 files, 10 e2e).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Pre-check: `.claude/state/verified.json` = `{"ok":true,"tree":"ca174e72e9d2ad95","e2e":true,"at":"2026-09-28T21:45:14Z"}`; `./.claude/hooks/tree-hash.sh` = `ca174e72e9d2ad95` — matches. Proceeding.
+
+Claims:
+- Every assign writes an events row with `notice_hours` — PROVEN. `src/lib/roster/book.ts:196-215` (`bookInTransaction`) calls `recordEvent(tx, { action: "shift.assigned", data: { ..., noticeHours: noticeHours(check.startsAt, now), ... } })`. Sheets-driven assigns too: `src/lib/roster/sheets/sync.ts:592-600`. Test: `tests/integration/notice-log.test.ts:33-150` ("the notice log > has one event with notice hours for every booking and every cancellation, by every path") — passing at `.claude/state/test.log:589`. Also `tests/integration/cancel.test.ts`, `tests/integration/booking.test.ts` assert `noticeHours` on `shift.assigned`/`shift.cancelled` event data.
+- Every cancel writes an events row with `notice_hours` — PROVEN. New file `src/lib/roster/cancel.ts:79-95` (`cancelInTransaction`) writes `shift.cancelled` with `noticeHours: cancelled.noticeHours`, computed via `src/lib/roster/notice.ts` and stored on the assignment row in `src/lib/roster/native.ts:248-268`. Sheet-driven cancels/moves/curtailments: `src/lib/roster/sheets/sync.ts:628-681` (`logCancel`, `logTimeChange`). Test: `tests/integration/cancel.test.ts` (11 cases, all passing, `.claude/state/test.log:449-459`), plus the cross-path `notice-log.test.ts` above which checks Sam/Jo/Kit's cancellations all have exactly one `shift.cancelled` event whose `noticeHours` equals `assignments.notice_hours`.
+- Rules tests pass — PROVEN. `tests/unit/rules.table.test.ts` passing (`.claude/state/test.log:590-...`), part of the 54 files / 1236 tests all green per the log tail and `.claude/state/invariants.log` ("1236 tests: 1236 passed, 0 failed, 0 skipped, 0 todo").
+- A seeded Sheet syncs both ways — PROVEN. `tests/integration/sheets.sync.test.ts` has both `describe("sheets.sync: from the sheet into our tables", ...)` and `describe("sheets.sync: from our tables back to the sheet", ...)` blocks, all passing (`.claude/state/test.log:24-78`).
+- Double-assign impossible under a race test — PROVEN. `tests/integration/assign.race.test.ts`, "first yes wins under real concurrency" — 7 cases including "10 eligible workers at once: exactly that many booked" and "a double tap on cancel: cancelled once, one event, the place reopened once", all passing (`.claude/state/test.log:278-284`).
+
+Fakes found: none. No `.only`/`.skip`/`.todo` in the tests directory (confirmed via grep and `.claude/state/invariants.log`: "ok: no .only/.skip/.todo in tests"). `recordEvent` (`src/lib/events/record.ts:20-33`) enforces real persistence (throws if PII leaks into event data) rather than a stub. `notice-log.test.ts` queries the real Postgres `events`/`assignments` tables and asserts numeric notice-hour values by path, not a mock.
+
+PLAN.md checkboxes for this task ("Every assign/cancel writes events with `notice_hours`" and the Tests line) remain correctly unticked (`PLAN.md:118-119`), awaiting this audit as required by CLAUDE.md rule 13.
+
+To reach DONE: nothing — evidence supports ticking both PLAN.md bullets for this task (lines 118-119) and, given rules/sheets/race tests all pass, the Phase 2 "Done when" line is also satisfied by current evidence.
+```
+
+**Ticked** in PLAN.md: this task only. The auditor also suggested ticking the "Tests: …" line; that
+is its own task, so it gets its own run, verify and audit (not ticked here).
+**Hours:** 0.4 (21:26 to 21:47 UTC). Phase 2 so far: 4.9 h of its 30–40 h estimate.
+**Commit:** `a48c6e8`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

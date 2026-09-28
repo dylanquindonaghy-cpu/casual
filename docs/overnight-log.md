@@ -680,3 +680,6 @@ To reach DONE: nothing — this task's claims are all PROVEN on the current, ver
 "shift already started".
 
 **Hours:** 0.4 h (19:21 to 19:43 UTC). Phase 2 so far: 3.0 h of the 30-40 h estimate.
+
+**Commit:** `520a92a Phase 2: Rules engine ...` on `build/overnight`. **Push:** succeeded.
+**CI:** not checked (`gh` isn't installed here).

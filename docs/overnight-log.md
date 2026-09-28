@@ -333,3 +333,6 @@ To reach DONE: nothing — implementation and tests for this specific task are p
 (cancels are limited to confirmed bookings until then).
 
 **Hours:** 0.3 h (17:32 to 17:50 UTC). Phase 2 so far: 1.2 h of the 30-40 h estimate.
+
+**Commit:** `9d4c8f1 Phase 2: Native adapter ...` on `build/overnight`. **Push:** succeeded.
+**CI:** not checked (`gh` isn't installed here).

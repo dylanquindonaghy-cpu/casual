@@ -3605,3 +3605,82 @@ installed, so not checked.
 **Hours:** 0.5 h (10:25 to 10:55 UTC). Phase 5 so far 3.7 h of its 23–33 h estimate.
 
 **Parked:** see PLAN.md, "Answering requests follow-ups" (three Dylan-to-confirm items).
+
+## 2026-09-29 10:57 UTC: Phase 5, "Action log with filters (worker, shift, date, type)"
+
+**Plan** (docs/screens.md `/office/log` "Every event, filterable by worker, shift, type, date";
+product spec P0-9 and "every action logged so that disputes are settled in seconds"; golden rule
+5).
+1. **Types** (`src/lib/office/log-types.ts`): every event kind the app records goes in one plain
+   group: bookings, cancellations, changes to shifts, attendance, offers, messages to workers,
+   requests, credentials, workers, logins, rota sheet and imports. A unit test scans the code for
+   every recorded action and fails if one has no group or no plain words.
+2. **Words**: `eventWords()` gets words for every kind not yet covered (logins, credentials,
+   workers, requests, the rota sheet, imports, phone notifications), from the events' ids and
+   codes only; names come from the loader.
+3. **Loader** (`src/lib/office/action-log.ts`, admins and resourcers, reads only, RLS-scoped):
+   - worker: events naming them (`data.workerId`), done by them (actor), about them (entity), or
+     about their bookings, requests or credentials;
+   - shift: events about it, naming it (`data.shiftId`), or about its bookings or requests;
+   - type: one group;
+   - dates: from and to, whole days in the firm's time zone (default the last 7 days; with a
+     shift chosen and no dates, all of that shift's events), at most 92 days;
+   - newest first, 100 a page, "Older" continues from the last one (by id);
+   - each line: the time, the group, the words, and the shift (a link to its page).
+4. **Page `/office/log`** (new area `log`): a filter form (worker, shift from the chosen dates,
+   type, from, to → "Show"), the list, "Older", empty state. Links from the office menu and from
+   each shift's page ("See this shift in the action log").
+5. **Tests:** integration (each filter, their combinations, day boundaries in London time, paging,
+   names, another firm's events never shown, bad filters ignored, payroll refused), unit (types
+   and words for every action, the page's words), e2e (filter the demo's dropout by type and
+   worker).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Plain groups for "type", not raw action names | The office thinks in cancellations and offers, not `shift.change_notice_held` | A list of every action |
+| Default range the last 7 days; all time for one shift | Keeps the list quick; a shift's whole story is what a dispute needs | No default (everything since the start) |
+| At most 92 days per search | Bounds the query (the events index is by firm and time) | No limit |
+| Admins and resourcers (not payroll) | It's the resourcing log; payroll has its own queries screen (Phase 6) | Payroll too (parked) |
+| No export here | The notice and cancellation report (next task) has the CSV | Export every log search |
+
+**Built as planned.** The log's own test reads it as at 3 November 2025, a year before anything the
+fixtures log at the real time, so the test can't start failing on a later real date.
+
+**Root causes (while building):**
+- The e2e picked a line with `hasText: /^Name cancelled/`, which matches the whole list item, and
+  that starts with the time ("12:06 on Tue 29 Sep · Cancellations"). Matched on the words'
+  own line instead.
+- `getByLabel("Worker")` found two selects: each label wrapped its select, so a label's name
+  included its options' text, and the Type list has "Workers". The fields now have their own
+  `<label for>`, which also reads properly to screen readers.
+
+**Verify round 1 (before the review):** `VERIFIED tree=31cf013df39cf3b2 e2e=true`.
+
+**Guardrails review: FIX FIRST (2), both fixed.**
+1. **A time bomb in the log's test.** One part still searched 19–22 October 2026, where the
+   fixture's real-time event will land on those real days. **Fix:** that part now uses 2025
+   (21 October 2025, summer time until the 26th), and the claim above is corrected.
+2. **Two recorded events had no group or words** (`pay_record.imported`, `pay_record.updated`),
+   and the coverage test couldn't see them.
+   - **Root cause:** its scan listed the event prefixes by hand.
+   - **Fix:** it now takes every `"word.word"` string in the code (today all of them are events;
+     anything else must be listed on purpose). A "Pay records" group, figure-free words, and the
+     worker filter finds them (and login links and pay-page codes, whose events don't name the
+     worker). Tested.
+
+**Suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| "…by Someone" for login links and pay-page codes | The log finds the worker from the link or the code's session; without one it says "A worker…" |
+| `roster.sheet_conflict` words wrong for someone booked but not in the sheet | Two wordings, by case; tested |
+| Firm id in every subquery; `= any(uuid[])` rather than casting ids to text | Done |
+| Upper-case ids in the address missed the text comparisons | Lower-cased; tested |
+| No year on dates; years 0000-0999 accepted | The year shows when it isn't this one; 2000-2100 only |
+| Picking a shift in the form always sends dates | A line under the form says so and points to the shift page's link |
+| A worker acting under another id isn't named | Actor ids join the name lookup |
+| Copy: "asked: question"; ISO days | "sent a request (question)"; "Wed 4 Nov" |
+| Override reasons are typed text in the log; payroll and pay records; the 2,000-worker list | Parked (two for Dylan) |
+

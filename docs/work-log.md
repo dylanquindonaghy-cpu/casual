@@ -4172,3 +4172,92 @@ shift the rules refused), but nobody could answer. Now:
 4. Write a note and press "Decline and tell …". The terminal running `npm run dev` prints the
    message the worker would get.
 5. Reload: it's under "Answered in the last 7 days", with "… was told."
+
+## 2026-09-29: Phase 5, task 6: The action log with filters (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (10:57 to 11:29 UTC), in the unattended overnight loop.
+Phase 5 so far: 4.2 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=1f692d0c0c16699d e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2093 tests (up from 2005);
+  - the 35 browser tests (1 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Since the start, the app has written an **event** (one row in an append-only table: rows are only
+ever added, never changed) for every offer, booking, cancellation, message and login. Until now,
+only a shift's own history showed any of it. Now the office has the whole **action log** at
+`/office/log` (admins and resourcers; "Action log" in the office menu):
+- **Every event, newest first, in plain words**: "Ann Booker cancelled, with 4 days' notice.",
+  "Sam Rota logged in.", "A pay record was added for Ann Booker (Mon 20 Oct to Sun 26 Oct).". Each
+  line has the time, its type, and a link to the shift it's about.
+- **Filters** (a simple form; the choices go in the web address, so a search can be bookmarked or
+  shared):
+  - **Worker**: everything about that person, including events that don't name them directly (a
+    reminder about their booking, the office answering their request, a login link sent to them);
+  - **Shift**: everything about that shift and its bookings. Each shift's page now has "See this
+    shift in the action log", which shows the shift's whole story;
+  - **Type**: 12 plain groups (Bookings, Cancellations, Changes to shifts, Who worked, Offers,
+    Messages to workers, Requests, Credentials, Workers, Logins, Pay records, Rota sheet and
+    imports);
+  - **From / To**: whole days in the firm's time zone (the UK's clock changes are handled). The
+    default is the last 7 days, and one search covers at most 92 days.
+- **100 lines at a time**, with "Older" for the next 100.
+- **Pay records** show only that a record was added or changed, never an amount.
+- **A safety net**: a test reads the code for every kind of event it records and fails if one has
+  no group or no plain words, so a new kind of event can't slip past the office.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Plain groups, not raw event names | The office thinks in "cancellations", not `shift.change_notice_held` | A list of every event name |
+| Last 7 days by default; all of a shift from its page | Quick to load; a dispute needs a shift's whole story | Everything since the start |
+| At most 92 days per search | Keeps each search quick | No limit |
+| Admins and resourcers only | It's the resourcing log; payroll has its own screen next phase | Payroll too (parked for Dylan) |
+| No export here | The notice and cancellation report (next task) has the CSV file | Export every search |
+
+### What the new tests prove
+
+- `tests/integration/office.action-log.test.ts` (8 tests, on the real database):
+  - newest first, the default 7 days, the words, the shift link (with its year when it isn't this
+    year);
+  - the worker filter, through every route (named, did it, about them, their booking, request,
+    credential, pay record, login link), and upper-case ids in the address;
+  - the shift filter, with and without dates;
+  - the type filter; whole London days, including a summer-time night; back-to-front dates; the
+    92-day limit; the shifts offered in the form;
+  - 100 at a time and "Older";
+  - never another firm's events, whatever the filters say; nonsense filters ignored;
+  - payroll and logged-out people refused.
+- `tests/unit/office.log-types.test.ts`: every event the code records has exactly one group and
+  plain words, no group lists an event that no longer exists, and examples of the words.
+- `tests/e2e/office.log.spec.ts` (1 browser test): open the log from the menu, see your own login,
+  filter to Cancellations, then to the worker who cancelled, follow their shift, and come back to
+  that shift's log.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`, Parking lot, "Action log follow-ups"):
+  - payroll doesn't see the log, and resourcers see that pay records changed (no amounts);
+  - the office's typed override reason when placing someone is stored in the log: keep it, or a
+    fixed list?
+- **Parked:** faster worker and shift searches for big firms (database indexes); maybe hide the
+  frequent "stayed logged in" lines; a worker search box.
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
+3. Click "Action log". You should see today's demo events, newest first.
+4. Choose "Cancellations" under Type and press "Show": the demo's dropout is there.
+5. Click its shift, then "See this shift in the action log".

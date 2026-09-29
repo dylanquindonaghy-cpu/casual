@@ -277,6 +277,9 @@ export default async function OfficeShiftPage({
             ))}
           </ul>
         )}
+        <Link href={`/office/log?shift=${shift.shiftId}`} className="mt-2 inline-block underline">
+          See this shift in the action log
+        </Link>
       </section>
 
       <Link href="/office/shifts" className="mt-8 inline-block underline">

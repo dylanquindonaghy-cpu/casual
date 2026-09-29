@@ -177,7 +177,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
       worker; workers notified (compliance-critical, see `docs/api-and-jobs.md`)
 - [x] Mark no-show / completed
 - [x] Approve/decline requests (time changes, swaps, availability, general) with a note → worker notified
-- [ ] Action log with filters (worker, shift, date, type)
+- [x] Action log with filters (worker, shift, date, type)
 - [ ] Notice and cancellation report: every offer/change/cancel with timestamps, initiator and
       notice hours; short-notice flag at a firm-set threshold (final 2027 rules still pending); CSV export
 - [ ] Pilot metrics page: baseline entry form + daily rollup job (`docs/pilot-playbook.md`)
@@ -641,6 +641,21 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Other office client buttons (edit shift, create, import, offer, quick actions) can be clicked
     before the page is hydrated and then do nothing: give them `useHydrated()` like the assign,
     move and cancel buttons.
+- Action log follow-ups (Phase 5):
+  - **Dylan to confirm:** payroll doesn't see the action log (admins and resourcers do), and
+    resourcers see that a worker's pay record was added or changed (never an amount).
+  - **Dylan to confirm:** the office's override reason when placing someone ("Rang in") is typed
+    text stored in the append-only log (checked for phone numbers and emails only), and the log
+    shows it to admins and resourcers. Keep it, or switch to a fixed list like the change reasons?
+  - Worker list edge: past 2,000 workers the chosen one may not be in the list (the filter still
+    applies; the list shows "Everyone"). The search box fixes it.
+  - Worker and shift filters read `data ->> 'workerId'` / `'shiftId'` over the chosen days: fine
+    at pilot size; add expression indexes (or `worker_id` / `shift_id` columns on events) before
+    a firm with tens of thousands of events a week.
+  - "Stayed logged in (session renewed)" lines are frequent under Logins; hide them unless asked
+    for, if resourcers find them noisy.
+  - A worker search box instead of the long "Worker" list, once firms have hundreds of staff.
+  - Export: the notice and cancellation report (next task) has the CSV; the full log has none.
 - Answering requests follow-ups (Phase 5):
   - **Dylan to confirm:** a note is required to decline and optional to approve.
   - **Dylan to confirm:** approving doesn't change anything else: the office moves the shift,
@@ -844,3 +859,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 1.1 | Office cancels, moves and shortens: a reason from a fixed list is required; each booked worker's notice hours are logged; each is told by a notice job (once only, from what they last knew to what's true now, quiet hours unless the shift is close or under way); a move is refused while anyone booked fails a rule the office can't override; the reviews caught a lost message when changes stacked up and an office "they asked to cancel" that told nobody (fixed; the second parked for Dylan); two e2e root causes fixed (a shared login limit, a button clicked before the page was ready); 1965 tests + 32 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.5 | Mark who worked: on a shift's page, once it has started, the office marks each person as worked or not attended (and can put a mistake right); after the end, "mark the rest as worked" after a "Yes"; every mark logged with what it was before; a new "Who worked?" list on Today shows shifts from the last 7 days with people not marked yet; the review caught a confirmation that vanished on refresh (fixed, and the browser test now proves it stays); 1979 tests + 33 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.5 | Answering requests: a new office Requests page lists what workers asked (oldest first) with the shift and their note; the office approves or declines with a note (needed to decline), one answer only even if two people try at once; the worker gets "Your request (swap, ref …) is declined. The office says: …" by WhatsApp or text (quiet hours respected, once only) and sees the note in My requests; the office sees whether they were told; the review caught a reply about a finished shift that could go at night (fixed and tested); 2005 tests + 34 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 5 | 0.5 | Action log: a new office page shows every recorded event, newest first, in plain words, filtered by worker, shift, type (12 plain groups) and dates in London time (default the last 7 days; all of one shift from its page), 100 at a time; a test fails if any event the code records has no group or words; the review caught a test that would have failed on 19–22 October and two pay-record events the words had missed (both fixed); 2093 tests + 35 e2e; verified and audited DONE (see docs/work-log.md) |

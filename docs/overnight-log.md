@@ -4791,3 +4791,7 @@ Everything short of it is built, verified and committed. No auditor round. Next 
 "Connect Twilio" step 10 (after the parked SMS fallback for login links).
 
 **Hours:** 0.8 h (18:18 to 19:06 UTC). Phase 7 so far 2.6 h of its 15–20 h estimate.
+
+**Commit:** `19bb492` "Phase 7 (BLOCKED, not ticked): Call-to-text: short recorded message, then
+WhatsApp/SMS with the link; optional voicemail transcribed into a request", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.

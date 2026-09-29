@@ -4690,3 +4690,15 @@ Other suggestions:
 | The e2e test would fail on a retry (same number within 24 hours) | A random drama-range number per attempt |
 | screens.md's broken bold; compliance: non-staff numbers and words | Fixed; compliance says where they're kept, who sees them, and that the privacy notice should cover the line |
 | A flood from many numbers | Parked: a per-firm cap and one combined email |
+
+**Verify:** `VERIFIED tree=0f57d531044375ba e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2356 tests, 41 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: set off by a real incoming WhatsApp, replying from the
+firm's line: Twilio). Everything short of it is built, verified and committed. No auditor round.
+Next step is Dylan's: "Connect Twilio" step 9 (which now checks this too).
+
+**Commit:** `0939ff7` "Phase 7 (BLOCKED, not ticked): Unknown number → polite reply + office alert",
+pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.5 h (17:45 to 18:14 UTC). Phase 7 so far 1.8 h of its 15–20 h estimate.

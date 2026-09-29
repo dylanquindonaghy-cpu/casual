@@ -5275,3 +5275,6 @@ Other suggestions:
 **Ticked** in PLAN.md.
 
 **Hours:** 0.8 h (21:40 to 22:28 UTC). Phase 8 so far 1.5 h of its 18–28 h estimate.
+
+**Commit:** `ecbd71e` "Phase 8: Custom domains: firm adds a CNAME; Caddy on-demand TLS with an ask
+endpoint", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.

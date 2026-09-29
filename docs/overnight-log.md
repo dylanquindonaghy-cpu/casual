@@ -2831,3 +2831,16 @@ since-blocked workers, hardening once real Twilio and web push are connected) ar
 tasks.
 
 **Ticked.** 0.6 h. Phase 4: 2.8 h of 27–37 h.
+
+**Commit:** `353638b` "Phase 4: Shift reminders 24 h and 2 h before start (cuts no-shows)". Pushed to `origin/build/overnight` (8f53d8f..353638b). CI: `gh` isn't installed, so it wasn't checked.
+**Parked (PLAN.md):**
+- **Dylan to confirm:** early-start 2h reminders are skipped in quiet hours;
+- **Dylan to confirm:** the "Cancel in the app" wording;
+- blocked or inactive workers still get reminders;
+- no opt-out;
+- lapsed credentials;
+- recording missed reminders;
+- per-reminder failure handling and pushing after commit;
+- an office view of `sending` rows;
+- offer waves onto the claim → send → record pattern;
+- the Twilio-id masking issue (before connecting Twilio).

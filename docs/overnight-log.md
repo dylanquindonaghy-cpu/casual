@@ -5163,3 +5163,6 @@ Other suggestions:
 **Ticked** in PLAN.md.
 
 **Hours:** 0.7 h (20:56 to 21:38 UTC). Phase 8 so far 0.7 h of its 18–28 h estimate.
+
+**Commit:** `a244e6a` "Phase 8: Per-firm logo, colours and name; replies signed "[Firm] Shift Team"",
+pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.

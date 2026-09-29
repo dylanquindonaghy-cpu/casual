@@ -19,6 +19,7 @@ vi.mock("next/navigation", () => ({
 
 const { MyShiftsView } = await import("@/app/my-shifts-view");
 const { OpenShiftsView } = await import("@/app/shifts/open/open-shifts-view");
+const { UrgentView } = await import("@/app/urgent/urgent-view");
 const { TakeShiftResult } = await import("@/app/shifts/open/take-shift-result");
 const { ShiftView } = await import("@/app/shifts/[id]/shift-view");
 const { ReviewResult } = await import("@/app/shifts/[id]/review-form");
@@ -182,6 +183,30 @@ const paragraph = (s: string) => createElement("p", null, s);
 const SCREENS: [string, ReactElement][] = [
   ["My shifts, nothing booked", myShifts({})],
   ["My shifts, past, nothing", myShifts({ view: "past" })],
+  ["My shifts, one urgent shift", myShifts({ urgentCount: 1 })],
+  ["My shifts, several urgent shifts", myShifts({ urgentCount: 3 })],
+  ["Urgent board, none", createElement(UrgentView, { list: openList(), timeZone: TZ, now: NOW })],
+  [
+    "Urgent board, one urgent shift",
+    createElement(UrgentView, {
+      list: openList({
+        shifts: [
+          {
+            shiftId: booked.shiftId,
+            role: "door_supervisor",
+            startsAt: booked.startsAt,
+            endsAt: booked.endsAt,
+            placesLeft: 1,
+            opensAt: null,
+            isUrgent: true,
+            site: { id: "33333333-3333-4333-8333-333333333333", ...site },
+          },
+        ],
+      }),
+      timeZone: TZ,
+      now: NOW,
+    }),
+  ],
   [
     "My shifts, a booking and licence notices",
     myShifts({

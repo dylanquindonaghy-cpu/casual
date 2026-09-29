@@ -2786,3 +2786,77 @@ Full list: `docs/overnight-log.md`, this task's entry.
 
 There's no screen for it yet. The tests show it: `npx vitest run tests/integration/urgent.test.ts`
 should say `12 passed`.
+
+## 2026-09-29: Phase 4, task 2: The urgent board (0.2 h)
+
+### Time
+
+0.2 hours of Claude's working time (03:35 to 03:46 UTC), in the unattended overnight loop.
+Phase 4 so far: 0.6 of its 27 to 37 hour estimate.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=ff128133b12ecea4 e2e=true` on the first run. That
+  covers the type checks, lint, all 1576 tests (up from 1565), the 23 browser tests (up from 21)
+  and the rule checks. A production build was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **The urgent board** at `/urgent`: the shifts marked urgent (last task) that this worker could
+  take right now, soonest first, each labelled "Urgent" with a big "Take shift" button. If there
+  are none: "No urgent gaps right now." with "See all open shifts".
+- **My shifts** now says "1 urgent shift needs someone" (or "3 urgent shifts need someone") with
+  "See urgent shifts". It only shows when the worker could actually take one.
+- **Open shifts** labels urgent cards "Urgent" too.
+
+"Only shifts they're eligible for" is guaranteed by using exactly the same loader as Open shifts,
+with an "urgent only" filter added. So the same checks decide both boards:
+
+- licences in date;
+- the right role;
+- no clashing bookings;
+- enough rest;
+- the weekly hours cap;
+- days they marked unavailable;
+- a place left.
+
+Nothing can appear on the urgent board and then be refused. The shift card is now one shared
+piece used by both boards.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The urgent board is Open shifts' loader with an urgent filter | One set of checks; the two boards can't disagree | A separate query |
+| The banner counts urgent shifts the worker could take, including ones briefly held under fair rotation | They can take them within minutes; the card says when | Count only ones takeable this second |
+| A clear "Urgent" label on each card, not a red board | Plain and readable; colour alone isn't enough for everyone | Red cards |
+
+### What the new tests prove
+
+- `tests/integration/open-shifts.test.ts` (1 new test, real database): the urgent filter lists
+  only urgent, open shifts this worker could take, soonest first. It leaves out:
+  - a full shift;
+  - another role;
+  - a started shift;
+  - another firm's shift;
+  - a worker without the licence.
+- `tests/unit/portal.urgent.test.ts` (7 tests): the board with and without shifts, a held shift,
+  the "Urgent" label on Open shifts, and the My shifts banner.
+- The plain-language test covers the new screens.
+- `tests/e2e/urgent.worker.spec.ts` (2 browser tests, demo seed):
+  - a free door supervisor sees "1 urgent shift needs someone", opens the board and takes the
+    urgent dropout;
+  - a steward sees "No urgent gaps right now."
+
+### Parked, open, and things that need Dylan
+
+- Nothing new parked. Nothing needs Dylan.
+
+### How to see it working
+
+1. `npm run db:reset`, then `npm run dev`.
+2. Log in at `http://acme.localhost:3000/login` as `07700 900138` (a door supervisor with a valid
+   licence). My shifts says "1 urgent shift needs someone".
+3. Tap "See urgent shifts": the early arena shift, labelled "Urgent", with "Take shift".

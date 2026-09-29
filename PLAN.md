@@ -156,7 +156,7 @@ Docs: `docs/screens.md`.
 ## Phase 4 — Urgent board, notifications, offer waves (27–37 h)
 
 - [x] Urgent flag on shifts (manual or automatic when a dropout lands inside X hours)
-- [ ] Urgent board page for workers (only shifts they're eligible for)
+- [x] Urgent board page for workers (only shifts they're eligible for)
 - [ ] Offer waves (pg-boss): best 3–5 eligible, wait 15 min, next wave; stop when filled;
       escalate to resourcer at start minus X hours (all firm-configurable)
 - [ ] Web push (VAPID); iPhone push only works when the portal is added to the home screen, so
@@ -575,3 +575,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 3 | 0.5 | Demo seed: Acme's Saturday event day (40 shifts over three sites, 32 booked by workers the rules allow, 8 open), the urgent 6am dropout, two open requests, 8 weeks of pay for every Acme worker, and matching log entries; re-runs add nothing and never undo a demo; the seed prints the urgent shift's link; a demo logins table in docs/testing.md; 1545 tests + 20 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.1 | Phase 3 Playwright flow: on a phone-sized screen, a seeded worker logs in, takes a Saturday shift, cancels it, asks for a change and sees pay with a code, with log in, take and cancel each timed under 30 seconds (2.1 s, 1.1 s and 0.5 s); the staff part of the demo script written out in docs/testing.md; 1545 tests + 21 e2e; verified and audited DONE. Phase 3 complete: 4.5 h of the 35–45 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | Urgent flag: a cancellation that reopens a place within the firm's urgent window (default 24 h) marks the shift urgent and logs it (worker, office and sheet removals; not a whole shift cancelled or a name swapped), and the office can mark or clear it by hand (admins and resourcers); the review caught a false "dropout" on sheet swaps (fixed and tested); 1565 tests + 21 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.2 | Urgent board: `/urgent` lists the urgent shifts a worker could take (the same checks as Open shifts), with big "Take shift" buttons; My shifts says "1 urgent shift needs someone"; Open shifts labels urgent cards; 1576 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |

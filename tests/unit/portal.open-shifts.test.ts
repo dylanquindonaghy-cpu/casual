@@ -65,6 +65,7 @@ describe("Open shifts page body", () => {
             endsAt: at("2026-11-07T22:00:00Z"),
             placesLeft: 1,
             opensAt: null,
+            isUrgent: false,
             site: arena,
           },
           {
@@ -74,6 +75,7 @@ describe("Open shifts page body", () => {
             endsAt: at("2026-11-08T17:00:00Z"),
             placesLeft: 3,
             opensAt: null,
+            isUrgent: false,
             site: null,
           },
         ],
@@ -111,6 +113,7 @@ describe("Open shifts page body", () => {
             endsAt: at("2026-11-07T22:00:00Z"),
             placesLeft: 1,
             opensAt: at("2026-11-07T09:15:00Z"),
+            isUrgent: false,
             site: null,
           },
         ],

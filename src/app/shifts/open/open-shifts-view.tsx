@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { roleLabel, shiftWhen, siteAddress, soonLabel } from "@/lib/portal/format";
+import { roleLabel } from "@/lib/portal/format";
 import type { OpenShiftFilters, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { dayLabel } from "@/lib/rules/reasons";
-import { TakeShiftButton } from "./take-shift-button";
+import { OpenShiftCard } from "./open-shift-card";
 
 // Open shifts (docs/screens.md, `/shifts/open`): only shifts this worker can take. Filters by day,
 // site and role (a plain form: it works without JavaScript); each card shows the time, role, site
@@ -88,40 +88,15 @@ export function OpenShiftsView({
         )
       ) : (
         <ul className="mt-6 space-y-4">
-          {list.shifts.map((s) => {
-            const address = s.site ? siteAddress(s.site) : null;
-            return (
-              <li key={s.shiftId} className="rounded-2xl border-2 border-slate-300 p-4">
-                <p className="text-xl font-bold">{shiftWhen(s.startsAt, s.endsAt, timeZone)}</p>
-                <p className="mt-1">{roleLabel(s.role)}</p>
-                {s.site && (
-                  <p className="mt-1">
-                    <span className="font-semibold">{s.site.name}</span>
-                    {address && <span className="block text-base text-slate-700">{address}</span>}
-                  </p>
-                )}
-                <p className="mt-1 text-base text-slate-600">
-                  {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
-                </p>
-                {s.opensAt ? (
-                  <div className="mt-3 rounded-xl bg-slate-100 p-3">
-                    <p>
-                      Offered first to people with fewer hours that week. You can take it from{" "}
-                      {soonLabel(s.opensAt, now, timeZone)}.
-                    </p>
-                    <Link
-                      href="/shifts/open"
-                      className="mt-1 inline-block py-2 font-semibold underline"
-                    >
-                      Check again
-                    </Link>
-                  </div>
-                ) : (
-                  <TakeShiftButton shiftId={s.shiftId} />
-                )}
-              </li>
-            );
-          })}
+          {list.shifts.map((s) => (
+            <OpenShiftCard
+              key={s.shiftId}
+              shift={s}
+              timeZone={timeZone}
+              now={now}
+              checkAgainHref="/shifts/open"
+            />
+          ))}
         </ul>
       )}
       {list.truncated && (

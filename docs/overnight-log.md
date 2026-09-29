@@ -2197,3 +2197,48 @@ To reach DONE: nothing — this task's claims are all PROVEN.
 **Ticked** in PLAN.md. **Hours:** 0.4 (03:11 to 03:33 UTC). Phase 4 so far: 0.4 h of its 27–37 h
 estimate.
 **Commit:** `60a3ece`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 03:35 UTC: Phase 4, "Urgent board page for workers (only shifts they're eligible for)"
+
+**Plan.**
+- **`/urgent`** (docs/screens.md, "Urgent board"): the shifts marked urgent (the last task) that
+  this worker could take now, soonest first, with big "Take shift" buttons. It reuses Open
+  shifts' loader (`openShiftsFor()` with a new `urgent` filter), so it's the same checks:
+  - the rules on the current rows (licences, overlap, rest, weekly hours, unavailable days);
+  - a place left, not already theirs, the next 28 days;
+  - fair rotation's hold (a shift inside the urgent window is never held).
+  Empty: "No urgent gaps right now." with "See all open shifts".
+- **My shifts** shows "1 urgent shift needs someone" / "{n} urgent shifts need someone" with "See
+  urgent shifts", only when the worker could take one.
+- **Open shifts** marks an urgent shift's card "Urgent".
+- The card becomes one shared component for both boards.
+
+Tests:
+- the loader's urgent filter on the real database: only urgent, open, eligible, not started,
+  this firm, soonest first;
+- the pages rendered;
+- e2e on the demo seed: a free door supervisor sees the urgent dropout on My shifts and the
+  board, and takes it; a steward sees "No urgent gaps right now."
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| The urgent board is Open shifts' loader with an urgent filter | One set of checks for both boards; nothing can show on one and be refused on the other | A separate query (two places to keep in step) |
+| The home banner counts urgent shifts the worker could take, including ones briefly held under fair rotation | They'll be able to take them within minutes; the card says when | Count only ones they can take this second |
+| No separate "urgent" colour for the whole board; a clear "Urgent" label on each card | Plain and readable; colour alone isn't enough for everyone | Red cards |
+
+**Built:**
+- the `urgent` filter and `isUrgent` on `openShiftsFor()`;
+- `src/app/shifts/open/open-shift-card.tsx`, the shared card with the "Urgent" label (Open
+  shifts now uses it);
+- `src/app/urgent/` (page and view);
+- the My shifts banner;
+- docs: screens and the demo logins table.
+
+**Checks:** everything passed first time (1 new integration test, 7 unit tests, 4 new
+plain-language screen states, 2 e2e).
+
+**Guardrails review: not run.** No schema, auth, tenancy, messaging, jobs or rules changed. The
+board reads through the existing Open shifts loader inside `withFirm`, and taking a shift is the
+existing `takeShift` path.

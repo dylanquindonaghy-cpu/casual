@@ -132,6 +132,41 @@ describe("openShiftsFor", () => {
   });
 });
 
+describe("openShiftsFor: the urgent board (urgent: true)", () => {
+  it("lists only urgent shifts this worker could take, soonest first", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const other = await bookingFirm(su, withFirm);
+    const sam = await f.worker({ roles: ["door_supervisor"] });
+    const jo = await f.worker({ first: "Jo" });
+    const urgent = (id: string) =>
+      su.query("update shifts set is_urgent = true where id = $1", [id]);
+
+    const later = await f.shift({ startsAt: hoursFromNow(20) });
+    const sooner = await f.shift({ startsAt: hoursFromNow(6) });
+    await Promise.all([urgent(later), urgent(sooner)]);
+    // Not listed, each for its own reason:
+    await f.shift({ startsAt: hoursFromNow(8) }); // not urgent
+    const full = await f.shift({ startsAt: hoursFromNow(9), status: "filled" });
+    await f.booking(jo, full);
+    const steward = await f.shift({ role: "steward", startsAt: hoursFromNow(10) }); // not Sam's role
+    const started = await f.shift({ startsAt: hoursFromNow(-1) });
+    const theirs = await other.shift({ startsAt: hoursFromNow(7) });
+    for (const id of [full, steward, started]) await urgent(id);
+    await su.query("update shifts set is_urgent = true where id = $1", [theirs]);
+
+    const list = await openShiftsFor(ctxFor(f), sam, { urgent: true });
+    expect(list.shifts.map((s) => s.shiftId)).toEqual([sooner, later]);
+    expect(list.shifts.every((s) => s.isUrgent)).toBe(true);
+    // The rules still decide: without a licence, nothing is listed.
+    const noLicence = await f.worker({ first: "Nia", roles: ["door_supervisor"], credentials: [] });
+    expect((await openShiftsFor(ctxFor(f), noLicence, { urgent: true })).shifts).toEqual([]);
+    // And Open shifts marks them.
+    const all = await openShiftsFor(ctxFor(f), sam);
+    expect(all.shifts.filter((s) => s.isUrgent).map((s) => s.shiftId)).toEqual([sooner, later]);
+    expect(all.shifts.length).toBeGreaterThan(2);
+  });
+});
+
 describe("openShiftsFor: long lists", () => {
   it("checks the first 50, says there were more, and a filter reaches the later ones", async () => {
     const f = await bookingFirm(su, withFirm);

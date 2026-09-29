@@ -12,7 +12,8 @@ import type { MyShift, PortalContext } from "./my-shifts";
 // with a place left and not already theirs, each kept only if the rules say yes on the current
 // rows (previewBooking: no locks, no pass; taking one re-checks everything in bookShift).
 //
-// Filters (a day, a site, a role) go into the query, so they reach shifts beyond the first ones.
+// Filters (a day, a site, a role, urgent only) go into the query, so they reach shifts beyond the
+// first ones. The urgent board (`/urgent`) is this list with `urgent`: the same checks exactly.
 // At most MAX_CANDIDATES matching shifts are checked by the rules, soonest first; `truncated` says
 // there were more, so the page can suggest the filters. The filter choices come from every open
 // shift in the worker's roles in the window (without the rules: a choice can still show nothing).
@@ -29,12 +30,14 @@ export interface OpenShift {
   site: (NonNullable<MyShift["site"]> & { id: string }) | null;
   // Fair rotation: held for workers with fewer hours this week until then (null: takeable now).
   opensAt: Date | null;
+  isUrgent: boolean; // marked urgent (src/lib/roster/urgent.ts)
 }
 
 export interface OpenShiftFilters {
   day?: string; // yyyy-mm-dd, the firm's local date
   siteId?: string;
   role?: string;
+  urgent?: boolean; // only shifts marked urgent (the urgent board, `/urgent`)
 }
 
 export interface OpenShiftsList {
@@ -120,6 +123,7 @@ export async function openShiftsFor(
     }
     if (filters.siteId) narrowed.push(eq(shifts.siteId, filters.siteId));
     if (filters.role) narrowed.push(eq(shifts.role, filters.role));
+    if (filters.urgent) narrowed.push(eq(shifts.isUrgent, true));
 
     const held = sql<number>`(select count(*)::int from assignments a
       where a.firm_id = ${shifts.firmId} and a.shift_id = ${shifts.id}
@@ -132,6 +136,7 @@ export async function openShiftsFor(
         startsAt: shifts.startsAt,
         endsAt: shifts.endsAt,
         headcount: shifts.headcount,
+        isUrgent: shifts.isUrgent,
         held,
         siteId: sites.id,
         siteName: sites.name,
@@ -162,6 +167,7 @@ export async function openShiftsFor(
         endsAt: c.endsAt,
         placesLeft: c.headcount - c.held,
         opensAt: gate.ok ? null : gate.opensAt,
+        isUrgent: c.isUrgent,
         site:
           c.siteId && c.siteName
             ? {

@@ -31,6 +31,7 @@ export interface MyShiftsViewProps {
   view: ShiftsView;
   shifts: MyShift[];
   notices: CredentialNotice[];
+  urgentCount?: number; // urgent shifts this worker could take (the urgent board)
 }
 
 export function MyShiftsView(props: MyShiftsViewProps) {
@@ -54,6 +55,24 @@ export function MyShiftsView(props: MyShiftsViewProps) {
         <p>These are your shifts from {updated}. They may have changed.</p>
         <p>Taking or cancelling a shift needs signal.</p>
       </div>
+      {!!props.urgentCount && (
+        <section
+          aria-labelledby="urgent-heading"
+          className="mt-4 rounded-xl border-2 border-red-700 bg-red-50 p-4"
+        >
+          <h2 id="urgent-heading" className="font-semibold text-red-900">
+            {props.urgentCount === 1
+              ? "1 urgent shift needs someone"
+              : `${props.urgentCount} urgent shifts need someone`}
+          </h2>
+          <Link
+            href="/urgent"
+            className="mt-3 block w-full rounded-xl bg-red-700 px-4 py-3 text-center text-lg font-semibold text-white"
+          >
+            See urgent shifts
+          </Link>
+        </section>
+      )}
       <Notices {...props} />
       <nav aria-label="Which shifts" className="mt-6 grid grid-cols-2 gap-2">
         <Toggle href="/" current={view === "upcoming"}>

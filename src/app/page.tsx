@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
 import { credentialNotices, myShifts } from "@/lib/portal/my-shifts";
+import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { parseHost } from "@/lib/tenancy/host";
 import { HomeScreenHint } from "./home-screen-hint";
 import { LogoutButton } from "./logout-button";
@@ -19,9 +20,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     const { firm, worker, session } = await requireWorker();
     const view = (await searchParams).view === "past" ? "past" : "upcoming";
     const now = new Date();
-    const [shifts, notices] = await Promise.all([
+    const [shifts, notices, urgent] = await Promise.all([
       myShifts({ firm }, worker.id, view),
       credentialNotices({ firm }, worker.id),
+      openShiftsFor({ firm, clock: { now: () => now } }, worker.id, { urgent: true }),
     ]);
     return (
       <main className="mx-auto max-w-md p-6">
@@ -35,6 +37,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           view={view}
           shifts={shifts}
           notices={notices}
+          urgentCount={urgent.shifts.length}
         />
         <HomeScreenHint />
         <Link

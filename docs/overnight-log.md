@@ -1584,3 +1584,31 @@ profile e2e test's `getByRole("status")` found two elements. Root cause: the day
 confirmation stays on the page after "Remove", so when the settings are saved there are two
 status areas. The test now looks inside each section ("Days you can't work", "How we reach
 you"); the expected text is unchanged.
+
+**Verify round 2:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=b1f8e8b8d519a514 e2e=true` (1412 tests, 12 e2e).
+`npm run build` run by hand: succeeds. Dev database migrated to 0010.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Verification gate: `.claude/state/verified.json` = `{"ok":true,"tree":"b1f8e8b8d519a514","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` = `b1f8e8b8d519a514` — matches. Gate passes.
+
+Claims:
+- Credentials and expiry shown, read-only — PROVEN. `src/lib/portal/profile.ts:72-141` (`myProfile`) reads credentials joined with `credentialTypes`, computes `expired`, filters out a replaced/renewed expired credential. UI in `src/app/profile/profile-view.tsx:44-80` renders status/expiry/red states, no edit action exists (only "To change these, ask the office."). Tests: `tests/integration/profile.test.ts:45-150` (multi-credential cases, cross-firm isolation `never shows a worker from another firm`), `tests/unit/portal.profile.test.ts:59-122` (status colours, copy). All green in `.claude/state/test.log:481-483, 1187-1189`.
+- Mark dates unavailable — PROVEN. `setUnavailable` in `src/lib/portal/profile.ts:144-204` enforces today..180 days ahead, max 60, locks the worker row, logs `worker.unavailable_added/_removed` events; UI in `src/app/profile/availability-form.tsx`. Wired into the rules engine's check 8: `src/lib/roster/eligibility-input.ts` diff now populates `unavailableDates` (previously hardcoded `[]`), proven end-to-end by `tests/integration/profile.test.ts:275-325` (`the rules use the marked days (check 8)`, including an office override) and `tests/integration/eligibility-input.test.ts` (`reads the worker's marked days from the day before the shift to the day after`, line 518 in test.log). Schema/RLS/grants/fixtures all present: `drizzle/0010_profile.sql`, `src/lib/db/schema/people.ts:146-166` (`.enableRLS()`), `src/lib/db/admin/access.ts:44-45` (`TABLE_ACCESS` entry), `tests/helpers/tenant-rows.ts:27,179-219,303-304,383-384` (isolation fixtures). Cross-tenant tests pass (`can't touch another firm's worker`, test.log:489).
+- Notification settings (channel + offer alerts) — PROVEN. `setNotificationSettings` in `src/lib/portal/profile.ts:206-238`, UI `src/app/profile/notification-form.tsx`, schema columns `notify_channel`/`offer_alerts` with a DB check constraint (`workers_notify_channel_check`). Tests: `tests/integration/profile.test.ts:327-373` (saves, no-op not re-logged, cross-firm refusal, DB constraint refusal), `tests/unit/portal.profile.test.ts:149-176`.
+- Works on a phone, end to end — PROVEN. `tests/e2e/profile.worker.spec.ts` run on `mobile-chrome`, both tests passed: `.claude/state/e2e.log:14-15` (`a worker checks their licences, marks a day off and changes how we reach them`, `the profile without logging in goes to the login page`).
+
+Fakes found: none. No `.only`/`.skip`, no TODOs or "not implemented" in the profile code paths. `.claude/state/invariants.log` confirms "1412 tests: 1412 passed, 0 failed, 0 skipped, 0 todo". typecheck.log and lint.log are clean.
+
+Note: PLAN.md line 140 for this task is still unchecked (`[ ]`) — per project rules only `/close-task` ticks it, so that is expected and not a defect.
+
+To reach DONE: nothing — evidence supports DONE for this task's claims. (Remaining Phase 3 bullets like the blocked-shift screen and service-worker caching are separate, untouched tasks, not part of this one.)
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.5 (00:31 to 01:02 UTC). Phase 3 so far: 2.7 h of its 35–45 h
+estimate.
+**Commit:** `75429d2`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

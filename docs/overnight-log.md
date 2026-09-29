@@ -3028,3 +3028,6 @@ To reach DONE: nothing — this specific bullet's criteria (waves.timing, notify
 
 **Ticked.** 0.3 h. **Phase 4 is done, except 3 blocked tasks** (web push, WhatsApp/Twilio/SMS
 fallback, the Meta submission): 3.5 h of the 27–37 h estimate, well under. Next: Phase 5.
+
+**Commit:** `e1d6246` "Phase 4: Tests: waves.timing, notify.policy, stop-on-fill, no notifications to ineligible workers". Pushed to `origin/build/overnight` (066fa8d..e1d6246). CI: `gh` isn't installed, so it wasn't checked.
+**Parked (PLAN.md):** **Dylan to confirm** push alongside WhatsApp (not instead).

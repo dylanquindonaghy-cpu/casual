@@ -5,6 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import type { AvailabilityOutcome } from "@/lib/portal/profile-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 import { setUnavailableAction } from "./actions";
+import { tryAgainText } from "@/lib/portal/copy";
 
 // Days I can't work: pick a day → "Mark as unavailable"; each marked day has "Remove". The list
 // reloads after each change; the answer shows above it.
@@ -132,6 +133,6 @@ export function say(result: Exclude<AvailabilityOutcome, { status: "logged_out" 
     case "invalid":
       return { text: "Choose a day.", alert: true };
     case "error":
-      return { text: "Something went wrong. Try again.", alert: true };
+      return { text: tryAgainText(), alert: true };
   }
 }

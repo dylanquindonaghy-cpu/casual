@@ -2441,3 +2441,83 @@ browser test switches it on and shows it working:
 1. Stop `npm run dev` if it's running (Ctrl+C in its terminal).
 2. In the project folder, type: `npm run e2e -- tests/e2e/offline.worker.spec.ts`
 3. You should see `5 passed` at the end.
+
+## 2026-09-29: Phase 3, task 10: Empty and error states in plain language (0.2 h)
+
+### Time
+
+0.2 hours of Claude's working time (02:13 to 02:26 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=288f758da390f1fc e2e=true` on the first run. That
+  covers the type checks, lint, all 1531 tests (up from 1453), the 20 browser tests (up from 19)
+  and the rule checks. A production build was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Most screens already had their "nothing here" and "that didn't work" messages from their own
+tasks. This task filled the gaps and added a check that keeps every screen plain.
+
+- **A link that goes nowhere** (an old or mistyped address, or a firm that doesn't exist). The
+  framework's default said "404 | This page could not be found." Now it says "We can't find that
+  page. The link may be old or mistyped." with a "Go to my shifts" button.
+- **When a page breaks**, it says "Something went wrong. It's not you. Try again in a moment. If
+  it keeps happening, contact the office." It has "Try again" and "Go to my shifts". If the phone
+  has no network at all, it says "No signal. Check your signal and try again." instead. There's
+  also a plain version for the rare case where even the page's frame breaks.
+- **When a tap fails** (taking, cancelling, a request, a review, the profile, a pay code, login),
+  it says "Something went wrong. Try again." or, with no network at all, "No signal. Try again
+  when you have signal."
+- **Open shifts with nothing open** says "We'll message you when something matches." only to
+  workers who asked for open-shift messages (the profile setting). Everyone else sees "Nothing
+  open right now. Check back later."
+
+**The lasting check** is `tests/unit/copy.plain-language.test.ts`. It draws every staff screen in
+every empty, error and answer state: 71 of them, plus the service worker's "No signal" page. It
+fails if the text has any of these:
+
+- jargon a worker shouldn't need ("error", "invalid", "session", "token", "credential",
+  "eligible"...);
+- a raw code (like `door_supervisor` instead of "Door supervisor");
+- "undefined" or "null" leaking into the text;
+- a sentence over 25 words.
+
+Every existing screen passed first time. I checked that the test fails if "404 error" is put back
+into the not-found page.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Use the browser's "online" flag only to choose the wording | Reliable when there's no network; with weak signal the general words are still true | Guessing from the kind of failure |
+| Office screens wait for Phase 5 | This task is the staff portal's | Do both now |
+| The plain-words rules are a test, not a note | Copy is product (golden rule 11); new screens stay plain | A checklist in the docs |
+
+### What the new tests prove
+
+- `tests/unit/copy.plain-language.test.ts` (5 tests; 71 screen states in one of them): every
+  staff screen and state is plain. It also shows that the check catches what it should, and that
+  "no signal" wording appears only with no network.
+- `tests/e2e/home.spec.ts` (1 new browser test): a mistyped page and a firm address that doesn't
+  exist both show the plain page (never "404"), with "Go to my shifts".
+- `tests/integration/open-shifts.test.ts` and `tests/unit/portal.open-shifts.test.ts` (1 new each):
+  the open-shift messages setting is read, and the empty page only promises a message when it's
+  on.
+
+### Parked, open, and things that need Dylan
+
+- Parked in `PLAN.md`:
+  - Phase 4 must make "We'll message you when something matches" true;
+  - office screens' own states (Phase 5), added to the same test;
+  - a "your login has run out" message on the login page.
+- Nothing needs Dylan for this task.
+
+### How to see it working
+
+1. `npm run dev`, then open `http://acme.localhost:3000/no-such-page`. You should see "We can't
+   find that page." with a "Go to my shifts" button.
+2. Log in, turn off "Tell me about open shifts" in My profile, then open "See open shifts". With
+   nothing open it says "Nothing open right now. Check back later."

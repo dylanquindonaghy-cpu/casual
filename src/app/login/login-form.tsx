@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { TooManyTries } from "../too-many-tries";
 import { requestLoginLinkAction, type LoginFormState } from "./actions";
+import { tryAgainText } from "@/lib/portal/copy";
 
 export function LoginForm({ firmName, signOff }: { firmName: string; signOff: string }) {
   const [state, action, pending] = useActionState<LoginFormState, FormData>(
@@ -46,7 +47,7 @@ export function LoginForm({ firmName, signOff }: { firmName: string; signOff: st
       {state.status === "rate_limited" && <TooManyTries minutes={state.retryAfterMinutes} />}
       {state.status === "error" && (
         <p role="alert" className="mt-2 text-red-700">
-          Something went wrong. Try again.
+          {tryAgainText()}
         </p>
       )}
       {state.status === "invalid_number" && (

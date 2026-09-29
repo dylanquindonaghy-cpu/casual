@@ -1836,3 +1836,50 @@ To reach DONE: nothing further needed for the automated claims; if you want to t
 **Ticked** in PLAN.md (the verdict is DONE; its note is the real-iPhone check, already parked for
 Dylan). **Hours:** 0.6 (01:34 to 02:10 UTC). Phase 3 so far: 3.7 h of its 35–45 h estimate.
 **Commit:** `2b89dc3`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 02:13 UTC: Phase 3, "Empty and error states written in plain language (see docs/screens.md)"
+
+**Plan.** Most staff screens already have their empty and error states from their own tasks (the
+screens table lists them). What's missing or not plain yet:
+- **Page not found** (`src/app/not-found.tsx`): Next's default says "404 | This page could not
+  be found.". Shown for an unknown firm address or a mistyped link. New: "We can't find that
+  page." / "The link may be old or mistyped." / "Go to my shifts".
+- **A crash in the page's frame** (`src/app/global-error.tsx`): Next's default is a technical
+  message. New: the same plain words as the error page.
+- **The error page** (`src/app/error.tsx`): with no signal, say so ("No signal" / "Check your
+  signal and try again."), not "Something went wrong". Also "If it keeps happening, contact the
+  office." and "Go to my shifts".
+- **Every "Something went wrong. Try again."** after tapping a button: with no signal it says "No
+  signal. Try again when you have signal." instead. One shared helper, `tryAgainText()`.
+- **Open shifts with nothing open:** "We'll message you when something matches." is only said to
+  workers who have open-shift messages on (the profile setting). Otherwise: "Nothing open right
+  now. Check back later."
+- **A plain-language check that stays:** `tests/unit/copy.plain-language.test.ts` renders every
+  staff screen in every empty, error and answer state. It fails on:
+  - jargon ("error", "invalid", "session", "token", "tenant", "roster", "credential",
+    "eligible"...);
+  - raw codes ("door_supervisor", "credential_missing");
+  - "undefined", "null" or "NaN" in the text;
+  - sentences over 25 words.
+- Docs: a "General states" section in docs/screens.md.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Detect "no signal" with the browser's online flag, only for the wording | It's reliable when there's no network at all; with weak signal it says the general message, which is still true | Guess from the kind of failure (unreliable across browsers) |
+| Office screens left for Phase 5 (their own task) | This task is the staff portal's (docs/screens.md staff table) | Do both now |
+| The words list and 25-word limit are a test, not a style note | Copy is product (golden rule 11); a test keeps later screens plain too | A checklist in the docs |
+
+**Built:** `not-found.tsx`, `global-error.tsx`, `error.tsx` (+ `error-body.tsx`, `use-online.ts`),
+`tryAgainText()` in every staff "Something went wrong. Try again.", Open shifts' empty text by
+the offer-alerts setting (`openShiftsFor` now returns `offerAlerts`), the plain-language test (71
+screen states plus the service worker's page), a 404 e2e test, docs/screens.md "General states".
+
+**Checks:** the plain-language test passed first time on every existing screen. With "404 error:
+page not found" put into the not-found page, it fails (jargon: error, 404); restored. `npm run
+build` run by hand: succeeds.
+
+**Guardrails review: not run.** Nothing in schema, auth logic, tenancy, messaging, jobs or rules
+changed. The login pages only swap one error sentence for `tryAgainText()`, and Open shifts reads
+one more column of the worker's own row inside the same `withFirm` transaction.

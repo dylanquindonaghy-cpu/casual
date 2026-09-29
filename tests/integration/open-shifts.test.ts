@@ -72,6 +72,21 @@ describe("openShiftsFor", () => {
     expect(list.shifts.map((s) => s.shiftId)).not.toContain(clash);
   });
 
+  it("says whether the worker wants open shift messages (their profile setting)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    expect((await openShiftsFor(ctxFor(f), sam)).offerAlerts).toBe(true);
+    await su.query("update workers set offer_alerts = false where id = $1", [sam]);
+    expect((await openShiftsFor(ctxFor(f), sam)).offerAlerts).toBe(false);
+    // A worker with no roles gets the same answer.
+    const noRoles = await f.worker({ first: "Nora", roles: [] });
+    await su.query("update workers set offer_alerts = false where id = $1", [noRoles]);
+    expect(await openShiftsFor(ctxFor(f), noRoles)).toMatchObject({
+      shifts: [],
+      offerAlerts: false,
+    });
+  });
+
   it("leaves out a shift the rules refuse, e.g. for a licence out of date by then", async () => {
     const f = await bookingFirm(su, withFirm);
     const expiring = await f.worker({

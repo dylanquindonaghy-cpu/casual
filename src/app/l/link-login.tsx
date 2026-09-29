@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import { clearOfflineCopy } from "@/lib/portal/offline";
 import { TooManyTries } from "../too-many-tries";
 import { consumeLoginLinkAction } from "./actions";
+import { tryAgainText } from "@/lib/portal/copy";
 
 // The login link is /l#<token>. The token stays in the fragment, which browsers never send to
 // the server; this reads it, clears it from the address bar and history, and sends it only
@@ -68,7 +69,7 @@ export function LinkLogin({
       {waitMinutes !== null && <TooManyTries minutes={waitMinutes} />}
       {failed && (
         <p role="alert" className="mt-4 text-red-700">
-          Something went wrong. Try again.
+          {tryAgainText()}
         </p>
       )}
       <button

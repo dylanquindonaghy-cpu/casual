@@ -81,7 +81,9 @@ export function OpenShiftsView({
           </div>
         ) : (
           <p className="mt-6">
-            Nothing open right now. We&apos;ll message you when something matches.
+            {list.offerAlerts
+              ? "Nothing open right now. We'll message you when something matches."
+              : "Nothing open right now. Check back later."}
           </p>
         )
       ) : (

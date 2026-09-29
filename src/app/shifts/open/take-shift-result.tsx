@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
+import { tryAgainText } from "@/lib/portal/copy";
 
 // What the worker sees after tapping "Take shift" (docs/screens.md copy rules: plain words, and a
 // confirmation they can screenshot: what, when, a reference, signed by the firm).
@@ -92,7 +93,7 @@ export function TakeShiftResult({
     case "error":
       return (
         <p role="alert" className="font-semibold text-red-700">
-          Something went wrong. Try again.
+          {tryAgainText()}
         </p>
       );
   }

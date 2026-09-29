@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CHANNEL_LABELS, CHANNELS, type Channel } from "@/lib/portal/profile-kinds";
 import { saveNotificationSettingsAction } from "./actions";
+import { tryAgainText } from "@/lib/portal/copy";
 
 // How we reach you: WhatsApp or text message, and whether to hear about open shifts.
 export function NotificationForm({
@@ -30,7 +31,7 @@ export function NotificationForm({
       setMessage(
         result.status === "saved"
           ? { text: savedText(channel, offerAlerts), alert: false }
-          : { text: "Something went wrong. Try again.", alert: true },
+          : { text: tryAgainText(), alert: true },
       );
     });
 

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { TooManyTries } from "../too-many-tries";
 import { requestCodeAction, verifyCodeAction } from "./actions";
+import { tryAgainText } from "@/lib/portal/copy";
 
 type Notice =
   | { kind: "none" }
@@ -59,7 +60,7 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
       {notice.kind === "wait" && <TooManyTries minutes={notice.minutes} />}
       {notice.kind === "error" && (
         <p role="alert" className="mt-2 text-red-700">
-          Something went wrong. Try again.
+          {tryAgainText()}
         </p>
       )}
     </>

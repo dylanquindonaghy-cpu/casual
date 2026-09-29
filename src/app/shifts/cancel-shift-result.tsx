@@ -1,4 +1,5 @@
 import { noticeText, type CancelShiftOutcome } from "@/lib/portal/cancel-reasons";
+import { tryAgainText } from "@/lib/portal/copy";
 
 // What the worker sees after confirming a cancellation: an instant confirmation they can
 // screenshot (what, when, the notice recorded, a reference, signed by the firm), or a plain answer.
@@ -41,7 +42,7 @@ export function CancelShiftResult({
     case "error":
       return (
         <p role="alert" className="font-semibold text-red-700">
-          Something went wrong. Try again.
+          {tryAgainText()}
         </p>
       );
   }

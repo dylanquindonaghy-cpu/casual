@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { KIND_NAMES, type CreateRequestOutcome } from "@/lib/portal/request-kinds";
+import { tryAgainText } from "@/lib/portal/copy";
 
 // What the worker sees after "Send request": a confirmation with a reference, or a plain answer.
 export function RequestResult({
@@ -57,7 +58,7 @@ export function RequestResult({
     case "error":
       return (
         <p role="alert" className="font-semibold text-red-700">
-          Something went wrong. Try again.
+          {tryAgainText()}
         </p>
       );
   }

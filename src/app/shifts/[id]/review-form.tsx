@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { MAX_REQUEST_NOTE, type ReviewOutcome } from "@/lib/portal/request-kinds";
 import { askForReviewAction } from "./actions";
+import { tryAgainText } from "@/lib/portal/copy";
 
 type Shown = Exclude<ReviewOutcome, { status: "logged_out" }>;
 
@@ -69,7 +70,7 @@ export function ReviewForm({ shiftId }: { shiftId: string }) {
         <p role="alert" className="mt-3 font-semibold text-red-700">
           {outcome.status === "invalid"
             ? `Keep your note to ${MAX_REQUEST_NOTE} characters or fewer.`
-            : "Something went wrong. Try again."}
+            : tryAgainText()}
         </p>
       )}
     </div>

@@ -140,7 +140,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
 - [x] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
 - [x] "My shifts" cached by a service worker (opens with poor signal); "Add to home screen" prompt on iPhone
-- [ ] Empty and error states written in plain language (see `docs/screens.md`)
+- [x] Empty and error states written in plain language (see `docs/screens.md`)
 - [ ] Demo seed: Acme's Saturday event day with an urgent dropout (`docs/testing.md`)
 - [ ] Playwright: login → take shift → cancel → request → pay OTP
 
@@ -527,6 +527,13 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     necessary storage) and what deletes it.
   - The hint's wording "Open your browser's Share menu" is meant to fit Safari's and Chrome's
     layouts; check it on the real iPhone too.
+- Plain-language follow-ups (from the Phase 3 empty and error states task):
+  - Phase 4 must make "We'll message you when something matches" (Open shifts, nothing open)
+    true: offers to workers with open-shift messages on.
+  - Office screens (Phase 5): their own empty and error states, and add them to
+    `tests/unit/copy.plain-language.test.ts` (with office words allowed, e.g. "credential").
+  - After a session runs out, the login page could say "Your login has run out. Log in again."
+    (today it shows the normal login page).
 
 ## Hours log
 
@@ -554,3 +561,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 3 | 0.5 | Profile: the worker's details and licences (read-only, expired or suspended ones in red with what to do), days they can't work (new `worker_unavailable_days` table, which the rules now use to refuse bookings on those days; the office can override), and WhatsApp-or-text plus open-shift alerts settings; every change logged; 1412 tests + 12 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.4 | Blocked-shift screen: the shift's own page `/shifts/[id]` (booked, open, held, blocked, filled, started, cancelled, missing), the rules' reasons in plain English when blocked, and "Ask the office to review" (a new `review` request, one per shift, only while the rules still say no, tested with taps at once); Open shifts refusals link to it; 1431 tests + 14 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.6 | Offline My shifts and iPhone home screen: a small service worker keeps the last copy of My shifts on the phone and shows it with no signal, marked "No signal. These are your shifts from {time}" (deleted on logout, login and when logged out; never shown after 14 days; only the page and its own files are kept), a per-firm web app manifest, and an iPhone "Put your shifts on your home screen" hint; the review caught a path trick that could have kept other pages (fixed and tested); 1453 tests + 19 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 3 | 0.2 | Empty and error states: plain "We can't find that page." instead of Next's 404, plain words when a page or the whole frame fails, "No signal" instead of "Something went wrong" when there's no network, Open shifts only promises a message to workers who want them, and a lasting test that renders every staff screen state and fails on jargon, raw codes or long sentences; 1531 tests + 20 e2e; verified and audited DONE (see docs/work-log.md) |

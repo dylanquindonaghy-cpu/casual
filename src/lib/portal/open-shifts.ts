@@ -40,6 +40,9 @@ export interface OpenShiftFilters {
 export interface OpenShiftsList {
   shifts: OpenShift[];
   truncated: boolean;
+  // The worker wants to hear about open shifts (their profile setting): the empty list says
+  // "We'll message you" only then.
+  offerAlerts: boolean;
   choices: {
     days: string[];
     sites: { id: string; name: string }[];
@@ -65,11 +68,14 @@ export async function openShiftsFor(
     // Read once for the page; first come, first served never holds, so no gate is asked.
     const allocation = parseAllocationSettings(firm?.settings ?? {});
     const [me] = await tx
-      .select({ roles: workers.roles })
+      .select({ roles: workers.roles, offerAlerts: workers.offerAlerts })
       .from(workers)
       .where(eq(workers.id, workerId));
     const zone = firm?.timezone ?? "Europe/London";
-    if (!me || me.roles.length === 0) return { shifts: [], truncated: false, choices: EMPTY };
+    const offerAlerts = me?.offerAlerts ?? false;
+    if (!me || me.roles.length === 0) {
+      return { shifts: [], truncated: false, offerAlerts, choices: EMPTY };
+    }
 
     const inWindow = and(
       eq(shifts.status, "open"),
@@ -169,6 +175,6 @@ export async function openShiftsFor(
             : null,
       });
     }
-    return { shifts: kept, truncated: candidates.length > MAX_CANDIDATES, choices };
+    return { shifts: kept, truncated: candidates.length > MAX_CANDIDATES, offerAlerts, choices };
   });
 }

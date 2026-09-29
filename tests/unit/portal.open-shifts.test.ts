@@ -32,6 +32,7 @@ const arena = {
 const list = (o: Partial<OpenShiftsList> = {}): OpenShiftsList => ({
   shifts: [],
   truncated: false,
+  offerAlerts: true,
   choices: { days: [], sites: [], roles: [] },
   ...o,
 });
@@ -45,6 +46,12 @@ describe("Open shifts page body", () => {
     expect(words).toContain("Open shifts");
     expect(words).toContain("Nothing open right now. We'll message you when something matches.");
     expect(words).toContain("Back to my shifts");
+  });
+
+  it("only promises a message to workers who want open shift messages", () => {
+    const words = text(render(list({ offerAlerts: false })));
+    expect(words).toContain("Nothing open right now. Check back later.");
+    expect(words).not.toContain("We'll message you");
   });
 
   it("shows each shift with its time, role, site, places left and a Take shift button", () => {

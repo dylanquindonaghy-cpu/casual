@@ -4335,3 +4335,19 @@ The Parking lot says: "Phase 6 adds the office screen for it."
 | The "may use the pay area" check was written three times | One helper, `officeUserMay(tx, id, area)` in `office-context.ts`, used by the import, sorting and "Send the digest now" |
 | The log's "imported a file" didn't say what kind | "imported a pay file" (and staff, licences and cards, shifts); the old words stay when an event has no kind |
 | Two near-identical import forms; `as-payroll.ts` living under pay-queries; the web too_big words mentioning 5 MB for an unpacked .xlsx | Left as they are (small); noted here |
+
+**Verify:** `VERIFIED tree=2cad81e465cea0ad e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2275 tests, 39 e2e).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. It found every claim proven (the
+columns imported and asserted, the screen and its links, the check saving nothing, the log without
+amounts, the regroup, roles and tenant isolation, the worker seeing the line in the browser), no
+fakes, and nothing to reach DONE.
+
+**Ticked.** **Commit:** `40f3243` "Phase 6: Pay records CSV import (period, hours, rate, gross,
+pay date)", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Parked:** correcting or removing a wrongly imported pay line (for Dylan; the note in the Parking
+lot is updated).
+
+**Hours:** 0.5 h (15:30 to 15:57 UTC). Phase 6 so far 2.8 h of its 12–18 h estimate.

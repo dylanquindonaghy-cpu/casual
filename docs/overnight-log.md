@@ -4507,3 +4507,16 @@ Other suggestions:
 built; only Acme has a fake line (Northline has none, which shows "No shifts line yet."); the
 dashboard says "(WhatsApp, text and calls)". "Built, verified and committed" in the plan's first
 paragraph is the aim; the verify line below is what counts.
+
+**Verify:** `VERIFIED tree=edebd694047771f2 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2299 tests, 39 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: the number and its WhatsApp sender need Twilio).
+Everything short of it is built, verified and committed. No auditor round: the auditor decides a
+tick, and this task can't be ticked until the real number exists. Next step is Dylan's: "Connect
+Twilio", steps 7 and 8.
+
+**Commit:** `06544ac` "Phase 7 (BLOCKED, not ticked): One business WhatsApp number per firm …",
+pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.6 h (16:22 to 16:58 UTC). Phase 7 so far 0.6 h of its 15–20 h estimate.

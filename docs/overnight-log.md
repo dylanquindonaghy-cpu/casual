@@ -2940,3 +2940,91 @@ templates". No auditor round (nothing to tick). 0.4 h. Phase 4: 3.2 h of 27–37
 - no length limit on texts;
 - the pack's hand-kept coverage list;
 - the Meta risks (`login_code` category, variable density, a body ending on a variable).
+
+## 2026-09-29 06:48 UTC: Phase 4, "Tests: `waves.timing`, `notify.policy`, stop-on-fill, no notifications to ineligible workers"
+
+**Plan.** Most of the behaviour is already tested, one function at a time
+(`offers.waves.test.ts` calls each wave by hand, with a clock). These files test it end to end:
+- **A fake worker** (`tests/helpers/fake-worker.ts`): runs a firm's jobs from the real pg-boss
+  queue in `start_after` order, on a fake clock, through the real job wrappers (`runFirmJob` /
+  `runFirmTask`), and marks each one done. A chain started by a real cancellation then plays out
+  as the worker would run it: waves queued by earlier waves, holds, escalation.
+- **`tests/integration/waves.timing.test.ts`:**
+  - a dropout at 09:00 for 19:00 gives wave 1 at 09:00, wave 2 at 09:15, wave 3 at 09:30, until
+    nobody's left, and the office email at 16:00;
+  - stop on fill: someone takes it between waves, so the next wave stops, the other offers become
+    "filled elsewhere", the escalation isn't needed, and nothing more is sent;
+  - the firm's own wave size and minutes;
+  - first come, first served;
+  - quiet hours with no urgent override: held until 07:00, then every 15 minutes;
+  - the escalation fires once.
+- **`tests/integration/notify.policy.test.ts`:** the notification policy, applied to both senders
+  (offer waves and shift reminders):
+  - channel order: the worker's channel first; a text only after a refused WhatsApp; never both
+    for one message; a push alongside once the message has gone, none for a failed one;
+  - quiet hours;
+  - the daily cap;
+  - idempotency: retries and doubled jobs send nothing twice;
+  - **no notifications to ineligible workers:** a whole chain runs until nobody's left. The phones
+    that got anything (message or push) are exactly the workers the booking rules allow, checked
+    against `previewBooking` directly. Each ineligible kind gets nothing: no licence, expired,
+    suspended, wrong role, inactive, blocked, alerts off, day off, clash, another firm.
+- `docs/testing.md` gets updated to say what these prove, including what the docs' "push →
+  WhatsApp → SMS" order means as built.
+
+No production code changes are expected. If a test finds a bug, I'll write down the root cause
+and fix it.
+
+**Built:** `tests/helpers/fake-worker.ts`, `tests/integration/waves.timing.test.ts` (8 tests) and
+`tests/integration/notify.policy.test.ts` (20 tests: 10 for channel order and 4 for idempotency,
+each half offers and half reminders; 3 for quiet hours; 2 for the daily cap; 1 for ineligible
+workers over a whole chain). No production code changed.
+
+**Root causes (while building):**
+- A "held" wave's output holds a Date, not text: a test mistake.
+- My "office placed Eve" setup booked her into a second slot of a one-place shift, so the place
+  was never filled. Now she's booked through the real path as the office.
+- My eligibility check expected the booking rules to refuse the "alerts off" worker. They don't:
+  offer messages are a notification setting, and the worker could take the shift themselves. The
+  test now says so. Rules allow 4 workers, and messages go to the 3 who want them.
+
+**Shown failing when broken** (each restored):
+
+| Break | Result |
+|---|---|
+| The candidate list ignores the rules | the whole-chain ineligibility test fails |
+| The push sent before the message | the 5 offer channel-order tests fail (reminders call the two halves separately) |
+| Waves every 5 minutes, whatever the firm set | 5 of the 8 timing tests fail |
+
+**Guardrails review:** not run. No schema, auth, tenancy, messaging, jobs or rules code changed,
+only tests and docs.
+
+**Parked:** **Dylan to confirm** push alongside WhatsApp (not instead of it).
+
+**Verify run 1: NOT VERIFIED** (1 failed of 1827). "The shift starting ends the chain" expected
+the escalation before wave 1. **Root cause:** both are queued in the cancellation's transaction
+and both are due at once, so they have the same `start_after` and `created_on`. The fake worker
+broke the tie by the random job id, so the order changed from run to run. The first run passed by
+luck. pg-boss runs jobs due at the same moment side by side, with no order, so the test must not
+depend on one. **Fix:** the timeline sorts jobs that share a time by name. Then 5 runs in a row
+passed, and the policy file passed 3 runs in a row.
+
+**Verify:**
+```
+== typecheck ... ok
+== lint ... ok
+== test ... ok
+== e2e ... ok
+== invariants ... ok
+VERIFIED tree=b73e275b8c52366d e2e=true
+```
+1827 tests (up from 1799) + 25 e2e.
+
+**Claims auditor, round 1 (verbatim verdict):**
+```
+VERDICT: DONE
+To reach DONE: nothing — this specific bullet's criteria (waves.timing, notify.policy, stop-on-fill, no notifications to ineligible workers) are all PROVEN with real code and passing tests on the current, verified tree.
+```
+
+**Ticked.** 0.3 h. **Phase 4 is done, except 3 blocked tasks** (web push, WhatsApp/Twilio/SMS
+fallback, the Meta submission): 3.5 h of the 27–37 h estimate, well under. Next: Phase 5.

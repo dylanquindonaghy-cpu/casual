@@ -165,7 +165,7 @@ Docs: `docs/screens.md`.
 - [x] Only eligible workers are ever notified; max 3 offers per worker per day unless urgent
 - [x] Shift reminders 24 h and 2 h before start (cuts no-shows)
 - [ ] All copy from `docs/messaging-templates.md`; templates submitted to Meta for approval
-- [ ] Tests: `waves.timing`, `notify.policy`, stop-on-fill, no notifications to ineligible workers
+- [x] Tests: `waves.timing`, `notify.policy`, stop-on-fill, no notifications to ineligible workers
 Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking).
 
 ## Phase 5 — Resourcer dashboard, action log, notice report (23–33 h)
@@ -558,6 +558,10 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   Also: validate `quiet_hours` on the settings screen (Phase 5); and decide what a wave held past
   the shift's start should do (today it stops as "started" at the end of the quiet hours, and
   only the escalation tells the office).
+- **Dylan to confirm:** notifications go by WhatsApp (or text) *and* push, not push instead. The
+  docs' "push → WhatsApp → SMS" order could mean "push only, when the phone has it" to save the
+  WhatsApp fee (about 2p a message), but a push can't confirm it was seen. Worth revisiting for
+  reminders once pilots show how many workers turn push on.
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
   pack is `src/lib/messaging/whatsapp-templates.ts`: 10 templates (4 are "no site" variants), each
@@ -710,3 +714,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.4 | Only eligible workers notified, daily offer cap: at most 3 shift offers per worker per London day unless the shift is urgent (failed sends don't count), checked in the one place every offer picks its workers, which also asks the booking rules about each one; a boundary test fails if any other code writes an offer or builds its message; the review's suggestions done or parked; 1690 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.6 | Shift reminders: every confirmed booking gets "Reminder: tomorrow…" 24 hours before and "Your shift starts at…" 2 hours before (by the worker's channel, with a push; console only), each once, recorded in a new `shift_reminders` table before it goes; quiet hours hold or skip them; a check every 5 minutes; the review caught a way a retry could resend (fixed: claim, send, then record, each separately); 1748 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | All copy from the messaging doc; templates to Meta: BLOCKED (not ticked: submitting needs the WhatsApp Business account): a test now holds every message (WhatsApp, text, push, email) to the doc's words and checks every message to a worker ends with the firm's sign-off; urgent offers by text use the doc's short SMS copy; the ready-to-submit WhatsApp template pack (10 templates) is tested against what the code sends; submission steps parked; 1799 tests + 25 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.3 | Phase 4 tests: a fake job worker runs the real queue on a fake clock, so wave timing is tested end to end (every 15 minutes, stop on fill, the office emailed once, quiet hours, the start ends it); the notification policy is tested for offers and reminders alike (channel order, quiet hours, daily cap, no double sends), and over a whole chain only eligible workers who want offers get anything; 1827 tests + 25 e2e; verified and audited DONE. Phase 4 done except the 3 blocked tasks: 3.5 h of the 27–37 h estimate (see docs/work-log.md) |

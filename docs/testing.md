@@ -32,8 +32,21 @@ without breaking a 6am cancellation.
 - `webhook.idempotent.test.ts` — same Twilio MessageSid twice → one `messages` row, one job.
 - `rules.table.test.ts` — all cases in `docs/rules-and-credentials.md` (held to the doc by
   `rules.doc-parity.test.ts`), then the edges: overrides, the pass, clock changes, purity.
-- `waves.timing.test.ts` — fake clock: wave 1 → 15 min → wave 2; stops on fill; escalation fires.
-- `notify.policy.test.ts` — push → WhatsApp → SMS ordering; quiet hours; daily cap; idempotency.
+- `waves.timing.test.ts` (built) — a real cancellation starts the chain and a fake worker
+  (`tests/helpers/fake-worker.ts`) runs the firm's queued pg-boss jobs in order on a fake clock:
+  wave 1 at the dropout, the next after the firm's minutes (15 by default) until nobody's left,
+  the office emailed once at the start minus 3 hours; the firm's own size and minutes; first come,
+  first served; quiet hours hold a wave until 07:00; stop on fill (a worker or the office takes it
+  between waves: the next wave stops, the other offers become "filled elsewhere", no escalation);
+  the start ends the chain.
+- `notify.policy.test.ts` (built) — the policy for every sender (offer waves and shift reminders,
+  each through its real job): the worker's channel first (WhatsApp, or text by their choice), a
+  text only after a refused WhatsApp, never both, the push after the message has gone and never
+  for a failed one (so "push → WhatsApp → SMS" as built: the push goes alongside, not instead;
+  the 60-second fallback waits for Twilio); quiet hours; the daily cap; idempotency (retries and
+  doubled jobs); and no notifications to ineligible workers: over a whole chain, exactly the
+  workers the rules allow and who want offers get anything (no licence, expired, suspended, wrong
+  role, inactive, blocked, alerts off, day off, clash, cancelled off it, another firm: nothing).
 - `shift.reminders.test.ts` (built) — the 24 h and 2 h reminders each once per booking and start
   time, never to cancelled bookings or cancelled/draft shifts, a moved shift reminded again, two
   jobs at once send once, quiet hours hold or skip, channel and fallback, the tick; the timing

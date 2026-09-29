@@ -11,6 +11,10 @@ Order for every message to a worker:
    the transport refuses goes by SMS at once, logged `fellBackFrom`. The 60-second rule needs
    Twilio's delivery reports: parked with "Connect Twilio".)
 
+As built, the push goes alongside the WhatsApp or text, once that has gone, not instead of it:
+a push can't confirm it was seen. `tests/integration/notify.policy.test.ts` holds every sender to
+this order.
+
 Rules:
 - Quiet hours per firm (default 22:00–07:00). Non-urgent waits. Urgent may override if the firm
   allows it. (Built: `src/lib/rules/quiet-hours.ts`, firm setting `quiet_hours` {start, end,

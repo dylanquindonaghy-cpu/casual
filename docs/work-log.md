@@ -3504,3 +3504,96 @@ It should say all passed.
 
 To see the pack, open `src/lib/messaging/whatsapp-templates.ts`: each entry is what you'd paste
 into Twilio's Content Template Builder.
+
+## 2026-09-29: Phase 4, task 9: The Phase 4 tests (0.3 h)
+
+### Time
+
+0.3 hours of Claude's working time (06:48 to 07:07 UTC), in the unattended overnight loop.
+**Phase 4 is done**, except the three tasks blocked on outside services: 3.5 hours of its 27 to 37
+hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=b73e275b8c52366d e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1827 tests (up from 1799);
+  - the 25 browser tests;
+  - the rule checks.
+- The first verify run failed one new test. The cause was in the test itself: two jobs due at the
+  same moment can run in either order, and the test had assumed one. It was fixed and re-run five
+  times.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Only tests: no app code changed. Most of this behaviour was already tested one piece at a time.
+These tests check it end to end.
+
+- **A fake job worker** (`tests/helpers/fake-worker.ts`). In the real app, a background program
+  (the *worker*) runs *jobs* (queued tasks, like "send wave 2 at 09:15") at their time. The fake
+  worker reads the real job queue and runs each job in time order on a pretend clock. So a test
+  can cancel a booking at "09:00" and watch the whole chain play out, as it would on a real day,
+  in under a second.
+- **Wave timing** (`tests/integration/waves.timing.test.ts`). A dropout at 09:00 for a 19:00
+  shift gives:
+  - offers to the first 2 workers at 09:00, the next 2 at 09:15 and the last one at 09:30;
+  - an email to the office at 16:00 if it's still unfilled.
+  - Also tested:
+    - a firm's own wave size and gap;
+    - first come, first served;
+    - quiet hours holding waves until 07:00;
+    - the email going only once;
+    - the chain ending when the shift starts.
+  - **Stop on fill:** when someone takes the shift between waves, the next wave stops, the others'
+    offers are marked "filled elsewhere", the office isn't emailed, and nothing more is sent.
+- **The notification policy** (`tests/integration/notify.policy.test.ts`). The same checks run for
+  both kinds of message (urgent offers and shift reminders):
+  - WhatsApp first, or a text if that's the worker's choice;
+  - a text only if WhatsApp refuses the number, never both;
+  - the phone notification after the message, and never after a failed one;
+  - quiet hours;
+  - the daily limit of 3 offers;
+  - no double sends, even when a job runs twice or two copies run at once.
+- **No messages to workers who shouldn't get them.** One test sets up 3 workers who can do the
+  shift and 11 who can't or shouldn't: no licence, expired licence, suspended licence, wrong role,
+  inactive, blocked, messages off, day off, already booked at that time, the worker who cancelled,
+  and someone from another firm. It runs a whole chain of offers to the end, then checks that
+  exactly the 3 got anything.
+  - The booking rules would let the "messages off" worker take the shift themselves. They just
+    don't get told about it, and the test checks both facts.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Test through the real job queue with a fake clock | Proves the timings the worker will actually use | Call each wave by hand (already done elsewhere) |
+| Jobs due at the same moment are compared in name order | The job system runs them side by side, in no set order | Assume an order (the cause of the first failure) |
+| The push goes alongside WhatsApp, not instead (tested as built) | A push can't confirm it was seen | Push only, to save money (parked for Dylan) |
+
+### What the new tests prove
+
+- **8 timing tests:** the 15-minute rhythm, custom rhythms, stop on fill (worker or office), one
+  office email, quiet hours, the start ending the chain.
+- **20 policy tests:** channel order (10), no double sends (4), quiet hours (3), the daily limit
+  (2), and nobody ineligible messaged over a whole chain (1).
+- Breaking the code on purpose made them fail each time:
+  - the rules ignored;
+  - the push sent first;
+  - waves every 5 minutes regardless of the firm's setting.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm:** workers get WhatsApp (or a text) *and* a phone notification. The docs'
+  "push → WhatsApp → SMS" could mean "push only when they have it", to save about 2p a message.
+  But a push can't confirm it was seen.
+
+### How to see it working
+
+Stop `npm run dev` first. Then run:
+
+`npx vitest run tests/integration/waves.timing.test.ts tests/integration/notify.policy.test.ts`
+
+It should say all passed.

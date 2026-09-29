@@ -4265,3 +4265,20 @@ Other suggestions:
 
 Correction to the plan above: the box is labelled "Tell them what payroll did", not "Tell these
 workers…".
+
+**Verify:** `VERIFIED tree=747ac438704f6c19 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2264 tests, 38 e2e).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. It found "Worker sees status
+updates" and "AI never answers a dispute" both proven (the pay page, the notice job, the boundary
+test walking the real import graph, the message being payroll's note word for word), no fakes,
+and nothing to reach DONE.
+
+**Ticked.** **Commit:** `f18fc32` "Phase 6: Worker sees status updates; AI never answers a
+dispute", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Parked:** "Pay query status follow-ups" (Dylan to confirm the note goes in the message; sorting
+one query alone; a sorted-recently list; the two-way check; batching the notice jobs; the Phase 7
+pay rule for the WhatsApp line).
+
+**Hours:** 0.6 h (14:50 to 15:28 UTC). Phase 6 so far 2.3 h of its 12–18 h estimate.

@@ -3684,3 +3684,15 @@ fixtures log at the real time, so the test can't start failing on a later real d
 | Copy: "asked: question"; ISO days | "sent a request (question)"; "Wed 4 Nov" |
 | Override reasons are typed text in the log; payroll and pay records; the 2,000-worker list | Parked (two for Dylan) |
 
+
+**Verify round 2:** `VERIFIED tree=1f692d0c0c16699d e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2093 tests, 35 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — verdict is DONE."
+
+**Commit:** `9de9a8a` "Phase 5: Action log with filters (worker, shift, date, type)", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.5 h (10:57 to 11:29 UTC). Phase 5 so far 4.2 h of its 23–33 h estimate.
+
+**Parked:** see PLAN.md, "Action log follow-ups" (two Dylan-to-confirm items).

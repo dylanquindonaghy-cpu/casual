@@ -4060,3 +4060,16 @@ and is built and tested in full.
 | Several pay lines' rates split a group; in-digest keys; docs naming `pay.grouping` | Parked (the first for Dylan) |
 | docs/data-model.md and docs/architecture.md described one key for every issue | Updated to the per-issue rule |
 
+
+**Verify round 2:** `VERIFIED tree=44d6498836690d17 e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2191 tests, 38 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: "Haiku summarises" needs Claude on Amazon Bedrock).
+Everything short of the AI call is built, verified and committed. The next step is Dylan's:
+"Connect Bedrock" in the PLAN.md Parking lot. No auditor round: the auditor decides a tick, and
+this task can't be ticked until a real summary passes the checks.
+
+**Commit:** `9af8162` "Phase 6 (BLOCKED, not ticked): Group queries by likely cause; …", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.4 h (13:28 to 13:53 UTC). Phase 6 so far 0.9 h of its 12–18 h estimate.

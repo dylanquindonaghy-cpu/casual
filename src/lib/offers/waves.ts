@@ -13,8 +13,9 @@ import {
 import type { FirmTx } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
-import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
-import { getTransport, type MessagingTransport } from "../messaging";
+import { defineFirmJob, errorCode, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
+import { getTransport, type MessagingTransport, type SendResult } from "../messaging";
+import { ChannelRefusedError } from "../messaging/transport";
 import { shiftEscalationEmail, shiftUrgentMessage, urgentPush } from "../messaging/templates";
 import { shiftWhen } from "../portal/format";
 import { forgetPushTarget, pushTargets } from "../push/subscriptions";
@@ -22,6 +23,7 @@ import { getPushTransport, type PushTransport } from "../push/transport";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { rankForFairRotation } from "../rules/allocation";
 import { dayLabel } from "../rules/reasons";
+import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { hoursToStart } from "../rules/urgent";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
@@ -46,7 +48,8 @@ import { waveCandidates, type WaveCandidate } from "./candidates";
 // urgent window, or the office marking the shift urgent: src/lib/roster/urgent.ts).
 // Messages go through the configured transport (console in development and tests); each offer is
 // also pushed to the worker's subscribed phones (PUSH_TRANSPORT: console or none until the real
-// sender is connected). Quiet hours, the daily cap and the SMS fallback are later Phase 4 tasks.
+// sender is connected). Quiet hours hold a wave unless the firm lets urgent override them; a
+// WhatsApp that won't send goes by SMS. The daily cap is a later Phase 4 task.
 
 export const OFFER_WAVE_QUEUE = "offer-wave";
 export const ESCALATE_SHIFT_QUEUE = "escalate-shift";
@@ -199,6 +202,7 @@ export function dayWords(startsAt: Date, now: Date, timeZone: string): string {
 
 export type WaveResult =
   | { status: "sent"; sent: number; next: number | null }
+  | { status: "held"; until: Date } // quiet hours
   | { status: "already_sent" }
   | {
       status: "stopped";
@@ -272,6 +276,36 @@ export async function runOfferWave(
   );
   if (chosen.length === 0) return stop("no_candidates");
 
+  // Quiet hours: an urgent wave goes now if the firm lets urgent override them; otherwise it's
+  // held until they end, and queued for then (nothing is written or sent before that).
+  const timing = mayMessageNow({
+    now,
+    timeZone: firm.timezone,
+    quiet: quietHours(firm.settings),
+    urgent: true,
+  });
+  // (Within a minute of the end, it just goes: the job queue's clock and ours can differ a little.)
+  if (!timing.ok && timing.until.getTime() - now.getTime() > 60_000) {
+    await sendFirmJob(
+      tx,
+      jobs.wave,
+      {
+        idempotencyKey: `offer-wave:${shift.id}:${payload.wave}:after-quiet`,
+        shiftId: shift.id,
+        wave: payload.wave,
+      },
+      { startAfter: timing.until },
+    );
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "offer.wave_held",
+      entityType: "shift",
+      entityId: shift.id,
+      data: { wave: payload.wave, until: timing.until.toISOString(), reason: "quiet_hours" },
+    });
+    return { status: "held", until: timing.until };
+  }
+
   const link = `${portalUrl(firm.slug, deps.baseDomain)}/shifts/${shift.id}`;
   const body = shiftUrgentMessage(firm.voice, {
     role: shift.role,
@@ -305,8 +339,40 @@ export async function runOfferWave(
     day: dayWords(shift.startsAt, now, firm.timezone),
     start: timeOf(shift.startsAt, firm.timezone),
   });
+  let count = 0;
   for (const { offerId, candidate: c } of recorded) {
-    const result = await deps.transport.send({ channel: c.channel, to: c.mobile, body });
+    // WhatsApp first if that's their channel; if the provider refuses WhatsApp (the number isn't
+    // on it), a text instead, straight away. Any other failure isn't retried on another channel
+    // (it may have gone), and doesn't stop the wave: that offer is marked failed and logged, the
+    // rest still go, and the worker can be offered it again in a later wave. (Falling back when a WhatsApp isn't delivered within 60 seconds needs
+    // Twilio's delivery reports: parked with Twilio.)
+    let channel = c.channel;
+    let result: SendResult;
+    try {
+      try {
+        result = await deps.transport.send({ channel, to: c.mobile, body });
+      } catch (error) {
+        if (!(error instanceof ChannelRefusedError) || channel !== "whatsapp") throw error;
+        channel = "sms";
+        result = await deps.transport.send({ channel, to: c.mobile, body });
+        await tx.update(offers).set({ channel }).where(eq(offers.id, offerId));
+      }
+    } catch (error) {
+      // Kept as evidence of the attempt (offers are never deleted), marked failed.
+      await tx
+        .update(offers)
+        .set({ channel, response: "failed", respondedAt: now })
+        .where(eq(offers.id, offerId));
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "offer.send_failed",
+        entityType: "shift",
+        entityId: shift.id,
+        data: { workerId: c.workerId, wave: payload.wave, channel, code: errorCode(error) },
+      });
+      continue;
+    }
+    count += 1;
     // Push as well, to each phone the worker turned notifications on for (free; the docs send
     // urgent offers by push and WhatsApp). One the push service says is gone is forgotten.
     let pushes = 0;
@@ -334,13 +400,13 @@ export async function runOfferWave(
         shiftId: shift.id,
         workerId: c.workerId,
         wave: payload.wave,
-        channel: c.channel,
+        channel,
         providerMessageId: result.providerMessageId,
         pushes,
+        ...(channel !== c.channel ? { fellBackFrom: c.channel } : {}),
       },
     });
   }
-  const count = recorded.length;
 
   // Fair rotation: the next wave after the firm's minutes. First come, first served: everyone
   // eligible has it already.

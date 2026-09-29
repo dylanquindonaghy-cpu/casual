@@ -7,11 +7,17 @@ Order for every message to a worker:
 2. **WhatsApp template** (about 2p each incl. Twilio fee; business-initiated messages must use
    approved templates).
 3. **SMS fallback** (about 4p each). Only if WhatsApp isn't delivered within 60 seconds, or the
-   worker has no WhatsApp.
+   worker has no WhatsApp. (Built so far: the worker's own choice of text messages, and a WhatsApp
+   the transport refuses goes by SMS at once, logged `fellBackFrom`. The 60-second rule needs
+   Twilio's delivery reports: parked with "Connect Twilio".)
 
 Rules:
 - Quiet hours per firm (default 22:00–07:00). Non-urgent waits. Urgent may override if the firm
-  allows it.
+  allows it. (Built: `src/lib/rules/quiet-hours.ts`, firm setting `quiet_hours` {start, end,
+  urgent_override}; offer waves are held until the quiet hours end when urgent may not override.
+  Times that make no sense use the default, but an explicit `urgent_override: false` is kept. A
+  start equal to the end means no quiet hours. On the night the clocks go back, an end time that
+  happens twice ends at the later one if the earlier has passed.)
 - Max 3 shift offers per worker per day unless urgent.
 - One message per event. Never send the same template twice for the same entity on the same day
   (idempotency key).

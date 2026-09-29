@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MINUTE } from "@/lib/auth/clock";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import type { OutboundMessage } from "@/lib/messaging/transport";
+import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import {
   ESCALATE_SHIFT_QUEUE,
   OFFER_WAVE_QUEUE,
@@ -40,7 +40,7 @@ const later = (minutes: number) => new Date(NOW.getTime() + minutes * MINUTE);
 // A fair-rotation firm (groups of 2, 15 minutes, escalation 3 hours before), an urgent door
 // supervisor shift at 19:00 today with one place, and workers with 0, 8, 16 and 24 hours booked
 // later this week, plus three who must never get it.
-async function waveFirm(settings: Record<string, unknown> = {}) {
+async function waveFirm(settings: Record<string, unknown> = {}, startsInHours = 10) {
   const f = await bookingFirm(su, withFirm, {
     settings: {
       allocation_mode: "fair_rotation",
@@ -77,9 +77,25 @@ async function waveFirm(settings: Record<string, unknown> = {}) {
     }
     slot += 1;
   }
-  const shiftId = await f.shift({ startsAt: hoursFromNow(10) }); // 19:00 today, until 03:00
+  const shiftId = await f.shift({ startsAt: hoursFromNow(startsInHours) }); // 19:00 today by default
   await su.query("update shifts set is_urgent = true where id = $1", [shiftId]);
-  const { transport, sent } = captureTransport();
+  const { transport: capture, sent } = captureTransport();
+  // `refuseWhatsApp`: the provider refuses WhatsApp (a number that isn't on it). `failFor`: sends to
+  // these numbers fail some other way (a timeout, an outage); `failSms` makes texts fail too.
+  const sendState = { refuseWhatsApp: false, failFor: [] as string[], failSms: false };
+  const transport: typeof capture = {
+    name: "capture",
+    async send(message) {
+      if (message.channel !== "email" && sendState.failFor.includes(message.to)) {
+        throw new Error("timed out");
+      }
+      if (sendState.refuseWhatsApp && message.channel === "whatsapp") {
+        throw new ChannelRefusedError("whatsapp");
+      }
+      if (sendState.failSms && message.channel === "sms") throw new Error("sms outage");
+      return capture.send(message);
+    },
+  };
   // Pushes are captured too; `gone` makes the push service say a subscription no longer exists.
   const pushed: { endpoint: string; title: string; body: string; url: string }[] = [];
   const pushState = { gone: false };
@@ -124,6 +140,7 @@ async function waveFirm(settings: Record<string, unknown> = {}) {
     sent,
     pushed,
     pushState,
+    sendState,
     wave,
     escalate,
     slug,
@@ -381,6 +398,111 @@ describe("a wave", () => {
       [t.f.firmId],
     );
     expect(forgotten).toEqual([{ actor_type: "system", data: { reason: "gone" } }]);
+  });
+
+  it("in quiet hours, a firm that won't let urgent override holds the wave until they end", async () => {
+    const quiet = { quiet_hours: { start: "22:00", end: "07:00", urgent_override: false } };
+    const t = await waveFirm(quiet, 30); // Tuesday 15:00
+    const night = later(14.5 * 60); // Monday 23:30
+    const morning = hoursFromNow(22); // Tuesday 07:00
+    expect(await t.wave(1, night)).toEqual({ status: "held", until: morning });
+    expect(t.sent).toEqual([]);
+    expect(await offersOf(t.shiftId)).toEqual([]);
+    const held = (await queued(t.shiftId)).find(
+      (j) => j.data.idempotencyKey === `offer-wave:${t.shiftId}:1:after-quiet`,
+    );
+    expect(held?.start_after).toEqual(morning);
+    const { rows } = await su.query(
+      "select data from events where firm_id = $1 and action = 'offer.wave_held'",
+      [t.f.firmId],
+    );
+    expect(rows).toEqual([
+      { data: { wave: 1, until: morning.toISOString(), reason: "quiet_hours" } },
+    ]);
+    // At 07:00 it goes.
+    expect((await t.wave(1, morning)).status).toBe("sent");
+    expect(t.sent).toHaveLength(2);
+  });
+
+  it("in quiet hours, urgent goes at once when the firm allows it (the default)", async () => {
+    const t = await waveFirm({}, 30);
+    expect((await t.wave(1, later(14.5 * 60))).status).toBe("sent");
+  });
+
+  it("a WhatsApp the transport won't send goes by text instead, and the offer says so", async () => {
+    const t = await waveFirm();
+    t.sendState.refuseWhatsApp = true;
+    await t.wave(1); // Ann (WhatsApp) and Ben (text already)
+    expect(t.sent.map((m) => [m.channel, m.channel === "email" ? "" : m.to]).sort()).toEqual(
+      [
+        ["sms", t.ann.mobile],
+        ["sms", t.ben.mobile],
+      ].sort(),
+    );
+    expect((await offersOf(t.shiftId)).map((o) => o.channel)).toEqual(["sms", "sms"]);
+    const { rows } = await su.query(
+      "select data from events where firm_id = $1 and action = 'offer.sent' and data ->> 'workerId' = $2",
+      [t.f.firmId, t.ann.id],
+    );
+    expect(rows[0]?.data).toMatchObject({ channel: "sms", fellBackFrom: "whatsapp" });
+  });
+
+  it("any other failure isn't sent again by text; that offer is dropped and logged, the rest still go", async () => {
+    const t = await waveFirm();
+    t.sendState.failFor = [t.ann.mobile];
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 1, next: 2 });
+    expect(phones(t.sent)).toEqual([t.ben.mobile]); // Ben by text, as usual; nothing to Ann
+    // Ann's offer stays on the record, marked failed (offers are evidence, never deleted).
+    expect(
+      (await offersOf(t.shiftId)).map((o) => [o.worker_id, o.channel, o.response]).sort(),
+    ).toEqual(
+      [
+        [t.ann.id, "whatsapp", "failed"],
+        [t.ben.id, "sms", null],
+      ].sort(),
+    );
+    const { rows } = await su.query(
+      "select data from events where firm_id = $1 and action = 'offer.send_failed'",
+      [t.f.firmId],
+    );
+    expect(rows).toEqual([
+      { data: { workerId: t.ann.id, wave: 1, channel: "whatsapp", code: "Error" } },
+    ]);
+  });
+
+  it("if the text also fails, that offer is dropped and logged, never the whole wave", async () => {
+    const t = await waveFirm();
+    t.sendState.refuseWhatsApp = true;
+    t.sendState.failSms = true;
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 0, next: 2 });
+    const { rows } = await su.query(
+      "select data ->> 'channel' as channel from events where firm_id = $1 and action = 'offer.send_failed' order by id",
+      [t.f.firmId],
+    );
+    expect(rows).toEqual([{ channel: "sms" }, { channel: "sms" }]);
+    expect((await offersOf(t.shiftId)).map((o) => [o.channel, o.response])).toEqual([
+      ["sms", "failed"],
+      ["sms", "failed"],
+    ]);
+    // A failed offer doesn't count as offered: they're in the next wave.
+    t.sendState.refuseWhatsApp = false;
+    t.sendState.failSms = false;
+    await t.wave(2, later(15));
+    expect(phones(t.sent).sort()).toEqual([t.ann.mobile, t.ben.mobile].sort());
+  });
+
+  it("two copies of a held wave: one sends at 07:00, the other finds it sent", async () => {
+    const quiet = { quiet_hours: { start: "22:00", end: "07:00", urgent_override: false } };
+    const t = await waveFirm(quiet, 30);
+    await t.wave(1, later(14.5 * 60));
+    await t.wave(1, later(15 * 60));
+    const held = (await queued(t.shiftId)).filter((j) =>
+      String(j.data.idempotencyKey).endsWith(":after-quiet"),
+    );
+    expect(held).toHaveLength(2);
+    expect((await t.wave(1, hoursFromNow(22))).status).toBe("sent");
+    expect(await t.wave(1, hoursFromNow(22))).toEqual({ status: "already_sent" });
+    expect(t.sent).toHaveLength(2);
   });
 
   it("stops once the shift has started or is no longer open", async () => {

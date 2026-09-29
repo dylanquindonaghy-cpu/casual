@@ -489,6 +489,26 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - The flag stays when an urgent shift fills; if the office wants filled shifts shown as not
     urgent, clear it on fill in `bookShift()` and the sync.
   - (Done in the offer waves task: waves start from "a place reopened inside the window".)
+- **Connect Twilio** (the Phase 4 "WhatsApp utility templates via Twilio…" task is blocked on it:
+  an account, a UK number, approved templates and money):
+  1. Create the Twilio account and a UK number; set up the WhatsApp sender (Meta business
+     verification).
+  2. Submit the templates in docs/messaging-templates.md (with `shift_urgent`'s new `{day}`) and
+     record each approved content id.
+  3. Write the Twilio transport next to the console one (`src/lib/messaging/`): WhatsApp by content
+     id and variables, SMS by body; `MESSAGING_TRANSPORT=twilio` (production refuses `console`).
+     Throw `ChannelRefusedError` only for Twilio's "not a WhatsApp number" style errors (so offer
+     waves fall back to SMS only then); every other error is a failed send (logged, not retried on
+     another channel). Note the SMS cost: the en and em dashes in `shift_urgent` make a text
+     UCS-2 (about 3 segments), and the fallback sends more texts.
+  4. The status webhook (`POST /api/webhooks/twilio/status`): signature check, the `messages`
+     table with `provider_message_id` (golden rule 3), then the 60-second "not delivered → SMS"
+     fallback job.
+  5. STOP replies to SMS mark the channel opted out.
+  6. Test with 3 real phones (Android, iPhone, an older phone by SMS): the pre-pilot checklist.
+  Also: validate `quiet_hours` on the settings screen (Phase 5); and decide what a wave held past
+  the shift's start should do (today it stops as "started" at the end of the quiet hours, and
+  only the escalation tells the office).
 - **Connect the real web push** (the Phase 4 web push task is blocked on it: an outside service
   and a secret key):
   1. `npm install web-push`, then `npx web-push generate-vapid-keys` on the server (never commit the
@@ -606,3 +626,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.2 | Urgent board: `/urgent` lists the urgent shifts a worker could take (the same checks as Open shifts), with big "Take shift" buttons; My shifts says "1 urgent shift needs someone"; Open shifts labels urgent cards; 1576 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | Offer waves: when a place reopens close to the start (or the office marks a shift urgent), the best eligible workers get the urgent offer by WhatsApp or text (console only), the next group 15 minutes later, stopping when filled, started, cleared or out of people; the office is emailed if still unfilled 3 hours before (all firm settings); the review caught a cancellation-blocking setting and a false "filled elsewhere" (fixed and tested); 1597 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.5 | Web push, BLOCKED (not ticked: real delivery needs Google/Apple push services and a secret key): built everything short of it: phone subscriptions (new table), the subscribe route, the profile's "Notifications on this phone", pushes with each urgent offer through a console sender, the service worker showing and opening them; connecting the real sender is parked; 1649 tests + 25 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.3 | WhatsApp via Twilio, SMS fallback, quiet hours: BLOCKED (not ticked: Twilio is an outside service): built quiet hours (waves held until they end unless urgent may override, safe on clock-change nights) and the immediate SMS fallback when WhatsApp is refused, with other send failures logged per worker instead of rolling back the wave; connecting Twilio is parked with steps; 1664 tests + 25 e2e; verified (see docs/work-log.md) |

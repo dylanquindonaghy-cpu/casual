@@ -3077,3 +3077,84 @@ All done. The review's tests also caught a real bug: a push without a link would
 2. Open "My profile". Under "How we reach you" you'll see "Notifications on this phone" saying
    phone notifications aren't switched on yet. That's expected until the real sender is
    connected.
+
+## 2026-09-29: Phase 4, task 5: Quiet hours and the SMS fallback, short of Twilio (0.3 h). BLOCKED, not ticked
+
+### Time
+
+0.3 hours of Claude's working time (04:51 to 05:09 UTC), in the unattended overnight loop.
+Phase 4 so far: 1.8 of its 27 to 37 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** The task's headline is sending WhatsApp templates through Twilio,
+  and its main fallback rule ("SMS if WhatsApp isn't delivered within 60 seconds") needs
+  Twilio's delivery reports. Twilio is an outside service (an account, a number, approved
+  templates, money), which tonight's rules forbid. So I built what doesn't need it, and parked
+  "Connect Twilio" with numbered steps.
+- `scripts/verify.sh` printed `VERIFIED tree=e6ac7939af395373 e2e=true`. That covers the type
+  checks, lint, all 1664 tests (up from 1649), the 25 browser tests and the rule checks.
+- No auditor round (nothing to tick). Committed on `build/overnight`; the push result is in
+  `docs/overnight-log.md`.
+
+### What was built
+
+- **Quiet hours.** Each firm has quiet hours (default 22:00 to 07:00). Offer waves are urgent,
+  so they go at once if the firm lets urgent messages through at night (the default). If it
+  doesn't, the wave waits until the quiet hours end and goes then. Nothing is written or sent
+  while it waits, and the log says "held until 07:00". It works across midnight, in London time,
+  and on the nights the clocks change.
+- **SMS fallback.** If WhatsApp refuses a message (the number isn't on WhatsApp), a text goes
+  instead, straight away, and the offer records it went by text.
+- **Other failures.** Any other failure (a timeout, an outage) isn't resent by text, because it
+  might already have arrived. That offer is marked "failed" and logged, the rest of the wave
+  still goes, and that worker is included in the next wave.
+
+### What the safety review found (all fixed)
+
+- **A clock-change bug.** On the night the clocks go back, a firm whose quiet hours end between
+  1am and 2am could get an end time that had already passed. That would have made a waiting wave
+  loop. Fixed, with tests on both clock-change nights.
+- **The fallback was too eager.** It treated every error as "WhatsApp refused". If the text also
+  failed, the whole wave was undone after earlier workers had been messaged. Now only a real
+  refusal falls back, and failures are handled one worker at a time.
+
+  My first fix deleted failed offers. The database refused, because offers are evidence the app
+  may never delete, so they're now kept and marked "failed" (a small database change, migration
+  0013).
+- A firm's explicit "no urgent messages at night" is now kept even if the rest of the setting is
+  wrong.
+
+### What the new tests prove
+
+- `tests/unit/rules.quiet-hours.test.ts` (9 tests). It covers:
+  - when quiet hours end, across midnight;
+  - the end moment itself, London time, and both clock-change nights;
+  - bad settings, and keeping "no urgent at night".
+- `tests/integration/offers.waves.test.ts` (6 new tests):
+  - a wave held overnight and sent at 07:00;
+  - urgent going at once when allowed;
+  - the WhatsApp-to-text fallback;
+  - a timeout (no text, marked failed, others still sent);
+  - WhatsApp refused and the text failing too (both marked failed, both offered in the next
+    wave);
+  - two copies of a held wave (only one sends).
+
+### Parked, open, and things that need Dylan
+
+- **Connect Twilio** (PLAN.md Parking lot):
+  1. the account and number;
+  2. template approval;
+  3. the Twilio adapter (only "not on WhatsApp" errors count as a refusal);
+  4. the delivery-report webhook and the 60-second fallback;
+  5. STOP replies;
+  6. real-phone tests.
+- Also parked:
+  - checking the quiet-hours setting on the settings screen;
+  - what a wave held past the shift's start should do;
+  - text messages cost more because of the dashes in the urgent message.
+
+### How to see it working
+
+`npx vitest run tests/unit/rules.quiet-hours.test.ts tests/integration/offers.waves.test.ts`
+(stop `npm run dev` first) should say all passed.

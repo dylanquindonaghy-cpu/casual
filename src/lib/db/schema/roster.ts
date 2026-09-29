@@ -61,7 +61,14 @@ export const REQUEST_STATUSES = [
 ] as const;
 
 export const OFFER_CHANNELS = ["push", "whatsapp", "sms"] as const;
-export const OFFER_RESPONSES = ["accepted", "declined", "expired", "filled_elsewhere"] as const;
+// failed: the message couldn't be sent (kept as evidence of the attempt; never counts as offered).
+export const OFFER_RESPONSES = [
+  "accepted",
+  "declined",
+  "expired",
+  "filled_elsewhere",
+  "failed",
+] as const;
 
 // The credential types a firm uses: code, the name workers know it by, and whether an application
 // "in progress" may count within the firm's allowance (an SIA approved-contractor rule, so only
@@ -362,7 +369,7 @@ export const offers = pgTable(
     check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms')`),
     check(
       "offers_response_check",
-      sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere')`,
+      sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere', 'failed')`,
     ),
     check("offers_response_has_time", sql`(${t.response} is null) = (${t.respondedAt} is null)`),
     firmIsolation(t.firmId),

@@ -2524,3 +2524,83 @@ auditor round: the auditor decides a tick, and this task can't be ticked until t
 connected and tested on real phones.
 **Hours:** 0.5 (04:19 to 04:48 UTC). Phase 4 so far: 1.5 h of its 27–37 h estimate.
 **Commit:** `fa29082`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 04:50 UTC: Phase 4, "WhatsApp utility templates via Twilio for urgent offers; SMS fallback; quiet hours"
+
+**Blocked on an outside service (hard limit).** Sending real WhatsApp and SMS goes through
+Twilio (an account, approved templates, a number, money). The main SMS-fallback rule is "only if
+WhatsApp isn't delivered within 60 seconds", and that needs Twilio's delivery reports (a status
+webhook from Twilio). So: **build what doesn't need Twilio, park the rest, record as blocked,
+not ticked.**
+
+**Plan (the part that can be built and tested now):**
+- **Quiet hours** (docs/messaging-templates.md: "Quiet hours per firm, default 22:00–07:00.
+  Non-urgent waits. Urgent may override if the firm allows it"):
+  - a pure rule in `src/lib/rules/quiet-hours.ts` reads the firm's `quiet_hours` {start, end,
+    urgent_override} (a value that makes no sense uses the default) and answers: send now, or
+    hold until the quiet hours end (local time, across midnight and clock changes);
+  - offer waves use it: an urgent wave goes out at once if the firm allows urgent to override,
+    otherwise it's held until the quiet hours end (`offer.wave_held` {wave, until}) and queued
+    for then.
+- **SMS fallback, the part that needs no delivery report:** a WhatsApp offer that the transport
+  refuses to send (for example, the number isn't on WhatsApp) goes by SMS instead, straight
+  away. The offer row records the channel it actually went by, and the log says it fell back.
+  The "not delivered within 60 seconds" fallback needs Twilio's status webhook: parked.
+- The Twilio transport (WhatsApp templates by content id, SMS), the status webhook and the
+  template submission are parked under "Connect Twilio" (PLAN.md), with steps.
+
+Tests:
+- the quiet-hours rule's edges (across midnight, the end moment, BST/GMT, bad settings,
+  urgent override);
+- waves held and re-queued in quiet hours when urgent may not override, and sent when it may;
+- the fallback with a transport that refuses WhatsApp.
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Record as blocked, not ticked | Real WhatsApp/SMS and delivery-based fallback need Twilio | Tick on the console transport |
+| Quiet-hours settings that make no sense use the default (22:00–07:00, urgent overrides) | The wave job must never stop over a setting; the settings screen (Phase 5) validates | Refuse to send |
+| A refused WhatsApp falls back to SMS at once | Twilio refuses WhatsApp to numbers without it; waiting 60 s for a report that won't come helps no one | Only the 60 s rule |
+
+**Built:**
+- `src/lib/rules/quiet-hours.ts`;
+- the quiet-hours hold in `runOfferWave`, before anything is written or sent: the wave is
+  re-queued for when they end, logged `offer.wave_held`;
+- the immediate SMS fallback when the transport refuses WhatsApp (the offer's channel updated,
+  `fellBackFrom` in `offer.sent`);
+- docs (messaging-templates, api-and-jobs); Parking lot "Connect Twilio" with numbered steps.
+
+**Checks:** the new tests passed first time: 6 unit tests for quiet hours, and 3 wave tests (held
+in quiet hours then sent at 07:00, the urgent override, the fallback).
+
+**Guardrails review: FIX FIRST (two items), both fixed.** It confirmed "blocked" is right.
+1. **The clocks going back could loop a held job.** If a firm's quiet hours end between 01:00 and
+   02:00, that time happens twice on the autumn night. `quietUntil` took the first reading even
+   when it had already passed, so a wave was re-queued for the past: it ran, was held again, and
+   repeated. Root cause: I didn't make "until" always be after now. Fixed: if the first reading
+   has passed, it takes the second, and it never returns a past time. The wave also sends when
+   the end is less than a minute away (the queue's clock and ours can differ). Tests on both
+   clock-change days.
+2. **The fallback treated every error as a refusal, and a second failure rolled back the whole
+   wave** after earlier workers had already been messaged (retries would message them again).
+   Now:
+   - only a typed `ChannelRefusedError` falls back to SMS;
+   - any other failure, or a failed fallback, marks that offer `failed` and logs
+     `offer.send_failed` {workerId, wave, channel, code};
+   - the rest of the wave still goes, and that worker is in the next wave.
+
+   First attempt: I deleted the failed offer, and the database refused (42501). Offers are
+   evidence and the app can't delete them, which is right. So they're kept, marked with a new
+   response `failed` (migration 0013 widens `offers_response_check`). Tests: a timeout (no SMS,
+   marked failed, the other worker still gets it); WhatsApp refused and SMS failing (both marked
+   failed, both offered again in wave 2).
+
+Other findings, and what I did:
+
+| Finding | Done |
+|---|---|
+| A malformed `quiet_hours` dropped an explicit `urgent_override: false` | Read field by field; an explicit false is always kept; tests |
+| Two held copies of a wave weren't tested | Test: two queued, one sends at 07:00, the other finds it sent |
+| `result` had no type; docs missing `reason`, "start = end" | Typed `SendResult`; docs updated |
+| SMS cost (UCS-2 dashes), settings validation, a wave held past the start | Parked under "Connect Twilio" |

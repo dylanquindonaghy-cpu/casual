@@ -285,7 +285,7 @@ create table offers (
   channel text not null,                 -- push | whatsapp | sms
   sent_at timestamptz not null default now(),
   responded_at timestamptz,              -- set exactly when response is set
-  response text,                         -- accepted | declined | expired | filled_elsewhere
+  response text,                         -- accepted | declined | expired | filled_elsewhere | failed (couldn't be sent)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, shift_id, worker_id, wave) -- a retried offer-wave job (key shift:wave) sends nothing new

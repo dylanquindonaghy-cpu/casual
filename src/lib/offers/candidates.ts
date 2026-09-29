@@ -9,8 +9,10 @@ import { localDateOf } from "../time/zoned";
 // Who an offer wave may go to (docs/api-and-jobs.md, "Offer-wave ranking"): active workers with
 // the shift's role who want open-shift messages (their profile setting), have never held a place
 // on the shift (on it now, or cancelled off it: a cancellation is a "no"), haven't been offered it
-// before, and whom the rules allow (previewBooking: the same check as the boards). Each comes with what the fair-rotation order needs: confirmed hours in the shift's
-// week and when they were last offered any shift. Reads only; the wave job decides.
+// before (an offer that failed to send doesn't count), and whom the rules allow (previewBooking:
+// the same check as the boards). Each comes with what the fair-rotation order needs: confirmed
+// hours in the shift's week and when they were last offered any shift. Reads only; the wave job
+// decides.
 
 export interface WaveCandidate extends RotationCandidate {
   mobile: string;
@@ -34,7 +36,9 @@ export async function waveCandidates(
      where w.status = 'active' and w.offer_alerts and ${shift.role} = any (w.roles)
        and not exists (select 1 from assignments a
                         where a.shift_id = ${shift.id} and a.worker_id = w.id)
-       and not exists (select 1 from offers o where o.shift_id = ${shift.id} and o.worker_id = w.id)
+       and not exists (select 1 from offers o
+                        where o.shift_id = ${shift.id} and o.worker_id = w.id
+                          and o.response is distinct from 'failed')
      order by w.id
   `);
   if (rows.length === 0) return [];

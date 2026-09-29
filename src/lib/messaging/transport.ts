@@ -22,6 +22,16 @@ export interface SendResult {
   providerMessageId: string;
 }
 
+// The provider won't carry this message on this channel (e.g. the number isn't on WhatsApp): the
+// only error a sender may answer by trying another channel. Anything else (a timeout, an outage)
+// might already have been delivered, so it's never "fallen back" from.
+export class ChannelRefusedError extends Error {
+  constructor(readonly channel: Channel) {
+    super(`the provider refused the ${channel} message`);
+    this.name = "ChannelRefusedError";
+  }
+}
+
 export interface MessagingTransport {
   readonly name: string;
   send(message: OutboundMessage): Promise<SendResult>;

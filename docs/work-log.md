@@ -5724,3 +5724,80 @@ Key facts:
 `npx playwright test tests/e2e/sms.stop.spec.ts` (stop `npm run dev` first). It texts STOP to the
 demo firm's line, finds the confirmation in `.dev/e2e-outbox.jsonl`, logs in as that worker, shows
 the "Texts are off" note on the profile, then texts START.
+
+## 2026-09-29: Phase 7, task 6: Every Twilio webhook checked and stored once (0.3 h, DONE)
+
+### Time
+
+0.3 hours of Claude's working time (20:01 to 20:19 UTC), in the unattended overnight loop.
+Phase 7 so far: 3.7 of its 15 to 20 hour estimate.
+
+### Result
+
+- **Done and ticked.** The independent auditor returned DONE (its verdict is in
+  `docs/overnight-log.md`).
+- `scripts/verify.sh` printed `VERIFIED tree=9ed52ebe9192a916 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2434 tests (up from 2418);
+  - the 43 browser tests;
+  - the rule checks.
+- No guardrails review: only tests and docs changed, no app code.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+A webhook is an address on our app that Twilio (the phone company service) calls when a message
+or call arrives. Anyone on the internet could call that address too, so each request has to prove
+it came from Twilio. Twilio does this with a signature: a code worked out from the request and a
+secret key only Twilio and we know.
+
+The five Twilio webhooks built over the last few tasks (WhatsApp, texts, calls, voicemail text,
+and the goodbye after a voicemail) already:
+- checked the signature first, against the webhook's own address as we configured it (so a
+  request signed for one webhook doesn't work at another);
+- stored each message, call or voicemail once, by Twilio's own id for it, so a repeat (Twilio
+  trying again, or someone replaying a captured request) changes nothing.
+
+This task made sure that stays true:
+- **A guard test** (`tests/unit/twilio.webhooks.test.ts`) reads the code. It fails if:
+  - a new Twilio webhook appears that isn't on its list;
+  - a webhook doesn't check the signature before anything else, or checks it against the address
+    the request claims instead of our configured one;
+  - anything else in the app checks Twilio signatures its own way;
+  - any incoming message is stored without the "only once" guard, or its job runs without it.
+- **I checked the guard really catches mistakes**: a new unchecked "status" webhook made it fail,
+  and so did removing the "only once" guard from the storage code. Both were undone.
+- **The API doc** has a new "Twilio webhooks" section: the checks in order, what each webhook
+  stores once, and what a repeat does.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Not blocked | Signatures and storing once are our own code, and the signature maths reproduces Twilio's published example | Blocked, like the flows that need a real message |
+| The delivery-status webhook isn't built here | It only matters once the real Twilio sender exists (it tells Twilio where to report) and the 60-second text fallback, both parked | Build it now with nothing calling it |
+| A guard test that reads the code | Keeps the promise true as new webhooks are added, like the other guard tests | Rely on each webhook's own tests |
+
+### What the new tests prove
+
+16 new tests, in `tests/unit/twilio.webhooks.test.ts`:
+- every Twilio webhook route is listed, accepts POST only, gets the configured key, and checks
+  its own configured address;
+- each handler's first step is Twilio's checks, and a refusal returns at once;
+- the shared checks run in the right order (key, size, repeated fields, then the signature);
+- nothing else in the app checks a Twilio signature;
+- every incoming message is stored with the "only once" guard, and nothing follows unless it's new.
+
+The behaviour itself (fakes refused with nothing stored, repeats doing nothing) is proven by the
+WhatsApp, text and call tests from the earlier tasks.
+
+### Parked, open, and things that need Dylan
+
+- The delivery-status webhook: with the Twilio sender (Connect Twilio step 4). The guard test will
+  hold it to the same rules.
+- Nothing new for Dylan.
+
+### How to see it working
+
+`npx vitest run tests/unit/twilio.webhooks.test.ts` runs the guard test (a second or two, no
+database needed).

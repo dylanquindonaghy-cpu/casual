@@ -4886,3 +4886,77 @@ step 5.
 
 **Commit:** `f4355c9` "Phase 7 (BLOCKED, not ticked): STOP handling for SMS; opt-out respected in the
 notification policy", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-29 20:01 UTC: Phase 7, "Signature checks on all Twilio webhooks; idempotent storage"
+
+**Not blocked (I think):** checking Twilio's signature and storing each webhook once are our own
+code, and the signature scheme already reproduces Twilio's published example. The auditor decides.
+
+**Where things stand:** the five Twilio webhooks built so far (WhatsApp, SMS, voice, voice
+transcription, voice "done") all start with `readTwilioRequest()` (no token 503, form only, size,
+no repeated fields, signature for the webhook's own configured address: 403), and each one that
+stores keeps one row per Twilio id (MessageSid, CallSid, RecordingSid) with `onConflictDoNothing`
+on the firm's unique key, queuing its job only when the row is new. What's missing is a guarantee
+that stays true: nothing stops a future webhook (the delivery-status one, say) from skipping the
+check or storing twice.
+
+**Plan:**
+
+1. **A guard test** (`tests/unit/twilio.webhooks.test.ts`) over the source:
+   - every route under `src/app/api/webhooks/twilio/` is listed (a new one fails the test until
+     it's added), exports only `POST`, and hands the request to one handler in `src/lib/inbound/`
+     with the configured token (`env.TWILIO_AUTH_TOKEN`) and its own address built from
+     configuration (`platformUrl(env.APP_BASE_DOMAIN, …)` with the route's own path, never the
+     request's URL);
+   - every such handler's first step is `readTwilioRequest()`, returning its refusal before
+     anything else;
+   - every insert into `messages` on the inbound side is `onConflictDoNothing` on
+     `(firm_id, provider_message_id)`, and the job is queued only for a new row;
+   - nothing else in `src/app/api/` reads Twilio's fields.
+2. **A replay check**: Twilio's signature has no timestamp, so a captured request stays valid;
+   storing once by Twilio's id is the defence. Tested for each storing webhook (a replay stores
+   and sends nothing more) where not already.
+3. **Docs**: api-and-jobs gets a short "Twilio webhooks" summary (checks, the id each stores by,
+   what a repeat does); the status webhook's row says it isn't built yet (it comes with the Twilio
+   sender, Connect Twilio step 4) and must use the same checks (the guard test enforces it).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Not blocked | Signatures and storage are our code; the scheme reproduces Twilio's example | Blocked like the flows that need a real message |
+| The delivery-status webhook isn't built here | It only matters with the Twilio sender (it sets the callback) and the 60-second text fallback, both parked; building it now would store statuses for sends that don't exist | Build it now with nothing calling it |
+| A source-reading guard test, like the other tripwires | Keeps "every webhook is checked and stores once" true as webhooks are added | Rely on each webhook's own tests |
+
+**Built as planned:** `tests/unit/twilio.webhooks.test.ts` (16 tests) and the "Twilio webhooks:
+checks and storing once" section in `docs/api-and-jobs.md` (the status webhook's row says it isn't
+built yet and must follow the same shape). No app code changed, so no guardrails review. Root cause
+written down once: the first run flagged `src/lib/env.ts` as "checking a signature", but it was a
+comment mentioning X-Twilio-Signature; the test now ignores comment lines. Checked the guard bites:
+an unchecked `status/route.ts` failed the listing test, and removing `onConflictDoNothing` from
+`receive.ts` failed the storing-once test (both undone).
+
+**Verify:** `VERIFIED tree=9ed52ebe9192a916 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2434 tests, 43 e2e).
+
+**Auditor verdict (round 1, verbatim):**
+
+> VERDICT: DONE
+>
+> Preconditions: `.claude/state/verified.json` = `{"ok":true,"tree":"9ed52ebe9192a916",...}`; `./.claude/hooks/tree-hash.sh` = `9ed52ebe9192a916` (match, includes the uncommitted docs edits and the new untracked test file, which is correctly part of the verified state).
+>
+> Claims:
+> - Signature checks on all Twilio webhooks — PROVEN. Shared check `readTwilioRequest()` (`src/lib/inbound/twilio-request.ts:23-52`): 503 no token, 415/413 not-form/too-big, 400 repeated field, 403 bad/wrong-address signature via `isValidTwilioSignature` (`src/lib/inbound/twilio-signature.ts:22-32`, HMAC-SHA1, constant-time). All 5 routes (`src/app/api/webhooks/twilio/{whatsapp,sms,voice,voice/transcription,voice/done}/route.ts`) call it first via handlers in `src/lib/inbound/webhook.ts` and `voice.ts`. Enforced by a source-reading guard test `tests/unit/twilio.webhooks.test.ts` (18 tests, all pass — `.claude/state/test.log:1910-1925`) that fails if any route skips the check, uses the request's own URL/headers instead of configured address, or if any other file in `src/` reads a Twilio signature. Behaviour proven with real refusal cases in `tests/integration/inbound.whatsapp.test.ts:176-178`, `inbound.sms.test.ts:204-225`, `inbound.voice.test.ts:464-490` (403/503/400 for bad signature, wrong token, wrong address, missing token) — all pass in test.log. Signature math validated against Twilio's own published example in `tests/unit/inbound.signature.test.ts:8-20` (passes). Also proven live in e2e (`.claude/state/e2e.log`: `voice.inbound.spec.ts`, `whatsapp.inbound.spec.ts`, `sms.stop.spec.ts` — 43/43 e2e pass, with genuine `"twilio webhook: bad signature"` warnings logged from rejected requests during the run).
+> - Idempotent storage — PROVEN. Inserts in `src/lib/inbound/receive.ts:44-62` and `src/lib/inbound/voice.ts:114-140,205-222` use `.onConflictDoNothing({ target: [messages.firmId, messages.providerMessageId] })` keyed by Twilio's MessageSid/CallSid/RecordingSid, queuing a job/event only `if (row)`. Unique constraint at `src/lib/db/schema/messages.ts:60`. Guard test asserts this shape for every insert (`twilio.webhooks.test.ts`, "what a Twilio webhook stores, it stores once" — 3/3 pass). Explicit repeat-call assertions: `inbound.sms.test.ts` (calls handler twice with identical signed fields, asserts one row/one job), `inbound.whatsapp.test.ts:135`, `inbound.voice.test.ts` (repeat call/transcription tests) — all pass in test.log.
+> - Docs updated (`docs/api-and-jobs.md`, Phase 7's docs line) — PROVEN. New "Twilio webhooks: checks and storing once" section added (diff verified), matching the code exactly, including correctly noting the not-yet-built status webhook must follow the same guard.
+>
+> Fakes found: none. `invariants.log` confirms "no .only/.skip/.todo in tests" and "2434 tests: 2434 passed, 0 failed, 0 skipped, 0 todo" across the whole suite. No bypass of signature checks by NODE_ENV or similar found in `src/lib/inbound/`.
+>
+> To reach DONE: nothing — this bullet is proven by code, unit guard tests, integration tests and e2e, all currently green under the matching verified tree hash.
+
+(The auditor counted 18 lines for the file in the test log; vitest counts 16 tests in it, the
+suite going from 2418 to 2434: the numbers in my notes are vitest's.)
+
+**Ticked** in PLAN.md.
+
+**Hours:** 0.3 h (20:01 to 20:19 UTC). Phase 7 so far 3.7 h of its 15–20 h estimate.

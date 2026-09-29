@@ -17,11 +17,45 @@
 | `POST /api/webhooks/twilio/voice` | Twilio | Built in Phase 7 short of Twilio (`src/app/api/webhooks/twilio/voice/route.ts`, `handleTwilioVoice()` in `src/lib/inbound/voice.ts`). The same checks as the WhatsApp webhook, shared (`readTwilioRequest()` in `src/lib/inbound/twilio-request.ts`: 503 / 415 / 413 / 400 for a field sent twice / 403 for a signature that isn't for this address); fields checked with zod (CallSid `CA…`, To E.164; else 400). No firm has the number called: "Sorry, this number isn't in use." and hang up. Otherwise one `messages` row (channel voice, the CallSid as `provider_message_id`, no body, already handled: a call needs no reply job; no `from_e164` when the number is withheld: "anonymous", missing, or one of Twilio's placeholder numbers for a hidden caller ID; a repeat stores nothing and does nothing more) and `call.received` {linkRequested, withheld} (entity: the stored call; no number, no Twilio ids). From a real number, the login page's own request (`requestWorkerLoginLink()`, throttled by the caller's number): a worker's number gets their login link by `send-portal-link` (by WhatsApp: the SMS fallback for login links is parked), any other number nothing, and the answer is the same; its own events say what came of it. The TwiML: the doc's `callGreeting()` spoken in en-GB (a withheld number isn't promised a link; nor is a number the login limits stopped, or when asking failed: that is logged with an error code and the call is still answered), `<Record transcribe>` (2 minutes at most, its transcription callback and action the two webhooks below), `<Hangup/>`. |
 | `POST /api/webhooks/twilio/voice/transcription` | Twilio | Built in Phase 7 short of Twilio (`handleTwilioTranscription()`). The same checks; fields RecordingSid `RE…`, TranscriptionStatus, TranscriptionText, From, To. One `messages` row (channel voice, the RecordingSid as `provider_message_id`; the text, at most 1600, only when the status is "completed" and it isn't blank, else none; no `from_e164` when withheld) and one `inbound-message` job, in one transaction; a repeat stores nothing. An empty TwiML 200 (also for a number no firm has). |
 | `POST /api/webhooks/twilio/voice/done` | Twilio | Built in Phase 7 short of Twilio (`handleTwilioVoiceDone()`): `<Record>`'s action after the voicemail. The same checks; "Thank you. Goodbye." and hang up. |
-| `POST /api/webhooks/twilio/status` | Twilio | Delivery status updates on `messages`. |
+| `POST /api/webhooks/twilio/status` | Twilio | Delivery status updates on `messages`. Not built yet: it comes with the Twilio sender, which sets the callback, and the 60-second text fallback (PLAN.md Parking lot, Connect Twilio step 4). It must use the same checks and store once, like every Twilio webhook (see "Twilio webhooks" below; `tests/unit/twilio.webhooks.test.ts` fails until a new route is listed there and follows them). |
 | `POST /api/push/subscribe` | Portal (session) | Save web push subscription for the worker. Built (`src/app/api/push/subscribe/route.ts`, `src/lib/push/subscriptions.ts`): the worker from the session, the firm from the host, only from the portal's own page (Origin must be this host; none: 403), zod-checked, only a browser maker's push service address (Google, Apple, Mozilla, Microsoft), body at most 4 KB (413 before reading when declared); saving the same one again is a no-op; at most 10 phones per worker (the oldest go); `DELETE` removes this phone's (also when already gone); logged `push.subscribed` / `push.unsubscribed` with no address. Logout and login forget this phone's subscription (a shared phone). The service worker re-saves a renewed one (`pushsubscriptionchange`). The real push sender isn't connected (PLAN.md Parking lot). |
 | `GET /api/caddy/ask?domain=` | Caddy | 200 only if `firms.custom_domain` matches and `domain_verified` is true. |
 | `GET /api/health` | Uptime check | DB + queue ping. |
 | Stage 2: `POST /api/webhooks/ses` | SNS | Inbound email notification → fetch from S3 → `classify-email`. |
+
+### Twilio webhooks: checks and storing once (Phase 7)
+
+Every Twilio webhook hands the request to one handler in `src/lib/inbound/` whose first step is
+`readTwilioRequest()` (`src/lib/inbound/twilio-request.ts`), and a refusal returns at once:
+
+1. no `TWILIO_AUTH_TOKEN` configured: 503 (Twilio isn't connected);
+2. not a form post: 415; bigger than 64 KB (by its declared length before reading, then by what
+   arrived): 413;
+3. a field sent twice (Twilio never does): 400;
+4. `X-Twilio-Signature` missing or wrong: 403. It's checked against the webhook's own address as
+   configured (`platformUrl(APP_BASE_DOMAIN, path)`), never the address the request claims, so a
+   request signed for one webhook isn't valid at another. HMAC-SHA1 of the address and the sorted
+   fields, compared in constant time (`src/lib/inbound/twilio-signature.ts`, which reproduces
+   Twilio's published example).
+
+Only then are the fields checked (zod: 400) and the firm found by the number (none: 200, nothing
+stored, so Twilio doesn't retry). Nothing from a request is logged.
+
+| Webhook | Stored once by | A repeat (Twilio's retry, or a replayed request) |
+|---|---|---|
+| `whatsapp` | MessageSid | stores nothing, queues nothing |
+| `sms` | MessageSid | stores nothing, queues nothing |
+| `voice` | CallSid (a withheld number's too) | the same answer; no second row, event or login link |
+| `voice/transcription` | RecordingSid | stores nothing, queues nothing |
+| `voice/done` | nothing (it only says goodbye) | the same goodbye |
+
+Twilio's signature has no timestamp, so a captured request stays valid: storing each Twilio id at
+most once is the defence. The key is unique within the firm (`messages (firm_id,
+provider_message_id)`); the insert is `ON CONFLICT DO NOTHING`, and the job (or event, or login
+link) follows only when a row came back. Two copies at the same moment: `ON CONFLICT DO NOTHING`
+waits for the other's insert, then inserts nothing. `tests/unit/twilio.webhooks.test.ts` holds every webhook, now
+and future, to this shape; each webhook's integration tests prove it (refusals store nothing, a
+repeat stores and sends nothing more).
 
 Workers never call APIs directly; the portal uses server actions. Built so far (Phase 1): request
 a login link (`src/app/login/actions.ts`), use it (`src/app/l/actions.ts`), log out and refresh the

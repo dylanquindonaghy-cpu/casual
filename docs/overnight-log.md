@@ -2166,3 +2166,34 @@ Other findings, and what I did:
 | The sync's urgent event lacked `source: "sheets"` | Added; test updated |
 | Offer waves should start from "a place reopened inside the window", not "the flag was newly set" | Parked for the offer-waves task |
 | An urgent shift later cancelled couldn't have its flag cleared | Clearing is now always allowed; test added |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=ff55af013144d14d e2e=true` (1565 tests, 21 e2e).
+`npm run build` run by hand: succeeds. Dev database recreated with the new seed.
+
+**Auditor (round 1), verbatim** (given the task text and, since Phase 4 has no "Done when" line,
+the phase heading and its docs line):
+
+```
+VERDICT: DONE
+
+Preconditions: `.claude/state/verified.json` → `{"ok":true,"tree":"ff55af013144d14d","e2e":true}`; `./.claude/hooks/tree-hash.sh` → `ff55af013144d14d` (matches). Proceeded with audit.
+
+Claims:
+- Manual urgent flag, settable/clearable by office — PROVEN — `src/lib/roster/urgent.ts:85-126` (`setShiftUrgent`, restricted to active admins/resourcers via `officeCanPlace`, blocks draft/cancelled/started shifts, logs `shift.marked_urgent`/`shift.urgent_cleared`). Tests: `tests/integration/urgent.test.ts:154-255` ("marked or cleared by the office"), including tenant-isolation test at line 246 ("never touches another firm's shift"). All pass per `.claude/state/test.log:533-537`.
+- Automatic urgent flag when a dropout lands inside X hours — PROVEN — rule in `src/lib/rules/urgent.ts:27-30` (`insideUrgentWindow`), applied by `src/lib/roster/urgent.ts:25-66` (`markUrgentAfterDropout`), wired into both cancellation paths: `src/lib/roster/cancel.ts` (diff adds `await markUrgentAfterDropout(tx, { shiftId, now })` after logging the cancel event) and the Google Sheets sync (`src/lib/roster/sheets/sync.ts` diff, only fires when a name is actually removed, not swapped). Tests: `tests/integration/urgent.test.ts:45-152` (window boundary, firm-specific window, malformed-setting fallback, office cancellation, no double-marking, no marking after shift start) and `tests/integration/sheets.sync.test.ts:28-30` (dropout vs. swap vs. whole-shift-cancel distinctions). Unit rule tests: `tests/unit/rules.urgent.test.ts` (window math, default fallback, hoursToStart rounding). All pass per `.claude/state/test.log:526-532` and `:1568-1572`.
+- X (window) is firm-configurable, not hardcoded — PROVEN — `urgentWindowHoursSchema`/`urgentWindowHours()` in `src/lib/rules/urgent.ts:12-24`, read from `firms.settings.urgent_window_hours` (default 24), reused by `src/lib/roster/allocation-input.ts` (diff swaps in the shared schema). Test: `tests/integration/urgent.test.ts:74-94` ("uses the firm's own window", "a window setting that makes no sense uses 24 hours").
+- Every state change logged as an event (golden rule 5) — PROVEN — both code paths call `recordEvent` with `shift.marked_urgent`/`shift.urgent_cleared`, actor type `system` (cause "dropout") vs `office` (cause "office"), asserted exactly in tests (e.g. `urgent.test.ts:53-61`, `:117-122`, `:172-187`).
+- Demo seed reflects the flag/log consistently — PROVEN — `src/lib/db/admin/seed-saturday.ts:213` sets `isUrgent: p.key === DROPOUT.key` on the row; `src/lib/db/admin/seed.ts` (diff) logs a matching `shift.marked_urgent` event choosing system/office actor via the same `insideUrgentWindow`/`urgentWindowHours` rule. Verified by `tests/integration/seed.test.ts:266-292` and `:388-410` (asserts DB flag, event, and correct actor by window). Passing per test.log:291.
+- Docs updated (architecture, data-model, api-and-jobs) — PROVEN — `docs/architecture.md` "Cancel" step 3 now describes the exact mechanism and file names; `docs/data-model.md` comment on `is_urgent`; `docs/api-and-jobs.md` `makeUrgent(shiftId)` entry expanded with implementation detail. All match the code as read.
+
+Fakes found: none. No `.only`/`.skip`/TODO/"not implemented" in `src/lib/roster/urgent.ts`, `src/lib/rules/urgent.ts`, or the two new test files (checked by grep). PLAN.md line 158 checkbox correctly left unticked (`- [ ] Urgent flag on shifts...`) — not self-ticked.
+
+Full suite: 78 test files / 1565 tests passed (`.claude/state/test.log` tail), matching `verified.json`'s tree hash.
+
+To reach DONE: nothing — this task's claims are all PROVEN.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.4 (03:11 to 03:33 UTC). Phase 4 so far: 0.4 h of its 27–37 h
+estimate.
+**Commit:** `60a3ece`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

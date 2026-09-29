@@ -5449,3 +5449,7 @@ Everything short of it is written, checked and committed. No auditor round. Next
 "Connect AWS", then "Connect the deploy".
 
 **Hours:** 0.6 h (23:03 to 23:41 UTC). Phase 8 so far 2.6 h of its 18–28 h estimate.
+
+**Commit:** `3385156` "Phase 8 (BLOCKED, not ticked): Docker Compose (web, worker, caddy); GitHub
+Actions deploy", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked (the
+new "docker" job's result is Dylan's first check).

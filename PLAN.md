@@ -178,7 +178,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
 - [x] Mark no-show / completed
 - [x] Approve/decline requests (time changes, swaps, availability, general) with a note → worker notified
 - [x] Action log with filters (worker, shift, date, type)
-- [ ] Notice and cancellation report: every offer/change/cancel with timestamps, initiator and
+- [x] Notice and cancellation report: every offer/change/cancel with timestamps, initiator and
       notice hours; short-notice flag at a firm-set threshold (final 2027 rules still pending); CSV export
 - [ ] Pilot metrics page: baseline entry form + daily rollup job (`docs/pilot-playbook.md`)
 - [ ] Tests: `notice.report` (worker cancel, firm cancel, move, curtail)
@@ -641,6 +641,23 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Other office client buttons (edit shift, create, import, offer, quick actions) can be clicked
     before the page is hydrated and then do nothing: give them `useHydrated()` like the assign,
     move and cancel buttons.
+- Notice report follow-ups (Phase 5):
+  - **Dylan to confirm:** the short-notice threshold is read from the firm's settings (48 hours
+    unless set); there's no screen to change it yet. Changing a firm's settings in the app needs
+    the app to update the `firms` table (a new grant and row policy on the tenancy root), best
+    done with an office settings screen, which no phase lists yet. Add one (threshold, urgent
+    window, quiet hours, waves, sign-off)?
+  - **Dylan to confirm:** payroll doesn't see the report (admins and resourcers do); it may want
+    it once compensation is calculated (Stage 2).
+  - The demo seed's short-notice firm cancellation (docs/testing.md, Northline) isn't there yet:
+    add it with the seed's past event (see "Marking who worked follow-ups").
+  - The shift column shows the shift as it is now; for a booking or cancellation made before a
+    later move, the notice hours (recorded at the time) are right but the start shown is the new
+    one. Record the start in those events too if the 2027 rules need it.
+  - Offers logged before this task have no notice recorded (dev data only): the report counts
+    them from the current start and says so.
+  - Log each CSV download (`report.exported` {from, to, kind, rows}): personal data leaving the
+    system. Not required by golden rule 5, but useful evidence.
 - Action log follow-ups (Phase 5):
   - **Dylan to confirm:** payroll doesn't see the action log (admins and resourcers do), and
     resourcers see that a worker's pay record was added or changed (never an amount).
@@ -860,3 +877,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 0.5 | Mark who worked: on a shift's page, once it has started, the office marks each person as worked or not attended (and can put a mistake right); after the end, "mark the rest as worked" after a "Yes"; every mark logged with what it was before; a new "Who worked?" list on Today shows shifts from the last 7 days with people not marked yet; the review caught a confirmation that vanished on refresh (fixed, and the browser test now proves it stays); 1979 tests + 33 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.5 | Answering requests: a new office Requests page lists what workers asked (oldest first) with the shift and their note; the office approves or declines with a note (needed to decline), one answer only even if two people try at once; the worker gets "Your request (swap, ref …) is declined. The office says: …" by WhatsApp or text (quiet hours respected, once only) and sees the note in My requests; the office sees whether they were told; the review caught a reply about a finished shift that could go at night (fixed and tested); 2005 tests + 34 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.5 | Action log: a new office page shows every recorded event, newest first, in plain words, filtered by worker, shift, type (12 plain groups) and dates in London time (default the last 7 days; all of one shift from its page), 100 at a time; a test fails if any event the code records has no group or words; the review caught a test that would have failed on 19–22 October and two pay-record events the words had missed (both fixed); 2093 tests + 35 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 5 | 0.5 | Notice and cancellation report: a new office page lists every offer, booking, move, shortening and cancellation from the log, with when, who started it (worker, office, rota sheet, offer wave), the notice the worker had and a short-notice flag at the firm's threshold (48 hours unless the firm sets its own), filtered by dates, kind, who started it and short notice, and downloads as a CSV file (all rows or none, safe to open in a spreadsheet); offers now record their notice too; the review caught rota-sheet changes showing no worker, moves showing only start times and a file that could be cut short (all fixed and tested); 2103 tests + 36 e2e; verified and audited DONE (see docs/work-log.md) |

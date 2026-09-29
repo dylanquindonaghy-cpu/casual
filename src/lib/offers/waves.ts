@@ -12,6 +12,7 @@ import {
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { workerEnv } from "../env";
+import { noticeHours } from "../roster/notice";
 import { recordEvent } from "../events/record";
 import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
@@ -378,6 +379,8 @@ export async function runOfferWave(
         shiftId: shift.id,
         workerId: c.workerId,
         wave: payload.wave,
+        // The notice they had of the shift (the notice report counts from this, not a later start).
+        noticeHours: noticeHours(shift.startsAt, now),
         channel: sent.channel,
         providerMessageId: sent.providerMessageId,
         pushes: sent.pushes,

@@ -91,8 +91,10 @@ What's coming (details still being set in regulations):
 What the product does about it:
 - Timestamps every offer, acceptance, change and cancellation, and who initiated it.
 - Computes notice hours for each change.
-- Flags short-notice changes against a **configurable** threshold.
-- Exports a notice and cancellation report (CSV).
+- Flags short-notice changes against a **configurable** threshold (the firm's
+  `short_notice_threshold_hours`, default 48).
+- Exports a notice and cancellation report (CSV). Built (Phase 5): `/office/reports/notice`, from
+  the append-only action log; each row's notice hours were recorded when it happened.
 - Stage 2: a compensation calculator once the rules are final.
 
 ## WhatsApp rules

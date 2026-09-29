@@ -445,6 +445,8 @@ describe("a wave", () => {
       [t.f.firmId, t.ann.id],
     );
     expect(rows[0]?.data).toMatchObject({ channel: "sms", fellBackFrom: "whatsapp" });
+    // The notice they had of the shift, for the notice report: sent at 09:00 for 19:00.
+    expect(rows[0]?.data).toMatchObject({ noticeHours: 10 });
   });
 
   it("by text, the offer is the doc's short SMS version (the fallback too)", async () => {

@@ -22,9 +22,12 @@ describe("office roles", () => {
     expect(canAccess("admin", "today")).toBe(true);
   });
 
-  it("the action log is for admins and resourcers", () => {
+  it("the action log and the notice report are for admins and resourcers", () => {
     expect(canAccess("admin", "log")).toBe(true);
     expect(canAccess("resourcer", "log")).toBe(true);
     expect(canAccess("payroll", "log")).toBe(false);
+    expect(canAccess("admin", "reports")).toBe(true);
+    expect(canAccess("resourcer", "reports")).toBe(true);
+    expect(canAccess("payroll", "reports")).toBe(false);
   });
 });

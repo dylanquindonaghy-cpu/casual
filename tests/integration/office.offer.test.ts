@@ -178,6 +178,7 @@ describe("queueing the offer", () => {
           shiftId: t.shiftId,
           workerId: t.ann,
           offeredBy: t.resourcer,
+          noticeHours: 30, // the shift starts 30 hours after the offer
           channel: "whatsapp",
           providerMessageId: "capture-1",
           pushes: 0,

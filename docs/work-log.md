@@ -4261,3 +4261,95 @@ only a shift's own history showed any of it. Now the office has the whole **acti
 3. Click "Action log". You should see today's demo events, newest first.
 4. Choose "Cancellations" under Type and press "Show": the demo's dropout is there.
 5. Click its shift, then "See this shift in the action log".
+
+## 2026-09-29: Phase 5, task 7: The notice and cancellation report (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (11:32 to 12:00 UTC), in the unattended overnight loop.
+Phase 5 so far: 4.7 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=16aee8452687c53a e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2103 tests (up from 2093);
+  - the 36 browser tests (1 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+From 2027 the Employment Rights Act is expected to give zero-hours workers a right to reasonable
+notice of shifts, and pay when shifts are cancelled, moved or cut short at short notice. Firms will
+need evidence. This report is that evidence, and the main selling point in the business plan.
+- **The page** (`/office/reports/notice`, "Notice report" in the office menu, admins and
+  resourcers) lists every **offer, booking, move, shortening and cancellation**, one row per worker
+  affected, newest first:
+  - **when** it happened;
+  - **who started it**: the worker, the office, the rota sheet (the Google Sheets sync), or an
+    offer wave;
+  - the worker and the shift (a link to its page); for a move or shortening, the times before and
+    after, and whether the site changed;
+  - the **notice** the worker had, in words and exact hours ("2 days' notice (71.99 hours)"), or
+    "After the start";
+  - **short notice**: "Yes" when the notice was under the firm's threshold;
+  - the firm's **reason** (its fixed reasons, the rota sheet's, or the office's override reason).
+- **The threshold**: each firm's own `short_notice_threshold_hours` setting, or 48 hours (the
+  placeholder in the docs until the 2027 rules are final). The page says which it's using.
+- **Filters**: dates (London days; default the last 28), what (offers, bookings, moves and
+  shortenings, cancellations), who started it (the firm or the worker), and short notice only.
+- **CSV download**: the same rows as a spreadsheet file (CSV means "comma-separated values", a
+  plain file Excel opens). Times in UK time and in UTC (the world standard time, for evidence).
+  Safe to open: a name starting with "=" can't run as a spreadsheet formula. All rows or none: over
+  20,000 rows it asks for fewer days, so a file that looks complete always is.
+- **Where the numbers come from**: every row's notice hours were recorded in the action log when
+  the thing happened, so a later change to the shift can't alter them. Offers didn't record this
+  before; now they do.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Built from the action log | The log keeps every step, even after later changes | Read today's bookings (loses moves and history) |
+| Offers now record their notice | Each row's notice comes from its own record, whatever happens to the shift later | Count offers from the shift's current start |
+| The threshold is read from the firm's settings; no screen to change it yet | Changing a firm's settings in the app needs write access to the firms table (the root of tenant isolation), best done with a settings screen, which no phase has yet | A field on this page (parked for Dylan) |
+| Every row gets the flag; filters narrow it | The 2027 rules aren't final, so the office decides what matters | Flag only the firm's changes |
+| A file is all rows or none | A cut-off evidence file that looks complete would mislead | Cut at 20,000 silently |
+
+### What the new tests prove
+
+- `tests/integration/office.notice-report.test.ts` (7 tests, on the real database):
+  - every kind of row with who started it, its notice from the record, the flag and the reason;
+  - an older rota-sheet shortening that only names the booking still shows the worker and the
+    shift; a shortening shows its new end time;
+  - the threshold at exactly 72 against 71.99 hours, and settings that aren't valid;
+  - each filter; London day boundaries (summer time too); the one-year limit;
+  - only this firm's rows, and another firm's ids name nobody;
+  - the real cancellation and move paths produce the right rows, and a worker's typed reason
+    never appears;
+  - the CSV line by line (a name starting "=" made harmless, a negative notice kept as a number);
+  - payroll and logged-out people refused.
+- `tests/unit/office.notice-report.test.ts`: the spreadsheet-safety rules, the threshold rules and
+  the words.
+- The offer and Sheets sync tests now check offers record their notice and the sync's moves name
+  the shift and worker.
+- `tests/e2e/office.reports.spec.ts` (1 browser test): open the report, see the demo's bookings,
+  filter to cancellations, download the CSV and check it matches the page.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`, Parking lot, "Notice report follow-ups"):
+  - an office settings screen to change the threshold (and the other firm settings)?
+  - should payroll see the report?
+- **Parked:** the demo's short-notice firm cancellation; recording the shift's start in booking
+  and cancellation events (the page shows the start as it is now); logging each CSV download.
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
+3. Click "Notice report". The demo's bookings and the 06:00 dropout are there, with their notice.
+4. Choose "Cancellations" under "What", press "Show", then "Download as a spreadsheet (CSV)".

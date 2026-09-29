@@ -4,6 +4,7 @@ import { systemClock, type Clock } from "../auth/clock";
 import { offers, shifts, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
+import { noticeHours } from "../roster/notice";
 import { recordEvent } from "../events/record";
 import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
@@ -355,6 +356,8 @@ export async function runOfficeOffer(
       shiftId: shift.id,
       workerId: payload.workerId,
       offeredBy: payload.officeUserId,
+      // The notice they had of the shift (the notice report counts from this, not a later start).
+      noticeHours: noticeHours(shift.startsAt, now),
       channel: sent.channel,
       providerMessageId: sent.providerMessageId,
       pushes: sent.pushes,

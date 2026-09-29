@@ -462,6 +462,8 @@ describe("sheets.sync: from the sheet into our tables", () => {
     expect(curtailed?.data).toEqual({
       source: "sheets",
       by: "firm",
+      shiftId: expect.any(String),
+      workerId: expect.any(String),
       reason: CHANGED_ON_SHEET,
       oldStartsAt: "2026-11-07T22:00:00.000Z",
       oldEndsAt: "2026-11-08T06:00:00.000Z",
@@ -469,6 +471,15 @@ describe("sheets.sync: from the sheet into our tables", () => {
       newEndsAt: "2026-11-08T04:00:00.000Z",
       noticeHours: 37,
     });
+    // The shift and worker named are the booking's own (the notice report reads them).
+    const { rows: booking } = await su.query<{ shift_id: string; worker_id: string }>(
+      "select shift_id::text, worker_id::text from assignments where id = $1",
+      [curtailed?.entity_id],
+    );
+    expect([curtailed?.data.shiftId, curtailed?.data.workerId]).toEqual([
+      booking[0]?.shift_id,
+      booking[0]?.worker_id,
+    ]);
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Start", "21:00"); // starts earlier: a move
     await sync(f);
     expect(await eventsOf(f.firmId, "shift.moved")).toHaveLength(1);

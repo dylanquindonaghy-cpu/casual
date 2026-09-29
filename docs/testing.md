@@ -139,8 +139,9 @@ checks log in, take and cancel each finish in under 30 seconds):**
 (with its wave status once the worker process has sent offers), the Saturday gaps, the dropout
 under "Cancelled in the last 24 hours" with its notice, and the two requests. "Offer to someone"
 on a gap lists who could take it. "Urgent wave fills it" runs by itself with `npm run dev` (offer
-waves; messages print in the terminal). "Notice report shows both" (the notice report) isn't built
-yet; the action log already records every step above.
+waves; messages print in the terminal). "Notice report shows both": "Notice report" in the office menu lists
+the worker's booking and cancellation (and the wave's offers) with the notice each had; the action
+log has every step.
 
 ## Pre-pilot checklist
 

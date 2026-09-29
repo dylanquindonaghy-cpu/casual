@@ -3696,3 +3696,77 @@ invariants all ok; 2093 tests, 35 e2e).
 **Hours:** 0.5 h (10:57 to 11:29 UTC). Phase 5 so far 4.2 h of its 23–33 h estimate.
 
 **Parked:** see PLAN.md, "Action log follow-ups" (two Dylan-to-confirm items).
+
+## 2026-09-29 11:32 UTC: Phase 5, "Notice and cancellation report: every offer/change/cancel with timestamps, initiator and notice hours; short-notice flag at a firm-set threshold (final 2027 rules still pending); CSV export"
+
+**Plan** (docs/screens.md `/office/reports/notice`; docs/compliance.md "Employment Rights Act";
+product spec P0-10; docs/data-model.md `short_notice_threshold_hours`).
+1. **Rows, from the append-only log** (`src/lib/office/notice-report.ts`), one per worker affected:
+   - **Offered**: `offer.sent` (a wave: "Firm (offer wave)"; the office: "Firm (office)");
+   - **Booked**: `shift.assigned` (the worker, the office, or the rota sheet);
+   - **Moved / Shortened**: `shift.moved` / `shift.curtailed` (the office or the rota sheet), with
+     the old and new start;
+   - **Cancelled**: `shift.cancelled` (the worker, the office or the rota sheet).
+   Each: when (firm time, and UTC in the file), what, who started it, the worker, the shift (role,
+   site, start), notice hours, short notice (under the firm's threshold), and the firm's reason
+   (fixed words; a worker's typed reason is never in the log).
+2. **Notice hours come from the event itself.** Bookings, moves and cancellations already record
+   them. Offers don't yet: `offer.sent` (waves and the office) now records `noticeHours` from the
+   offer to the start. For older offer events (dev data only) the report counts from the shift's
+   start and marks it "counted from the current start".
+3. **Threshold**: the firm's `short_notice_threshold_hours` (1 to 720; missing or not valid: 48,
+   and the page says so). Shown on the page ("Short notice: under 48 hours").
+4. **Filters**: from / to (whole days in firm time, default the last 28 days, at most 366), what
+   (offers, bookings, changes, cancellations), who started it (the worker / the firm), short
+   notice only. Newest first; the page shows the first 500 and says how many there are.
+5. **CSV export** (`/office/reports/notice/export`, the same filters, a route that checks the
+   office session and role): every row up to 20,000; cells starting `=`, `+`, `-` or `@` are
+   prefixed so a spreadsheet can't run them.
+6. **Access**: new area `reports`, admins and resourcers; "Notice report" in the office menu.
+7. **Tests**: integration (each kind of row with its initiator and notice, the flag at the firm's
+   threshold and the default, filters, dates in London time, other firms never shown, payroll
+   refused, the CSV and its escaping, offers now recording notice), unit (words), e2e (the
+   report shows the demo's dropout, a CSV downloads).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Built from the events, not the current rows | The log is the evidence: it keeps every step, even after later changes | Read assignments (loses moves and repeated bookings) |
+| Offers now record their notice hours | Each row's notice then comes from its own event; the shift may move later | Count every offer from the shift's current start (wrong after a move) |
+| The threshold is read from the firm's settings; no editing screen yet | Changing a firm's settings needs the app to update the `firms` table (the tenancy root: a new grant and policy), which belongs with a settings screen, and no phase has one. For the pilot it's set at onboarding | An admin-only field on this page (parked for Dylan, with the settings screen) |
+| Every row gets the flag, and the filters narrow it | The 2027 rules aren't final: the office decides which rows matter | Flag only firm-initiated changes |
+| Admins and resourcers | The report is for the owner and the office | Payroll too (parked) |
+
+**Built as planned.** One test runs the real cancel and move paths: their events are stamped by
+the database's clock (the real time), so that test searches the real days (root cause of its
+first failure: the report looked at the days around the test's fake "now").
+
+**Verify round 1 (before the review):** `VERIFIED tree=586b34f80eba766b e2e=true`.
+
+**Guardrails review: FIX FIRST (3), all fixed.**
+1. **Rota-sheet moves and shortenings lost the worker and the shift.** The Sheets sync logged
+   them against the booking without `shiftId` / `workerId`, and the report only read those.
+   **Fix:** the sync now names both; the report falls back to the booking for older events.
+   Tested with an event shaped exactly like the sync's older ones, and the sync test checks the
+   ids are the booking's own.
+2. **Moves and shortenings showed only start times** (a shortening usually changes the end; a
+   site change showed nothing). **Fix:** "Was {start to end}; now {start to end}." and "The site
+   changed."; the CSV has "Was" and "Now" columns and a note. Tested.
+3. **The CSV stopped at 20,000 rows without saying so.** **Fix:** an evidence file is all or
+   nothing: over the limit the page says to choose fewer days and the download refuses (422)
+   with the same words.
+
+**Suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| Rota-sheet rows told apart by "not the office" | By the sync's own `source: "sheets"`; anything else not the office is "The firm" |
+| A booking or cancellation with no `by` dropped out of both filters | `coalesce(…, false)` |
+| "(from the current start)" with no notice | Only when there's a start to count from |
+| Negative notice (office cancels during the shift) read "less than an hour's"; the CSV made it text | "After the start (2.00 hours after)", a plain number in the file, noted; tested |
+| No byte-order mark; no years; notice rounded to days | BOM added; the year shows when it isn't this one; exact hours alongside ("2 days' notice (71.99 hours)") |
+| "Fixed words" comment wrong for office override reasons; "Offer wave" without an article; the threshold words repeated 48 | Corrected |
+| `nosniff` on the file; a cross-tenant check through the joins | Added; tested (another firm's ids name nobody) |
+| Log each download | Parked |
+

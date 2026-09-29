@@ -671,6 +671,8 @@ async function logTimeChange(
       tx,
       system(curtailed ? "shift.curtailed" : "shift.moved", "assignment", holder.assignmentId, {
         by: "firm",
+        shiftId,
+        workerId: holder.workerId,
         reason: CHANGED_ON_SHEET,
         oldStartsAt: before.startsAt.toISOString(),
         oldEndsAt: before.endsAt.toISOString(),

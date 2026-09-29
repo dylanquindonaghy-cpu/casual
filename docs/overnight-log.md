@@ -3165,3 +3165,11 @@ Its note: `docs/testing.md` still said the Today view wasn't built. Fixed after 
 line only).
 
 **Ticked.** 1.0 h. Phase 5: 1.0 h of 23–33 h.
+
+**Commit:** `4c137b7` "Phase 5: Today view: …". Pushed to `origin/build/overnight` (6f134a0..4c137b7). CI: `gh` isn't installed, so it wasn't checked.
+**Parked (PLAN.md, "Today view follow-ups"):**
+- **Dylan to confirm:** payroll left out; what "Mark as filled" means; the SMS offer's sign-off
+  (2 texts).
+- Today doesn't refresh itself; no link from the requests line yet; one worker per offer click;
+  a CSV re-import can reopen a closed shift; double-click extra jobs; the e2e leaves an offer
+  behind; Sheets errors on Today; reopened shifts skip earlier recipients.

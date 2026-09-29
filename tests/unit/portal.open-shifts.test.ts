@@ -35,8 +35,9 @@ const list = (o: Partial<OpenShiftsList> = {}): OpenShiftsList => ({
   choices: { days: [], sites: [], roles: [] },
   ...o,
 });
+const NOW = at("2026-11-07T09:00:00Z");
 const render = (l: OpenShiftsList, filters = {}) =>
-  renderToStaticMarkup(createElement(OpenShiftsView, { list: l, filters, timeZone: TZ }));
+  renderToStaticMarkup(createElement(OpenShiftsView, { list: l, filters, timeZone: TZ, now: NOW }));
 
 describe("Open shifts page body", () => {
   it("says so plainly when nothing is open", () => {
@@ -56,6 +57,7 @@ describe("Open shifts page body", () => {
             startsAt: at("2026-11-07T14:00:00Z"),
             endsAt: at("2026-11-07T22:00:00Z"),
             placesLeft: 1,
+            opensAt: null,
             site: arena,
           },
           {
@@ -64,6 +66,7 @@ describe("Open shifts page body", () => {
             startsAt: at("2026-11-08T09:00:00Z"),
             endsAt: at("2026-11-08T17:00:00Z"),
             placesLeft: 3,
+            opensAt: null,
             site: null,
           },
         ],
@@ -88,6 +91,28 @@ describe("Open shifts page body", () => {
     expect(html).toContain('value="2026-11-08"');
     expect(words).toContain("Sun 8 Nov");
     expect(words).toContain("Show shifts");
+  });
+
+  it("under fair rotation, shows a held shift with the time it opens instead of Take shift", () => {
+    const html = render(
+      list({
+        shifts: [
+          {
+            shiftId: "s1",
+            role: "door_supervisor",
+            startsAt: at("2026-11-07T14:00:00Z"),
+            endsAt: at("2026-11-07T22:00:00Z"),
+            placesLeft: 1,
+            opensAt: at("2026-11-07T09:15:00Z"),
+            site: null,
+          },
+        ],
+      }),
+    );
+    expect(text(html)).toContain(
+      "Offered first to people with fewer hours that week. You can take it from 09:15.",
+    );
+    expect(html).not.toContain(">Take shift<");
   });
 
   it("says when the list was cut short, pointing to the filters", () => {
@@ -153,6 +178,9 @@ describe("after Take shift", () => {
     expect(refused).toContain("You can't take this shift:");
     expect(refused).toContain("You're already booked at 10:00 that day.");
     expect(refused).toContain("If you think this is wrong, ask the office.");
+    expect(show({ status: "not_yet", opensAt: "14:15" })).toContain(
+      "This shift is offered first to people with fewer hours that week. You can take it from 14:15.",
+    );
     expect(show({ status: "try_again" })).toContain(
       "We can't confirm this shift right now. Try again in a few minutes.",
     );

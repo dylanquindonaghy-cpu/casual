@@ -40,7 +40,7 @@ export default async function OpenShiftsPage({
     <main className="mx-auto max-w-md p-6">
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <p className="text-base text-slate-600">{firm.name}</p>
-      <OpenShiftsView list={list} filters={filters} timeZone={firm.timezone} />
+      <OpenShiftsView list={list} filters={filters} timeZone={firm.timezone} now={new Date()} />
     </main>
   );
 }

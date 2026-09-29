@@ -2,6 +2,7 @@ import { and, asc, eq, gt, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { DAY, systemClock } from "../auth/clock";
 import { CANCELLED_ASSIGNMENT_STATUSES, firms, shifts, sites, workers } from "../db/schema";
 import { withFirm } from "../db/scoped";
+import { loadAllocationGate, parseAllocationSettings } from "../roster/allocation-input";
 import { previewBooking } from "../roster/book";
 import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
 import type { MyShift, PortalContext } from "./my-shifts";
@@ -26,6 +27,8 @@ export interface OpenShift {
   endsAt: Date;
   placesLeft: number;
   site: (NonNullable<MyShift["site"]> & { id: string }) | null;
+  // Fair rotation: held for workers with fewer hours this week until then (null: takeable now).
+  opensAt: Date | null;
 }
 
 export interface OpenShiftFilters {
@@ -56,9 +59,11 @@ export async function openShiftsFor(
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx) => {
     const [firm] = await tx
-      .select({ timezone: firms.timezone })
+      .select({ timezone: firms.timezone, settings: firms.settings })
       .from(firms)
       .where(eq(firms.id, ctx.firm.id));
+    // Read once for the page; first come, first served never holds, so no gate is asked.
+    const allocation = parseAllocationSettings(firm?.settings ?? {});
     const [me] = await tx
       .select({ roles: workers.roles })
       .from(workers)
@@ -140,12 +145,17 @@ export async function openShiftsFor(
       if (c.held >= c.headcount) continue;
       const verdict = await previewBooking(tx, { shiftId: c.shiftId, workerId, now });
       if (!verdict?.ok) continue;
+      const gate =
+        allocation.mode === "fair_rotation"
+          ? await loadAllocationGate(tx, { shiftId: c.shiftId, workerId, now }, allocation)
+          : ({ ok: true } as const);
       kept.push({
         shiftId: c.shiftId,
         role: c.role,
         startsAt: c.startsAt,
         endsAt: c.endsAt,
         placesLeft: c.headcount - c.held,
+        opensAt: gate.ok ? null : gate.opensAt,
         site:
           c.siteId && c.siteName
             ? {

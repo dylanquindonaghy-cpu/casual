@@ -242,7 +242,8 @@ then send the new number to the office").
 **Take an open shift**
 1. Worker opens Open shifts → only eligible shifts listed (rules engine).
 2. Tap "Take shift" → `bookShift()`: lock the shift and the worker → re-check the rules on the
-   current rows → re-check the live source → `UPDATE assignments ... WHERE shift slot is unfilled`
+   current rows → the firm's allocation mode (fair rotation may hold a new place a few minutes for
+   the workers with the fewest hours that week) → re-check the live source → `UPDATE assignments ... WHERE shift slot is unfilled`
    (one statement).
 3. 1 row changed: confirm + event. 0 rows: "Just filled — here are similar shifts."
 

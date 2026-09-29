@@ -31,7 +31,8 @@ export function TakeShiftButton({ shiftId }: { shiftId: string }) {
 
   if (outcome) {
     const retry = outcome.status === "error" || outcome.status === "try_again";
-    const refresh = outcome.status === "filled" || outcome.status === "gone";
+    const refresh =
+      outcome.status === "filled" || outcome.status === "gone" || outcome.status === "not_yet";
     return (
       <div className="mt-3">
         <TakeShiftResult outcome={outcome} />

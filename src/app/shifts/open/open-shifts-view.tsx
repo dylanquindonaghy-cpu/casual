@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
+import { roleLabel, shiftWhen, siteAddress, soonLabel } from "@/lib/portal/format";
 import type { OpenShiftFilters, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { dayLabel } from "@/lib/rules/reasons";
 import { TakeShiftButton } from "./take-shift-button";
@@ -12,10 +12,12 @@ export function OpenShiftsView({
   list,
   filters,
   timeZone,
+  now,
 }: {
   list: OpenShiftsList;
   filters: OpenShiftFilters;
   timeZone: string;
+  now: Date;
 }) {
   const filtered = !!(filters.day || filters.siteId || filters.role);
   const { choices } = list;
@@ -99,7 +101,22 @@ export function OpenShiftsView({
                 <p className="mt-1 text-base text-slate-600">
                   {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
                 </p>
-                <TakeShiftButton shiftId={s.shiftId} />
+                {s.opensAt ? (
+                  <div className="mt-3 rounded-xl bg-slate-100 p-3">
+                    <p>
+                      Offered first to people with fewer hours that week. You can take it from{" "}
+                      {soonLabel(s.opensAt, now, timeZone)}.
+                    </p>
+                    <Link
+                      href="/shifts/open"
+                      className="mt-1 inline-block py-2 font-semibold underline"
+                    >
+                      Check again
+                    </Link>
+                  </div>
+                ) : (
+                  <TakeShiftButton shiftId={s.shiftId} />
+                )}
               </li>
             );
           })}

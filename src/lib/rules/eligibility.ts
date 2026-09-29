@@ -153,7 +153,7 @@ function localDates(start: Date, end: Date, timeZone: string): string[] {
 }
 
 // Monday 00:00 to the next Monday 00:00, local, around a local date.
-function weekOf(date: string, timeZone: string): { from: number; to: number } {
+export function weekOf(date: string, timeZone: string): { from: number; to: number } {
   const [y = 2000, m = 1, d = 1] = date.split("-").map(Number);
   const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // Mon = 0
   const back = new Date(Date.UTC(y, m - 1, d - weekday));

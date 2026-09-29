@@ -1357,3 +1357,59 @@ To reach DONE: nothing further for this bullet's claims. (Note: the PLAN.md chec
 
 **Ticked** in PLAN.md. **Hours:** 0.4 (23:12 to 23:33 UTC). Phase 3 so far: 1.4 h of its 35–45 h estimate.
 **Commit:** `97fadec`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-28 23:36 UTC: Phase 3, "Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)"
+
+**Plan.** The docs define the setting (`firms.settings.allocation_mode`) and use it to rank offer
+waves (Phase 4). In the portal, "first come, first served" is what exists: any eligible worker who
+taps first gets the place. Fair rotation needs a meaning on the Open shifts board too, or the
+people who sit on their phones still get everything (docs/business.md). So:
+- `src/lib/rules/allocation.ts` (pure): `fairRotationCutoff()` (the hours of the k-th fewest, ties
+  included), `allocationGate()` (fair rotation holds a newly opened place for the workers with the
+  fewest hours that week, for the firm's first-wave minutes; first come, first served never holds
+  anything), and `rankForFairRotation()` (fewest hours → longest since last offer → a stable tie
+  break), ready for the offer waves.
+- `src/lib/roster/allocation-input.ts`: the loader (the firm's allocation settings; when the place
+  opened: the shift's creation or its latest cancellation; this worker's confirmed hours in the
+  shift's Monday-to-Sunday week; the same for every active worker with the shift's role not
+  already on it).
+- `bookShift()`: after the rules say yes, a worker's own booking is checked against the gate
+  (`not_yet` with the time it opens to them). Office bookings and the office's sheet names aren't
+  held (the office decides).
+- Open shifts: a held shift shows "Offered first to people with fewer hours this week. You can take
+  it from {time}." instead of "Take shift"; "Take shift" answers the same if the page was old.
+- Tests: the pure functions (unit); the gate through `bookShift()` and the list on the real database.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Fair rotation on the board = a priority window: for the firm's `wave_minutes` (default 15) after a place opens, only the workers with the fewest confirmed hours that week can take it (the `wave_size` fewest, default 4, ties included); then anyone eligible | Keeps instant booking (golden: instant answers) while giving the less-booked a head start; the same numbers the offer waves will use | Requests collected then allocated at a deadline (no instant answer); ordering the list only (no fairness) |
+| "Fewest hours" is counted among active workers with the shift's role who aren't already on it, without running every worker through the full rules | Running the rules for every worker on every page view is too slow; the rules still decide who can book | Full eligibility for the whole group |
+| A place "opens" when the shift is created, or again when a booking on it is cancelled (the latest) | A dropout is exactly when fairness matters | Only creation |
+| Default mode: first come, first served when the setting is missing; a value that isn't one of the two fails the booking (never silently switches) | The docs' two modes; fail closed | Default to fair rotation |
+| The office and the office's sheet are never held | The office is choosing who works | Hold them too |
+
+**Guardrails review (round 1): FIX FIRST ×2, both fixed with tests; most lesser items too.**
+
+| Finding | Root cause | Fix | Test |
+|---|---|---|---|
+| FIX FIRST: a place could be held past its shift's start (a 6am dropout filled only by the group, which may be asleep) | The gate only compared "now" with the window's end | No hold when the shift starts within `urgent_window_hours` (default 24), or when the window would end at or after the start | "a shift starting within the urgent window fills at once"; "never holds a place past its shift's start, even with no urgent window" (proven to fail without the guard) |
+| FIX FIRST: the gate answered before the plug, so a filled, draft or already-booked shift said "not yet" | The loader didn't look at the shift's status or the worker's own slot | No hold unless the shift is open and the worker isn't on it; the plug then answers | "gives the booking's own answer first: filled, not open, already booked" |
+| Lesser: bad wave settings blocked first come, first served firms | All settings were validated whatever the mode | The mode first; the wave numbers only under fair rotation | "fair-rotation numbers that make no sense don't touch a first come, first served firm" |
+| Lesser: holds weren't logged | — | `shift.booking_held` {by, workerId, opensAt} | first fair rotation test checks the event |
+| Lesser: no tests of the loader's hour counting | — | `weeklyHours()` exported and tested: last week, cancelled booking, cancelled shift, no-show all 0; inactive, other role, already on it, another firm left out | "counts confirmed and completed hours that week only…" |
+| Lesser: "this week" (it's the shift's week); a held card stayed stale | — | "that week"; "Check again" | unit copy |
+| Lesser: the gate re-read settings per shift, even for first come, first served firms; the hours query joined every booking ever | — | Settings read once per list, and no gate asked in first come, first served; the week filter moved into the bookings subquery | — |
+| Lesser: the docs said the last tie break is random; it's by worker id | — | Docs corrected (stable tie break; randomise per wave in Phase 4 if needed) | — |
+
+Parked (PLAN.md): the "opened at" gaps (draft opened later, a cancellation restarting every open
+place's window, headcount increases and reopened sheet rows) and the role-and-hours group (not
+full eligibility), listed under "Dylan to confirm" with the priority window itself.
+
+**Implementation root causes noted while building:** (1) a test cancelled a booking "a minute ago"
+that was made "now": the cancel code rightly refuses a cancellation dated before its booking; the
+booking moved earlier. (2) The start-cap test first passed without the guard (the busy worker's
+hours fell in the previous week, so nobody was held), then failed with it (the rest rule refused
+the booking); the busy worker's hours moved to later in the same week, and the test was run with
+and without the guard to prove it.

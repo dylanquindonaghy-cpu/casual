@@ -15,6 +15,7 @@ import {
   type RuleCode,
 } from "../rules/eligibility";
 import { localDateOf } from "../time/zoned";
+import { loadAllocationGate } from "./allocation-input";
 import { loadEligibilityInput } from "./eligibility-input";
 import { nativeRosterPlug, sheetsRosterPlug } from "./native";
 import { noticeHours } from "./notice";
@@ -28,6 +29,8 @@ import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 //      or resourcer; only the office may override, only checks 0 and 6-8, always with a reason;
 //   2. checkBooking(): lock the shift, then the worker, load the current rows and run the rules
 //      (never what the page showed a moment ago);
+//   2b. the firm's allocation mode (a worker's own booking only): under fair rotation, a newly
+//      opened place is held a few minutes for the workers with the fewest hours that week;
 //   3. re-check the live source: our tables for native and imported shifts (the lock and the
 //      conditional update below work on them directly); for a shift from a Google Sheet, our copy
 //      must have synced in the last SHEET_COPY_FRESH_MS, or nothing is confirmed (the sheet itself
@@ -78,6 +81,8 @@ export type BookingResult =
   | { status: "not_eligible"; reasons: string[]; codes: RuleCode[] }
   // Our copy of the firm's sheet is too old to confirm against: try again shortly.
   | { status: "source_stale" }
+  // Fair rotation: the place is held for workers with fewer hours this week until opensAt.
+  | { status: "not_yet"; opensAt: Date }
   // The office user can't place staff (disabled, or payroll).
   | { status: "not_allowed" }
   // An override without a reason, or a reason holding a phone number or email address (it goes
@@ -206,6 +211,24 @@ async function bookInTransaction(
       data: { by: by.type === "worker" ? "worker" : "firm", workerId, codes: result.codes },
     });
     return { status: "not_eligible", reasons: result.reasons, codes: result.codes };
+  }
+  // The firm's allocation mode: under fair rotation a newly opened place waits a few minutes for
+  // the workers with the fewest hours that week. Only a worker's own booking waits; the office
+  // chooses who works.
+  if (by.type === "worker") {
+    const gate = await loadAllocationGate(tx, { shiftId, workerId, now });
+    if (!gate.ok) {
+      // Logged, so a fairness question later has the evidence.
+      await recordEvent(tx, {
+        actorType: "worker",
+        actorId: by.id,
+        action: "shift.booking_held",
+        entityType: "shift",
+        entityId: shiftId,
+        data: { by: "worker", workerId, opensAt: gate.opensAt.toISOString() },
+      });
+      return { status: "not_yet", opensAt: gate.opensAt };
+    }
   }
   if (check.source === "sheets" && !(await sheetCopyFresh(tx, now))) {
     return { status: "source_stale" };

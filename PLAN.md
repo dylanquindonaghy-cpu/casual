@@ -135,7 +135,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] Open shifts I'm eligible for, with a "Take shift" button (rules + atomic assign)
 - [x] Cancel a shift: instant confirmation, reason, notice period recorded
 - [x] Request a time change or swap: creates a request for the office
-- [ ] Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)
+- [x] Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)
 - [ ] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
 - [ ] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
 - [ ] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
@@ -389,6 +389,18 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 5: let the office look a booking up by the 8-character reference on the worker's
   confirmation.
 - Open shifts cards: the pay rate "if the firm shows it" comes with pay data (Phase 6).
+- Fair rotation: a shift created as a draft and opened later counts its window from creation (no
+  "opened at" is stored); a cancellation restarts the window for every open place on the shift
+  (even ones open for days), and counts even when no place reopened (after the start, or above a
+  lowered headcount); a headcount increase or a Sheets row reopened never starts one; the group
+  is by role and hours, not full eligibility (one 0-hour worker with an expired licence can hold a
+  place for the window); hours this week count whole shifts starting that week (not clipped at
+  midnight Sunday). Revisit with the Phase 5 shift editor and the Phase 4 waves (which reuse
+  `rankForFairRotation()`).
+- **Dylan to confirm:** fair rotation on the Open shifts board as a priority window (ADR-015): a
+  new place is held for 15 minutes for the 4 workers with the fewest hours that week (not for
+  shifts starting within 24 hours, never past the start), counted by role and hours rather than
+  full eligibility.
 - **Dylan to confirm:** a swap request's "Who could take it? (optional)" is free text, so it can
   hold another worker's name (stored on the request only, never in the log or shown to others).
 - **Dylan to confirm:** add `npm run build` to `scripts/verify.sh`. A client component importing
@@ -493,3 +505,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 3 | 0.3 | Open shifts: only shifts the rules let the worker take (next 28 days, filters by day, site and role), "Take shift" booking through the one booking path with an on-card confirmation (what, when, reference, sign-off) or a plain answer; 1290 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.3 | Cancel a shift: "Cancel this shift" on My shifts, quick reasons, instant confirmation (the shift, notice given, when recorded, the booking reference, sign-off), recorded through the Phase 2 cancel path; the review caught a broken production build (fixed, and a new test guards it); 1311 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.4 | Worker requests: "Ask for a change" on My shifts (a time change or a swap for their own upcoming shift), a confirmation with a reference, and My requests with each status in plain words; one open request per shift and kind (tested with taps at once); 1328 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-28 | 3 | 0.4 | Allocation mode: first come, first served (default) or fair rotation, where a new place is held 15 minutes for the 4 workers with the fewest hours that week (never for shifts within 24 hours, never past the start, never the office), enforced in booking, shown on Open shifts, logged; 1343 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

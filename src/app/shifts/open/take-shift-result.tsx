@@ -66,6 +66,13 @@ export function TakeShiftResult({
           <p className="mt-2 text-base">If you think this is wrong, ask the office.</p>
         </div>
       );
+    case "not_yet":
+      return (
+        <p role="alert" className="font-semibold">
+          This shift is offered first to people with fewer hours that week. You can take it from{" "}
+          {outcome.opensAt}.
+        </p>
+      );
     case "try_again":
       return (
         <p role="alert" className="font-semibold">

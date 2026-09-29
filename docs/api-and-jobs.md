@@ -77,8 +77,21 @@ never overlap.
 1. Eligible per rules engine (credentials, overlap, rest, hours cap, not blocked, available).
 2. Exclude workers who declined this shift or were offered it in an earlier wave.
 3. Sort:
-   - `fair_rotation`: fewest confirmed hours this week → longest since last offer → random.
+   - `fair_rotation`: fewest confirmed hours this week → longest since last offer → worker id (a
+     stable tie break; make it random per wave in Phase 4 if the same people keep winning ties).
    - `first_come_first_served`: everyone eligible gets the offer in wave 1 (no waves); first tap wins.
+   (`rankForFairRotation()` in `src/lib/rules/allocation.ts` is the fair-rotation order.)
+
+**On the Open shifts board** (built, Phase 3): under `fair_rotation` a newly opened place (the
+shift's creation, or its latest cancellation) is held for `wave_minutes` for the `wave_size`
+eligible-role workers with the fewest confirmed hours in the shift's week (ties included), unless
+the shift starts within `urgent_window_hours` (default 24: late dropouts fill at once), the window
+would run past the start, the shift isn't open, or the worker is already on it; `bookShift()` answers a worker outside that group `not_yet`
+with the time it opens to them and logs `shift.booking_held`
+(`loadAllocationGate()` in `src/lib/roster/allocation-input.ts`, `allocationGate()` in
+`src/lib/rules/allocation.ts`). Office bookings and the office's sheet are never held. Settings:
+`allocation_mode` (default `first_come_first_served`), `wave_size` (4), `wave_minutes` (15); a value
+that makes no sense stops the booking.
 4. Wave size and minutes from firm settings. Cap: max 3 offers per worker per day unless urgent.
 5. Quiet hours: hold non-urgent offers until the window opens; urgent may override if the firm
    allows it.

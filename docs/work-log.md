@@ -1916,3 +1916,69 @@ Full list: `docs/overnight-log.md`, this task's entry.
 1. Log in as in the earlier tasks (`npm run dev`, then `http://acme.localhost:3000/login`).
 2. On My shifts, tap "My requests": it says "No requests yet." (the demo data has no bookings to
    ask about until the demo-seed task).
+
+## 2026-09-28: Phase 3, task 5: Allocation mode (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (23:36 to 00:01 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=0ed73be4b3e436ea e2e=true`: type checks, lint, all
+  1343 tests (up from 1328), the 10 browser tests and the rule checks passed. A production build
+  was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+Each firm now chooses how open shifts are shared out (a setting on the firm; the office screen to
+change it comes in Phase 5):
+
+- **First come, first served** (the default): whoever taps "Take shift" first gets the place, as
+  before.
+- **Fair rotation**: when a place opens (a new shift, or a place freed by a cancellation), it's
+  held for **15 minutes** for the **4 workers with the fewest booked hours that week** (people tied
+  with the fourth are included). Everyone else sees "Offered first to people with fewer hours that
+  week. You can take it from 14:15." After that, anyone who can take it can.
+  - It's never held for a shift starting within the next 24 hours (a last-minute dropout must be
+    filled fast), and never past the shift's start.
+  - The office is never held back, and neither are names the office types into its sheet.
+  - The booking code enforces it, not just the screen, and every hold is written in the action log.
+
+Why: the business notes say "first come, first served favours people glued to their phones", so
+the firm can choose fairness. The same ranking is ready for the offer messages in Phase 4.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Fair rotation = a short priority window on new places | Keeps instant booking while giving the less-booked a head start (Dylan to confirm, ADR-015) | Collect names and decide later (no instant answer) |
+| 15 minutes and 4 people come from the firm's existing wave settings | The same numbers the offer waves will use | New settings |
+| Not for shifts within 24 hours, never past the start | Found by the safety review: a 6am dropout must fill fast | Hold whatever the start time |
+
+Full list: `docs/overnight-log.md`, this task's entry, and ADR-015 in `docs/decisions.md`.
+
+### What the new tests prove
+
+- `tests/unit/rules.allocation.test.ts` (4 tests): who's in the fewest-hours group (with ties),
+  when a place is held and when it opens, and the order the offer waves will use.
+- `tests/integration/allocation.test.ts` (10 tests, real database): a new place is held for the
+  fewest hours and opens to everyone after the window; the list shows the time; a cancellation
+  starts a new window; the office is never held; first come, first served holds nobody; late
+  shifts and starts are never held; full, draft and already-booked shifts give their own answer;
+  exactly which hours count; bad settings stop the booking rather than guess.
+
+### Parked, open, and things that need Dylan
+
+- **Please confirm:** fair rotation working this way (15 minutes, the 4 fewest hours that week, not
+  within 24 hours of the start).
+- Parked in `PLAN.md`: a few edge cases in when a place counts as "opened" (a draft opened later, a
+  headcount increase), and that the group is picked by job and hours rather than the full rules.
+
+### How to see it working
+
+The demo data has no open shifts yet (the demo-seed task adds them). The tests show it:
+`npm test -- allocation` runs the allocation tests (2 files); you should see
+`Tests  14 passed (14)` and no failures.

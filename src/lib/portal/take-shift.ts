@@ -3,7 +3,7 @@ import { systemClock } from "../auth/clock";
 import { shifts, sites } from "../db/schema";
 import { withFirm } from "../db/scoped";
 import { bookShift } from "../roster/book";
-import { roleLabel, shiftWhen } from "./format";
+import { roleLabel, shiftWhen, soonLabel } from "./format";
 import type { PortalContext } from "./my-shifts";
 
 // "Take shift" for the logged-in worker (docs/architecture.md, "Take an open shift"): bookShift()
@@ -28,6 +28,7 @@ export type TakeShiftOutcome =
   | { status: "gone" } // not open any more, or not there
   | { status: "not_eligible"; reasons: string[] }
   | { status: "try_again" } // the firm's sheet copy is too old to confirm against
+  | { status: "not_yet"; opensAt: string } // fair rotation: held for others until this time
   | { status: "logged_out" }
   | { status: "error" };
 
@@ -82,6 +83,11 @@ export async function takeShift(
       return { status: "not_eligible", reasons: result.reasons };
     case "source_stale":
       return { status: "try_again" };
+    case "not_yet":
+      return {
+        status: "not_yet",
+        opensAt: soonLabel(result.opensAt, clock.now(), ctx.firm.timezone),
+      };
     case "not_open":
     case "not_found":
       return { status: "gone" };

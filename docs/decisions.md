@@ -206,3 +206,22 @@ the action log. Bookings relying on the "applied" allowance queue per firm and d
 applicants can't both take the day's last allowed place.
 **Revisit when:** event-day bookings need a tighter freshness window than 20 minutes, or a
 sheet row deleted by the office must stop being bookable before the sync notices (parked).
+
+## ADR-015: Fair rotation on the Open shifts board is a short priority window
+
+**Context:** firms choose first come, first served or fair rotation (fewest hours this week first).
+The offer waves (Phase 4) rank by it, but the board lets anyone eligible take a shift instantly,
+which favours the people who sit on their phones (docs/business.md).
+**Decision:** under fair rotation, a newly opened place (a new shift, or a place freed by a
+cancellation) is held for the firm's `wave_minutes` (default 15) for the `wave_size` (default 4)
+workers with the fewest confirmed hours in the shift's week, ties included, among active workers
+with the shift's role who aren't on it. `bookShift()` enforces it for a worker's own booking
+(`not_yet` with the time it opens); the board shows the time instead of "Take shift". The office,
+and names in the office's sheet, are never held; nor is a shift starting within the firm's
+`urgent_window_hours` (default 24), and a place is never held past its shift's start.
+**Options:** collect requests and allocate at a deadline (no instant answer); only reorder the
+list (no fairness); run the full rules for every worker to find the group (too slow per page).
+**Consequences:** a busy worker waits up to 15 minutes for a new place; the group is by role and
+hours, so one of the fewest-hours workers may not be eligible and the place still waits for the
+window. **Revisit when:** pilot firms say the window is too long or the group too small, or the
+offer waves (Phase 4) should replace it.

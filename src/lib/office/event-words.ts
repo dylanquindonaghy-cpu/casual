@@ -193,12 +193,22 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `The rota sheet changed it from ${String(d.from ?? "?")} to ${String(d.to ?? "?")}.`;
 
     // Requests.
-    case "message.received":
-      return d.handledAs === "unknown"
-        ? d.formerWorker
-          ? "A WhatsApp came to the shifts line from someone who isn't active any more."
-          : "A WhatsApp came to the shifts line from a number that isn't one of your staff."
+    case "message.received": {
+      const voicemail = d.channel === "voice";
+      const what = voicemail ? "A voicemail was left on" : "A WhatsApp came to";
+      if (d.handledAs === "unknown") {
+        return d.formerWorker
+          ? `${what} the shifts line from someone who isn't active any more.`
+          : `${what} the shifts line from a number that isn't one of your staff.`;
+      }
+      return voicemail
+        ? `${who} left a voicemail on the shifts line (for the office).`
         : `${who} sent a WhatsApp to the shifts line (${INTENT_WORDS[String(d.intent)] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).`;
+    }
+    case "call.received":
+      return d.withheld
+        ? "Someone rang the shifts line from a withheld number."
+        : "Someone rang the shifts line. A login link was asked for (it goes only to your staff's numbers).";
     case "message.replied":
       return d.reply === "unknown_number"
         ? "The shifts line asked a number we don't know for their full name."

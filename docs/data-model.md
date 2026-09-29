@@ -363,15 +363,17 @@ create table roster_sources (
 );
 create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
 
-create table messages (                 -- built in Phase 7 (migration 0022): WhatsApp so far
+create table messages (                 -- built in Phase 7 (migrations 0022, 0023): WhatsApp, calls
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   direction text not null,               -- in | out
-  channel text not null,                 -- whatsapp | sms (voice, email later)
-  provider_message_id text not null,     -- Twilio's MessageSid, or the transport's id for a reply;
+  channel text not null,                 -- whatsapp | sms | voice (a call, or its voicemail)
+  provider_message_id text not null,     -- Twilio's MessageSid (a call: its CallSid; a voicemail: its
+                                         -- RecordingSid), or the transport's id for a reply;
                                          -- unique per firm (golden rule 3: a repeat stores nothing)
   worker_id uuid,                        -- (firm_id, worker_id) -> workers; set when the sender is one
-  from_e164 text not null,
+  from_e164 text,                        -- E.164; empty only on an incoming voice row (a call or
+                                         -- its voicemail) from a withheld number (a check says so)
   to_e164 text not null,                 -- inbound: the firm's shifts line
   body text,                             -- at most 1600; the worker's words: never copied into events
   handled_as text,                       -- keyword | ai | office | unknown (inbound only)

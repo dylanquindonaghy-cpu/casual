@@ -18,7 +18,7 @@ const request = (o: Partial<QueueRequest> = {}): QueueRequest => ({
   status: "open",
   worker: { id: "w", name: "Ann Booker", firstName: "Ann" },
   shift: null,
-  asked: { start: null, end: null, swapWith: null, reasons: [], note: null },
+  asked: { start: null, end: null, swapWith: null, reasons: [], note: null, voicemail: false },
   createdAt: new Date("2026-11-02T09:00:00Z"),
   answer: null,
   ...o,
@@ -29,6 +29,7 @@ const asked = (o: Partial<QueueRequest["asked"]>) => ({
   swapWith: null,
   reasons: [],
   note: null,
+  voicemail: false,
   ...o,
 });
 
@@ -49,6 +50,13 @@ describe("the requests page's words", () => {
     ]);
     expect(askedLines(request({ type: "general", asked: asked({ note: "Parking?" }) }))).toEqual([
       "Their note: Parking?",
+    ]);
+    // A voicemail: the caller's number isn't proof of who rang.
+    expect(
+      askedLines(request({ type: "general", asked: asked({ note: "Call me.", voicemail: true }) })),
+    ).toEqual([
+      "Their note: Call me.",
+      "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them.",
     ]);
   });
 

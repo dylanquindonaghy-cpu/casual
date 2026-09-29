@@ -133,6 +133,27 @@ describe("the action log's types and words", () => {
     expect(say("shift.status_changed", { from: "open", to: "cancelled" })).toBe(
       "The rota sheet changed it from open to cancelled.",
     );
+    // The shifts line: a voicemail is never called a WhatsApp.
+    const received = (data: Record<string, unknown>, actorType = "worker") =>
+      say("message.received", data, actorType);
+    expect(received({ channel: "whatsapp", handledAs: "keyword", intent: "pay" })).toBe(
+      "Ann Booker sent a WhatsApp to the shifts line (pay).",
+    );
+    expect(received({ channel: "voice", handledAs: "office", intent: "office" })).toBe(
+      "Ann Booker left a voicemail on the shifts line (for the office).",
+    );
+    expect(
+      received({ channel: "voice", handledAs: "unknown", formerWorker: false }, "system"),
+    ).toBe("A voicemail was left on the shifts line from a number that isn't one of your staff.");
+    expect(
+      received({ channel: "whatsapp", handledAs: "unknown", formerWorker: true }, "system"),
+    ).toBe("A WhatsApp came to the shifts line from someone who isn't active any more.");
+    expect(say("call.received", { linkRequested: true, withheld: false })).toBe(
+      "Someone rang the shifts line. A login link was asked for (it goes only to your staff's numbers).",
+    );
+    expect(say("call.received", { linkRequested: false, withheld: true })).toBe(
+      "Someone rang the shifts line from a withheld number.",
+    );
   });
 
   it("group labels, and checking a type from the page's query", () => {

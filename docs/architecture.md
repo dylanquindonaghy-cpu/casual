@@ -314,6 +314,12 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
 1. Twilio voice webhook returns a short recorded message.
 2. Immediately send WhatsApp (or SMS) with the portal link.
 3. Optional voicemail → transcription → request for the office.
+(Built in Phase 7 short of Twilio: `src/lib/inbound/voice.ts`. The message is spoken by Twilio's
+text-to-speech from `callGreeting()`, not a recording. The link is the login page's own request, so
+only a worker's number gets one and the caller hears the same either way; a withheld number is
+told we can't send one. The voicemail's text goes through the `inbound-message` job: a worker's
+becomes a request for the office, answered by the channel they chose; a caller we don't know is
+on Today and the office is alerted, with no message to them.)
 4. Twilio fallback URL forwards calls to the manager's mobile if our app is down.
 
 ## Notifications

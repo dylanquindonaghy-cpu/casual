@@ -37,7 +37,6 @@ describe("messages go from the firm's shifts line", () => {
       "src/lib/credentials/scan.ts",
       "src/lib/credentials/scan.ts",
       "src/lib/inbound/reply.ts",
-      "src/lib/inbound/reply.ts",
     ]);
     for (const m of found) expect(m.next, m.path).toMatch(/\bfrom\b/);
   });
@@ -49,6 +48,7 @@ describe("messages go from the firm's shifts line", () => {
       ),
     );
     expect(calls.map((c) => c.path).sort()).toEqual([
+      "src/lib/inbound/reply.ts",
       "src/lib/notices/firm-change.ts",
       "src/lib/notices/pay-query-update.ts",
       "src/lib/notices/request-update.ts",

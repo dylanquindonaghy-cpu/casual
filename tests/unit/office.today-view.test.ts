@@ -147,6 +147,7 @@ describe("the page", async () => {
       unknownMessages: [
         {
           messageId: "m1",
+          channel: "whatsapp",
           from: "+447700900998",
           text: "Hi, it's Sam, new phone",
           receivedAt: new Date("2026-11-02T09:14:00Z"),
@@ -155,6 +156,7 @@ describe("the page", async () => {
         },
         {
           messageId: "m2",
+          channel: "whatsapp",
           from: "+447700900997",
           text: null,
           receivedAt: new Date("2026-11-01T18:30:00Z"),
@@ -162,7 +164,17 @@ describe("the page", async () => {
           formerWorkerActive: false,
         },
         {
+          messageId: "m4",
+          channel: "voice",
+          from: null,
+          text: null,
+          receivedAt: new Date("2026-11-01T07:00:00Z"),
+          formerWorker: null,
+          formerWorkerActive: false,
+        },
+        {
           messageId: "m3",
+          channel: "whatsapp",
           from: "+447700900996",
           text: `${"x".repeat(300)}HIDDEN`,
           receivedAt: new Date("2026-11-01T08:00:00Z"),
@@ -183,6 +195,9 @@ describe("the page", async () => {
     expect(page).toContain("+44 7700 900996 (Ben Booker) · 08:00 on Sun 1 Nov");
     expect(page).toContain(`“${"x".repeat(300)}…”`);
     expect(page).not.toContain("HIDDEN");
+    // A voicemail from a withheld number that couldn't be turned into text.
+    expect(page).toContain("Number withheld · 07:00 on Sun 1 Nov · Voicemail");
+    expect(page).toContain("(A voicemail we couldn't turn into text.)");
   });
 
   it("shows each item with its facts and quick actions", () => {

@@ -29,6 +29,12 @@ export function askedLines(r: QueueRequest): string[] {
     lines.push(...r.asked.reasons.map((reason) => `• ${reason}`));
   }
   if (r.asked.note) lines.push(`Their note: ${r.asked.note}`);
+  // A caller's number can be faked (a WhatsApp's can't, easily): the office should know.
+  if (r.asked.voicemail) {
+    lines.push(
+      "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them.",
+    );
+  }
   return lines;
 }
 

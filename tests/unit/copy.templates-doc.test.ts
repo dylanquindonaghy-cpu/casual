@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as templates from "@/lib/messaging/templates";
 import {
+  callGreeting,
   credentialExpiredMessage,
   credentialExpiringMessage,
   credentialMarkedExpiredMessage,
@@ -30,6 +31,7 @@ import {
   unknownNumberAlertEmail,
   unknownNumberMessage,
   urgentPush,
+  voicemailReceivedMessage,
 } from "@/lib/messaging/templates";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
 
@@ -111,6 +113,7 @@ describe("the doc's templates table", () => {
       "credential_expiring",
       "credential_expired",
       "pay_query_update",
+      "voicemail_received",
       "unknown_number",
     ]);
   });
@@ -131,6 +134,7 @@ describe("the doc's templates table", () => {
     "shift_cancelled_by_firm",
     "request_update",
     "pay_query_update",
+    "voicemail_received",
     "unknown_number",
   ];
   const NOT_BUILT: Record<string, string> = {
@@ -198,6 +202,27 @@ describe("the code says what the doc says", () => {
     expect(requestUpdateMessage(docVoice, { ...request, note: null })).toBe(
       docBody("request_update").replace(" The office says: {note}", ""),
     );
+  });
+
+  it("the call-to-text recording, as the doc says it, and its no-link versions", () => {
+    const section = doc.slice(
+      doc.indexOf("## Call-to-text recording (voice)"),
+      doc.indexOf("\n## ", doc.indexOf("## Call-to-text recording (voice)") + 1),
+    );
+    const [spoken, withheld, notNow, goodbye, notInUse] = [...section.matchAll(/"([^"]+)"/g)].map(
+      (m) => oneLine(m[1] ?? ""),
+    );
+    expect(callGreeting(docVoice, "sent")).toBe(spoken);
+    expect(callGreeting(docVoice, "withheld")).toBe(withheld);
+    expect(callGreeting(docVoice, "not_now")).toBe(notNow);
+    expect([goodbye, notInUse]).toEqual([
+      "Thank you. Goodbye.",
+      "Sorry, this number isn't in use.",
+    ]);
+  });
+
+  it("voicemail_received", () => {
+    expect(voicemailReceivedMessage(docVoice, "{ref}")).toBe(docBody("voicemail_received"));
   });
 
   it("unknown_number, and the office's alert email (subject, and the body's words)", () => {
@@ -468,6 +493,7 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ["credential_expired", credentialExpiredMessage(voice, "PTS card", "3 Oct")],
     ["the My shifts banner", credentialMarkedExpiredMessage(voice, "PTS card")],
     ["office_login_link", officeLoginLinkEmail(voice, "L").body],
+    ["voicemail_received", voicemailReceivedMessage(voice, "R")],
   ])("%s", (_name, text) => {
     expect(text).toMatch(/\s[—-] Acme Rota Desk$/);
   });
@@ -536,6 +562,7 @@ describe("every template function is checked here", () => {
       .sort();
     expect(functions).toEqual(
       [
+        "callGreeting",
         "credentialExpiredMessage",
         "credentialExpiringMessage",
         "credentialMarkedExpiredMessage",
@@ -565,6 +592,7 @@ describe("every template function is checked here", () => {
         "unknownNumberAlertEmail",
         "unknownNumberMessage",
         "urgentPush",
+        "voicemailReceivedMessage",
       ].sort(),
     );
   });
@@ -715,6 +743,8 @@ describe("the WhatsApp submission pack", () => {
         status: ex("pay_query_update", "status"),
         note: ex("pay_query_update", "note"),
       }),
+    voicemail_received: () =>
+      voicemailReceivedMessage(voice("voicemail_received"), ex("voicemail_received", "ref")),
     request_update_no_note: () =>
       requestUpdateMessage(voice("request_update_no_note"), {
         type: ex("request_update_no_note", "type"),

@@ -38,6 +38,7 @@ export interface QueueRequest {
     swapWith: string | null;
     reasons: string[]; // a review: the words the worker was shown
     note: string | null; // the worker's own note
+    voicemail: boolean; // from a voicemail on the shifts line (the caller's number, unchecked)
   };
   createdAt: Date;
   answer: {
@@ -109,6 +110,7 @@ function toRequest(r: Row): QueueRequest {
         ? p.reasons.filter((x): x is string => typeof x === "string").slice(0, 10)
         : [],
       note: text(p.note),
+      voicemail: p.via === "voicemail",
     },
     createdAt: new Date(r.created_at),
     answer:

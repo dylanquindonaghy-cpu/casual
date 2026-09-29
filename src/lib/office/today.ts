@@ -87,8 +87,9 @@ export interface TodayExpiry {
 
 export interface TodayUnknownMessage {
   messageId: string;
-  from: string; // E.164
-  text: string | null; // null: a photo or file with no text
+  channel: "whatsapp" | "sms" | "voice"; // voice: a voicemail
+  from: string | null; // E.164; null: a withheld number
+  text: string | null; // null: a photo or file with no text, or a voicemail not turned into text
   receivedAt: Date;
   formerWorker: string | null; // "Ann Booker", when the number was a worker's who wasn't active
   formerWorkerActive: boolean; // they've been made active again since
@@ -298,14 +299,15 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
 
   const { rows: unknown } = await tx.execute<{
     id: string;
-    from_e164: string;
+    channel: "whatsapp" | "sms" | "voice";
+    from_e164: string | null;
     body: string | null;
     created_at: string | Date;
     first_name: string | null;
     last_name: string | null;
     worker_status: string | null;
   }>(sql`
-    select m.id, m.from_e164, m.body, m.created_at, w.first_name, w.last_name,
+    select m.id, m.channel, m.from_e164, m.body, m.created_at, w.first_name, w.last_name,
            w.status as worker_status
       from messages m
       left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
@@ -351,6 +353,7 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
     unknownMore: unknown.length > LIST_MAX,
     unknownMessages: unknown.slice(0, LIST_MAX).map((u) => ({
       messageId: u.id,
+      channel: u.channel,
       from: u.from_e164,
       text: u.body,
       receivedAt: new Date(u.created_at),

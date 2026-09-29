@@ -64,6 +64,7 @@ it.
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
 | (screen only: My shifts banner) | — | "Your {credential} is marked as expired. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" (the banner otherwise uses `credential_expiring` and `credential_expired` word for word) |
 | `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" ({status} is "sorted"; {note} is payroll's note on one line, always written by a person, never by AI. Sent to each worker when payroll marks their query sorted, `src/lib/notices/pay-query-update.ts`; quiet hours hold it) |
+| `voicemail_received` | Utility | "Thanks for your voicemail. The office will see it and get back to you. Ref {ref}. — {firm} Shift Team" (built in Phase 7, `voicemailReceivedMessage()`: a worker's voicemail on the shifts line became a request for the office; {ref} is the request's reference. By the channel the worker chose, from the firm's line. A phone call doesn't open WhatsApp's 24-hour window, so unlike the instant replies it needs a template) |
 | `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" (built in Phase 7, `unknownNumberMessage()`: a WhatsApp to the shifts line from a number no worker here has; only the first from that number in 24 hours; from the firm's line. A former worker's number gets no reply: the office is alerted) |
 
 ## Submitting to Meta
@@ -74,7 +75,7 @@ with only the variable parts filled in. The submission pack is
 category, language, body in Meta's `{{1}}` style and sample values. Built so far: `login_link`,
 `login_code`, `shift_offer`, `shift_urgent`, `shift_reminder_24h`, `shift_reminder_2h`,
 `shift_changed_by_firm`, `shift_cancelled_by_firm`, `request_update`, `credential_expiring`,
-`credential_expired`, `pay_query_update`.
+`credential_expired`, `pay_query_update`, `voicemail_received`.
 - Words that are sometimes left out need their own template: `shift_offer`, `shift_urgent`,
   `shift_reminder_24h`, `shift_reminder_2h`, `shift_changed_by_firm` and
   `shift_cancelled_by_firm` each have a `_no_site` variant, used when the shift has no site;
@@ -141,6 +142,20 @@ offer's and the office offer's SMS versions are built so far; the others come wi
 
 "Thanks for calling {firm}. We've just sent a link to your phone where you can see your shifts,
 take open shifts or cancel straight away. To leave a message for the office, speak after the tone."
+
+Built in Phase 7 short of Twilio (`callGreeting()`, `src/lib/inbound/voice.ts`), spoken in British
+English. A withheld number hears "Thanks for calling {firm}. We can't see your number, so we can't
+send you a link. To leave a message for the office, speak after the tone." instead, and a number
+the login page's limits have stopped for now (or when asking for the link failed): "Thanks for
+calling {firm}. We can't send you a link just now. To leave a message for the office, speak after
+the tone." (any number can be stopped, a worker's or not, so it says nothing about whose it is).
+After the tone (up to 2 minutes): "Thank you. Goodbye." A number that isn't any firm's: "Sorry, this
+number isn't in use." The link is the login page's own (`requestWorkerLoginLink()`): a worker's number gets their
+login link by WhatsApp (by text too once the parked SMS fallback for login links is built), any
+other number nothing, and the caller hears the same either way. A voicemail's text becomes a
+request for the office (a worker gets `voicemail_received` by the channel they chose); a caller we
+don't know is shown on Today and the office is alerted, with no message to them. Twilio's
+placeholder numbers for a hidden caller ID count as withheld.
 
 ## Office notifications
 

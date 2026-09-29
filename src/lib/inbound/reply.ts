@@ -8,10 +8,12 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { errorCode, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
+import { sendToWorker } from "../notify/send";
 import {
   shiftsLineReply,
   unknownNumberAlertEmail,
   unknownNumberMessage,
+  voicemailReceivedMessage,
   type ShiftsLineReply,
 } from "../messaging/templates";
 import { portalUrl } from "../tenancy/portal-url";
@@ -19,9 +21,11 @@ import { signOffFor } from "../tenancy/sign-off";
 import { inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
 
-// Answering a WhatsApp on the shifts line (docs/api-and-jobs.md `inbound-message`;
-// docs/messaging-templates.md "Instant replies on the shifts line"). One job per stored message
-// (src/lib/inbound/receive.ts). Nothing is written before the point of no return, so a failure or a
+// Answering a WhatsApp or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
+// docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
+// One job per stored message (src/lib/inbound/receive.ts, src/lib/inbound/voice.ts). A voicemail
+// always goes to the office (no keywords or AI) and its answer is `voicemail_received`, by the
+// channel the worker chose (a call opens no WhatsApp window for free text). Nothing is written before the point of no return, so a failure or a
 // crash before the reply goes is simply retried; after it, the reply is never sent again:
 //   1. a read: the message, the firm, the worker by the number it came from (an active worker of
 //      this firm) and a keyword: cancel, pay, shifts or the office, in that order
@@ -37,9 +41,9 @@ import { keywordIntent, type Intent } from "./keywords";
 //      their own message: quiet hours don't apply);
 //   5. the reply stored as an outbound message, and `message.replied`, or `message.reply_failed`
 //      (never retried).
-// The reply is always one of the app's fixed texts (shiftsLineReply): the AI only ever picks which,
-// so nothing it writes reaches the worker, and a pay question gets the pay link, never an answer
-// (golden rules 1 and 9). Events hold labels and ids, never the text or a number.
+// The reply is always one of the app's fixed texts (shiftsLineReply, voicemailReceivedMessage): the
+// AI only ever picks which, so nothing it writes reaches the worker, and a pay question gets the
+// pay link, never an answer (golden rules 1 and 9). Events hold labels and ids, never the text or a number.
 
 export interface InboundReplyDeps {
   transport: MessagingTransport;
@@ -61,20 +65,26 @@ export type InboundResult =
 
 const OFFICE_NOTE_MAX = 500;
 const NO_TEXT_NOTE = "(A photo or file, with no text.)";
+const NO_VOICE_TEXT_NOTE = "(A voicemail we couldn't turn into text.)";
+
+type Channel = "whatsapp" | "sms" | "voice";
 
 type Read =
   | { kind: "done"; result: InboundResult }
   | {
       kind: "unknown";
-      from: string;
+      channel: Channel;
+      from: string | null; // null: a withheld number (a voicemail)
       line: string;
       formerWorkerId: string | null; // the number is a worker's here who isn't active
       firm: { name: string; slug: string; signOff: string };
     }
   | {
       kind: "known";
+      channel: Channel;
       workerId: string;
       mobile: string;
+      notifyChannel: "whatsapp" | "sms"; // how they asked to be messaged (a voicemail's reply)
       line: string;
       body: string | null;
       keyword: Intent | null;
@@ -86,6 +96,7 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
   const [m] = await tx
     .select({
       direction: messages.direction,
+      channel: messages.channel,
       handledAt: messages.handledAt,
       from: messages.fromE164,
       to: messages.toE164,
@@ -100,25 +111,31 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
     .from(firms)
     .where(eq(firms.id, sql`app_current_firm_id()`));
   if (!firm) throw new Error("firm not visible inside its own transaction");
-  const [worker] = await tx
-    .select({ id: workers.id })
-    .from(workers)
-    .where(and(eq(workers.mobileE164, m.from), eq(workers.status, "active")))
-    .limit(1);
+  const from = m.from;
+  const [worker] = from
+    ? await tx
+        .select({ id: workers.id, notifyChannel: workers.notifyChannel })
+        .from(workers)
+        .where(and(eq(workers.mobileE164, from), eq(workers.status, "active")))
+        .limit(1)
+    : [];
   const voice = {
     name: firm.name,
     slug: firm.slug,
     signOff: signOffFor(firm.name, firm.settings.sign_off),
   };
-  if (!worker) {
-    const [former] = await tx
-      .select({ id: workers.id })
-      .from(workers)
-      .where(eq(workers.mobileE164, m.from))
-      .limit(1);
+  if (!worker || !from) {
+    const [former] = from
+      ? await tx
+          .select({ id: workers.id })
+          .from(workers)
+          .where(eq(workers.mobileE164, from))
+          .limit(1)
+      : [];
     return {
       kind: "unknown",
-      from: m.from,
+      channel: m.channel,
+      from,
       line: m.to,
       formerWorkerId: former?.id ?? null,
       firm: voice,
@@ -126,11 +143,14 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
   }
   return {
     kind: "known",
+    channel: m.channel,
     workerId: worker.id,
-    mobile: m.from,
+    mobile: from,
+    notifyChannel: worker.notifyChannel,
     line: m.to,
     body: m.body,
-    keyword: m.body ? keywordIntent(m.body) : null,
+    // A voicemail is for the office: no keywords (nor AI) for it.
+    keyword: m.body && m.channel !== "voice" ? keywordIntent(m.body) : null,
     firm: {
       name: firm.name,
       slug: firm.slug,
@@ -138,6 +158,9 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
     },
   };
 }
+
+// Where an office request came from, in its payload and event.
+const via = (channel: Channel) => (channel === "voice" ? "voicemail" : channel);
 
 // Locks the message: true if this run is the one handling it (nobody has yet).
 async function lockUnhandled(tx: FirmTx, messageId: string): Promise<boolean> {
@@ -165,6 +188,9 @@ export async function runInboundMessage(
   if (c.keyword) {
     intent = c.keyword;
     handledAs = "keyword";
+  } else if (c.channel === "voice") {
+    intent = "office";
+    handledAs = "office";
   } else {
     const picked = c.body
       ? await classifyMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs })
@@ -186,8 +212,12 @@ export async function runInboundMessage(
           workerId: c.workerId,
           type: "general",
           payload: {
-            note: c.body ? c.body.slice(0, OFFICE_NOTE_MAX) : NO_TEXT_NOTE,
-            via: "whatsapp",
+            note: c.body
+              ? c.body.slice(0, OFFICE_NOTE_MAX)
+              : c.channel === "voice"
+                ? NO_VOICE_TEXT_NOTE
+                : NO_TEXT_NOTE,
+            via: via(c.channel),
             messageId: payload.messageId,
           },
         })
@@ -199,7 +229,7 @@ export async function runInboundMessage(
         action: "request.created",
         entityType: "request",
         entityId: request.id,
-        data: { type: "general", shiftId: null, via: "whatsapp", workerId: c.workerId },
+        data: { type: "general", shiftId: null, via: via(c.channel), workerId: c.workerId },
       });
       reply = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
     } else {
@@ -216,41 +246,41 @@ export async function runInboundMessage(
       action: "message.received",
       entityType: "message",
       entityId: payload.messageId,
-      data: { channel: "whatsapp", handledAs, intent, workerId: c.workerId },
+      data: { channel: c.channel, handledAs, intent, workerId: c.workerId },
     });
-    return shiftsLineReply({ name: c.firm.name, signOff: c.firm.signOff }, reply);
+    const voice = { name: c.firm.name, signOff: c.firm.signOff };
+    return c.channel === "voice" && reply.intent === "office"
+      ? voicemailReceivedMessage(voice, reply.ref)
+      : shiftsLineReply(voice, reply);
   });
   if (replyText === null) return { status: "already" };
 
-  let sent: { providerMessageId: string } | { error: string };
-  try {
-    sent = await deps.transport.send({
-      channel: "whatsapp",
-      to: c.mobile,
-      from: c.line,
-      body: replyText,
-    });
-  } catch (err) {
-    sent = { error: errorCode(err) };
-  }
+  // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a voicemail's by the channel the
+  // worker chose. Always from the number they contacted.
+  const sent = await sendToWorker(deps, {
+    mobile: c.mobile,
+    channel: c.channel === "voice" ? c.notifyChannel : c.channel,
+    body: { whatsapp: replyText, sms: replyText },
+    from: c.line,
+  });
 
   return run(payload.firmId, async (tx): Promise<InboundResult> => {
-    if ("error" in sent) {
+    if (!sent.ok) {
       await recordEvent(tx, {
         actorType: "system",
         action: "message.reply_failed",
         entityType: "message",
         entityId: payload.messageId,
-        data: { channel: "whatsapp", intent, workerId: c.workerId, code: sent.error },
+        data: { channel: sent.channel, intent, workerId: c.workerId, code: sent.code },
       });
-      return { status: "reply_failed", intent, code: sent.error };
+      return { status: "reply_failed", intent, code: sent.code };
     }
     const [out] = await tx
       .insert(messages)
       .values({
         firmId: sql`app_current_firm_id()`,
         direction: "out",
-        channel: "whatsapp",
+        channel: sent.channel,
         providerMessageId: sent.providerMessageId,
         workerId: c.workerId,
         fromE164: c.line,
@@ -266,8 +296,9 @@ export async function runInboundMessage(
       entityType: "message",
       entityId: payload.messageId,
       data: {
-        channel: "whatsapp",
+        channel: sent.channel,
         intent,
+        ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
         workerId: c.workerId,
         // The provider's id is on the stored reply (replyId), not here: a Twilio id with a long
         // run of digits looks like a phone number to the log's masker.
@@ -297,12 +328,16 @@ async function answerUnknown(
     // One of these at a time per number (two messages from one stranger handled at once would
     // otherwise both look like the first). The check below then sees the other's committed claim.
     await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended('unknown-number:' || app_current_firm_id()::text || ':' || ${c.from}, 0))`,
+      sql`select pg_advisory_xact_lock(hashtextextended('unknown-number:' || app_current_firm_id()::text || ':' || ${c.from ?? "withheld"}, 0))`,
     );
     // A repeat: this number's last answered message (a first one: logged with repeat false) was
     // under 24 hours ago. So a number gets at most one reply and one alert in any 24 hours, and
     // writing every day still brings one a day.
-    const { rows: earlier } = await tx.execute(sql`
+    // A withheld number can't be matched to its earlier messages: each voicemail is its own first.
+    const { rows: earlier } =
+      c.from === null
+        ? { rows: [] }
+        : await tx.execute(sql`
       select 1 from messages m
         join events e on e.firm_id = m.firm_id and e.entity_id = m.id
        where m.direction = 'in' and m.handled_as = 'unknown' and m.from_e164 = ${c.from}
@@ -321,7 +356,7 @@ async function answerUnknown(
       entityType: "message",
       entityId: payload.messageId,
       data: {
-        channel: "whatsapp",
+        channel: c.channel,
         handledAs: "unknown",
         repeat,
         formerWorker: c.formerWorkerId !== null,
@@ -340,7 +375,12 @@ async function answerUnknown(
       .filter((email) => z.email().safeParse(email).success);
     return {
       repeat,
-      reply: c.formerWorkerId === null ? unknownNumberMessage(c.firm) : null,
+      // Only a WhatsApp from a number nobody here has gets the polite reply (we don't message
+      // callers we don't know).
+      reply:
+        c.channel === "whatsapp" && c.from !== null && c.formerWorkerId === null
+          ? unknownNumberMessage(c.firm)
+          : null,
       recipients,
       skipped: office.length - recipients.length,
     };
@@ -349,7 +389,7 @@ async function answerUnknown(
   if (plan.repeat) return { status: "unknown_sender", reply: "none", alerted: 0 };
 
   let reply: { providerMessageId: string } | { error: string } | null = null;
-  if (plan.reply) {
+  if (plan.reply && c.from) {
     try {
       reply = await deps.transport.send({
         channel: "whatsapp",
@@ -385,7 +425,7 @@ async function answerUnknown(
         entityId: payload.messageId,
         data: { channel: "whatsapp", reply: "unknown_number", code: reply.error },
       });
-    } else if (reply && plan.reply) {
+    } else if (reply && plan.reply && c.from) {
       const [out] = await tx
         .insert(messages)
         .values({

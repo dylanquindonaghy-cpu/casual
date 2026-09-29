@@ -5449,3 +5449,146 @@ When someone messages a firm's shifts line from a number that isn't one of its a
 `npx playwright test tests/e2e/whatsapp.inbound.spec.ts` (stop `npm run dev` first): the second test
 posts a WhatsApp from a made-up number, checks the polite reply and the office email in
 `.dev/e2e-outbox.jsonl`, and logs in as an admin to see the message on Today.
+
+## 2026-09-29: Phase 7, task 4: Ringing the shifts line (call-to-text) (0.8 h, BLOCKED)
+
+### Time
+
+0.8 hours of Claude's working time (18:18 to 19:06 UTC), in the unattended overnight loop.
+Phase 7 so far: 2.6 of its 15 to 20 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** Phone calls, the spoken message and turning a voicemail into text only
+  exist in Twilio (the phone company service), and tonight's rules don't allow using outside
+  services. Everything short of Twilio is built, verified and committed. "Connect Twilio" step 10
+  in `PLAN.md` says how to connect and check it, and to tick the task then.
+- `scripts/verify.sh` printed `VERIFIED tree=9980c3d3845ea86e e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2383 tests (up from 2356);
+  - the 42 browser tests (up from 41);
+  - the rule checks.
+- The guardrails review found 4 things to fix first; all are done (below). No auditor round (a
+  blocked task can't be ticked).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Some workers ring the office instead of messaging. Now, when someone rings a firm's shifts line:
+
+- **They hear a short message**, spoken by Twilio's computer voice in British English: "Thanks for
+  calling {firm}. We've just sent a link to your phone where you can see your shifts, take open
+  shifts or cancel straight away. To leave a message for the office, speak after the tone."
+- **A worker's number gets their login link** at once. It goes through exactly the same steps as
+  the login page, so it has the same limits (3 links per number every 15 minutes) and gives the
+  same answer for any number. A number that isn't a worker's gets nothing, and the caller can't
+  tell the difference, so a call can't be used to find out whose number is whose.
+- **No false promises.** A withheld number hears "We can't see your number, so we can't send you a
+  link." A number that has hit the login limits (or when asking for the link fails) hears "We
+  can't send you a link just now."
+- **After the tone, a voicemail** of up to 2 minutes. Twilio turns it into text and sends it to a
+  second webhook (an address on our app that Twilio calls). The text is stored once and handed to
+  the same reply job as WhatsApps:
+  - a worker's voicemail always becomes a request for the office (no keywords, no AI: a person
+    rang to talk to the office). The worker gets "Thanks for your voicemail. The office will see
+    it and get back to you. Ref {ref}." by the channel they chose (WhatsApp or text), from the
+    firm's own number;
+  - a caller we don't know, or a withheld number, gets no message. The voicemail shows on Today
+    ("Number withheld · Voicemail") and the office's admins and resourcers get an email.
+- **Every call is stored once** (by Twilio's id for the call), so if Twilio sends the same call
+  twice, nothing happens twice. The office log says "Someone rang the shifts line", and a
+  voicemail is logged as a voicemail, never as a WhatsApp.
+- **One place checks every Twilio webhook** (`src/lib/inbound/twilio-request.ts`): no key set up
+  (503), not a form (415), too big (413), a field sent twice (400), a signature (Twilio's proof the
+  request is really from Twilio) that isn't for this address (403). The WhatsApp webhook now uses
+  it too.
+- **The requests page** adds "From a voicemail on the shifts line. A caller's number can be
+  faked: check anything unusual with them." A phone number shown on a call can be faked; a
+  WhatsApp's can't, easily.
+
+Key facts:
+- New files: `src/lib/inbound/voice.ts`, `src/lib/inbound/twilio-request.ts`, and three routes under
+  `src/app/api/webhooks/twilio/voice/`.
+- Database change (migration 0023): the `messages` table accepts `voice`, and the sender's number
+  may be empty only on an incoming voice row from a withheld number. A database check (a rule the
+  database enforces itself) refuses an empty sender anywhere else.
+- A new WhatsApp template, `voicemail_received`, is in the submission pack (19 templates now).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | Calls and transcription only exist in Twilio | Tick with signed sample requests |
+| The caller's link goes through the login page's own request | Same limits and the same answer for any number: a call can't tell anyone whose number it is | A separate link path for calls |
+| A voicemail always goes to the office | Someone who rings wants a person; keywords and AI are for WhatsApp's quick answers | Sort voicemails like WhatsApps |
+| Unknown and withheld callers get no message | Spam and robocalls would cost texts; they can leave a voicemail, which the office sees | Text every caller the portal address |
+| The voicemail answer is a WhatsApp template (`voicemail_received`) | A call doesn't open WhatsApp's 24-hour window for free text, so a plain reply would be refused once Twilio is live | Always answer by text |
+| Twilio's placeholder numbers for a hidden caller ID count as withheld | Otherwise every withheld caller would look like one "number", and after the first their voicemails wouldn't alert the office | Trust any number-shaped value |
+| The link still goes by WhatsApp only | Sending login links by text is its own parked item (with a plain-hyphen sign-off so a text stays short) | Build it inside this task |
+
+### What the review caught
+
+- **A reply WhatsApp wouldn't have allowed.** The answer to a voicemail went as a free-text
+  WhatsApp. WhatsApp only allows free text within 24 hours of the worker's own WhatsApp, and a
+  phone call doesn't count. Once Twilio was live, it would have been refused and the worker
+  would never get their reference. Now it's a proper template, checked word for word against the
+  message doc and the submission pack.
+- **A database check with a hole.** The rule "the sender must be a phone number, unless it's an
+  incoming voicemail from a withheld number" let an empty sender through on any row. That's
+  because a check that comes out "unknown" (as comparisons with an empty value do) counts as a
+  pass. Fixed by saying "is not empty" explicitly, with a test that tries each wrong kind of row.
+- **Voicemails logged as WhatsApps.** The office log said "Ann sent a WhatsApp to the shifts line"
+  for a voicemail. It now says "Ann left a voicemail on the shifts line (for the office)". This
+  log is the firm's evidence record, so it has to be right.
+- **Withheld calls weren't stored once.** If Twilio sent a withheld call twice, it was logged
+  twice. Now every call is stored by Twilio's call id, withheld or not.
+- **Smaller fixes**: the caller isn't promised a link when the limits stop it or asking fails (and
+  the call is still answered); the log entry points to the stored call; the requests page notes a
+  voicemail's number can be faked; two more webhook checks tested; a wrong size in the docs.
+
+### What the new tests prove
+
+27 new tests.
+- `tests/integration/inbound.voice.test.ts` (16 tests, on the real database):
+  - a worker's call gets the spoken message, is stored once and gets their login link, and a
+    repeat does nothing;
+  - a stranger's call sounds exactly the same and nobody is sent anything;
+  - withheld numbers (including Twilio's placeholders) aren't promised a link and are stored once;
+  - the fourth call in 15 minutes hears "We can't send you a link just now", and a failed request
+    still answers the call;
+  - a number no firm has hears "Sorry, this number isn't in use.";
+  - unsigned, wrongly signed, unconfigured and malformed requests are refused and store nothing;
+  - other firms never see each other's calls;
+  - the database refuses an empty sender except on an incoming voice row;
+  - a voicemail's text is stored once, with no text when Twilio couldn't make any;
+  - a worker's voicemail becomes a request and the answer goes by WhatsApp, or by text for a
+    worker who chose texts;
+  - a stranger's or a withheld voicemail alerts the office and shows on Today.
+- `tests/unit/inbound.voice.test.ts` (5 tests): what the caller hears, word for word, and that a
+  firm's name with "&" or "<" can't break it.
+- `tests/unit/copy.templates-doc.test.ts`, `office.log-types.test.ts`, `office.requests-copy.test.ts`,
+  `office.today-view.test.ts`: the words match the message doc, the log and the requests page say
+  "voicemail", and Today shows "Number withheld · Voicemail".
+- The browser test (`tests/e2e/voice.inbound.spec.ts`): a signed call to the demo firm's line gets
+  the spoken message; the worker's login link arrives and logs them in; their voicemail gets the
+  office's reference back; unsigned posts are refused.
+
+### Parked, open, and things that need Dylan
+
+- **Connect Twilio step 10** (new): point each number's calls at the voice webhook, set a
+  fallback that forwards calls to the manager's mobile if the app is down, then ring it to check.
+  Then tick this task.
+- **Before going live**: delete each voicemail's recording at Twilio once its text is stored
+  (the compliance doc says call audio isn't kept by default).
+- **Build the parked "SMS fallback for login links"** first, so a worker without WhatsApp gets the
+  link by text when they ring.
+- **Submit `voicemail_received`** with the other WhatsApp templates (Connect Twilio step 2).
+- **Dylan to decide**: Twilio's transcription is basic (names often come out wrong); a better one
+  is a later option.
+
+### How to see it working
+
+`npx playwright test tests/e2e/voice.inbound.spec.ts` (stop `npm run dev` first). It posts a signed
+"call" to the demo firm's line, checks what the caller would hear, finds the worker's login link in
+`.dev/e2e-outbox.jsonl` and logs in with it, then posts the voicemail's text and checks the
+worker's "Thanks for your voicemail…" reply.

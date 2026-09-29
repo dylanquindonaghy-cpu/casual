@@ -69,6 +69,7 @@ export const LOG_TYPES = {
       "push.unsubscribed",
       "push.forgotten",
       "message.received",
+      "call.received",
       "message.replied",
       "message.reply_failed",
       "message.office_alerted",

@@ -284,6 +284,15 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
       signOff: SIGN_OFF,
     },
   },
+  {
+    name: "voicemail_received",
+    docName: "voicemail_received",
+    category: "utility",
+    language: "en_GB",
+    variables: ["ref", "signOff"],
+    body: "Thanks for your voicemail. The office will see it and get back to you. Ref {{1}}. — {{2}}",
+    example: { ref: "3F2A9C1B", signOff: SIGN_OFF },
+  },
 ];
 
 // The template's text with its {{n}} parts filled in from `values` (by variable name).

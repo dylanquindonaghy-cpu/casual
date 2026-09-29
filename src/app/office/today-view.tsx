@@ -151,16 +151,19 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
             {view.unknownMessages.map((u) => (
               <li key={u.messageId} className="py-2">
                 <p className="font-semibold">
-                  {lineWords(u.from)}
+                  {u.from ? lineWords(u.from) : "Number withheld"}
                   {u.formerWorker
                     ? ` (${u.formerWorker}${u.formerWorkerActive ? "" : ", not active"})`
                     : ""}{" "}
                   · {timeOnDay(u.receivedAt, view.timeZone)}
+                  {u.channel === "voice" ? " · Voicemail" : ""}
                 </p>
                 <p>
                   {u.text
                     ? `“${u.text.length > UNKNOWN_TEXT_MAX ? `${u.text.slice(0, UNKNOWN_TEXT_MAX)}…` : u.text}”`
-                    : "(A photo or file, with no text.)"}
+                    : u.channel === "voice"
+                      ? "(A voicemail we couldn't turn into text.)"
+                      : "(A photo or file, with no text.)"}
                 </p>
               </li>
             ))}

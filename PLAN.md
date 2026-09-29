@@ -570,6 +570,29 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
      link back within seconds. Then from a phone that isn't on file: you should get "Thanks for your
      message. We don't recognise this number…", and the office's admins and resourcers an email;
      the message shows on Today. Then tick the "Unknown number" task too.
+  10. **Incoming calls (the Phase 7 "Call-to-text" task is blocked on this):** on each firm's
+     number in Twilio (Phone Numbers → Manage → Active numbers → the number → Voice configuration),
+     set "A call comes in" to Webhook, `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/voice`, HTTP
+     POST. For "Primary handler fails", make a TwiML Bin (TwiML Bins → Create) holding
+     `<Response><Dial>+44…the manager's mobile…</Dial></Response>` and choose it, so calls still
+     reach a person if the app is down (architecture.md, Call-to-text step 4). The same
+     `TWILIO_AUTH_TOKEN` as step 9. Voicemail transcription is Twilio's own: charged per minute on
+     top of the call (check the current price) and English only. Then ring the line from
+     a worker's phone: you should hear "Thanks for calling {firm}. We've just sent a link…", get
+     the login link by WhatsApp within seconds, and after the tone leave a message: within a minute
+     or two the worker gets "Thanks for your voicemail. The office will see it…" (the
+     `voicemail_received` template, submitted with the others in step 2) and the request
+     shows under Requests. Ring from a phone that isn't on file: the same message, no link, and a
+     voicemail shows on Today. The link only goes by WhatsApp today: build the parked "SMS
+     fallback for login links" (Phase 4/7) first, so a worker without WhatsApp gets it by text.
+     Then tick the Call-to-text task.
+     **Before going live:** Twilio keeps each voicemail's recording and transcription in the
+     account until deleted, but compliance.md says call audio isn't stored by default. Build a
+     job that deletes the Recording (by its RecordingSid) once the transcription is stored, with
+     the Twilio transport; or turn on Twilio's own automatic deletion if the account has it.
+     **Dylan to decide:** Twilio's transcription is basic (names and places often come out wrong).
+     A better one (Amazon Transcribe in London) is a later option; the request always keeps the
+     text Twilio gave, and the office can ring back.
   Also: validate `quiet_hours` on the settings screen (Phase 5); and decide what a wave held past
   the shift's start should do (today it stops as "started" at the end of the quiet hours, and
   only the escalation tells the office).
@@ -768,7 +791,7 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     loses its "booked" flag on the unavailable-days list.
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
-  pack is `src/lib/messaging/whatsapp-templates.ts`: 18 templates (6 "no site" variants and a "no note" one), each
+  pack is `src/lib/messaging/whatsapp-templates.ts`: 19 templates (6 "no site" variants and a "no note" one), each
   with its category, language (English UK), body with `{{1}}`-style variables and sample values. A
   test proves the code sends exactly these words.
   1. In the Twilio Console, open Messaging → Content Template Builder → Create new.
@@ -1083,3 +1106,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 7 | 0.6 | Shifts line, BLOCKED (not ticked: the number and its WhatsApp sender only exist in Twilio, an outside service): built everything short of it: each firm's own number (`firms.shifts_line_e164`, one number per firm), every WhatsApp and text to a worker carrying it as `from` (a tripwire test holds every sender to it), finding the firm for an incoming message's number (`app_firm_by_line`), the office dashboard showing it, `npm run firm:line` to set it (asks before replacing), and a fake number for the demo firm; the review caught an invariant the owner-only script broke (moved to `scripts/`) and a test that could clash with the seed; buying and connecting the numbers is parked under "Connect Twilio"; 2299 tests + 39 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.7 | Inbound WhatsApp, BLOCKED (not ticked: "Haiku only for unclear text" needs Bedrock, and real WhatsApps need Twilio): built everything short of them: a new `messages` table, Twilio's webhook (signature checked, reproducing Twilio's own example; one row and one job per message, repeats ignored), and the reply job: keywords first (open shifts, cancelling, pay links; "help" makes an office request with a reference), the AI only ever picking one of those replies, with unclear messages going to the office meanwhile; replies from the firm's own number, at most once; the review caught a way a message could be lost and dropouts getting the open shifts link (both fixed and tested); 2344 tests + 40 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.5 | Unknown number, BLOCKED (not ticked: it's set off by a real incoming WhatsApp and replies from the firm's own number, both needing Twilio, like the last two tasks): built everything short of it: a stranger gets the doc's polite "reply with your full name", a former worker gets no reply, and the office's admins and resourcers get an email (no number or message in it); a new "Messages from numbers we don't know" list on Today; at most one reply and one email per number in any 24 hours (so auto-replies can't loop); the review caught two messages at once both being answered (fixed with a lock, and a test that fails without it) and a false "emailed 0 people" log line; 2356 tests + 41 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 7 | 0.8 | Call-to-text, BLOCKED (not ticked: calls, the spoken message and voicemail transcription only exist in Twilio): built everything short of it: Twilio's voice, transcription and "done" webhooks (one shared set of checks, the WhatsApp webhook moved onto it); a caller hears the firm's message in British English and a worker's number gets their login link through the login page's own request (same limits, same answer for any number; a withheld number or a stopped one isn't promised a link); every call stored once; a voicemail's text becomes a request for the office and the worker gets a new `voicemail_received` template by the channel they chose; unknown or withheld callers' voicemails on Today; the review caught 4 things (a free-text WhatsApp a call can't open, a database check that let an empty sender through, voicemails logged as WhatsApps, withheld calls not stored once): all fixed and tested; 2383 tests + 42 e2e; verified (see docs/work-log.md) |

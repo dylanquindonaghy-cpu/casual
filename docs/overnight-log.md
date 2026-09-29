@@ -4702,3 +4702,92 @@ Next step is Dylan's: "Connect Twilio" step 9 (which now checks this too).
 pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
 
 **Hours:** 0.5 h (17:45 to 18:14 UTC). Phase 7 so far 1.8 h of its 15–20 h estimate.
+
+## 2026-09-29 18:18 UTC: Phase 7, "Call-to-text: short recorded message, then WhatsApp/SMS with the link; optional voicemail transcribed into a request"
+
+**Blocked (hard limit):** phone calls, the spoken message and turning a voicemail into text are all
+Twilio (the number's voice webhook, `<Say>`, `<Record transcribe>`). Everything short of it is built
+and tested with signed sample requests; recorded as blocked, not ticked, like the other Twilio
+tasks.
+
+**Plan:**
+
+1. **One place that checks a Twilio webhook** (`src/lib/inbound/twilio-request.ts`): no token 503,
+   form only, size (declared, then real), no repeated fields, the signature (for that webhook's own
+   address). The WhatsApp webhook moves onto it.
+2. **`POST /api/webhooks/twilio/voice`** (`src/lib/inbound/voice.ts`): the firm by the number
+   called. The call is stored once (`messages`, channel `voice`, Twilio's CallSid; a repeat does
+   nothing), logged `call.received` {linkRequested, withheld}, and the caller's number goes through
+   the same login-link request as the login page (`requestWorkerLoginLink()`: throttled, the same
+   whether or not it's a worker's number; a worker gets their link by message). The answer is TwiML:
+   the doc's spoken message (`<Say language="en-GB">`, the firm's name escaped), then
+   `<Record transcribe="true">` (2 minutes at most) pointing at the transcription webhook, then
+   hang up. A withheld number: "We can't see your number, so we can't send you a link." instead of
+   the link sentence (new doc copy). A number no firm has: "Sorry, this number isn't in use." and
+   hang up.
+3. **`POST /api/webhooks/twilio/voice/transcription`**: the voicemail's text stored once (`messages`,
+   channel `voice`, the RecordingSid) and an `inbound-message` job; 200.
+4. **The reply job for a voicemail**: no keywords or AI (a voicemail is for the office): a worker's
+   becomes a `general` request (note: the text, or "(A voicemail we couldn't turn into text.)") and
+   they get "The office will see this and get back to you. Ref {ref}." by their own channel
+   (WhatsApp, or text) from the firm's line; someone we don't know: on Today and the office alerted,
+   no message to them (we don't message unknown callers).
+5. **Schema** (migration 0023): `messages.channel` may be `voice`.
+6. **Tests**: unit (the TwiML, escaping, the doc copy), integration (the voice webhook: signature,
+   firm, a known and an unknown caller, a withheld number, a repeat; the transcription webhook; the
+   voicemail becoming a request and the reply by the worker's channel; an unknown caller's
+   voicemail on Today), e2e (a signed call gets the TwiML and the worker's login link arrives).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | Calls and transcription only exist in Twilio | Tick with signed samples |
+| The caller's link goes through the login page's own request | Same throttle and the same answer for any number: a call can't tell anyone whose number it is | A new link path for calls |
+| Unknown callers get no message | Spam and robocalls would cost texts; they can leave a voicemail, which the office sees | Text every caller the portal address |
+| A voicemail always goes to the office | It's a person asking the office; keywords and AI are for WhatsApp's quick answers | Classify transcripts too |
+| The call itself is a `messages` row | One record per call (a repeat does nothing), without putting Twilio's ids in events | Events only |
+
+**Built as planned**, plus: the sender's number may be empty on an incoming voice row (a withheld
+number), with a database check that allows it nowhere else; Today shows "Number withheld" and
+" · Voicemail". Tripwire tests (`ai.boundary`, `notify.from-line`, `office.log-types`) failed first,
+as they should, and were updated on purpose: the voice routes are webhooks, the reply job's sends
+are still only the app's fixed texts, `call.received` has a log group and words.
+
+Root causes written down on the way:
+- The first run of the new tests: `voiceDeps(undefined)` still had the token (JavaScript replaces an
+  explicit `undefined` argument with the parameter's default): a test bug, fixed by overriding the
+  field. "Every event" included the fixture's own `credential_pack.applied`: the tests now look at
+  the call, message, request and login events only.
+- The doc-copy test read the doc's quotes in the wrong order (my slip): fixed.
+
+**Guardrails review: FIX FIRST (4 items), all done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the answer to a worker's voicemail went as a free-text WhatsApp. A call doesn't open WhatsApp's 24-hour window, so Meta would refuse it once Twilio is live (and it isn't a synchronous refusal, so no text fallback either): the worker would never get their reference | A new utility template, `voicemail_received` ("Thanks for your voicemail. The office will see it and get back to you. Ref {ref}. — {firm} Shift Team"): the doc's table, `voicemailReceivedMessage()`, the submission pack (19 templates) and the doc/pack tests; sent by the worker's chosen channel. The `ai.boundary` tripwire now pins the exact expression (the voicemail template or `shiftsLineReply()`, nothing else) |
+| FIX FIRST: the `messages_from_e164` check let a null sender through on any row (a check that evaluates to null passes) | `(from_e164 is not null and from_e164 ~ …) or (from_e164 is null and channel = 'voice' and direction = 'in')`; 0023 regenerated (it wasn't committed) and the dev database reset and reseeded; a test tries a null sender on incoming WhatsApp and SMS and outgoing WhatsApp and voice rows (all refused) |
+| FIX FIRST: the office log called every voicemail a WhatsApp | `message.received` with `channel: voice` reads "{worker} left a voicemail on the shifts line (for the office)." / "A voicemail was left on the shifts line from a number that isn't one of your staff."; unit-tested |
+| FIX FIRST: a withheld call stored nothing, so a Twilio retry logged `call.received` twice (golden rule 3) | Every call is stored by its CallSid (no number when withheld); the event only on the first insert; tested with a retry |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| The link only goes by WhatsApp (`send-portal-link` ignores the worker's channel), but the task says "WhatsApp/SMS" | Not built here: it's the parked "SMS fallback for login links" (Phase 4/7). The docs now say the link goes by WhatsApp, and Connect Twilio step 10 says to build that item before ticking this task |
+| Twilio keeps voicemail recordings and transcriptions; compliance.md says call audio isn't stored | Parked in Connect Twilio step 10 ("Before going live": delete the Recording once its text is stored) |
+| Twilio's placeholder numbers for a hidden caller ID pass the E.164 check | Mapped to withheld (the five values as I recall them from Twilio's docs: to check when connecting); tested with two of them |
+| A failure asking for the link would 500 after the call was stored, and a retry would never ask again | Caught and logged with an error code; the call is still answered |
+| A throttled caller was told a link was sent | The greeting follows the result: "We can't send you a link just now." (any number can be throttled, so it says nothing about whose it is; new doc copy); `call.received` keeps `linkRequested` (the login flow logs what came of it); tested with the real limit (a fourth call in 15 minutes) and a throwing request |
+| A caller's number can be faked, but the request is logged as the worker's | The requests page adds "From a voicemail on the shifts line. A caller's number can be faked: check anything unusual with them."; screens.md and a unit test |
+| `call.received` had no entity | It points to the stored call |
+| reply.ts's header, the docs' 16 KB (the limit is 64 KB), transcription 503 and other-address tests | All done |
+
+**Verify:** `VERIFIED tree=9980c3d3845ea86e e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2383 tests, 42 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: calls and transcription only exist in Twilio).
+Everything short of it is built, verified and committed. No auditor round. Next step is Dylan's:
+"Connect Twilio" step 10 (after the parked SMS fallback for login links).
+
+**Hours:** 0.8 h (18:18 to 19:06 UTC). Phase 7 so far 2.6 h of its 15–20 h estimate.

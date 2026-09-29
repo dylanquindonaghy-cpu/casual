@@ -130,17 +130,21 @@ describe("AI never answers a dispute", () => {
     expect(importers).toEqual(["src/worker/jobs/index.ts"]);
     const reply = readFileSync(join(SRC, "lib/inbound/reply.ts"), "utf8");
     // Every message it sends is one of the app's fixed texts: the worker's reply (`replyText`, which is
-    // shiftsLineReply()'s answer), the polite reply to a number we don't know (`plan.reply`, from
-    // unknownNumberMessage()) and the office's alert email (unknownNumberAlertEmail()).
+    // shiftsLineReply()'s answer, or voicemailReceivedMessage()'s for a voicemail, through
+    // sendToWorker), the polite reply to a number we don't know
+    // (`plan.reply`, from unknownNumberMessage()) and the office's alert email
+    // (unknownNumberAlertEmail()).
+    expect(reply.match(/sendToWorker\(deps, \{[\s\S]*?\}\)/g)).toEqual([
+      expect.stringMatching(/body: \{ whatsapp: replyText, sms: replyText \},/),
+    ]);
     expect(reply.match(/transport\.send\(\{[\s\S]*?\}\)/g)).toEqual([
-      expect.stringMatching(/body: replyText,/),
       expect.stringMatching(/body: plan\.reply,/),
       expect.stringMatching(/\.\.\.email \}/),
     ]);
-    expect(reply).toMatch(/return shiftsLineReply\(/);
     expect(reply).toMatch(
-      /reply: c\.formerWorkerId === null \? unknownNumberMessage\(c\.firm\) : null/,
+      /return c\.channel === "voice" && reply\.intent === "office"\s*\? voicemailReceivedMessage\(voice, reply\.ref\)\s*: shiftsLineReply\(voice, reply\);/,
     );
+    expect(reply).toMatch(/\? unknownNumberMessage\(c\.firm\)\s*: null,/);
     expect(reply).toMatch(/const email = unknownNumberAlertEmail\(/);
     // The AI's answer is only ever a label: classifyMessage() returns an intent or null.
     const classify = readFileSync(join(SRC, "lib/ai/classify-message.ts"), "utf8");
@@ -175,6 +179,11 @@ describe("AI never answers a dispute", () => {
   // The shifts line's webhook, which only checks, stores and queues (the reply job is apart).
   const WEBHOOK_PATH = [
     "src/app/api/webhooks/twilio/whatsapp/route.ts",
+    "src/app/api/webhooks/twilio/voice/route.ts",
+    "src/app/api/webhooks/twilio/voice/transcription/route.ts",
+    "src/app/api/webhooks/twilio/voice/done/route.ts",
+    "src/lib/inbound/voice.ts",
+    "src/lib/inbound/twilio-request.ts",
     "src/lib/inbound/webhook.ts",
     "src/lib/inbound/receive.ts",
     "src/lib/inbound/job.ts",

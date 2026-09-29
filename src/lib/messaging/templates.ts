@@ -267,6 +267,34 @@ export function unknownNumberAlertEmail(
   };
 }
 
+// Call-to-text (docs/messaging-templates.md "Call-to-text recording (voice)"): what a caller hears
+// when they ring the shifts line (src/lib/inbound/voice.ts), then the tone for a voicemail. A
+// withheld number can't be sent a link, so it isn't promised one; nor is a number the login
+// throttle has stopped for now (or when asking failed). Any number can be stopped, a worker's or
+// not, so that version says nothing about whose number it is.
+export type CallLink = "sent" | "withheld" | "not_now";
+
+export function callGreeting(firm: FirmVoice, link: CallLink): string {
+  const middle =
+    link === "withheld"
+      ? "We can't see your number, so we can't send you a link."
+      : link === "not_now"
+        ? "We can't send you a link just now."
+        : "We've just sent a link to your phone where you can see your shifts, take open shifts or cancel straight away.";
+  return `Thanks for calling ${firm.name}. ${middle} To leave a message for the office, speak after the tone.`;
+}
+
+// voicemail_received (WhatsApp utility template, or SMS): a worker's voicemail on the shifts line
+// became a request for the office (src/lib/inbound/reply.ts). A phone call doesn't open WhatsApp's
+// 24-hour window for free text, so this is a template, sent by the channel the worker chose.
+export function voicemailReceivedMessage(firm: FirmVoice, ref: string): string {
+  return `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. — ${firm.signOff}`;
+}
+
+// After a voicemail, and when the number called isn't any firm's.
+export const CALL_GOODBYE = "Thank you. Goodbye.";
+export const CALL_NOT_IN_USE = "Sorry, this number isn't in use.";
+
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
 // or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
 export function shiftReminder24hMessage(

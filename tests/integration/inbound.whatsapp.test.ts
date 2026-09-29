@@ -480,6 +480,7 @@ describe("replying (the inbound-message job)", () => {
     expect(today.unknownMessages).toEqual([
       {
         messageId: expect.any(String),
+        channel: "whatsapp",
         from: stranger,
         text: "Hi, it's Sam, new phone",
         receivedAt: expect.any(Date),

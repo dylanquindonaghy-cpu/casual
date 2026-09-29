@@ -2931,3 +2931,12 @@ VERIFIED tree=d401c5ec657c9bd3 e2e=true
 account through Twilio (an outside service; tonight's rules forbid it). Everything short of it is
 built and verified. The submission steps are in PLAN.md Parking lot, "Submit the WhatsApp
 templates". No auditor round (nothing to tick). 0.4 h. Phase 4: 3.2 h of 27–37 h.
+
+**Commit:** `ce0abc8` "Phase 4 (BLOCKED, not ticked): All copy from messaging-templates.md; Meta submission pack built short of submitting". Pushed to `origin/build/overnight` (004ff43..ce0abc8). CI: `gh` isn't installed, so it wasn't checked.
+**Parked (PLAN.md):**
+- "Submit the WhatsApp templates" (steps);
+- **Dylan to confirm:** the SMS sign-off, `{day}`, the missing "at", and short SMS versions for
+  other messages;
+- no length limit on texts;
+- the pack's hand-kept coverage list;
+- the Meta risks (`login_code` category, variable density, a body ending on a variable).

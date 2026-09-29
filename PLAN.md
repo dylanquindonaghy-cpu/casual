@@ -138,7 +138,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)
 - [x] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
 - [x] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
-- [ ] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
+- [x] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
 - [ ] "My shifts" cached by a service worker (opens with poor signal); "Add to home screen" prompt on iPhone
 - [ ] Empty and error states written in plain language (see `docs/screens.md`)
 - [ ] Demo seed: Acme's Saturday event day with an urgent dropout (`docs/testing.md`)
@@ -503,6 +503,17 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     and change contact details there (the profile says "To change these, ask the office").
   - Credential photos or uploads from the profile ("send the new details to the office" is manual
     for now).
+- Blocked-shift follow-ups (from the Phase 3 blocked-shift task):
+  - Office queue (Phase 5): show `review` requests with the codes, the reasons the worker saw and
+    their note. Re-run the rules, then place the worker (with an override and reason where the rules
+    allow one) or fix the data (renewed licence, role), and approve or decline the review.
+  - Tell the worker the outcome of a review (Phase 4 notifications).
+  - Similar shifts on a filled shift's page (docs/screens.md first listed this as the "Just filled"
+    screen; for now the page says "This shift has been filled." with "See open shifts").
+  - A database backstop for "one waiting request per worker, shift and kind" (a partial unique
+    index over every request kind). The code holds it today by locking the shift row.
+  - The demo seed has no shifts yet, so the blocked-shift e2e test adds its own shift
+    (`tests/e2e/db.ts`). Once the demo seed has shifts, it can use a seeded one.
 
 ## Hours log
 
@@ -528,3 +539,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 3 | 0.4 | Allocation mode: first come, first served (default) or fair rotation, where a new place is held 15 minutes for the 4 workers with the fewest hours that week (never for shifts within 24 hours, never past the start, never the office), enforced in booking, shown on Open shifts, logged; 1343 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.4 | Pay info page: new `pay_records` table (tenant-sealed, no deletes), `npm run import --kind pay` (money in exact pence, decimal commas refused), and the pay page behind the 6-digit code showing the last 8 weeks as payroll sent them; 1370 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.5 | Profile: the worker's details and licences (read-only, expired or suspended ones in red with what to do), days they can't work (new `worker_unavailable_days` table, which the rules now use to refuse bookings on those days; the office can override), and WhatsApp-or-text plus open-shift alerts settings; every change logged; 1412 tests + 12 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 3 | 0.4 | Blocked-shift screen: the shift's own page `/shifts/[id]` (booked, open, held, blocked, filled, started, cancelled, missing), the rules' reasons in plain English when blocked, and "Ask the office to review" (a new `review` request, one per shift, only while the rules still say no, tested with taps at once); Open shifts refusals link to it; 1431 tests + 14 e2e; verified and audited DONE (see docs/work-log.md) |

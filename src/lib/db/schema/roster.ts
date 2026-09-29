@@ -50,7 +50,8 @@ export const ASSIGNMENT_STATUSES = [
 // A cancelled row keeps its worker, reason and notice hours; a new open row reopens the slot.
 export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_firm"] as const;
 
-export const REQUEST_TYPES = ["time_change", "swap", "availability", "general"] as const;
+// review: the worker asks the office to look again at a shift the rules won't let them take.
+export const REQUEST_TYPES = ["time_change", "swap", "availability", "general", "review"] as const;
 export const REQUEST_STATUSES = [
   "open",
   "approved",
@@ -259,8 +260,8 @@ export const assignments = pgTable(
   ],
 ).enableRLS();
 
-// Time changes, swaps, availability and general asks for the office. payload is validated in
-// code (zod) per type.
+// Time changes, swaps, availability, general asks and reviews (a worker asking the office to look
+// again at a shift the rules refused) for the office. payload is validated in code (zod) per type.
 export const requests = pgTable(
   "requests",
   {
@@ -297,7 +298,7 @@ export const requests = pgTable(
     index("requests_firm_id_status_idx").on(t.firmId, t.status),
     check(
       "requests_type_check",
-      sql`${t.type} in ('time_change', 'swap', 'availability', 'general')`,
+      sql`${t.type} in ('time_change', 'swap', 'availability', 'general', 'review')`,
     ),
     check(
       "requests_status_check",
@@ -305,7 +306,7 @@ export const requests = pgTable(
     ),
     check(
       "requests_shift_required",
-      sql`${t.type} not in ('time_change', 'swap') or ${t.shiftId} is not null`,
+      sql`${t.type} not in ('time_change', 'swap', 'review') or ${t.shiftId} is not null`,
     ),
     check("requests_payload_object", sql`jsonb_typeof(${t.payload}) = 'object'`),
     // Unresolved requests carry no resolution; an office decision always names who and when.

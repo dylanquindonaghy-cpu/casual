@@ -36,7 +36,13 @@ with reasons, try_again, logged_out, error) · `cancelShift(shiftId, reason)` (b
 `createRequest(type, payload)` (built for time changes and swaps: `createRequestAction(shiftId,
 kind, fields)` in `src/app/requests/actions.ts` → `createRequest()` in
 `src/lib/portal/requests.ts`; own upcoming booking only, one open request per shift and kind, a
-`request.created` event) · `setAvailability(dates)` (built one day at a time:
+`request.created` event) · "Ask the office to review" (built: `askForReviewAction(shiftId, note)`
+in `src/app/shifts/[id]/actions.ts` → `askForReview()` in `src/lib/portal/review.ts`; under a lock
+on the shift row, only for an open shift that hasn't started, with a place left, not already the
+worker's, that the rules still refuse; one waiting review per worker and shift; a `review` request
+with the rules' codes, the reasons shown and the note, and a `request.created` event {type,
+shiftId}; outcomes: created with a reference, already_open, eligible_now, already_booked, not_open,
+invalid, logged_out, error) · `setAvailability(dates)` (built one day at a time:
 `setUnavailableAction(day, on)` in `src/app/profile/actions.ts` → `setUnavailable()` in
 `src/lib/portal/profile.ts`; today to 180 days ahead, at most 60 upcoming days; outcomes: added
 (with whether a booking falls that day; it is never cancelled), removed, already, not_marked, past,

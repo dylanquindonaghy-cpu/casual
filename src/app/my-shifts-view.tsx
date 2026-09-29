@@ -154,7 +154,7 @@ function NextShift({ shift, timeZone, now }: MyShiftsViewProps & { shift: MyShif
 }
 
 // Where and what to do: the site and its address, a maps button, the instructions.
-function ShiftDetails({ shift }: { shift: MyShift }) {
+export function ShiftDetails({ shift }: { shift: MyShift }) {
   const map = shift.site ? mapLink(shift.site) : null;
   const address = shift.site ? siteAddress(shift.site) : null;
   return (
@@ -187,7 +187,7 @@ function ShiftDetails({ shift }: { shift: MyShift }) {
 
 // What the worker can still do about a confirmed booking before it starts: ask the office for a
 // change (a time change or a swap), or cancel it. Once it has started, both are the office's.
-function ShiftActions({ shift, now }: { shift: MyShift; now: Date }) {
+export function ShiftActions({ shift, now }: { shift: MyShift; now: Date }) {
   if (shift.status !== "confirmed" || shift.startsAt.getTime() <= now.getTime()) return null;
   return (
     <>

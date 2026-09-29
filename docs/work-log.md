@@ -2208,3 +2208,111 @@ Full list: `docs/overnight-log.md`, this task's entry.
    unavailable." and the day appears in the list with a **Remove** button.
 4. Choose **Text message**, untick **Tell me about open shifts**, and tap **Save settings**. Reload
    the page: your choices are kept.
+
+## 2026-09-29: Phase 3, task 8: Blocked-shift screen (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (01:05 to 01:31 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=8aa6427c55e0a62a e2e=true` on the first run. That
+  covers the type checks, lint, all 1431 tests (up from 1412), the 14 browser tests (up from 12)
+  and the rule checks. A production build was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Each shift now has its own page, at `/shifts/<the shift's id>`. It's where a worker lands from a
+shared link. Later (Phase 4), the WhatsApp offers will link here too. The page shows the day,
+times, role and site, then one of these, worked out from the database:
+
+- **Booked:** the shift's instructions, "Open in maps", "Ask for a change" and "Cancel this shift".
+  Only a worker booked on the shift sees its instructions, because they can include access
+  details.
+- **Open:** how many places are left and "Take shift".
+- **Held:** under fair rotation, when the worker can take it.
+- **Blocked** (the rules say no): "You can't take this shift:", then the rules' reasons in plain
+  English. For example: "Your SIA door supervisor licence expired on 3 Oct. Renew it, then send
+  the new number to the office." Below the reasons are an optional note box and the button **Ask
+  the office to review**.
+- **Filled, started, cancelled or not found:** one plain sentence and "See open shifts".
+
+**Ask the office to review** sends a request to the office. The worker sees a confirmation they
+can screenshot: "We've sent this to the office.", when it was sent, a reference and the firm's
+sign-off. The request shows in My requests as "Review", "Waiting for the office". The office's
+screen for handling these comes in Phase 5.
+
+Key facts:
+
+- **A new request type, `review`** (migration 0011; a migration is a script that changes the
+  database's shape). The request stores what the worker was shown:
+  - the rules' codes (short labels like `credential_missing`);
+  - the reasons in words;
+  - the worker's note.
+- **The log entry** (in the action log) holds only ids, the type and the codes. It never holds
+  the note.
+- **Code decides.** Before adding a review, the server checks the rules again. It adds nothing
+  if they now say yes, if the shift is full or started, or if the worker is already booked. A
+  review never books anyone and never loosens a rule.
+- **One waiting review per worker and shift.** Asking again gives the same reference. A test
+  sends five taps at the same moment and checks that exactly one review is added. I also checked
+  that this test fails if the lock that makes it safe is removed.
+- **Open shifts link here.** When "Take shift" is refused there, the answer now has "Ask the
+  office to review", which opens this page. On this page itself, a refusal shows the review form
+  straight away.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A new request type `review` | The office can pick reviews out of its queue by type | A "general" request with a marker (harder to filter) |
+| Keep the codes, reasons and note on the request | The office sees what the worker saw at the time | Codes only |
+| The rules are checked again before adding a review | Golden rule 1: code decides. A review of a shift they can take is noise | Trust the page |
+| Instructions only for booked workers | They can include door codes or meeting points | Show them to everyone |
+| A review only asks | The office decides and can override or fix the data | Book the worker automatically |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/shift-detail.test.ts` (9 tests, real database):
+  - every state of the page, and that instructions never show unless booked;
+  - the review request is added with the right details and log entry;
+  - asking again gives the same reference, and the review appears in My requests;
+  - no review is added when there's nothing to review (7 different cases);
+  - an over-long reason is cut to size rather than failing;
+  - five taps at once add one review.
+- `tests/unit/portal.shift-detail.test.ts` (8 tests): the page's words for every state, and every
+  answer after asking for a review.
+- `tests/unit/portal.open-shifts.test.ts`: the refusal's new wording and its link.
+- `tests/integration/roster.schema.test.ts`: the database insists a review names its shift.
+- `tests/e2e/shift.blocked.spec.ts` (2 browser tests, phone-sized):
+  - a worker whose SIA licence has expired opens a door-supervisor shift, sees why, asks for a
+    review, sees it's been asked after a reload, and finds it in My requests;
+  - a link to a shift that doesn't exist says so.
+
+### Parked, open, and things that need Dylan
+
+- **Please look over:**
+  - migration 0011 (the `review` request type);
+  - the `/shifts/[id]` row in `docs/screens.md`, which I rewrote to match the built page.
+- Parked in `PLAN.md`:
+  - the office's review queue (Phase 5) and telling the worker the outcome (Phase 4);
+  - similar shifts on a filled shift's page;
+  - a database backstop for "one waiting request per kind";
+  - using a seeded shift in the browser test once the demo seed has shifts.
+
+### How to see it working
+
+Nothing on screen links to a blocked shift yet. Open shifts only lists shifts you can take, the
+demo seed has no shifts until the demo-seed task, and the WhatsApp offers (Phase 4) will link
+here later. The browser test shows the whole flow on a phone-sized screen:
+
+1. Stop `npm run dev` if it's running (press Ctrl+C in its terminal).
+2. In the project folder, type: `npm run e2e -- tests/e2e/shift.blocked.spec.ts`
+3. You should see `2 passed` at the end. It logs in as a demo worker whose SIA licence has
+   expired, opens a door-supervisor shift, sees why they can't take it, and asks the office to
+   review it.

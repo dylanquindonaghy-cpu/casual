@@ -5,8 +5,10 @@ import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
 // confirmation they can screenshot: what, when, a reference, signed by the firm).
 export function TakeShiftResult({
   outcome,
+  reviewHref,
 }: {
   outcome: Exclude<TakeShiftOutcome, { status: "logged_out" }>;
+  reviewHref?: string; // the shift's page, where the worker can ask the office to review
 }) {
   switch (outcome.status) {
     case "booked":
@@ -63,7 +65,15 @@ export function TakeShiftResult({
               <li key={i}>{reason}</li>
             ))}
           </ul>
-          <p className="mt-2 text-base">If you think this is wrong, ask the office.</p>
+          <p className="mt-2 text-base">If you think this is wrong, ask the office to review it.</p>
+          {reviewHref && (
+            <Link
+              href={reviewHref}
+              className="mt-3 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center font-semibold"
+            >
+              Ask the office to review
+            </Link>
+          )}
         </div>
       );
     case "not_yet":

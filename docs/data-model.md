@@ -36,7 +36,7 @@ architecture.md, Tenancy).
 | sites | Venues/sites (address; lat/lng kept for Stage 3) | 1 |
 | shifts | Site, role, start/end, headcount, urgent flag, source | 2 |
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed | 2 |
-| requests | Time changes, swaps, general asks, and their status | 2 |
+| requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
 | offers | Each offer sent in a wave and the response (table Phase 2; sending Phase 4) | 2 |
 | messages | Every inbound/outbound message (WhatsApp, SMS, email, voice, portal) | 7 |
 | pay_records | Imported hours, rates, pay dates | 3 |
@@ -247,8 +247,11 @@ create table requests (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   worker_id uuid not null,               -- (firm_id, worker_id) -> workers
-  shift_id uuid,                         -- (firm_id, shift_id) -> shifts; required for time_change and swap
-  type text not null,                    -- time_change | swap | availability | general
+  shift_id uuid,                         -- (firm_id, shift_id) -> shifts; required for time_change, swap and review
+  type text not null,                    -- time_change | swap | availability | general | review
+                                         -- review (Phase 3): "Ask the office to review" a shift the rules
+                                         -- refused; payload {codes, reasons, note}: the rules' codes and the
+                                         -- words the worker saw, and their optional note
   payload jsonb not null default '{}',   -- a JSON object; shape validated in code per type
   status text not null default 'open',   -- open | approved | declined | auto_resolved | escalated
   resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users

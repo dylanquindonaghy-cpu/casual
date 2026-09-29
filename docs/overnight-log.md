@@ -1612,3 +1612,71 @@ To reach DONE: nothing — evidence supports DONE for this task's claims. (Remai
 **Ticked** in PLAN.md. **Hours:** 0.5 (00:31 to 01:02 UTC). Phase 3 so far: 2.7 h of its 35–45 h
 estimate.
 **Commit:** `75429d2`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 01:05 UTC: Phase 3, "Blocked-shift screen shows plain-English reasons + 'Ask the office to review'"
+
+**Plan.** The shift's own page, `/shifts/[id]` (docs/screens.md "Shift detail"). It is the
+blocked-shift screen, and later the page that offer links land on (docs/messaging-templates.md
+`shift_offer` {link}). The loader `shiftForWorker()` (`src/lib/portal/shift-detail.ts`) works
+out one state from the current rows:
+
+| State | When | What the page shows |
+|---|---|---|
+| booked | the worker's confirmed booking | Details, instructions, "Ask for a change", "Cancel this shift" (the existing pieces) |
+| open | the rules say yes and a place is left | Details and "Take shift" (the existing button) |
+| held | fair rotation holds it for others | "You can take it from {time}" |
+| blocked | the rules say no | "You can't take this shift:" + the rules' reasons in plain English, an optional note, and "Ask the office to review" |
+| filled / started / cancelled | nothing to take | A plain sentence + "See open shifts" |
+| missing | not in this firm, a draft, or a bad id | "We can't find that shift." |
+
+- "Ask the office to review" → `askForReview()` (`src/lib/portal/review.ts`). It re-runs the
+  rules under a lock on the shift row. It adds a request only if they still say no. It returns a
+  confirmation with a reference, like the other requests.
+- The take-shift refusal on Open shifts links to this page ("Ask the office to review") instead
+  of only saying "ask the office".
+
+Tests:
+- the loader's states and the review request on the real database (one open review per shift,
+  never when the rules now say yes, never for another firm's shift);
+- the page rendered for each state;
+- an e2e test: a worker with an expired licence opens a door-supervisor shift, sees why, asks
+  for a review, and finds it in My requests.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| A new request type `review` (migration 0011 widens `requests_type_check`; a review names its shift, like time changes and swaps) | The office queue (Phase 5) can pick reviews out by type; the types are a list, so adding one is a data change | Type `general` with a marker in the payload (harder to filter, easy to get wrong) |
+| The review's payload holds the rules' codes and the reasons the worker saw, plus an optional note (up to 500 characters). The event holds ids and the type only | The office sees what blocked them at the time. Notes and reasons stay on the row, never in the log | Codes only (the office would lose what the worker saw) |
+| The server re-runs the rules before adding a review; if they now say yes, it says "You can take this shift now." and adds nothing | Golden rule 1: code decides; a review of a shift the worker can already take is noise | Trust the page's state |
+| One open review per worker and shift; asking again gives the waiting one's reference | Same as other requests; stops repeated taps | Allow many |
+| Reviews only for a shift that's open and hasn't started; a held shift (fair rotation) isn't "blocked" | A filled or started shift has nothing to review; a hold ends by itself | Allow any shift |
+| Instructions show only to a worker booked on the shift; the site and address show to any worker of the firm (as on Open shifts) | Instructions can hold meeting points and access details | Show everything to everyone |
+| The review only asks. It never books the worker and never loosens a rule | The office decides (the Phase 5 queue can override or fix the data) | Auto-book on review |
+
+**Root causes of failures while building:**
+- The blocked-shift e2e test looked for the exact text "Review" in My requests. The list writes
+  the kind and the shift on one line ("Review: Fri 2 Oct, 02:00 to 10:00"), so an exact match
+  never finds it. The page was right. The test now matches the line's start and the reference.
+- Checked that the "five taps at once" test depends on the lock: with the shift-row lock removed
+  from `askForReview`, it fails (more than one review added). Restored afterwards.
+- The existing Open shifts unit test checked the old refusal wording ("ask the office."). I
+  changed that wording on purpose to point at the review. The test now checks the new wording,
+  checks that no link shows when there's nowhere to go, and a new test checks the link.
+- `npm run build` run by hand: succeeds, with `/shifts/[id]` in the route list.
+
+**Guardrails review:** SAFE TO COMMIT, no FIX FIRST items. Its suggestions and what I did:
+
+| Finding | Done |
+|---|---|
+| On the shift page, a take-shift refusal showed a button "Ask the office to review" that only reloaded the page (buttons must say what happens) | The review form now shows right there under the reasons; the reload button says "Reload this shift" (added to docs/screens.md) |
+| "Good news: you can take this shift now." could be wrong when fair rotation holds the shift | Now "Good news: this shift isn't blocked any more." with "Show the shift" (the page then shows open or held) |
+| The original "similar shifts" on a filled shift's page was dropped from the screens doc without a note | Parked in PLAN.md |
+| "Keep your note under 500 characters" (500 is allowed), and the same message for a bad shift id | "Keep your note to 500 characters or fewer."; a bad shift id answers "This shift isn't open any more." |
+| The e2e helper's database check was always true; the test's shift showed on Open shifts (another test expects "Nothing open right now.") | The helper checks `current_database()` ends in `_e2e` after connecting; the shift is 40 days ahead, outside the 28-day window |
+| A very long role name would make a review fail (a reason over 300 characters) | Reasons are cut to 300 characters; test added |
+| Put the rules' codes in the `request.created` event (they're not personal data) | Done, test updated |
+| A database backstop (partial unique index) for one waiting request per kind | Parked (it covers every request kind, not just reviews) |
+
+**For Dylan to confirm:** migration 0011 (the new `review` request type) and the rewritten
+`/shifts/[id]` row in `docs/screens.md`.

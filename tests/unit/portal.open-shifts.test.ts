@@ -131,6 +131,17 @@ describe("Open shifts page body", () => {
 });
 
 describe("after Take shift", () => {
+  it("links a refusal to the shift's page, to ask the office to review", () => {
+    const html = renderToStaticMarkup(
+      createElement(TakeShiftResult, {
+        outcome: { status: "not_eligible", reasons: ["Your SIA licence expired on 3 Oct."] },
+        reviewHref: "/shifts/11111111-1111-4111-8111-111111111111",
+      }),
+    );
+    expect(text(html)).toContain("Ask the office to review");
+    expect(html).toContain('href="/shifts/11111111-1111-4111-8111-111111111111"');
+  });
+
   const show = (outcome: Exclude<TakeShiftOutcome, { status: "logged_out" }>) =>
     text(renderToStaticMarkup(createElement(TakeShiftResult, { outcome })));
 
@@ -177,7 +188,9 @@ describe("after Take shift", () => {
     });
     expect(refused).toContain("You can't take this shift:");
     expect(refused).toContain("You're already booked at 10:00 that day.");
-    expect(refused).toContain("If you think this is wrong, ask the office.");
+    expect(refused).toContain("If you think this is wrong, ask the office to review it.");
+    // Without the shift's page to go to, no link.
+    expect(refused).not.toContain("Ask the office to review");
     expect(show({ status: "not_yet", opensAt: "14:15" })).toContain(
       "This shift is offered first to people with fewer hours that week. You can take it from 14:15.",
     );

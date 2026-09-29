@@ -19,6 +19,7 @@ export const KIND_NAMES: Record<string, string> = {
   swap: "Swap",
   availability: "Availability",
   general: "Question",
+  review: "Review",
 };
 
 export const MAX_REQUEST_NOTE = 500;
@@ -76,5 +77,32 @@ export type CreateRequestOutcome =
   | { status: "already_open"; ref: string; kind: WorkerRequestKind } // one already waiting
   | { status: "not_yours" } // not their upcoming booking (or it has started)
   | { status: "invalid" } // the form's fields didn't pass the check
+  | { status: "logged_out" }
+  | { status: "error" };
+
+// "Ask the office to review" (docs/screens.md, `/shifts/[id]`): the worker asks the office to look
+// again at a shift the rules won't let them take. The payload keeps the rules' codes and the
+// reasons the worker was shown, and their optional note; the office decides (Phase 5).
+export const MAX_REVIEW_ITEMS = 20;
+export const MAX_REASON = 300;
+export const reviewPayloadSchema = z.strictObject({
+  codes: z.array(z.string().max(50)).max(MAX_REVIEW_ITEMS),
+  reasons: z.array(z.string().max(MAX_REASON)).max(MAX_REVIEW_ITEMS),
+  note,
+});
+export type ReviewPayload = z.infer<typeof reviewPayloadSchema>;
+
+export type ReviewOutcome =
+  | {
+      status: "created";
+      ref: string; // the first 8 characters of the request's id, upper case
+      sentAt: string; // "09:14 on Mon 2 Nov", the firm's local time
+      signOff: string;
+    }
+  | { status: "already_open"; ref: string } // one already waiting for this shift
+  | { status: "eligible_now" } // the rules now say yes (it may still be held by fair rotation)
+  | { status: "already_booked" }
+  | { status: "not_open" } // filled, started, cancelled or not there
+  | { status: "invalid" } // the note is too long
   | { status: "logged_out" }
   | { status: "error" };

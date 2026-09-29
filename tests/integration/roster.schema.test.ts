@@ -372,9 +372,9 @@ describe("requests", () => {
   };
   const now = new Date().toISOString();
 
-  it("a time change or swap names its shift; availability and general asks needn't", async () => {
+  it("a time change, swap or review names its shift; availability and general asks needn't", async () => {
     await inT(async (c) => {
-      for (const type of ["time_change", "swap"]) {
+      for (const type of ["time_change", "swap", "review"]) {
         expect(await refused(c, insertRequest, request({ type }))).toMatchObject(
           check("requests_shift_required"),
         );

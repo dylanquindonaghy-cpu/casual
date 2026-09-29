@@ -1,15 +1,19 @@
-import { addOfficeUser } from "./db";
+import { addOfficeUser, setFirmSetting } from "./db";
 import { expect, test } from "./fixtures";
-import { codeSentTo, loginLinkSentTo, sentTo } from "./outbox";
+import { codeSentTo, emailSentTo, loginLinkSentTo, sentTo } from "./outbox";
 
 // Raising a pay query in a real browser: behind the pay code, a day, what's wrong and a note, the
 // confirmation, then the query listed on the pay page "With payroll". A different seeded worker
-// from the pay spec, so the two don't share the per-number login and code limits.
+// from the pay spec, so the two don't share the per-number login and code limits. Then payroll
+// sees it in its group and sends the digest: the email, with the list attached, reaches the outbox.
 
 const acme = "http://acme.localhost:3100";
 const mobile = "+447700900103"; // a seeded Acme worker
 
 test("raise a pay query about a day, then see it on the pay page", async ({ page }) => {
+  // No scheduled digest for Acme in this run, so only "Send the digest now" (below) can send the
+  // query: the e2e worker's tick would otherwise send one at the firm's digest time.
+  await setFirmSetting("acme", "pay_digest", { days: [] });
   const asked = new Date(Date.now() - 1000);
   await page.goto(`${acme}/login`);
   await page.getByLabel("Your mobile number").fill("07700 900103");
@@ -72,4 +76,37 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
   });
   await expect(group.getByRole("heading")).toBeVisible();
   await expect(group.getByText("“Not paid for this day yet (e2e).”")).toBeVisible();
+
+  // The digest: payroll sends it now, and it arrives with the list attached.
+  const digest = page.getByRole("region", { name: "Payroll digest" });
+  await expect(digest.getByText("No digest is scheduled. You can send one now.")).toBeVisible();
+  const sentAfter = new Date(Date.now() - 1000);
+  await digest.getByRole("button", { name: "Send the digest now" }).click();
+  await expect(digest.getByRole("status")).toHaveText(
+    /^Sending the digest now: \d+ new quer(y|ies) to \d+ (person|people)\. It should arrive in a minute or two\.$/,
+  );
+  const mail = await emailSentTo(email, sentAfter, /^Acme Events: \d+ new pay quer(y|ies)$/);
+  expect(mail.body).toMatch(/^\d+ new pay quer(y|ies) since the last digest/);
+  expect(mail.body).toContain(
+    "Answer them on the pay queries page: http://acme.localhost:3100/office/pay-queries",
+  );
+  expect(mail.body).toContain("— Acme Events Shift Team");
+  // What the worker wrote is only in the attached list.
+  expect(mail.body).not.toContain("Not paid for this day yet (e2e).");
+  const [list] = mail.attachments ?? [];
+  expect(list?.filename).toMatch(/^pay-queries-\d{4}-\d{2}-\d{2}\.csv$/);
+  expect(list?.content).toContain("Not paid for this day yet (e2e).");
+  expect(list?.content).toContain("Paid late or not paid");
+
+  // Back on the page: the last digest, and the query marked as in it.
+  const mine = group.getByRole("listitem").filter({ hasText: "Not paid for this day yet (e2e)." });
+  await expect(async () => {
+    await page.reload();
+    await expect(
+      digest.getByText(
+        /^Last digest: \d{2}:\d{2} on \w{3} \d{1,2} \w{3}, \d+ quer(y|ies) to \d+ (person|people)\.$/,
+      ),
+    ).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(mine.getByText(/· In a digest$/)).toBeVisible();
 });

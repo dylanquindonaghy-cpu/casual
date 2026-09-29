@@ -282,7 +282,10 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
    rate or the site for missing hours (`src/lib/pay/grouping.ts`). Haiku writes a one-line
    summary per group from the group's facts only, checked before use, with the app's own line as
    the fallback and always shown as the heading (Bedrock not connected yet).
-3. Digest to payroll at a set time. Payroll marks groups resolved → workers notified.
+3. Digest to payroll at a set time (built: `src/lib/pay/digest.ts`, the firm's `pay_digest`
+   setting, default 09:00 Monday to Friday): the new queries, grouped, emailed to payroll with the
+   list attached (names and workers' words only in the attachment), marked `in_digest`. Payroll can
+   also send it at once from its page. Payroll marks groups resolved → workers notified.
 
 **WhatsApp shifts line**
 1. Twilio webhook → verify signature → store message (idempotent) → queue job → 200.

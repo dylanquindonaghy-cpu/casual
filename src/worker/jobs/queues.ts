@@ -5,6 +5,7 @@ import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/cre
 import { FIRM_CHANGE_NOTICE_QUEUE } from "../../lib/notices/firm-change";
 import { METRICS_ROLLUP_QUEUE, METRICS_ROLLUP_TICK_QUEUE } from "../../lib/metrics/rollup";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
+import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
 import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
 import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
 import { SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDERS_QUEUE } from "../../lib/reminders/send";
@@ -43,6 +44,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   FIRM_CHANGE_NOTICE_QUEUE,
   REQUEST_UPDATE_QUEUE,
   METRICS_ROLLUP_QUEUE,
+  PAY_DIGEST_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
@@ -61,6 +63,10 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   {
     name: METRICS_ROLLUP_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  {
+    name: PAY_DIGEST_TICK_QUEUE,
     options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
   },
   ...FIRM_QUEUE_NAMES.map(firmQueue),

@@ -8,6 +8,7 @@ import {
   type UpdateNowResult,
 } from "../metrics/entry";
 import { queueOfficeOffer, type QueueOfficeOfferResult } from "../offers/office-offer";
+import { queuePayDigestNow, type SendDigestNowResult } from "../pay/digest";
 import {
   markAttendance,
   markRestWorked,
@@ -35,7 +36,7 @@ import {
 
 // Today's quick actions for server actions: the firm comes from the request (the session's firm),
 // the office user from the session. Each underlying function checks the user again inside the
-// firm's transaction (an active admin or resourcer).
+// firm's transaction (an active admin or resourcer; for the payroll digest, payroll or an admin).
 
 export interface OfficeContext {
   firm: { id: string };
@@ -181,4 +182,10 @@ export function savePilotFigures(
 export function updatePilotFiguresNow(ctx: OfficeContext): Promise<UpdateNowResult> {
   const { run, by, deps } = parts(ctx);
   return updateFiguresNow(run, ctx.firm.id, by, deps);
+}
+
+// Payroll's "Send the digest now" (an active payroll user or admin: checked inside).
+export function sendPayDigestNow(ctx: OfficeContext): Promise<SendDigestNowResult> {
+  const { run, by, deps } = parts(ctx);
+  return queuePayDigestNow(run, ctx.firm.id, by, deps);
 }

@@ -114,7 +114,17 @@ export const LOG_TYPES = {
   pay: {
     // Only that a record was added or changed: never an amount (golden rule 9).
     label: "Pay records and queries",
-    actions: ["pay_record.imported", "pay_record.updated", "pay_query.created"],
+    actions: [
+      "pay_record.imported",
+      "pay_record.updated",
+      "pay_query.created",
+      "pay_query.in_digest",
+      "pay_query.back_to_open",
+      "pay_digest.sending",
+      "pay_digest.sent",
+      "pay_digest.failed",
+      "pay_digest.skipped",
+    ],
   },
   pilot: {
     label: "Pilot metrics",

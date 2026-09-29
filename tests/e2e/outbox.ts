@@ -32,3 +32,40 @@ export const loginLinkSentTo = (mobile: string, after: Date) =>
 
 export const codeSentTo = (mobile: string, after: Date) =>
   sentTo(mobile, after, /code is (\d{6})\./);
+
+export interface SentEmail {
+  at: string;
+  to: string;
+  subject: string;
+  body: string;
+  attachments?: { filename: string; contentType: string; content: string }[];
+}
+
+// The newest email to an address after a given moment whose subject matches `pattern`, whole
+// (attachments included). Waits up to 20 seconds, like sentTo.
+export async function emailSentTo(
+  address: string,
+  after: Date,
+  pattern: RegExp,
+  outbox = ".dev/e2e-outbox.jsonl",
+): Promise<SentEmail> {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const text = await readFile(outbox, "utf8").catch(() => "");
+    const match = text
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as SentEmail & { channel: string })
+      .filter(
+        (l) =>
+          l.channel === "email" &&
+          l.to === address &&
+          new Date(l.at) >= after &&
+          pattern.test(l.subject),
+      )
+      .at(-1);
+    if (match) return match;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`no email matching ${pattern} sent to ${address}`);
+}

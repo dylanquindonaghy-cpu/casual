@@ -1,14 +1,9 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
-import { noAi, type AiClient } from "../ai/client";
-import {
-  codeSummary,
-  summarisePayGroup,
-  type PayGroupFacts,
-  type PayGroupSummary,
-} from "../ai/pay-summary";
+import type { AiClient } from "../ai/client";
+import { codeSummary, summarisePayGroup, type PayGroupFacts } from "../ai/pay-summary";
 import { firms, sites } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { parsePayGroupKey } from "../pay/grouping";
@@ -23,6 +18,7 @@ import { mondayOf } from "../time/zoned";
 // day, the shift, their details: payroll's to answer; never logged). The heading is the code's line
 // from the facts; summariseGroups() adds an AI line beneath it, outside any transaction (the digest
 // job, once Bedrock is connected). At most 2,000 queries (the newest), and it says when there are more.
+// The payroll digest passes the ids of the queries it is sending, to group just those.
 
 export interface PayQueryItem {
   id: string;
@@ -61,19 +57,25 @@ export const PAY_QUERY_ROWS = 2000;
 
 export async function loadPayQueryGroups(
   tx: FirmTx,
+  only?: { ids: string[] },
 ): Promise<{ timeZone: string; groups: PayQueryGroup[]; more: boolean }> {
   const [firm] = await tx
     .select({ timezone: firms.timezone })
     .from(firms)
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const timeZone = firm?.timezone ?? "Europe/London";
+  if (only?.ids.length === 0) return { timeZone, groups: [], more: false };
+  // The digest's ids as one array parameter (our own ids).
+  const which = only
+    ? sql`q.id = any(${`{${only.ids.join(",")}}`}::uuid[])`
+    : sql`q.status in ('open', 'in_digest')`;
   const { rows } = await tx.execute<Row>(sql`
     select q.id, q.group_key, q.issue_type, q.work_date::text as work_date, q.details, q.status,
            q.created_at, w.first_name, w.last_name, s.starts_at, s.ends_at
       from pay_queries q
       join workers w on w.firm_id = q.firm_id and w.id = q.worker_id
       left join shifts s on s.firm_id = q.firm_id and s.id = q.shift_id
-     where q.status in ('open', 'in_digest')
+     where ${which}
      order by q.created_at desc, q.id
      limit ${PAY_QUERY_ROWS + 1}`);
   const more = rows.length > PAY_QUERY_ROWS;

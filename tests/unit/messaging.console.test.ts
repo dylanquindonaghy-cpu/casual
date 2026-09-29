@@ -47,6 +47,49 @@ describe("console messaging transport", () => {
     expect(lines[0]).not.toContain("jo.bloggs");
   });
 
+  it("prints an attachment's name and size only; the outbox keeps the whole file", async () => {
+    const lines: string[] = [];
+    const dir = await mkdtemp(join(tmpdir(), "outbox-"));
+    const file = join(dir, "outbox.jsonl");
+    const transport = createConsoleTransport((line) => lines.push(line), file);
+    const content = "\uFEFFReference,Worker\r\nAB12CD34,Zoë Booker\r\n";
+    await transport.send({
+      channel: "email",
+      to: "payroll@example.com",
+      subject: "Acme Events: 1 new pay query",
+      body: "1 new pay query since the last digest.",
+      attachments: [{ filename: "pay-queries-2026-11-02.csv", contentType: "text/csv", content }],
+    });
+    expect(lines[0]).toContain(
+      `Attached: pay-queries-2026-11-02.csv (${Buffer.byteLength(content)} bytes)`,
+    );
+    expect(lines[0]).not.toContain("Zoë");
+    const saved = JSON.parse((await readFile(file, "utf8")).trim()) as {
+      attachments: { filename: string; content: string }[];
+    };
+    expect(saved.attachments).toEqual([
+      { filename: "pay-queries-2026-11-02.csv", contentType: "text/csv", content },
+    ]);
+  });
+
+  it("refuses an attachment with a path in its name, another type, or too many", async () => {
+    const transport = createConsoleTransport(() => undefined);
+    const email = { channel: "email" as const, to: "a@example.com", subject: "x", body: "x" };
+    const csv = { filename: "list.csv", contentType: "text/csv" as const, content: "a" };
+    for (const attachments of [
+      [{ ...csv, filename: "../list.csv" }],
+      [{ ...csv, filename: "list\r\n.csv" }],
+      [{ ...csv, contentType: "text/html" }],
+      [csv, csv, csv, csv],
+      // Over the size limit in bytes, though not in characters.
+      [{ ...csv, content: "😀".repeat(1_600_000) }],
+    ]) {
+      await expect(
+        transport.send({ ...email, attachments } as Parameters<typeof transport.send>[0]),
+      ).rejects.toThrow();
+    }
+  });
+
   it("refuses an email message to something that isn't an address", async () => {
     const transport = createConsoleTransport(() => undefined);
     await expect(

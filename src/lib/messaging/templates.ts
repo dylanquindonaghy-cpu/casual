@@ -261,6 +261,79 @@ export function shiftEscalationEmail(
   };
 }
 
+// pay_digest (email to payroll, at the firm's digest time): the new pay queries grouped by likely
+// cause, biggest first, with the list attached. The body holds counts and the groups' facts only;
+// names and what workers wrote are in the attachment. At most PAY_DIGEST_MAX_GROUPS group lines
+// (then "- and {n} more groups"), so the email stays within its limit.
+export const PAY_DIGEST_MAX_GROUPS = 30;
+
+export interface PayDigestContent {
+  total: number; // new queries in this digest
+  biggest: { count: number; facts: string } | null; // the biggest group: "wrong rate, the week of …"
+  groups: { heading: string; aiLine: string | null }[]; // biggest first
+  earlier: number; // queries from earlier digests still waiting
+  later: number; // new queries that didn't fit in this one
+  filename: string;
+  link: string; // payroll's pay queries page
+}
+
+const queriesWord = (n: number) => (n === 1 ? "1 new pay query" : `${n} new pay queries`);
+
+export function payDigestEmail(
+  firm: FirmVoice,
+  d: PayDigestContent,
+): { subject: string; body: string } {
+  const since = `${queriesWord(d.total)} since the last digest`;
+  const headline =
+    d.total === 1 && d.biggest
+      ? `${since}: ${d.biggest.facts}.`
+      : d.biggest && d.biggest.count === d.total
+        ? `${since}, all about the same thing: ${d.biggest.facts}.`
+        : d.biggest && d.biggest.count >= 2
+          ? `${since}. ${d.biggest.count} are about the same thing: ${d.biggest.facts}.`
+          : `${since}, each about something different.`;
+  const lines = d.groups
+    .slice(0, PAY_DIGEST_MAX_GROUPS)
+    .flatMap((g) => [
+      `- ${g.heading}`,
+      ...(g.aiLine ? [`  AI summary: ${g.aiLine} (written by AI)`] : []),
+    ]);
+  const moreGroups = d.groups.length - PAY_DIGEST_MAX_GROUPS;
+  const waiting = [
+    ...(d.earlier > 0
+      ? [
+          d.earlier === 1
+            ? "1 query from an earlier digest is still waiting."
+            : `${d.earlier} queries from earlier digests are still waiting.`,
+        ]
+      : []),
+    ...(d.later > 0
+      ? [
+          `${d.later === 1 ? "1 more new query" : `${d.later} more new queries`} didn't fit in this digest. They're on the pay queries page and will be in the next one.`,
+        ]
+      : []),
+  ];
+  return {
+    subject: `${firm.name}: ${queriesWord(d.total)}`,
+    body: [
+      headline,
+      "",
+      "Grouped by likely cause, biggest first:",
+      ...lines,
+      ...(moreGroups > 0
+        ? [moreGroups === 1 ? "- and 1 more group" : `- and ${moreGroups} more groups`]
+        : []),
+      "",
+      ...(waiting.length > 0 ? [...waiting, ""] : []),
+      `The list is attached (${d.filename}): each query with the worker, the day, the shift, the issue and what they wrote.`,
+      "",
+      `Answer them on the pay queries page: ${d.link}`,
+      "",
+      `— ${firm.signOff}`,
+    ].join("\n"),
+  };
+}
+
 // Push (title / body), docs/messaging-templates.md "Push": an urgent offer.
 export function urgentPush(shift: {
   role: string;

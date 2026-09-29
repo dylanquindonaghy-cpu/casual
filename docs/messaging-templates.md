@@ -136,7 +136,7 @@ take open shifts or cancel straight away. To leave a message for the office, spe
   has {n place(s)} free." / "{k offer(s)} sent, none accepted for the free place(s)." / "Open the
   office dashboard: {link}" / "— {firm} Shift Team". To active admins and resourcers.
 - Unknown number message, failed Sheets sync, domain verified/failed, credential expiries (weekly),
-  pay digest (per schedule).
+  pay digest (per schedule, below).
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
   days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these
@@ -144,3 +144,21 @@ take open shifts or cancel straight away. To leave a message for the office, spe
   (an empty section is left out; at most 40 lines a section, then "- and {n} more"); "When someone
   sends you their new details, record the new expiry date so they can take shifts again."; "—
   {firm} Shift Team".
+- `pay_digest` (email, at the firm's digest time, default 09:00 Monday to Friday, or when payroll
+  sends it from the pay queries page; to active payroll users, or active admins when the firm has none;
+  only when there are new pay queries; the list attached as a CSV file named
+  `pay-queries-{yyyy-mm-dd}.csv`): subject "{firm}: {n} new pay queries"; body "{n} new pay queries
+  since the last digest. {k} are about the same thing: {facts}." (all in one group: "{n} new pay
+  queries since the last digest, all about the same thing: {facts}."; no two alike: "{n} new pay
+  queries since the last digest, each about something different."; just one: "1 new pay query
+  since the last digest: {facts}."); "Grouped by likely cause, biggest first:" then a line per
+  group, "- {k queries}: {facts}." (at most 30, then "- and {n} more groups"), each with "AI
+  summary: {line} (written by AI)" beneath once Bedrock is connected (the 10 biggest groups);
+  "{n} queries from earlier digests are still waiting." (when some are); "{n} more new queries
+  didn't fit in this digest. They're on the pay queries page and will be in the next one." (over
+  1,000); "The list is attached ({filename}): each query with the worker, the day, the shift, the
+  issue and what they wrote."; "Answer them on the pay queries page: {link}"; "— {firm} Shift
+  Team". {facts} is what a group shares, written by code from the firm's data ("wrong rate, the
+  week of Mon 7 Sep, paid at £12.50"). The body holds counts and facts only; names and what
+  workers wrote are only in the attached list (columns Reference, Worker, Day worked, Shift, Issue,
+  What they wrote, Sent (firm time), Group; spreadsheet-safe cells).

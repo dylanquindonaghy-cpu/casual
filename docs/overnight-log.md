@@ -4073,3 +4073,96 @@ this task can't be ticked until a real summary passes the checks.
 `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
 
 **Hours:** 0.4 h (13:28 to 13:53 UTC). Phase 6 so far 0.9 h of its 12–18 h estimate.
+
+## 2026-09-29 13:56 UTC: Phase 6, "Digest to payroll by email at a set time: "42 queries, 37 about the new rate not applied to 12 Sep shifts" with the list attached"
+
+**Is it blocked?** No. The task needs an email, and every office email so far (login links,
+escalations, the credential list) goes through the messaging transport: `console` in dev and
+tests (it prints the email and, in dev and e2e, writes it to the outbox file). Connecting Amazon
+SES is parked ("Connect Amazon SES", new). The group lines are the app's own lines from the facts;
+the AI's line appears beneath them once Bedrock is connected (the job already takes an AI client).
+
+**Plan:**
+
+1. **Attachments** (`src/lib/messaging/transport.ts`, `console.ts`): an email may carry up to 3
+   attachments `{filename, contentType: text/csv, content}` (content up to 5,000,000 characters).
+   The console transport prints only each file's name and size (the list holds names and what
+   workers wrote), and keeps the whole message in the outbox file (dev and e2e only).
+2. **Schedule** (`src/lib/pay/digest-schedule.ts`, pure): firm setting
+   `pay_digest: {time: "09:00", days: ["mon".."fri"]}`, read field by field (a broken time or day
+   list gets the default; `days: []` means no scheduled digest). `digestDueOn(now, timeZone,
+   schedule)` gives the firm-local date when a digest is due (a digest day, at or after the time).
+3. **The job** (`src/lib/pay/digest.ts`):
+   - `pay-digest-tick`, a cron every 5 minutes: for each firm whose digest is due, queue one
+     `pay-digest` job with key `pay-digest:<local date>` (one a day: a pg-boss singleton, and the
+     job's own check).
+   - `pay-digest` (a firm task):
+     1. Transaction 1, under an advisory lock for the firm: nothing if this key already ran
+        (its `pay_digest.sending` or `pay_digest.skipped` event); regroup (so a pay line imported
+        since moves a query to the right group); take the oldest 2,000 `open` queries (none:
+        `pay_digest.skipped` {reason: nothing_new}); the recipients (active payroll users with a
+        usable address; if there are none, active admins; none at all: `pay_digest.skipped`
+        {reason: no_recipients}, queries stay open); mark the queries `in_digest`; load their
+        groups; log `pay_digest.sending` {key, date, queries, groups, recipients}.
+     2. Outside any transaction: the AI line for the 10 biggest groups (`noAi` for now), then the
+        email and the CSV list, sent to each recipient (one failure doesn't stop the others).
+     3. Transaction 2: at least one sent: one `pay_query.in_digest` event per query {digestKey,
+        groupKey} and `pay_digest.sent` {key, date, queries, groups, recipients, failed,
+        skipped}. None sent: the queries go back to `open` (so the next digest has them) and
+        `pay_digest.failed` {key, date, queries, recipients, code}.
+     A crash between sending and transaction 2 leaves the queries `in_digest` (on payroll's page,
+     not re-sent): at most once, like the workers' notices.
+4. **Email** (`payDigestEmail()` in `src/lib/messaging/templates.ts`): subject "{firm}: {42} new
+   pay queries"; the headline "42 new pay queries since the last digest. 37 are about the same
+   thing: wrong rate, the week of Mon 7 Sep, paid at £12.50."; the groups biggest first (at most
+   30 lines, then "and {n} more groups"); older ones still waiting; the attached list; the link to
+   `/office/pay-queries`; signed "{firm} Shift Team". No names or workers' words in the body: they
+   are in the attachment only. CSV: reference, worker, day worked, shift, issue, what they wrote,
+   sent, group (formula-safe cells, a byte-order mark, like the notice report).
+5. **"Send the digest now"** on `/office/pay-queries` (payroll and admins, checked on the page,
+   in the action and inside the transaction): queues a `pay-digest` job with its own key;
+   "No new pay queries to send." / "There's no one in payroll with an email address to send it
+   to." when there's nothing to do. The page also shows the schedule and the last digest.
+6. **Wiring**: queue names, worker registration, log types and words, docs (api-and-jobs,
+   screens, messaging-templates, data-model settings, architecture), the PLAN.md parking lot.
+7. **Tests**: unit (schedule parsing and due times across the clock change; the email copy and
+   the CSV); integration (the tick; a digest's email, attachment, marks and events; once per key;
+   nothing new; no recipients; a failed send puts queries back; one of two recipients failing;
+   the AI line; other firms untouched; "send now" roles); e2e (payroll presses "Send the digest
+   now" and the email with the list reaches the outbox).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Not blocked: email through the transport, SES parked | Same as every office email so far; the task names email, not SES | Block on SES |
+| Default 09:00, Monday to Friday, firm-local | Payroll works office days; a morning digest lands before the day's work | Every day; a time only |
+| The digest has new (`open`) queries; older ones are a count | "42 queries" reads as what's new; the page has the rest | Every waiting query each time |
+| Payroll users; admins only when the firm has no payroll user | The task says "to payroll"; someone must get it | Payroll and admins always |
+| Mark `in_digest` before sending, back to `open` if nothing went | Two digests (the schedule and "Send now") can't send the same queries; nothing is lost when every send fails | Mark after sending (two runs could overlap) |
+| Names and details only in the attached list | Email previews and forwarding show the body; the list is payroll's working file | Everything in the body |
+| "Send the digest now" queues the job | Work happens in jobs (golden rule 3's spirit); the same code path as the schedule | Send from the web request |
+
+**Built as planned**, except the digest takes at most 1,000 queries (not 2,000; see below).
+
+**Guardrails review: FIX FIRST (3 items), all fixed.**
+
+| Finding | Fix |
+|---|---|
+| F1: queries moved to `in_digest` in transaction 1, but their per-query events were written only in transaction 2, and the move back to `open` wrote none (the events writer says "in the same transaction as the change") | `pay_query.in_digest` {digestKey} per query in transaction 1, beside the change, through a new bulk `recordEvents()` (same data check, inserts of 500); `pay_query.back_to_open` {digestKey, reason: send_failed} per query when every send fails; log words for both; tested |
+| F2: transaction 2 had no lock and no retry, so a deadlock with a claim's regrouping would fail the job, and the retry would find the key "already" done (digest lost, or its outcome unlogged) | Transaction 2 takes the same firm lock and runs under `retryAborted()` (database work only); tested with a deadlock on the first try (sent once, logged once) |
+| F3: a digest that stopped part way vanished from payroll's page after 30 minutes | The page says "The digest at {time} may not have gone: it stopped part way. Its queries show as in a digest below."; tested with a job that stops after claiming |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| Reverting on any failed send, though a timeout might have been delivered | Kept, and written down as a decision (a query listed twice beats one never seen); parked for SES |
+| A second press within the minute said "Sending…" though nothing was queued | "A digest was asked for less than a minute ago. Wait a minute, then try again." |
+| The attachment limit was in characters, not bytes; a too-big list would fail every day | The limit is 6,000,000 bytes; the digest takes 1,000 queries, and a test proves 1,000 rows of 1,000 four-byte characters fit |
+| `pay_query.in_digest` carried the group key (with a rate) | Dropped: {digestKey} only |
+| "to 1 person" hid a failed address | "(1 address failed)" |
+| Tests counting every job for a firm could see another test's tick | Filtered to the "now" keys |
+| 2,000 bound parameters for the ids | One array parameter |
+| e2e setting helper: no row check, no rollback | Both added |
+| quick-actions comment; the daily "nothing new" log line; provider ids | Comment fixed; the other two parked |

@@ -2,20 +2,26 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
+import { digestLines } from "@/lib/office/pay-digest-copy";
+import { officePayDigestView } from "@/lib/office/pay-digest-view";
 import { officePayQueryGroups } from "@/lib/office/pay-query-groups";
 import { timeOnDay } from "@/lib/portal/format";
 import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
+import { SendDigestButton } from "./send-digest-button";
 
 const card = "mt-3 rounded-xl border border-slate-300 p-4";
 
 // Payroll's pay queries (docs/screens.md `/office/pay-queries`): open ones grouped by likely cause,
-// biggest first, with a one-line summary and each worker's query. Payroll and admins. Read only for
-// now: resolving a group, the digest and telling workers come next.
+// biggest first, with a one-line summary and each worker's query; the digest's schedule, the last
+// one sent and "Send the digest now". Payroll and admins. Resolving a group and telling workers
+// come next.
 export default async function PayQueriesPage() {
   const { firm } = await requireOfficeArea("pay");
-  const data = await officePayQueryGroups({ firm }, (await readSessionToken("office")) ?? "");
-  if (!data) notFound();
+  const token = (await readSessionToken("office")) ?? "";
+  const data = await officePayQueryGroups({ firm }, token);
+  const digest = await officePayDigestView({ firm }, token);
+  if (!data || !digest) notFound();
   const tz = data.timeZone;
   const total = data.groups.reduce((n, g) => n + g.queries.length, 0);
   return (
@@ -27,6 +33,17 @@ export default async function PayQueriesPage() {
           ? "No pay queries waiting."
           : `${total === 1 ? "1 query" : `${total} queries`} waiting, grouped by likely cause. Biggest first.`}
       </p>
+      <section className={card} aria-labelledby="digest-heading">
+        <h2 id="digest-heading" className="text-xl font-bold">
+          Payroll digest
+        </h2>
+        {digestLines(digest.schedule, digest.status, digest.timeZone).map((line) => (
+          <p key={line} className="mt-1">
+            {line}
+          </p>
+        ))}
+        <SendDigestButton />
+      </section>
       {data.groups.map((g) => (
         <section key={g.key} className={card} aria-label={g.heading}>
           <h2 className="text-xl font-bold">{g.heading}</h2>

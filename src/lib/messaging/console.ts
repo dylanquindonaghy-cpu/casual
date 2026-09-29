@@ -9,7 +9,9 @@ type Print = (line: string) => void;
 // Dev and test transport: prints the message instead of sending it. Never reaches Twilio.
 // With an outbox file (CONSOLE_OUTBOX_FILE, dev and e2e only) it also appends each message as a
 // JSON line, so an end-to-end test can open the link a worker would have received. That file
-// holds real message bodies (links included): it lives in the gitignored .dev/ folder.
+// holds real message bodies (links and attachments included): it lives in the gitignored .dev/
+// folder. An attachment is printed as its name and size only (the payroll list holds names and
+// what workers wrote).
 export function createConsoleTransport(
   print: Print = console.log,
   outboxFile?: string,
@@ -21,8 +23,14 @@ export function createConsoleTransport(
       const providerMessageId = `console-${randomUUID()}`;
       const to = msg.channel === "email" ? maskText(msg.to) : maskPhone(msg.to);
       const subject = msg.channel === "email" ? `Subject: ${msg.subject}\n` : "";
+      const files =
+        msg.channel === "email"
+          ? (msg.attachments ?? []).map(
+              (a) => `\nAttached: ${a.filename} (${Buffer.byteLength(a.content)} bytes)`,
+            )
+          : [];
       print(
-        `[messaging:console] ${msg.channel} to ${to} (${providerMessageId})\n${subject}${msg.body}`,
+        `[messaging:console] ${msg.channel} to ${to} (${providerMessageId})\n${subject}${msg.body}${files.join("")}`,
       );
       if (outboxFile) {
         await mkdir(dirname(outboxFile), { recursive: true });

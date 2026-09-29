@@ -65,9 +65,15 @@ architecture.md, Tenancy).
   "weekly_hours_cap": 48,
   "travel_buffer_minutes": 0,
   "approve_mode": true,
-  "sign_off": "Acme Events Shift Team"
+  "sign_off": "Acme Events Shift Team",
+  "pay_digest": { "time": "09:00", "days": ["mon", "tue", "wed", "thu", "fri"] }
 }
 ```
+
+`pay_digest` (built, `src/lib/pay/digest-schedule.ts`): when the payroll digest goes, firm-local.
+Read field by field: a time or day list that makes no sense gets the default (09:00, Monday to
+Friday); `"days": []` means no scheduled digest (payroll can still send one from its page). There's
+no settings screen for it yet.
 
 (The 48-hour short-notice threshold is a placeholder until the 2027 regulations are final.)
 

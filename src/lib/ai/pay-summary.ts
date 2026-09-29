@@ -26,10 +26,13 @@ export interface PayGroupSummary {
 
 // "12 queries: wrong rate, the week of Mon 7 Sep, paid at £12.50."
 export function codeSummary(f: PayGroupFacts): string {
-  const parts = [
-    `${f.count} ${f.count === 1 ? "query" : "queries"}: ${ISSUE_LABELS[f.issue].toLowerCase()}`,
-    `the week of ${dayLabel(f.week)}`,
-  ];
+  return `${f.count} ${f.count === 1 ? "query" : "queries"}: ${factsPhrase(f)}.`;
+}
+
+// What a group's queries share, without the count: "wrong rate, the week of Mon 7 Sep, paid at
+// £12.50" (the payroll digest's headline uses it too).
+export function factsPhrase(f: PayGroupFacts): string {
+  const parts = [ISSUE_LABELS[f.issue].toLowerCase(), `the week of ${dayLabel(f.week)}`];
   if (f.issue === "missing_hours") parts.push(f.site ? `at ${f.site}` : "no site named");
   if (f.issue === "wrong_rate" && f.ratesPence) {
     parts.push(
@@ -38,7 +41,7 @@ export function codeSummary(f: PayGroupFacts): string {
         : "no pay line imported for the day",
     );
   }
-  return `${parts.join(", ")}.`;
+  return parts.join(", ");
 }
 
 const SYSTEM =

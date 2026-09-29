@@ -11,6 +11,7 @@ import {
   loginLinkMessage,
   offerPush,
   officeLoginLinkEmail,
+  payDigestEmail,
   reminderPush,
   requestUpdateMessage,
   requestUpdatePush,
@@ -272,6 +273,47 @@ describe("the code says what the doc says", () => {
     const expected = q.slice(1).filter((t) => !t.startsWith("- and"));
     expect(words(email.body)).toEqual(words(expected.join(" ")));
   });
+
+  it("pay_digest (email): the subject, the body's words, and each headline", () => {
+    const office = section("Office notifications");
+    const [subject, mixed, allAlike, allDifferent, justOne, grouped, line, more, ai, ...rest] =
+      quotes(office, "`pay_digest`");
+    const [earlier, later, attached, link, signOff] = rest;
+    const content = {
+      total: 5,
+      biggest: { count: 3, facts: "{facts}" },
+      groups: [{ heading: "{k queries}: {facts}.", aiLine: "{line}" }],
+      earlier: 2,
+      later: 4,
+      filename: "{filename}",
+      link: "{link}",
+    };
+    const email = payDigestEmail(docVoice, content);
+    expect(email.subject).toBe((subject ?? "").replace("{n}", "5"));
+    const n = (text: string | undefined, value: number) => (text ?? "").replace("{n}", `${value}`);
+    const expected = [
+      n(mixed, 5).replace("{k}", "3"),
+      grouped,
+      line,
+      ai,
+      n(earlier, 2),
+      n(later, 4),
+      attached,
+      link,
+      signOff,
+    ];
+    expect(words(email.body)).toEqual(words(expected.join(" ")));
+    const headline = (d: Partial<typeof content>) =>
+      payDigestEmail(docVoice, { ...content, ...d }).body.split("\n")[0];
+    expect(headline({ biggest: { count: 5, facts: "{facts}" } })).toBe(n(allAlike, 5));
+    expect(headline({ biggest: { count: 1, facts: "{facts}" } })).toBe(n(allDifferent, 5));
+    expect(headline({ total: 1, biggest: { count: 1, facts: "{facts}" } })).toBe(justOne);
+    const many = Array.from(
+      { length: 32 },
+      () => content.groups[0] ?? { heading: "", aiLine: null },
+    );
+    expect(payDigestEmail(docVoice, { ...content, groups: many }).body).toContain(n(more, 2));
+  });
 });
 
 describe("the SMS versions", () => {
@@ -459,6 +501,7 @@ describe("every template function is checked here", () => {
         "loginLinkMessage",
         "offerPush",
         "officeLoginLinkEmail",
+        "payDigestEmail",
         "reminderPush",
         "requestUpdateMessage",
         "requestUpdatePush",

@@ -52,6 +52,8 @@ const hours = (value: unknown) => {
   return Number.isFinite(n) ? noticeText(n) : null;
 };
 
+const queryCount = (n: unknown) => (Number(n ?? 0) === 1 ? "1 query" : `${Number(n ?? 0)} queries`);
+
 export function eventWords(e: LoggedEvent, names: Names): string {
   const d = e.data;
   const byOffice = d.by === "firm" || e.actorType === "office";
@@ -279,6 +281,20 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     }
     case "pay_record.updated":
       return `${worker}'s pay record was updated.`;
+    case "pay_query.in_digest":
+      return "A pay query was added to the pay digest.";
+    case "pay_query.back_to_open":
+      return "A pay query went back to wait for the next pay digest (the email couldn't be sent).";
+    case "pay_digest.sending":
+      return `${e.actorType === "office" ? `${officeName} asked for the pay digest. ` : ""}Sending the pay digest to payroll (${queryCount(d.queries)}).`;
+    case "pay_digest.sent":
+      return `The pay digest went to payroll: ${queryCount(d.queries)} to ${Number(d.recipients ?? 0) === 1 ? "1 person" : `${Number(d.recipients ?? 0)} people`}.`;
+    case "pay_digest.failed":
+      return `The pay digest couldn't be sent. Its ${queryCount(d.queries)} will be in the next one.`;
+    case "pay_digest.skipped":
+      return d.reason === "no_recipients"
+        ? `No pay digest: there's no one in payroll with an email address (${queryCount(d.queries)} waiting).`
+        : "No pay digest: no new pay queries.";
     case "metrics.baseline_saved":
       return `${officeName} saved the pilot baseline${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
     case "metrics.tally_saved":

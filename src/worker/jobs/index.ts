@@ -29,6 +29,13 @@ import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/no
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { officeOfferJob, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import {
+  PAY_DIGEST_TICK_CRON,
+  PAY_DIGEST_TICK_QUEUE,
+  payDigestFirmTask,
+  runPayDigestTick,
+  type PayDigestPayload,
+} from "../../lib/pay/digest";
+import {
   escalateShiftJob,
   offerWaveJob,
   type EscalateShiftPayload,
@@ -64,6 +71,7 @@ export interface JobDeps {
   reminders?: FirmTask<ShiftRemindersPayload>;
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
   requestUpdates?: FirmTask<RequestUpdatePayload>;
+  payDigest?: FirmTask<PayDigestPayload>;
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -104,6 +112,14 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await boss.schedule(METRICS_ROLLUP_TICK_QUEUE, METRICS_ROLLUP_CRON, null, {
     tz: METRICS_ROLLUP_TZ,
   });
+
+  // The payroll digest: each firm's new pay queries at its digest time (the tick checks every 5
+  // minutes), or when payroll presses "Send the digest now".
+  await registerFirmTask(boss, deps.payDigest ?? payDigestFirmTask);
+  await boss.work(PAY_DIGEST_TICK_QUEUE, async () => {
+    await runPayDigestTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+  });
+  await boss.schedule(PAY_DIGEST_TICK_QUEUE, PAY_DIGEST_TICK_CRON);
 
   if (deps.sheets) {
     const clock = deps.clock ?? systemClock;

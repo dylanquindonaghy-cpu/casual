@@ -14,6 +14,41 @@ function e2eAppUrl(): string {
   return withDatabase(url, `${databaseName(url)}_e2e`);
 }
 
+// One firm setting for a seeded firm, in the e2e database (never the dev one). Firms are the
+// owner's to change (the app role can only read them); RLS is forced for the owner too, so it sets
+// the firm first, like the seed.
+export async function setFirmSetting(slug: string, key: string, value: unknown): Promise<void> {
+  const url = process.env.DATABASE_ADMIN_URL;
+  if (!url) throw new Error("DATABASE_ADMIN_URL must be set");
+  if (!isLocalHost(url)) throw new Error("e2e rows go to a local database only");
+  const pool = new Pool({
+    connectionString: withDatabase(url, `${databaseName(url)}_e2e`),
+    max: 1,
+  });
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    await client.query("begin");
+    try {
+      await client.query("select set_config('app.current_firm_id', $1, true)", [firmId]);
+      const updated = await client.query(
+        "update firms set settings = settings || jsonb_build_object($2::text, $3::jsonb) where id = $1",
+        [firmId, key, JSON.stringify(value)],
+      );
+      if (updated.rowCount !== 1) throw new Error(`firm ${slug} not updated`);
+      await client.query("commit");
+    } catch (err) {
+      await client.query("rollback");
+      throw err;
+    }
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
 // An open shift for a seeded firm ("acme" or "northline"), starting `daysAhead` days from now.
 export async function addOpenShift(
   slug: string,

@@ -189,7 +189,7 @@ Docs: `docs/screens.md`, `docs/pilot-playbook.md`.
 - [x] Pay query form: shift/date, issue type (missing hours, wrong rate, late pay, other), details
 - [ ] Group queries by likely cause (same rate change, same site, same week) — Haiku summarises,
       code does the grouping keys
-- [ ] Digest to payroll by email at a set time: "42 queries, 37 about the new rate not applied
+- [x] Digest to payroll by email at a set time: "42 queries, 37 about the new rate not applied
       to 12 Sep shifts" with the list attached
 - [ ] Worker sees status updates; AI never answers a dispute
 - [ ] Pay records CSV import (period, hours, rate, gross, pay date)
@@ -825,10 +825,47 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - docs/testing.md names `pay.grouping.test.ts` for the Phase 6 tests task; the keys and the
     summary are tested in `tests/unit/pay.group-keys.test.ts` and `tests/unit/ai.pay-summary.test.ts`
     so far.
-  - Regrouping runs when asked (`regroupPayQueries()`); the digest (next task) should run it
-    first, so a pay line imported after a query moves it to the right group.
-  - Payroll's page is read only: resolving a group and telling its workers is the "Worker sees
-    status updates" task.
+  - Regrouping runs when asked (`regroupPayQueries()`); the digest now runs it first, so a pay
+    line imported after a query moves it to the right group (done in the digest task).
+  - Payroll's page is read only (apart from "Send the digest now"): resolving a group and telling
+    its workers is the "Worker sees status updates" task.
+- **Connect Amazon SES** (every office email goes through the console transport until then: login
+  links by email, escalations, the credential list and now the payroll digest with its attached
+  list; an outside service with an AWS account):
+  1. In the AWS console (London, eu-west-2), open Amazon SES → Identities → Create identity, and
+     verify the sending domain: add the DKIM records it shows to the domain's DNS. Wait for
+     "Verified".
+  2. Ask to leave the SES sandbox (Account dashboard → Request production access): until then SES
+     only sends to addresses you've verified.
+  3. Give the worker's server permission to send only (an IAM policy allowing `ses:SendRawEmail`
+     from the verified identity; raw email is what carries attachments). No keys in the repo.
+  4. Write the SES sender beside the console one (`src/lib/messaging/`): email only (texts and
+     WhatsApp stay with Twilio), each attachment as a MIME part (`text/csv; charset=utf-8`), a
+     timeout, and the provider's message id back as `providerMessageId`. Route email to it and
+     phone messages to Twilio when `MESSAGING_TRANSPORT` is the real one.
+  5. Bounces and complaints (SES → SNS → a webhook): mark the office user's address as not
+     working, so the digest and the credential list skip it (they already skip an address that
+     isn't valid, and count it).
+  6. Test: send yourself a payroll digest from `/office/pay-queries` and open the list in Excel.
+- Payroll digest follow-ups (Phase 6 digest task):
+  - **Dylan to confirm:** the default time (09:00, Monday to Friday, firm-local); only payroll gets
+    it (admins only when the firm has no payroll user); each digest has the new queries, with a
+    count of earlier ones still waiting; names and what workers wrote go only in the attached list
+    (the list goes to payroll's mailbox: check the pilot firm is happy with that).
+  - The settings screen: the digest's time and days (`firms.settings.pay_digest`, read by
+    `src/lib/pay/digest-schedule.ts`). Until then it's set in the database.
+  - A digest that stops after claiming its queries (before sending, or between sending and
+    recording the outcome) leaves them `in_digest`, logged, and payroll's page says after 30
+    minutes that it "may not have gone". There's no button to send those again yet: with SES
+    delivery notifications, a check could.
+  - With SES: record the provider's message ids in `pay_digest.sent` (ids only), and decide
+    whether a send that timed out (it might have been delivered) should still put the queries
+    back for the next digest (today it does: a query listed twice beats one never seen).
+  - Each weekday a firm with nothing new gets a "No pay digest: no new pay queries." line in the
+    action log (it's what stops a second digest that day). Hide it from the log's list if it's
+    noisy.
+  - The key-freeze question above still stands: a query in a digest can still move group when
+    regrouped; the digest's list shows the group it was sent in.
 - Offer waves follow-ups (from the Phase 4 offer waves task):
   - Tell workers whose offer was "filled elsewhere" (the `offer-expire` job and `shift_filled`),
     and let a worker decline an offer (a "No thanks" on the shift page).
@@ -947,3 +984,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 0.2 | Notice report tests: 7 tests drive the real paths (a worker taking and cancelling from the portal, the office cancelling a booking and a whole shift, moving and shortening, and the Google Sheets sync booking, shortening, moving and removing someone) and read the notice report and its CSV back: who started each change, notice hours, the flag exactly at 48 hours and at a firm's own threshold, negative notice after the start; no product code needed changing; 2146 tests + 37 e2e; verified and audited DONE. Phase 5 done: 5.5 h of the 23–33 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.5 | Pay query form: behind the pay code, a worker picks one of their recent shifts (or a day), what's wrong (hours missing, wrong rate, paid late, something else) and a note, and gets "Pay query sent." with a reference; the pay page lists their queries "With payroll" or "Sorted"; new `pay_queries` table (isolated per firm); one open query per question; the typed note never goes in the log; no AI (golden rule 9); the review caught nested brackets in the log's words, a stuck logged-out screen and small buttons (all fixed); 2177 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.4 | Pay query grouping, BLOCKED (not ticked: "Haiku summarises" needs Claude on Amazon Bedrock, an outside service): built everything short of it: grouping keys by code (wrong rate by week and pay-line rate, hours missing by week and site, paid late and something else by week), regrouping when a pay line arrives later, payroll's read-only "Pay queries" page grouped by likely cause with the app's own summary line, and the AI summary interface (facts only, checked, with the app's line as the fallback) with a fake for tests; connecting Bedrock is parked with steps; 2191 tests + 38 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 6 | 0.8 | Payroll digest: at the firm's set time (default 09:00 Monday to Friday, a new `pay_digest` setting) payroll gets one email: "42 new pay queries since the last digest. 37 are about the same thing: …", the groups biggest first, and the list attached as a spreadsheet file (names and what workers wrote only in the attachment); each query goes once and is marked "In a digest", back to waiting if no email gets through; payroll's page shows the schedule, the last digest and "Send the digest now"; email through the console transport (connecting Amazon SES parked with steps); the review caught per-query log entries in the wrong transaction, an outcome step that could fail silently and a lost digest the page never mentioned (all fixed and tested); 2231 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |

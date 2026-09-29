@@ -4684,3 +4684,141 @@ messages.
 1. Raise a pay query as a worker (see the previous task's steps).
 2. Log in at `http://acme.localhost:3000/office/login` as `acme.payroll@example.com`.
 3. Click "Pay queries": the query is in its group, under the app's line.
+
+## 2026-09-29: Phase 6, task 3: The payroll digest email (0.8 h)
+
+### Time
+
+0.8 hours of Claude's working time (13:56 to 14:46 UTC), in the unattended overnight loop.
+Phase 6 so far: 1.7 of its 12 to 18 hour estimate.
+
+### Result
+
+- **Ticked.** The independent auditor (the `claims-auditor`, which checks the work from the files
+  on disk only) said "VERDICT: DONE" in its first round.
+- `scripts/verify.sh` printed `VERIFIED tree=c1e55edcd477155d e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2231 tests (up from 2191);
+  - the 38 browser tests;
+  - the rule checks.
+- The guardrails review found 3 things to fix first. All 3 are fixed and tested (below).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+- **Email isn't really sent yet.** Like every office email so far, the digest goes through the
+  "console transport": in development it prints the email and saves it to a file instead of
+  sending it. Connecting Amazon SES (Amazon's email-sending service) is parked with steps.
+
+### What was built
+
+A **digest** is one email that gathers many things into a summary. Instead of payroll getting 42
+separate pay questions, they get one email at a set time.
+- **When it goes.** Each firm has a new setting, `pay_digest`: a time and the days of the week.
+  The default is 09:00, Monday to Friday, London time. A check runs every 5 minutes (a "cron
+  job": a task the computer runs on a timetable). When a firm's time has come, it queues that
+  firm's digest, once a day.
+- **What it says.** The first line is the one the task asked for, for example: "42 new pay queries
+  since the last digest. 37 are about the same thing: wrong rate, the week of Mon 7 Sep, paid at
+  £12.50." Then one line per group (biggest first, at most 30 lines). It also says how many
+  older queries are still waiting. It ends with a link to payroll's page and "— {firm} Shift
+  Team".
+- **The list attached.** A CSV file (a simple spreadsheet file Excel opens) called
+  `pay-queries-{date}.csv`, with one row per query: reference, worker, day worked, shift, issue,
+  what they wrote, when it was sent and its group. Workers' names and their own words are only
+  in this file, never in the email's text (email previews and forwards show the text).
+- **Each query goes once.** A query included in a digest is marked "In a digest", so the next
+  digest has only new ones. If no email gets through at all, the queries go back to waiting for
+  the next digest.
+- **Who gets it.** Active payroll users. If a firm has no payroll user, its admins (someone must).
+  An address the email can't go to is skipped and counted.
+- **Payroll's page** (`/office/pay-queries`) has a new "Payroll digest" box: when it goes, the
+  last one sent ("Last digest: 09:02 on Mon 2 Nov, 42 queries to 2 people."), a line if one
+  didn't go, and a **"Send the digest now"** button (payroll and admins only).
+- **AI.** The job can add an AI summary line under each of the 10 biggest groups, labelled
+  "(written by AI)". Until Bedrock is connected (parked earlier) there's no AI, and the app's own
+  line is used. The AI never decides anything here.
+- **The log.** Every step is written to the action log: the digest starting, each query going
+  into it, the digest sent (or failed, or skipped because there was nothing new or no one to send
+  to), and each query going back if nothing was sent.
+
+Key numbers: at most 1,000 queries per digest (the oldest first); an attachment of at most
+6,000,000 bytes; at most 3 attachments per email; "Send the digest now" at most once a minute.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Not blocked: email through the console transport, SES parked | Every office email so far works this way; the task names email, not SES | Block the task on SES |
+| Default 09:00, Monday to Friday, firm-local | Payroll works office days; a morning digest lands before the day's work | Every day; a time only |
+| Each digest has the new queries, plus a count of older ones | "42 queries" reads as what's new; the page has the rest | Every waiting query every time |
+| Payroll only; admins when there's no payroll user | The task says "to payroll"; someone must get it | Payroll and admins always |
+| Mark queries before sending; put them back if nothing went | Two digests at once (the schedule and the button) can't send the same queries; nothing is lost when every send fails | Mark after sending |
+| Any failed send counts as not sent, even a timeout that might have gone | A query listed twice is better than one payroll never sees | Only definite failures |
+| Names and workers' words only in the attachment | Email text shows in previews and forwards | Everything in the text |
+| At most 1,000 queries per digest | Keeps the attached file under the size limit even in the worst case (proved by a test) | 2,000, as on the page |
+| "Send the digest now" queues the same job | One path for the schedule and the button; work happens in jobs | Send from the web page's own request |
+
+### What the guardrails review caught (and what was done)
+
+- **Log entries in the wrong place.** Queries were marked "in a digest" in one step, but logged in
+  a later step, and not logged at all when they went back. Now each query is logged in the same
+  database transaction (a group of changes saved all together or not at all) as its change, both
+  ways.
+- **The last step could fail silently.** The step that records the outcome had no lock and no
+  retry. If the database cancelled it to break a "deadlock" (two jobs each waiting for the other),
+  the digest could be lost. Now it waits its turn and runs again if cancelled.
+- **A lost digest was invisible.** If a digest stopped part way, the page stopped mentioning it
+  after 30 minutes. Now it says "The digest at {time} may not have gone: it stopped part way."
+- Smaller ones: a second press within a minute now says "Wait a minute, then try again." instead
+  of pretending to send; the file size limit is in bytes; the page says when some addresses
+  failed.
+
+### What the new tests prove
+
+- `tests/unit/pay.digest-schedule.test.ts` (8 tests): the setting and its defaults (a broken part
+  gets the default; "no days" is kept); when a digest is due, including British Summer Time, the
+  night the clocks go back and another time zone; the schedule in words.
+- `tests/unit/pay.digest-copy.test.ts` (7 tests): the task's exact example email; each kind of
+  first line; the AI line under its group; older and left-over queries; the 30-line cap; the
+  attached list (spreadsheet-safe cells, accented names, a formula turned into plain text); the
+  biggest possible list fits the size limit; every message on payroll's page.
+- `tests/unit/copy.templates-doc.test.ts`: the email matches `docs/messaging-templates.md` word for
+  word.
+- `tests/unit/messaging.console.test.ts`: attachments are printed as name and size only, kept whole
+  in the dev outbox file, and bad ones are refused (a path in the name, another type, too many,
+  too big).
+- `tests/integration/pay.digest.test.ts` (15 tests, on the real database): the whole email, the
+  attachment, the marks and every log entry; once per day; the next digest has only new ones; a
+  pay line imported late moves a query to its group first; no one to send to; admins when there's
+  no payroll; every send failing puts queries back (logged); one of two addresses failing still
+  counts; a deadlock on the last step (sent once, logged once); a digest that stops part way (the
+  page says so); the AI line, what the AI sees (no names), and the AI failing; other firms
+  untouched; two digests at once (one sends); the timetable; bad job data refused; the worker's
+  wiring; "Send the digest now" roles, once a minute, and nothing to send.
+- The browser test (`tests/e2e/pay.query.spec.ts`) now goes on: payroll presses "Send the digest
+  now", the email arrives in the outbox with the worker's note only in the attached list, and the
+  page then shows the last digest and the query "In a digest".
+
+### Parked, open, and things that need Dylan
+
+- **Connect Amazon SES** (Parking lot, with 6 steps): verify the sending domain, leave the SES
+  "sandbox", give the server permission to send only, write the SES sender (attachments as
+  email parts), handle bounces, and send yourself a test digest.
+- **Dylan to confirm** (Parking lot, "Payroll digest follow-ups"): the 09:00 weekday default;
+  payroll only; new queries only; and that the pilot firm is happy for the list (names and what
+  workers wrote) to go to payroll's mailbox.
+- **Parked:** the digest time on a settings screen (set in the database until then); sending again
+  a digest that stopped part way; recording SES message ids; hiding the daily "nothing new" line
+  from the log if it's noisy.
+
+### How to see it working
+
+1. Start the app: `npm run dev` (with the database up and seeded).
+2. Raise a pay query as a worker (see the pay query form task's steps).
+3. Log in at `http://acme.localhost:3000/office/login` as `acme.payroll@example.com` and open
+   "Pay queries".
+4. In the "Payroll digest" box, click **"Send the digest now"**. You should see "Sending the
+   digest now: 1 new query to 1 person…".
+5. In the terminal running `npm run dev`, the email is printed with "Attached:
+   pay-queries-{date}.csv" (the file's name and size only). If your `.env` sets
+   `CONSOLE_OUTBOX_FILE` (a path starting `.dev/`), the whole email, attachment included, is also
+   saved in that file.
+6. Refresh the page: "Last digest: …" appears and the query says "In a digest".

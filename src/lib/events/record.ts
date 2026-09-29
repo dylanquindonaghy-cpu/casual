@@ -17,26 +17,41 @@ export interface EventInput {
   data?: Record<string, unknown>;
 }
 
-// Returns the new event's id (a job can then carry it instead of the event's details).
-export async function recordEvent(tx: FirmTx, event: EventInput): Promise<number> {
-  const firmId = activeFirmId();
-  if (!firmId) throw new Error("recordEvent must be called inside withFirm");
+function eventRow(firmId: string, event: EventInput) {
   const data = event.data ?? {};
   if (JSON.stringify(redact(data)) !== JSON.stringify(data)) {
     throw new Error(`events.data for ${event.action} holds personal or secret data`);
   }
+  return {
+    firmId,
+    actorType: event.actorType,
+    actorId: event.actorId ?? null,
+    action: event.action,
+    entityType: event.entityType,
+    entityId: event.entityId ?? null,
+    data,
+  };
+}
+
+// Returns the new event's id (a job can then carry it instead of the event's details).
+export async function recordEvent(tx: FirmTx, event: EventInput): Promise<number> {
+  const firmId = activeFirmId();
+  if (!firmId) throw new Error("recordEvent must be called inside withFirm");
   const [row] = await tx
     .insert(events)
-    .values({
-      firmId,
-      actorType: event.actorType,
-      actorId: event.actorId ?? null,
-      action: event.action,
-      entityType: event.entityType,
-      entityId: event.entityId ?? null,
-      data,
-    })
+    .values(eventRow(firmId, event))
     .returning({ id: events.id });
   if (!row) throw new Error("event insert returned nothing");
   return row.id;
+}
+
+// Many events at once (one per row a bulk change touched: the pay queries in a digest, say), with
+// the same check on each, in inserts of up to 500 rows. Every event is checked before any is written.
+export async function recordEvents(tx: FirmTx, list: EventInput[]): Promise<void> {
+  const firmId = activeFirmId();
+  if (!firmId) throw new Error("recordEvents must be called inside withFirm");
+  const rows = list.map((event) => eventRow(firmId, event));
+  for (let i = 0; i < rows.length; i += 500) {
+    await tx.insert(events).values(rows.slice(i, i + 500));
+  }
 }

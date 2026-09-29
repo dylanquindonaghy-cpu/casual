@@ -1883,3 +1883,38 @@ build` run by hand: succeeds.
 **Guardrails review: not run.** Nothing in schema, auth logic, tenancy, messaging, jobs or rules
 changed. The login pages only swap one error sentence for `tryAgainText()`, and Open shifts reads
 one more column of the worker's own row inside the same `withFirm` transaction.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=288f758da390f1fc e2e=true` (1531 tests, 20 e2e).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preconditions: `.claude/state/verified.json` = `{"ok":true,"tree":"288f758da390f1fc","e2e":true,"at":"2026-09-29T02:24:06Z"}`; `./.claude/hooks/tree-hash.sh` = `288f758da390f1fc` — matches. `.claude/state/invariants.log`: "1531 tests: 1531 passed, 0 failed, 0 skipped, 0 todo", "no .only/.skip/.todo in tests". `.claude/state/e2e.log`: "20 passed (1.2m)".
+
+Claims (task: "Empty and error states written in plain language (see docs/screens.md)"):
+
+- Page-not-found in plain words, no "404" — PROVEN. `/home/dylan/shiftdesk-starter/src/app/not-found.tsx:8-9` ("We can't find that page." / "The link may be old or mistyped."), plus a "Go to my shifts" link. Playwright: `/home/dylan/shiftdesk-starter/tests/e2e/home.spec.ts:8-21` ("a link that goes nowhere says so in plain words, with a way back") checks status 404, the heading, and `expect(page.getByText("404")).toHaveCount(0)` on both a bad path and a non-existent firm subdomain. Passed: `.claude/state/e2e.log:5`.
+
+- Page-level error boundary, online vs offline wording — PROVEN. `/home/dylan/shiftdesk-starter/src/app/error.tsx` + `/home/dylan/shiftdesk-starter/src/app/error-body.tsx:7-15` ("Something went wrong" / "No signal" branch on `useOnline()`), `/home/dylan/shiftdesk-starter/src/app/use-online.ts` (real `navigator.onLine` listener). Tested in `/home/dylan/shiftdesk-starter/tests/unit/copy.plain-language.test.ts:533-548` ("with no signal, says so rather than 'Something went wrong'") — asserts both branches' exact copy. Passed: `.claude/state/test.log:72,76`.
+
+- Whole-frame (root layout) failure — PROVEN. `/home/dylan/shiftdesk-starter/src/app/global-error.tsx` — same copy, no "Go to my shifts" (per docs/screens.md). Rendered and checked for jargon/length in the plain-language test (`... > The whole page failed`, `.claude/state/test.log:73`).
+
+- Per-tap failure copy, with a distinct "no signal" variant — PROVEN. New helper `/home/dylan/shiftdesk-starter/src/lib/portal/copy.ts` (`tryAgainText`, `isOnline`), wired into all 8 client-side failure sites (`link-login.tsx`, `login-form.tsx`, `code-gate.tsx`, `availability-form.tsx`, `notification-form.tsx`, `review-form.tsx`, plus server-rendered `request-result.tsx`, `cancel-shift-result.tsx`, `take-shift-result.tsx`) replacing the previous hardcoded string. Unit-tested directly (`.claude/state/test.log:68-69`) and via `navigator.onLine` stubbing (`copy.plain-language.test.ts:550-560`, `.claude/state/test.log:77`).
+
+- Empty-state copy is honest (doesn't over-promise a message the worker didn't opt into) — PROVEN. `/home/dylan/shiftdesk-starter/src/lib/portal/open-shifts.ts` now returns `offerAlerts` from the worker row; `/home/dylan/shiftdesk-starter/src/app/shifts/open/open-shifts-view.tsx:81-87` branches copy on it. Integration test: `/home/dylan/shiftdesk-starter/tests/integration/open-shifts.test.ts:75-88` (real DB, toggles `workers.offer_alerts`), passed `.claude/state/test.log:360`. Unit test: `/home/dylan/shiftdesk-starter/tests/unit/portal.open-shifts.test.ts:51-56`, passed `.claude/state/test.log:1177`.
+
+- All other pre-existing empty states ("No shifts booked yet.", "No shifts in the last 30 days.", "No requests yet.", "No open shifts match.", "None on file...") remain plain — PROVEN via the same blanket test rendering every screen/state (`copy.plain-language.test.ts:182-493`) and failing on jargon, raw enum codes, undefined/null, and sentences over 25 words (self-test at `copy.plain-language.test.ts:521-531` confirms the checker actually catches jargon/raw-codes/long-sentences, not a no-op).
+
+Fakes found: none. No `.only`/`.skip`/`.todo` in the new or touched test files (confirmed via grep and `invariants.log`). No `TODO`/`not implemented` in the touched source files. The plain-language checker is exercised against real rendered HTML (`renderToStaticMarkup`) and a real `problems()` self-test, not a snapshot with empty assertions.
+
+PLAN.md still shows this line unchecked (`- [ ] Empty and error states written in plain language`, line 143) — correctly left for `/close-task` to tick, not self-ticked.
+
+To reach DONE: nothing — this claim is fully proven. (Note: this audit covers only this one Phase 3 bullet, not the other unchecked bullets in the same phase — "Demo seed" and "Playwright: login → take shift → cancel → request → pay OTP" — which are separate, still-unstarted tasks per PLAN.md.)
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.2 (02:13 to 02:26 UTC). Phase 3 so far: 3.9 h of its 35–45 h
+estimate.
+**Commit:** `8644431`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

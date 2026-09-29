@@ -3867,3 +3867,16 @@ above). Fixed as described.
 | Refill pairing; logging "Update the figures now" | Parked |
 | An `access.ts` comment | Added (the check name stays: the migration is already applied in dev) |
 
+
+**Verify round 2:** `VERIFIED tree=e23644a533c5889c e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2139 tests, 37 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — this task's claims are all
+PROVEN with passing tests on the current tree."
+
+**Commit:** `982df7e` "Phase 5: Pilot metrics page: baseline entry form + daily rollup job", pushed
+to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.6 h (12:03 to 12:40 UTC). Phase 5 so far 5.3 h of its 23–33 h estimate.
+
+**Parked:** see PLAN.md, "Pilot metrics follow-ups" (the definitions for Dylan to confirm).

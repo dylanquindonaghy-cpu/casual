@@ -3770,3 +3770,16 @@ first failure: the report looked at the days around the test's fake "now").
 | `nosniff` on the file; a cross-tenant check through the joins | Added; tested (another firm's ids name nobody) |
 | Log each download | Parked |
 
+
+**Verify round 2:** `VERIFIED tree=16aee8452687c53a e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2103 tests, 36 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — this task item is fully proven
+by code + passing unit, integration and e2e tests on the current verified tree."
+
+**Commit:** `b20ab46` "Phase 5: Notice and cancellation report: …", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.5 h (11:32 to 12:00 UTC). Phase 5 so far 4.7 h of its 23–33 h estimate.
+
+**Parked:** see PLAN.md, "Notice report follow-ups" (two Dylan-to-confirm items).

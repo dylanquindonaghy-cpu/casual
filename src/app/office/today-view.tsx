@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { TodayShift, TodayView } from "@/lib/office/today";
 import { placesText, requestsText, stoppedText, waveText } from "@/lib/office/today-copy";
 import { noticeText } from "@/lib/portal/cancel-reasons";
@@ -15,8 +16,10 @@ function ShiftHeading({ shift, timeZone }: { shift: TodayShift; timeZone: string
   return (
     <>
       <p className="text-lg font-semibold">
-        {roleLabel(shift.role)}
-        {shift.site ? ` at ${shift.site}` : ""}
+        <Link href={`/office/shifts/${shift.shiftId}`} className="underline">
+          {roleLabel(shift.role)}
+          {shift.site ? ` at ${shift.site}` : ""}
+        </Link>
       </p>
       <p>{shiftWhen(shift.startsAt, shift.endsAt, timeZone)}</p>
       <p>{placesText(shift.placesLeft, shift.headcount)}</p>

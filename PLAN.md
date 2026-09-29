@@ -172,7 +172,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
 
 - [x] Today view: gaps, urgent shifts with wave status, fresh cancellations with notice hours,
       pending requests, credential expiries this week, quick actions
-- [ ] Shifts: create/edit, bulk create for an event, CSV import, manual assign with logged override
+- [x] Shifts: create/edit, bulk create for an event, CSV import, manual assign with logged override
 - [ ] **Firm-initiated cancel / move / curtail**: reason required; notice hours logged per assigned
       worker; workers notified (compliance-critical, see `docs/api-and-jobs.md`)
 - [ ] Mark no-show / completed
@@ -357,9 +357,11 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   flag for the office) before any Sheets firm goes live.
 - Booking: availability (Phase 3 `/profile`) and blocked sites (Phase 5) have no store yet, so
   `loadEligibilityInput()` passes empty lists; fill them when the stores exist.
-- Booking: the office's override reason is free text in `events.data`. `bookShift()` refuses one
-  holding a phone number or email address, but a name could still get in. Use reason codes (plus
-  a note kept on the assignment row) when the Phase 5 manual-assign screen is built.
+- **Dylan to confirm:** the office's override reason is free text in `events.data`. `bookShift()`
+  refuses one holding a phone number or email address, but a name could still get in, and it
+  shows in the shift's History. The Phase 5 manual-assign screen (built) keeps free text for now.
+  The fix is reason codes plus a note kept on the assignment row, which means changing the
+  booking path's API and the database: confirm before it's built.
 - Phase 3 `takeShift` and `cancelShift` actions: take the firm from `getCurrentFirm()` (ADR-012),
   never from input, and the worker from the session; `src/app` can't import `withFirm`, so add a
   small lib wrapper.
@@ -460,9 +462,9 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   and bad rows (Phase 5 Today view). Today they are only in the database and events.
 - Demo seed: Northline's mocked sheet. Local dev has no sheet transport (`SHEETS_TRANSPORT=none`);
   a file-backed dev transport would let the demo sync a sheet on a laptop.
-- Phase 5 office import screen (`/office/workers` "import CSV", shifts CSV import): an upload plus
-  `readTable()` + `runImport()` with a dry-run preview first, and `FILE_ERROR_TEXT` / `PROBLEM_TEXT`
-  for the copy. Pay records import (Phase 3/6) adds a kind to the same importer.
+- Office import screens: shifts is built (`/office/shifts/import`, dry run first). Workers and
+  credentials ("import CSV" on a workers screen) and pay records (Phase 6) reuse
+  `importShiftsFile()`'s pattern with their kind.
 - Imports, before the Phase 5 upload screen: the whole file is one transaction (holding shift
   locks until it ends), fine for the terminal script; for the web, consider a background job. A
   CSV row without a Staff ID can update a worker the Sheets sync owns (until the next sync puts the
@@ -587,6 +589,21 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - **Dylan to confirm** (copy): the office's SMS offer now ends " - {firm} Shift Team" (golden
     rule 8; the doc's line had no sign-off), which makes the demo text 163 characters: 2 texts,
     against the doc's "keep under 160".
+- Shift screens follow-ups (Phase 5):
+  - **Dylan to confirm:** new shifts are open at once (no draft step); editing a booked shift's
+    date, times, role or site is refused until the move/cancel screen (the next task) handles
+    notice; the web import takes files up to 1 MB (the terminal import 5 MB).
+  - The web import runs the whole file in one transaction (holding its shifts' locks until it
+    ends). Fine at 1 MB; for bigger files, a background job.
+  - The worker picker lists active people with the role (no search). Add a search box if firms
+    have hundreds of casuals.
+  - The shift list shows 4 weeks at a time with no filters (site, role, status): add them if
+    resourcers ask.
+  - Editing records the changed field names, and the old and new times when they change (events
+    refuse free text).
+  - Booked workers aren't told when the instructions change: do it with the move task's notices.
+  - No upper limit on how far ahead a shift can be created; raising the places on an urgent shift
+    that had filled doesn't restart its offers ("Mark urgent" again does).
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
   pack is `src/lib/messaging/whatsapp-templates.ts`: 12 templates (5 are "no site" variants), each
@@ -741,3 +758,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.4 | All copy from the messaging doc; templates to Meta: BLOCKED (not ticked: submitting needs the WhatsApp Business account): a test now holds every message (WhatsApp, text, push, email) to the doc's words and checks every message to a worker ends with the firm's sign-off; urgent offers by text use the doc's short SMS copy; the ready-to-submit WhatsApp template pack (10 templates) is tested against what the code sends; submission steps parked; 1799 tests + 25 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.3 | Phase 4 tests: a fake job worker runs the real queue on a fake clock, so wave timing is tested end to end (every 15 minutes, stop on fill, the office emailed once, quiet hours, the start ends it); the notification policy is tested for offers and reminders alike (channel order, quiet hours, daily cap, no double sends), and over a whole chain only eligible workers who want offers get anything; 1827 tests + 25 e2e; verified and audited DONE. Phase 4 done except the 3 blocked tasks: 3.5 h of the 27–37 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 5 | 1.0 | Today view: the office dashboard now shows urgent shifts with wave status, gaps in the next 7 days, cancellations in the last 24 hours with notice, requests waiting and credentials expiring this week, with quick actions (offer to someone, mark urgent or not, mark as filled and undo); office offers go through the same rules, daily cap and quiet hours as every offer (new schema: office offers on the offers table); the review caught a misleading "offer on its way" after a failed send and a daily-cap race (both fixed and tested); 1886 tests + 28 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 5 | 0.6 | Office shift screens: a 4-week shift list, create one shift or up to 12 for an event (nothing saved unless every line is right), edit (booked shifts: places and instructions only, moves come with the next task), import a .csv/.xlsx checked first, and each shift's page with its places, offers, history in plain words and "Assign someone" (the rules' answer first; the office may override only rest, hours, a day off or a started shift, with a logged reason); the review caught a closed shift reopening on edit and the import moving a booked shift's site (both fixed and tested); 1924 tests + 31 e2e; verified and audited DONE (see docs/work-log.md) |

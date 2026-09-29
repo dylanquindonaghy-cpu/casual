@@ -3717,3 +3717,125 @@ Phase 5 so far: 1.0 of its 23 to 33 hour estimate.
 3. Today shows the demo Saturday: the urgent dropout, the gaps, the dropout under "Cancelled", and
    two requests.
 4. Try "Offer to someone" on a gap. The offer message prints in the terminal.
+
+## 2026-09-29: Phase 5, task 2: The office's shift screens (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (08:11 to 08:46 UTC), in the unattended overnight loop.
+Phase 5 so far: 1.6 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=340269c21ae904cb e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1924 tests (up from 1886);
+  - the 31 browser tests (3 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+All for admins and resourcers, from a new "Shifts" link on Today:
+- **The shift list** (`/office/shifts`): 4 weeks at a time, by day, with how many are booked,
+  the status and "Urgent". "Earlier" and "Later" move 4 weeks.
+- **New shift**: date, site, role, start, finish, places and instructions. A finish before the
+  start is the next morning (a night shift).
+- **Shifts for an event**: one date and site, and up to 12 lines of role, times and places. If
+  any line is wrong, *nothing* is saved and each problem names its line ("Line 3: Places must be
+  a whole number from 1 to 1000.").
+- **Import from a file**: a spreadsheet (.csv or .xlsx, up to 1 MB) of shifts.
+  - "Check the file" shows what would happen without saving anything ("This file would add 12
+    shifts…"), with each problem by row.
+  - "Import these shifts" then saves it. Importing the same file again updates rather than
+    duplicates.
+- **Each shift's page**:
+  - the details and "Edit this shift";
+  - who's booked, and who cancelled with how much notice;
+  - the offers sent;
+  - a **history** of everything that happened, in plain words ("Sam Rota placed Ann Booker.").
+- **Assign someone** on the shift's page:
+  - pick a worker and press "Check" to see the rules' answer first;
+  - if it's yes, "Assign {name}";
+  - if the only "no"s are ones the office may allow (too little rest, over the weekly hours, a day
+    off, or the shift already started), "Assign anyway" with a reason, which goes in the log;
+  - anything else, like a missing licence, can't be overridden.
+- **Editing a booked shift**: only the places and instructions can change. Changing the time,
+  role or site of a booked shift is a "move", which by law needs notice recorded for each worker.
+  That's the next task, so for now it's refused with an explanation.
+
+### What the safety review found (fixed)
+
+- **Editing reopened a closed shift.** If the office had marked a shift as filled, changing even
+  its instructions quietly reopened it to bookings. Now it stays closed until "Open it again".
+- **The import could move a booked shift to another site** without recording notice. The site
+  now counts as a move too, like the time and role.
+- **Smaller fixes:**
+  - moving a shift nobody's booked on marks the offers already sent as expired, and the log keeps
+    the old and new times;
+  - clearer messages for a broken form;
+  - more tests.
+- **Parked for Dylan:** the override reason is typed text. A reason list plus a private note
+  would stop a name ending up in the log, but it changes the booking code and the database, so it
+  waits for his OK.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Booked shifts: no new times, role or site here | Those are "moves" needing notice per worker (the law, and golden rule 12): the next task | Allow and log (would skip the notice) |
+| A bad line in a bulk create saves nothing | Fix the form once; no half-made event | Save the good lines |
+| Web import up to 1 MB | The web framework's default limit; shift files are far smaller | Raise the limit for everything |
+| Check one chosen worker at a time | The rules take several database reads per person | Check everyone on every page view (slow) |
+| New shifts are open straight away | "Create" means "we need people" | A draft step first |
+
+### What the new tests prove
+
+- `tests/integration/office.shift-editor.test.ts` (18 tests):
+  - creating one or many (times in London, overnight shifts, blank lines ignored);
+  - every kind of bad input, with nothing saved;
+  - editing with and without bookings;
+  - a closed shift stays closed;
+  - refusals change nothing;
+  - other firms' sites refused;
+  - offers expiring on a move;
+  - importing (the check saves nothing, the real import, re-imports, a site move refused, bad
+    files, too big);
+  - payroll refused.
+- `tests/integration/office.shift-pages.test.ts` (11 tests):
+  - the list;
+  - the form's sites and roles;
+  - a shift's places, cancellations and history in words;
+  - the rules check (yes / may override / can't override);
+  - assign with and without an override;
+  - a reason with a phone number refused;
+  - no licence can't be overridden;
+  - payroll and other firms refused.
+- `tests/unit/office.shifts-copy.test.ts` (5) and the roles test: the wording and who may use it.
+- `tests/e2e/office.shifts.spec.ts` (3 browser tests):
+  - create a shift, check people and assign one;
+  - create two for an event;
+  - upload a file, check it, import it;
+  - payroll can't see the screens.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm:**
+  - the override reason stays typed text for now;
+  - new shifts open at once;
+  - editing a booked shift's time or place waits for the move screen;
+  - the web import's 1 MB limit.
+- **Parked:**
+  - booked workers aren't told when instructions change;
+  - no search in the worker picker;
+  - no filters on the list;
+  - big web imports should run in the background.
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
+3. Open "Shifts", then "New shift". Create one.
+4. On its page, choose someone under "Assign someone", press "Check", then "Assign".

@@ -38,7 +38,7 @@ import { resolveColumns, type ColumnsOf, type ImportKind } from "./columns";
 //   clears its verification. New credentials are valid unless the file says otherwise.
 // - Shifts: by the file's Shift ID, or by a key made from site, role and times when there is none,
 //   so importing the same file twice updates rather than duplicates. A shift with live bookings
-//   keeps its times and role, and its headcount can't go down: that is a firm-initiated change,
+//   keeps its times, role and site, and its headcount can't go down: that is a firm-initiated change,
 //   logged per worker with notice (golden rule 12), and belongs to the office's shift editor.
 //   Shifts that have started are history: never created or changed by an import.
 // - Pay: the worker by Staff ID or mobile; one line per worker, pay period and rate (a re-import
@@ -569,7 +569,10 @@ function rowImporter(
         ),
       );
     const bookings = held?.n ?? 0;
-    const retimed = changed.some((k) => k === "startsAt" || k === "endsAt" || k === "role");
+    // A new time, role or site for people booked on it is a firm-initiated move (notice per worker).
+    const retimed = changed.some(
+      (k) => k === "startsAt" || k === "endsAt" || k === "role" || k === "siteId",
+    );
     // Fewer places could leave a booked slot above the headcount: that's the office's call.
     if (bookings > 0 && (retimed || headcount < existing.headcount)) {
       throw new Problem("shift_has_bookings");

@@ -54,7 +54,11 @@ on or off; a `worker.notification_settings_changed` event only when something ch
 sender must read both: `notify_channel` picks WhatsApp or SMS, and `offer_alerts = false` means no
 open-shift offers, while login links and codes are always sent)
 
-Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),
+Office server actions: `createShift` (built: `createShifts()` in `src/lib/office/shift-editor.ts`,
+one shift or up to 12 for an event, all checked before any is saved; logged `shift.created` {by:
+"firm"}), `updateShift` (built as `editShift()`: anything with nobody booked; with people booked,
+places and instructions only, never below a booked place (moves and curtailments are the
+firm-initiated flow below); logged `shift.changed` {by: "firm", fields}),
 `cancelShiftByFirm(shiftId, reason)`, `cancelBookingByFirm(shiftId, workerId, reason)`
 (`cancelBooking()` with `by: office`), `makeUrgent(shiftId)` (built as `setShiftUrgent()` in
 `src/lib/roster/urgent.ts`: mark or clear, active admins and resourcers only, not on a draft,
@@ -70,7 +74,8 @@ on Today: status `filled` with places free, unanswered offers filled elsewhere, 
 escalation stop; logged `shift.closed` / `shift.reopened` {by: "firm", placesLeft}; not a sheet's
 shift),
 `assignManually(shiftId, workerId, override?)` (`bookShift()` with `by: office`; overrides only
-of checks 0 and 6-8, with a reason; active admins and resourcers only), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the screen is Phase 5),
+of checks 0 and 6-8, with a reason; active admins and resourcers only; built as `assignWorker()`,
+"Assign" on the shift's page, `assignAction`), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the shifts screen is built: `importShiftsFile()`, `importShiftsAction`, files up to 1 MB on the web),
 `upsertCredential`, `verifyCredential`, `resolvePayQueryGroup`, `updateSettings`, `verifyDomain`,
 `exportWorkerData(workerId)`, `deleteWorker(workerId)`.
 

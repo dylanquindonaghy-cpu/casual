@@ -22,11 +22,18 @@ export default async function OfficeHome() {
       <h1 className="text-3xl font-bold">{today ? "Today" : `Hello ${officeUser.name}`}</h1>
       {today && <p className="mt-1 text-lg">Hello {officeUser.name}</p>}
       <p className="mt-2">You&apos;re logged in as {ROLE_LABELS[officeUser.role]}.</p>
-      {canAccess(officeUser.role, "team") && (
-        <Link href="/office/team" className="mt-2 inline-block underline">
-          Office team
-        </Link>
-      )}
+      <nav className="mt-2 flex flex-wrap gap-4">
+        {canAccess(officeUser.role, "shifts") && (
+          <Link href="/office/shifts" className="underline">
+            Shifts
+          </Link>
+        )}
+        {canAccess(officeUser.role, "team") && (
+          <Link href="/office/team" className="underline">
+            Office team
+          </Link>
+        )}
+      </nav>
       {today ? (
         <TodayContent view={today} />
       ) : (

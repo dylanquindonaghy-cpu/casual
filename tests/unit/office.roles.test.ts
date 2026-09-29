@@ -8,8 +8,9 @@ import { OFFICE_ROLES_THAT_PLACE } from "@/lib/roster/book";
 // them from someone allowed to use them).
 
 describe("office roles", () => {
-  it("Today's roles are exactly the roles that may place staff", () => {
+  it("Today's and the shift screens' roles are exactly the roles that may place staff", () => {
     expect([...OFFICE_AREAS.today].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
+    expect([...OFFICE_AREAS.shifts].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
   });
 
   it("payroll sees the dashboard but not Today", () => {

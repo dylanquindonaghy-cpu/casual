@@ -3173,3 +3173,108 @@ line only).
 - Today doesn't refresh itself; no link from the requests line yet; one worker per offer click;
   a CSV re-import can reopen a closed shift; double-click extra jobs; the e2e leaves an offer
   behind; Sheets errors on Today; reopened shifts skip earlier recipients.
+
+## 2026-09-29 08:11 UTC: Phase 5, "Shifts: create/edit, bulk create for an event, CSV import, manual assign with logged override"
+
+**Plan** (docs/screens.md `/office/shifts`, `/office/shifts/[id]`). Admins and resourcers (a new
+`shifts` area, held equal to "may place staff" by the roles test).
+1. **`/office/shifts`:** upcoming shifts (28 days from a chosen date, soonest first, at most 200)
+   grouped by day. Each shows the time, role, site, "2 of 3 booked", status and "Urgent", and
+   links to its page. Buttons: "New shift", "Shifts for an event", "Import from a file". A "Shifts"
+   link on Today.
+2. **Create:** `/office/shifts/new`, one shift (date, start, finish, role, site, places,
+   instructions); **bulk:** `/office/shifts/event`, one date and site with up to 12 lines of role,
+   start, finish and places. Both use `createShifts()` (`src/lib/office/shift-editor.ts`):
+   - every line checked first (zod at the boundary, the same role and time parsing as the
+     importer, an overnight finish goes to the next day, never in the past, 1–1000 places);
+   - a bad line creates nothing and says which line and why;
+   - native shifts, open, each logged `shift.created` {by: "firm"} as the office user's.
+3. **Edit** on the shift's page (`editShift()`):
+   - with nobody booked, everything can change;
+   - with people booked, only the places and instructions. Times, role and site are a
+     firm-initiated move (the next task, golden rule 12). Places can't drop below a booked place;
+   - never a started or cancelled shift, and not a Google Sheet's (change it in the sheet);
+   - logged `shift.changed` {by: "firm", fields}; the status is refreshed from the places.
+4. **Import:** `/office/shifts/import`, a .csv or .xlsx file up to 1 MB (the server-action body
+   limit; the terminal import allows 5 MB).
+   - "Check the file" is a dry run (`runImport`), showing what would be created, updated,
+     unchanged or skipped, with each problem by row (`PROBLEM_TEXT`, `FILE_ERROR_TEXT`).
+   - "Import" runs it for real. Admins and resourcers, checked inside the transaction.
+5. **Shift page** `/office/shifts/[id]`: the details, "Edit", the places (who's booked, and
+   cancellations with notice), the offers, and the shift's history (its events in plain words).
+   **Manual assign:**
+   - "Check someone": pick an active worker with the role → the rules' answer for them
+     (`previewBooking`) → "Assign {name}";
+   - if the only "no"s are ones the office may override (started, rest, weekly hours, unavailable),
+     "Assign anyway" with a required reason → `bookShift()` with `by: office` and the overrides
+     (logged `shift.assigned` {overridden, reason});
+   - anything else is refused with the reasons.
+6. **Tests:** the editor rules (create, bulk, edit with and without bookings, refusals, events,
+   another firm's rows), the import wrapper (dry run changes nothing, role check, file errors),
+   the loaders (list, detail, history, the check), assign with and without an override, the pages
+   rendered, and an e2e run (create a shift, see it, assign someone).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Editing times, role or site of a booked shift is refused here | That's a firm-initiated move with notice per worker: the next task's compliance flow | Allow it and log it (would skip notice hours, golden rule 12) |
+| A bad line in a bulk create saves nothing | The office fixes the form once and sends it again; no half-made events | Save the good lines (hard to see what's missing) |
+| Web import up to 1 MB via a server action | Next's default action limit; a pilot's shift file is far smaller | Raise the limit for every action, or a separate upload route (more attack surface) |
+| The eligibility check runs for one chosen worker | The rules take ~10 queries per worker; checking everyone on each page view is slow | Rank every worker (that's what the offer page does, for one shift, on demand) |
+| New shifts are open straight away | "Create" means "we need people"; drafts have no screen yet | Draft first, then publish |
+
+**Root causes (while building):**
+- A page test booked a second place directly, but the real booking path had already opened
+  every slot, so the fixture collided (`assignments_one_live_per_slot`). Now booked through the
+  real path.
+- Two expectation mistakes: a bad id's check is `null`, not `undefined`; the fixture's office
+  users are called "Office Person".
+- **Real bug (found by the e2e):** empty lines in "Shifts for an event" keep the places box's
+  "1", so they didn't count as blank and were refused as "Enter a role". A line is now blank when
+  its role, start and finish are empty. Tested.
+
+**Guardrails review: FIX FIRST (3).**
+1. **Editing a shift the office marked filled quietly reopened it** (`refreshShiftStatus` after
+   every edit), with no `shift.reopened`. **Fix:** the status is refreshed only when the places
+   change, and never for a shift closed by the office (it stays closed until "Open it again").
+   Tested (instructions and places edits keep it filled, no reopen event; a full shift given
+   another place opens).
+2. **The web import could move a booked shift to another site with no notice** (the importer's
+   "retimed" check left out the site). **Fix:** a site change on a booked shift is refused as
+   `shift_has_bookings`, with the message and the import page updated. Tested.
+3. **The plan said reason codes come with the manual-assign screen.** Building them changes the
+   booking path's API and the database, so it's re-parked explicitly as **Dylan to confirm**. The
+   free-text reason is still refused if it holds a phone number or email.
+
+**Lesser suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| Offers still out on a moved (unbooked) shift describe the old one | They're marked expired; the event logs the old and new times (ISO); tested |
+| A schema failure said "Fill in at least one shift." / "Choose a date." | New `bad_form`: "Check the form and try again." |
+| Tests: refusals write nothing; another firm's site refused | Added |
+| The import read the file before checking the session | The session is checked first |
+| Booked workers aren't told of an instructions change | Parked with the move task |
+| A re-import undoes a UI edit | The page already says "Importing the file again updates it." |
+| The list page rendered blank for null | Shows not found |
+| No upper date bound; History query index; places raised on an urgent shift don't restart offers | Parked (minor) |
+
+**Verify:**
+```
+== typecheck ... ok
+== lint ... ok
+== test ... ok
+== e2e ... ok
+== invariants ... ok
+VERIFIED tree=340269c21ae904cb e2e=true
+```
+1924 tests (up from 1886) + 31 e2e.
+
+**Claims auditor, round 1 (verbatim verdict):**
+```
+VERDICT: DONE
+To reach DONE: nothing — this sub-task (line 2 of Phase 5) is fully proven by code and passing tests (unit, integration, and e2e).
+```
+
+**Ticked.** 0.6 h. Phase 5: 1.6 h of 23–33 h.

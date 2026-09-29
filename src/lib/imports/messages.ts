@@ -33,7 +33,7 @@ export const PROBLEM_TEXT: Record<ImportProblemCode, string> = {
   duplicate_row: "the same entry appears earlier in the file",
   duplicate_mobile: "another worker already has that mobile number",
   shift_has_bookings:
-    "people are booked on this shift, so its times and role can't change here and the number needed can't go down",
+    "people are booked on this shift, so its times, role and site can't change here and the number needed can't go down",
   shift_started: "this shift has already started, so an import can't add or change it",
   bad_hours: "the hours aren't a number we can read (use 37.5)",
   bad_money: "an amount isn't money we can read (use 12.50)",

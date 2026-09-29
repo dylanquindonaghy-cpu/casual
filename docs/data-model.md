@@ -90,9 +90,15 @@ create table firms (
   brand_logo_url text,                  -- https:// only
   brand_primary_color text,             -- #rrggbb only
   timezone text not null default 'Europe/London',
+  shifts_line_e164 text unique,          -- the firm's own WhatsApp/text/calls number, E.164 (a CHECK
+                                         -- like workers.mobile_e164's); null
+                                         -- until bought (Twilio). One number, one firm. Set by
+                                         -- `npm run firm:line` (the owner), never by the app.
   settings jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
+-- app_firm_by_line(number) (migration 0021): the firm for an incoming message's "To" number, before
+-- any firm is known (runs as the owner, directory fields only; like app_resolve_firm for a host).
 
 create table office_users (
   id uuid primary key default gen_random_uuid(),

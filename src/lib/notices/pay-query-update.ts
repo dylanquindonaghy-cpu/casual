@@ -66,6 +66,7 @@ type Claim =
       mobile: string;
       channel: WorkerChannel;
       body: string;
+      from: string | null; // the firm's shifts line
     }
   | Exclude<PayQueryUpdateResult, { status: "sent" } | { status: "failed" }>;
 
@@ -87,6 +88,7 @@ async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Pro
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
       firmName: firms.name,
+      line: firms.shiftsLineE164,
       timezone: firms.timezone,
       settings: firms.settings,
     })
@@ -147,6 +149,7 @@ async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Pro
     mobile: row.mobile,
     channel: row.channel,
     body,
+    from: row.line,
   };
 }
 
@@ -162,6 +165,7 @@ export async function runPayQueryUpdate(
     mobile: c.mobile,
     channel: c.channel,
     body: { whatsapp: c.body, sms: c.body },
+    from: c.from,
   });
   await run(payload.firmId, async (tx) => {
     if (!sent.ok) {

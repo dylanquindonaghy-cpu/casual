@@ -24,7 +24,8 @@ function transport(behaviour: {
   return { t, tried };
 }
 
-const input = { mobile: "+447700900123", body: { whatsapp: "Hello", sms: "Hi" } };
+// No shifts line (a firm without its own number yet): no `from` on the message.
+const input = { mobile: "+447700900123", body: { whatsapp: "Hello", sms: "Hi" }, from: null };
 
 describe("sendToWorker", () => {
   it("by WhatsApp when that's the channel", async () => {
@@ -100,5 +101,20 @@ describe("sendToWorker", () => {
     await sendToWorker({ transport: t }, { ...input, channel: "sms" });
     await sendToWorker({ transport: t }, { ...input, channel: "whatsapp" });
     expect(bodies).toEqual(["sms:Hi", "whatsapp:Hello", "sms:Hi"]);
+  });
+
+  it("from the firm's shifts line when it has one, the fallback too; without one, no `from`", async () => {
+    const froms: (string | undefined)[] = [];
+    const t: MessagingTransport = {
+      name: "fake",
+      async send(message) {
+        if (message.channel !== "email") froms.push(message.from);
+        if (message.channel === "whatsapp") throw new ChannelRefusedError("whatsapp");
+        return { providerMessageId: "id" };
+      },
+    };
+    await sendToWorker({ transport: t }, { ...input, channel: "whatsapp", from: "+447700900000" });
+    await sendToWorker({ transport: t }, { ...input, channel: "sms" });
+    expect(froms).toEqual(["+447700900000", "+447700900000", undefined]);
   });
 });

@@ -100,13 +100,18 @@ async function lockFirmScan(tx: FirmTx): Promise<void> {
   );
 }
 
-async function firmVoice(tx: FirmTx, firmId: string): Promise<FirmVoice> {
+async function firmVoice(tx: FirmTx, firmId: string): Promise<FirmVoice & { line: string | null }> {
   const [firm] = await tx
-    .select({ name: firms.name, settings: firms.settings })
+    .select({ name: firms.name, settings: firms.settings, line: firms.shiftsLineE164 })
     .from(firms)
     .where(eq(firms.id, firmId));
   if (!firm) throw new Error("firm not visible inside its own transaction");
-  return { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
+  // `line`: the firm's shifts line, which the workers' messages go from.
+  return {
+    name: firm.name,
+    signOff: signOffFor(firm.name, firm.settings.sign_off),
+    line: firm.line,
+  };
 }
 
 // True when the worker also holds a valid credential of the same type that lasts longer (or never
@@ -187,6 +192,7 @@ async function warnAndExpire(
       const sent = await transport.send({
         channel: "whatsapp",
         to: c.mobile,
+        ...(voice.line ? { from: voice.line } : {}),
         body: credentialExpiringMessage(voice, name, shortDate(expiresOn, year)),
       });
       await recordEvent(tx, {
@@ -219,6 +225,7 @@ async function warnAndExpire(
         ? await transport.send({
             channel: "whatsapp",
             to: c.mobile,
+            ...(voice.line ? { from: voice.line } : {}),
             body: credentialExpiredMessage(voice, name, shortDate(expiresOn, year)),
           })
         : null;

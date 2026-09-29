@@ -4429,3 +4429,81 @@ fallbacks) under "Connect Bedrock".
 
 **Hours:** 0.3 h (16:00 to 16:19 UTC). **Phase 6 done** except the blocked grouping task: 3.1 h of
 its 12–18 h estimate.
+
+## 2026-09-29 16:22 UTC: Phase 7, "One business WhatsApp number per firm ("the shifts line") via Twilio"
+
+**Blocked (hard limit):** the number itself is a Twilio number with a WhatsApp sender approved by
+Meta: an outside service with an account and money. Everything short of it is built, verified and
+committed; the task is recorded as blocked, not ticked (no auditor round), like the earlier
+Twilio, web push and Bedrock tasks. "Connect Twilio" in the Parking lot gets the per-firm steps.
+
+**Plan (everything short of Twilio):**
+
+1. **Schema** (migration 0020): `firms.shifts_line_e164`, the firm's own number (E.164, unique:
+   one number belongs to one firm; null until one is bought). A second, hand-written migration adds
+   `app_firm_by_line(number)`: the firm for an incoming message's "To" number, before any firm is
+   known (like `app_resolve_firm()` for a web host: runs as the table owner, directory fields only,
+   pinned search path).
+2. **Look-up** (`src/lib/db/directory.ts`, `resolveFirmByLine()`): checks the number is E.164
+   first; for the inbound webhooks (the next tasks).
+3. **Sending from the firm's line**: WhatsApp and text messages get an optional `from` (E.164).
+   Every sender to a worker passes its firm's line: offer waves and the office's offers, reminders,
+   the office's change notices, request answers, pay query answers, login links and codes, and
+   credential messages. A firm without a line sends without `from` (the Twilio sender decides what
+   to do then: parked for Dylan). The console transport prints it. A tripwire test fails if a
+   WhatsApp or text send leaves `from` out.
+4. **Showing it**: the office dashboard, "Your shifts line: {+44 7700 900000} (WhatsApp and
+   text)" / "No shifts line yet."; the worker's home page, "Message the shifts line on WhatsApp:
+   {number}" (a wa.me link) when there is one.
+5. **Setting it**: `npm run firm:line -- --firm acme --number "+447700900000"` (local or production
+   owner connection; refuses a number another firm has). The demo seed gives Acme and Northline
+   fake numbers from Ofcom's drama range.
+6. **Tests**: integration (the column's checks, the look-up, one firm per number, senders carrying
+   the line, the script), unit (the schema, the console, the copy, the tripwire), e2e (the office
+   dashboard and the worker's home page show Acme's line).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | The number and its WhatsApp sender only exist in Twilio | Tick with a fake number |
+| A column on `firms`, not a new table | One number per firm (the task says so); fewer moving parts | A `messaging_numbers` table (for several numbers per firm later) |
+| One number for WhatsApp, text and calls | Twilio numbers carry all three; staff remember one number | Separate numbers per channel |
+| `from` on each message, set by the sender | The transport stays free of database look-ups | The transport looking the firm up |
+| A firm without a line still builds messages (no `from`) | The Twilio sender decides (a shared ShiftDesk number, or no messages): Dylan's call | Refuse to send now |
+| The number is set by a script with the owner connection | We buy and own the numbers; the firm doesn't type it in | A field on the office settings screen |
+
+**Built as planned**, except the worker-facing display (parked: a number shown to staff before
+incoming messages are answered would invite messages nobody replies to).
+
+**Failures on the way, root causes first:**
+
+| Failure | Root cause | Fix |
+|---|---|---|
+| `toE164("+44 (0)7700 900123")` gave "+4407700900123" (a number that passes the E.164 shape but isn't real) | Stripping brackets left the trunk 0 after +44 | "(0)" is dropped as people mean it, and a 0 straight after +44 is refused; tested |
+| My test's number maker could repeat a number | It cut off its own last digit, and firms from earlier runs keep their numbers | Drama-range numbers freed from old test firms before use |
+| `rls.every-table` "the app role can execute exactly three functions" | It pins the exact list of functions the app role may run; `app_firm_by_line` is a deliberate addition | Added to its list on purpose (with a comment and ADR-018), and the same security checks as the directory's other functions (owner, pinned search path, app role only, directory fields only) are now tested for it |
+
+**Guardrails review: FIX FIRST (2 items), both fixed.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the pinned function list and no hardening test for `app_firm_by_line` | Already done while the review ran (see the failures table above): added to the list, and owner / pinned search path / app role only / directory fields tested |
+| FIX FIRST: invariant 5 (only `withFirm` and the seed may set `app.current_firm_id` in `src/`) failed: the owner-only "set a firm's line" code set it | I may not edit `scripts/invariants.sh`, and `withFirm` refuses the owner connection. The code moved to `scripts/shifts-line-owner.ts`: an owner-only operations script, outside the app code the invariant guards (the lint rules already treat scripts apart). The app never sets the firm outside `withFirm`. Parked for Dylan: if he'd rather it sat beside the seed in `src/`, he adds it to the invariant's allowlist |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| `freshLine` could pick 900000, the seed's Acme line (the seed runs in the test database too) | Test numbers come from 900500-900999 only |
+| The tripwire is a pattern match: `from: null` passes it and the type checker | A hard-coded `from: null` in a notify call now fails it; a schema-level required key is parked |
+| The script silently replaced an existing line; no row-count check; a failing rollback hid the first error | Changing a different line needs `--replace` (the old number is printed); exactly one row must change; the first error is kept; the output names the database and host |
+| Events for setting a line | Parked (words in the log needed too) |
+| Two test numbers weren't clearly fake; the seed's fake-data check didn't cover the line | `+447700900499` and a fictional US 555 number; the seed test now checks the firms' lines are drama-range |
+| A console test for `from` | Added: printed whole, the worker's number still masked, a non-E.164 `from` refused |
+| data-model.md: the E.164 check | Mentioned |
+
+**Corrections to the plan above:** the worker home page and its WhatsApp link were parked, not
+built; only Acme has a fake line (Northline has none, which shows "No shifts line yet."); the
+dashboard says "(WhatsApp, text and calls)". "Built, verified and committed" in the plan's first
+paragraph is the aim; the verify line below is what counts.

@@ -59,7 +59,11 @@ export async function sendLoginCode(
     );
   if (!target) return { sent: false, reason: "no_session" };
   const [firm] = await tx
-    .select({ name: firms.name, settings: firms.settings })
+    .select({
+      name: firms.name,
+      settings: firms.settings,
+      line: firms.shiftsLineE164, // the firm's shifts line: the code goes from it
+    })
     .from(firms)
     .where(eq(firms.id, payload.firmId));
   if (!firm) throw new Error("firm not visible inside its own transaction");
@@ -85,6 +89,7 @@ export async function sendLoginCode(
   const result = await deps.transport.send({
     channel: "whatsapp",
     to: target.mobile,
+    ...(firm.line ? { from: firm.line } : {}),
     body: loginCodeMessage(voice, code),
   });
   await recordEvent(tx, {

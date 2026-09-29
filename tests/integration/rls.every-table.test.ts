@@ -293,7 +293,9 @@ describe("the rest of the public schema", () => {
     expect(rows).toEqual([]);
   });
 
-  it("the app role can execute exactly three functions: app_current_firm_id, app_firm_ids and app_resolve_firm", async () => {
+  // A new function the app role may run must be added here on purpose (app_firm_by_line: the firm
+  // for an incoming message's number, Phase 7, ADR-018).
+  it("the app role can execute exactly four functions: app_current_firm_id, app_firm_by_line, app_firm_ids and app_resolve_firm", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
@@ -302,6 +304,7 @@ describe("the rest of the public schema", () => {
     );
     expect(rows.map((r) => r.fn)).toEqual([
       "app_current_firm_id",
+      "app_firm_by_line",
       "app_firm_ids",
       "app_resolve_firm",
     ]);

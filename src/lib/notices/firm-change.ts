@@ -102,6 +102,7 @@ type Claim =
       mobile: string;
       channel: WorkerChannel;
       body: string;
+      from: string | null; // the firm's shifts line
       push: { title: string; body: string; url: string };
     }
   | Exclude<NoticeResult, { status: "sent" } | { status: "failed" }>;
@@ -142,6 +143,7 @@ async function claimNotice(
       endsAt: shifts.endsAt,
       siteId: shifts.siteId,
       firmName: firms.name,
+      line: firms.shiftsLineE164,
       slug: firms.slug,
       timezone: firms.timezone,
       settings: firms.settings,
@@ -300,6 +302,7 @@ async function claimNotice(
     mobile: row.mobile,
     channel: row.channel,
     body,
+    from: row.line,
     push,
   };
 }
@@ -316,6 +319,7 @@ export async function runFirmChangeNotice(
     mobile: claim.mobile,
     channel: claim.channel,
     body: { whatsapp: claim.body, sms: claim.body },
+    from: claim.from,
   });
   await run(payload.firmId, async (tx) => {
     if (!sent.ok) {

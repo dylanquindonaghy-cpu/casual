@@ -81,6 +81,7 @@ async function firmOf(tx: FirmTx) {
       slug: firms.slug,
       timezone: firms.timezone,
       settings: firms.settings,
+      line: firms.shiftsLineE164, // the firm's shifts line: reminders go from it
     })
     .from(firms)
     .where(eq(firms.id, sql`app_current_firm_id()`));
@@ -245,6 +246,7 @@ export async function runShiftReminders(
       mobile: b.mobile,
       channel: b.channel,
       body: { whatsapp: body, sms: body },
+      from: firm.line,
     });
 
     // (3) The outcome, the push and the event.

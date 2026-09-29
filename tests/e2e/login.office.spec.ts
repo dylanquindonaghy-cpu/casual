@@ -29,6 +29,10 @@ test("an admin logs in by email link, sees their role and the office team, and l
 
   await officeLogin(page, "acme.admin@example.com");
   await expect(page.getByText("You're logged in as Admin.")).toBeVisible();
+  // Acme's shifts line (a fake number from the seed).
+  await expect(
+    page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
+  ).toBeVisible();
   const [cookie] = (await context.cookies(acme)).filter((c) => c.name === "__Host-sd_office");
   expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax" });
   // An office session is not a worker session.

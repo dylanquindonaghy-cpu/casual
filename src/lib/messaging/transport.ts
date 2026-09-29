@@ -20,10 +20,22 @@ export const attachmentSchema = z.object({
 });
 export type Attachment = z.infer<typeof attachmentSchema>;
 
-// Messages to a phone (workers) or an email address (office users, login links by email).
+// Messages to a phone (workers) or an email address (office users, login links by email). A
+// WhatsApp or text goes from the firm's own number (its shifts line, `from`) when it has one; the
+// real sender decides what a message without one does (PLAN.md Parking lot, "Connect Twilio").
 export const outboundMessageSchema = z.discriminatedUnion("channel", [
-  z.object({ channel: z.literal("whatsapp"), to: e164, body: z.string().min(1).max(1600) }),
-  z.object({ channel: z.literal("sms"), to: e164, body: z.string().min(1).max(1600) }),
+  z.object({
+    channel: z.literal("whatsapp"),
+    to: e164,
+    from: e164.optional(),
+    body: z.string().min(1).max(1600),
+  }),
+  z.object({
+    channel: z.literal("sms"),
+    to: e164,
+    from: e164.optional(),
+    body: z.string().min(1).max(1600),
+  }),
   z.object({
     channel: z.literal("email"),
     to: z.email(),

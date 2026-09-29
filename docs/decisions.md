@@ -284,3 +284,27 @@ an outage, a still-open window's reminder goes when it's back (the 24 h one then
 that's right), and a closed one is never sent. The tick reads each firm's upcoming bookings every
 5 minutes: cheap at pilot size. **Revisit when:** a firm has thousands of bookings a day, or asks
 for other reminder times (a firm setting).
+
+## ADR-018: One shifts line per firm, stored on the firm, found by number for incoming messages
+
+**Context:** Phase 7, "One business WhatsApp number per firm ("the shifts line") via Twilio". Staff
+should message one number that is their firm's; every message to them should come from it; and an
+incoming WhatsApp, text or call must be matched to its firm before anything else knows the firm.
+**Decision:** a column, `firms.shifts_line_e164` (E.164, unique: one number belongs to one firm;
+null until one is bought), set only by `npm run firm:line` with the owner connection (we buy and own
+the numbers; changing a number already set needs `--replace`). That owner-only script lives in
+`scripts/` (`scripts/shifts-line-owner.ts`), not `src/`: the app itself never sets the firm outside
+`withFirm()` (invariant 5 in `scripts/invariants.sh` allows only the seed's provisioning besides). Incoming messages find their firm with `app_firm_by_line()`, a SECURITY DEFINER
+function like `app_resolve_firm()` for web hosts (directory fields only), through
+`resolveFirmByLine()`: the second look-up allowed before a firm is known, beside
+`resolveFirmBySlug()`. Outgoing WhatsApps and texts carry `from` (the firm's line); every sender to a
+worker passes it (`sendToWorker()`/`notifyWorker()` require it; a test holds the direct senders). The
+same number serves WhatsApp, texts and calls.
+**Options:** a `messaging_numbers` table (several numbers per firm, per channel); a shared ShiftDesk
+number routing by the sender's mobile (one worker at two firms would be ambiguous); the transport
+looking the firm up (a database call inside the sender).
+**Consequences:** a firm without a line still builds its messages, with no `from`: what the Twilio
+sender does then (a shared ShiftDesk number, or no messages) is decided when it's connected. A
+second number per firm needs a table. **Revisit when:** a firm wants separate numbers (by site or
+sector), or numbers move between firms.
+

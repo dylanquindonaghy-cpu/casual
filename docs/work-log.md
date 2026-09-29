@@ -5133,3 +5133,113 @@ a stand-in the tests control) can act out every kind of failure. No outside serv
 There's nothing new on screen: this task proves behaviour. To run just these tests:
 `npx vitest run tests/integration/pay.grouping.test.ts` (with the database up: `npm run db:up`).
 You should see "9 passed".
+
+## 2026-09-29: Phase 7, task 1: Each firm's own WhatsApp number, the "shifts line" (0.6 h, BLOCKED)
+
+### Time
+
+0.6 hours of Claude's working time (16:22 to 16:58 UTC), in the unattended overnight loop.
+Phase 7 so far: 0.6 of its 15 to 20 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** The task needs a real business number with a WhatsApp sender, bought in
+  Twilio and approved by Meta: an outside service with an account and money, which tonight's rules
+  don't allow. Everything short of it is built, verified and committed; "Connect Twilio" in
+  `PLAN.md`'s Parking lot now has the steps for each firm's number.
+- `scripts/verify.sh` printed `VERIFIED tree=edebd694047771f2 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2299 tests (up from 2285);
+  - the 39 browser tests;
+  - the rule checks.
+- The guardrails review found 2 things to fix first; both are fixed (below). No auditor round: the
+  auditor decides a tick, and this task can't be ticked until the real number exists (the same rule
+  as the earlier blocked tasks).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+The "shifts line" is the firm's own phone number that staff message on WhatsApp (or by text, or
+call). This task gets the app ready for it:
+- **Each firm can have one number.** A new column on the firm's record (`firms.shifts_line_e164`)
+  holds it in the international format ("E.164": +44 then the number without its first 0). A
+  number can belong to only one firm; the database refuses a second.
+- **Messages come from it.** Every WhatsApp and text the app sends a worker (offers, reminders, the
+  office's changes, answers to requests and pay queries, login links and codes, licence warnings)
+  now says which number it's from: the firm's line. A new "tripwire" test (it fails if someone
+  breaks the rule later) checks that every place that sends passes it.
+- **Incoming messages can find their firm.** When someone messages a firm's number, the app will
+  need to know which firm it is before anything else. A small database function
+  (`app_firm_by_line`) answers that from the number, giving only the firm's public details, like
+  the one that already finds a firm from its web address.
+- **The office dashboard shows it**: "Your shifts line: +44 7700 900000 (WhatsApp, text and
+  calls)." or "No shifts line yet."
+- **Setting it**: `npm run firm:line -- --firm acme --number "+44 7700 900123"`. Changing a number
+  a firm already has needs `--replace`, so a typo can't quietly lose the real one.
+- **The demo firm Acme** has a fake number from Ofcom's drama range (numbers set aside for films and
+  TV, so they never reach a real person).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | The number only exists in Twilio | Tick with a fake number |
+| One column on the firm, not a new table | One number per firm, as the task says | A table allowing several numbers per firm |
+| One number for WhatsApp, texts and calls | Twilio numbers do all three; staff remember one number | A number per channel |
+| Each message says its `from`, set by whoever sends it | The part that talks to Twilio stays simple (no database look-ups) | That part looking the firm up |
+| A firm without a number still builds messages, with no `from` | What Twilio should do then is Dylan's call (a shared ShiftDesk number, or no messages) | Stop sending now |
+| We set the number with a script, the firm can't type it in | We buy and own the numbers | A field on the settings screen |
+| Not shown to workers yet | Until incoming messages get a reply (the next task), a message to it would go unanswered | Show it on the home page now |
+
+### What the review and the test runs caught
+
+- **Invariant 5** (a rule check in `scripts/verify.sh`: inside the app's code, only one place may set
+  "which firm am I working for" in the database, besides the demo data's setup). My "set the number"
+  code did it too, so the check failed. I'm not allowed to change the rule checks, and the one
+  allowed place refuses the owner's connection. So the code moved out of the app into the
+  operations script folder (`scripts/`), which the rule doesn't cover because it isn't the app.
+  Dylan can move it back and add it to the rule's list if he prefers.
+- **A pinned list of database functions**: a security test lists exactly which functions the app
+  may run. The new look-up is a deliberate addition, so it was added to the list, with the same
+  security checks as the others.
+- **A real bug in reading numbers**: "+44 (0)7700 900123" came out as a number that looks valid but
+  isn't. Now the "(0)" is dropped, as people mean it.
+- **A test that could clash with the demo data**: test numbers could collide with Acme's demo
+  number. They now come from a separate part of the fake range.
+
+### What the new tests prove
+
+- `tests/integration/shifts-line.test.ts` (7 tests, on the real database): the column only takes
+  proper numbers, one firm each; the look-up finds the right firm with public details only, and
+  unknown or badly written numbers find nobody; the look-up function is locked down (runs as the
+  owner, a fixed search path, only the app may call it); a login code, a licence warning and a pay
+  query answer come from the firm's number, and from a firm without one there's no `from`; the
+  script sets, refuses a number another firm has, asks before replacing, and clears.
+- `tests/unit/notify.from-line.test.ts`: every place that sends a WhatsApp or text passes the firm's
+  number.
+- `tests/unit/messaging.console.test.ts`, `notify.send.test.ts`, `tenancy.shifts-line.test.ts`: the
+  number printed in development (the worker's number still hidden), both tries (WhatsApp, then the
+  text fallback) carry it, and the dashboard's words.
+- The seed's fake-data test now checks the firms' numbers are fake too; the office login browser
+  test checks Acme's dashboard shows its number.
+
+### Parked, open, and things that need Dylan
+
+- **Connect Twilio, steps 7 and 8** (Parking lot): buy a number for each firm with SMS, voice and
+  WhatsApp, register it as the firm's WhatsApp sender, set it with `npm run firm:line`, then tick
+  this task. **Dylan to decide**: what a firm with no number yet should do (use a shared ShiftDesk
+  number, or no WhatsApp/text until its own is live).
+- Show the number to workers once incoming messages are answered (the next task).
+- Record setting or clearing a number in the action log; make the "from" rule a hard type rule
+  (today a pattern test checks it).
+- CLAUDE.md lists the ways app code may reach the database; the new look-up could be added there
+  (Dylan's file, so I didn't edit it).
+
+### How to see it working
+
+1. With the demo data loaded (`npm run db:seed`), start the app (`npm run dev`).
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.admin@example.com`: the dashboard
+   says "Your shifts line: +44 7700 900000 (WhatsApp, text and calls)." Northline's dashboard says
+   "No shifts line yet."
+3. Log in as a worker (see earlier tasks): the WhatsApp message printed in the `npm run dev` terminal
+   now shows "from +447700900000".

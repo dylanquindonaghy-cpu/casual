@@ -69,6 +69,7 @@ type Claim =
       mobile: string;
       channel: WorkerChannel;
       body: string;
+      from: string | null; // the firm's shifts line
       push: { title: string; body: string; url: string };
     }
   | Exclude<RequestUpdateResult, { status: "sent" } | { status: "failed" }>;
@@ -94,6 +95,7 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
       firmName: firms.name,
+      line: firms.shiftsLineE164,
       timezone: firms.timezone,
       settings: firms.settings,
     })
@@ -164,6 +166,7 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
     mobile: row.mobile,
     channel: row.channel,
     body,
+    from: row.line,
     push: { ...requestUpdatePush({ type: kind, status: row.status }), url: "/requests" },
   };
 }
@@ -180,6 +183,7 @@ export async function runRequestUpdate(
     mobile: c.mobile,
     channel: c.channel,
     body: { whatsapp: c.body, sms: c.body },
+    from: c.from,
   });
   await run(payload.firmId, async (tx) => {
     if (!sent.ok) {

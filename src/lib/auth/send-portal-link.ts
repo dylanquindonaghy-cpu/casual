@@ -57,7 +57,12 @@ export async function sendPortalLink(
         .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")));
   if (!recipient) return { sent: false, reason: "inactive" };
   const [firm] = await tx
-    .select({ name: firms.name, slug: firms.slug, settings: firms.settings })
+    .select({
+      name: firms.name,
+      slug: firms.slug,
+      settings: firms.settings,
+      line: firms.shiftsLineE164, // the firm's shifts line: the link goes from it
+    })
     .from(firms)
     .where(eq(firms.id, payload.firmId));
   if (!firm) throw new Error("firm not visible inside its own transaction");
@@ -82,6 +87,7 @@ export async function sendPortalLink(
     : {
         channel: "whatsapp" as const,
         to: recipient.to,
+        ...(firm.line ? { from: firm.line } : {}),
         body: loginLinkMessage(voice, `${portal}/l#${link.token}`),
       };
   const result = await deps.transport.send(message);

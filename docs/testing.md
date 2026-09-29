@@ -78,7 +78,8 @@ without breaking a 6am cancellation.
 
 `npm run db:seed` creates two fake firms:
 
-**Acme Events (security/events, native mode):** 60 workers (5 with expired SIA, 3 "applied"),
+**Acme Events (security/events, native mode):** a fake shifts line (+44 7700 900000, Ofcom's drama
+range; Northline has none), 60 workers (5 with expired SIA, 3 "applied"),
 3 sites (stadium, racecourse, shopping centre), a Saturday event with 40 shifts, one 6am
 cancellation that becomes urgent, two open requests, pay records for 8 weeks, 12 pay queries
 (9 about one rate change).

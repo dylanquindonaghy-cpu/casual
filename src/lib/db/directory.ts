@@ -56,6 +56,44 @@ export function resolveFirmBySlug(slug: string): Promise<FirmDirectoryEntry | nu
   return defaultDirectory(slug);
 }
 
+// Incoming message -> firm: the firm whose shifts line is exactly this number (the "To" of a
+// WhatsApp, text or call), through app_firm_by_line() (drizzle/0021_firm_by_line.sql), with the
+// same public directory fields as a host look-up. Anything that isn't an E.164 number is null
+// without asking the database. For the Twilio webhooks (Phase 7).
+export type ResolveFirmByLine = (number: string) => Promise<FirmDirectoryEntry | null>;
+
+const e164 = z.string().regex(/^\+[1-9]\d{6,14}$/);
+
+export function createLineDirectory(pool: Pool): ResolveFirmByLine {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async (number) => {
+    if (!e164.safeParse(number).success) return null;
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select * from app_firm_by_line(${number})`);
+    if (result.rows.length === 0) return null;
+    const row = rowSchema.parse(result.rows[0]);
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      timezone: row.timezone,
+      signOff: signOffFor(row.name, row.sign_off),
+    };
+  };
+}
+
+let defaultLineDirectory: ResolveFirmByLine | undefined;
+
+export function resolveFirmByLine(number: string): Promise<FirmDirectoryEntry | null> {
+  defaultLineDirectory ??= createLineDirectory(appPool());
+  return defaultLineDirectory(number);
+}
+
 // Every firm's id, for the worker's scheduled jobs, which then visit each firm inside its own
 // withFirm transaction. Through app_firm_ids() (drizzle/0006_firm_ids.sql): ids only.
 export type ListFirmIds = () => Promise<string[]>;

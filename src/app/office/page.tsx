@@ -3,13 +3,15 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { todayView } from "@/lib/office/today";
+import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { LogoutButton } from "../logout-button";
 import { SessionKeeper } from "../session-keeper";
 import { officeLogoutAction, refreshOfficeSessionAction } from "./session-actions";
 import { TodayContent } from "./today-view";
 
 // The office dashboard: Today for admins and resourcers (docs/screens.md `/office/today`);
-// payroll sees who they're logged in as, and the link to pay queries.
+// payroll sees who they're logged in as, and the link to pay queries. Everyone sees the firm's
+// shifts line (its own number), once it has one.
 export default async function OfficeHome() {
   const { firm, officeUser, session } = await requireOfficeArea("dashboard");
   const today = canAccess(officeUser.role, "today")
@@ -22,6 +24,7 @@ export default async function OfficeHome() {
       <h1 className="text-3xl font-bold">{today ? "Today" : `Hello ${officeUser.name}`}</h1>
       {today && <p className="mt-1 text-lg">Hello {officeUser.name}</p>}
       <p className="mt-2">You&apos;re logged in as {ROLE_LABELS[officeUser.role]}.</p>
+      <p className="mt-1">{shiftsLineText(await firmShiftsLine({ firm }))}</p>
       <nav className="mt-2 flex flex-wrap gap-4">
         {canAccess(officeUser.role, "shifts") && (
           <Link href="/office/shifts" className="underline">

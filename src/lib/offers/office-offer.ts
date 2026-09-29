@@ -324,6 +324,7 @@ export async function runOfficeOffer(
     channel: candidate.channel,
     body,
     push: { ...push, url: `/shifts/${shift.id}` },
+    from: firm.line,
   });
   if (!sent.ok) {
     await tx

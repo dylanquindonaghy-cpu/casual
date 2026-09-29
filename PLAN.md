@@ -554,6 +554,15 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
      fallback job.
   5. STOP replies to SMS mark the channel opted out.
   6. Test with 3 real phones (Android, iPhone, an older phone by SMS): the pre-pilot checklist.
+  7. **One number per firm (the Phase 7 "shifts line" task is blocked on this):** buy a UK number
+     for each firm in Twilio (Phone Numbers → Buy a number, with SMS, voice and WhatsApp), register
+     it as a WhatsApp sender for the firm (Messaging → Senders → WhatsApp senders), and point its
+     webhooks at `/api/webhooks/twilio/...` (next tasks). Then set it in the app:
+     `npm run firm:line -- --firm acme --number "+44 7700 900123"` (it should say "The shifts line
+     for acme is now +447700900123."). Every WhatsApp and text for that firm then carries it as
+     `from`: the Twilio sender sends from `message.from`. Then tick the shifts line task.
+  8. **Dylan to decide:** a firm with no line yet: send from a shared ShiftDesk number, or no
+     WhatsApp/text until its line is live (today the app builds the message with no `from`).
   Also: validate `quiet_hours` on the settings screen (Phase 5); and decide what a wave held past
   the shift's start should do (today it stops as "started" at the end of the quiet hours, and
   only the escalation tells the office).
@@ -874,6 +883,22 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     noisy.
   - The key-freeze question above still stands: a query in a digest can still move group when
     regrouped; the digest's list shows the group it was sent in.
+- Shifts line follow-ups (Phase 7 "One business WhatsApp number per firm" task, blocked):
+  - Show the line to workers (the home page, and `/help` when it's built: "Message the shifts line:
+    {number} (WhatsApp or text)" with a WhatsApp link) once incoming messages are answered (the
+    next task): until then a message to it would go unanswered.
+  - The owner-only "set a firm's line" code is in `scripts/shifts-line-owner.ts`, not
+    `src/lib/db/admin/`, because invariant 5 (`scripts/invariants.sh`) allows only `withFirm` and
+    the seed to set the firm inside `src/`, and I may not edit the invariants. If Dylan would rather
+    it sat beside the seed, add it to that invariant's allowlist.
+  - Log setting or clearing a line as an event (`firm.shifts_line_set` / `_cleared`, without the
+    number), with its words in the action log.
+  - Make `from` a required (nullable) key on WhatsApp and text messages in the transport's schema,
+    so the type checker holds direct senders too (today a pattern test does), and add behaviour
+    tests for the offer wave and the login link carrying it.
+  - CLAUDE.md's conventions say app code reaches the database only through `withFirm()` and
+    `resolveFirmBySlug()`; `resolveFirmByLine()` is now the second look-up allowed before a firm is
+    known (ADR-018). Dylan may want to add it to that line.
 - Pay query status follow-ups (Phase 6 "Worker sees status updates" task):
   - **Dylan to confirm:** payroll's note goes in the WhatsApp/text message itself, as the doc's
     `pay_query_update` template says (the pay page is behind a code, but the message isn't). The
@@ -1014,3 +1039,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 6 | 0.6 | Pay query status: payroll marks a group "sorted" with a note (required, at most 500 characters, never in the log; new columns on `pay_queries`); each worker gets "Update on your pay query (ref …): sorted. {note}" by WhatsApp or text (once, quiet hours respected, a push that says nothing about pay) and sees "Sorted on {day}" with "Payroll says: …" on their pay page; a new test pins which files may use AI code and fails if anything a worker sees, or payroll's sorting path, can reach it; the review caught that the test missed the office side where the note is typed (fixed: the sort path has its own modules, and the reviewer's breach now fails the test); two old test-helper root causes fixed on the way (a missing cross-firm case, ids sorted as text); 2264 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.5 | Pay records import screen: payroll and admins upload their payroll's .csv or .xlsx at `/office/pay/import` (Staff ID or mobile, period, hours, rate, gross, pay date), "Check the file" first (nothing saved or logged), then "Import these pay records"; problems listed by row, never the contents; waiting pay queries regroup to match the new lines (logged); the importer itself was Phase 3's, and the shifts and pay screens now share one upload path; the review found nothing to fix first, and its suggestions were done (checks can never write, a deadlock retry, more cross-firm tests, the AI tripwire extended to the import); 2275 tests + 39 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.3 | Phase 6 tests (`pay.grouping`): a new file on the real database proves grouping keys are stable (the same facts give the same key whoever raises it and whenever; the firm's own week, across the clocks going back; regrouping and re-importing change nothing; keys move only when their facts do; firms never share a group) and that every kind of AI failure (throwing, hanging, answering late, nonsense, advice) leaves the payroll digest word for word as it is with no AI; planning found the digest could wait for ever on an AI that never answers (fixed: a 5-second limit a group); the review's suggestions done (late answers tested in the digest, AI calls counted, no leftover timers); 2285 tests + 39 e2e; verified and audited DONE. Phase 6 done except the blocked grouping task: 3.1 h of the 12–18 h estimate (see docs/work-log.md) |
+| 2026-09-29 | 7 | 0.6 | Shifts line, BLOCKED (not ticked: the number and its WhatsApp sender only exist in Twilio, an outside service): built everything short of it: each firm's own number (`firms.shifts_line_e164`, one number per firm), every WhatsApp and text to a worker carrying it as `from` (a tripwire test holds every sender to it), finding the firm for an incoming message's number (`app_firm_by_line`), the office dashboard showing it, `npm run firm:line` to set it (asks before replacing), and a fake number for the demo firm; the review caught an invariant the owner-only script broke (moved to `scripts/`) and a test that could clash with the seed; buying and connecting the numbers is parked under "Connect Twilio"; 2299 tests + 39 e2e; verified (see docs/work-log.md) |

@@ -12,7 +12,7 @@
 
 | Method + path | Who calls it | What it does |
 |---|---|---|
-| `POST /api/webhooks/twilio/whatsapp` | Twilio | Verify `X-Twilio-Signature`. Insert `messages` (provider_message_id = MessageSid). Enqueue `classify-message`. |
+| `POST /api/webhooks/twilio/whatsapp` | Twilio | Verify `X-Twilio-Signature`. The firm is the one whose shifts line is the message's `To` (with "whatsapp:" taken off): `resolveFirmByLine()` in `src/lib/db/directory.ts` (built); no firm: 200 and nothing stored. Insert `messages` (provider_message_id = MessageSid). Enqueue `classify-message`. |
 | `POST /api/webhooks/twilio/sms` | Twilio | Same as above for SMS (incl. STOP handling → mark worker opted out of SMS). |
 | `POST /api/webhooks/twilio/voice` | Twilio | Return TwiML: short recorded message; optional `<Record>` with transcription callback. Enqueue `send-portal-link` for the caller. |
 | `POST /api/webhooks/twilio/voice/transcription` | Twilio | Store transcript as a message → `classify-message`. |

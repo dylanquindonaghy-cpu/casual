@@ -22,6 +22,8 @@ export function createConsoleTransport(
       const msg = outboundMessageSchema.parse(message);
       const providerMessageId = `console-${randomUUID()}`;
       const to = msg.channel === "email" ? maskText(msg.to) : maskPhone(msg.to);
+      // The firm's shifts line is a business number, not personal data: shown whole.
+      const from = msg.channel !== "email" && msg.from ? ` from ${msg.from}` : "";
       const subject = msg.channel === "email" ? `Subject: ${msg.subject}\n` : "";
       const files =
         msg.channel === "email"
@@ -30,7 +32,7 @@ export function createConsoleTransport(
             )
           : [];
       print(
-        `[messaging:console] ${msg.channel} to ${to} (${providerMessageId})\n${subject}${msg.body}${files.join("")}`,
+        `[messaging:console] ${msg.channel} to ${to}${from} (${providerMessageId})\n${subject}${msg.body}${files.join("")}`,
       );
       if (outboxFile) {
         await mkdir(dirname(outboxFile), { recursive: true });

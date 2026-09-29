@@ -179,6 +179,7 @@ export async function firmVoice(tx: FirmTx, firmId: string) {
       slug: firms.slug,
       timezone: firms.timezone,
       settings: firms.settings,
+      line: firms.shiftsLineE164, // the firm's shifts line: messages go from it
     })
     .from(firms)
     .where(eq(firms.id, firmId));
@@ -350,6 +351,7 @@ export async function runOfferWave(
       channel: c.channel,
       body,
       push: { ...pushed, url: `/shifts/${shift.id}` },
+      from: firm.line,
     });
     if (!sent.ok) {
       // Kept as evidence of the attempt (offers are never deleted), marked failed.

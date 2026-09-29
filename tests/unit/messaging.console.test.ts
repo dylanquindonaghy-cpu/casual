@@ -90,6 +90,21 @@ describe("console messaging transport", () => {
     }
   });
 
+  it("prints the firm's shifts line a message goes from (a business number, shown whole); the worker's stays masked", async () => {
+    const lines: string[] = [];
+    const transport = createConsoleTransport((line) => lines.push(line));
+    await transport.send({
+      channel: "whatsapp",
+      to: "+447700900123",
+      from: "+447700900000",
+      body: "hi",
+    });
+    expect(lines[0]).toContain("whatsapp to +44*******123 from +447700900000");
+    await expect(
+      transport.send({ channel: "sms", to: "+447700900123", from: "07700 900000", body: "hi" }),
+    ).rejects.toThrow(/E\.164/);
+  });
+
   it("refuses an email message to something that isn't an address", async () => {
     const transport = createConsoleTransport(() => undefined);
     await expect(

@@ -46,20 +46,24 @@ export type NotifyResult =
 // The message only, by the worker's channel with the WhatsApp-to-text fallback. Holds no
 // transaction, so a caller can send between its own (the reminder job records each reminder before
 // and after sending, so a failure afterwards can't undo the record of a message that went).
+// `from` is the firm's shifts line (null when it has none yet): every message to a worker goes
+// from it (tests/unit/notify.from-line.test.ts holds every sender to this).
 export async function sendToWorker(
   deps: Pick<NotifyDeps, "transport">,
-  input: { mobile: string; channel: WorkerChannel; body: MessageText },
+  input: { mobile: string; channel: WorkerChannel; body: MessageText; from: string | null },
 ): Promise<
   | { ok: true; channel: WorkerChannel; providerMessageId: string; fellBackFrom?: WorkerChannel }
   | { ok: false; channel: WorkerChannel; code: string }
 > {
   let channel = input.channel;
   let providerMessageId: string;
+  const from = input.from ? { from: input.from } : {};
   try {
     try {
       ({ providerMessageId } = await deps.transport.send({
         channel,
         to: input.mobile,
+        ...from,
         body: input.body[channel],
       }));
     } catch (error) {
@@ -68,6 +72,7 @@ export async function sendToWorker(
       ({ providerMessageId } = await deps.transport.send({
         channel,
         to: input.mobile,
+        ...from,
         body: input.body[channel],
       }));
     }
@@ -120,6 +125,7 @@ export async function notifyWorker(
     channel: WorkerChannel;
     body: MessageText;
     push: PushPayload;
+    from: string | null; // the firm's shifts line
   },
 ): Promise<NotifyResult> {
   const sent = await sendToWorker(deps, input);

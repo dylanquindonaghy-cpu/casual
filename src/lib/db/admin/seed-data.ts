@@ -90,6 +90,8 @@ export interface SeedFirm {
   slug: string;
   sector: "security" | "rail"; // its credential pack (src/lib/rules/packs.ts) is applied too
   settings: Record<string, unknown>;
+  // A fake shifts line (Ofcom's drama range) for the demo's dashboard; Northline has none yet.
+  shiftsLine: string | null;
   sites: { id: string; name: string; town: string; postcode: string }[];
   officeUsers: {
     id: string;
@@ -201,6 +203,7 @@ function acme(today: Date): SeedFirm {
     name: "Acme Events",
     slug,
     sector: "security",
+    shiftsLine: "+447700900000",
     settings: {
       allocation_mode: "fair_rotation",
       urgent_window_hours: 24,
@@ -266,6 +269,7 @@ function northline(today: Date): SeedFirm {
     name: "Northline Rail Labour",
     slug,
     sector: "rail",
+    shiftsLine: null,
     settings: {
       allocation_mode: "first_come_first_served",
       urgent_window_hours: 12,

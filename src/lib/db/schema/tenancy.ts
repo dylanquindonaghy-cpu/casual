@@ -29,6 +29,10 @@ export const firms = pgTable(
     brandLogoUrl: text("brand_logo_url"),
     brandPrimaryColor: text("brand_primary_color"),
     timezone: text("timezone").notNull().default("Europe/London"),
+    // The firm's own number ("the shifts line"): WhatsApp, text and calls, E.164. One number
+    // belongs to one firm. Null until we buy one (Twilio: PLAN.md Parking lot, "Connect Twilio").
+    // Set by `npm run firm:line`, never by the app.
+    shiftsLineE164: text("shifts_line_e164").unique(),
     // Shape and defaults are validated in code (FirmSettings), keys as in docs/data-model.md.
     settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
@@ -46,6 +50,7 @@ export const firms = pgTable(
     ),
     check("firms_brand_color_hex", sql`${t.brandPrimaryColor} ~ '^#[0-9a-fA-F]{6}$'`),
     check("firms_brand_logo_https", sql`${t.brandLogoUrl} like 'https://%'`),
+    check("firms_shifts_line_e164", sql`${t.shiftsLineE164} ~ '^[+][1-9][0-9]{6,14}$'`),
     firmIsolation(t.id),
     // The migrating owner may read the firm directory; app_resolve_firm() runs as the owner.
     // The app role gets no such policy: it only sees its own firm.

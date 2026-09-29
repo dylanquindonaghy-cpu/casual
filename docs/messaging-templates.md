@@ -39,6 +39,10 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 In a text message's own SMS version it follows a plain hyphen (" - Acme Events Shift Team"): a
 dash isn't a standard text character and would make the text cost more.
 
+Every WhatsApp and text to a worker goes from the firm's own number, its shifts line (`from` on the
+message, Phase 7), once the firm has one; `tests/unit/notify.from-line.test.ts` holds every sender to
+it.
+
 ## WhatsApp templates (submission pack built in Phase 4, submitted with "Connect Twilio"; category shown is our expectation — confirm on approval)
 
 | Name | Category | Body (variables in braces) |

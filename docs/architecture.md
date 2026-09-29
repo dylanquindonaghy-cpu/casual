@@ -294,6 +294,11 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
    receive and out of payroll's sorting path, and pins which files may use the AI modules.
 
 **WhatsApp shifts line**
+0. Each firm has its own number (`firms.shifts_line_e164`, one number per firm; built in Phase 7
+   short of Twilio). Its WhatsApps and texts go from it (`from` on each message: every sender
+   passes it, held by `tests/unit/notify.from-line.test.ts`), and an incoming message finds its
+   firm from the number it was sent to (`resolveFirmByLine()`, `app_firm_by_line()`). The number is
+   bought in Twilio and set with `npm run firm:line` (PLAN.md Parking lot, "Connect Twilio").
 1. Twilio webhook → verify signature → store message (idempotent) → queue job → 200.
 2. Known worker: keyword match (shifts, cancel, pay, help) → instant reply with the right link.
    Unclear text → Haiku classifies → reply with link or create a request for the office.

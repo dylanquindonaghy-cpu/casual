@@ -106,7 +106,8 @@ describe("the demo seed", () => {
          (select count(*)::int from workers where firm_id = any($1) and mobile_e164 !~ '^[+]447700900[0-9]{3}$') as real_phones,
          (select count(*)::int from workers where firm_id = any($1) and email is not null and email !~ '@example[.]com$') as worker_emails,
          (select count(*)::int from office_users where firm_id = any($1) and email !~ '@example[.]com$') as office_emails,
-         (select count(*)::int from credentials where firm_id = any($1) and number is not null and number !~ '^TEST-') as real_numbers`,
+         (select count(*)::int from credentials where firm_id = any($1) and number is not null and number !~ '^TEST-') as real_numbers,
+         (select count(*)::int from firms where id = any($1) and shifts_line_e164 !~ '^[+]447700900[0-9]{3}$') as real_lines`,
       [[ACME, NORTHLINE]],
     );
     expect(rows[0]).toEqual({
@@ -114,6 +115,7 @@ describe("the demo seed", () => {
       worker_emails: 0,
       office_emails: 0,
       real_numbers: 0,
+      real_lines: 0,
     });
   });
 

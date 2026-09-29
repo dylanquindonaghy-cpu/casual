@@ -3510,3 +3510,16 @@ workers booked) and this spec's own office user.
 | The e2e helper's comment overstated "weekly hours untouched" | Reworded |
 | Worker's "On now" card, the cancel-booking confirmation, sheet edge cases, metrics counting | Parked |
 
+
+**Verify round 2:** `VERIFIED tree=10df6a00466eef70 e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 1979 tests, 33 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — this task's claims are all
+PROVEN on disk with passing tests under the current verified tree hash."
+
+**Commit:** `6f391dd` "Phase 5: Mark no-show / completed", pushed to `origin/build/overnight`.
+CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.5 h (09:54 to 10:22 UTC). Phase 5 so far 3.2 h of its 23–33 h estimate.
+
+**Parked:** see PLAN.md, "Marking who worked follow-ups" (three Dylan-to-confirm items).

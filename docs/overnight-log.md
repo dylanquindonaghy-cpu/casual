@@ -4963,3 +4963,96 @@ suite going from 2418 to 2434: the numbers in my notes are vitest's.)
 
 **Commit:** `7cff363` "Phase 7: Signature checks on all Twilio webhooks; idempotent storage", pushed to
 `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-29 20:22 UTC: Phase 7, "Tests: `webhook.idempotent`, signature contract tests with real Twilio sample payloads"
+
+**Not blocked (I think):** tests of our own webhooks, with signed requests; no Twilio account is
+needed. The auditor decides whether the sample payloads count as "real" (see the decision below).
+
+**Plan:**
+
+1. **`tests/integration/webhook.idempotent.test.ts`** (docs/testing.md's must-have), on the real
+   database, for each webhook that stores: the same Twilio id delivered twice, one after the
+   other, and ten copies at the same moment (as Twilio retries after a timeout) → one `messages`
+   row and one job (for a call: one row, one `call.received`, one login link), every copy answered
+   200; then the reply job run twice at once → one reply. The "done" webhook stores nothing and
+   answers every copy the same.
+2. **`tests/unit/twilio.contract.test.ts`**, signature contract tests:
+   - a reference signer written in the test straight from Twilio's published algorithm (not our
+     code), checked against Twilio's own documented example (token 12345, that URL and fields:
+     `0/KCTR6DLpKmkAf8muzZqo1nDgQ=`);
+   - Twilio-shaped requests for each webhook, with every field Twilio documents for it (WhatsApp:
+     ProfileName, WaId, MessageType, NumSegments…; SMS: FromCountry, SmsStatus…, OptOutType; a
+     photo; a call: Called, Caller, Direction, CallStatus…; a withheld call; a transcription; the
+     recording's action), sent as raw form bodies the way Twilio encodes them (%2B for "+", spaces
+     as "+" or %20, emoji, £, "&", newlines), signed by the reference signer: each is accepted and
+     the handler gets exactly the right values;
+   - the same request signed over the still-encoded values, or with the charset header variant,
+     or with Twilio's extra fields dropped after signing: refused / accepted as Twilio would.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| "Real Twilio sample payloads" = Twilio's published signature example (a real vector) plus requests with the fields and encoding Twilio documents for each webhook | No Twilio account or captured traffic tonight (hard limit); the published example is Twilio's own output | Wait for captured requests (parked: add a few real captured requests, with the token changed, when Twilio is connected) |
+| A reference signer in the test, not Twilio's npm library | Adding a dependency overnight isn't needed: the published example pins the algorithm, and an independent few lines checks ours isn't just agreeing with itself | Install `twilio` for `validateRequest` (possible later with the Twilio sender) |
+| No guardrails review unless app code changes | Tests and docs only | Always run it |
+
+**Verify round 1: NOT VERIFIED** (`test` and `invariants` FAILED: 1 of 2451 tests).
+`tests/integration/auth.magic-link.test.ts` › "two of one worker's links used at the same moment
+both work…": `expected [ 'ok', 'rejected' ] to deeply equal [ 'ok', 'ok' ]`. The same test failed
+once under load earlier tonight and passed on its own; now it has failed twice, so it's a real
+problem, not luck.
+
+**Root cause (written before changing anything):** the test's last part runs two full logins with
+two of one worker's links and expects both to work, but nothing makes them overlap: `race()` only
+lines the two transactions up before they start. A login spends its own link and then retires the
+worker's other unused links (`loginWithLinkOf()` → `retireOtherLinks()`), by design: the next test
+in the file ("logging in retires the worker's other unused links") requires that a link used after
+another login is rejected. So when one login gets all the way through its retire before the other
+spends its link (more likely under the load of the full run, with the new tests running before it),
+the second link was retired and is rejected, correctly. The app is right; the test's timing is
+wrong. It isn't caused by this task's code (no app code changed), but verify needs it green.
+
+**Fix (the test, not weakened):** make "at the same moment" true. Before the two logins start, a
+separate connection holds both link rows locked; the test waits until both logins are queued
+behind those locks (checked in `pg_stat_activity`, and asserted), then lets them go together. Both
+spends then happen before either retire, and the retire skips the other's locked row, so the
+expectation stays `['ok', 'ok']`.
+
+**Built as planned**, plus: both new files open the pool's connections before sending copies "at
+once". Root cause, written down when found: with the claim's row lock removed, the ten-at-once
+reply test still passed, because with a cold pool the first run finished before the other nine had
+connected (the results were 1 "replied" and 9 "already", from the read step), so nothing raced.
+Warming the pool made the overlap real: without the lock the test failed 3 of 3, with it passed
+3 of 3. Removing `onConflictDoNothing` from `receive.ts` failed the repeat tests.
+
+**Verify round 2:** `VERIFIED tree=5a57fef8a835da97 e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2451 tests, 43 e2e). The magic-link test passed 5 of 5 on its own after the fix.
+
+**Auditor verdict (round 1, verbatim):**
+
+> VERDICT: DONE
+>
+> Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"5a57fef8a835da97","e2e":true,"at":"2026-09-29T20:49:55Z"}`; `./.claude/hooks/tree-hash.sh` = `5a57fef8a835da97`. Match, ok=true. Proceeding.
+>
+> Claims (task bullet: "Tests: `webhook.idempotent`, signature contract tests with real Twilio sample payloads", PLAN.md line 208, unticked as expected):
+>
+> - `webhook.idempotent` test exists and proves idempotent storage — PROVEN. `/home/dylan/shiftdesk-starter/tests/integration/webhook.idempotent.test.ts` (280 lines): real Postgres, real handlers (`handleTwilioWhatsApp/Sms/Voice/VoiceDone/Transcription`, `runInboundMessage`), no mocks of the thing under test. Covers every storing webhook (WhatsApp, SMS, call, withheld call, voicemail transcription), each delivered twice then 10x concurrently (pool warmed first so overlap is real) → one row/one job each; plus the reply job run 10x at once → one reply. All 8 tests pass: `.claude/state/test.log:621-679`. Matches `docs/testing.md:32-37`.
+>
+> - Signature contract tests with Twilio sample payloads — PROVEN, with one caveat the task's author explicitly flagged for the auditor's judgment. `/home/dylan/shiftdesk-starter/tests/integration/twilio.contract.test.ts` (439 lines): a signer reproduced independently from Twilio's *published* algorithm ("Validating signatures from Twilio") is checked against Twilio's own documented worked example (token `12345` → `0/KCTR6DLpKmkAf8muzZqo1nDgQ=`, line 230) — a genuine real vector — then used to sign requests carrying every field Twilio documents for WhatsApp/SMS/voice/transcription, with realistic encoding edge cases (`+`/`%20` spaces, emoji, £, &, newlines, charset header). Refusal cases: signed-over-encoded-values, wrong scheme, wrong route, dropped field → all 403. 10 tests pass: `.claude/state/test.log:1222-1243`. Real implementation checked, not a stub: `/home/dylan/shiftdesk-starter/src/lib/inbound/twilio-signature.ts` (HMAC-SHA1 + `timingSafeEqual`).
+>   - Caveat: there is no live Twilio account, so these are not literally *captured* Twilio requests — the test file (lines 18-30), `docs/testing.md:38-45`, and `docs/overnight-log.md` ("2026-09-29 20:22 UTC" entry) all disclose this openly and interpret "real" as "Twilio's published signature vector + Twilio-documented shapes/encoding." Follow-up (capture real requests once Twilio is connected) is tracked as step 11 of the "Connect Twilio" task, `PLAN.md:616-619`, not left silently dropped. The overnight log explicitly hands this interpretation call to the auditor; I accept it as a reasonable, honestly-disclosed scope limit rather than a fake, since actual Twilio traffic is impossible to capture without an account that doesn't exist yet (consistent with several other Phase 7 sub-tasks correctly marked BLOCKED for the same reason).
+>
+> Fakes found: none. No `.only`/`.skip`, no `vi.mock`/`jest.mock` of code under test, no TODO/"not implemented" in `src/lib/inbound/`. Full suite: 140 files / 2451 tests passed, 0 failures (`.claude/state/test.log` tail). An unrelated flaky test (`auth.magic-link.test.ts`, single-use race) was fixed for real — the assertion was left unchanged (`toEqual(["ok","ok"])`); the fix added a genuine lock-based synchronization to guarantee true concurrency (`git diff tests/integration/auth.magic-link.test.ts`), not a weakened test.
+>
+> To reach DONE: nothing — verdict is DONE. (Optional, not blocking: if the user wants "real" read literally as captured live traffic, note that a Twilio account doesn't exist yet, so that would have to wait for the parked "Connect Twilio" step 11, `PLAN.md:616-619`.)
+
+(vitest counts 9 tests in the contract file and 8 in the idempotent file, 2434 → 2451; the
+auditor's "10" counts log lines.)
+
+**Ticked** in PLAN.md.
+
+**Hours:** 0.5 h (20:22 to 20:54 UTC). **Phase 7 total: 4.2 h of its 15–20 h estimate** (under, not
+over: most of the phase's Twilio work is parked). Phase 7 is finished as far as it can be tonight:
+2 tasks ticked (signatures, tests), 5 blocked on Twilio (shifts line, inbound WhatsApp, unknown
+number, call-to-text, STOP), each built and verified short of it.

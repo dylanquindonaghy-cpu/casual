@@ -212,13 +212,37 @@ describe("single use", () => {
     expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
     expect(fulfilled(results).filter(Boolean)).toHaveLength(2);
 
-    // And the whole login, in whatever order the two happen to run.
+    // And the whole login, both at the same moment. Held there on purpose: without it one login
+    // can finish, retiring the worker's other links, before the other spends its own, and then
+    // that link is rightly refused (the next test). A separate connection holds both links'
+    // rows until both logins are queued behind them, then lets them go together.
     const more = [await linkAt(T, now), await linkAt(T, now)];
     let k = 0;
-    const logins = await race(2, T.firmId, (tx) =>
-      loginWithLink(tx, { token: more[k++] ?? "", now }),
-    );
-    expect(fulfilled(logins).map((r) => r.status)).toEqual(["ok", "ok"]);
+    const holder = await su.connect();
+    try {
+      await holder.query("begin");
+      await holder.query(
+        "select id from magic_links where worker_id = $1 and used_at is null for update",
+        [T.workerId],
+      );
+      const running = race(2, T.firmId, (tx) => loginWithLink(tx, { token: more[k++] ?? "", now }));
+      let queued = 0;
+      for (let tries = 0; tries < 200 && queued < 2; tries += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        const { rows } = await su.query<{ n: number }>(
+          `select count(*)::int as n from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock'
+              and query like '%update magic_links ml set used_at%'`,
+        );
+        queued = rows[0]?.n ?? 0;
+      }
+      expect(queued).toBe(2);
+      await holder.query("commit");
+      const logins = await running;
+      expect(fulfilled(logins).map((r) => r.status)).toEqual(["ok", "ok"]);
+    } finally {
+      holder.release();
+    }
   });
 
   it("logging in retires the worker's other unused links", async () => {

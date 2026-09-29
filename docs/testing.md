@@ -29,7 +29,20 @@ without breaking a 6am cancellation.
 - `assign.race.test.ts` — 10 concurrent `bookShift` calls for 1 slot → exactly 1 success (and for
   3 slots, exactly 3); one worker in two tabs can't book two overlapping shifts, or pass a weekly
   cap twice (the worker lock).
-- `webhook.idempotent.test.ts` — same Twilio MessageSid twice → one `messages` row, one job.
+- `webhook.idempotent.test.ts` (built, Phase 7) — same Twilio MessageSid twice → one `messages` row,
+  one job; for every webhook that stores (WhatsApp, text, call, withheld call, voicemail text) the
+  same Twilio id twice in a row and then ten copies at the same moment (the pool's connections
+  opened first, so they really overlap) → one row and one job (a call: one `call.received`, one
+  login link), every copy answered 200; the "done" webhook answers every copy the same; the reply
+  job run ten times at once → one reply sent and stored (it fails without the claim's row lock).
+- `twilio.contract.test.ts` (built, Phase 7) — signature contract tests: a signer written in the
+  test from Twilio's published algorithm reproduces Twilio's documented example, then signs
+  requests shaped as Twilio documents them for each webhook (every field Twilio sends; raw form
+  bodies with "+" as %2B, spaces as "+" or %20, emoji, "£", "&", new lines; the charset header):
+  each is accepted and stored exactly; signed over the encoded values, for http, for another
+  webhook, or with a field dropped after signing: refused. Captured real requests are to be added
+  when Twilio is connected. `twilio.webhooks.test.ts` (built) holds every Twilio route to the
+  checks and to storing once.
 - `rules.table.test.ts` — all cases in `docs/rules-and-credentials.md` (held to the doc by
   `rules.doc-parity.test.ts`), then the edges: overrides, the pass, clock changes, purity.
 - `waves.timing.test.ts` (built) — a real cancellation starts the chain and a fake worker

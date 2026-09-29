@@ -55,7 +55,9 @@ provider_message_id)`); the insert is `ON CONFLICT DO NOTHING`, and the job (or 
 link) follows only when a row came back. Two copies at the same moment: `ON CONFLICT DO NOTHING`
 waits for the other's insert, then inserts nothing. `tests/unit/twilio.webhooks.test.ts` holds every webhook, now
 and future, to this shape; each webhook's integration tests prove it (refusals store nothing, a
-repeat stores and sends nothing more).
+repeat stores and sends nothing more), with `tests/integration/webhook.idempotent.test.ts` (ten
+copies at once) and `tests/integration/twilio.contract.test.ts` (Twilio-shaped requests signed as
+Twilio signs them).
 
 Workers never call APIs directly; the portal uses server actions. Built so far (Phase 1): request
 a login link (`src/app/login/actions.ts`), use it (`src/app/l/actions.ts`), log out and refresh the

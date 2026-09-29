@@ -5801,3 +5801,84 @@ WhatsApp, text and call tests from the earlier tasks.
 
 `npx vitest run tests/unit/twilio.webhooks.test.ts` runs the guard test (a second or two, no
 database needed).
+
+## 2026-09-29: Phase 7, task 7: Tests for repeats and Twilio's signatures (0.5 h, DONE)
+
+### Time
+
+0.5 hours of Claude's working time (20:22 to 20:54 UTC), in the unattended overnight loop.
+Phase 7 so far: 4.2 of its 15 to 20 hour estimate. Phase 7 is now finished as far as it can be
+without Twilio: 2 tasks done and ticked, 5 blocked on Twilio (built and verified short of it).
+
+### Result
+
+- **Done and ticked.** The independent auditor returned DONE (its verdict is in
+  `docs/overnight-log.md`).
+- `scripts/verify.sh` printed `VERIFIED tree=5a57fef8a835da97 e2e=true` on the second run. That
+  covers the type checks, lint, all 2451 tests (up from 2434), the 43 browser tests and the rule
+  checks. The first run failed on one older test (below).
+- No guardrails review: only tests and docs changed.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Two new test files:
+
+- **`webhook.idempotent`** ("idempotent" means doing something twice has the same effect as doing
+  it once). Twilio sends a webhook again if it thinks the first try failed, and someone who
+  captured a request could send it again. For each webhook that stores something (WhatsApp, text,
+  call, withheld call, voicemail text), the test sends the same Twilio id twice in a row, then ten
+  copies at exactly the same moment. Each time: one row, one job, and every copy gets a normal
+  answer. Then it runs the reply job ten times at once for one message: exactly one reply goes.
+- **Signature contract tests.** A "contract" test checks that our code and Twilio agree on the
+  rules. The test has its own few lines that work out Twilio's signature from Twilio's published
+  instructions (not our code), and those lines reproduce Twilio's own worked example exactly.
+  Then it builds requests the way Twilio sends them, with every field Twilio documents (not only
+  the ones we use) and awkward text ("+", "£", "&", emoji, new lines, spaces written two
+  different ways). Each is accepted and stored exactly as written. Requests signed the wrong way
+  (over the encoded text, for http instead of https, for another webhook, or with a field removed
+  afterwards) are refused.
+
+**Checking the tests really catch mistakes.** I broke the code on purpose:
+- removing the "store once" guard made the repeat tests fail;
+- removing the database lock that stops two copies of the reply job both replying did *not* make
+  the ten-at-once test fail at first. The reason: with a freshly started connection pool, the
+  first copy finished before the other nine had even connected, so they never really ran at the
+  same time. The tests now open all their connections first. After that, removing the lock made
+  the test fail every time (3 out of 3), and with the lock it passed every time.
+
+### The older test that failed
+
+The first full check failed on `auth.magic-link` "two of one worker's links used at the same moment
+both work". It had failed once earlier tonight too.
+
+- **Why:** logging in with a link cancels the worker's other unused links, by design. The test
+  started two logins "at the same moment" but didn't make sure they overlapped. When one finished
+  first, it had already cancelled the other's link, so the second was correctly refused. The app
+  was right; the test was wrong.
+- **Fix:** the test now holds both links until both logins are waiting on them, then lets them go
+  together. It still requires both to work, so it's no weaker. It passed 5 times out of 5 on its
+  own and in the full run.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| "Real Twilio sample payloads" = Twilio's published signature example plus requests shaped exactly as Twilio documents them | There's no Twilio account tonight to capture real traffic; the published example is Twilio's own output | Wait for captured requests (now "Connect Twilio" step 11) |
+| A signer written in the test, not Twilio's code library | No new dependency overnight; the published example pins the maths | Install Twilio's library |
+| Fix the login race test by forcing the overlap | Keeps the strict check; the failure was the test's timing | Loosen it to accept one refusal |
+
+### What the new tests prove
+
+17 new tests: 8 in `tests/integration/webhook.idempotent.test.ts` and 9 in
+`tests/integration/twilio.contract.test.ts`, as described above.
+
+### Parked, open, and things that need Dylan
+
+- **Connect Twilio step 11** (new): once Twilio is live, capture one real request to each webhook
+  (with the key and any real numbers changed) and add them to the contract tests.
+
+### How to see it working
+
+`npx vitest run tests/integration/webhook.idempotent.test.ts tests/integration/twilio.contract.test.ts`
+(needs the test database: `npm run db:up` first).

@@ -3278,3 +3278,10 @@ To reach DONE: nothing — this sub-task (line 2 of Phase 5) is fully proven by 
 ```
 
 **Ticked.** 0.6 h. Phase 5: 1.6 h of 23–33 h.
+
+**Commit:** `4bc9c3d` "Phase 5: Shifts: …". Pushed to `origin/build/overnight` (ff95fb9..4bc9c3d). CI: `gh` isn't installed, so it wasn't checked.
+**Parked (PLAN.md, "Shift screens follow-ups" and Booking):**
+- **Dylan to confirm:** override reason codes; new shifts open at once; booked-shift moves wait
+  for the next task; the 1 MB web import.
+- Instructions changes aren't notified; no picker search or list filters; big imports in the
+  background; no upper date limit; raised places on a filled urgent shift don't restart offers.

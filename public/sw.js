@@ -1,6 +1,8 @@
 // ShiftDesk service worker: keeps the worker's last "My shifts" page on their phone, so it opens
 // with poor signal at a venue (docs/screens.md, `/`; docs/decisions.md ADR-016).
 //
+// It also shows web push notifications (an urgent offer) and opens their page when tapped.
+//
 // It handles only two kinds of request; everything else goes to the network untouched:
 // - Opening My shifts (`/`, no query): the network first. With no signal, or no answer within
 //   NETWORK_TIMEOUT_MS, the copy kept from the last good load, with its "No signal" notice
@@ -63,6 +65,79 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(staticFile(request).catch(() => fetch(request)));
   }
 });
+
+// A web push (an urgent offer, say): show it. Only our own site's pages are ever opened from one.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  const title =
+    typeof data.title === "string" && data.title ? data.title.slice(0, 100) : "Shift update";
+  const body = typeof data.body === "string" ? data.body.slice(0, 300) : "";
+  event.waitUntil(
+    self.registration.showNotification(title, { body, data: { url: ownPage(data.url) } }),
+  );
+});
+
+// Tapping it opens the page it names (a window already on that page is brought forward).
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = ownPage(event.notification.data && event.notification.data.url);
+  event.waitUntil(
+    (async () => {
+      for (const client of await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      })) {
+        if (client.url === url && "focus" in client) return client.focus();
+      }
+      return self.clients.openWindow(url);
+    })(),
+  );
+});
+
+// The browser renewed this phone's push subscription: save the new one for the logged-in worker and
+// drop the old one (the same route the profile uses; the session cookie goes with it).
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      const old = event.oldSubscription;
+      const renewed =
+        event.newSubscription ||
+        (old && old.options && old.options.applicationServerKey
+          ? await self.registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: old.options.applicationServerKey,
+            })
+          : null);
+      if (!renewed) return;
+      const send = (method, body) =>
+        fetch("/api/push/subscribe", {
+          method,
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          credentials: "same-origin",
+        });
+      await send("POST", renewed.toJSON());
+      if (old && old.endpoint !== renewed.endpoint)
+        await send("DELETE", { endpoint: old.endpoint });
+    })().catch(() => undefined),
+  );
+});
+
+// A page on this site, or its home page for anything else (never another site).
+function ownPage(raw) {
+  if (typeof raw !== "string" || raw === "") return `${self.location.origin}/`;
+  try {
+    const url = new URL(raw, self.location.origin);
+    return url.origin === self.location.origin ? url.href : `${self.location.origin}/`;
+  } catch {
+    return `${self.location.origin}/`;
+  }
+}
 
 // My shifts is showing without a full load (after logging in, or going back to it): keep it now.
 self.addEventListener("message", (event) => {

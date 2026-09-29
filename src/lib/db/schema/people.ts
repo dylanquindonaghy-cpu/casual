@@ -165,3 +165,36 @@ export const workerUnavailableDays = pgTable(
     firmIsolation(t.firmId),
   ],
 ).enableRLS();
+
+// A phone's web push address for a worker (the profile's "Turn on notifications"): the push
+// service's endpoint and the browser's keys. One row per endpoint in a firm; a new login on the
+// same phone moves it to that worker. Deleted with the worker, and when the push service says
+// it's gone. Never logged (it addresses one person's phone).
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("push_subscriptions_firm_id_id_key").on(t.firmId, t.id),
+    unique("push_subscriptions_firm_id_endpoint_key").on(t.firmId, t.endpoint),
+    foreignKey({
+      name: "push_subscriptions_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }).onDelete("cascade"),
+    check(
+      "push_subscriptions_endpoint_https",
+      sql`${t.endpoint} like 'https://%' and length(${t.endpoint}) <= 2048`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();

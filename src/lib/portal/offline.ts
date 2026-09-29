@@ -27,8 +27,11 @@ export async function stopOfflineCopy(): Promise<void> {
   const sw = serviceWorkers();
   if (sw) {
     try {
-      const registrations = await sw.getRegistrations();
-      await Promise.all(registrations.map((r) => r.unregister()));
+      // Kept while it carries this phone's push notifications (turned off on the profile).
+      for (const r of await sw.getRegistrations()) {
+        const pushing = await r.pushManager?.getSubscription().catch(() => null);
+        if (!pushing) await r.unregister();
+      }
     } catch {
       // Nothing to remove.
     }

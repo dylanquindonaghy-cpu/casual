@@ -19,6 +19,7 @@ export const EXPECTED_TABLES = [
   "office_users",
   "otp_codes",
   "pay_records",
+  "push_subscriptions",
   "requests",
   "roster_sources",
   "sessions",
@@ -181,6 +182,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-12-25')",
     [firmId, workerId],
   );
+  const pushSubscriptionId = await one(
+    su,
+    `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+     values ($1, $2, $3, 'test-p256dh', 'test-auth')`,
+    [firmId, workerId, `https://push.example.test/${slug}`],
+  );
   // Pay records point at the rota worker too: their worker link has no ON DELETE action.
   const payRecordId = await one(
     su,
@@ -217,6 +224,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       roster_sources: rosterSourceId,
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
+      push_subscriptions: pushSubscriptionId,
     },
   };
 }
@@ -304,6 +312,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, $3)",
     values: [firmId, p.workerId, `2027-01-${String(1 + (next() % 28)).padStart(2, "0")}`],
   }),
+  push_subscriptions: (firmId, p) => ({
+    text: "insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
+    values: [firmId, p.workerId, `https://push.example.test/extra-${next()}`],
+  }),
   pay_records: (firmId, p) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-02', '2026-11-08', 4, $3)`,
@@ -383,6 +395,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   worker_unavailable_days_worker_fk: (firmId, _own, other) => ({
     text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2027-02-01')",
     values: [firmId, other.workerId],
+  }),
+  push_subscriptions_worker_fk: (firmId, _own, other) => ({
+    text: "insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
+    values: [firmId, other.workerId, `https://push.example.test/fk-${next()}`],
   }),
   pay_records_worker_fk: (firmId, _own, other) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)

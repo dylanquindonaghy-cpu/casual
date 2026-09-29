@@ -39,6 +39,8 @@ const { default: ErrorPage } = await import("@/app/error");
 const { ErrorBody } = await import("@/app/error-body");
 const { default: GlobalError } = await import("@/app/global-error");
 const { tryAgainText } = await import("@/lib/portal/copy");
+const { PushSetting } = await import("@/app/profile/push-setting");
+const { PushSettingView } = await import("@/app/profile/push-setting-view");
 
 // Words a worker shouldn't have to know. Whole words, any case.
 const JARGON = [
@@ -508,6 +510,20 @@ const SCREENS: [string, ReactElement][] = [
   ["Too many tries", createElement(TooManyTries, { minutes: 847 })],
   ["A tap failed, with signal", paragraph(tryAgainText(true))],
   ["A tap failed, no signal", paragraph(tryAgainText(false))],
+  [
+    "Phone notifications not switched on",
+    createElement(PushSetting, { publicKey: null, firmName: "Acme Events" }),
+  ],
+  ...(["unsupported", "add_to_home_screen", "blocked", "on", "off"] as const).map(
+    (state): [string, ReactElement] => [
+      `Phone notifications: ${state}`,
+      createElement(PushSettingView, { state, firmName: "Acme Events" }),
+    ],
+  ),
+  [
+    "Phone notifications turned off",
+    createElement(PushSettingView, { state: "off", firmName: "Acme Events", justTurnedOff: true }),
+  ],
   ["Page not found", createElement(NotFound)],
   ["Something went wrong", createElement(ErrorPage, { reset: () => undefined })],
   [

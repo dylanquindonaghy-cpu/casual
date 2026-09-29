@@ -2420,3 +2420,95 @@ To reach DONE: nothing — implementation and tests substantiate every part of t
 **Ticked** in PLAN.md. **Hours:** 0.4 (03:49 to 04:16 UTC). Phase 4 so far: 1.0 h of its 27–37 h
 estimate.
 **Commit:** `fe90783`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 04:19 UTC: Phase 4, "Web push (VAPID); iPhone push only works when the portal is added to the home screen, so show an 'Add to home screen' prompt"
+
+**Blocked on an outside service (hard limit).** A real web push goes from our server, signed
+with the firm's VAPID keys, to the browser maker's push service (Google, Apple, Mozilla), which
+delivers it to the phone. Sending one, or even creating a subscription in a browser (Chrome asks
+Google's servers), calls an outside service. The VAPID private key is also a secret that can't be
+committed. So, per the overnight rules: **build everything short of real sends, park "connect
+the real web push", and record the task as blocked, not ticked.** The "Add to home screen" part
+was built in Phase 3.
+
+**Plan (the part that can be built and tested now):**
+- **`push_subscriptions` table** (migration 0012): the phone's push address (endpoint and keys)
+  per worker. It follows the table conventions: `firm_id`, RLS, a composite link to the worker
+  that's deleted with the worker, a TABLE_ACCESS entry and isolation fixtures. One row per
+  endpoint.
+- **`POST` / `DELETE /api/push/subscribe`** (docs/api-and-jobs.md): the logged-in worker saves or
+  removes this phone's subscription. The firm comes from the host, the worker from the session,
+  the body is checked with zod, and the request must come from the portal's own page (Origin
+  check). Logged as `push.subscribed` / `push.unsubscribed`, with no endpoint in the log.
+- **Profile: "Notifications on this phone"**, with "Turn on notifications" / "Turn off".
+  - Only when the firm's VAPID public key is configured (`VAPID_PUBLIC_KEY`; unset today, so it
+    says "Phone notifications aren't switched on for {firm} yet.").
+  - On an iPhone that isn't running the portal from the home screen, it says to add it first,
+    using the existing hint.
+- **Sending:** a push transport interface with a console transport (prints, like messages). The
+  real one (`web-push` with VAPID) is parked. Offer waves also push to each subscription of an
+  offered worker (push is free, and the docs send urgent offers by push plus WhatsApp). A
+  subscription the push service says is gone is deleted.
+- **The service worker** (`public/sw.js`) shows a pushed notification ("Urgent shift" / "{role}
+  needed at {site} {day} {start}.", docs/messaging-templates.md "Push") and opens the shift when
+  it's tapped. It only ever opens our own site's pages.
+
+Tests:
+- the table's isolation (the shared fixtures);
+- the save and remove functions on the real database;
+- the route's checks (no session, another origin, a bad body);
+- the service worker's push and click handlers in the sandbox;
+- the profile states;
+- offer waves pushing to a subscribed worker (console transport).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Record as blocked, not ticked | Real delivery needs Google/Apple push services and a secret key: a hard limit tonight | Tick it on the console transport (would claim something untested) |
+| Push is sent as well as WhatsApp/SMS for urgent offers, not instead of it | docs/architecture.md: "web push + WhatsApp template" for waves; the push-first-then-fallback policy is the `notify` task | Push only, then fall back |
+| A route handler, not a server action | A service worker (on a subscription change) can post to a route but can't call a server action | A server action |
+| No endpoint or keys in events or logs | They're addresses for one person's phone | Log them |
+
+**Built:**
+- the `push_subscriptions` table (migration 0012), with its TABLE_ACCESS entry and isolation
+  fixtures;
+- `src/lib/push/` (subscriptions, the console push transport);
+- `POST` / `DELETE /api/push/subscribe`;
+- the profile's "Notifications on this phone" (`push-setting.tsx`, `push-state.ts`);
+- `urgentPush()`;
+- offer waves pushing to subscribed phones, and forgetting ones that are gone;
+- `public/sw.js`'s `push` and `notificationclick` handlers (our own pages only);
+- the optional `VAPID_PUBLIC_KEY` setting; docs; Parking lot "connect the real web push".
+
+**Root causes of failures while building:**
+- The service worker test for a push with no link failed: it opened `/undefined`. That was a
+  real bug. `new URL(undefined, origin)` treats the word "undefined" as a page path. Fixed: only
+  a text link is used, anything else opens the home page.
+- The e2e worker wouldn't start: "must be a base64url VAPID public key". The local `.env` has an
+  empty `VAPID_PUBLIC_KEY=` line (as `.env.example` ships it), and the new check refused an empty
+  value. An empty value now means "not set"; unit test added. My duplicate line in
+  `.env.example` was removed (it already had the VAPID lines).
+
+**Guardrails review: FIX FIRST (two items), both fixed.** It confirmed "blocked, not ticked" is
+the right call under the hard limit.
+1. Deleting a subscription the push service says is gone wrote no event (golden rule 5). Now it
+   logs `push.forgotten` {reason: "gone"} as the system, with no address. Test added.
+2. The push sender was hard-wired to the console, with no production guard (messaging has one).
+   Now there's `PUSH_TRANSPORT` (console, or none). Production must use "none" until the real
+   sender exists, and "none" pushes and counts nothing. Tests added.
+
+Other findings, and what I did:
+
+| Finding | Done |
+|---|---|
+| A shared phone: after logout, the next worker's profile said "on" while the phone got the previous worker's alerts; a failed save left the phone subscribed | Logout and login forget this phone's subscription; a failed save unsubscribes; the profile re-saves a subscribed phone on load (a no-op when unchanged) |
+| Any https address was accepted (the real sender would post there) | Only the browser makers' push services (Google, Apple, Mozilla, Microsoft); at most 10 phones per worker; saving the same one again logs nothing; tests |
+| The whole body was read before the size check, counting characters | 413 before reading when declared, then counted in bytes; e2e for too big and for no Origin |
+| e2e could pick up a developer's own VAPID key | `VAPID_PUBLIC_KEY: ""` and `PUSH_TRANSPORT: "console"` pinned in the e2e env |
+| `stopOfflineCopy`'s new rule had no test | Unit test; the trade-off is noted in ADR-016 |
+| The pushed link was absolute (a custom domain would open the home page) | The path `/shifts/<id>` |
+| No confirmation after turning off | "Notifications are off for this phone. You'll still get messages by WhatsApp or text."; every state's words are in the plain-language test |
+| `pushsubscriptionchange` needs no outside service | Built in `public/sw.js`, with sandbox tests |
+| The web-push adapter itself | Still parked: it's the connection to the outside service |
+| Rate-limiting the route, compliance wording | Parked in "Connect the real web push" |

@@ -15,8 +15,10 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
-import { shiftEscalationEmail, shiftUrgentMessage } from "../messaging/templates";
+import { shiftEscalationEmail, shiftUrgentMessage, urgentPush } from "../messaging/templates";
 import { shiftWhen } from "../portal/format";
+import { forgetPushTarget, pushTargets } from "../push/subscriptions";
+import { getPushTransport, type PushTransport } from "../push/transport";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { rankForFairRotation } from "../rules/allocation";
 import { dayLabel } from "../rules/reasons";
@@ -42,8 +44,9 @@ import { waveCandidates, type WaveCandidate } from "./candidates";
 //
 // startOfferWaves() queues both, in the transaction that caused them (a place reopened inside the
 // urgent window, or the office marking the shift urgent: src/lib/roster/urgent.ts).
-// Messages go through the configured transport (console in development and tests). Quiet hours,
-// the daily cap, web push and the SMS fallback are later Phase 4 tasks.
+// Messages go through the configured transport (console in development and tests); each offer is
+// also pushed to the worker's subscribed phones (PUSH_TRANSPORT: console or none until the real
+// sender is connected). Quiet hours, the daily cap and the SMS fallback are later Phase 4 tasks.
 
 export const OFFER_WAVE_QUEUE = "offer-wave";
 export const ESCALATE_SHIFT_QUEUE = "escalate-shift";
@@ -119,6 +122,7 @@ export async function startOfferWaves(
 
 export interface OfferDeps {
   transport: MessagingTransport;
+  push: PushTransport;
   baseDomain: string;
   clock: Clock;
 }
@@ -295,8 +299,32 @@ export async function runOfferWave(
       .returning({ id: offers.id });
     if (offer) recorded.push({ offerId: offer.id, candidate: c });
   }
+  const pushed = urgentPush({
+    role: shift.role,
+    site: shift.siteName,
+    day: dayWords(shift.startsAt, now, firm.timezone),
+    start: timeOf(shift.startsAt, firm.timezone),
+  });
   for (const { offerId, candidate: c } of recorded) {
     const result = await deps.transport.send({ channel: c.channel, to: c.mobile, body });
+    // Push as well, to each phone the worker turned notifications on for (free; the docs send
+    // urgent offers by push and WhatsApp). One the push service says is gone is forgotten.
+    let pushes = 0;
+    for (const target of await pushTargets(tx, c.workerId)) {
+      // The path only: the service worker opens it on whichever address the phone subscribed on
+      // (a firm's custom domain included).
+      const sent = await deps.push.send(target, { ...pushed, url: `/shifts/${shift.id}` });
+      if (sent.status === "gone") {
+        await forgetPushTarget(tx, target.id);
+        await recordEvent(tx, {
+          actorType: "system",
+          action: "push.forgotten",
+          entityType: "push_subscription",
+          entityId: target.id,
+          data: { reason: "gone" },
+        });
+      } else if (sent.status === "sent") pushes += 1;
+    }
     await recordEvent(tx, {
       actorType: "system",
       action: "offer.sent",
@@ -308,6 +336,7 @@ export async function runOfferWave(
         wave: payload.wave,
         channel: c.channel,
         providerMessageId: result.providerMessageId,
+        pushes,
       },
     });
   }
@@ -411,7 +440,13 @@ export function createEscalateShiftJob(deps: () => OfferDeps) {
 // the worker's configuration.
 const workerDeps = (): OfferDeps => {
   const env = workerEnv();
-  return { transport: getTransport(env), baseDomain: env.APP_BASE_DOMAIN, clock: systemClock };
+  return {
+    transport: getTransport(env),
+    // The real web push sender is parked (an outside service): console or none until then.
+    push: getPushTransport(env),
+    baseDomain: env.APP_BASE_DOMAIN,
+    clock: systemClock,
+  };
 };
 export const offerWaveJob = createOfferWaveJob(workerDeps);
 export const escalateShiftJob = createEscalateShiftJob(workerDeps);

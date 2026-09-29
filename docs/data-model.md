@@ -129,6 +129,21 @@ create table workers (
   unique (firm_id, external_ref)
 );
 
+-- Phase 4 (src/lib/db/schema/people.ts). A phone's web push address for a worker (the profile's
+-- "Turn on notifications"), one row per endpoint in a firm (a new login on the same phone takes it
+-- over). Deleted with the worker and when the push service says it's gone. Never logged.
+create table push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers, on delete cascade
+  endpoint text not null,                -- https only, at most 2048 characters
+  p256dh text not null,                  -- the browser's keys for encrypting the push
+  auth text not null,
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, endpoint)
+);
+
 -- Phase 3 (src/lib/db/schema/people.ts). Days the worker can't work, set on their profile: today
 -- to 180 days ahead, at most 60 upcoming. The rules engine's check 8 refuses a booking on a shift
 -- touching one (the office may override with a reason). Marking a day never cancels a booking

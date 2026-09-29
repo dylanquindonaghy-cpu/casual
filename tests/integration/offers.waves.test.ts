@@ -13,6 +13,7 @@ import {
 import { bookShift } from "@/lib/roster/book";
 import { cancelBooking } from "@/lib/roster/cancel";
 import { setShiftUrgent } from "@/lib/roster/urgent";
+import type { PushTransport } from "@/lib/push/transport";
 import { QUEUES } from "@/worker/jobs/queues";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
@@ -79,8 +80,20 @@ async function waveFirm(settings: Record<string, unknown> = {}) {
   const shiftId = await f.shift({ startsAt: hoursFromNow(10) }); // 19:00 today, until 03:00
   await su.query("update shifts set is_urgent = true where id = $1", [shiftId]);
   const { transport, sent } = captureTransport();
+  // Pushes are captured too; `gone` makes the push service say a subscription no longer exists.
+  const pushed: { endpoint: string; title: string; body: string; url: string }[] = [];
+  const pushState = { gone: false };
+  const push: PushTransport = {
+    name: "capture",
+    async send(target, payload) {
+      if (pushState.gone) return { status: "gone" };
+      pushed.push({ endpoint: target.endpoint, ...payload });
+      return { status: "sent" };
+    },
+  };
   const deps = (when = NOW): OfferDeps => ({
     transport,
+    push,
     baseDomain: "localhost:3000",
     clock: { now: () => when },
   });
@@ -99,7 +112,22 @@ async function waveFirm(settings: Record<string, unknown> = {}) {
     withFirm(f.firmId, (tx) =>
       runEscalation({ firmId: f.firmId, idempotencyKey: "t:e", shiftId }, tx, deps(when)),
     );
-  return { f, shiftId, ann, ben, cal, dee, nia, off, sent, wave, escalate, slug };
+  return {
+    f,
+    shiftId,
+    ann,
+    ben,
+    cal,
+    dee,
+    nia,
+    off,
+    sent,
+    pushed,
+    pushState,
+    wave,
+    escalate,
+    slug,
+  };
 }
 
 const queued = async (shiftId: string) =>
@@ -305,6 +333,54 @@ describe("a wave", () => {
     expect(await t.wave(2, later(15))).toEqual({ status: "stopped", reason: "not_urgent" });
     expect(await t.escalate(hoursFromNow(7))).toEqual({ status: "not_needed" });
     expect(t.sent).toHaveLength(2); // only wave 1's
+  });
+
+  it("also pushes to each phone an offered worker turned notifications on for", async () => {
+    const t = await waveFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/ann-phone', 'k', 'a')`,
+      [t.f.firmId, t.ann.id],
+    );
+    await t.wave(1); // Ann and Ben: only Ann has a phone subscribed
+    expect(t.pushed).toEqual([
+      {
+        endpoint: "https://push.example.test/ann-phone",
+        title: "Urgent shift",
+        body: "Door supervisor needed today 19:00.",
+        url: `/shifts/${t.shiftId}`, // the path: opened on whichever address the phone uses
+      },
+    ]);
+    const { rows } = await su.query(
+      "select data ->> 'workerId' as worker, (data ->> 'pushes')::int as pushes from events where firm_id = $1 and action = 'offer.sent'",
+      [t.f.firmId],
+    );
+    expect(rows.find((r) => r.worker === t.ann.id)?.pushes).toBe(1);
+    expect(rows.find((r) => r.worker === t.ben.id)?.pushes).toBe(0);
+    // No push address ever goes into the log.
+    expect(JSON.stringify(rows)).not.toContain("push.example.test");
+  });
+
+  it("forgets a phone the push service says is gone", async () => {
+    const t = await waveFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/old-phone', 'k', 'a')`,
+      [t.f.firmId, t.ann.id],
+    );
+    t.pushState.gone = true;
+    await t.wave(1);
+    const { rows } = await su.query(
+      "select count(*)::int as n from push_subscriptions where worker_id = $1",
+      [t.ann.id],
+    );
+    expect(rows).toEqual([{ n: 0 }]);
+    expect(t.sent).toHaveLength(2); // the WhatsApp and text still went
+    const { rows: forgotten } = await su.query(
+      "select actor_type, data from events where firm_id = $1 and action = 'push.forgotten'",
+      [t.f.firmId],
+    );
+    expect(forgotten).toEqual([{ actor_type: "system", data: { reason: "gone" } }]);
   });
 
   it("stops once the shift has started or is no longer open", async () => {

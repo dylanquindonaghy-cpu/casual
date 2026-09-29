@@ -43,6 +43,8 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   pay_records: NO_DELETE,
   // The worker marks and clears days they can't work (logged as events); a day is never edited.
   worker_unavailable_days: ["SELECT", "INSERT", "DELETE"],
+  // A phone's push address: saved, moved to a new login on the same phone, removed.
+  push_subscriptions: CRUD,
 };
 
 export function schemaTableNames(): string[] {

@@ -5,6 +5,7 @@ import { shortDate } from "@/lib/rules/reasons";
 import { addDays } from "@/lib/time/zoned";
 import { AvailabilityForm } from "./availability-form";
 import { NotificationForm } from "./notification-form";
+import { PushSetting } from "./push-setting";
 
 // Me (docs/screens.md, `/profile`): contact details and credentials as the office holds them
 // (read-only), days I can't work, and how we reach me.
@@ -24,7 +25,15 @@ export const ukMobile = (e164: string) =>
 // as a heading they start with a capital.
 const title = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
-export function ProfileView({ profile, signOff }: { profile: Profile; signOff: string }) {
+export function ProfileView({
+  profile,
+  signOff,
+  push = null,
+}: {
+  profile: Profile;
+  signOff: string;
+  push?: { publicKey: string | null; firmName: string } | null;
+}) {
   const year = Number(profile.today.slice(0, 4));
   return (
     <>
@@ -104,6 +113,7 @@ export function ProfileView({ profile, signOff }: { profile: Profile; signOff: s
           offerAlerts={profile.offerAlerts}
           signOff={signOff}
         />
+        {push && <PushSetting publicKey={push.publicKey} firmName={push.firmName} />}
       </section>
 
       <Link

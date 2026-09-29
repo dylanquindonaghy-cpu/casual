@@ -66,7 +66,9 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 ## Push (title / body)
 
 - Offer: "Shift available" / "{date} {start} at {site}. Tap to take it."
-- Urgent: "Urgent shift" / "{role} needed at {site} today {start}."
+- Urgent: "Urgent shift" / "{Role} needed at {site} {day} {start}." (built: sent with each urgent
+  offer to the worker's subscribed phones, `urgentPush()`; tapping opens the shift. Console
+  transport until real web push is connected)
 - Filled: "Shift filled" / "That one's gone. See other open shifts."
 - Reminder: "Tomorrow: {site}" / "{start}–{end}. Tap for instructions."
 - Request update: "Request {status}" / "{type} — tap to view."

@@ -250,5 +250,8 @@ one of those events (docs/compliance.md). Taking, cancelling and other pages sti
 broken service worker would stick on phones until replaced: docs/runbooks.md says how to replace
 it. "Not logged in" is recognised because My shifts answers with a redirect; if a loading screen
 (`loading.tsx` or Suspense) is ever put above the login check, that answer changes and this needs
-revisiting. **Revisit when:** web push (Phase 4) needs the service worker to receive notifications.
+revisiting. Since web push (Phase 4), a phone with notifications on keeps the service worker even
+when `OFFLINE_COPY=off` (it carries the notifications), and that service worker still keeps the
+copy; turning notifications off removes it. **Revisit when:** the real web push sender is
+connected.
 

@@ -1,3 +1,4 @@
+import { roleLabel } from "../portal/format";
 // Message copy from docs/messaging-templates.md. Every message ends with the firm's sign-off.
 
 export interface FirmVoice {
@@ -137,5 +138,19 @@ export function shiftEscalationEmail(
       `Open the office dashboard: ${shift.link}`,
       `— ${firm.signOff}`,
     ].join("\n\n"),
+  };
+}
+
+// Push (title / body), docs/messaging-templates.md "Push": an urgent offer.
+export function urgentPush(shift: {
+  role: string;
+  site: string | null;
+  day: string; // "today", "tomorrow", "on Sat 7 Nov"
+  start: string;
+}): { title: string; body: string } {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return {
+    title: "Urgent shift",
+    body: `${roleLabel(shift.role)} needed${at} ${shift.day} ${shift.start}.`,
   };
 }

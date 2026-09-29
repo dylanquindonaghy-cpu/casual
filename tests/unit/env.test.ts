@@ -39,6 +39,15 @@ describe("environment", () => {
     expect(() => parseAppEnv({ ...app, APP_BASE_DOMAIN: value })).toThrow(/APP_BASE_DOMAIN/);
   });
 
+  it("VAPID_PUBLIC_KEY: empty (as .env.example ships it) means unset; a real key is kept; junk is refused", () => {
+    expect(parseAppEnv({ ...app, VAPID_PUBLIC_KEY: "" }).VAPID_PUBLIC_KEY).toBeUndefined();
+    const key = "B".repeat(87);
+    expect(parseAppEnv({ ...app, VAPID_PUBLIC_KEY: key }).VAPID_PUBLIC_KEY).toBe(key);
+    expect(() => parseAppEnv({ ...app, VAPID_PUBLIC_KEY: "not a key" })).toThrow(
+      /VAPID_PUBLIC_KEY/,
+    );
+  });
+
   it.each(["localhost:3000", "shiftdesk.co.uk"])("accepts APP_BASE_DOMAIN %s", (value) => {
     expect(parseAppEnv({ ...app, APP_BASE_DOMAIN: value }).APP_BASE_DOMAIN).toBe(value);
   });

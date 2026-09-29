@@ -489,6 +489,21 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - The flag stays when an urgent shift fills; if the office wants filled shifts shown as not
     urgent, clear it on fill in `bookShift()` and the sync.
   - (Done in the offer waves task: waves start from "a place reopened inside the window".)
+- **Connect the real web push** (the Phase 4 web push task is blocked on it: an outside service
+  and a secret key):
+  1. `npm install web-push`, then `npx web-push generate-vapid-keys` on the server (never commit the
+     private key).
+  2. Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (mailto:) in production.
+  3. Write the web-push adapter next to the console one (`src/lib/push/transport.ts`), treating
+     404/410 as "gone"; add `PUSH_TRANSPORT=webpush` (production currently must use `none`).
+  4. (Built: the service worker re-saves a renewed subscription, `pushsubscriptionchange`.)
+  5. Rate-limit `POST /api/push/subscribe` (each save writes an event) with the auth throttle.
+  6. Test on a real Android phone and an iPhone (added to the home screen).
+  7. docs/compliance.md: add the browser push services as sub-processors, how long
+     `push_subscriptions` rows are kept, and what notifications show on a locked phone (the
+     Phase 8 privacy notice).
+  Also: push the office's escalation alert, and the push-first-then-WhatsApp order (the `notify`
+  task).
 - Offer waves follow-ups (from the Phase 4 offer waves task):
   - Tell workers whose offer was "filled elsewhere" (the `offer-expire` job and `shift_filled`),
     and let a worker decline an offer (a "No thanks" on the shift page).
@@ -590,3 +605,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.4 | Urgent flag: a cancellation that reopens a place within the firm's urgent window (default 24 h) marks the shift urgent and logs it (worker, office and sheet removals; not a whole shift cancelled or a name swapped), and the office can mark or clear it by hand (admins and resourcers); the review caught a false "dropout" on sheet swaps (fixed and tested); 1565 tests + 21 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.2 | Urgent board: `/urgent` lists the urgent shifts a worker could take (the same checks as Open shifts), with big "Take shift" buttons; My shifts says "1 urgent shift needs someone"; Open shifts labels urgent cards; 1576 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | Offer waves: when a place reopens close to the start (or the office marks a shift urgent), the best eligible workers get the urgent offer by WhatsApp or text (console only), the next group 15 minutes later, stopping when filled, started, cleared or out of people; the office is emailed if still unfilled 3 hours before (all firm settings); the review caught a cancellation-blocking setting and a false "filled elsewhere" (fixed and tested); 1597 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.5 | Web push, BLOCKED (not ticked: real delivery needs Google/Apple push services and a secret key): built everything short of it: phone subscriptions (new table), the subscribe route, the profile's "Notifications on this phone", pushes with each urgent offer through a console sender, the service worker showing and opening them; connecting the real sender is parked; 1649 tests + 25 e2e; verified (see docs/work-log.md) |

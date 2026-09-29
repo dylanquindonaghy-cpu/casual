@@ -23,6 +23,10 @@ const env = {
   CONSOLE_OUTBOX_FILE: OUTBOX,
   // The offline copy of My shifts is off by default in development; the e2e run tests it.
   OFFLINE_COPY: "on",
+  // Web push: never a real key in e2e (a browser would then ask Google's push service), and the
+  // console sender.
+  VAPID_PUBLIC_KEY: "",
+  PUSH_TRANSPORT: "console",
 };
 
 export default defineConfig({

@@ -303,8 +303,12 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   until they tap "Don't show again". A per-firm web app manifest (`src/app/manifest.ts`) names
   the portal "{Firm} shifts" on the home screen.
 - Offline: a service worker (`public/sw.js`, ADR-016) keeps the last copy of My shifts, so it
-  opens without signal, marked "No signal. These are your shifts from {time}". Phase 4's web push
-  will use the same service worker.
+  opens without signal, marked "No signal. These are your shifts from {time}".
+- Web push (Phase 4, built short of real sends): the profile subscribes this phone
+  (`POST /api/push/subscribe`, `push_subscriptions`); offer waves push each urgent offer to the
+  worker's phones as well as WhatsApp/SMS; the same service worker shows the notification and
+  opens the shift (our own pages only). The sender is a console transport: the real one (VAPID
+  keys, the `web-push` library, Google/Apple push services) is parked.
 - WhatsApp: business-initiated messages must use approved templates (utility category for
   offers and login links). From 1 October 2026 Meta charges per service message beyond the
   free tier of 1,000 per number per month, and a payment method must be on file.

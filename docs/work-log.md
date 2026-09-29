@@ -2978,3 +2978,102 @@ Full list: `docs/overnight-log.md`, this task's entry.
 
 With the app running, the offers print in the `npm run dev` terminal when a worker cancels a
 shift within 24 hours of its start.
+
+## 2026-09-29: Phase 4, task 4: Web push, built short of real sends (0.5 h). BLOCKED, not ticked
+
+### Time
+
+0.5 hours of Claude's working time (04:19 to 04:48 UTC), in the unattended overnight loop.
+Phase 4 so far: 1.5 of its 27 to 37 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** A real push notification travels from our server, signed with a
+  secret key (VAPID), to Google's, Apple's or Mozilla's push service, which delivers it to the
+  phone. Tonight's rules forbid contacting outside services, and the key is a secret. So I built
+  everything up to that point, and parked "connect the real web push" with exact steps.
+- `scripts/verify.sh` printed `VERIFIED tree=d854ebcc1276a300 e2e=true`. That covers the type
+  checks, lint, all 1649 tests (up from 1597), the 25 browser tests (up from 23) and the rule
+  checks. A production build was also run and succeeded.
+- No auditor round: the auditor decides whether to tick, and this can't be ticked yet.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **A new table, `push_subscriptions`:** a phone's push address for a worker (migration 0012).
+  It has the usual protections: the firm's id on every row, Row Level Security, and deletion
+  with the worker.
+- **`POST` / `DELETE /api/push/subscribe`:** the logged-in worker saves or removes this phone's
+  push address. It only accepts:
+  - requests from the portal's own pages;
+  - real push-service addresses (Google, Apple, Mozilla, Microsoft);
+  - small requests (at most 4 KB).
+  Each worker can have at most 10 phones. The address itself is never logged.
+- **Profile, "Notifications on this phone":** "Turn on notifications" / "Turn off
+  notifications", with plain words for every case (blocked in settings, browser can't, iPhone
+  not on the home screen yet). Today it says "Phone notifications aren't switched on for Acme
+  Events yet", because the key isn't set.
+- **Pushing:** each urgent offer is also pushed ("Urgent shift" / "Door supervisor needed today
+  19:00.") to the worker's phones, through a console sender that only prints. A phone the push
+  service says is gone is deleted and logged. A setting, `PUSH_TRANSPORT`, must be "none" in
+  production until the real sender exists.
+- **The service worker** shows the notification and opens the shift when it's tapped. It only
+  ever opens our own pages. It also re-saves a renewed subscription.
+- **A shared phone:** logging out or logging in removes the phone's push address, so the next
+  person doesn't get the last person's alerts.
+
+### What the safety review found (all fixed)
+
+It agreed "blocked, not ticked" was right. Its two must-fix items were logging when a gone phone
+is deleted, and a production guard on the push sender. It also suggested:
+
+- the shared-phone fix;
+- the push-service allow-list and the 10-phone cap;
+- checking the size before reading;
+- pinning the key as unset in the browser tests;
+- a relative link (for custom domains);
+- a confirmation when turning off;
+- the renewed-subscription handler.
+
+All done. The review's tests also caught a real bug: a push without a link would have opened
+`/undefined`. Fixed.
+
+### What the new tests prove
+
+- `tests/integration/push.test.ts` (6 tests, real database). It checks:
+  - saving, removing, and a new login taking over the phone;
+  - the 10-phone cap, and a repeat save logging nothing;
+  - not for inactive workers or other firms;
+  - only push-service addresses.
+- `tests/unit/push.test.ts` (13 tests). It covers:
+  - the profile's states and words;
+  - the key conversion and the push wording;
+  - the console sender never printing the phone's address;
+  - the production guard;
+  - turning the offline copy off keeping a service worker that carries notifications.
+- `tests/unit/offline.sw.test.ts` (6 new tests): showing a push; never opening another site;
+  tapping opens or brings forward the shift; renewed subscriptions.
+- `tests/integration/offers.waves.test.ts` (2 new tests): offers are pushed to subscribed
+  phones; a gone phone is forgotten and logged.
+- `tests/e2e/push.worker.spec.ts` (2 browser tests). The route's checks: not logged in, another
+  site, no Origin, too big, not a subscription, saved then removed. And the profile's message.
+  The subscription posted is made up, so nothing reached Google or Apple.
+
+### Parked, open, and things that need Dylan
+
+- **To connect real web push** (PLAN.md Parking lot, numbered steps):
+  1. install `web-push`;
+  2. generate the keys on the server (never in the repo);
+  3. set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`;
+  4. write the small adapter;
+  5. rate-limit the route;
+  6. test on a real Android phone and an iPhone.
+- Compliance wording for push (sub-processors, retention, lock-screen text): parked for the
+  Phase 8 privacy notice.
+
+### How to see it working
+
+1. Run `npm run dev` and log in.
+2. Open "My profile". Under "How we reach you" you'll see "Notifications on this phone" saying
+   phone notifications aren't switched on yet. That's expected until the real sender is
+   connected.

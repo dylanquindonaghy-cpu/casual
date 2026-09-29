@@ -98,17 +98,44 @@ function loadWorker(
   const listeners: Record<string, Handler> = {};
   const fetched: string[] = [];
   const inits: Record<string, Init | undefined> = {};
+  const shown: { title: string; options: { body: string; data: { url: string } } }[] = [];
+  const calls: { path: string; init?: Init & { method?: string; body?: string } }[] = [];
+  const resubscribed: unknown[] = [];
+  const opened: string[] = [];
+  const focused: string[] = [];
+  const windows: { url: string; focus: () => Promise<void> }[] = [];
   const sandbox = vm.createContext({
     self: {
       location: { origin: ORIGIN },
       addEventListener: (type: string, fn: Handler) => (listeners[type] = fn),
       skipWaiting: () => undefined,
-      clients: { claim: async () => undefined },
+      clients: {
+        claim: async () => undefined,
+        matchAll: async () => windows,
+        openWindow: async (url: string) => {
+          opened.push(url);
+        },
+      },
+      registration: {
+        showNotification: async (title: string, options: (typeof shown)[number]["options"]) => {
+          shown.push({ title, options });
+        },
+        pushManager: {
+          subscribe: async (options: unknown) => {
+            resubscribed.push(options);
+            return {
+              endpoint: "https://fcm.googleapis.com/fcm/send/renewed",
+              toJSON: () => ({ endpoint: "https://fcm.googleapis.com/fcm/send/renewed", keys: {} }),
+            };
+          },
+        },
+      },
     },
     caches,
     fetch: (r: Req | string, init?: Init) => {
       fetched.push(new URL(key(r)).pathname);
       inits[new URL(key(r)).pathname] = init;
+      calls.push({ path: new URL(key(r)).pathname, init });
       return network(r, init);
     },
     Request,
@@ -127,6 +154,12 @@ function loadWorker(
     caches,
     fetched,
     inits,
+    shown,
+    calls,
+    resubscribed,
+    opened,
+    focused,
+    windows,
     sandbox: sandbox as unknown as Record<string, unknown>,
   };
 }
@@ -423,5 +456,126 @@ describe("switching the offline copy on and off (OFFLINE_COPY)", () => {
     expect(offlineCopyOn({ NODE_ENV: "test" })).toBe(false);
     expect(offlineCopyOn({ NODE_ENV: "development", OFFLINE_COPY: "on" })).toBe(true);
     expect(offlineCopyOn({ NODE_ENV: "production", OFFLINE_COPY: "off" })).toBe(false);
+  });
+});
+
+describe("web push notifications", () => {
+  const settle = async (handler: Handler | undefined, event: Record<string, unknown>) => {
+    const pending: Promise<unknown>[] = [];
+    handler?.({ ...event, waitUntil: (p: Promise<unknown>) => pending.push(p) });
+    await Promise.all(pending);
+  };
+  const pushEvent = (data: unknown) => ({
+    data: {
+      json: () => {
+        if (typeof data === "string") throw new SyntaxError("not JSON");
+        return data;
+      },
+    },
+  });
+
+  it("shows the pushed offer, keeping its link", async () => {
+    const w = loadWorker(async () => answer("x"));
+    await settle(
+      w.listeners.push,
+      pushEvent({
+        title: "Urgent shift",
+        body: "Door supervisor needed today 19:00.",
+        url: "/shifts/1",
+      }),
+    );
+    expect(w.shown).toEqual([
+      {
+        title: "Urgent shift",
+        options: {
+          body: "Door supervisor needed today 19:00.",
+          data: { url: `${ORIGIN}/shifts/1` },
+        },
+      },
+    ]);
+  });
+
+  it("a push that isn't what we send still shows something safe", async () => {
+    const w = loadWorker(async () => answer("x"));
+    await settle(w.listeners.push, pushEvent("garbage"));
+    await settle(w.listeners.push, pushEvent({ title: 42, url: "https://evil.example/phish" }));
+    expect(w.shown.map((n) => [n.title, n.options.data.url])).toEqual([
+      ["Shift update", `${ORIGIN}/`],
+      ["Shift update", `${ORIGIN}/`], // never another site's page
+    ]);
+  });
+
+  it("tapping it opens the shift, or brings forward a window already on it", async () => {
+    const w = loadWorker(async () => answer("x"));
+    const tap = (url: string) =>
+      settle(w.listeners.notificationclick, {
+        notification: { close: () => undefined, data: { url } },
+      });
+    await tap(`${ORIGIN}/shifts/1`);
+    expect(w.opened).toEqual([`${ORIGIN}/shifts/1`]);
+    w.windows.push({
+      url: `${ORIGIN}/shifts/2`,
+      focus: async () => {
+        w.focused.push(`${ORIGIN}/shifts/2`);
+      },
+    });
+    await tap(`${ORIGIN}/shifts/2`);
+    expect(w.focused).toEqual([`${ORIGIN}/shifts/2`]);
+    expect(w.opened).toHaveLength(1);
+    // A link to anywhere else opens our home page instead.
+    await tap("https://evil.example/phish");
+    expect(w.opened.at(-1)).toBe(`${ORIGIN}/`);
+  });
+});
+
+describe("a renewed push subscription", () => {
+  const change = async (w: ReturnType<typeof loadWorker>, event: Record<string, unknown>) => {
+    const pending: Promise<unknown>[] = [];
+    w.listeners.pushsubscriptionchange?.({
+      ...event,
+      waitUntil: (p: Promise<unknown>) => pending.push(p),
+    });
+    await Promise.all(pending);
+  };
+
+  it("saves the new one for the logged-in worker and drops the old one", async () => {
+    const w = loadWorker(async () => answer("{}"));
+    await change(w, {
+      oldSubscription: { endpoint: "https://fcm.googleapis.com/fcm/send/old" },
+      newSubscription: {
+        endpoint: "https://fcm.googleapis.com/fcm/send/new",
+        toJSON: () => ({ endpoint: "https://fcm.googleapis.com/fcm/send/new", keys: {} }),
+      },
+    });
+    expect(w.calls.map((c) => [c.path, c.init?.method, c.init?.body])).toEqual([
+      [
+        "/api/push/subscribe",
+        "POST",
+        JSON.stringify({ endpoint: "https://fcm.googleapis.com/fcm/send/new", keys: {} }),
+      ],
+      [
+        "/api/push/subscribe",
+        "DELETE",
+        JSON.stringify({ endpoint: "https://fcm.googleapis.com/fcm/send/old" }),
+      ],
+    ]);
+  });
+
+  it("subscribes again with the old key when the browser gives no new one", async () => {
+    const w = loadWorker(async () => answer("{}"));
+    await change(w, {
+      oldSubscription: {
+        endpoint: "https://fcm.googleapis.com/fcm/send/old",
+        options: { applicationServerKey: "KEY" },
+      },
+    });
+    expect(w.resubscribed).toEqual([{ userVisibleOnly: true, applicationServerKey: "KEY" }]);
+    expect(w.calls.map((c) => c.init?.method)).toEqual(["POST", "DELETE"]);
+  });
+
+  it("does nothing it can't: no old key, no new subscription", async () => {
+    const w = loadWorker(async () => answer("{}"));
+    await change(w, { oldSubscription: null });
+    expect(w.calls).toEqual([]);
   });
 });

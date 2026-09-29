@@ -44,6 +44,16 @@ const appFields = {
   // The offline copy of My shifts (public/sw.js, ADR-016). Unset: on in production, off in
   // development (a slow first compile would show an old copy). The e2e run sets "on".
   OFFLINE_COPY: z.enum(["on", "off"]).optional(),
+  // The public half of the deployment's VAPID key pair, for web push subscriptions. Unset: the profile says
+  // phone notifications aren't switched on yet (PLAN.md Parking lot, "connect the real web push").
+  // An empty value (as .env.example ships it) means not set.
+  VAPID_PUBLIC_KEY: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{80,100}$/, { message: "must be a base64url VAPID public key" })
+      .optional(),
+  ),
 };
 
 const realSecret = (e: { NODE_ENV: string; SESSION_SECRET: string }) =>
@@ -71,8 +81,16 @@ export const workerEnvSchema = z
     // rule 6) it must not run for real. "google" (with GOOGLE_SERVICE_ACCOUNT_JSON_PATH, a key
     // file in the git-ignored secrets/) is added then, like "twilio" for messaging.
     SHEETS_TRANSPORT: z.enum(["none"]).default("none"),
+    // Web push. "console" prints what would be pushed (development and tests); "none" pushes
+    // nothing. The real sender ("webpush", with VAPID keys) is added when it's connected (PLAN.md
+    // Parking lot); until then production must use "none".
+    PUSH_TRANSPORT: z.enum(["console", "none"]).default("console"),
   })
   .refine(realSecret, realSecretMessage)
+  .refine((e) => e.NODE_ENV !== "production" || e.PUSH_TRANSPORT !== "console", {
+    path: ["PUSH_TRANSPORT"],
+    message: "console push is not allowed when NODE_ENV=production",
+  })
   // Production must never silently print messages instead of sending them.
   .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "console", {
     path: ["MESSAGING_TRANSPORT"],

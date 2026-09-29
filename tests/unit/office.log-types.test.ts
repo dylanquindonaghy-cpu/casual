@@ -27,7 +27,13 @@ function sourceFiles(dir: string): string[] {
 // Every "word.word" string in the code. Today each one is an event kind; a new string of this shape
 // that isn't one must be listed in NOT_EVENTS here on purpose.
 const ACTION = /"([a-z_]+\.[a-z_]+)"/g;
-const NOT_EVENTS = new Set<string>([]);
+const NOT_EVENTS = new Set<string>([
+  // Column names in the pilot metrics rollup's SQL (src/lib/metrics/rollup.ts).
+  "e.created_at",
+  "r.created_at",
+  "o.responded_at",
+  "s.starts_at",
+]);
 const recorded = new Set(
   sourceFiles(ROOT)
     .filter((path) => !path.endsWith("log-types.ts") && !path.endsWith("event-words.ts"))

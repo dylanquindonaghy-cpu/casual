@@ -315,6 +315,25 @@ create table shift_reminders (
   unique (firm_id, assignment_id, kind, starts_at) -- claimed once: a retried or doubled job sends nothing twice
 );
 
+-- Pilot metrics (Phase 5, docs/pilot-playbook.md; src/lib/db/schema/metrics.ts): one number per
+-- firm, kind, day and metric. baseline: the office's week-0 figures (day: the week's first day);
+-- tally: the office's weekly count of emails, calls, WhatsApp and resourcer hours (day: that
+-- week's Monday); daily: the nightly rollup's counts for one firm-local day
+-- (src/lib/metrics/rollup.ts, the last 7 days recomputed each night). Figures only; no DELETE.
+create table metrics_daily (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  day date not null,
+  kind text not null,                    -- baseline | tally | daily
+  metric text not null,                  -- e.g. calls_per_day, portal_actions (^[a-z][a-z_]{0,59}$)
+  value numeric(12,2) not null,          -- >= 0
+  recorded_by uuid,                      -- (firm_id, recorded_by) -> office_users; set exactly when kind <> 'daily'
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, kind, day, metric)
+);
+
 -- Where a firm's rota lives when it isn't our tables (native firms have no row). No secrets:
 -- the firm shares its sheet with our service account; the key is in the worker's environment.
 create table roster_sources (

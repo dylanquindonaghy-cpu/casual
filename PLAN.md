@@ -180,7 +180,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
 - [x] Action log with filters (worker, shift, date, type)
 - [x] Notice and cancellation report: every offer/change/cancel with timestamps, initiator and
       notice hours; short-notice flag at a firm-set threshold (final 2027 rules still pending); CSV export
-- [ ] Pilot metrics page: baseline entry form + daily rollup job (`docs/pilot-playbook.md`)
+- [x] Pilot metrics page: baseline entry form + daily rollup job (`docs/pilot-playbook.md`)
 - [ ] Tests: `notice.report` (worker cancel, firm cancel, move, curtail)
 Docs: `docs/screens.md`, `docs/pilot-playbook.md`.
 
@@ -641,6 +641,22 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Other office client buttons (edit shift, create, import, offer, quick actions) can be clicked
     before the page is hydrated and then do nothing: give them `useHydrated()` like the assign,
     move and cancel buttons.
+- Pilot metrics follow-ups (Phase 5):
+  - **Dylan to confirm the definitions:** portal actions = workers taking or cancelling shifts,
+    days off, notification settings and opening the pay page (not logins; requests are for the
+    office, counted apart); portal adoption = active workers who have *ever* logged in; refill
+    time = a worker's cancellation to the next booking on that shift within 7 days; "answered
+    straight away" = portal actions against portal actions plus requests (instant WhatsApp
+    replies join it in Phase 7); the page's default is the 7 complete days to yesterday.
+  - Refill time pairs each cancellation with the next booking on the shift, so two cancellations
+    and one booking count twice, and a booking into a place that was already open counts too.
+    Pair each booking with one cancellation if the numbers look off.
+  - Log who pressed "Update the figures now" (`metrics.recomputed`), if wanted.
+  - "Messages in" uses the office's weekly tally until inbound WhatsApp (Phase 7) is counted by
+    the app; the rollup could add those then.
+  - The nightly rollup recomputes 7 days: a fact older than that (a no-show marked two weeks
+    late) isn't counted. Widen it, or recompute a chosen range from the page, if needed.
+  - A CSV of the table for the week-4 report (the page is printable meanwhile).
 - Notice report follow-ups (Phase 5):
   - **Dylan to confirm:** the short-notice threshold is read from the firm's settings (48 hours
     unless set); there's no screen to change it yet. Changing a firm's settings in the app needs
@@ -878,3 +894,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 0.5 | Answering requests: a new office Requests page lists what workers asked (oldest first) with the shift and their note; the office approves or declines with a note (needed to decline), one answer only even if two people try at once; the worker gets "Your request (swap, ref …) is declined. The office says: …" by WhatsApp or text (quiet hours respected, once only) and sees the note in My requests; the office sees whether they were told; the review caught a reply about a finished shift that could go at night (fixed and tested); 2005 tests + 34 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.5 | Action log: a new office page shows every recorded event, newest first, in plain words, filtered by worker, shift, type (12 plain groups) and dates in London time (default the last 7 days; all of one shift from its page), 100 at a time; a test fails if any event the code records has no group or words; the review caught a test that would have failed on 19–22 October and two pay-record events the words had missed (both fixed); 2093 tests + 35 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.5 | Notice and cancellation report: a new office page lists every offer, booking, move, shortening and cancellation from the log, with when, who started it (worker, office, rota sheet, offer wave), the notice the worker had and a short-notice flag at the firm's threshold (48 hours unless the firm sets its own), filtered by dates, kind, who started it and short notice, and downloads as a CSV file (all rows or none, safe to open in a spreadsheet); offers now record their notice too; the review caught rota-sheet changes showing no worker, moves showing only start times and a file that could be cut short (all fixed and tested); 2103 tests + 36 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 5 | 0.6 | Pilot metrics: a new office page puts the week-0 baseline (a form for the playbook's 8 figures) against the app's own figures for chosen dates (portal actions, answered straight away, unanswered after 24 hours, refill time, active workers, adoption, urgent fill rate, no-shows, short-notice cancellations), plus a weekly tally form for what the app can't see; a nightly job at 00:30 (new `metrics_daily` table, isolated per firm) recomputes the last 7 days, or "Update the figures now"; the review caught requests counted as instant answers and partial days skewing the weekly figures (both fixed and tested); 2139 tests + 37 e2e; verified and audited DONE (see docs/work-log.md) |

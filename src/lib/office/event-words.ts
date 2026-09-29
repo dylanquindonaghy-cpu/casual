@@ -274,6 +274,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `A pay record was added for ${worker}${period(d.periodStart, d.periodEnd)}.`;
     case "pay_record.updated":
       return `${worker}'s pay record was updated.`;
+    case "metrics.baseline_saved":
+      return `${officeName} saved the pilot baseline${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
+    case "metrics.tally_saved":
+      return `${officeName} saved the weekly tally${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
     case "site.created":
       return "A site was added from the rota sheet.";
     default:

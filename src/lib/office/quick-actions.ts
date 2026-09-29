@@ -1,5 +1,12 @@
 import type { Clock } from "../auth/clock";
 import { withFirm, type WithFirm } from "../db/scoped";
+import {
+  saveFigures,
+  updateFiguresNow,
+  type FigureKind,
+  type SaveFiguresResult,
+  type UpdateNowResult,
+} from "../metrics/entry";
 import { queueOfficeOffer, type QueueOfficeOfferResult } from "../offers/office-offer";
 import {
   markAttendance,
@@ -159,4 +166,19 @@ export function answerRequest(
 ): Promise<ResolveRequestResult> {
   const { run, by, deps } = parts(ctx);
   return resolveRequest(run, ctx.firm.id, { requestId, decision, note, by }, deps);
+}
+
+export function savePilotFigures(
+  ctx: OfficeContext,
+  kind: FigureKind,
+  weekStart: string,
+  values: Record<string, string>,
+): Promise<SaveFiguresResult> {
+  const { run, by, deps } = parts(ctx);
+  return saveFigures(run, ctx.firm.id, { kind, weekStart, values, by }, deps);
+}
+
+export function updatePilotFiguresNow(ctx: OfficeContext): Promise<UpdateNowResult> {
+  const { run, by, deps } = parts(ctx);
+  return updateFiguresNow(run, ctx.firm.id, by, deps);
 }

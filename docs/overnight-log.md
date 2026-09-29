@@ -3783,3 +3783,87 @@ by code + passing unit, integration and e2e tests on the current verified tree."
 **Hours:** 0.5 h (11:32 to 12:00 UTC). Phase 5 so far 4.7 h of its 23–33 h estimate.
 
 **Parked:** see PLAN.md, "Notice report follow-ups" (two Dylan-to-confirm items).
+
+## 2026-09-29 12:03 UTC: Phase 5, "Pilot metrics page: baseline entry form + daily rollup job (`docs/pilot-playbook.md`)"
+
+**Plan** (docs/pilot-playbook.md baseline and metrics tables; docs/screens.md `/office/reports/pilot`;
+docs/api-and-jobs.md `metrics-rollup`; docs/data-model.md `metrics_daily`).
+1. **Schema: `metrics_daily`** (new; `firm_id`, RLS, TABLE_ACCESS without delete, isolation
+   fixtures): one number per firm, kind, day and metric.
+   - `baseline`: the playbook's week-0 figures, entered by the office (day = the baseline week's
+     first day);
+   - `tally`: the office's weekly count of emails, calls and WhatsApp messages, and resourcer
+     hours (day = that week's Monday). The app can't see these itself;
+   - `daily`: the nightly rollup's counts for one firm-local day.
+   Unique on (firm, kind, day, metric); values 0 or more (2 decimals); who entered it for baseline
+   and tally (a composite FK to office_users), nobody for daily.
+2. **Rollup** (`src/lib/metrics/rollup.ts`): a `metrics-rollup-tick` cron at 00:30 London queues a
+   `metrics-rollup` job per firm (one per local date). The job recomputes the last 7 days and
+   today (upserts), so late changes count: a no-show marked days later, a request answered
+   late. Daily counts: workers who logged in, portal actions (taking, cancelling, requests, days
+   off, settings, pay page), requests made, requests not answered within 24 hours, worker and
+   firm cancellations, short-notice cancellations (the firm's threshold), shifts marked urgent,
+   urgent shifts filled from an offer wave, no-shows (bookings marked not attended, by shift
+   day). The office can also press "Update the figures now" (same code, straight away).
+3. **Page `/office/reports/pilot`** (new area `pilot`, admins and resourcers): baseline against
+   now for a chosen period (default the last 7 days, today so far included): messages in per day,
+   unanswered shift queries, portal actions, instant answers, median refill time, active workers,
+   portal adoption, urgent fill rate, no-shows per week, short-notice cancellations per week,
+   resourcer hours per week. Figures that don't add up across days (median refill time, active
+   workers, portal adoption) are worked out live from the log for the period.
+4. **Forms**: "Baseline (week 0)" (the playbook's 8 figures, the week it was counted) and "This
+   week's tally" (emails, calls, WhatsApp per day; resourcer hours). A blank field keeps what's
+   there. Each save is logged (`metrics.baseline_saved` / `metrics.tally_saved`, numbers only).
+5. **Tests**: integration (each daily count from real rows and events, the 7-day recompute and
+   idempotence, firm-local days, the tick once per day per firm, the forms' validation and
+   logging, the page's figures and live metrics, other firms, roles), unit (words, the form
+   check), e2e (enter a baseline, update the figures, see baseline against now).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| One table, three kinds | The doc names one table for "baseline and daily counts"; tallies are the same shape | Separate baseline and tally tables |
+| Recompute the last 7 days every night | Late facts (a no-show marked on Monday for Saturday) are counted without a second pass | Compute each day once |
+| Medians and distinct counts worked out live | A median or "distinct workers" can't be added up from daily rows | Store daily medians (wrong over a week) |
+| "Instant answers" counts portal actions against requests | Inbound WhatsApp replies (the other half) come in Phase 7 | Leave it out until then |
+| Admins and resourcers; no delete | The resourcer keeps the tally; figures are evidence for the week-4 report | Admin only |
+
+**Built as planned.** Root causes while building:
+- The office's saves were refused by the log's safety check: a field named after emails
+  (`emails_per_day`) counts as personal, and a field named `values` is dropped. The event now
+  holds `figures: [{metric, value}]`.
+- The isolation fixture's metrics row first pointed at the tenant's office user, which the
+  isolation tests delete (the link has no delete action); then at an extra office user, which
+  broke a test that counts a firm's office users. It's now a rollup figure (no office link); the
+  link across firms is still tested by its own case.
+- Two of my expectations were wrong, not the code: a worker's own cancellation is also a portal
+  action; a booking outside the chosen dates isn't an active worker.
+- The action log's scan found the rollup's SQL column names ("e.created_at"…) and asked for them
+  to be listed on purpose as not events: listed.
+
+**Verify round 1: NOT VERIFIED** (`auth.office.test.ts`: the office team count, from the fixture
+above). Fixed as described.
+
+**Guardrails review: FIX FIRST (2), both fixed.**
+1. **"Answered straight away" counted every request as an instant answer** (and twice in the
+   total): `request.created` was a portal action and requests were added again. **Fix:** requests
+   are for the office and no longer portal actions; the figure is portal actions against portal
+   actions plus requests, as the playbook defines it. Tested.
+2. **Partial days skewed the figures.** The default period ended today (only partly counted), so
+   per-week figures came out low; and requests under 24 hours old counted as "not late".
+   **Fix:** the default is the 7 complete days to yesterday; "unanswered after 24 hours" counts
+   only requests whose 24 hours are up or that were answered (a new daily count,
+   `requests_due`). Tested.
+
+**Suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| The short-notice cast could fail the whole rollup on one odd value | A `case` guard, as the notice report has |
+| Urgent fill rate added up per day could pass 100% | Worked out live over the dates, each shift once; tested (a shift marked on two days counts once) |
+| Adoption query ran a search per worker | One join to the workers who have logged in |
+| Tally form always blank; "Not counted this week" for past dates; the tally's date message | Filled in with this week's figures; "No tally for these dates"; "Choose a day in the week." |
+| Refill pairing; logging "Update the figures now" | Parked |
+| An `access.ts` comment | Added (the check name stays: the migration is already applied in dev) |
+

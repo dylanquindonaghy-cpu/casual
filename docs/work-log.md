@@ -4353,3 +4353,99 @@ need evidence. This report is that evidence, and the main selling point in the b
 2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
 3. Click "Notice report". The demo's bookings and the 06:00 dropout are there, with their notice.
 4. Choose "Cancellations" under "What", press "Show", then "Download as a spreadsheet (CSV)".
+
+## 2026-09-29: Phase 5, task 8: The pilot metrics page and nightly figures (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (12:03 to 12:40 UTC), in the unattended overnight loop.
+Phase 5 so far: 5.3 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=e23644a533c5889c e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2139 tests (up from 2103);
+  - the 37 browser tests (1 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+The pilot's job is to produce numbers a second firm will believe (docs/pilot-playbook.md): the
+office's workload before the app (the "baseline") against after. Now:
+- **A pilot metrics page** (`/office/reports/pilot`, "Pilot metrics" in the office menu, admins and
+  resourcers) with a table: each measure, its baseline, its figure now, and the playbook's target
+  for week 4. The measures:
+  - messages in per day (emails, calls, WhatsApp);
+  - shift queries unanswered after 24 hours;
+  - portal actions (staff doing it themselves), and the share answered straight away;
+  - the median time to refill a cancellation;
+  - active workers, and how many of them have logged in (portal adoption);
+  - urgent shifts filled from offers;
+  - no-shows and short-notice cancellations per week;
+  - resourcer hours on staff admin per week.
+- **The baseline form**: the playbook's 8 week-0 figures, and the week they were counted.
+- **The weekly tally form**: what the app can't see (the office's emails, calls, WhatsApp messages
+  and admin hours), entered each week of the pilot.
+- **Nightly figures**: a background job at 00:30 UK time works out each firm's daily counts from the
+  action log and the database, for the last 7 days and today. Recomputing a week each night means
+  a late fact still counts: a no-show marked on Monday for Saturday, a request answered late. An
+  "Update the figures now" button does the same straight away.
+- Figures that can't be added up day by day (a median, distinct workers, an urgent shift filled
+  the next day) are worked out live for the chosen dates.
+- **One new table**, `metrics_daily`: one number per firm, kind (baseline, tally, daily), day and
+  metric. Every firm sees only its own rows (row-level security, tested like every other table).
+  No names or personal data; rows can be corrected but not deleted.
+- Saving the baseline or a tally is logged in the action log (numbers only).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One table for baseline, tallies and nightly counts | The docs name one table; they're the same shape | Three tables |
+| Recompute the last 7 days every night | Late facts count without a second pass | Count each day once |
+| Medians, distinct workers and the urgent fill rate worked out live | They can't be added up from daily rows | Store daily medians (wrong over a week) |
+| The default is the 7 complete days to yesterday | Today is only partly counted, which would make weekly figures look better than they are | Include today |
+| Requests aren't "portal actions" | Someone in the office has to answer them; the playbook counts them apart | Count them as self-service |
+| "Answered straight away" without WhatsApp replies for now | Inbound WhatsApp comes in Phase 7 | Leave the figure out until then |
+
+### What the new tests prove
+
+- `tests/integration/pilot.metrics.test.ts` (11 tests, on the real database):
+  - one day's 11 counts from real rows and events (who counts and who doesn't: office logins,
+    office bookings, an office offer, Sunday night's login, Tuesday's no-show);
+  - London days, summer time too, and the firm's own short-notice line;
+  - the 7-day recompute, running it twice changes nothing, and a late no-show is counted;
+  - the nightly tick queues one job per firm per day, and the job rolls up that date only;
+  - the worker process runs the job and schedules the tick for 00:30 UK time;
+  - saving the baseline (a blank keeps what's there), the log entry with numbers only, figures
+    refused when they aren't numbers in range, an empty form, payroll refused;
+  - a weekly tally kept against that week's Monday;
+  - the page's figures: the latest baseline, the tally, the daily sums, the live refill median,
+    adoption and urgent fill rate (a shift marked on two days counted once);
+  - only this firm's figures; payroll and logged-out people get nothing;
+  - "Update the figures now".
+- `tests/unit/office.pilot-copy.test.ts`: the table's words and numbers, durations, each save's
+  message, and the figure check.
+- The isolation tests now include `metrics_daily`, and the action log's scan covers the new events.
+- `tests/e2e/office.pilot.spec.ts` (1 browser test): enter part of the baseline, see a wrong figure
+  refused, update the figures, and see baseline against now.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`, Parking lot, "Pilot metrics follow-ups"): the definitions
+  (what counts as a portal action, adoption, refill time, "answered straight away", the default
+  dates).
+- **Parked:** counting inbound WhatsApp messages (Phase 7); facts older than 7 days; a CSV of the
+  table; pairing refills one to one; logging who pressed "Update the figures now".
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
+3. Click "Pilot metrics". Fill in a few baseline figures and press "Save the baseline".
+4. Press "Update the figures now", then set "To" to today and press "Show": the demo's bookings
+   appear as portal actions.

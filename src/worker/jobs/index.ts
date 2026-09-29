@@ -18,6 +18,13 @@ import {
   type FirmJobEnvelope,
   type FirmTask,
 } from "../../lib/jobs/firm-job";
+import {
+  METRICS_ROLLUP_CRON,
+  METRICS_ROLLUP_TICK_QUEUE,
+  METRICS_ROLLUP_TZ,
+  metricsRollupFirmTask,
+  runMetricsRollupTick,
+} from "../../lib/metrics/rollup";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { officeOfferJob, type OfficeOfferPayload } from "../../lib/offers/office-offer";
@@ -87,6 +94,15 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   });
   await boss.schedule(CREDENTIAL_SCAN_TICK_QUEUE, CREDENTIAL_SCAN_CRON, null, {
     tz: CREDENTIAL_SCAN_TZ,
+  });
+
+  // Pilot metrics: each firm's daily figures, recomputed for the last 7 days every night.
+  await registerFirmTask(boss, metricsRollupFirmTask);
+  await boss.work(METRICS_ROLLUP_TICK_QUEUE, async () => {
+    await runMetricsRollupTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+  });
+  await boss.schedule(METRICS_ROLLUP_TICK_QUEUE, METRICS_ROLLUP_CRON, null, {
+    tz: METRICS_ROLLUP_TZ,
   });
 
   if (deps.sheets) {

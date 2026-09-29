@@ -43,6 +43,11 @@ export default async function OfficeHome() {
             Notice report
           </Link>
         )}
+        {canAccess(officeUser.role, "pilot") && (
+          <Link href="/office/reports/pilot" className="underline">
+            Pilot metrics
+          </Link>
+        )}
         {canAccess(officeUser.role, "team") && (
           <Link href="/office/team" className="underline">
             Office team

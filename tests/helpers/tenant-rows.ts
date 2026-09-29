@@ -15,6 +15,7 @@ export const EXPECTED_TABLES = [
   "events",
   "firms",
   "magic_links",
+  "metrics_daily",
   "offers",
   "office_users",
   "otp_codes",
@@ -195,6 +196,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, '24h', now(), 'sent', 'whatsapp')`,
     [firmId, assignmentId],
   );
+  // A rollup figure: no office user link (entered figures have one, tested in FK_CASES), so the
+  // isolation tests can delete rows.office_users.
+  const metricsId = await one(
+    su,
+    `insert into metrics_daily (firm_id, day, kind, metric, value)
+     values ($1, '2026-10-26', 'daily', 'portal_actions', 12)`,
+    [firmId],
+  );
   // Pay records point at the rota worker too: their worker link has no ON DELETE action.
   const payRecordId = await one(
     su,
@@ -233,6 +242,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       worker_unavailable_days: unavailableDayId,
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
+      metrics_daily: metricsId,
     },
   };
 }
@@ -334,6 +344,14 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, $2, '2h', $3, 'sent', 'sms')`,
     values: [firmId, p.rows.assignments, new Date(Date.UTC(2027, 0, 1) + next() * 60_000)],
   }),
+  metrics_daily: (firmId) => ({
+    text: `insert into metrics_daily (firm_id, day, kind, metric, value)
+           values ($1, $2, 'daily', 'portal_actions', 3)`,
+    values: [
+      firmId,
+      new Date(Date.UTC(2027, 0, 1) + next() * 86_400_000).toISOString().slice(0, 10),
+    ],
+  }),
 };
 
 // Every composite foreign key between firm tables. `own` supplies the row's other parents;
@@ -421,6 +439,15 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-09', '2026-11-15', 1, $3)`,
     values: [firmId, other.workerId, 2000 + next()],
+  }),
+  metrics_daily_recorded_by_fk: (firmId, _own, other) => ({
+    text: `insert into metrics_daily (firm_id, day, kind, metric, value, recorded_by)
+           values ($1, $2, 'tally', 'calls_per_day', 1, $3)`,
+    values: [
+      firmId,
+      new Date(Date.UTC(2027, 5, 1) + next() * 86_400_000).toISOString().slice(0, 10),
+      other.officeUserId,
+    ],
   }),
   shift_reminders_assignment_fk: (firmId, _own, other) => ({
     text: `insert into shift_reminders (firm_id, assignment_id, kind, starts_at, status)

@@ -116,6 +116,10 @@ export const LOG_TYPES = {
     label: "Pay records",
     actions: ["pay_record.imported", "pay_record.updated"],
   },
+  pilot: {
+    label: "Pilot metrics",
+    actions: ["metrics.baseline_saved", "metrics.tally_saved"],
+  },
   sheet: {
     label: "Rota sheet and imports",
     actions: [

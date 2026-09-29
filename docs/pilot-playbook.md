@@ -17,7 +17,10 @@ Collect for one normal week and, if possible, one busy week:
 | Resourcer hours on staff admin per week | Self-estimate, then a 2-day time log | Normal vs busy |
 | Short-notice cancellations (firm and worker) | Count under the firm's threshold | For the 2027 story |
 
-Enter these in `/office/reports/pilot` so the comparison is automatic.
+Enter these in `/office/reports/pilot` ("Baseline (week 0)") so the comparison is automatic.
+During the pilot, enter the emails, calls, WhatsApp messages and resourcer hours each week under
+"This week's tally" (the app can't see the office inbox or phone); everything else is counted by
+the app each night (and on "Update the figures now").
 
 ## Weekly rhythm (4 weeks)
 

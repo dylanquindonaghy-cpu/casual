@@ -2512,3 +2512,15 @@ Other findings, and what I did:
 | `pushsubscriptionchange` needs no outside service | Built in `public/sw.js`, with sandbox tests |
 | The web-push adapter itself | Still parked: it's the connection to the outside service |
 | Rate-limiting the route, compliance wording | Parked in "Connect the real web push" |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=d854ebcc1276a300 e2e=true` (1649 tests, 25 e2e).
+`npm run build` run by hand: succeeds.
+
+**Status: BLOCKED, not ticked** (hard limit: real web push needs the browser makers' push
+services and a secret VAPID key). Everything short of real delivery is built, verified and
+committed. The next step is Dylan's: "Connect the real web push" in the PLAN.md Parking lot. No
+auditor round: the auditor decides a tick, and this task can't be ticked until the real sender is
+connected and tested on real phones.
+**Hours:** 0.5 (04:19 to 04:48 UTC). Phase 4 so far: 1.5 h of its 27–37 h estimate.
+**Commit:** `fa29082`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

@@ -32,13 +32,15 @@ Rules:
 ## Sign-off
 
 Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". Never a person's name.
+In a text message's own SMS version it follows a plain hyphen (" - Acme Events Shift Team"): a
+dash isn't a standard text character and would make the text cost more.
 
-## WhatsApp templates (submit for approval in Phase 7; category shown is our expectation — confirm on approval)
+## WhatsApp templates (submission pack built in Phase 4, submitted with "Connect Twilio"; category shown is our expectation — confirm on approval)
 
 | Name | Category | Body (variables in braces) |
 |---|---|---|
 | `login_link` | Utility | "Here's your {firm} shifts link: {link}. It works for 15 minutes and only for you. — {firm} Shift Team" ({link} is `https://<portal>/l#<token>`; one per login request, so it is exempt from the once-a-day rule) |
-| `login_code` | Utility | "Your {firm} code is {code}. It works for 10 minutes. Don't share it with anyone. — {firm} Shift Team" (pay-page step-up; one per request, exempt from the once-a-day rule. Meta's authentication category has fixed wording without a sign-off: decide in Phase 7) |
+| `login_code` | Utility | "Your {firm} code is {code}. It works for 10 minutes. Don't share it with anyone. — {firm} Shift Team" (pay-page step-up; one per request, exempt from the once-a-day rule. Meta's authentication category has fixed wording without a sign-off, and Meta usually requires it for one-time codes: decide at submission) |
 | `office_login_link` | Email | Subject "Your {firm} office login link". Body: "Here's your link to the {firm} office dashboard: {link}. It works for 15 minutes, once, and only for you. If you didn't ask for it, you can ignore this email. — {firm} Shift Team" (console transport in Phase 1; SES later) |
 | `shift_offer` | Utility | "Shift available: {date} {start}–{end} at {site} ({role}). Tap to take it: {link}. First to accept gets it. — {firm} Shift Team" |
 | `shift_urgent` | Utility | "URGENT: we need a {role} at {site} {day} {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" ({day} is "today", "tomorrow" or "on Sat 7 Nov": an urgent shift isn't always today; "at {site}" is left out when the shift has no site; "an" before a vowel. Sent by the offer waves, `src/lib/offers/waves.ts`) |
@@ -55,6 +57,24 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 | `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" |
 | `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" |
 
+## Submitting to Meta
+
+WhatsApp only delivers a message a business starts if it matches an approved template exactly,
+with only the variable parts filled in. The submission pack is
+`src/lib/messaging/whatsapp-templates.ts`: every template the code sends by WhatsApp, with its
+category, language, body in Meta's `{{1}}` style and sample values. Built so far: `login_link`,
+`login_code`, `shift_urgent`, `shift_reminder_24h`, `shift_reminder_2h`, `credential_expiring`,
+`credential_expired`.
+- Words that are sometimes left out need their own template: `shift_urgent`,
+  `shift_reminder_24h` and `shift_reminder_2h` each have a `_no_site` variant, used when the
+  shift has no site.
+- "a" or "an" before the role is part of the role's variable ("a door supervisor").
+- The sign-off is a variable, because a firm may set its own.
+
+`tests/unit/copy.templates-doc.test.ts` holds this doc, the template functions
+(`src/lib/messaging/templates.ts`) and the pack to each other. Change the wording in all three
+together. Not submitted yet: PLAN.md Parking lot, "Submit the WhatsApp templates", has the steps.
+
 ## Instant replies on the shifts line (keyword first)
 
 | Worker types | Reply |
@@ -67,9 +87,16 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 
 ## SMS (fallback only, keep under 160 characters)
 
+A message with no SMS version below goes by text in full (the WhatsApp wording). Only the urgent
+offer's SMS version is built so far; the others come with their messages (login by text with
+"Connect Twilio", offers and confirmations with their tasks).
+
 - Login: "{firm} shifts link (15 min): {link}"
 - Offer: "{firm}: shift {date} {start} at {site}. Take it: {link}"
-- Urgent: "{firm} URGENT: {role} needed {site} today {start}. {link}"
+- Urgent: "{firm} URGENT: {role} needed {site} {day} {start}. {link} - {firm} Shift Team" (built:
+  `shiftUrgentSms()`, sent
+  whenever an urgent offer goes by text, the worker's choice or the fallback; {day} as in
+  `shift_urgent`; {site} left out when there's none)
 - Confirmed: "{firm}: confirmed {date} {start} at {site}. {link}"
 
 ## Push (title / body)

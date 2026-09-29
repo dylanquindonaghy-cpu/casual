@@ -143,8 +143,8 @@ describe("expiry message copy (docs/messaging-templates.md)", () => {
   it("lists the office's week in two sections, leaving out an empty one", () => {
     const both = credentialWeeklyListEmail(
       voice,
-      ["Sam Carter: SIA door supervisor licence, expires 3 Oct"],
-      ["Jo Patel: first aid at work certificate, expired 27 Sep"],
+      [{ person: "Sam Carter", credential: "SIA door supervisor licence", date: "3 Oct" }],
+      [{ person: "Jo Patel", credential: "first aid at work certificate", date: "27 Sep" }],
     );
     expect(both.subject).toBe("Acme Events: credentials expiring soon");
     expect(both.body).toBe(
@@ -162,7 +162,7 @@ describe("expiry message copy (docs/messaging-templates.md)", () => {
     );
     const onlyExpiring = credentialWeeklyListEmail(
       voice,
-      ["Sam Carter: PTS card, expires 3 Oct"],
+      [{ person: "Sam Carter", credential: "PTS card", date: "3 Oct" }],
       [],
     );
     expect(onlyExpiring.body).not.toContain("Expired in the last week");
@@ -171,9 +171,13 @@ describe("expiry message copy (docs/messaging-templates.md)", () => {
 
   it("shows at most 40 lines a section, then says how many more", () => {
     expect(WEEKLY_LIST_MAX_LINES).toBe(40);
-    const many = (n: number, verb: string) =>
-      Array.from({ length: n }, (_, i) => `Worker ${i + 1}: PTS card, ${verb} 3 Oct`);
-    const { body } = credentialWeeklyListEmail(voice, many(41, "expires"), many(40, "expired"));
+    const many = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        person: `Worker ${i + 1}`,
+        credential: "PTS card",
+        date: "3 Oct",
+      }));
+    const { body } = credentialWeeklyListEmail(voice, many(41), many(40));
     const lines = body.split("\n");
     expect(lines.filter((l) => l.includes(", expires "))).toHaveLength(40);
     expect(lines.filter((l) => l.includes(", expired "))).toHaveLength(40);

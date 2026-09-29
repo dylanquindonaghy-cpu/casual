@@ -9,7 +9,8 @@ import type { PushPayload, PushTransport } from "../push/transport";
 // One message to a worker (docs/messaging-templates.md, "Notification policy"), the same way for
 // every sender (offer waves, shift reminders):
 //
-// - by the channel the worker chose (WhatsApp or text message);
+// - by the channel the worker chose (WhatsApp or text message), with that channel's text (a text
+//   message has its own short copy where docs/messaging-templates.md gives one);
 // - a WhatsApp the provider refuses (ChannelRefusedError: the number isn't on WhatsApp) goes by
 //   text at once. Any other failure (a timeout, an outage) might already have arrived, so it's
 //   never sent again: the caller records it as failed. (Falling back when a WhatsApp isn't
@@ -26,6 +27,12 @@ export interface NotifyDeps {
 
 export type WorkerChannel = "whatsapp" | "sms";
 
+// A message's text for each channel (the same text for both when the doc has no SMS version).
+export interface MessageText {
+  whatsapp: string;
+  sms: string;
+}
+
 export type NotifyResult =
   | {
       ok: true;
@@ -41,7 +48,7 @@ export type NotifyResult =
 // and after sending, so a failure afterwards can't undo the record of a message that went).
 export async function sendToWorker(
   deps: Pick<NotifyDeps, "transport">,
-  input: { mobile: string; channel: WorkerChannel; body: string },
+  input: { mobile: string; channel: WorkerChannel; body: MessageText },
 ): Promise<
   | { ok: true; channel: WorkerChannel; providerMessageId: string; fellBackFrom?: WorkerChannel }
   | { ok: false; channel: WorkerChannel; code: string }
@@ -53,7 +60,7 @@ export async function sendToWorker(
       ({ providerMessageId } = await deps.transport.send({
         channel,
         to: input.mobile,
-        body: input.body,
+        body: input.body[channel],
       }));
     } catch (error) {
       if (!(error instanceof ChannelRefusedError) || channel !== "whatsapp") throw error;
@@ -61,7 +68,7 @@ export async function sendToWorker(
       ({ providerMessageId } = await deps.transport.send({
         channel,
         to: input.mobile,
-        body: input.body,
+        body: input.body[channel],
       }));
     }
   } catch (error) {
@@ -111,7 +118,7 @@ export async function notifyWorker(
     workerId: string;
     mobile: string;
     channel: WorkerChannel;
-    body: string;
+    body: MessageText;
     push: PushPayload;
   },
 ): Promise<NotifyResult> {

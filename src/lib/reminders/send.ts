@@ -240,7 +240,12 @@ export async function runShiftReminders(
       kind === "24h"
         ? shiftReminder24hMessage(voice, { site: b.siteName, day, start, end, link })
         : shiftReminder2hMessage(voice, { site: b.siteName, start, link });
-    const sent = await sendToWorker(deps, { mobile: b.mobile, channel: b.channel, body });
+    // The doc has no separate SMS version of the reminders: the same text either way.
+    const sent = await sendToWorker(deps, {
+      mobile: b.mobile,
+      channel: b.channel,
+      body: { whatsapp: body, sms: body },
+    });
 
     // (3) The outcome, the push and the event.
     await inFirm(async (tx) => {

@@ -2844,3 +2844,90 @@ tasks.
 - an office view of `sending` rows;
 - offer waves onto the claim → send → record pattern;
 - the Twilio-id masking issue (before connecting Twilio).
+
+## 2026-09-29 06:21 UTC: Phase 4, "All copy from `docs/messaging-templates.md`; templates submitted to Meta for approval"
+
+**Expected outcome: BLOCKED (not ticked).** Submitting templates to Meta needs a WhatsApp Business
+account through Twilio (an outside service). I'll build everything short of it, park "submit the
+templates" with steps, and record it blocked.
+
+**Plan.**
+1. **"All copy from the doc", made structural.** `tests/unit/copy.templates-doc.test.ts` reads
+   `docs/messaging-templates.md` and checks every message the code builds against it: the
+   WhatsApp/email templates, the SMS versions and the pushes. It renders each template function
+   with `{variable}` placeholders and compares that with the doc's text. Every exported template
+   function must be covered, so a new message can't skip the doc. The doc's templates not built
+   yet are listed by name, with why.
+2. **The doc's SMS copy.** Today a text message gets the full WhatsApp text: long, and the dashes
+   make it cost more. The urgent offer has a short SMS version in the doc, and it isn't used. Build
+   `shiftUrgentSms`, and have the shared sender use a message's SMS text when it goes by text (the
+   worker's choice, or the fallback).
+   - `{day}` replaces "today", as in the WhatsApp version.
+   - Test: under 160 characters, and only characters a standard text message can carry, with
+     realistic values.
+   - Messages with no SMS version in the doc go in full (parked: **Dylan to confirm**).
+3. **The WhatsApp submission pack.** `src/lib/messaging/whatsapp-templates.ts`: each template the
+   code sends by WhatsApp, with its name, category, language, Meta-style body (`{{1}}`…) and sample
+   values.
+   - Meta checks every message against the approved text, so optional words need their own
+     template. There are "no site" variants of `shift_urgent` and both reminders. "a"/"an" goes
+     inside the role variable.
+   - A test renders each code template with sample values and checks it equals the pack template
+     filled with the same values. What we send is exactly what we'd submit.
+4. **Docs and parking lot.** A "Submitting to Meta" section in messaging-templates.md, the SMS
+   `{day}` change, and numbered steps for Dylan to submit in Twilio's console.
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Keep the template functions; test them against a data pack | Smallest change; the test guarantees they can't drift | Build every message from the pack (a bigger refactor, better done with the Twilio adapter) |
+| "No site" variants as separate templates | An approved template can't have optional words | Always name a site (not every shift has one) |
+| Use the doc's SMS copy only where the doc has one (the urgent offer) | Copy is product: new copy is Dylan's call | Write SMS versions for reminders and credentials now |
+| `{day}` in the SMS urgent copy | Urgent shifts aren't always today (same as the WhatsApp version) | "today" (wrong for tomorrow's shifts) |
+
+**What was built** (as planned): the doc-comparison test (48 cases), the short SMS version of the
+urgent offer (used by text and in the fallback), and the WhatsApp submission pack (10 templates,
+4 of them "no site" variants). The credential weekly list's line wording also moved from
+`scan.ts` into its template, so all copy lives in `templates.ts`.
+
+**Shown failing when broken** (then restored):
+- "instructions" changed to "details" in the 2-hour reminder: 3 doc/pack tests fail;
+- the weekly email's subject changed: its test fails.
+
+**Guardrails review: FIX FIRST (2), both fixed.**
+1. **The SMS had no sign-off (golden rule 8).** The doc's SMS line had none, and I copied it.
+   Golden rules outrank the doc, so the SMS now ends " - {sign-off}" (a plain hyphen keeps it
+   standard text characters). The doc and its Sign-off section were updated to match. A new test
+   checks every message to a worker ends with the firm's sign-off (10 cases, a custom sign-off
+   included). **Dylan to confirm** the wording (parked).
+2. **The offer boundary test didn't know the new SMS builder.** Added `shiftUrgentSms` to it.
+
+**Lesser suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| PLAN.md said the SMS is "one standard message" and credential messages "go by text in full" | Corrected: usually 2 texts; credential messages are WhatsApp-only (already parked) |
+| No length limit on a text at send time | Parked |
+| Pack coverage is a hand-kept list | Parked (tag templates by channel) |
+| Copy changes to confirm ({day}, no "at") | Parked for Dylan |
+| The doc still said "submit in Phase 7" | Updated |
+| Meta risks (`login_code` category, variable density) | Stated more firmly in the parking lot |
+| The test link used a domain someone could register | Now `shiftdesk.example` |
+| waves.ts worked out the day and start twice | Reused |
+
+**Verify:**
+```
+== typecheck ... ok
+== lint ... ok
+== test ... ok
+== e2e ... ok
+== invariants ... ok
+VERIFIED tree=d401c5ec657c9bd3 e2e=true
+```
+1799 tests (up from 1748) + 25 e2e.
+
+**BLOCKED, not ticked.** "Templates submitted to Meta for approval" needs the WhatsApp Business
+account through Twilio (an outside service; tonight's rules forbid it). Everything short of it is
+built and verified. The submission steps are in PLAN.md Parking lot, "Submit the WhatsApp
+templates". No auditor round (nothing to tick). 0.4 h. Phase 4: 3.2 h of 27–37 h.

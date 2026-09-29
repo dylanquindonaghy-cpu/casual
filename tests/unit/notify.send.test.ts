@@ -24,7 +24,7 @@ function transport(behaviour: {
   return { t, tried };
 }
 
-const input = { mobile: "+447700900123", body: "Hello" };
+const input = { mobile: "+447700900123", body: { whatsapp: "Hello", sms: "Hi" } };
 
 describe("sendToWorker", () => {
   it("by WhatsApp when that's the channel", async () => {
@@ -85,5 +85,20 @@ describe("sendToWorker", () => {
       code: "ChannelRefusedError",
     });
     expect(tried).toEqual(["sms"]);
+  });
+
+  it("each channel gets its own text: a text message the SMS version, the fallback too", async () => {
+    const bodies: string[] = [];
+    const t: MessagingTransport = {
+      name: "fake",
+      async send(message) {
+        if (message.channel !== "email") bodies.push(`${message.channel}:${message.body}`);
+        if (message.channel === "whatsapp") throw new ChannelRefusedError("whatsapp");
+        return { providerMessageId: "id" };
+      },
+    };
+    await sendToWorker({ transport: t }, { ...input, channel: "sms" });
+    await sendToWorker({ transport: t }, { ...input, channel: "whatsapp" });
+    expect(bodies).toEqual(["sms:Hi", "whatsapp:Hello", "sms:Hi"]);
   });
 });

@@ -540,14 +540,16 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   an account, a UK number, approved templates and money):
   1. Create the Twilio account and a UK number; set up the WhatsApp sender (Meta business
      verification).
-  2. Submit the templates in docs/messaging-templates.md (with `shift_urgent`'s new `{day}`) and
-     record each approved content id.
+  2. Submit the templates: see "Submit the WhatsApp templates" below (the pack is ready).
   3. Write the Twilio transport next to the console one (`src/lib/messaging/`): WhatsApp by content
      id and variables, SMS by body; `MESSAGING_TRANSPORT=twilio` (production refuses `console`).
      Throw `ChannelRefusedError` only for Twilio's "not a WhatsApp number" style errors (so offer
      waves fall back to SMS only then); every other error is a failed send (logged, not retried on
-     another channel). Note the SMS cost: the en and em dashes in `shift_urgent` make a text
-     UCS-2 (about 3 segments), and the fallback sends more texts.
+     another channel). An urgent offer by text now uses the doc's short SMS copy (standard text
+     characters only: usually 2 texts, not 3). Reminders still go by text in full (their dashes
+     make a dearer kind of text, about 3). Credential messages always go by WhatsApp, whatever the
+     worker chose (see the credential-scan item): workers who chose text get no expiry warnings
+     until they move onto the shared sender.
   4. The status webhook (`POST /api/webhooks/twilio/status`): signature check, the `messages`
      table with `provider_message_id` (golden rule 3), then the 60-second "not delivered → SMS"
      fallback job.
@@ -556,6 +558,37 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   Also: validate `quiet_hours` on the settings screen (Phase 5); and decide what a wave held past
   the shift's start should do (today it stops as "started" at the end of the quiet hours, and
   only the escalation tells the office).
+- **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
+  blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
+  pack is `src/lib/messaging/whatsapp-templates.ts`: 10 templates (4 are "no site" variants), each
+  with its category, language (English UK), body with `{{1}}`-style variables and sample values. A
+  test proves the code sends exactly these words.
+  1. In the Twilio Console, open Messaging → Content Template Builder → Create new.
+  2. For each template in the pack: type its `name` as the template name, pick the WhatsApp card,
+     paste its `body`, set the language to English (UK), and give each `{{n}}` the sample value
+     from `example`, in the `variables` order. Submit it for WhatsApp approval as "Utility".
+  3. Wait for Meta's answer (usually minutes to a day). If one is refused or re-categorised, change
+     the wording in `docs/messaging-templates.md`, the template function and the pack together
+     (the test fails until all three agree), then submit again.
+  4. Record each approved template's content id (starts `HX`) for the Twilio transport: a
+     name → id map in the worker's environment or config, not the repo.
+  Open questions to check at submission: Meta may refuse a body that ends with a variable (every
+  template ends with the sign-off `{{n}}`); if so, add a full stop after it in all three places.
+  Expect `login_code` to need Meta's "authentication" category (Meta usually requires it for
+  one-time codes: fixed wording, no sign-off). `shift_urgent_no_site` has 6 variables in about 12
+  fixed words and may be refused as too many variables for its length: if so, add words.
+  **Dylan to confirm** (copy):
+  - the urgent offer's SMS version now ends with the sign-off after a plain hyphen ("… {link} -
+    Acme Events Shift Team"). Golden rule 8 needs a sign-off, and the doc's SMS copy had none. It
+    usually makes 2 texts. Or drop the leading "{firm}" to save characters;
+  - "{day}" instead of "today" in that SMS, and no "at" before the site ("needed Acme Demo Arena
+    on Sat 7 Nov"), as the doc's line had it;
+  - only the urgent offer has a short SMS version. Write SMS versions for the reminders and
+    credential messages, so a text costs as little as possible?
+  Also parked: nothing limits a text's length when it's sent (long firm or site names make 2-3
+  texts): decide what to shorten first. The pack is kept in step with the code by a hand-kept list
+  in the test; tagging each template function by channel would make a missing WhatsApp template
+  fail by itself.
 - **Connect the real web push** (the Phase 4 web push task is blocked on it: an outside service
   and a secret key):
   1. `npm install web-push`, then `npx web-push generate-vapid-keys` on the server (never commit the
@@ -676,3 +709,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.3 | WhatsApp via Twilio, SMS fallback, quiet hours: BLOCKED (not ticked: Twilio is an outside service): built quiet hours (waves held until they end unless urgent may override, safe on clock-change nights) and the immediate SMS fallback when WhatsApp is refused, with other send failures logged per worker instead of rolling back the wave; connecting Twilio is parked with steps; 1664 tests + 25 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | Only eligible workers notified, daily offer cap: at most 3 shift offers per worker per London day unless the shift is urgent (failed sends don't count), checked in the one place every offer picks its workers, which also asks the booking rules about each one; a boundary test fails if any other code writes an offer or builds its message; the review's suggestions done or parked; 1690 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.6 | Shift reminders: every confirmed booking gets "Reminder: tomorrow…" 24 hours before and "Your shift starts at…" 2 hours before (by the worker's channel, with a push; console only), each once, recorded in a new `shift_reminders` table before it goes; quiet hours hold or skip them; a check every 5 minutes; the review caught a way a retry could resend (fixed: claim, send, then record, each separately); 1748 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.4 | All copy from the messaging doc; templates to Meta: BLOCKED (not ticked: submitting needs the WhatsApp Business account): a test now holds every message (WhatsApp, text, push, email) to the doc's words and checks every message to a worker ends with the firm's sign-off; urgent offers by text use the doc's short SMS copy; the ready-to-submit WhatsApp template pack (10 templates) is tested against what the code sends; submission steps parked; 1799 tests + 25 e2e; verified (see docs/work-log.md) |

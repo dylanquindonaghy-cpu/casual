@@ -3400,3 +3400,107 @@ It should say all passed.
 
 With `npm run dev` running, the terminal prints any reminders that are due for the demo firms'
 bookings, every 5 minutes.
+
+## 2026-09-29: Phase 4, task 8: All copy from the messaging doc; templates to Meta (0.4 h). BLOCKED, not ticked
+
+### Time
+
+0.4 hours of Claude's working time (06:21 to 06:46 UTC), in the unattended overnight loop.
+Phase 4 so far: 3.2 of its 27 to 37 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** Half of the task is "templates submitted to Meta for approval". Meta
+  (the company behind WhatsApp) only approves templates sent from a WhatsApp Business account,
+  which is set up through Twilio: an outside service that tonight's rules forbid. So I built
+  everything short of the submission, and parked it with numbered steps.
+- `scripts/verify.sh` printed `VERIFIED tree=d401c5ec657c9bd3 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1799 tests (up from 1748);
+  - the 25 browser tests;
+  - the rule checks.
+- No auditor round (nothing to tick). Committed on `build/overnight`; the push result is in
+  `docs/overnight-log.md`.
+
+### What was built
+
+- **A test that holds the messages to the doc.** `docs/messaging-templates.md` is where every
+  message's wording is decided. A new test reads that document and checks every message the code
+  can send against it: WhatsApp messages, text messages, phone notifications and office emails.
+  - If someone changes a word in the code but not in the doc (or the other way round), the test
+    fails.
+  - A new message can't be added without the test knowing: it lists every message function.
+  - The doc's messages not built yet are listed with the task that will build each one.
+- **Every message to a worker is signed.** Another test checks that each one ends with the firm's
+  sign-off ("— Acme Events Shift Team"), including a firm's own custom sign-off (golden rule 8).
+- **Shorter text messages for urgent offers.** Before, a worker who chose text messages got the
+  long WhatsApp wording. Its dashes aren't standard text characters, so it cost about 3 texts.
+  - Now they get the doc's short version: "Acme Events URGENT: door supervisor needed Acme Demo
+    Arena on Sat 7 Nov 08:00. (link) - Acme Events Shift Team". It usually costs 2 texts.
+  - The same happens when a WhatsApp is refused and the offer falls back to text.
+- **A ready-to-submit WhatsApp template pack** (`src/lib/messaging/whatsapp-templates.ts`).
+  WhatsApp only delivers a message a business starts if it matches a *template* Meta has
+  approved word for word. Only the marked gaps (*variables*, written `{{1}}`, `{{2}}`) can
+  change. The pack has:
+  - every WhatsApp message the code sends: 10 templates;
+  - 4 "no site" versions, because an approved template can't have optional words and not every
+    shift has a site;
+  - sample values for Meta;
+  - a test proving the code sends exactly the pack's words.
+- **All wording in one place.** The office's weekly credentials email built its list lines in a
+  different file. That wording now lives with the other messages.
+
+### What the safety review found (both fixed)
+
+- **The short text had no sign-off.** The doc's text-message line had none, and I had copied it.
+  The golden rules come before the doc, so the text now ends with " - Acme Events Shift Team". A
+  plain hyphen keeps it standard text characters. Dylan to confirm the wording.
+- **A safety test didn't know about the new text builder.** Another test makes sure only the offer
+  code can build an offer message, so offers can't reach workers the rules haven't checked. It now
+  covers the text version too.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A test ties the doc, the code and the pack together | They can never drift apart unnoticed | Keep them in step by hand |
+| "No site" variants as separate templates | An approved template can't have optional words | Always show a site (not every shift has one) |
+| Only the urgent offer gets a short text version | It's the only one the doc defines; new wording is Dylan's call | Write short versions for reminders and credentials now |
+| The text's sign-off after a plain hyphen | Golden rule 8 needs a sign-off; a dash would make the text cost more | Leave it unsigned (breaks the rule) |
+
+### What the new tests prove
+
+- `tests/unit/copy.templates-doc.test.ts` (48 tests):
+  - every message matches the doc's wording (WhatsApp, text, push, email);
+  - every message to a worker ends with the sign-off;
+  - the short text uses only standard characters and costs fewer texts than the WhatsApp
+    wording;
+  - the pack is well formed and matches both the doc and what the code sends.
+- `tests/unit/notify.send.test.ts` (1 new): each channel gets its own wording, the fallback too.
+- `tests/integration/offers.waves.test.ts` (1 new): a worker who chose text gets the short
+  version, and so does a refused WhatsApp that falls back.
+- `tests/unit/offers.boundary.test.ts` (1 new check): only the offer code builds the offer text.
+- Changing one word in a message, or an email subject, made the doc test fail, as it should.
+
+### Parked, open, and things that need Dylan
+
+- **Submit the WhatsApp templates** (PLAN.md Parking lot, numbered steps). Needs the Twilio account
+  from "Connect Twilio" first.
+- **Dylan to confirm** (wording):
+  - the text's sign-off;
+  - "{day}" instead of "today";
+  - no "at" before the site in the text;
+  - whether to write short text versions of the reminders and credential messages.
+- **Worth knowing:** credential expiry warnings always go by WhatsApp, even to workers who chose
+  text messages (already parked, to be moved onto the shared sender).
+
+### How to see it working
+
+Stop `npm run dev` first. Then run:
+
+`npx vitest run tests/unit/copy.templates-doc.test.ts`
+
+It should say all passed.
+
+To see the pack, open `src/lib/messaging/whatsapp-templates.ts`: each entry is what you'd paste
+into Twilio's Content Template Builder.

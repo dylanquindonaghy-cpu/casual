@@ -293,15 +293,15 @@ async function sendWeeklyList(
     )
     .orderBy(asc(credentials.expiresOn), asc(workers.lastName), asc(workers.firstName));
 
-  const line = (r: (typeof rows)[number], verb: string) => {
-    const person = `${r.firstName} ${r.lastName}`.slice(0, MAX_NAME_LENGTH);
-    const date = shortDate(r.expiresOn ?? "", year);
-    return `${person}: ${r.typeName ?? displayCode(r.type)}, ${verb} ${date}`;
-  };
+  const entry = (r: (typeof rows)[number]) => ({
+    person: `${r.firstName} ${r.lastName}`.slice(0, MAX_NAME_LENGTH),
+    credential: r.typeName ?? displayCode(r.type),
+    date: shortDate(r.expiresOn ?? "", year),
+  });
   const expiring = rows
     .filter((r) => r.status === "valid" && (r.expiresOn ?? "") >= today)
-    .map((r) => line(r, "expires"));
-  const expired = rows.filter((r) => (r.expiresOn ?? "") < today).map((r) => line(r, "expired"));
+    .map(entry);
+  const expired = rows.filter((r) => (r.expiresOn ?? "") < today).map(entry);
   if (expiring.length + expired.length === 0) return "nothing_to_list";
 
   const office = await tx

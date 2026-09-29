@@ -447,6 +447,26 @@ describe("a wave", () => {
     expect(rows[0]?.data).toMatchObject({ channel: "sms", fellBackFrom: "whatsapp" });
   });
 
+  it("by text, the offer is the doc's short SMS version (the fallback too)", async () => {
+    const t = await waveFirm();
+    const sms = `Booking Test ${t.slug} URGENT: door supervisor needed today 19:00. http://${t.slug}.localhost:3000/shifts/${t.shiftId} - Booking Test ${t.slug} Shift Team`;
+    await t.wave(1); // Ann by WhatsApp, Ben by text (his choice)
+    const bodyTo = (mobile: string) => {
+      const m = t.sent.find((s) => s.channel !== "email" && s.to === mobile);
+      return m && "body" in m ? m.body : "";
+    };
+    expect(bodyTo(t.ben.mobile)).toBe(sms);
+    expect(bodyTo(t.ann.mobile)).toMatch(/^URGENT: we need a door supervisor today 19:00–03:00\./);
+
+    const again = await waveFirm();
+    again.sendState.refuseWhatsApp = true;
+    await again.wave(1);
+    const annText = again.sent.find((s) => s.channel === "sms" && s.to === again.ann.mobile);
+    expect(annText && "body" in annText ? annText.body : "").toMatch(
+      new RegExp(`^Booking Test ${again.slug} URGENT: door supervisor needed today 19:00\\. `),
+    );
+  });
+
   it("any other failure isn't sent again by text; that offer is dropped and logged, the rest still go", async () => {
     const t = await waveFirm();
     t.sendState.failFor = [t.ann.mobile];

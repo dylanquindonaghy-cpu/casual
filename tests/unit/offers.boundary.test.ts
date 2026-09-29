@@ -50,6 +50,11 @@ const CALLS: [string, RegExp, string[]][] = [
     [TEMPLATES, WAVES],
   ],
   ["builds the shift offer push (urgentPush)", /\burgentPush\(/, [TEMPLATES, WAVES]],
+  [
+    "builds the shift offer text message (shiftUrgentSms)",
+    /\bshiftUrgentSms\(/,
+    [TEMPLATES, WAVES],
+  ],
   ["picks offer recipients (waveCandidates)", /\bwaveCandidates\(/, [CANDIDATES, WAVES]],
 ];
 

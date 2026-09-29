@@ -63,24 +63,33 @@ export function credentialMarkedExpiredMessage(firm: FirmVoice, credential: stri
 // WEEKLY_LIST_MAX_LINES per section (then "- and {n} more"), so the email stays within its limit.
 export const WEEKLY_LIST_MAX_LINES = 40;
 
+export interface WeeklyListEntry {
+  person: string;
+  credential: string;
+  date: string; // "3 Oct"
+}
+
 export function credentialWeeklyListEmail(
   firm: FirmVoice,
-  expiring: string[],
-  expired: string[],
+  expiring: WeeklyListEntry[],
+  expired: WeeklyListEntry[],
 ): { subject: string; body: string } {
-  const section = (title: string, lines: string[]) => {
-    if (lines.length === 0) return [];
-    const shown = lines.slice(0, WEEKLY_LIST_MAX_LINES).map((l) => `- ${l}`);
-    const more = lines.length - WEEKLY_LIST_MAX_LINES;
+  const section = (title: string, entries: WeeklyListEntry[], verb: string) => {
+    if (entries.length === 0) return [];
+    const shown = entries
+      .slice(0, WEEKLY_LIST_MAX_LINES)
+      .map((e) => `- ${e.person}: ${e.credential}, ${verb} ${e.date}`);
+    const more = entries.length - WEEKLY_LIST_MAX_LINES;
     return [title, ...shown, ...(more > 0 ? [`- and ${more} more`] : []), ""];
   };
   return {
     subject: `${firm.name}: credentials expiring soon`,
     body: [
-      ...section("Expiring in the next 30 days:", expiring),
+      ...section("Expiring in the next 30 days:", expiring, "expires"),
       ...section(
         "Expired in the last week (these people can't take shifts that need them):",
         expired,
+        "expired",
       ),
       "When someone sends you their new details, record the new expiry date so they can take shifts again.",
       "",
@@ -89,7 +98,7 @@ export function credentialWeeklyListEmail(
   };
 }
 
-// shift_urgent (WhatsApp or SMS, utility): an offer in an urgent wave. {day} is "today",
+// shift_urgent (WhatsApp, utility): an offer in an urgent wave (by text: shiftUrgentSms). {day} is "today",
 // "tomorrow" or "on Sat 7 Nov" (the approved template's "today" can't be right for tomorrow).
 export function shiftUrgentMessage(
   firm: FirmVoice,
@@ -106,6 +115,18 @@ export function shiftUrgentMessage(
   const article = /^[aeiou]/i.test(role) ? "an" : "a";
   const at = shift.site ? ` at ${shift.site}` : "";
   return `URGENT: we need ${article} ${role}${at} ${shift.day} ${shift.start}–${shift.end}. Tap to take it: ${shift.link}. — ${firm.signOff}`;
+}
+
+// The urgent offer as a text message (docs/messaging-templates.md, "SMS"): short, and only
+// standard text characters (the sign-off after a plain hyphen, not a dash), so it costs as few
+// texts as possible. Used when the offer goes by text.
+export function shiftUrgentSms(
+  firm: FirmVoice,
+  shift: { role: string; site: string | null; day: string; start: string; link: string },
+): string {
+  const role = shift.role.replace(/_/g, " ");
+  const site = shift.site ? ` ${shift.site}` : "";
+  return `${firm.name} URGENT: ${role} needed${site} ${shift.day} ${shift.start}. ${shift.link} - ${firm.signOff}`;
 }
 
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"

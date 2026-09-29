@@ -15,7 +15,12 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
-import { shiftEscalationEmail, shiftUrgentMessage, urgentPush } from "../messaging/templates";
+import {
+  shiftEscalationEmail,
+  shiftUrgentMessage,
+  shiftUrgentSms,
+  urgentPush,
+} from "../messaging/templates";
 import { dayWords, shiftWhen } from "../portal/format";
 import { notifyWorker, type NotifyDeps } from "../notify/send";
 import { getPushTransport } from "../push/transport";
@@ -293,14 +298,20 @@ export async function runOfferWave(
   }
 
   const link = `${portalUrl(firm.slug, deps.baseDomain)}/shifts/${shift.id}`;
-  const body = shiftUrgentMessage(firm.voice, {
-    role: shift.role,
-    site: shift.siteName,
-    day: dayWords(shift.startsAt, now, firm.timezone),
-    start: timeOf(shift.startsAt, firm.timezone),
-    end: timeOf(shift.endsAt, firm.timezone),
-    link,
-  });
+  const day = dayWords(shift.startsAt, now, firm.timezone);
+  const start = timeOf(shift.startsAt, firm.timezone);
+  // The WhatsApp template, or the short SMS version when it goes by text.
+  const body = {
+    whatsapp: shiftUrgentMessage(firm.voice, {
+      role: shift.role,
+      site: shift.siteName,
+      day,
+      start,
+      end: timeOf(shift.endsAt, firm.timezone),
+      link,
+    }),
+    sms: shiftUrgentSms(firm.voice, { role: shift.role, site: shift.siteName, day, start, link }),
+  };
   // Every offer row first, then the messages: if the transaction is going to fail (a lock
   // conflict, say), it fails before anyone has been messaged.
   const recorded: { offerId: string; candidate: WaveCandidate }[] = [];
@@ -319,12 +330,7 @@ export async function runOfferWave(
       .returning({ id: offers.id });
     if (offer) recorded.push({ offerId: offer.id, candidate: c });
   }
-  const pushed = urgentPush({
-    role: shift.role,
-    site: shift.siteName,
-    day: dayWords(shift.startsAt, now, firm.timezone),
-    start: timeOf(shift.startsAt, firm.timezone),
-  });
+  const pushed = urgentPush({ role: shift.role, site: shift.siteName, day, start });
   let count = 0;
   for (const { offerId, candidate: c } of recorded) {
     // By their channel, with the push as well (src/lib/notify/send.ts). A failure doesn't stop the

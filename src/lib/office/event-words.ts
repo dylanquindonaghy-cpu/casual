@@ -1,4 +1,5 @@
 import { noticeText } from "../portal/cancel-reasons";
+import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { dayLabel } from "../rules/reasons";
 
@@ -272,6 +273,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} imported a file: ${Number(d.created ?? 0)} added, ${Number(d.updated ?? 0)} changed, ${Number(d.skipped ?? 0)} skipped.`;
     case "pay_record.imported":
       return `A pay record was added for ${worker}${period(d.periodStart, d.periodEnd)}.`;
+    case "pay_query.created": {
+      const issue = (ISSUE_LABELS[String(d.issueType) as PayIssue] ?? "pay").toLowerCase();
+      return `${worker} raised a pay query (${issue}${isDay(d.workDate) ? `, ${dayLabel(d.workDate)}` : ""}).`;
+    }
     case "pay_record.updated":
       return `${worker}'s pay record was updated.`;
     case "metrics.baseline_saved":

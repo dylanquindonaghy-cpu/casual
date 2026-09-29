@@ -246,7 +246,9 @@ describe("the action log", () => {
     expect((await t.log({ worker: t.ben })).entries).toEqual([]);
     // An upper-case id in the address works the same.
     expect((await t.log({ worker: t.ann.toUpperCase() })).entries).toHaveLength(3);
-    expect((await t.log({ type: "pay" })).entries.map((e) => e.type)).toEqual(["Pay records"]);
+    expect((await t.log({ type: "pay" })).entries.map((e) => e.type)).toEqual([
+      "Pay records and queries",
+    ]);
   });
 
   it("by shift: events about it, naming it, or about its bookings and requests; all of its time with no dates", async () => {

@@ -186,7 +186,7 @@ Docs: `docs/screens.md`, `docs/pilot-playbook.md`.
 
 ## Phase 6 — Payroll queries and digest (12–18 h)
 
-- [ ] Pay query form: shift/date, issue type (missing hours, wrong rate, late pay, other), details
+- [x] Pay query form: shift/date, issue type (missing hours, wrong rate, late pay, other), details
 - [ ] Group queries by likely cause (same rate change, same site, same week) — Haiku summarises,
       code does the grouping keys
 - [ ] Digest to payroll by email at a set time: "42 queries, 37 about the new rate not applied
@@ -641,6 +641,22 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Other office client buttons (edit shift, create, import, offer, quick actions) can be clicked
     before the page is hydrated and then do nothing: give them `useHydrated()` like the assign,
     move and cancel buttons.
+- Pay query follow-ups (Phase 6):
+  - **Dylan to confirm:** the form sits behind the pay code; it offers shifts from the last 8
+    weeks, or any day in the last 90; details are required only for "Something else".
+  - Nobody in the office sees a query yet: payroll's grouped digest and "resolved → worker told"
+    are the next Phase 6 tasks.
+  - A query about a pay line (a week in the pay list) rather than a shift or day: add a "Which pay
+    line?" choice if payroll finds weeks easier to match than days.
+  - Shifts the firm cancelled aren't in the "Which shift?" list, though they may matter for pay
+    from 2027; for now the worker picks "A day not in the list".
+  - Asking the same question again keeps the first message only ("payroll has your first
+    message"); add "add to an open query" if workers need to.
+  - A partial unique index for one open query per worker, day, shift and issue (a database
+    backstop), once other code (the digest, imports) writes pay queries too.
+  - **Dylan to confirm:** how long pay queries are kept (docs/compliance.md has no period for
+    them); the details are free text and may hold personal data despite "Don't include bank
+    details."
 - Pilot metrics follow-ups (Phase 5):
   - **Dylan to confirm the definitions:** portal actions = workers taking or cancelling shifts,
     days off, notification settings and opening the pay page (not logins; requests are for the
@@ -896,3 +912,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 0.5 | Notice and cancellation report: a new office page lists every offer, booking, move, shortening and cancellation from the log, with when, who started it (worker, office, rota sheet, offer wave), the notice the worker had and a short-notice flag at the firm's threshold (48 hours unless the firm sets its own), filtered by dates, kind, who started it and short notice, and downloads as a CSV file (all rows or none, safe to open in a spreadsheet); offers now record their notice too; the review caught rota-sheet changes showing no worker, moves showing only start times and a file that could be cut short (all fixed and tested); 2103 tests + 36 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.6 | Pilot metrics: a new office page puts the week-0 baseline (a form for the playbook's 8 figures) against the app's own figures for chosen dates (portal actions, answered straight away, unanswered after 24 hours, refill time, active workers, adoption, urgent fill rate, no-shows, short-notice cancellations), plus a weekly tally form for what the app can't see; a nightly job at 00:30 (new `metrics_daily` table, isolated per firm) recomputes the last 7 days, or "Update the figures now"; the review caught requests counted as instant answers and partial days skewing the weekly figures (both fixed and tested); 2139 tests + 37 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.2 | Notice report tests: 7 tests drive the real paths (a worker taking and cancelling from the portal, the office cancelling a booking and a whole shift, moving and shortening, and the Google Sheets sync booking, shortening, moving and removing someone) and read the notice report and its CSV back: who started each change, notice hours, the flag exactly at 48 hours and at a firm's own threshold, negative notice after the start; no product code needed changing; 2146 tests + 37 e2e; verified and audited DONE. Phase 5 done: 5.5 h of the 23–33 h estimate (see docs/work-log.md) |
+| 2026-09-29 | 6 | 0.5 | Pay query form: behind the pay code, a worker picks one of their recent shifts (or a day), what's wrong (hours missing, wrong rate, paid late, something else) and a note, and gets "Pay query sent." with a reference; the pay page lists their queries "With payroll" or "Sorted"; new `pay_queries` table (isolated per firm); one open query per question; the typed note never goes in the log; no AI (golden rule 9); the review caught nested brackets in the log's words, a stuck logged-out screen and small buttons (all fixed); 2177 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |

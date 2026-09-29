@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PayView } from "@/app/pay/pay-view";
+import { PayQueries, PayView } from "@/app/pay/pay-view";
 import { importHours, importPence } from "@/lib/imports/import";
 import { hoursText, pounds } from "@/lib/portal/pay-format";
 
@@ -95,7 +95,31 @@ describe("showing pay", () => {
     expect(words).toContain("4 hours at £15.00 an hour");
     // Never worked out: no gross for the line payroll didn't give one.
     expect(words).not.toContain("£60.00");
-    expect(words).toContain("If something looks wrong, contact the office.");
+    expect(words).toContain("If something looks wrong, raise a pay query.");
+  });
+
+  it("the worker's pay queries: a way to raise one, and each one's status", () => {
+    const html = renderToStaticMarkup(
+      createElement(PayQueries, {
+        queries: [
+          { ref: "3F2A9C1B", issue: "wrong_rate", day: "2026-10-31", status: "open" },
+          { ref: "AB12CD34", issue: "late_pay", day: "2026-10-01", status: "in_digest" },
+          { ref: "0F0F0F0F", issue: "missing_hours", day: "2026-09-26", status: "resolved" },
+        ],
+      }),
+    );
+    const words = text(html);
+    expect(html).toContain('href="/pay/query"');
+    expect(words).toContain("Raise a pay query");
+    expect(words).toContain("Wrong rate: Sat 31 Oct");
+    expect(words).toContain("Paid late or not paid: Thu 1 Oct");
+    expect(words.match(/With payroll/g)).toHaveLength(2);
+    expect(words).toContain("Hours missing: Sat 26 Sep");
+    expect(words).toContain("Sorted");
+    expect(words).toContain("Reference 3F2A9C1B");
+    expect(text(renderToStaticMarkup(createElement(PayQueries, { queries: [] })))).toContain(
+      "None in the last 90 days.",
+    );
   });
 
   it("says so plainly when there's nothing yet", () => {

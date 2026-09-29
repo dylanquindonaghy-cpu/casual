@@ -47,7 +47,14 @@ invalid, logged_out, error) · `setAvailability(dates)` (built one day at a time
 `src/lib/portal/profile.ts`; today to 180 days ahead, at most 60 upcoming days; outcomes: added
 (with whether a booking falls that day; it is never cancelled), removed, already, not_marked, past,
 too_far, too_many, invalid, logged_out, error; events `worker.unavailable_added` /
-`worker.unavailable_removed` with the day only) · `raisePayQuery(form)` ·
+`worker.unavailable_removed` with the day only) · `raisePayQuery(form)` (built:
+`raisePayQueryAction(fields)` in `src/app/pay/query/actions.ts` → `raisePayQuery()` in
+`src/lib/portal/pay-queries.ts`; only for a session with the pay code from the last 30 minutes,
+checked in both; a shift of the worker's that started in the last 8 weeks, or a day in the last 90
+days; an issue; details required for "Something else"; one open query per worker, day, shift and
+issue (asking again returns its reference, under a per-worker lock); a `pay_query.created` event
+{issueType, shiftId, workDate}, never the details; outcomes: created with a reference, already_open,
+invalid with problems, not_yours, needs_code, logged_out, error) ·
 `updateNotificationPrefs(...)` (built: `saveNotificationSettingsAction(channel, offerAlerts)` in
 `src/app/profile/actions.ts` → `setNotificationSettings()`; WhatsApp or SMS, and open-shift alerts
 on or off; a `worker.notification_settings_changed` event only when something changed. The Phase 4

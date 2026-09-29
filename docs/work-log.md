@@ -4513,3 +4513,88 @@ follow-ups), each with its "Dylan to confirm" items.
 
 Run the tests: `npx vitest run tests/integration/notice.report.test.ts` (with the database
 started: `npm run db:up`). You should see 7 tests pass.
+
+## 2026-09-29: Phase 6, task 1: The pay query form (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (12:58 to 13:26 UTC), in the unattended overnight loop.
+Phase 6 so far: 0.5 of its 12 to 18 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=f690b2dd6638e514 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2177 tests (up from 2146);
+  - the 38 browser tests (1 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Phase 6 is about pay queries: instead of the whole workforce messaging payroll, each worker raises
+a structured question, and payroll later gets them grouped by cause. This first task is the
+worker's side:
+- **"Raise a pay query"** (`/pay/query`), behind the same 6-digit pay code as the pay page (pay is
+  private):
+  - **Which shift?** Their shifts from the last 8 weeks, or "A day not in the list" with a date
+    (back to 90 days).
+  - **What's wrong?** Hours missing, Wrong rate, Paid late or not paid, Something else.
+  - **Tell payroll more** (optional, needed for "Something else"; "Don't include bank details.").
+  - **"Send pay query"** → "Pay query sent." with the reference and the firm's sign-off.
+- **The pay page** now says "If something looks wrong, raise a pay query." and lists "Your pay
+  queries" with each one's status ("With payroll" or "Sorted").
+- **Rules:**
+  - only the worker's own shifts;
+  - no future days;
+  - one open query per question (asking again gives the same reference);
+  - the pay code is checked again on the server every time, not just on the page.
+- **Privacy:** the worker's typed note is stored with the query, never in the action log (the log
+  only records the issue, the shift and the day).
+- **No AI** reads or answers anything about pay (golden rule 9). Grouping for payroll (next task)
+  will be done by code, with AI only writing a one-line summary per group.
+- **One new table**, `pay_queries`, isolated per firm like every other table.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Behind the pay code | Pay is personal; the architecture puts the form after the code | Any logged-in worker |
+| A day is always stored | The grouping keys on the week; some questions are about a day with no shift in the app | Only shifts |
+| Details required only for "Something else" | The other choices say what's wrong | Always required |
+| One open query per worker, day, shift and issue | Two taps, or asking again, shouldn't make two queries | Allow duplicates |
+
+### What the new tests prove
+
+- `tests/integration/pay.queries.test.ts` (7 tests, on the real database):
+  - the shift list: only the worker's own, started, from the last 8 weeks, newest first;
+  - raising one about a shift: the stored row, the log entry without the note, the confirmation;
+  - about a day: today back to exactly 90 days, not tomorrow, not 91 days ago;
+  - refused: a shift ahead, too old, cancelled, someone else's, another firm's;
+  - the same question again, a different issue, after it's sorted, and two taps at once;
+  - no pay code, an expired one, someone else's session, an office session: refused everywhere;
+  - the worker's own list from the last 90 days with each status.
+- Unit tests: the form's check, the words, and the pay page's list.
+- Isolation tests now include `pay_queries`.
+- `tests/e2e/pay.query.spec.ts` (1 browser test): the form refuses without a code; with one,
+  "Something else" needs a note; a query about a day is sent, confirmed, and listed on the pay
+  page "With payroll".
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`, Parking lot, "Pay query follow-ups"): behind the pay code,
+  8 weeks of shifts or 90 days back, details only for "Something else"; how long pay queries are
+  kept.
+- **Parked:** firm-cancelled shifts in the list; adding a note to an open query; a database
+  backstop for duplicates; a "which pay line?" choice.
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Open `http://acme.localhost:3000/login` and log in as `07700 900103` (the link appears in the
+   `npm run dev` terminal).
+3. "See your pay" → "Send me a code" (the code is in the terminal) → "Check code".
+4. "Raise a pay query" → choose a day, "Paid late or not paid" → "Send pay query".
+5. "Back to your pay": it's listed under "Your pay queries" as "With payroll".

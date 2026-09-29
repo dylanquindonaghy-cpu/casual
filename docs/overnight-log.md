@@ -3919,3 +3919,65 @@ pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
 it, not over).
 
 **Parked:** nothing new.
+
+## 2026-09-29 12:58 UTC: Phase 6, "Pay query form: shift/date, issue type (missing hours, wrong rate, late pay, other), details"
+
+**Plan** (docs/architecture.md "Pay query": "Worker (after OTP) fills a structured form";
+docs/data-model.md `pay_queries`; golden rule 9: no AI on pay; docs/screens.md `/pay`).
+1. **Schema: `pay_queries`** (new; `firm_id`, RLS, TABLE_ACCESS without delete, isolation
+   fixtures, composite FKs to workers and shifts): the worker, the shift (if they picked one), the
+   day worked (always: the shift's day or the day they typed), the issue (missing_hours,
+   wrong_rate, late_pay, other), their details (at most 1,000 characters), `group_key` (empty
+   until the next task's grouping) and status (open, in_digest, resolved).
+2. **`raisePayQuery()`** (`src/lib/portal/pay-queries.ts`): only for a session that passed the pay
+   code in the last 30 minutes (checked here, like the pay figures). A shift of the worker's own
+   from the last 8 weeks that has started, or a day in the last 90 days (not ahead); an issue;
+   details optional, required for "Something else". One open query per worker, day, shift and
+   issue (asking again returns its reference). The row and a `pay_query.created` event {issueType,
+   shiftId, workDate} go in together: the typed details stay on the row, never in the log.
+3. **Page `/pay/query`** (behind the code; without it, a line pointing back to the pay page):
+   "Which shift?" (their recent shifts, or "A day not in the list" with a date), "What's wrong?"
+   ("Hours missing", "Wrong rate", "Paid late or not paid", "Something else"), "Tell payroll more"
+   → "Send pay query" → "Pay query sent." with the reference and what happens next, signed
+   "[Firm] Shift Team".
+4. **The pay page**: "If something looks wrong, raise a pay query." → the form, and "Your pay
+   queries" (the last 90 days) with each one's status ("With payroll" / "Sorted"). The office's
+   side (grouping, digest, resolving and telling the worker) is the next tasks.
+5. **Tests:** integration (the options, each rule, the duplicate, the code window, another
+   worker's or firm's shift, the log without details, the worker's list), unit (words and form
+   check), isolation fixtures, e2e (code, raise a query, see it listed).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Behind the pay code | Pay is personal; the architecture puts the form after the code | Open to any logged-in worker |
+| A day is always stored, from the shift or typed | Grouping (next task) keys on the week; a pay question may be about a day with no shift in the app | Only shifts |
+| Details required only for "Something else" | The other three say what's wrong already | Always required |
+| No AI anywhere here | Golden rule 9 | — |
+
+**Built as planned.** Two expectations of mine were wrong, not the code: an overnight shift's
+label ends "02:00 Thu" (the house style for a shift past midnight).
+
+**Verify round 1: NOT VERIFIED** (lint: my label change in the action log test left a line
+prettier would reflow; formatted).
+
+**Guardrails review: FIX FIRST (3), all fixed.**
+1. **The action log's words had brackets inside brackets** ("(wrong rate (Sat 31 Oct))").
+   **Fix:** "(wrong rate, Sat 31 Oct)"; a word test added.
+2. **A logged-out worker was stuck on "Log in again" with no way on.** **Fix:** to the login page,
+   like every other worker form.
+3. **Small tap targets and a repeated link on `/pay/query`** (golden rule 11). **Fix:** full-width
+   buttons; one "Back to your pay" (the e2e no longer needs `.first()`).
+
+**Suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| No session keeper on `/pay/query` | Added, like every other worker page |
+| A malformed form showed "Choose a shift, or a day." | "Something went wrong. Try again." (the form never sends one) |
+| Asking again silently dropped the new note | Says "payroll has your first message"; adding to a query parked |
+| "answer on your pay page" promised more than the page shows | "You'll see its status on your pay page." |
+| No lowest date on the picker; bank details in free text | `min` 90 days back; "Don't include bank details."; retention parked for Dylan |
+| Firm-cancelled shifts not in the list; a database backstop for duplicates | Parked |
+

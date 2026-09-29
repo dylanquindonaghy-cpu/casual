@@ -19,6 +19,7 @@ export const EXPECTED_TABLES = [
   "offers",
   "office_users",
   "otp_codes",
+  "pay_queries",
   "pay_records",
   "push_subscriptions",
   "requests",
@@ -211,6 +212,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, '2026-10-26', '2026-11-01', 8, 1250)`,
     [firmId, rosterWorkerId],
   );
+  // Pay queries point at the rota worker too (no ON DELETE action), and no shift (the shift link is
+  // tested in FK_CASES).
+  const payQueryId = await one(
+    su,
+    `insert into pay_queries (firm_id, worker_id, work_date, issue_type)
+     values ($1, $2, '2026-10-26', 'missing_hours')`,
+    [firmId, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -243,6 +252,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
       metrics_daily: metricsId,
+      pay_queries: payQueryId,
     },
   };
 }
@@ -344,6 +354,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, $2, '2h', $3, 'sent', 'sms')`,
     values: [firmId, p.rows.assignments, new Date(Date.UTC(2027, 0, 1) + next() * 60_000)],
   }),
+  pay_queries: (firmId, p) => ({
+    text: `insert into pay_queries (firm_id, worker_id, work_date, issue_type)
+           values ($1, $2, '2026-11-02', 'late_pay')`,
+    values: [firmId, p.rosterWorkerId],
+  }),
   metrics_daily: (firmId) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value)
            values ($1, $2, 'daily', 'portal_actions', 3)`,
@@ -439,6 +454,16 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-09', '2026-11-15', 1, $3)`,
     values: [firmId, other.workerId, 2000 + next()],
+  }),
+  pay_queries_worker_fk: (firmId, _own, other) => ({
+    text: `insert into pay_queries (firm_id, worker_id, work_date, issue_type)
+           values ($1, $2, '2026-11-03', 'other')`,
+    values: [firmId, other.workerId],
+  }),
+  pay_queries_shift_fk: (firmId, own, other) => ({
+    text: `insert into pay_queries (firm_id, worker_id, shift_id, work_date, issue_type)
+           values ($1, $2, $3, '2026-11-04', 'wrong_rate')`,
+    values: [firmId, own.rosterWorkerId, other.rows.shifts],
   }),
   metrics_daily_recorded_by_fk: (firmId, _own, other) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value, recorded_by)

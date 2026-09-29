@@ -385,16 +385,21 @@ create table pay_records (
   unique (firm_id, worker_id, period_start, period_end, rate_pence)  -- one line per period and rate
 );
 
+-- A worker's structured pay question (Phase 6, src/lib/portal/pay-queries.ts), raised behind the
+-- pay-page code. The day worked is always set: the shift's day, or the day they typed. Details are
+-- free text: kept here, never copied into events. No DELETE for the app role.
 create table pay_queries (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  worker_id uuid not null references workers(id),
-  shift_id uuid references shifts(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers
+  shift_id uuid,                         -- (firm_id, shift_id) -> shifts; null for a day typed in
+  work_date date not null,               -- the day the question is about (firm time)
   issue_type text not null,              -- missing_hours | wrong_rate | late_pay | other
-  details text,
-  group_key text,                        -- set by code (week + site + rate code + issue)
+  details text,                          -- 1-1000 characters, or null
+  group_key text,                        -- set by code (week + site + rate code + issue), Phase 6 grouping
   status text not null default 'open',   -- open | in_digest | resolved
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
 );
 
 create table events (

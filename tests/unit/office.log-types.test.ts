@@ -121,6 +121,9 @@ describe("the action log's types and words", () => {
       "Sam Rota imported a file: 3 added, 1 changed, 0 skipped.",
     );
     expect(say("roster.synced", { shifts: 12 })).toBe("The rota sheet was read (12 shifts).");
+    expect(
+      say("pay_query.created", { issueType: "wrong_rate", workDate: "2026-10-31" }, "worker"),
+    ).toBe("Ann Booker raised a pay query (wrong rate, Sat 31 Oct).");
     expect(say("shift.status_changed", { from: "open", to: "cancelled" })).toBe(
       "The rota sheet changed it from open to cancelled.",
     );

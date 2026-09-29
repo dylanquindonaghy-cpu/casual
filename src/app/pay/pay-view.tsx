@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { hoursText, pounds, type PayLine } from "@/lib/portal/pay-format";
+import { ISSUE_LABELS, PAY_QUERY_STATUS_WORDS, type PayIssue } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 
 // The pay page once the code has been checked (docs/screens.md, `/pay`): the last 8 weeks of pay
@@ -32,7 +34,43 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
           </li>
         ))}
       </ul>
-      <p className="mt-6 text-base">If something looks wrong, contact the office.</p>
+      <p className="mt-6 text-base">If something looks wrong, raise a pay query.</p>
     </>
+  );
+}
+
+// "Raise a pay query", and the worker's own pay queries from the last 90 days with their status.
+export function PayQueries({
+  queries,
+}: {
+  queries: { ref: string; issue: PayIssue; day: string; status: string }[];
+}) {
+  return (
+    <section className="mt-6" aria-labelledby="pay-queries">
+      <Link
+        href="/pay/query"
+        className="block w-full rounded-xl bg-slate-900 px-4 py-4 text-center text-lg font-semibold text-white"
+      >
+        Raise a pay query
+      </Link>
+      <h2 id="pay-queries" className="mt-6 text-xl font-bold">
+        Your pay queries
+      </h2>
+      {queries.length === 0 ? (
+        <p className="mt-2">None in the last 90 days.</p>
+      ) : (
+        <ul className="mt-2 divide-y">
+          {queries.map((q) => (
+            <li key={q.ref} className="py-3">
+              <p className="font-semibold">
+                {ISSUE_LABELS[q.issue]}: {dayLabel(q.day)}
+              </p>
+              <p>{PAY_QUERY_STATUS_WORDS[q.status] ?? q.status}</p>
+              <p className="text-base text-slate-600">Reference {q.ref}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

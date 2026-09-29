@@ -4946,3 +4946,104 @@ and the worker hears back.
    pay query …: sorted. …"), unless it's quiet hours (22:00 to 07:00), when it waits.
 5. As the worker, open "Your pay" (with the pay code): the query says "Sorted on {today}" and
    "Payroll says: …".
+
+## 2026-09-29: Phase 6, task 5: The pay records import screen (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (15:30 to 15:57 UTC), in the unattended overnight loop.
+Phase 6 so far: 2.8 of its 12 to 18 hour estimate.
+
+### Result
+
+- **Ticked.** The independent auditor said "VERDICT: DONE" in its first round.
+- `scripts/verify.sh` printed `VERIFIED tree=2cad81e465cea0ad e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2275 tests (up from 2264);
+  - the 39 browser tests (up from 38);
+  - the rule checks.
+- The guardrails review said "safe to commit" with nothing to fix first; its suggestions were done.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+The part that reads a payroll file was already built in Phase 3, and could only be run from the
+terminal (`npm run import --kind pay`). Payroll can now do it themselves in the office app.
+- **The screen, "Import pay records"** (`/office/pay/import`), for payroll and admins:
+  1. Choose the file your payroll produces (.csv or .xlsx), with one line per person, pay period
+     and rate. Columns: Staff ID (or Mobile), Period start, Period end, Hours and Rate, and Gross
+     pay and Pay date if you have them.
+  2. "Check the file" says what it would do ("This file would add 3 pay lines, change 1, leave 0
+     as they are and skip 1.") and lists problems by row ("Row 5: an amount isn't money we can
+     read (use 12.50)."). Nothing is saved or logged by a check.
+  3. "Import these pay records" does it for real ("Imported: 3 pay lines added, …").
+  Importing the same file again updates lines instead of adding them twice. Each worker then sees
+  their own lines on their pay page, behind their pay code.
+- **Pay queries follow the new lines.** A "wrong rate" pay query is grouped by the rate on the
+  worker's pay line for that day. After a real import, waiting queries are regrouped straight away
+  (in the same database transaction), and the screen says how many moved. The action log records
+  it too.
+- **Links**: "Import pay records" in the office dashboard's menu and on the pay queries page.
+- **One upload path for both screens**: the shifts import screen's code is now shared
+  (`src/lib/office/office-import.ts`), with each screen saying who may use it and what happens
+  after a real import.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Payroll and admins import pay, not resourcers | Pay figures are payroll's | Everyone who can import shifts |
+| Regroup waiting queries in the import itself | Payroll's page is right straight after an import; the digest only regroups at its time | Leave it to the digest |
+| Correcting or removing a wrong line: still for Dylan | The importer updates a line by worker, period and rate; a wrong rate needs a decision first | Build a delete now |
+| `/office/pay/import` | Pay records aren't queries: the start of a pay area | Under the pay queries page |
+
+### What the review suggested (and what was done)
+
+- The "after a real import" step also ran during a check, outside the check's rollback. Pay was
+  safe (it checked for itself), but a future screen could have saved something during a check.
+  Now it only ever runs on a real import.
+- More tests: a check logs nothing at all; another firm's payroll user can't import here; an
+  import never regroups another firm's queries.
+- The no-AI tripwire test now also covers the pay import, where pay figures come in (golden rule 1:
+  code reads them, never AI).
+- If two imports clash in the database, it tries again by itself instead of saying "Something
+  went wrong".
+- The log now says "imported a pay file" rather than "imported a file", and "2 waiting pay queries
+  moved to the group that matches the pay records now."
+- The "may this person use the pay area?" check was written three times; it's one helper now.
+
+### What the new tests prove
+
+- `tests/integration/office.pay-import.test.ts` (6 tests, on the real database): the check saves
+  and logs nothing; the import adds the lines exactly as given (hours, rate and gross in pence, pay
+  date), logged by who without any amounts; the same file again changes nothing and a corrected
+  line updates; the worker then sees the line on their pay page; only payroll and admins (not
+  resourcers, disabled users, another firm's payroll or an unknown id); a waiting wrong-rate query
+  moves group after an import but not after a check, and it's logged; another firm's queries are
+  never regrouped; too-big files, a missing column and a non-spreadsheet are refused, and another
+  firm's staff are unknown here.
+- `tests/unit/office.pay-import-copy.test.ts` (3 tests): every message on the screen.
+- `tests/unit/office.log-types.test.ts`: the new log words.
+- `tests/unit/ai.boundary.test.ts`: the import path can't reach AI code.
+- A new browser test (`tests/e2e/office.pay-import.spec.ts`): payroll logs in, opens "Import pay
+  records", checks a two-line file (one row for nobody, so "Row 3: …"), imports it, then the worker
+  logs in with their pay code and sees "12.5 hours at £19.87 an hour" and "Gross pay: £248.38".
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to decide** (Parking lot, "Pay records"): how payroll corrects or removes a wrongly
+  imported line. Today nothing can delete one, a corrected rate comes in as a second line, and an
+  update overwrites the old hours (the log keeps only which fields changed).
+- A CSV saved in the old Windows format with a £ sign is refused as "not text" (use UTF-8 or .xlsx).
+- A large file is one database transaction on the web (up to 5,000 rows): fine for a pilot.
+
+### How to see it working
+
+1. Start the app (`npm run dev`) with the demo data (`npm run db:seed`).
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.payroll@example.com`.
+3. Click "Import pay records". Make a small CSV in a spreadsheet with the columns Mobile, Period
+   start, Period end, Hours, Rate, Gross pay, Pay date, and one line for a demo worker (for example
+   `07700 900111`, last week's dates like `19/10/2026` and `25/10/2026`, `12.5`, `19.87`, `248.38`).
+4. Click "Check the file": it says it would add 1 pay line. Click "Import these pay records".
+5. Log in as that worker at `http://acme.localhost:3000/login` and open "Your pay" with the code:
+   the line shows "12.5 hours at £19.87 an hour".

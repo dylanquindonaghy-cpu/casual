@@ -52,6 +52,13 @@ const hours = (value: unknown) => {
   return Number.isFinite(n) ? noticeText(n) : null;
 };
 
+const IMPORT_KIND_WORDS: Record<string, string> = {
+  workers: "a file of staff",
+  credentials: "a file of licences and cards",
+  shifts: "a file of shifts",
+  pay: "a pay file",
+};
+
 const queryCount = (n: unknown) => (Number(n ?? 0) === 1 ? "1 query" : `${Number(n ?? 0)} queries`);
 
 export function eventWords(e: LoggedEvent, names: Names): string {
@@ -272,7 +279,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "roster.sheet_booking_refused":
       return `${worker} is in the rota sheet but couldn't be booked (the rules said no).`;
     case "import.completed":
-      return `${officeName} imported a file: ${Number(d.created ?? 0)} added, ${Number(d.updated ?? 0)} changed, ${Number(d.skipped ?? 0)} skipped.`;
+      return `${officeName} imported ${IMPORT_KIND_WORDS[String(d.kind)] ?? "a file"}: ${Number(d.created ?? 0)} added, ${Number(d.updated ?? 0)} changed, ${Number(d.skipped ?? 0)} skipped.`;
     case "pay_record.imported":
       return `A pay record was added for ${worker}${period(d.periodStart, d.periodEnd)}.`;
     case "pay_query.created": {
@@ -293,6 +300,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `Couldn't tell ${worker} their pay query is sorted: the message failed.`;
     case "pay_query.update_held":
       return `${worker} will be told their pay query is sorted when quiet hours end.`;
+    case "pay_query.regrouped":
+      return `${Number(d.changed ?? 0) === 1 ? "1 waiting pay query" : `${Number(d.changed ?? 0)} waiting pay queries`} moved to the group that matches the pay records now.`;
     case "pay_query.back_to_open":
       return "A pay query went back to wait for the next pay digest (the email couldn't be sent).";
     case "pay_digest.sending":

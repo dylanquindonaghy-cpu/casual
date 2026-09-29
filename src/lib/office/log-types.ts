@@ -120,6 +120,7 @@ export const LOG_TYPES = {
       "pay_query.created",
       "pay_query.in_digest",
       "pay_query.back_to_open",
+      "pay_query.regrouped",
       "pay_query.resolved",
       "pay_query.update_notice",
       "pay_query.update_sent",

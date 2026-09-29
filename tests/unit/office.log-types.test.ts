@@ -120,6 +120,12 @@ describe("the action log's types and words", () => {
     expect(say("import.completed", { created: 3, updated: 1, skipped: 0 }, "office")).toBe(
       "Sam Rota imported a file: 3 added, 1 changed, 0 skipped.",
     );
+    expect(
+      say("import.completed", { kind: "pay", created: 2, updated: 0, skipped: 1 }, "office"),
+    ).toBe("Sam Rota imported a pay file: 2 added, 0 changed, 1 skipped.");
+    expect(say("pay_query.regrouped", { changed: 2 })).toBe(
+      "2 waiting pay queries moved to the group that matches the pay records now.",
+    );
     expect(say("roster.synced", { shifts: 12 })).toBe("The rota sheet was read (12 shifts).");
     expect(
       say("pay_query.created", { issueType: "wrong_rate", workDate: "2026-10-31" }, "worker"),

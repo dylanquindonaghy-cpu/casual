@@ -192,7 +192,7 @@ Docs: `docs/screens.md`, `docs/pilot-playbook.md`.
 - [x] Digest to payroll by email at a set time: "42 queries, 37 about the new rate not applied
       to 12 Sep shifts" with the list attached
 - [x] Worker sees status updates; AI never answers a dispute
-- [ ] Pay records CSV import (period, hours, rate, gross, pay date)
+- [x] Pay records CSV import (period, hours, rate, gross, pay date)
 - [ ] Tests: `pay.grouping` (stable keys; AI failure falls back cleanly)
 
 ## Phase 7 — WhatsApp shifts line and call-to-text (15–20 h)
@@ -391,15 +391,15 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 5: let the office look a booking up by the 8-character reference on the worker's
   confirmation.
 - Open shifts cards: the pay rate "if the firm shows it" comes with pay data (Phase 6).
-- Pay records: no app path deletes a wrongly imported line (NO_DELETE); decide with Phase 6
-  (payroll screen) how the office corrects or removes one, and with Phase 8 how GDPR deletion and
+- Pay records (**Dylan to decide**; the Phase 6 import screen is built, correcting isn't): no app
+  path deletes a wrongly imported line (NO_DELETE); decide how payroll corrects or removes one, and with Phase 8 how GDPR deletion and
   retention treat pay records. A corrected rate re-imports as a second line (the rate is part of
   the key), so the worker sees both; and an update overwrites the old hours and gross (the log
   keeps field names only), so what a worker was shown before is lost. Consider superseded rows or
   a versions table in Phase 6. A Windows-1252 CSV with £ is refused as "not text" (ask for UTF-8
   or .xlsx). Demo pay records come with the demo-seed task.
 - Phase 6's "Pay records CSV import" line is effectively built in Phase 3 (the `pay` kind of the
-  importer); Phase 6 adds the office screen for it.
+  importer); the office screen is built in Phase 6 (`/office/pay/import`).
 - Fair rotation: a shift created as a draft and opened later counts its window from creation (no
   "opened at" is stored); a cancellation restarts the window for every open place on the shift
   (even ones open for days), and counts even when no place reopened (after the start, or above a
@@ -462,9 +462,9 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   and bad rows (Phase 5 Today view). Today they are only in the database and events.
 - Demo seed: Northline's mocked sheet. Local dev has no sheet transport (`SHEETS_TRANSPORT=none`);
   a file-backed dev transport would let the demo sync a sheet on a laptop.
-- Office import screens: shifts is built (`/office/shifts/import`, dry run first). Workers and
-  credentials ("import CSV" on a workers screen) and pay records (Phase 6) reuse
-  `importShiftsFile()`'s pattern with their kind.
+- Office import screens: shifts (`/office/shifts/import`) and pay records (`/office/pay/import`) are
+  built, both on `importOfficeFile()` (`src/lib/office/office-import.ts`). Workers and credentials
+  ("import CSV" on a workers screen) can reuse it with their kind.
 - Imports, before the Phase 5 upload screen: the whole file is one transaction (holding shift
   locks until it ends), fine for the terminal script; for the web, consider a background job. A
   CSV row without a Staff ID can update a worker the Sheets sync owns (until the next sync puts the
@@ -1004,3 +1004,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 6 | 0.4 | Pay query grouping, BLOCKED (not ticked: "Haiku summarises" needs Claude on Amazon Bedrock, an outside service): built everything short of it: grouping keys by code (wrong rate by week and pay-line rate, hours missing by week and site, paid late and something else by week), regrouping when a pay line arrives later, payroll's read-only "Pay queries" page grouped by likely cause with the app's own summary line, and the AI summary interface (facts only, checked, with the app's line as the fallback) with a fake for tests; connecting Bedrock is parked with steps; 2191 tests + 38 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.8 | Payroll digest: at the firm's set time (default 09:00 Monday to Friday, a new `pay_digest` setting) payroll gets one email: "42 new pay queries since the last digest. 37 are about the same thing: …", the groups biggest first, and the list attached as a spreadsheet file (names and what workers wrote only in the attachment); each query goes once and is marked "In a digest", back to waiting if no email gets through; payroll's page shows the schedule, the last digest and "Send the digest now"; email through the console transport (connecting Amazon SES parked with steps); the review caught per-query log entries in the wrong transaction, an outcome step that could fail silently and a lost digest the page never mentioned (all fixed and tested); 2231 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.6 | Pay query status: payroll marks a group "sorted" with a note (required, at most 500 characters, never in the log; new columns on `pay_queries`); each worker gets "Update on your pay query (ref …): sorted. {note}" by WhatsApp or text (once, quiet hours respected, a push that says nothing about pay) and sees "Sorted on {day}" with "Payroll says: …" on their pay page; a new test pins which files may use AI code and fails if anything a worker sees, or payroll's sorting path, can reach it; the review caught that the test missed the office side where the note is typed (fixed: the sort path has its own modules, and the reviewer's breach now fails the test); two old test-helper root causes fixed on the way (a missing cross-firm case, ids sorted as text); 2264 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 6 | 0.5 | Pay records import screen: payroll and admins upload their payroll's .csv or .xlsx at `/office/pay/import` (Staff ID or mobile, period, hours, rate, gross, pay date), "Check the file" first (nothing saved or logged), then "Import these pay records"; problems listed by row, never the contents; waiting pay queries regroup to match the new lines (logged); the importer itself was Phase 3's, and the shifts and pay screens now share one upload path; the review found nothing to fix first, and its suggestions were done (checks can never write, a deadlock retry, more cross-firm tests, the AI tripwire extended to the import); 2275 tests + 39 e2e; verified and audited DONE (see docs/work-log.md) |

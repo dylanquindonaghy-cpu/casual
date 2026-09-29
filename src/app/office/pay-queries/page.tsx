@@ -71,7 +71,10 @@ export default async function PayQueriesPage() {
         </section>
       ))}
       {data.more && <p className="mt-4">Showing the newest 2,000.</p>}
-      <p className="mt-8">
+      <p className="mt-8 flex flex-wrap gap-4">
+        <Link href="/office/pay/import" className="underline">
+          Import pay records
+        </Link>
         <Link href="/office" className="underline">
           Back to the dashboard
         </Link>

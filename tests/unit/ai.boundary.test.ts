@@ -14,7 +14,8 @@ import { AI_PURPOSES } from "@/lib/ai/client";
 // - nothing a worker sees or receives can reach src/lib/ai/: the staff pages, the portal code, the
 //   notices and notify code, the message templates; nor can payroll's "sort and tell them" path,
 //   from the form where the note is typed through the server action to the database (so the note
-//   the worker gets is the person's own words), and the form takes nothing but the query ids.
+//   the worker gets is the person's own words), and the form takes nothing but the query ids; nor
+//   can payroll's pay import, where the pay figures come in.
 // A new use of AI must be added here on purpose. It can't see everything (an AI client handed
 // around as a plain object without its type, say); it catches the likely mistakes. The behaviour (the worker's message is payroll's
 // note in the doc's template, word for word) is tested in tests/integration/pay.resolve.test.ts.
@@ -140,8 +141,18 @@ describe("AI never answers a dispute", () => {
     expect(direct).toEqual(["src/lib/office/pay-query-groups.ts"]);
   });
 
-  // Payroll's "Mark as sorted and tell them", where the note to the workers is typed and saved.
-  const SORT_PATH = [
+  // Payroll's "Mark as sorted and tell them", where the note to the workers is typed and saved;
+  // and payroll's pay import, where the pay figures come in (read by code, never by AI: rule 1).
+  const PAYROLL_PATHS = [
+    "src/app/office/pay/import/page.tsx",
+    "src/app/office/pay/import/actions.ts",
+    "src/app/office/pay/import/import-form.tsx",
+    "src/lib/office/pay-import.ts",
+    "src/lib/office/pay-import-copy.ts",
+    "src/lib/office/office-import.ts",
+    "src/lib/imports/import.ts",
+    "src/lib/imports/columns.ts",
+    "src/lib/imports/table.ts",
     "src/app/office/pay-queries/sort-group-form.tsx",
     "src/app/office/pay-queries/sort-actions.ts",
     "src/app/office/pay-queries/as-payroll.ts",
@@ -168,10 +179,10 @@ describe("AI never answers a dispute", () => {
         path.startsWith("src/lib/notices/") ||
         path.startsWith("src/lib/notify/") ||
         path.startsWith("src/lib/messaging/") ||
-        SORT_PATH.includes(path)
+        PAYROLL_PATHS.includes(path)
       );
     });
-    for (const path of SORT_PATH) expect(workerFacing.map(rel)).toContain(path);
+    for (const path of PAYROLL_PATHS) expect(workerFacing.map(rel)).toContain(path);
     expect(workerFacing.length).toBeGreaterThan(50);
     expect(workerFacing.map(rel)).toContain("src/lib/notices/pay-query-update.ts");
     expect(workerFacing.map(rel)).toContain("src/app/pay/pay-view.tsx");

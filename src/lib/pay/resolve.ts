@@ -1,13 +1,13 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
-import { canAccess } from "../auth/roles";
 import { uuidArray } from "../db/arrays";
 import { retryAborted } from "../db/retry";
-import { officeUsers, payQueries } from "../db/schema";
+import { payQueries } from "../db/schema";
 import type { WithFirm } from "../db/scoped";
 import { recordEvents } from "../events/record";
 import { queuePayQueryUpdate } from "../notices/pay-query-update";
+import { officeUserMay } from "../office/office-context";
 import { rosterId } from "../roster/book";
 
 // Payroll sorting pay queries (docs/screens.md `/office/pay-queries`; docs/api-and-jobs.md
@@ -55,11 +55,7 @@ export async function resolvePayQueries(
   const ids = [...new Set(input.ids)];
   return retryAborted(() =>
     run(firmId, async (tx): Promise<ResolvePayQueriesResult> => {
-      const [me] = await tx
-        .select({ role: officeUsers.role })
-        .from(officeUsers)
-        .where(and(eq(officeUsers.id, input.by.id), eq(officeUsers.status, "active")));
-      if (!me || !canAccess(me.role, "pay")) return { status: "not_allowed" };
+      if (!(await officeUserMay(tx, input.by.id, "pay"))) return { status: "not_allowed" };
       const waiting = await tx
         .select({ id: payQueries.id, status: payQueries.status, workerId: payQueries.workerId })
         .from(payQueries)

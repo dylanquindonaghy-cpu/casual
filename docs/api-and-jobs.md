@@ -96,7 +96,7 @@ Google Sheets sync only changes `confirmed` bookings; the worker isn't messaged,
 resourcer; the request row locked, only an open or escalated one; approved or declined with a note
 (optional to approve, required to decline, at most 500 characters, kept in
 `requests.resolution_note`, never in an event); logged `request.approved` / `request.declined`
-{type, shiftId, withNote}; queues `request-update`; any kind; the shift itself isn't changed), `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the shifts screen is built: `importShiftsFile()`, `importShiftsAction`, files up to 1 MB on the web),
+{type, shiftId, withNote}; queues `request-update`; any kind; the shift itself isn't changed), `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the shifts screen is built: `importShiftsFile()`, `importShiftsAction`, files up to 1 MB on the web; the pay records screen too: `importPayFile()` in `src/lib/office/pay-import.ts`, `importPayAction` on `/office/pay/import`, payroll and admins, regrouping waiting pay queries after a real import that added or changed lines; both on `importOfficeFile()` in `src/lib/office/office-import.ts`),
 `sendPayDigestNow` (built: `queuePayDigestNow()` in `src/lib/pay/digest.ts`, `sendDigestNowAction`
 on `/office/pay-queries`: an active payroll user or admin; no new (open) pay queries → nothing; no
 one to send it to → nothing; else queues a `pay-digest` with a key of its own and who asked, one a

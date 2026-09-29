@@ -1,5 +1,8 @@
+import { and, eq } from "drizzle-orm";
 import type { Clock } from "../auth/clock";
-import { withFirm, type WithFirm } from "../db/scoped";
+import { canAccess, type OfficeArea } from "../auth/roles";
+import { officeUsers } from "../db/schema";
+import { withFirm, type FirmTx, type WithFirm } from "../db/scoped";
 
 // Who is acting in an office server action: the firm comes from the request (the session's firm),
 // the office user from the session. Each underlying function checks the user again inside the
@@ -18,3 +21,17 @@ export const parts = (ctx: OfficeContext) => ({
   by: { type: "office" as const, id: ctx.officeUserId },
   deps: ctx.clock ? { clock: ctx.clock } : {},
 });
+
+// Inside the firm's transaction: is this an active office user whose role may use `area`? (The
+// page and the action check the session too; this is the check that holds when the work is done.)
+export async function officeUserMay(
+  tx: FirmTx,
+  officeUserId: string,
+  area: OfficeArea,
+): Promise<boolean> {
+  const [me] = await tx
+    .select({ role: officeUsers.role })
+    .from(officeUsers)
+    .where(and(eq(officeUsers.id, officeUserId), eq(officeUsers.status, "active")));
+  return me !== undefined && canAccess(me.role, area);
+}

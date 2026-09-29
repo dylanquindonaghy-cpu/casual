@@ -53,6 +53,11 @@ export default async function OfficeHome() {
             Pay queries
           </Link>
         )}
+        {canAccess(officeUser.role, "pay") && (
+          <Link href="/office/pay/import" className="underline">
+            Import pay records
+          </Link>
+        )}
         {canAccess(officeUser.role, "team") && (
           <Link href="/office/team" className="underline">
             Office team

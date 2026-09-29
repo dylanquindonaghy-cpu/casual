@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
-import { canAccess } from "../auth/roles";
 import { noAi, type AiClient } from "../ai/client";
 import { factsPhrase } from "../ai/pay-summary";
 import { events, firms, officeUsers, payQueries } from "../db/schema";
@@ -13,6 +12,7 @@ import { workerEnv } from "../env";
 import { recordEvent, recordEvents } from "../events/record";
 import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
+import { officeUserMay } from "../office/office-context";
 import { getTransport, type MessagingTransport } from "../messaging";
 import { payDigestEmail, type FirmVoice } from "../messaging/templates";
 import {
@@ -427,11 +427,7 @@ export async function queuePayDigestNow(
 ): Promise<SendDigestNowResult> {
   const now = (deps.clock ?? systemClock).now();
   return run(firmId, async (tx): Promise<SendDigestNowResult> => {
-    const [me] = await tx
-      .select({ role: officeUsers.role })
-      .from(officeUsers)
-      .where(and(eq(officeUsers.id, by.id), eq(officeUsers.status, "active")));
-    if (!me || !canAccess(me.role, "pay")) return { status: "not_allowed" };
+    if (!(await officeUserMay(tx, by.id, "pay"))) return { status: "not_allowed" };
     const queries = await countWhere(tx, "open");
     if (queries === 0) return { status: "nothing_new" };
     const { emails } = await digestRecipients(tx);

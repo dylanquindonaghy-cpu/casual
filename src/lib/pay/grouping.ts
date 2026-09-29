@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { payQueries, payRecords, shifts } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { recordEvent } from "../events/record";
 import type { PayIssue } from "../portal/pay-query-kinds";
 import { mondayOf } from "../time/zoned";
 
@@ -129,6 +130,15 @@ export async function regroupPayQueries(tx: FirmTx): Promise<{ changed: number }
         .where(and(eq(payQueries.id, q.id), sql`${payQueries.groupKey} is distinct from ${key}`));
       changed += 1;
     }
+  }
+  // The keys are worked out from the rows, but a group payroll saw can change: say so in the log.
+  if (changed > 0) {
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "pay_query.regrouped",
+      entityType: "firm",
+      data: { changed },
+    });
   }
   return { changed };
 }

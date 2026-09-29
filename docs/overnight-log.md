@@ -4282,3 +4282,56 @@ one query alone; a sorted-recently list; the two-way check; batching the notice 
 pay rule for the WhatsApp line).
 
 **Hours:** 0.6 h (14:50 to 15:28 UTC). Phase 6 so far 2.3 h of its 12–18 h estimate.
+
+## 2026-09-29 15:30 UTC: Phase 6, "Pay records CSV import (period, hours, rate, gross, pay date)"
+
+**What's there already:** the importer itself was built in Phase 3 (the `pay` kind of
+`src/lib/imports/import.ts`: columns by header name, Staff ID or mobile, period start and end,
+hours, rate, gross and pay date, money in exact pence, a dry run, row-numbered problems, logged
+`pay_record.imported`/`pay_record.updated` without amounts), used by `npm run import --kind pay`.
+The Parking lot says: "Phase 6 adds the office screen for it."
+
+**Plan:**
+
+1. **A shared office import** (`src/lib/office/office-import.ts`): the shifts screen's upload code
+   (size limit, read the file, the role check inside the transaction, the firm's time zone, dry
+   run or real) made generic; `importShiftsFile()` keeps its behaviour on top of it.
+2. **Pay import** (`src/lib/office/pay-import.ts`, `importPayFile()`): active payroll users and
+   admins (the pay area), checked inside the transaction. After a real import that added or
+   changed lines, waiting pay queries are regrouped in the same transaction (a wrong-rate query's
+   group depends on the pay line's rate), and the result says how many moved.
+3. **Screen** `/office/pay/import` (payroll and admins): "Import pay records", which columns, "We
+   check the file first…", "Check the file" → "Import these pay records" → the counts and each
+   problem by row → "Back to pay queries". Linked from the dashboard nav ("Import pay records")
+   and from the pay queries page.
+4. **Copy** (`src/lib/office/pay-import-copy.ts`): "This file would add {3 pay lines}, change 1,
+   leave 0 as they are and skip 1." / "Imported: …"; "{2 waiting pay queries} moved to the group
+   that matches the new pay lines."; the importer's own problem and file words.
+5. **Tests**: integration (payroll and admins can, resourcers can't; the dry run saves nothing;
+   the real import adds and updates, logs without amounts; regrouping after an import; the size
+   limit; a bad file; another firm's workers are unknown here), unit (copy), e2e (payroll checks
+   and imports a small CSV, then a worker's pay page shows the line).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Payroll and admins import pay (the pay area), not resourcers | Pay figures are payroll's | Everyone who can import shifts |
+| Regroup waiting queries in the import's transaction | Payroll's page shows the right groups straight after an import; the digest regroups too, but only at its time | Leave it to the digest |
+| Correcting or removing a wrongly imported line: still parked | The importer updates a line by worker, period and rate; a wrong rate needs a decision (superseded lines or a versions table) for Dylan | Build a delete now |
+| `/office/pay/import`, not under pay queries | Pay records aren't queries; it's the start of a pay area | `/office/pay-queries/import` |
+
+**Built as planned.**
+
+**Guardrails review: "SAFE TO COMMIT", no FIX FIRST.** Suggestions:
+
+| Suggestion | Done |
+|---|---|
+| `importOfficeFile`'s `after` ran on checks too, outside the dry run's rollback, despite its comment (pay was safe only because it tested `dryRun` itself) | `after` runs only on a real import; a check gets `afterCheck`; the extras can't overwrite `status` or `result` |
+| Tighter tests: all events unchanged after a check; another firm's payroll user; a cross-firm regroup | All three added |
+| Extend the AI boundary test to the pay import path | The page, action, form, `pay-import*.ts`, `office-import.ts` and the importer's files are now protected |
+| Log the regroup | `pay_query.regrouped` {changed} when any key moves (the digest's regroup logs it too); words and log group added; tested |
+| Retry the import on a deadlock | `retryAborted()` around the import's transaction (database work only) |
+| The "may use the pay area" check was written three times | One helper, `officeUserMay(tx, id, area)` in `office-context.ts`, used by the import, sorting and "Send the digest now" |
+| The log's "imported a file" didn't say what kind | "imported a pay file" (and staff, licences and cards, shifts); the old words stay when an event has no kind |
+| Two near-identical import forms; `as-payroll.ts` living under pay-queries; the web too_big words mentioning 5 MB for an unpacked .xlsx | Left as they are (small); noted here |

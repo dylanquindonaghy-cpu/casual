@@ -4883,3 +4883,6 @@ of it is built, verified and committed. No auditor round. Next step is Dylan's: 
 step 5.
 
 **Hours:** 0.8 h (19:09 to 19:57 UTC). Phase 7 so far 3.4 h of its 15–20 h estimate.
+
+**Commit:** `f4355c9` "Phase 7 (BLOCKED, not ticked): STOP handling for SMS; opt-out respected in the
+notification policy", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.

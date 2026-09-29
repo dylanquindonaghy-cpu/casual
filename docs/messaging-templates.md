@@ -32,7 +32,7 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 | `login_code` | Utility | "Your {firm} code is {code}. It works for 10 minutes. Don't share it with anyone. — {firm} Shift Team" (pay-page step-up; one per request, exempt from the once-a-day rule. Meta's authentication category has fixed wording without a sign-off: decide in Phase 7) |
 | `office_login_link` | Email | Subject "Your {firm} office login link". Body: "Here's your link to the {firm} office dashboard: {link}. It works for 15 minutes, once, and only for you. If you didn't ask for it, you can ignore this email. — {firm} Shift Team" (console transport in Phase 1; SES later) |
 | `shift_offer` | Utility | "Shift available: {date} {start}–{end} at {site} ({role}). Tap to take it: {link}. First to accept gets it. — {firm} Shift Team" |
-| `shift_urgent` | Utility | "URGENT: we need a {role} at {site} today {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" |
+| `shift_urgent` | Utility | "URGENT: we need a {role} at {site} {day} {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" ({day} is "today", "tomorrow" or "on Sat 7 Nov": an urgent shift isn't always today; "at {site}" is left out when the shift has no site; "an" before a vowel. Sent by the offer waves, `src/lib/offers/waves.ts`) |
 | `shift_filled` | Utility | "Thanks for replying. That shift on {date} at {site} has now been filled. Open shifts: {link}. — {firm} Shift Team" |
 | `shift_confirmed` | Utility | "Confirmed: {date} {start}–{end} at {site} ({role}). Details and instructions: {link}. — {firm} Shift Team" |
 | `shift_reminder_24h` | Utility | "Reminder: tomorrow {start}–{end} at {site}. Details: {link}. Can't make it? Cancel in the app as early as you can. — {firm} Shift Team" |
@@ -78,7 +78,10 @@ take open shifts or cancel straight away. To leave a message for the office, spe
 
 ## Office notifications
 
-- Escalation: push + email "Unfilled: {role} at {site} {start} — {n} offers sent, none accepted."
+- Escalation (`shift_escalation`, built for email; push comes with web push): subject "Unfilled:
+  {Role} at {site}, {Sat 7 Nov, 08:00 to 16:00}"; body "The {role} shift at {site}, {when}, still
+  has {n place(s)} free." / "{k offer(s)} sent, none accepted for the free place(s)." / "Open the
+  office dashboard: {link}" / "— {firm} Shift Team". To active admins and resourcers.
 - Unknown number message, failed Sheets sync, domain verified/failed, credential expiries (weekly),
   pay digest (per schedule).
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there

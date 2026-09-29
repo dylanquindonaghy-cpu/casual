@@ -2860,3 +2860,121 @@ piece used by both boards.
 2. Log in at `http://acme.localhost:3000/login` as `07700 900138` (a door supervisor with a valid
    licence). My shifts says "1 urgent shift needs someone".
 3. Tap "See urgent shifts": the early arena shift, labelled "Urgent", with "Take shift".
+
+## 2026-09-29: Phase 4, task 3: Offer waves and escalation (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (03:49 to 04:16 UTC), in the unattended overnight loop.
+Phase 4 so far: 1.0 of its 27 to 37 hour estimate.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=a1055ceecd143f4e e2e=true`. That covers the type
+  checks, lint, all 1597 tests (up from 1576), the 23 browser tests and the rule checks. A
+  production build was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+When someone drops out close to the start (or the office marks a shift urgent), the app now
+offers the shift out by itself. It does this with **background jobs**: tasks the separate
+worker process runs later, from a queue in the database (pg-boss).
+
+1. **Wave 1** goes out at once. Under fair rotation, it goes to the firm's `wave_size` best
+   workers (default 4): those with the fewest hours booked that week, then whoever was offered a
+   shift longest ago. Everyone offered must be eligible:
+   - the booking rules allow it (licences, role, rest, weekly hours, unavailable days);
+   - they have "Tell me about open shifts" on;
+   - they aren't on the shift, haven't cancelled off it, and haven't been offered it already.
+
+   Each gets: "URGENT: we need a door supervisor at Acme Demo Arena today 19:00–03:00. Tap to
+   take it: {link}. — Acme Events Shift Team", by WhatsApp or text, as their profile says.
+2. **Wave 2** goes to the next group `wave_minutes` later (default 15), and so on.
+3. **It stops** by itself when the shift is filled, has started, was cancelled, is no longer
+   marked urgent, or there's nobody left to ask. When it fills, the person who took it has their
+   offer marked "accepted", and the others "filled elsewhere".
+4. **Escalation:** at the start minus `escalate_hours_before_start` (default 3), if a place is
+   still free, the office's admins and resourcers get an email: "Unfilled: Door supervisor at
+   Acme Demo Arena, …".
+
+Every offer is recorded (the `offers` table and the action log). Under first come, first served
+(the default mode), everyone eligible gets the offer at once, as the docs say.
+
+**No real messages.** Everything goes through the console "transport": it prints the message
+and writes a file in development, and the tests capture messages. Twilio isn't connected (a hard
+limit for tonight).
+
+### What the safety review found (all fixed)
+
+- **A bad escalation setting could have stopped cancellations.** Waves are queued in the same
+  transaction as the cancellation (all or nothing). The setting was read there and threw on
+  nonsense, so a worker couldn't have cancelled. It now falls back to 3 hours; a test proves the
+  cancellation still goes through.
+- **Clearing the urgent mark didn't stop the waves.** It does now.
+- **A false record:** a worker the office placed after offering them was marked "filled
+  elsewhere". Now they're "accepted".
+- **Missing tests:**
+  - a second dropout starts another wave;
+  - a name taken off the sheet starts waves;
+  - an escalation that's already due runs at once.
+
+  All added.
+- Also: offer rows are now written before any message is sent (so a failed transaction can't
+  leave messages behind). Urgent shifts are never held back by fair rotation. The escalation
+  email says plainly when nobody could be offered the shift.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Waves start whenever a place reopens close to the start, or the office marks it urgent | A second dropout still needs offers | Only when the flag first changes |
+| The urgent message says "today", "tomorrow" or the date | The approved wording said "today" even for tomorrow; `{day}` is now a variable in the template list | Always "today" |
+| Anyone who cancelled off the shift isn't offered it back | A cancellation is a "no" | Offer to everyone |
+| Quiet hours, the 3-a-day cap, web push and SMS fallback wait for their own tasks | They're separate PLAN.md lines | Build all now |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/offers.waves.test.ts` (14 tests, real database, messages captured). It
+  checks:
+  - what starts waves, and what doesn't;
+  - who gets wave 1 and wave 2, and who never does;
+  - the message wording, the channel, and the 15-minute gap;
+  - a retry sending nothing;
+  - stopping when filled, started, closed, cleared or out of people;
+  - first come, first served;
+  - never offering it back to someone who cancelled, or to another firm's workers;
+  - a second dropout, and bad settings;
+  - escalation to the right people, once, and not when filled;
+  - the wiring.
+- `tests/unit/offers.waves.test.ts` (6 tests): the order, "today/tomorrow/on …" across the clock
+  change, the settings, and both messages.
+- Updated: urgency (waves start), allocation (urgent shifts aren't held), the Sheets sync (a
+  removal starts waves), and the worker test (it ignores other tests' queued waves).
+
+### Parked, open, and things that need Dylan
+
+- **Please confirm:**
+  - under first come, first served, offers go to everyone eligible at once (as the docs say),
+    not "the best 3–5";
+  - the new `shift_urgent` wording with `{day}`;
+  - the escalation email wording.
+- Parked in `PLAN.md`:
+  - telling workers an offer was filled elsewhere, and a "No thanks";
+  - an outbox so an offer can never be sent twice (with Twilio);
+  - waves for shifts that aren't urgent;
+  - escalation once per gap;
+  - a freshness check for Sheets shifts;
+  - the Today view's wave status.
+
+### How to see it working
+
+1. Stop `npm run dev` if it's running (Ctrl+C in its terminal).
+2. In the project folder, type: `npx vitest run tests/integration/offers.waves.test.ts`
+3. You should see `14 passed`.
+
+With the app running, the offers print in the `npm run dev` terminal when a worker cancels a
+shift within 24 hours of its start.

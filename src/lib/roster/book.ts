@@ -1,7 +1,7 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { MINUTE, systemClock, type Clock } from "../auth/clock";
-import { officeUsers, rosterSources, shifts, workers } from "../db/schema";
+import { officeUsers, offers, rosterSources, shifts, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { retryAborted } from "../db/retry";
@@ -44,7 +44,8 @@ import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 // runs inside its own long transaction.
 //
 // Locks, in this order: the shift, then the worker, then (only when the booking would rely on the
-// firm's "applied" allowance) the firm's day. The worker lock makes two bookings for one person
+// firm's "applied" allowance) the firm's day. The offer waves (src/lib/offers/waves.ts) follow the
+// same order: the shift, then each offered worker (key share, through the offers row's link). The worker lock makes two bookings for one person
 // queue, so two tabs can't both pass the overlap, rest or weekly-hours checks; the day lock does
 // the same for two applied workers and the allowance. Two portal bookings can't deadlock each
 // other. The Sheets sync can still deadlock with a portal booking (in one long transaction it
@@ -255,6 +256,16 @@ async function bookInTransaction(
       ...(reason ? { reason } : {}),
     },
   });
+  // A worker taking a shift they were offered: the offer is answered (offer waves stop offering
+  // it once it's full).
+  if (by.type === "worker") {
+    await tx
+      .update(offers)
+      .set({ response: "accepted", respondedAt: now })
+      .where(
+        and(eq(offers.shiftId, shiftId), eq(offers.workerId, workerId), isNull(offers.response)),
+      );
+  }
   return {
     status: "booked",
     assignmentId: assigned.assignmentId,

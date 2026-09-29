@@ -2,6 +2,7 @@ import type { Queue } from "pg-boss";
 import { SEND_LOGIN_CODE_QUEUE } from "../../lib/auth/send-login-code";
 import { SEND_PORTAL_LINK_QUEUE } from "../../lib/auth/send-portal-link";
 import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/credentials/scan";
+import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
 import {
   SHEETS_SYNC_EXPIRE_SECONDS,
   SHEETS_SYNC_QUEUE,
@@ -30,6 +31,8 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   SEND_PORTAL_LINK_QUEUE,
   SEND_LOGIN_CODE_QUEUE,
   CREDENTIAL_SCAN_QUEUE,
+  OFFER_WAVE_QUEUE,
+  ESCALATE_SHIFT_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);

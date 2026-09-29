@@ -267,7 +267,8 @@ Every booking and every cancellation, by every path (portal, office, the Sheets 
 event with its notice hours (`tests/integration/notice-log.test.ts`), and only `cancel.ts` and the
 sync may call a plug's `markCancelled` (`tests/unit/booking.boundary.test.ts`).
 
-**Offer waves (pg-boss)**
+**Offer waves (pg-boss)** (built in Phase 4: `src/lib/offers/waves.ts`; details in
+docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
 1. Rank eligible workers (fair rotation: fewest hours this week first; or first come first served).
 2. Send wave 1 (3–5 people): web push + WhatsApp template ("Shift available: Sat 14:00 Gate C.
    Tap to take it"). Link opens the shift.

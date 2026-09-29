@@ -84,11 +84,14 @@ export async function loadAllocationGate(
       status: shifts.status,
       startsAt: shifts.startsAt,
       createdAt: shifts.createdAt,
+      isUrgent: shifts.isUrgent,
     })
     .from(shifts)
     .where(eq(shifts.id, request.shiftId));
-  // Not there, not open, or full: nothing to hold (the booking says why).
-  if (!shift || shift.status !== "open") return { ok: true };
+  // Not there, not open, or full: nothing to hold (the booking says why). An urgent shift is
+  // offered out by the waves (src/lib/offers/waves.ts), so it's never held either: whoever an
+  // offer reached can take it.
+  if (!shift || shift.status !== "open" || shift.isUrgent) return { ok: true };
   const [firm] = await tx
     .select({ timezone: firms.timezone, settings: firms.settings })
     .from(firms)

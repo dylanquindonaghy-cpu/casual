@@ -157,7 +157,7 @@ Docs: `docs/screens.md`.
 
 - [x] Urgent flag on shifts (manual or automatic when a dropout lands inside X hours)
 - [x] Urgent board page for workers (only shifts they're eligible for)
-- [ ] Offer waves (pg-boss): best 3–5 eligible, wait 15 min, next wave; stop when filled;
+- [x] Offer waves (pg-boss): best 3–5 eligible, wait 15 min, next wave; stop when filled;
       escalate to resourcer at start minus X hours (all firm-configurable)
 - [ ] Web push (VAPID); iPhone push only works when the portal is added to the home screen, so
       show an "Add to home screen" prompt
@@ -488,9 +488,22 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     `setShiftUrgent()`, and the flag shown on each shift.
   - The flag stays when an urgent shift fills; if the office wants filled shifts shown as not
     urgent, clear it on fill in `bookShift()` and the sync.
-  - Offer waves (next Phase 4 task): start them from "a place reopened inside the window", not
-    from "the flag was newly set". A second dropout on a shift that's already urgent sets no flag
-    but still needs offers. A `reopened` field on the plug's cancel result would serve both.
+  - (Done in the offer waves task: waves start from "a place reopened inside the window".)
+- Offer waves follow-ups (from the Phase 4 offer waves task):
+  - Tell workers whose offer was "filled elsewhere" (the `offer-expire` job and `shift_filled`),
+    and let a worker decline an offer (a "No thanks" on the shift page).
+  - The outbox: send after commit, so a crash between sending and committing can't send an offer
+    twice (with Twilio, Phase 7).
+  - Waves for open shifts that aren't urgent (the docs only start them for urgent gaps).
+  - The Today view (Phase 5): wave status ("wave 2, 4 offered, 0 accepted") from `offers`, and
+    "needs attention" from `shift.escalated`.
+  - Escalation once per gap, not once per shift (a shift escalated, filled, then dropped again an
+    hour before the start isn't escalated again); and escalate straight away when a wave finds
+    nobody left.
+  - Sheets shifts: only start waves when the sheet copy is fresh, so a tap doesn't get "We can't
+    confirm this shift right now".
+  - **Dylan to confirm:** under first come, first served, the offer goes to every eligible worker
+    at once (as docs/api-and-jobs.md says), not "the best 3–5".
 - Credential expiry messages go straight to the transport. Once Phase 4's `notify` job exists,
   send them through it (push first, per-firm quiet hours), and through the queue-then-send outbox
   when Twilio is connected, so a retried scan can't repeat a message.
@@ -576,3 +589,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 3 | 0.1 | Phase 3 Playwright flow: on a phone-sized screen, a seeded worker logs in, takes a Saturday shift, cancels it, asks for a change and sees pay with a code, with log in, take and cancel each timed under 30 seconds (2.1 s, 1.1 s and 0.5 s); the staff part of the demo script written out in docs/testing.md; 1545 tests + 21 e2e; verified and audited DONE. Phase 3 complete: 4.5 h of the 35–45 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | Urgent flag: a cancellation that reopens a place within the firm's urgent window (default 24 h) marks the shift urgent and logs it (worker, office and sheet removals; not a whole shift cancelled or a name swapped), and the office can mark or clear it by hand (admins and resourcers); the review caught a false "dropout" on sheet swaps (fixed and tested); 1565 tests + 21 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.2 | Urgent board: `/urgent` lists the urgent shifts a worker could take (the same checks as Open shifts), with big "Take shift" buttons; My shifts says "1 urgent shift needs someone"; Open shifts labels urgent cards; 1576 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.4 | Offer waves: when a place reopens close to the start (or the office marks a shift urgent), the best eligible workers get the urgent offer by WhatsApp or text (console only), the next group 15 minutes later, stopping when filled, started, cleared or out of people; the office is emailed if still unfilled 3 hours before (all firm settings); the review caught a cancellation-blocking setting and a false "filled elsewhere" (fixed and tested); 1597 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |

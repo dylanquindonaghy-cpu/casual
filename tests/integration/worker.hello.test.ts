@@ -1,5 +1,11 @@
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  ESCALATE_SHIFT_QUEUE,
+  escalateShiftPayload,
+  OFFER_WAVE_QUEUE,
+  offerWavePayload,
+} from "@/lib/offers/waves";
 import { createBoss } from "@/worker/boss";
 import { registerJobs } from "@/worker/jobs";
 import { HELLO_QUEUE } from "@/worker/jobs/hello";
@@ -21,7 +27,18 @@ describe("worker (real pg-boss on the test database, as the jobs role)", () => {
   beforeAll(async () => {
     boss = createBoss(urls.jobs);
     await boss.start();
-    await registerJobs(boss);
+    // Offer jobs that do nothing: this real worker mustn't pick up another test file's queued
+    // waves (it would message and write offers for them with the real clock).
+    await registerJobs(boss, {
+      offers: {
+        wave: { queue: OFFER_WAVE_QUEUE, schema: offerWavePayload, handler: async () => null },
+        escalate: {
+          queue: ESCALATE_SHIFT_QUEUE,
+          schema: escalateShiftPayload,
+          handler: async () => null,
+        },
+      },
+    });
   });
   afterAll(async () => {
     await boss.stop({ graceful: false });

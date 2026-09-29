@@ -134,6 +134,12 @@ describe("fair rotation", () => {
 });
 
 describe("fair rotation: what it never holds", () => {
+  it("an urgent shift (offered out by the waves) is never held", async () => {
+    const { f, target, dee } = await fairFirm();
+    await su.query("update shifts set is_urgent = true where id = $1", [target]);
+    expect((await book(f, target, dee)).status).toBe("booked");
+  });
+
   it("a shift starting within the urgent window (default 24 hours) fills at once", async () => {
     const { f, dee } = await fairFirm();
     const soon = await f.shift({ startsAt: hoursFromNow(10), headcount: 2 });

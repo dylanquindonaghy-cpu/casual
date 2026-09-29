@@ -416,6 +416,12 @@ describe("sheets.sync: from the sheet into our tables", () => {
         data: { source: "sheets", by: "system", cause: "dropout", hoursToStart: 7 },
       },
     ]);
+    // And offers go out: wave 1 is queued.
+    const { rows: jobs } = await su.query(
+      "select data ->> 'wave' as wave from pgboss.job where name = 'offer-wave' and data ->> 'shiftId' = $1",
+      [shiftId],
+    );
+    expect(jobs).toEqual([{ wave: "1" }]);
   });
 
   it("a name swapped for another close to the start is no dropout: nothing urgent", async () => {

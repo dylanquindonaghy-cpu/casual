@@ -2278,3 +2278,112 @@ To reach DONE: nothing — proceed to tick PLAN.md line 159.
 **Ticked** in PLAN.md. **Hours:** 0.2 (03:35 to 03:46 UTC). Phase 4 so far: 0.6 h of its 27–37 h
 estimate.
 **Commit:** `13ede39`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 03:49 UTC: Phase 4, "Offer waves (pg-boss): best 3–5 eligible, wait 15 min, next wave; stop when filled; escalate to resourcer at start minus X hours (all firm-configurable)"
+
+**Plan.** Two new firm jobs (pg-boss) in `src/lib/offers/waves.ts`, with the candidate list in
+`src/lib/offers/candidates.ts`:
+- **When waves start:** in the same transaction as the event that causes them. That is a place
+  reopening inside the firm's urgent window (the dropout path from the urgent-flag task, even
+  when the shift was already urgent), or the office marking a shift urgent. Wave 1 is queued now,
+  and an escalation check is queued for the shift's start minus `escalate_hours_before_start`.
+- **`offer-wave` {shiftId, wave}:**
+  1. Check the shift is still open, with a place free, not started. If not, stop: unanswered
+     offers become "filled_elsewhere" if it filled, and it's logged `offer.waves_stopped` with
+     the reason.
+  2. Build the candidates: active workers with the shift's role and "Tell me about open shifts"
+     on, not on the shift, not offered it before, whom the rules allow (`previewBooking`, the
+     same check as the boards).
+  3. Rank them:
+     - fair rotation: `rankForFairRotation`, i.e. fewest confirmed hours that week, then
+       longest since their last offer, then id; take the firm's `wave_size` (default 4);
+     - first come, first served: everyone in wave 1, no more waves (docs/api-and-jobs.md).
+  4. Send each one the urgent offer through the messaging transport (console in development and
+     tests; never Twilio). Use the worker's channel (WhatsApp or text message) and a link to the
+     shift's page. Record an `offers` row and an `offer.sent` event for each.
+  5. Queue the next wave `wave_minutes` later (default 15). With nobody left, stop
+     (`offer.waves_stopped`, reason "no_candidates").
+  6. A wave already sent (a retry, or a second chain after another dropout) sends nothing.
+- **`escalate-shift` {shiftId}:** at the start minus `escalate_hours_before_start` (default 3),
+  or at once if that has passed. If a place is still free and the shift hasn't started, it
+  emails the office's active admins and resourcers ("Unfilled: …", docs/messaging-templates.md)
+  and logs `shift.escalated`. It runs once per shift.
+- **Accepting:** when a worker books a shift they were offered, their offer is marked "accepted".
+- Both jobs register with the worker and their queues are created by `db:migrate`.
+
+Tests:
+- ranking and wave picking, pure;
+- the message wording;
+- on the real database with a capturing transport and a fixed clock:
+  - a dropout queues wave 1 and the escalation;
+  - wave 1 goes to the 2 best eligible workers only (not the ineligible, not those who turned
+    offers off, not those already on it), then wave 2 to the next ones;
+  - first come, first served offers everyone at once;
+  - it stops when filled (offers marked filled elsewhere), started, or out of candidates;
+  - a retried wave sends nothing;
+  - escalation emails only admins and resourcers, once, and not if filled;
+  - taking an offered shift marks the offer accepted;
+  - the wiring registers both jobs.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Waves start from "a place reopened inside the urgent window" (or the office marking urgent), not from the flag changing | A second dropout on a shift that's already urgent still needs offers (noted in the last task's review) | Start only when the flag is newly set |
+| The urgent message says "today", "tomorrow" or the date, instead of always "today" | The approved template reads "…today {start}–{end}"; an urgent shift can be tomorrow. `{day}` becomes a variable in docs/messaging-templates.md (submitted to Meta in Phase 7) | Use `shift_offer` for shifts not today |
+| Send inside the job's transaction, then record the offer (as the login link does) | Same pattern as the rest; a crash between sending and committing could send one offer twice, which the planned outbox (parked) fixes when Twilio is connected | An outbox now (Twilio isn't connected yet) |
+| Settings that make no sense stop the wave job (it fails and logs), as they stop a booking | Guessing a fairness setting would be wrong; the settings screen (Phase 5) validates | Fall back to defaults |
+| Quiet hours, the 3-a-day cap, web push and the SMS fallback wait for their own Phase 4 tasks | They're separate lines in PLAN.md | Build them all now |
+
+**Built:**
+- `src/lib/offers/candidates.ts` and `src/lib/offers/waves.ts` (both jobs, `startOfferWaves`,
+  `pickWave`, `dayWords`);
+- the templates `shiftUrgentMessage` and `shiftEscalationEmail`;
+- the queues and worker registration (tests can swap the transport through `JobDeps.offers`);
+- the calls from `urgent.ts`: waves start whenever a place reopens inside the window, and when
+  the office marks a shift urgent;
+- the offer accepted in `bookShift` for a worker's booking;
+- docs (api-and-jobs, messaging-templates, architecture) and the Parking lot.
+
+**Root causes of failures while building:**
+- The escalation test failed with "events.data for shift.escalated holds personal or secret
+  data". The event's `emailed` count has "email" in its key, and the log's safety check refuses
+  such keys. The check is right to be strict, so the key is now `notified`.
+- Added while testing: someone who cancelled the shift (or whom the office took off it) is never
+  offered it back; a cancellation is a "no" (docs/api-and-jobs.md: "exclude workers who declined
+  this shift").
+
+**Checks:**
+- With "stop when filled" removed, the filled-shift test fails; restored.
+- The existing urgency, cancellation and notice-log suites pass with waves wired in.
+- `npm run build` succeeds.
+
+**Guardrails review: FIX FIRST (four items), all fixed:**
+1. A nonsense `escalate_hours_before_start` threw inside `startOfferWaves()`, which runs in the
+   cancellation's transaction. It would have made cancellations inside the urgent window fail
+   (no notice-log row), and also the office's "mark urgent" and the whole sheet sync. Root cause:
+   I applied "bad settings stop the job" to a value read on the cancellation path. Fix: it falls
+   back to 3 hours, as the urgent window does. Test: a firm with "soon" as the setting still
+   records the cancellation and queues wave 1 and the escalation.
+2. Clearing the urgent mark didn't stop the waves or the escalation. Now a wave stops with
+   `not_urgent` and the escalation isn't needed. Test added.
+3. Stopping on "filled" marked every unanswered offer `filled_elsewhere`, including a worker the
+   office placed after offering them. That's a false entry in the offers record. Now an offered
+   worker who holds a place is `accepted`; only the rest are `filled_elsewhere`. Test added.
+4. Missing tests, all added:
+   - a second dropout on an already-urgent shift queues the next wave with no second urgent
+     mark;
+   - a name removed on the sheet queues wave 1;
+   - the escalation is due at once when its time has passed.
+
+Other findings, and what I did:
+
+| Finding | Done |
+|---|---|
+| An offered worker could hit fair rotation's hold on a shift the office marked urgent | Urgent shifts are never held (they're offered out instead); test added |
+| Messages were sent between offer inserts: a lock conflict mid-wave could re-send on retry | All offer rows are written first, then the messages; the lock order is noted in book.ts |
+| "0 offers sent, none accepted…" read badly | "Nobody else could be offered it (no one eligible and available)."; test added |
+| The worker.hello test's real worker could pick up other tests' queued waves | It registers do-nothing offer jobs |
+| Escalation is once per shift, not once per gap; escalate straight away when there's no one left | Parked (below) |
+| First come, first served offers everyone at once (as docs/api-and-jobs.md says), while PLAN.md says "best 3–5" | Kept as documented; **Dylan to confirm** |
+| For Sheets shifts, waves don't check the sheet copy is fresh | Parked |

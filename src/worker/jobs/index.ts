@@ -18,6 +18,12 @@ import {
   type FirmJobEnvelope,
   type FirmTask,
 } from "../../lib/jobs/firm-job";
+import {
+  escalateShiftJob,
+  offerWaveJob,
+  type EscalateShiftPayload,
+  type OfferWavePayload,
+} from "../../lib/offers/waves";
 import type { SheetsClient } from "../../lib/roster/sheets/client";
 import {
   runSheetsTick,
@@ -32,6 +38,11 @@ export interface JobDeps {
   // Absent (SHEETS_TRANSPORT=none): no sheet is ever synced, and the tick is unscheduled.
   sheets?: SheetsClient;
   clock?: Clock;
+  // Tests replace the offer jobs' transport and clock; the worker uses its configuration.
+  offers?: {
+    wave: FirmJob<OfferWavePayload>;
+    escalate: FirmJob<EscalateShiftPayload>;
+  };
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -39,6 +50,9 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   for (const queue of QUEUES) await boss.createQueue(queue.name, queue.options);
   await registerFirmJob(boss, sendPortalLinkJob);
   await registerFirmJob(boss, sendLoginCodeJob);
+  // Offer waves and escalation for urgent gaps (messages through the configured transport).
+  await registerFirmJob(boss, deps.offers?.wave ?? offerWaveJob);
+  await registerFirmJob(boss, deps.offers?.escalate ?? escalateShiftJob);
 
   // Credential expiry: always on (messages go through the configured transport).
   await registerFirmTask(boss, credentialScanFirmTask);

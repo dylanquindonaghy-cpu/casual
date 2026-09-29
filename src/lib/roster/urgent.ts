@@ -5,6 +5,7 @@ import { CANCELLED_ASSIGNMENT_STATUSES, firms, shifts } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../rules/urgent";
+import { startOfferWaves } from "../offers/waves";
 import { officeCanPlace } from "./book";
 
 // The urgent flag on shifts (docs/architecture.md, "Cancel" step 3; docs/api-and-jobs.md
@@ -13,8 +14,9 @@ import { officeCanPlace } from "./book";
 // - markUrgentAfterDropout: called in the same transaction as a cancellation that may have
 //   reopened a place (cancel.ts; the Sheets sync once per shift, after the sheet's new names are
 //   booked, when a name was removed). If the shift is open with a place free and starts within the
-//   firm's urgent window, it's marked urgent and logged as the system's (shift.marked_urgent,
-//   cause "dropout"). Already urgent, or no free place: nothing happens.
+//   firm's urgent window, offer waves start (src/lib/offers/waves.ts), and it's marked urgent and
+//   logged as the system's (shift.marked_urgent, cause "dropout") unless it already was. No free
+//   place, or outside the window: nothing happens.
 // - setShiftUrgent: the office marks the flag by hand (active admins and resourcers) on a shift
 //   that hasn't started and isn't a draft or cancelled, or clears it at any time. Logged as the
 //   firm's; no change, no event.
@@ -40,7 +42,7 @@ export async function markUrgentAfterDropout(
       from shifts s where s.id = ${input.shiftId}
   `);
   const shift = rows[0];
-  if (!shift || shift.status !== "open" || shift.is_urgent || !shift.free) return false;
+  if (!shift || shift.status !== "open" || !shift.free) return false;
   const [firm] = await tx
     .select({ settings: firms.settings })
     .from(firms)
@@ -49,6 +51,9 @@ export async function markUrgentAfterDropout(
   if (!insideUrgentWindow(startsAt, input.now, urgentWindowHours(firm?.settings ?? {}))) {
     return false;
   }
+  // A place reopened close to the start: offer it out, even if the shift was urgent already.
+  await startOfferWaves(tx, { shiftId: input.shiftId, now: input.now });
+  if (shift.is_urgent) return true;
   await tx.update(shifts).set({ isUrgent: true }).where(eq(shifts.id, input.shiftId));
   await recordEvent(tx, {
     actorType: "system",
@@ -111,6 +116,8 @@ export async function setShiftUrgent(
       return { status: "not_open" };
     }
     await tx.update(shifts).set({ isUrgent: request.urgent }).where(eq(shifts.id, request.shiftId));
+    // Marked urgent by the office: offer it out now (the waves stop by themselves once filled).
+    if (request.urgent) await startOfferWaves(tx, { shiftId: request.shiftId, now });
     await recordEvent(tx, {
       actorType: "office",
       actorId: request.by.id,

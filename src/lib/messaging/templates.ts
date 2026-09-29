@@ -87,3 +87,55 @@ export function credentialWeeklyListEmail(
     ].join("\n"),
   };
 }
+
+// shift_urgent (WhatsApp or SMS, utility): an offer in an urgent wave. {day} is "today",
+// "tomorrow" or "on Sat 7 Nov" (the approved template's "today" can't be right for tomorrow).
+export function shiftUrgentMessage(
+  firm: FirmVoice,
+  shift: {
+    role: string;
+    site: string | null;
+    day: string;
+    start: string;
+    end: string;
+    link: string;
+  },
+): string {
+  const role = shift.role.replace(/_/g, " ");
+  const article = /^[aeiou]/i.test(role) ? "an" : "a";
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `URGENT: we need ${article} ${role}${at} ${shift.day} ${shift.start}–${shift.end}. Tap to take it: ${shift.link}. — ${firm.signOff}`;
+}
+
+// shift_escalation (email to the office's admins and resourcers): an urgent shift still unfilled
+// at the firm's escalation time.
+export function shiftEscalationEmail(
+  firm: FirmVoice,
+  shift: {
+    role: string;
+    site: string | null;
+    when: string; // "Sat 7 Nov, 08:00 to 16:00"
+    freePlaces: number;
+    offersSent: number;
+    link: string; // the office dashboard
+  },
+): { subject: string; body: string } {
+  const role = shift.role.replace(/_/g, " ");
+  const Role = role.charAt(0).toUpperCase() + role.slice(1);
+  const at = shift.site ? ` at ${shift.site}` : "";
+  const places = shift.freePlaces === 1 ? "1 place" : `${shift.freePlaces} places`;
+  const free = shift.freePlaces === 1 ? "place" : "places";
+  const offers =
+    shift.offersSent === 0
+      ? "Nobody else could be offered it (no one eligible and available)."
+      : `${shift.offersSent === 1 ? "1 offer" : `${shift.offersSent} offers`} sent, none accepted for the free ${free}.`;
+  return {
+    subject: `Unfilled: ${Role}${at}, ${shift.when}`,
+    body: [
+      `The ${role} shift${at}, ${shift.when}, still has ${places} free.`,
+      offers,
+      `Open the office dashboard: ${shift.link}`,
+      `— ${firm.signOff}`,
+    ].join("\n\n"),
+  };
+}

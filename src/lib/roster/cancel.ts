@@ -7,6 +7,7 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
 import type { CancelResult } from "./plug";
+import { markUrgentAfterDropout } from "./urgent";
 
 // Cancelling a booking: the one path for a worker cancelling their own shift, or the office
 // cancelling someone's (golden rules 5 and 12; docs/architecture.md, "Cancel"). In its own
@@ -98,5 +99,7 @@ async function cancelInTransaction(
       noticeHours: cancelled.noticeHours,
     },
   });
+  // A place reopened close to the start: the shift is urgent (golden rule 5: logged too).
+  await markUrgentAfterDropout(tx, { shiftId, now });
   return cancelled;
 }

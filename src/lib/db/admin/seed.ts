@@ -15,6 +15,7 @@ import {
 } from "../schema";
 import { seedFirms, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
+import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { isLocalHost } from "./urls";
 
 // Loads the demo firms (docs/testing.md). Firms are created through the owner connection (the
@@ -65,7 +66,7 @@ export async function seed(opts: {
       const saturday = firm.slug === "acme" ? acmeSaturday(firm.workers, firm.sites, now) : null;
       await withFirm(firm.id, async (tx) => {
         await loadFirm(tx, firm);
-        if (saturday) await loadSaturday(tx, firm.id, saturday);
+        if (saturday) await loadSaturday(tx, firm, saturday, now);
       });
       summary.firms.push({
         slug: firm.slug,
@@ -159,7 +160,13 @@ async function loadFirm(tx: FirmTx, firm: SeedFirm): Promise<void> {
 // Acme's Saturday: added once (fixed ids, nothing overwritten), and logged once, as the app logs
 // a booking, a cancellation and a request (ids and notice hours only; the reason and the notes
 // stay on their rows).
-async function loadSaturday(tx: FirmTx, firmId: string, day: SaturdaySeed): Promise<void> {
+async function loadSaturday(
+  tx: FirmTx,
+  firm: SeedFirm,
+  day: SaturdaySeed,
+  now: Date,
+): Promise<void> {
+  const firmId = firm.id;
   const newShifts = await tx
     .insert(shifts)
     .values(
@@ -236,6 +243,30 @@ async function loadSaturday(tx: FirmTx, firmId: string, day: SaturdaySeed): Prom
           workerId: b.workerId,
           noticeHours: b.noticeHours,
         },
+      });
+      // Marked urgent as the app would (src/lib/roster/urgent.ts): by the system if the dropout
+      // was inside the firm's urgent window, otherwise by the firm's resourcer, by hand.
+      const shift = day.shifts.find((s) => s.id === b.shiftId);
+      const byTheSystem =
+        shift !== undefined &&
+        b.cancelledAt !== null &&
+        insideUrgentWindow(shift.startsAt, b.cancelledAt, urgentWindowHours(firm.settings));
+      const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
+      if (!byTheSystem && !resourcer) throw new Error(`${firm.slug} has no resourcer to mark it`);
+      await recordEvent(tx, {
+        actorType: byTheSystem ? "system" : "office",
+        actorId: byTheSystem ? null : (resourcer?.id ?? null),
+        action: "shift.marked_urgent",
+        entityType: "shift",
+        entityId: b.shiftId,
+        data: byTheSystem
+          ? { by: "system", cause: "dropout", hoursToStart: b.noticeHours }
+          : {
+              by: "firm",
+              cause: "office",
+              // The office marks it now, as the seed runs: hours to the start from now.
+              hoursToStart: shift ? hoursToStart(shift.startsAt, now) : null,
+            },
       });
     }
   }

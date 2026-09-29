@@ -10,6 +10,7 @@ import {
   type AllocationMode,
 } from "../rules/allocation";
 import { weekOf } from "../rules/eligibility";
+import { urgentWindowHoursSchema } from "../rules/urgent";
 import { localDateOf } from "../time/zoned";
 import { BOOKED_STATUSES } from "./eligibility-input";
 
@@ -32,7 +33,7 @@ const modeSchema = z.object({
 const fairRotationSchema = z.object({
   wave_size: z.number().int().min(1).max(50).default(4),
   wave_minutes: z.number().int().min(1).max(240).default(15),
-  urgent_window_hours: z.number().min(0).max(168).default(24),
+  urgent_window_hours: urgentWindowHoursSchema,
 });
 
 export class AllocationSettingsError extends Error {

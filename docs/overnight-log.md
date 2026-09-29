@@ -2097,3 +2097,72 @@ phone timings are met (log in, take and cancel each under 3 seconds). The staff 
 script runs. The office part ("resourcer sees it", "urgent wave fills it", "notice report")
 needs Phase 4 and 5 screens. Gate B (a paid pilot commitment after the Phase 3 demo) doesn't stop
 the build (standing decision). Next: Phase 4.
+
+## 2026-09-29 03:11 UTC: Phase 4, "Urgent flag on shifts (manual or automatic when a dropout lands inside X hours)"
+
+**Plan.** `shifts.is_urgent` already exists (Phase 2 schema). This task gives it its rules:
+- **Automatic:** when a cancellation reopens a place on a shift that starts within the firm's
+  `urgent_window_hours` (default 24), the shift is marked urgent in the same transaction and
+  logged: `shift.marked_urgent` {by: "system", cause: "dropout", hoursToStart}. This applies to
+  every path that reopens a place: a worker's cancellation, the office's (`cancelBooking`), and a
+  name the office removes from its Google Sheet (the sync). A whole shift cancelled isn't a
+  dropout. A place that isn't reopened (the office cancelling after the start) isn't either.
+- **Manual:** `setShiftUrgent()` for the office (active admins and resourcers, like placing
+  staff). It marks or clears the flag on a shift that hasn't started and isn't a draft or
+  cancelled, and logs `shift.marked_urgent` {by: "firm", cause: "office"} or
+  `shift.urgent_cleared` {by: "firm"}. Unchanged means no event. The button comes with the office
+  Today view (Phase 5).
+- The window rule is a pure function in `src/lib/rules/urgent.ts`. The database side is in
+  `src/lib/roster/urgent.ts`.
+- The demo seed's dropout gets its `shift.marked_urgent` event, which was parked last task.
+- Offer waves (the next tasks) start from the urgent mark.
+
+Tests: the window rule's edges; every automatic path on the real database (inside and outside
+the window, a firm's own window, the office cancelling after the start, already urgent, a whole
+shift cancelled on the sheet); the manual mark (who may, which shifts, the log, no event when
+unchanged, another firm's shift).
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| A firm's `urgent_window_hours` that makes no sense falls back to 24 hours for this, rather than stopping | A cancellation must always be recorded (a blocked cancellation becomes a no-show); the settings screen (Phase 5) will validate | Stop the cancellation, as a broken rules setting stops a booking |
+| The flag stays when the shift fills; the office can clear it | "Urgent" is what the office marked or what happened; the urgent board and offer waves only look at shifts with an open place | Clear it automatically on fill (another write in the booking path and the sync) |
+| Any cancellation that reopens a place counts as a dropout, including the office's own | The gap is the same for the workers who could fill it | Only workers' cancellations |
+| Manual marking has no screen yet | The office Today view (Phase 5) is where it belongs; the function, its checks and its log entries are built and tested now | Build a stop-gap office page |
+
+**Built:** `src/lib/rules/urgent.ts` (the window rule), `src/lib/roster/urgent.ts`
+(`markUrgentAfterDropout`, `setShiftUrgent`), the call in `cancelBooking` and in the sync's
+"removed on the sheet" path, the seed's `shift.marked_urgent` entry (by the system if the dropout
+was inside Acme's window, otherwise by Acme's resourcer by hand, so the log never claims what the
+rule wouldn't do), docs (architecture, api-and-jobs, data-model), Parking lot.
+
+**Checks:**
+- The new tests passed first time: 11 integration, 5 unit, 1 sync.
+- With the call removed from `cancelBooking`, 5 of the urgency tests fail; restored.
+- The cancel, notice-log, cancel-shift, sheets-sync and seed suites still pass.
+- `npm run build` succeeds; the dev database was recreated with `npm run db:reset`.
+
+**Guardrails review: FIX FIRST (two items), both fixed.**
+1. The Sheets sync marked a shift urgent when the office **swapped** one name for another close
+   to the start. The check ran inside the removal loop, where the place is free for a moment
+   before the new name is booked. That wrote a false "dropout" into the append-only log, and the
+   "already urgent" rule would then hide a real dropout later. Root cause: "is a place free
+   now?" equals "did the change leave a gap?" in `cancelBooking`, but not mid-sync. Fix: the sync
+   checks once per shift, after the sheet's new names are booked, when a name was removed. New
+   test: a full shift, N002 swapped for N003 seven hours before the start, is not urgent and
+   logs nothing. With the old placement put back, that test fails (checked).
+2. The planned test for a whole shift cancelled on the sheet close to the start was missing.
+   Added: not urgent, nothing logged. The log's "6 unit" was corrected to 5.
+
+Other findings, and what I did:
+
+| Finding | Done |
+|---|---|
+| The seed test's "inside ? system : office" just repeated the code; the dropout is always more than 24 h out | The test now asserts the resourcer's manual mark directly, and why |
+| The seed's manual mark used the notice at cancellation for "hours to start" | Hours to the start from when the seed runs (when it's "marked"); a missing resourcer now throws instead of logging an office action with no one |
+| `setShiftUrgent` had no strict request check (a string "false" would mark it) | Strict zod schema; tests for a string and a worker actor |
+| `urgent_window_hours` parsed in two places | One shared schema (rules/urgent.ts), used by fair rotation too; `hoursToStart` now uses the notice-hours rounding |
+| The sync's urgent event lacked `source: "sheets"` | Added; test updated |
+| Offer waves should start from "a place reopened inside the window", not "the flag was newly set" | Parked for the offer-waves task |
+| An urgent shift later cancelled couldn't have its flag cleared | Clearing is now always allowed; test added |

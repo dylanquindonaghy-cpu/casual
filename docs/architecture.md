@@ -256,7 +256,12 @@ then send the new number to the office").
    stays on the row (which can be corrected or anonymised) and never goes into the append-only
    event. A worker can't cancel a shift that has started; the office can until it ends (negative
    notice; the place isn't reopened). No fresh sheet copy is needed.
-3. If inside the firm's urgent window: mark shift urgent → start offer waves (Phase 4).
+3. If the cancellation reopened a place and the shift starts within the firm's
+   `urgent_window_hours` (default 24): the shift is marked urgent in the same transaction and
+   logged (`shift.marked_urgent`, by the system, cause "dropout"; `markUrgentAfterDropout()` in
+   `src/lib/roster/urgent.ts`, window rule in `src/lib/rules/urgent.ts`). The same happens when the
+   office removes a name from its Google Sheet close to the start. Then offer waves start (next
+   Phase 4 task).
 
 Every booking and every cancellation, by every path (portal, office, the Sheets sync), writes one
 event with its notice hours (`tests/integration/notice-log.test.ts`), and only `cancel.ts` and the

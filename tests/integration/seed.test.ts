@@ -33,7 +33,8 @@ async function snapshot() {
      union all select 'pay_records', array_agg(id::text order by id) from pay_records where firm_id = any($1)
      union all select 'roster_events', array_agg(id::text order by id) from events
        where firm_id = any($1)
-         and action in ('shift.created', 'shift.assigned', 'shift.cancelled', 'request.created')`,
+         and action in ('shift.created', 'shift.assigned', 'shift.cancelled', 'request.created',
+                        'shift.marked_urgent')`,
     [[ACME, NORTHLINE]],
   );
   return rows;
@@ -383,7 +384,8 @@ describe("Acme's Saturday event day", () => {
     const rows = await acmeRows<{ action: string; n: number }>(
       `select action, count(*)::int as n from events
         where firm_id = $1
-          and action in ('shift.created', 'shift.assigned', 'shift.cancelled', 'request.created')
+          and action in ('shift.created', 'shift.assigned', 'shift.cancelled', 'request.created',
+                         'shift.marked_urgent')
         group by action order by action`,
     );
     expect(rows).toEqual([
@@ -391,7 +393,28 @@ describe("Acme's Saturday event day", () => {
       { action: "shift.assigned", n: 33 }, // 32 bookings and the dropout's original booking
       { action: "shift.cancelled", n: 1 },
       { action: "shift.created", n: 40 },
+      { action: "shift.marked_urgent", n: 1 },
     ]);
+    // The dropout is always more than 24 hours before the start (06:00 on the seed day, the
+    // Saturday at 08:00, at least a day later), outside Acme's urgent window: the system wouldn't
+    // mark it, so the log says Acme's resourcer marked it by hand.
+    const [gap] = await acmeRows<{ hours: string }>(
+      "select notice_hours::text as hours from assignments where firm_id = $1 and status = 'cancelled_worker'",
+    );
+    expect(Number(gap?.hours)).toBeGreaterThan(24);
+    const [marked] = await acmeRows<{
+      actor_type: string;
+      actor_id: string;
+      data: Record<string, unknown>;
+    }>(
+      "select actor_type, actor_id::text, data from events where firm_id = $1 and action = 'shift.marked_urgent'",
+    );
+    expect(marked).toMatchObject({
+      actor_type: "office",
+      actor_id: seedId("acme/office/resourcer"),
+      data: { by: "firm", cause: "office" },
+    });
+    expect(Number(marked?.data.hoursToStart)).toBeGreaterThan(0);
     const [cancelled] = await acmeRows<{ data: Record<string, unknown> }>(
       "select data from events where firm_id = $1 and action = 'shift.cancelled'",
     );

@@ -29,6 +29,7 @@ import {
   type SheetProblem,
   type SheetShift,
 } from "./parse";
+import { markUrgentAfterDropout } from "../urgent";
 
 // One sync of a firm's Google Sheet with our mirror of it (docs/architecture.md, Roster plugs;
 // ADR-013). Run by the sheets-sync job, never by a request:
@@ -612,6 +613,10 @@ async function mergeShift(
       system("roster.sheet_conflict", "shift", shiftId, { notBooked: unbooked }),
     );
   }
+  // A name taken off close to the start leaves an urgent gap, as any dropout does, but only if
+  // the sheet's changes as a whole left one: checked after its new names are booked, so a name
+  // swapped for another is not a dropout.
+  if (cancelled > 0) await markUrgentAfterDropout(tx, { shiftId, now, source: "sheets" });
   const final = (await liveHolders(tx, shiftId)).map((h) => h.ref ?? "");
   const inStep = sameHolders(final, theirs);
   // The sheet's changes up to this read are applied: its cell as read is the base, until a

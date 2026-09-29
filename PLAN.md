@@ -155,7 +155,7 @@ Docs: `docs/screens.md`.
 
 ## Phase 4 — Urgent board, notifications, offer waves (27–37 h)
 
-- [ ] Urgent flag on shifts (manual or automatic when a dropout lands inside X hours)
+- [x] Urgent flag on shifts (manual or automatic when a dropout lands inside X hours)
 - [ ] Urgent board page for workers (only shifts they're eligible for)
 - [ ] Offer waves (pg-boss): best 3–5 eligible, wait 15 min, next wave; stop when filled;
       escalate to resourcer at start minus X hours (all firm-configurable)
@@ -481,9 +481,16 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Demo seed, still to add (see docs/testing.md): Northline's mocked sheet (Phase 2), the
   short-notice firm cancellation (Phase 5), 12 pay queries, 9 about one rate change (Phase 6).
   Acme's Saturday, the two requests and 8 weeks of pay are in (Phase 3). Also worth adding: past
-  shifts matching the pay lines, so "Past 30 days" on My shifts isn't empty in a demo. The seeded
-  shift's "urgent" flag has no log entry: add one when the office's "make urgent" exists (Phase
-  4/5).
+  shifts matching the pay lines, so "Past 30 days" on My shifts isn't empty in a demo. (The
+  seeded dropout's urgent mark is now logged, as the app logs it.)
+- Urgent flag follow-ups (from the Phase 4 urgent flag task):
+  - The office Today view (Phase 5): "Mark urgent" / "Not urgent" buttons calling
+    `setShiftUrgent()`, and the flag shown on each shift.
+  - The flag stays when an urgent shift fills; if the office wants filled shifts shown as not
+    urgent, clear it on fill in `bookShift()` and the sync.
+  - Offer waves (next Phase 4 task): start them from "a place reopened inside the window", not
+    from "the flag was newly set". A second dropout on a shift that's already urgent sets no flag
+    but still needs offers. A `reopened` field on the plug's cancel result would serve both.
 - Credential expiry messages go straight to the transport. Once Phase 4's `notify` job exists,
   send them through it (push first, per-firm quiet hours), and through the queue-then-send outbox
   when Twilio is connected, so a retried scan can't repeat a message.
@@ -567,3 +574,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 3 | 0.2 | Empty and error states: plain "We can't find that page." instead of Next's 404, plain words when a page or the whole frame fails, "No signal" instead of "Something went wrong" when there's no network, Open shifts only promises a message to workers who want them, and a lasting test that renders every staff screen state and fails on jargon, raw codes or long sentences; 1531 tests + 20 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.5 | Demo seed: Acme's Saturday event day (40 shifts over three sites, 32 booked by workers the rules allow, 8 open), the urgent 6am dropout, two open requests, 8 weeks of pay for every Acme worker, and matching log entries; re-runs add nothing and never undo a demo; the seed prints the urgent shift's link; a demo logins table in docs/testing.md; 1545 tests + 20 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.1 | Phase 3 Playwright flow: on a phone-sized screen, a seeded worker logs in, takes a Saturday shift, cancels it, asks for a change and sees pay with a code, with log in, take and cancel each timed under 30 seconds (2.1 s, 1.1 s and 0.5 s); the staff part of the demo script written out in docs/testing.md; 1545 tests + 21 e2e; verified and audited DONE. Phase 3 complete: 4.5 h of the 35–45 h estimate (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.4 | Urgent flag: a cancellation that reopens a place within the firm's urgent window (default 24 h) marks the shift urgent and logs it (worker, office and sheet removals; not a whole shift cancelled or a name swapped), and the office can mark or clear it by hand (admins and resourcers); the review caught a false "dropout" on sheet swaps (fixed and tested); 1565 tests + 21 e2e; verified and audited DONE (see docs/work-log.md) |

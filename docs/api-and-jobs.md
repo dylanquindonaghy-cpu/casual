@@ -56,7 +56,11 @@ open-shift offers, while login links and codes are always sent)
 
 Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),
 `cancelShiftByFirm(shiftId, reason)`, `cancelBookingByFirm(shiftId, workerId, reason)`
-(`cancelBooking()` with `by: office`), `makeUrgent(shiftId)`, `offerTo(shiftId, workerIds)`,
+(`cancelBooking()` with `by: office`), `makeUrgent(shiftId)` (built as `setShiftUrgent()` in
+`src/lib/roster/urgent.ts`: mark or clear, active admins and resourcers only, not on a draft,
+cancelled or started shift (clearing works until the end), logged `shift.marked_urgent` {by:
+"firm", cause: "office", hoursToStart} / `shift.urgent_cleared`; the button comes with the Today
+view), `offerTo(shiftId, workerIds)`,
 `assignManually(shiftId, workerId, override?)` (`bookShift()` with `by: office`; overrides only
 of checks 0 and 6-8, with a reason; active admins and resourcers only), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the screen is Phase 5),
 `upsertCredential`, `verifyCredential`, `resolvePayQueryGroup`, `updateSettings`, `verifyDomain`,

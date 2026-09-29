@@ -397,6 +397,54 @@ describe("sheets.sync: from the sheet into our tables", () => {
       reason: REMOVED_ON_SHEET,
       noticeHours: 35,
     });
+    // 35 hours out is outside the 24-hour urgent window: not urgent.
+    expect(await eventsOf(f.firmId, "shift.marked_urgent")).toEqual([]);
+  });
+
+  it("a name the office removes close to the start leaves an urgent gap", async () => {
+    const f = await northline();
+    await sync(f);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "");
+    const late = new Date(NOW.getTime() + 30 * HOUR); // P1 starts 37 h after NOW: 7 h to go
+    expect(await sync(f, late)).toMatchObject({ cancelled: 1 });
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    const { rows } = await su.query("select is_urgent from shifts where id = $1", [shiftId]);
+    expect(rows).toEqual([{ is_urgent: true }]);
+    expect(await eventsOf(f.firmId, "shift.marked_urgent")).toEqual([
+      {
+        entity_id: shiftId,
+        data: { source: "sheets", by: "system", cause: "dropout", hoursToStart: 7 },
+      },
+    ]);
+  });
+
+  it("a name swapped for another close to the start is no dropout: nothing urgent", async () => {
+    const f = await northline();
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002"); // P1 full: 2 of 2
+    await sync(f);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N003"); // N002 out, N003 in
+    const late = new Date(NOW.getTime() + 30 * HOUR); // 7 h to go
+    expect(await sync(f, late)).toMatchObject({ cancelled: 1, booked: 1 });
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    const { rows } = await su.query("select is_urgent, status from shifts where id = $1", [
+      shiftId,
+    ]);
+    expect(rows).toEqual([{ is_urgent: false, status: "filled" }]);
+    expect(await eventsOf(f.firmId, "shift.marked_urgent")).toEqual([]);
+  });
+
+  it("a whole shift cancelled on the sheet close to the start isn't an urgent gap", async () => {
+    const f = await northline();
+    await sync(f);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "Cancelled");
+    const late = new Date(NOW.getTime() + 30 * HOUR); // 7 h to go
+    expect(await sync(f, late)).toMatchObject({ cancelled: 1 });
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    const { rows } = await su.query("select is_urgent, status from shifts where id = $1", [
+      shiftId,
+    ]);
+    expect(rows).toEqual([{ is_urgent: false, status: "cancelled" }]);
+    expect(await eventsOf(f.firmId, "shift.marked_urgent")).toEqual([]);
   });
 
   it("new times on a booked shift are logged per booked worker as moved or curtailed, with notice", async () => {

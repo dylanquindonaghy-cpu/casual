@@ -2691,3 +2691,98 @@ step the worker takes.
 Follow "Staff part" under "Fixtures and the demo seed" in `docs/testing.md`. Or stop `npm run
 dev` and run `npm run e2e -- tests/e2e/flow.worker.spec.ts`: you should see `1 passed` and a
 line with the timings.
+
+## 2026-09-29: Phase 4, task 1: The urgent flag on shifts (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (03:11 to 03:33 UTC), in the unattended overnight loop.
+Phase 4 so far: 0.4 of its 27 to 37 hour estimate.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=ff55af013144d14d e2e=true`. That covers the type
+  checks, lint, all 1565 tests (up from 1545), the 21 browser tests and the rule checks. A
+  production build was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Every shift already had an "urgent" yes/no field. Now it has rules.
+
+- **Automatically:** when someone drops out close to the start, the shift is marked urgent.
+  "Close" means within the firm's urgent window, a setting that defaults to 24 hours. It counts
+  a worker's own cancellation, the office's, and the office taking a name off its Google Sheet.
+  It happens in the same database transaction as the cancellation (all or nothing), and it goes
+  in the action log: "marked urgent, by the system, because of a dropout, 7 hours before the
+  start".
+- **Not a dropout:** a whole shift being cancelled; the office swapping one name for another on
+  its sheet; the office cancelling someone after the shift has started (no place reopens).
+- **By hand:** the office (admins and resourcers, not payroll) can mark a shift urgent, or clear
+  the mark, and that's logged too. The button comes with the office's Today screen in Phase 5.
+- A firm's window setting that makes no sense falls back to 24 hours, so a cancellation can never
+  fail because of it.
+- The demo seed's urgent dropout is now logged as Acme's resourcer marking it by hand. It was
+  cancelled more than 24 hours before the start, so the system itself wouldn't have marked it,
+  and the log never claims otherwise.
+
+Offer waves (sending the shift to the best workers, a few at a time) are the next tasks. They'll
+start from here.
+
+### What the safety review found
+
+The review found one real bug, now fixed. When the office **swapped** one name for another on
+its sheet close to the start, the sync first removed the old name and then added the new one. In
+between, the check saw a free place and marked the shift urgent, writing a false "dropout" into
+the permanent log. The fix checks once, after the whole change. A new test swaps a name seven
+hours before the start and expects nothing urgent; I checked it fails with the old code.
+
+It also asked for:
+
+- a test for a whole shift cancelled on the sheet;
+- a strict check on the office's request (a real yes/no, the office user's id);
+- one shared definition of the window setting;
+- the log entry's `source: "sheets"`;
+- letting the office clear the mark on a cancelled shift;
+- a more honest seed test.
+
+All done.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A bad window setting falls back to 24 hours | A cancellation must always be recorded | Stop the cancellation |
+| The mark stays when the shift fills | The urgent board and offer waves only look at open places; the office can clear it | Clear it automatically on fill |
+| The office's own cancellations count too | The gap is the same for the workers who could fill it | Workers' only |
+| No office screen yet | It belongs on the Today screen (Phase 5) | A stop-gap page |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/unit/rules.urgent.test.ts` (5 tests): the window's edges, the setting and its fallback,
+  the hours to the start.
+- `tests/integration/urgent.test.ts` (12 tests, real database). It checks:
+  - inside and outside the window, and a firm's own window;
+  - a broken setting, and the office's cancellation;
+  - already urgent, and cancelling after the start;
+  - the office marking and clearing, and who may;
+  - which shifts, a strict request, and another firm's shift.
+- `tests/integration/sheets.sync.test.ts` (3 new tests): a name removed close to the start is
+  urgent; a name swapped isn't; a whole shift cancelled isn't.
+- `tests/integration/seed.test.ts`: the seed's urgent mark is logged as the resourcer's.
+
+### Parked, open, and things that need Dylan
+
+- Parked in `PLAN.md`:
+  - the Today screen's "Mark urgent" button (Phase 5);
+  - optionally clearing the mark when a shift fills;
+  - offer waves starting from "a place reopened close to the start".
+- Nothing needs Dylan for this task.
+
+### How to see it working
+
+There's no screen for it yet. The tests show it: `npx vitest run tests/integration/urgent.test.ts`
+should say `12 passed`.

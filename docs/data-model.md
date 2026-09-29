@@ -200,7 +200,7 @@ create table shifts (
   starts_at timestamptz not null,
   ends_at timestamptz not null,          -- check: ends_at > starts_at
   headcount int not null default 1,      -- 1..1000
-  is_urgent boolean not null default false,
+  is_urgent boolean not null default false, -- a dropout inside urgent_window_hours, or the office (src/lib/roster/urgent.ts)
   status text not null default 'open',   -- draft | open | filled | cancelled
   source text not null default 'native', -- native | sheets | csv
   external_ref text,                     -- the row's key in the firm's sheet or import

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { shiftEscalationEmail, shiftUrgentMessage } from "@/lib/messaging/templates";
 import type { WaveCandidate } from "@/lib/offers/candidates";
-import { dayWords, escalateHours, pickWave } from "@/lib/offers/waves";
+import { escalateHours, pickWave } from "@/lib/offers/waves";
+import { dayWords } from "@/lib/portal/format";
 
 // The pure parts of offer waves (src/lib/offers/waves.ts) and their message copy
 // (docs/messaging-templates.md).

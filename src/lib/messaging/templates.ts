@@ -108,6 +108,25 @@ export function shiftUrgentMessage(
   return `URGENT: we need ${article} ${role}${at} ${shift.day} ${shift.start}–${shift.end}. Tap to take it: ${shift.link}. — ${firm.signOff}`;
 }
 
+// shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
+// or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
+export function shiftReminder24hMessage(
+  firm: FirmVoice,
+  shift: { site: string | null; day: string; start: string; end: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Reminder: ${shift.day} ${shift.start}–${shift.end}${at}. Details: ${shift.link}. Can't make it? Cancel in the app as early as you can. — ${firm.signOff}`;
+}
+
+// shift_reminder_2h (WhatsApp or SMS, utility): 2 hours before a booked shift.
+export function shiftReminder2hMessage(
+  firm: FirmVoice,
+  shift: { site: string | null; start: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Your shift${at} starts at ${shift.start}. Meeting point and instructions: ${shift.link}. — ${firm.signOff}`;
+}
+
 // shift_escalation (email to the office's admins and resourcers): an urgent shift still unfilled
 // at the firm's escalation time.
 export function shiftEscalationEmail(
@@ -152,5 +171,24 @@ export function urgentPush(shift: {
   return {
     title: "Urgent shift",
     body: `${roleLabel(shift.role)} needed${at} ${shift.day} ${shift.start}.`,
+  };
+}
+
+// Push (title / body), docs/messaging-templates.md "Push": a shift reminder. {day} is "tomorrow"
+// or "today".
+export function reminderPush(shift: {
+  kind: "24h" | "2h";
+  site: string | null;
+  day: string;
+  start: string;
+  end: string;
+}): { title: string; body: string } {
+  const Day = shift.day.charAt(0).toUpperCase() + shift.day.slice(1);
+  return {
+    title: `${Day}: ${shift.site ?? "your shift"}`,
+    body:
+      shift.kind === "24h"
+        ? `${shift.start}–${shift.end}. Tap for instructions.`
+        : `Starts at ${shift.start}. Tap for instructions.`,
   };
 }

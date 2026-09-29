@@ -3,6 +3,7 @@ import { SEND_LOGIN_CODE_QUEUE } from "../../lib/auth/send-login-code";
 import { SEND_PORTAL_LINK_QUEUE } from "../../lib/auth/send-portal-link";
 import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/credentials/scan";
 import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
+import { SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDERS_QUEUE } from "../../lib/reminders/send";
 import {
   SHEETS_SYNC_EXPIRE_SECONDS,
   SHEETS_SYNC_QUEUE,
@@ -33,6 +34,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   CREDENTIAL_SCAN_QUEUE,
   OFFER_WAVE_QUEUE,
   ESCALATE_SHIFT_QUEUE,
+  SHIFT_REMINDERS_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
@@ -43,6 +45,10 @@ export const QUEUES: readonly QueueSpec[] = [
   { name: SHEETS_TICK_QUEUE, options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 } },
   {
     name: CREDENTIAL_SCAN_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  {
+    name: SHIFT_REMINDER_TICK_QUEUE,
     options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
   },
   ...FIRM_QUEUE_NAMES.map(firmQueue),

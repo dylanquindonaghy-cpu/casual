@@ -36,6 +36,8 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   assignments: NO_DELETE,
   requests: NO_DELETE,
   offers: NO_DELETE,
+  // Each reminder a booking got (or why not): evidence in a no-show dispute.
+  shift_reminders: NO_DELETE,
   // Sheet connection settings (office settings later; the sync updates its status columns).
   roster_sources: CRUD,
   // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are

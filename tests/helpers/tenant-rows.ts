@@ -23,6 +23,7 @@ export const EXPECTED_TABLES = [
   "requests",
   "roster_sources",
   "sessions",
+  "shift_reminders",
   "shifts",
   "sites",
   "worker_unavailable_days",
@@ -188,6 +189,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, $3, 'test-p256dh', 'test-auth')`,
     [firmId, workerId, `https://push.example.test/${slug}`],
   );
+  const shiftReminderId = await one(
+    su,
+    `insert into shift_reminders (firm_id, assignment_id, kind, starts_at, status, channel)
+     values ($1, $2, '24h', now(), 'sent', 'whatsapp')`,
+    [firmId, assignmentId],
+  );
   // Pay records point at the rota worker too: their worker link has no ON DELETE action.
   const payRecordId = await one(
     su,
@@ -225,6 +232,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
       push_subscriptions: pushSubscriptionId,
+      shift_reminders: shiftReminderId,
     },
   };
 }
@@ -321,6 +329,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, $2, '2026-11-02', '2026-11-08', 4, $3)`,
     values: [firmId, p.rosterWorkerId, 1000 + next()],
   }),
+  shift_reminders: (firmId, p) => ({
+    text: `insert into shift_reminders (firm_id, assignment_id, kind, starts_at, status, channel)
+           values ($1, $2, '2h', $3, 'sent', 'sms')`,
+    values: [firmId, p.rows.assignments, new Date(Date.UTC(2027, 0, 1) + next() * 60_000)],
+  }),
 };
 
 // Every composite foreign key between firm tables. `own` supplies the row's other parents;
@@ -404,5 +417,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-09', '2026-11-15', 1, $3)`,
     values: [firmId, other.workerId, 2000 + next()],
+  }),
+  shift_reminders_assignment_fk: (firmId, _own, other) => ({
+    text: `insert into shift_reminders (firm_id, assignment_id, kind, starts_at, status)
+           values ($1, $2, '24h', $3, 'skipped')`,
+    values: [firmId, other.rows.assignments, new Date(Date.UTC(2027, 1, 1) + next() * 60_000)],
   }),
 };

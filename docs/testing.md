@@ -34,6 +34,10 @@ without breaking a 6am cancellation.
   `rules.doc-parity.test.ts`), then the edges: overrides, the pass, clock changes, purity.
 - `waves.timing.test.ts` — fake clock: wave 1 → 15 min → wave 2; stops on fill; escalation fires.
 - `notify.policy.test.ts` — push → WhatsApp → SMS ordering; quiet hours; daily cap; idempotency.
+- `shift.reminders.test.ts` (built) — the 24 h and 2 h reminders each once per booking and start
+  time, never to cancelled bookings or cancelled/draft shifts, a moved shift reminded again, two
+  jobs at once send once, quiet hours hold or skip, channel and fallback, the tick; the timing
+  rules in `rules.reminders.test.ts`.
 - `notice.report.test.ts` — worker cancel, firm cancel/move/curtail all produce correct notice hours and flags.
 - `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly.
 - `sheets.sync.test.ts` — a seeded (fake) Google Sheet syncs both ways: staff, sites, shifts and

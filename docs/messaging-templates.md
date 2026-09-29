@@ -44,8 +44,8 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
 | `shift_urgent` | Utility | "URGENT: we need a {role} at {site} {day} {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" ({day} is "today", "tomorrow" or "on Sat 7 Nov": an urgent shift isn't always today; "at {site}" is left out when the shift has no site; "an" before a vowel. Sent by the offer waves, `src/lib/offers/waves.ts`) |
 | `shift_filled` | Utility | "Thanks for replying. That shift on {date} at {site} has now been filled. Open shifts: {link}. — {firm} Shift Team" |
 | `shift_confirmed` | Utility | "Confirmed: {date} {start}–{end} at {site} ({role}). Details and instructions: {link}. — {firm} Shift Team" |
-| `shift_reminder_24h` | Utility | "Reminder: tomorrow {start}–{end} at {site}. Details: {link}. Can't make it? Cancel in the app as early as you can. — {firm} Shift Team" |
-| `shift_reminder_2h` | Utility | "Your shift at {site} starts at {start}. Meeting point and instructions: {link}. — {firm} Shift Team" |
+| `shift_reminder_24h` | Utility | "Reminder: {day} {start}–{end} at {site}. Details: {link}. Can't make it? Cancel in the app as early as you can. — {firm} Shift Team" ({day} is "tomorrow", or "today" for a reminder that went late; "at {site}" is left out when the shift has no site. Sent by `src/lib/reminders/send.ts` 24 hours before the start) |
+| `shift_reminder_2h` | Utility | "Your shift at {site} starts at {start}. Meeting point and instructions: {link}. — {firm} Shift Team" ("at {site}" left out when there's no site. Sent 2 hours before the start) |
 | `cancellation_ack` | Utility | "We've recorded your cancellation of {date} {start} at {site} (ref {ref}). — {firm} Shift Team" |
 | `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" |
 | `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. {note} — {firm} Shift Team" |
@@ -79,7 +79,9 @@ Every message ends with the firm's sign-off, e.g. "— Acme Events Shift Team". 
   offer to the worker's subscribed phones, `urgentPush()`; tapping opens the shift. Console
   transport until real web push is connected)
 - Filled: "Shift filled" / "That one's gone. See other open shifts."
-- Reminder: "Tomorrow: {site}" / "{start}–{end}. Tap for instructions."
+- Reminder: "Tomorrow: {site}" / "{start}–{end}. Tap for instructions." (24 h); "Today: {site}" /
+  "Starts at {start}. Tap for instructions." (2 h). {Day} is "Tomorrow" or "Today"; no site:
+  "your shift". Built: sent with each reminder, `reminderPush()`; tapping opens the shift.
 - Request update: "Request {status}" / "{type} — tap to view."
 
 ## Call-to-text recording (voice)

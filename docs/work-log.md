@@ -3271,3 +3271,132 @@ Stop `npm run dev` first. Then run:
 `npx vitest run tests/unit/rules.offer-cap.test.ts tests/integration/offers.candidates.test.ts tests/unit/offers.boundary.test.ts`
 
 It should say all passed.
+
+## 2026-09-29: Phase 4, task 7: Shift reminders 24 hours and 2 hours before the start (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (05:41 to 06:18 UTC), in the unattended overnight loop.
+Phase 4 so far: 2.8 of its 27 to 37 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=52c63cf1faa93962 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1748 tests (up from 1690);
+  - the 25 browser tests;
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **Two reminders per booking.** Every worker with a confirmed booking gets:
+  - 24 hours before: "Reminder: tomorrow 08:00–16:00 at Riverside Arena. Details: (link). Can't
+    make it? Cancel in the app as early as you can. — Acme Events Shift Team";
+  - 2 hours before: "Your shift at Riverside Arena starts at 08:00. Meeting point and
+    instructions: (link). — Acme Events Shift Team".
+  - The link opens the shift's page, which shows a booked worker the instructions.
+- **How they go.** By the worker's own choice of WhatsApp or text message, with the same backup
+  as offers: a WhatsApp that's refused goes by text. A phone notification (*push*) goes too, if
+  they turned it on. Messages still only print to the screen (the *console transport*: nothing is
+  really sent until Twilio is connected).
+- **Who gets them.** Only confirmed bookings on shifts that are still open or filled. Never a
+  cancelled booking, an unconfirmed offer, or a cancelled or draft shift. Someone who books after
+  a reminder's time doesn't get that one. For example, booking 5 hours before gets only the
+  2-hour reminder.
+- **Once each.** A new database table, `shift_reminders`, records every reminder: sent, failed,
+  or skipped. It's written *before* the message goes, so the same reminder is never sent twice. If
+  a shift moves to a new time, its bookings get fresh reminders for the new time.
+- **Quiet hours** (default 10pm to 7am). Reminders aren't urgent, so they wait until the morning.
+  If waiting would make one too late, it's skipped and logged instead. Example: a 2-hour reminder
+  for a 6am start is skipped; the worker still got the 24-hour one the day before.
+- **The timer.** A check every 5 minutes looks for reminders that are due. It starts a job only
+  for firms that have one.
+- **Shared sending code.** Offers and reminders now send through one piece of code
+  (`src/lib/notify/send.ts`), so they behave the same way.
+
+### What the safety review found
+
+- **One serious problem (fixed).** In the first version, all of a firm's reminders were sent inside
+  one *transaction* (a group of database changes that either all happen or none do). If anything
+  failed after a message went, the "already sent" record disappeared with the rest, and a retry
+  would message everyone again. With real Twilio, the reviewer worked out this would happen
+  often.
+- **The fix.** Each reminder now goes in three separate steps:
+  1. mark it "sending" and save that;
+  2. send the message;
+  3. record "sent" or "failed".
+
+  If something breaks in between, the row still says "sending", meaning "may have gone", and it's
+  never sent again. A new test proves this.
+- **Smaller fixes:**
+  - a booking cancelled while the job runs isn't reminded;
+  - a reminder can't silently vanish when quiet hours end just before its window closes;
+  - cleaner code organisation;
+  - a test of the shared sending code.
+- **An older problem it spotted, not new tonight.** Twilio message ids can look like phone
+  numbers, and the log refuses anything that looks like one. Once Twilio is connected, some
+  successful sends would fail to log. Parked, with the fix, before connecting Twilio.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A check every 5 minutes, not every hour | Hourly could make a "2 hours before" reminder arrive only 1 hour before | One timer per booking (every way of booking, moving or cancelling would have to manage them) |
+| A table of reminders sent, keyed by start time | Exactly once per booking, evidence in a no-show dispute, and moved shifts get new reminders | Columns on the booking (no history), or searching the log (two jobs could both send) |
+| A booking made after a reminder's time skips that reminder | They've just booked and seen the confirmation | Send it at once (two messages close together) |
+| Quiet hours hold reminders; skip one that would be too late | The firm's quiet-hours policy says non-urgent messages wait | Send the 4am reminder anyway |
+| "{day}" instead of "tomorrow" in the 24-hour reminder | A reminder that went late can be for today | Keep "tomorrow" (wrong then) |
+| Claim, send, then record, each separately | A failure can never cause a second message | One transaction (the first version; caught in review) |
+
+### What the new tests prove
+
+- `tests/unit/rules.reminders.test.ts` (15 tests): when each reminder is due, who gets it,
+  bookings made late, and quiet hours in winter and summer, including the 10-minute margin.
+- `tests/integration/shift.reminders.test.ts` (16 tests, on the real database):
+  - both reminders arrive, each once, with the exact wording and link;
+  - the site name, and "today";
+  - late bookings; never to cancelled bookings, offers, or cancelled or draft shifts;
+  - a moved shift is reminded again;
+  - two jobs at once send one message;
+  - a job that breaks after sending never resends;
+  - a booking cancelled mid-run isn't reminded;
+  - another firm's workers are never reminded;
+  - text messages, the WhatsApp-to-text backup, failures, the push, and quiet hours holding or
+    skipping;
+  - the 5-minute check and the worker wiring.
+- `tests/unit/reminders.templates.test.ts` (4 tests): the exact wording, with and without a
+  site.
+- `tests/unit/notify.send.test.ts` (6 tests): the shared sending code's channels and backup.
+- The tenancy tests now cover the new table (each firm sees only its own rows).
+- Breaking the code on purpose made the right test fail each time:
+  - ignoring when the worker booked;
+  - reminding any booking status;
+  - skipping the re-check at claim time.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm:** a 2-hour reminder for a shift starting before 7am is skipped (quiet
+  hours), not sent at 4am.
+- **Dylan to confirm:** the 24-hour reminder says "Cancel in the app", but there's no app, just a
+  link. Consider changing it before the templates go to Meta.
+- **Parked:**
+  - reminders to workers the office has since blocked;
+  - no opt-out;
+  - lapsed licences;
+  - recording reminders missed during an outage;
+  - the Twilio id issue;
+  - making offer waves use the same claim, send, record pattern.
+
+### How to see it working
+
+Stop `npm run dev` first. Then run:
+
+`npx vitest run tests/unit/rules.reminders.test.ts tests/integration/shift.reminders.test.ts`
+
+It should say all passed.
+
+With `npm run dev` running, the terminal prints any reminders that are due for the demo firms'
+bookings, every 5 minutes.

@@ -1,5 +1,5 @@
 import { dayLabel } from "../rules/reasons";
-import { localDateOf, wallTimeOf } from "../time/zoned";
+import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
 import type { MyShift } from "./my-shifts";
 
 // How the staff portal shows a shift (docs/screens.md copy rules: short, plain, readable). Pure
@@ -61,4 +61,13 @@ export function soonLabel(instant: Date, now: Date, timeZone: string): string {
   const time = timeOf(instant, timeZone);
   const day = localDateOf(instant, timeZone);
   return day === localDateOf(now, timeZone) ? time : `${dayLabel(day)}, ${time}`;
+}
+
+// "today", "tomorrow" or "on Sat 7 Nov", in the firm's time zone.
+export function dayWords(startsAt: Date, now: Date, timeZone: string): string {
+  const day = localDateOf(startsAt, timeZone);
+  const today = localDateOf(now, timeZone);
+  if (day === today) return "today";
+  if (day === addDays(today, 1)) return "tomorrow";
+  return `on ${dayLabel(day)}`;
 }

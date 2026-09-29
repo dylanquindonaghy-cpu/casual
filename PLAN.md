@@ -163,7 +163,7 @@ Docs: `docs/screens.md`.
       show an "Add to home screen" prompt
 - [ ] WhatsApp utility templates via Twilio for urgent offers; SMS fallback; quiet hours
 - [x] Only eligible workers are ever notified; max 3 offers per worker per day unless urgent
-- [ ] Shift reminders 24 h and 2 h before start (cuts no-shows)
+- [x] Shift reminders 24 h and 2 h before start (cuts no-shows)
 - [ ] All copy from `docs/messaging-templates.md`; templates submitted to Meta for approval
 - [ ] Tests: `waves.timing`, `notify.policy`, stop-on-fill, no notifications to ineligible workers
 Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking).
@@ -502,6 +502,40 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - decide whether a firm may change the 3 (fixed policy today).
 - **Dylan to confirm:** urgent offers count towards a worker's 3 a day (they still land on their
   phone), so after 3 urgent offers that day they get no non-urgent ones; failed sends don't count.
+- Shift reminders (Phase 4) follow-ups:
+  - **Dylan to confirm:** quiet hours hold reminders; a 2-hour reminder for a shift starting
+    before 07:00 (default quiet hours) is skipped and logged, not sent at 04:00. The worker still
+    gets the 24-hour one the day before.
+  - **Dylan to confirm:** the approved `shift_reminder_24h` says "Cancel in the app", but there is
+    no app to download (it's a link). Consider "Cancel with the link" before submitting templates.
+  - Reminders go to every confirmed booking, including a worker the office has since made
+    inactive or blocked. Decide with the Phase 5 worker screen whether blocking cancels their
+    bookings.
+  - No per-worker opt-out for reminders (only the channel). Add one if pilots ask.
+  - The "no-show count tracked" half of product-spec P1-8 comes with Phase 5 "Mark no-show /
+    completed" (the `shift_reminders` rows show whether a reminder went).
+  - A push transport that throws (rather than answering "gone") fails the whole offer wave after
+    messages have gone (a reminder is left `sending` and never resent). The real web push sender
+    must catch its own errors (note for "connect the real web push").
+  - A reminder whose whole window passed while the worker process was down leaves no row. Record
+    it as `skipped` (reason `missed`) if no-show disputes need it.
+  - Reminder job resilience: if recording one reminder's outcome fails, the row stays `sending`
+    (never resent) with no event, and the rest of that run waits for pg-boss's retry. Consider
+    catching per reminder, logging the code and carrying on. Also push after the outcome commits
+    (not inside it) when the real web push sender is connected.
+  - Office view of reminders (Phase 5 Today / no-show screens): show an old `sending` row as "may
+    have gone" next to the booking.
+  - Offer waves still send inside one transaction (a failure after a message rolls back its offer
+    row). Move them to the reminders' claim → send → record pattern in a later task.
+
+  - A reminder still goes when a credential the shift needs has expired or been suspended since
+    booking. Decide whether that should hold the reminder and alert the office (Phase 5 Today
+    view).
+  - **Before connecting Twilio (found in the reminders review, affects every sender):** events log
+    `providerMessageId`, and `recordEvent` refuses values the log masker would change. A real
+    Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
+    phone number, and would make the event write throw after the message went. Exempt that key
+    or store only a safe form, with a test using a Twilio-shaped id.
 - **Connect Twilio** (the Phase 4 "WhatsApp utility templates via Twilio…" task is blocked on it:
   an account, a UK number, approved templates and money):
   1. Create the Twilio account and a UK number; set up the WhatsApp sender (Meta business
@@ -641,3 +675,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.5 | Web push, BLOCKED (not ticked: real delivery needs Google/Apple push services and a secret key): built everything short of it: phone subscriptions (new table), the subscribe route, the profile's "Notifications on this phone", pushes with each urgent offer through a console sender, the service worker showing and opening them; connecting the real sender is parked; 1649 tests + 25 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.3 | WhatsApp via Twilio, SMS fallback, quiet hours: BLOCKED (not ticked: Twilio is an outside service): built quiet hours (waves held until they end unless urgent may override, safe on clock-change nights) and the immediate SMS fallback when WhatsApp is refused, with other send failures logged per worker instead of rolling back the wave; connecting Twilio is parked with steps; 1664 tests + 25 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | Only eligible workers notified, daily offer cap: at most 3 shift offers per worker per London day unless the shift is urgent (failed sends don't count), checked in the one place every offer picks its workers, which also asks the booking rules about each one; a boundary test fails if any other code writes an offer or builds its message; the review's suggestions done or parked; 1690 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.6 | Shift reminders: every confirmed booking gets "Reminder: tomorrow…" 24 hours before and "Your shift starts at…" 2 hours before (by the worker's channel, with a push; console only), each once, recorded in a new `shift_reminders` table before it goes; quiet hours hold or skip them; a check every 5 minutes; the review caught a way a retry could resend (fixed: claim, send, then record, each separately); 1748 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |

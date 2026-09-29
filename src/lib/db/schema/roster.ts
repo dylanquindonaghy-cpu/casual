@@ -376,6 +376,56 @@ export const offers = pgTable(
   ],
 ).enableRLS();
 
+export const REMINDER_KINDS = ["24h", "2h"] as const;
+// sending: claimed and being sent (left so if the job stopped part-way: it may have gone, so it's
+// never sent again); sent; failed (not resent: it may have arrived); skipped (never sent: quiet
+// hours would have held it past its window).
+export const REMINDER_STATUSES = ["sending", "sent", "failed", "skipped"] as const;
+
+// Each shift reminder a booking got (src/lib/reminders/send.ts), or why it didn't: one row per
+// booking, reminder and start time, written before the message goes, so a retried job never sends
+// one twice and a shift moved to a new time gets new reminders. Evidence (a no-show dispute), so
+// never deleted by the app.
+export const shiftReminders = pgTable(
+  "shift_reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    assignmentId: uuid("assignment_id").notNull(),
+    kind: text("kind", { enum: REMINDER_KINDS }).notNull(),
+    // The start time the reminder was for.
+    startsAt: timestamptz("starts_at").notNull(),
+    status: text("status", { enum: REMINDER_STATUSES }).notNull(),
+    // How the message went, or was going (null when skipped).
+    channel: text("channel", { enum: ["whatsapp", "sms"] }),
+    // When the reminder was claimed (just before sending) or skipped.
+    recordedAt: timestamptz("recorded_at").notNull().defaultNow(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("shift_reminders_firm_id_id_key").on(t.firmId, t.id),
+    unique("shift_reminders_once_key").on(t.firmId, t.assignmentId, t.kind, t.startsAt),
+    foreignKey({
+      name: "shift_reminders_assignment_fk",
+      columns: [t.firmId, t.assignmentId],
+      foreignColumns: [assignments.firmId, assignments.id],
+    }),
+    check("shift_reminders_kind_check", sql`${t.kind} in ('24h', '2h')`),
+    check(
+      "shift_reminders_status_check",
+      sql`${t.status} in ('sending', 'sent', 'failed', 'skipped')`,
+    ),
+    check("shift_reminders_channel_check", sql`${t.channel} in ('whatsapp', 'sms')`),
+    check(
+      "shift_reminders_channel_unless_skipped",
+      sql`(${t.status} = 'skipped') = (${t.channel} is null)`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
 export const ROSTER_SOURCE_KINDS = ["sheets"] as const;
 
 // Where a firm's rota lives when it isn't our own tables (native firms have no row). The column

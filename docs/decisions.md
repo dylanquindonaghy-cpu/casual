@@ -255,3 +255,32 @@ when `OFFLINE_COPY=off` (it carries the notifications), and that service worker 
 copy; turning notifications off removes it. **Revisit when:** the real web push sender is
 connected.
 
+## ADR-017: Shift reminders come from a 5-minute tick and a table of what was sent
+
+**Context:** Phase 4, "Shift reminders 24 h and 2 h before start (cuts no-shows)". The job catalogue
+said "cron hourly". Bookings come from several places (the portal, the office, the Google Sheet
+sync), and shifts can move.
+**Decision:** a cron tick every 5 minutes (`shift-reminder-tick`) looks for confirmed bookings on
+open or filled shifts with a reminder due, and queues one `shift-reminders` job per firm that has
+any. The job is a firm task: per reminder, one short transaction claims it in `shift_reminders`
+(status `sending`, unique per booking, reminder and start time, only if the booking is still
+there) and commits; the message goes outside any transaction; a second short transaction records
+`sent` (with the push and the event) or `failed`. A job that stops between the two leaves
+`sending`, meaning "may have gone": it's never sent again. (The first version held one transaction
+across every send, so a failure after a message went rolled back its record and a retry resent it:
+caught in review.) The rules for when are pure functions (`src/lib/rules/reminders.ts`):
+- the 24 h window runs from 24 h before the start to 2 h before;
+- the 2 h window runs from then to the start;
+- a booking made after a reminder's time doesn't get that one;
+- quiet hours hold reminders (they aren't urgent), if they end at least two runs (10 minutes)
+  before the window closes. Otherwise the reminder is recorded as skipped.
+**Options:** one delayed job per booking, queued when it's made (every booking path, the sheet sync
+and every move or cancellation would have to queue or cancel them); an hourly cron (a 2-hour
+reminder could come only 1 hour before); columns on `assignments` (no history, and a moved shift
+couldn't be reminded again); checking `events` for a sent reminder (no unique key, so two jobs
+could both send).
+**Consequences:** a reminder goes at most once (at-most-once: one that may have gone is never retried), at most about 5 minutes late while the worker process runs. After
+an outage, a still-open window's reminder goes when it's back (the 24 h one then says "today" if
+that's right), and a closed one is never sent. The tick reads each firm's upcoming bookings every
+5 minutes: cheap at pilot size. **Revisit when:** a firm has thousands of bookings a day, or asks
+for other reminder times (a firm setting).

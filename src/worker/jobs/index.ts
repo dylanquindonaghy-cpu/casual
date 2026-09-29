@@ -24,6 +24,13 @@ import {
   type EscalateShiftPayload,
   type OfferWavePayload,
 } from "../../lib/offers/waves";
+import {
+  runShiftReminderTick,
+  SHIFT_REMINDER_TICK_CRON,
+  SHIFT_REMINDER_TICK_QUEUE,
+  shiftRemindersTask,
+  type ShiftRemindersPayload,
+} from "../../lib/reminders/send";
 import type { SheetsClient } from "../../lib/roster/sheets/client";
 import {
   runSheetsTick,
@@ -43,6 +50,7 @@ export interface JobDeps {
     wave: FirmJob<OfferWavePayload>;
     escalate: FirmJob<EscalateShiftPayload>;
   };
+  reminders?: FirmTask<ShiftRemindersPayload>;
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -53,6 +61,13 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
   await registerFirmJob(boss, deps.offers?.wave ?? offerWaveJob);
   await registerFirmJob(boss, deps.offers?.escalate ?? escalateShiftJob);
+
+  // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
+  await registerFirmTask(boss, deps.reminders ?? shiftRemindersTask);
+  await boss.work(SHIFT_REMINDER_TICK_QUEUE, async () => {
+    await runShiftReminderTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+  });
+  await boss.schedule(SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDER_TICK_CRON);
 
   // Credential expiry: always on (messages go through the configured transport).
   await registerFirmTask(boss, credentialScanFirmTask);

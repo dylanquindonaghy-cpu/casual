@@ -38,6 +38,7 @@ architecture.md, Tenancy).
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed | 2 |
 | requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
 | offers | Each offer sent in a wave and the response (table Phase 2; sending Phase 4) | 2 |
+| shift_reminders | Each 24 h / 2 h reminder a booking got (sent, failed or skipped for quiet hours) | 4 |
 | messages | Every inbound/outbound message (WhatsApp, SMS, email, voice, portal) | 7 |
 | pay_records | Imported hours, rates, pay dates | 3 |
 | pay_queries | Structured pay questions + grouping key + status | 6 |
@@ -178,7 +179,7 @@ create table credentials (
 
 -- The rota (Phase 2, src/lib/db/schema/roster.ts). Its foreign keys have no ON DELETE action:
 -- deleting a worker, site, shift or office user that rota rows point at fails, so history is
--- never erased or orphaned. The app role may not DELETE shifts, assignments, requests or offers
+-- never erased or orphaned. The app role may not DELETE shifts, assignments, requests, offers or shift_reminders
 -- (SELECT, INSERT, UPDATE only): they are cancelled or resolved, never removed.
 -- Roles ('steward', 'door_supervisor', 'track_operative'...) are snake_case in shifts and
 -- credential_rules (a CHECK), so they match workers.roles exactly.
@@ -289,6 +290,23 @@ create table offers (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, shift_id, worker_id, wave) -- a retried offer-wave job (key shift:wave) sends nothing new
+);
+
+-- Each shift reminder a booking got, or why not (src/lib/reminders/send.ts). Written before the
+-- message goes. Evidence in a no-show dispute: the app never deletes one.
+create table shift_reminders (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  assignment_id uuid not null,           -- (firm_id, assignment_id) -> assignments
+  kind text not null,                    -- 24h | 2h
+  starts_at timestamptz not null,        -- the start time it was for (a moved shift gets new ones)
+  status text not null,                  -- sending (claimed; left so if the job stopped: may have gone, never resent)
+                                         -- | sent | failed (not resent: it may have arrived) | skipped (quiet hours)
+  channel text,                          -- whatsapp | sms; null exactly when skipped
+  recorded_at timestamptz not null default now(), -- when it was claimed or skipped
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, assignment_id, kind, starts_at) -- claimed once: a retried or doubled job sends nothing twice
 );
 
 -- Where a firm's rota lives when it isn't our tables (native firms have no row). No secrets:
@@ -468,7 +486,7 @@ create policy firm_isolation on workers for all to public
 **Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`
 applies `src/lib/db/admin/access.ts` after the migrations: FORCE on every table and exactly the
 listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS; no DELETE on `events`,
-`shifts`, `assignments`, `requests` or `offers`). A new table without an
+`shifts`, `assignments`, `requests`, `offers` or `shift_reminders`). A new table without an
 entry there fails the migrate. Adding a table: Drizzle schema + `.enableRLS()` + the tenant
 policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 `tests/helpers/tenant-rows.ts` (the isolation tests fail by name until they exist).

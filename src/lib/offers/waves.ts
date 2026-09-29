@@ -13,21 +13,19 @@ import {
 import type { FirmTx } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
-import { defineFirmJob, errorCode, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
-import { getTransport, type MessagingTransport, type SendResult } from "../messaging";
-import { ChannelRefusedError } from "../messaging/transport";
+import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
+import { getTransport } from "../messaging";
 import { shiftEscalationEmail, shiftUrgentMessage, urgentPush } from "../messaging/templates";
-import { shiftWhen } from "../portal/format";
-import { forgetPushTarget, pushTargets } from "../push/subscriptions";
-import { getPushTransport, type PushTransport } from "../push/transport";
+import { dayWords, shiftWhen } from "../portal/format";
+import { notifyWorker, type NotifyDeps } from "../notify/send";
+import { getPushTransport } from "../push/transport";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { rankForFairRotation } from "../rules/allocation";
-import { dayLabel } from "../rules/reasons";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { hoursToStart } from "../rules/urgent";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
-import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
+import { wallTimeOf } from "../time/zoned";
 import { waveCandidates, type WaveCandidate } from "./candidates";
 
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
@@ -124,9 +122,7 @@ export async function startOfferWaves(
   );
 }
 
-export interface OfferDeps {
-  transport: MessagingTransport;
-  push: PushTransport;
+export interface OfferDeps extends NotifyDeps {
   baseDomain: string;
   clock: Clock;
 }
@@ -192,14 +188,6 @@ const timeOf = (d: Date, tz: string) => {
   const w = wallTimeOf(d, tz);
   return `${pad(w.hour)}:${pad(w.minute)}`;
 };
-// "today", "tomorrow" or "on Sat 7 Nov", in the firm's time zone.
-export function dayWords(startsAt: Date, now: Date, timeZone: string): string {
-  const day = localDateOf(startsAt, timeZone);
-  const today = localDateOf(now, timeZone);
-  if (day === today) return "today";
-  if (day === addDays(today, 1)) return "tomorrow";
-  return `on ${dayLabel(day)}`;
-}
 
 export type WaveResult =
   | { status: "sent"; sent: number; next: number | null }
@@ -339,56 +327,35 @@ export async function runOfferWave(
   });
   let count = 0;
   for (const { offerId, candidate: c } of recorded) {
-    // WhatsApp first if that's their channel; if the provider refuses WhatsApp (the number isn't
-    // on it), a text instead, straight away. Any other failure isn't retried on another channel
-    // (it may have gone), and doesn't stop the wave: that offer is marked failed and logged, the
-    // rest still go, and the worker can be offered it again in a later wave. (Falling back when a WhatsApp isn't delivered within 60 seconds needs
-    // Twilio's delivery reports: parked with Twilio.)
-    let channel = c.channel;
-    let result: SendResult;
-    try {
-      try {
-        result = await deps.transport.send({ channel, to: c.mobile, body });
-      } catch (error) {
-        if (!(error instanceof ChannelRefusedError) || channel !== "whatsapp") throw error;
-        channel = "sms";
-        result = await deps.transport.send({ channel, to: c.mobile, body });
-        await tx.update(offers).set({ channel }).where(eq(offers.id, offerId));
-      }
-    } catch (error) {
+    // By their channel, with the push as well (src/lib/notify/send.ts). A failure doesn't stop the
+    // wave: that offer is marked failed and logged, the rest still go, and the worker can be
+    // offered it again in a later wave.
+    const sent = await notifyWorker(tx, deps, {
+      workerId: c.workerId,
+      mobile: c.mobile,
+      channel: c.channel,
+      body,
+      push: { ...pushed, url: `/shifts/${shift.id}` },
+    });
+    if (!sent.ok) {
       // Kept as evidence of the attempt (offers are never deleted), marked failed.
       await tx
         .update(offers)
-        .set({ channel, response: "failed", respondedAt: now })
+        .set({ channel: sent.channel, response: "failed", respondedAt: now })
         .where(eq(offers.id, offerId));
       await recordEvent(tx, {
         actorType: "system",
         action: "offer.send_failed",
         entityType: "shift",
         entityId: shift.id,
-        data: { workerId: c.workerId, wave: payload.wave, channel, code: errorCode(error) },
+        data: { workerId: c.workerId, wave: payload.wave, channel: sent.channel, code: sent.code },
       });
       continue;
     }
-    count += 1;
-    // Push as well, to each phone the worker turned notifications on for (free; the docs send
-    // urgent offers by push and WhatsApp). One the push service says is gone is forgotten.
-    let pushes = 0;
-    for (const target of await pushTargets(tx, c.workerId)) {
-      // The path only: the service worker opens it on whichever address the phone subscribed on
-      // (a firm's custom domain included).
-      const sent = await deps.push.send(target, { ...pushed, url: `/shifts/${shift.id}` });
-      if (sent.status === "gone") {
-        await forgetPushTarget(tx, target.id);
-        await recordEvent(tx, {
-          actorType: "system",
-          action: "push.forgotten",
-          entityType: "push_subscription",
-          entityId: target.id,
-          data: { reason: "gone" },
-        });
-      } else if (sent.status === "sent") pushes += 1;
+    if (sent.fellBackFrom) {
+      await tx.update(offers).set({ channel: sent.channel }).where(eq(offers.id, offerId));
     }
+    count += 1;
     await recordEvent(tx, {
       actorType: "system",
       action: "offer.sent",
@@ -398,10 +365,10 @@ export async function runOfferWave(
         shiftId: shift.id,
         workerId: c.workerId,
         wave: payload.wave,
-        channel,
-        providerMessageId: result.providerMessageId,
-        pushes,
-        ...(channel !== c.channel ? { fellBackFrom: c.channel } : {}),
+        channel: sent.channel,
+        providerMessageId: sent.providerMessageId,
+        pushes: sent.pushes,
+        ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
       },
     });
   }

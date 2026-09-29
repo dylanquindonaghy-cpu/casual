@@ -2710,3 +2710,124 @@ Its note (not a defect): the cap's non-urgent branch is exercised only by the ru
 - logging how many workers the cap left out;
 - whether a firm may change the 3;
 - **Dylan to confirm:** urgent offers count towards the 3.
+
+## 2026-09-29 05:41 UTC: Phase 4, "Shift reminders 24 h and 2 h before start (cuts no-shows)"
+
+**Plan.**
+- **New table `shift_reminders`** (migration 0014): one row per booking, per reminder (24h or 2h),
+  per start time.
+  - Columns: `firm_id`, `assignment_id` (composite FK), `kind`, `starts_at`, `channel`, `status`
+    (`sent` / `failed` / `skipped`), `sent_at`.
+  - Unique on (firm, assignment, kind, starts_at). A retried or doubled job can't send twice, and a
+    shift moved to a new time gets fresh reminders.
+  - NO_DELETE: it's evidence a reminder went (a no-show dispute).
+  - RLS, a TABLE_ACCESS entry and isolation fixtures.
+- **Pure rule** `src/lib/rules/reminders.ts`, deciding which reminder is due:
+  - 24h: from start − 24 h until start − 2 h;
+  - 2h: from start − 2 h until the start;
+  - each only for a booking made before that reminder's time. Someone who books 5 hours before
+    doesn't get a "24 hour" reminder straight after booking.
+  - Quiet hours (reminders aren't urgent): wait until they end. If they end after the reminder's
+    window closes, record it `skipped` (reason `quiet_hours`, logged) instead.
+- **Jobs:**
+  - a cron `shift-reminder-tick` every 5 minutes. It queues a `shift-reminders` firm job only
+    for firms with something due (one per firm per slot, singleton key);
+  - the firm job, in one transaction: for each confirmed booking on an open or filled shift that
+    is due, claim the row (insert … on conflict do nothing), then send.
+    - The worker's channel (WhatsApp or SMS), with the same fallback as offers. A refused
+      WhatsApp goes by text; any other failure is marked `failed`, logged, and not retried.
+    - A push to their phones.
+    - Logged `shift.reminder_sent` / `shift.reminder_failed` / `shift.reminder_skipped`.
+- **Shared sender** `src/lib/notify/send.ts`: the channel, fallback and push part moves out of
+  waves.ts so offers and reminders send the same way. waves.ts uses it; its tests stay as they
+  are.
+- **Copy:**
+  - `shift_reminder_24h` with `{day}` instead of "tomorrow" (a late reminder can be "today");
+  - `shift_reminder_2h` as written;
+  - "at {site}" left out when there's no site;
+  - pushes "Tomorrow: {site}" / "Today: {site}". The link is `/shifts/<id>`, which shows a booked
+    worker the instructions.
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| A tick every 5 minutes, not "cron hourly" (the job catalogue) | Hourly could send the 2-hour reminder only 1 hour before | One job per booking queued at booking time (every booking path, the sheet sync and moved shifts would each need to queue and cancel them) |
+| A `shift_reminders` table, keyed by start time | Exactly-once per booking per reminder, evidence of what was sent, and a moved shift gets new reminders | Columns on assignments (no history, no "moved"), or checking events (no unique key, so a race could double-send) |
+| A booking made after a reminder's time doesn't get that reminder | They've just booked and seen the confirmation | Send the 24h one at once (two messages within hours) |
+| Quiet hours hold reminders; skip one that couldn't go before its window closes | Policy: non-urgent waits. A 2-hour reminder for a 06:00 start would come after the start | Send it anyway at 04:00 (breaks the policy) — **Dylan to confirm** |
+| Reminders go to every confirmed booking, whatever `offer_alerts` says | That setting is about open-shift offers; reminders are about their own shifts | A separate opt-out (not asked for) |
+| `{day}` in `shift_reminder_24h` | A reminder sent late (the worker process down, or quiet hours) can be for today | Keep "tomorrow" (wrong then) |
+
+**Root causes (while building):**
+- A summer rule test expected "wait" but got "none". The test's "booked long ago" date
+  (1 November) came *after* the July shift, so the rule was right. Gave that case an earlier
+  booking date.
+- The integration tests' event query failed on a column that doesn't exist (`occurred_at`; it's
+  `created_at`). The tick test compared job rows without unwrapping `data`. Both were test
+  mistakes.
+
+**Guardrails review: FIX FIRST (1), fixed.**
+- **Problem:** the job claimed and sent every due reminder in one transaction. Any failure after a
+  message went rolled back its record, so pg-boss's retry and the next tick would message
+  everyone again. The review worked out that with real Twilio ids, about 8% would make the event
+  write throw (see below), so a batch of 20 reminders would fail about 80% of the time.
+- **Fix:** the job is now a firm task.
+  1. One short transaction claims each reminder as `sending`, only if the booking is still
+     confirmed at that start time, and commits.
+  2. The message goes outside any transaction (`sendToWorker`).
+  3. A second short transaction records `sent` with the push and event, or `failed`.
+- A job that stops between the two leaves `sending`, meaning "may have gone", and it's never
+  resent.
+- New tests:
+  - the push throwing after the message went leaves `sending`, and the retry and later runs send
+    nothing;
+  - a booking cancelled while the job runs isn't reminded (shown failing with the re-check
+    removed).
+
+**Lesser suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| A reminder that waits could vanish if quiet hours end less than one tick before its window closes | The rule now waits only if the quiet hours end at least 5 minutes (one run) before the window closes; otherwise `skipped` and logged. Tested (a 07:03 start skips; 07:05 waits) |
+| Cancel during a batch | Each claim re-checks the booking (above) |
+| `dayWords` imported from offers | Moved to `src/lib/portal/format.ts` |
+| `sent_at` filled for skipped and failed rows | Renamed `recorded_at` (0014 wasn't pushed, so it was regenerated; the local dev database reset) |
+| Add `r.firm_id = a.firm_id` to the `exists` checks | Done |
+| No direct test of the shared helper | `tests/unit/notify.send.test.ts` (6 cases) |
+| Lapsed credentials still get a reminder | Parked |
+| Twilio ids masked as phone numbers make every sender's event write throw (existing, not new) | Parked under "Before connecting Twilio", with the fix |
+| A reminder whose whole window passed during an outage leaves no row | Parked |
+
+**Guardrails re-review of the fix:** "SAFE TO COMMIT". FIX FIRST 1 is resolved and nothing new
+needs fixing first.
+- **Done:** the claim compares start times to the millisecond (a JavaScript date has no
+  microseconds). The quiet-hours margin is now two runs (10 minutes), because a run can start
+  late (tests: a 07:09 start skips, 07:10 waits).
+- **Parked:**
+  - per-reminder handling when recording an outcome fails;
+  - pushing after the outcome commits, once real push is connected;
+  - an office view of stuck `sending` rows;
+  - moving offer waves to the claim → send → record pattern.
+
+**Verify:**
+```
+== typecheck ... ok
+== lint ... ok
+== test ... ok
+== e2e ... ok
+== invariants ... ok
+VERIFIED tree=52c63cf1faa93962 e2e=true
+```
+1748 tests (up from 1690) + 25 e2e.
+
+**Claims auditor, round 1 (verbatim verdict):**
+```
+VERDICT: DONE
+To reach DONE: nothing — recommend ticking PLAN.md line 166.
+```
+Its note (not a defect): the parked follow-ups (the "Cancel in the app" wording, reminders to
+since-blocked workers, hardening once real Twilio and web push are connected) are scoped to later
+tasks.
+
+**Ticked.** 0.6 h. Phase 4: 2.8 h of 27–37 h.

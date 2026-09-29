@@ -1810,3 +1810,29 @@ Its other findings, and what I did:
 - It then waited for the login form while still logged in. The login page sends a logged-in
   worker straight to My shifts. The second worker now asks for a link from another browser (as
   from their own phone) and opens it on the first, which is the real situation.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=4435071fb786f4b5 e2e=true` (1453 tests, 19 e2e).
+`npm run build` run by hand after the fixes: succeeds.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE (evidence-wise — task in PLAN.md is still correctly left unticked, pending manual iPhone check)
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"4435071fb786f4b5","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` → `4435071fb786f4b5`. Matches, ok=true, e2e=true. Proceeding.
+
+Claims:
+- "My shifts" cached by a service worker, opens with poor signal — PROVEN. Code: `/home/dylan/shiftdesk-starter/public/sw.js` (network-first with 4s timeout, falls back to kept copy, `NETWORK_TIMEOUT_MS`/`MAX_AGE_MS` at lines 26-27, `openMyShifts` lines 73-77, `remember`/`forget` lines 87-127, no-signal page lines 171-180); wired via `/home/dylan/shiftdesk-starter/src/lib/portal/offline.ts` (`keepOfflineCopy`/`stopOfflineCopy`/`clearOfflineCopy`) and `/home/dylan/shiftdesk-starter/src/app/offline-copy.tsx`, mounted in `/home/dylan/shiftdesk-starter/src/app/page.tsx:29`; cache cleared on login/logout (`src/app/l/link-login.tsx:85`, `src/app/logout-button.tsx:19`); offline notice element `data-offline-notice` in `/home/dylan/shiftdesk-starter/src/app/my-shifts-view.tsx:47`. Unit test `/home/dylan/shiftdesk-starter/tests/unit/offline.sw.test.ts` loads the real `public/sw.js` source (`readFileSync`, line 15) and executes it in a genuine `vm.createContext`/`vm.runInContext` sandbox (lines 101-124) against fake Cache/fetch — not a rewritten stub. Passing in `.claude/state/test.log:1030-1046`. Real-browser e2e in `/home/dylan/shiftdesk-starter/tests/e2e/offline.worker.spec.ts:33-90` (goes fully offline via `context.setOffline(true)`, asserts kept copy shown, notice text, and per-login cache isolation). Passing in `.claude/state/e2e.log` lines 9-10.
+- "Add to home screen" prompt on iPhone — PROVEN. Code: `/home/dylan/shiftdesk-starter/src/lib/portal/home-screen.ts` (`shouldShowHomeScreenHint`, iPhone/iPad UA + touch-point detection, standalone/dismissed suppression) and `/home/dylan/shiftdesk-starter/src/app/home-screen-hint.tsx`; mounted on `/home/dylan/shiftdesk-starter/src/app/page.tsx:39` and `/home/dylan/shiftdesk-starter/src/app/profile/page.tsx:18`; web manifest `/home/dylan/shiftdesk-starter/src/app/manifest.ts` (per-firm name, `display: "standalone"`) plus `appleWebApp` metadata in `layout.tsx` diff. Unit test `/home/dylan/shiftdesk-starter/tests/unit/portal.home-screen.test.ts` (real UA strings for iPhone/iPad/Android, dismissal, SSR-empty render) — passing, `.claude/state/test.log:1040-1042` (portal.home-screen block). Real-browser e2e `tests/e2e/offline.worker.spec.ts:92-136` (manifest content, iPhone-emulated hint shown/dismissed/persisted, Android shows nothing) — passing, `.claude/state/e2e.log` lines 11-13.
+
+Fakes found: none. `grep` for `.only`/`.skip`/`TODO`/"not implemented" in the new files found only the legitimate service-worker API call `self.skipWaiting()` (`public/sw.js:32`). `.claude/state/invariants.log` confirms "no .only/.skip/.todo in tests" and "1453 tests: 1453 passed, 0 failed, 0 skipped, 0 todo". Lint/typecheck logs clean.
+
+Note: PLAN.md line 142 still correctly shows `- [ ]` (unticked) — this is appropriate; the "Dylan, on a real iPhone" manual verification is explicitly deferred in the Parking lot (PLAN.md lines 517-522) as a known follow-up (real-device standalone-login persistence, custom icons, Android install button), not a gap in the automated claims above.
+
+To reach DONE: nothing further needed for the automated claims; if you want to tick the checkbox, run `/close-task` per CLAUDE.md so a hook does it (do not tick manually). The one item still open is the human-only real-iPhone check already tracked in the Parking lot, which is outside what code/tests can prove.
+```
+
+**Ticked** in PLAN.md (the verdict is DONE; its note is the real-iPhone check, already parked for
+Dylan). **Hours:** 0.6 (01:34 to 02:10 UTC). Phase 3 so far: 3.7 h of its 35–45 h estimate.
+**Commit:** `2b89dc3`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

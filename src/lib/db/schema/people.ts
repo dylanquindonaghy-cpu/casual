@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   date,
   foreignKey,
@@ -18,6 +19,9 @@ import { firms } from "./tenancy";
 
 export const OFFICE_ROLES = ["admin", "resourcer", "payroll"] as const;
 export const WORKER_STATUSES = ["active", "inactive", "blocked"] as const;
+// How the worker wants shift messages (Phase 4 notify job): WhatsApp, or text message. Login
+// links and codes always go (the worker asked for them).
+export const NOTIFY_CHANNELS = ["whatsapp", "sms"] as const;
 
 export const officeUsers = pgTable(
   "office_users",
@@ -66,6 +70,9 @@ export const workers = pgTable(
     // The person's id in the firm's own rota (a Google Sheet's staff id column), for syncing.
     // Null for workers who exist only here.
     externalRef: text("external_ref"),
+    // The worker's own notification settings (the profile page).
+    notifyChannel: text("notify_channel", { enum: NOTIFY_CHANNELS }).notNull().default("whatsapp"),
+    offerAlerts: boolean("offer_alerts").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [
@@ -78,6 +85,7 @@ export const workers = pgTable(
     ),
     check("workers_mobile_e164_check", sql`${t.mobileE164} ~ '^[+][1-9][0-9]{6,14}$'`),
     check("workers_status_check", sql`${t.status} in ('active', 'inactive', 'blocked')`),
+    check("workers_notify_channel_check", sql`${t.notifyChannel} in ('whatsapp', 'sms')`),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();
@@ -128,6 +136,32 @@ export const credentials = pgTable(
       "credentials_status_check",
       sql`${t.status} in ('valid', 'expired', 'applied', 'suspended')`,
     ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// Days a worker has said they can't work (the profile page): one row per firm-local date. The
+// rules engine's check 8 refuses a shift touching one (the office may override). The worker's own
+// preference, not evidence, so it goes with the worker.
+export const workerUnavailableDays = pgTable(
+  "worker_unavailable_days",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("worker_unavailable_days_firm_id_id_key").on(t.firmId, t.id),
+    unique("worker_unavailable_days_firm_id_worker_day_key").on(t.firmId, t.workerId, t.day),
+    foreignKey({
+      name: "worker_unavailable_days_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }).onDelete("cascade"),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

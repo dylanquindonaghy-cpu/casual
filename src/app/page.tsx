@@ -44,6 +44,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         >
           See your pay
         </Link>
+        <Link
+          href="/profile"
+          className="mt-3 block w-full rounded-xl border-2 border-slate-900 px-4 py-4 text-center text-lg font-semibold"
+        >
+          My profile
+        </Link>
         <LogoutButton action={logoutAction} after="/login?out=1" />
       </main>
     );

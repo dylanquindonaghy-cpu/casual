@@ -29,7 +29,7 @@ type EligibilityInput = {
   shift: { id: string; role: string; startsAt: Date; endsAt: Date; siteId: string | null;
            requiredTypes: string[] | null };              // from credential_rules; null = no rule
   otherAssignments: { startsAt: Date; endsAt: Date }[];  // confirmed, same week ± a day
-  unavailableDates: string[];           // firm-local yyyy-mm-dd
+  unavailableDates: string[];           // firm-local yyyy-mm-dd, from worker_unavailable_days (the profile page)
   settings: {
     minRestHours: number;               // default 11
     weeklyHoursCap: number;             // default 48 (firm may set lower)

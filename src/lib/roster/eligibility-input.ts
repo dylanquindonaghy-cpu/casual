@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, lt, lte, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { DAY } from "../auth/clock";
 import {
@@ -9,6 +9,7 @@ import {
   firms,
   shifts,
   workers,
+  workerUnavailableDays,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import type { EligibilityInput, OverridableCode } from "../rules/eligibility";
@@ -26,8 +27,9 @@ import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
 // - The day's deployed and "applied" counts for the allowance, never counting this worker.
 // - The firm's rules settings, with the doc's defaults; a value that makes no sense throws (a
 //   misconfigured firm must never loosen a rule by accident).
-// - No availability or blocked-site store exists yet (Phase 3 profile, Phase 5 office): both are
-//   empty lists until then.
+// - The days the worker marked unavailable (the profile page), from the day before the shift's
+//   local start date to the day after its end (the rules check the days it touches). No
+//   blocked-site store exists yet (Phase 5 office): an empty list until then.
 
 export const BOOKED_STATUSES = ["confirmed", "completed"] as const;
 const NEARBY_MS = 8 * DAY;
@@ -121,6 +123,19 @@ export async function loadEligibilityInput(
       ),
     );
 
+  const firstDay = localDateOf(shift.startsAt, firm.timezone);
+  const lastDay = localDateOf(new Date(shift.endsAt.getTime() - 1), firm.timezone);
+  const unavailable = await tx
+    .select({ day: workerUnavailableDays.day })
+    .from(workerUnavailableDays)
+    .where(
+      and(
+        eq(workerUnavailableDays.workerId, workerId),
+        gte(workerUnavailableDays.day, addDays(firstDay, -1)),
+        lte(workerUnavailableDays.day, addDays(lastDay, 1)),
+      ),
+    );
+
   const counts = await deployedThatDay(tx, {
     workerId,
     startsAt: shift.startsAt,
@@ -141,7 +156,7 @@ export async function loadEligibilityInput(
       endsAt: shift.endsAt,
     },
     otherAssignments: others,
-    unavailableDates: [],
+    unavailableDates: unavailable.map((u) => u.day),
     settings: {
       minRestHours: settings.min_rest_hours,
       weeklyHoursCap: settings.weekly_hours_cap,

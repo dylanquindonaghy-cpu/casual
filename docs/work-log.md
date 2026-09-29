@@ -2063,3 +2063,148 @@ Full list: `docs/overnight-log.md`, this task's entry.
    (for the demo worker you logged in as), then `npm run import -- --firm acme --kind pay --as
    acme.payroll@example.com pay.csv --apply`, and open the pay page again (type a new code if 30
    minutes have passed). It shows the line you imported.
+
+## 2026-09-29: Phase 3, task 7: Profile page (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (00:31 to 01:02 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=b1f8e8b8d519a514 e2e=true`. That covers the type
+  checks, lint, all 1412 tests (up from 1370), the 12 browser tests (up from 10) and the rule
+  checks. A production build was also run and succeeded.
+- The first verify run failed on one browser test. The cause is explained below. The second run
+  passed.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+A **profile page** at `/profile`. A worker reaches it by tapping "My profile" on the home page.
+It has four parts.
+
+1. **Your details.** Name, mobile number and email, exactly as the office holds them. The page
+   says "To change these, ask the office." Workers can't edit them here, because the mobile
+   number is what they log in with.
+2. **Licences and cards** (credentials: the licences a job needs, such as an SIA licence). Each
+   one shows its status in words (Valid, Expired, Applied for, Suspended) and its expiry date.
+   - An expired or suspended one is red and says what to do.
+   - An old expired one is hidden once the worker has a newer valid one, or has applied to
+     renew it.
+3. **Days you can't work.** The worker picks a date and taps "Mark as unavailable". Each marked
+   day has a "Remove" button.
+   - Any day from today to 6 months ahead, with at most 60 days marked at once.
+   - If they're already booked that day, the page says so. The booking isn't cancelled: a
+     cancellation must be deliberate, with a reason and notice.
+   - **The booking rules now use these days.** The rules engine has always had a check for
+     "marked unavailable" (check 8), but until now it was always given an empty list. Now a
+     worker can't take a shift that touches a marked day (a night shift touches two days).
+     The office can still place them, with a reason, which is logged.
+4. **How we reach you.** WhatsApp or text message, and "Tell me about open shifts" on or off.
+   "Save settings" answers, for example, "Saved. We'll send shift messages by text message. We
+   won't tell you about open shifts.", signed "[Firm] Shift Team". Nothing sends messages from
+   these settings yet: the sender comes in Phase 4 and will read them.
+
+Key facts:
+
+- **The database.** There is one new table, `worker_unavailable_days`: one row per worker and
+  day. A table is like a spreadsheet tab in the database. The `workers` table gets two new
+  columns:
+  - `notify_channel`: `whatsapp` or `sms`; the database refuses anything else.
+  - `offer_alerts`: true or false.
+- **The migration.** A migration is a script that changes the database's shape. This one is
+  `drizzle/0010_profile.sql`, and it only adds things.
+- **Tenant isolation.** The new table has the firm's id on every row. Row Level Security stops
+  one firm's rows being seen from another firm's session. The app may read, add and delete rows,
+  but never edit one.
+- **The action log.** Every change writes a row to the log:
+  - `worker.unavailable_added` and `worker.unavailable_removed`, holding the date only;
+  - `worker.notification_settings_changed`, holding the two choices, and only when something
+    actually changed.
+
+### Problems found on the way (root cause first)
+
+- A test's setup SQL put text into an id column. Postgres guessed the type of the test's
+  placeholders as text inside a `union all`. Fixed in the test by saying the type
+  (`$1::uuid`).
+- A test expected `value="sms" checked=""`, but React writes the attributes the other way round.
+  The test now checks each input's tag on its own, whatever the order.
+- **The first verify run failed on the browser test.** It looked for "the confirmation message"
+  and found two: the day-off confirmation stays on screen while the settings confirmation
+  appears. The test now looks inside each section. What it expects is unchanged.
+
+### What the safety review found (all fixed or parked)
+
+The guardrails reviewer found no broken golden rule. It suggested improvements, all done except
+one:
+
+- hide replaced licences;
+- red for suspended ones;
+- a fuller "Saved" message with the sign-off;
+- a stricter date check;
+- read, add and delete only (no edits) on the new table;
+- each "Remove" button named for its day, for screen readers;
+- one database query instead of one per day.
+
+Parked: the licence expiry reminders still go by WhatsApp whatever the new setting says. They
+move onto the Phase 4 sender.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One row per unavailable day, today to 180 days ahead, at most 60 | Simple to show and to check; a cap stops junk | Date ranges |
+| Marking a day never cancels a booking | Cancelling must be deliberate, with a reason and notice (golden rule 12) | Cancel it automatically |
+| The settings are two columns on `workers` | They're what the Phase 4 sender needs; a separate table for two values adds joins | A settings table |
+| Contact details are read-only | The mobile number is the login; changing it needs a checking step | Let workers edit them |
+| The office can override an unavailable day, with a reason | The rules doc already lists "unavailable" as an office override | No override |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/profile.test.ts` (13 tests, real database):
+  - the page's data (details, every credential state, replaced ones hidden);
+  - marking and clearing days, with the log rows;
+  - the date limits and the 60-day cap (past days don't count);
+  - "booked that day", including a shift ending at midnight and a night shift;
+  - a booking refused on a marked day, and the office override;
+  - the settings saved and logged only on a real change;
+  - the database refusing a third channel;
+  - another firm's worker can never be seen or changed.
+- `tests/integration/eligibility-input.test.ts` (1 new test): the rules get the worker's
+  marked days from the day before the shift to the day after, and no one else's. I checked that
+  this test and the booking one fail if the days aren't loaded.
+- `tests/unit/portal.profile.test.ts` (9 tests): the page's words and colours, the answer to
+  every kind of change, and that the page's channel list matches the database's.
+- `tests/e2e/profile.worker.spec.ts` (2 browser tests, phone-sized):
+  - a worker logs in, sees an expired licence, marks a day and removes it, and saves text
+    message with no alerts; the settings are still there after a reload;
+  - the page needs a login.
+- The isolation suites now cover the new table.
+
+### Parked, open, and things that need Dylan
+
+- **Please look over:**
+  - the new table and the two new columns (in `docs/data-model.md`);
+  - the `/profile` row in `docs/screens.md`, which I updated to match the built page's wording.
+- Parked in `PLAN.md`:
+  - Phase 4's sender must honour the settings, and skip offers on marked days;
+  - the office sees marked days and edits contact details (Phase 5);
+  - uploading a renewed licence from the profile.
+- The "Add to home screen" prompt on this page comes with the service-worker task, next in
+  Phase 3.
+
+### How to see it working
+
+1. Start the app: `npm run dev`. Open `http://acme.localhost:3000/login` and log in as
+   `07700 900125`. The login link appears in the `npm run dev` terminal. This demo worker's SIA
+   licence has expired.
+2. Tap **My profile**. You should see your details, then "SIA door supervisor licence" in red,
+   marked "Expired", with what to do.
+3. Pick a date under "Days you can't work" and tap **Mark as unavailable**. It says "Marked ... as
+   unavailable." and the day appears in the list with a **Remove** button.
+4. Choose **Text message**, untick **Tell me about open shifts**, and tap **Save settings**. Reload
+   the page: your choices are kept.

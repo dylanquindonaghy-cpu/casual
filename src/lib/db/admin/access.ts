@@ -41,6 +41,8 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are
   // what a pay question is checked against).
   pay_records: NO_DELETE,
+  // The worker marks and clears days they can't work (logged as events); a day is never edited.
+  worker_unavailable_days: ["SELECT", "INSERT", "DELETE"],
 };
 
 export function schemaTableNames(): string[] {

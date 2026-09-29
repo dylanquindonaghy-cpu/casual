@@ -71,6 +71,13 @@
       "when": 1790640392701,
       "tag": "0009_pay_records",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790641943267,
+      "tag": "0010_profile",
+      "breakpoints": true
     }
   ]
 }

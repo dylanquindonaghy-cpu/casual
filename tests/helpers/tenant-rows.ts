@@ -24,6 +24,7 @@ export const EXPECTED_TABLES = [
   "sessions",
   "shifts",
   "sites",
+  "worker_unavailable_days",
   "workers",
 ] as const;
 export type TableName = (typeof EXPECTED_TABLES)[number];
@@ -175,6 +176,11 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
     [firmId, shiftId, rosterWorkerId],
   );
+  const unavailableDayId = await one(
+    su,
+    "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-12-25')",
+    [firmId, workerId],
+  );
   // Pay records point at the rota worker too: their worker link has no ON DELETE action.
   const payRecordId = await one(
     su,
@@ -210,6 +216,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       offers: offerId,
       roster_sources: rosterSourceId,
       pay_records: payRecordId,
+      worker_unavailable_days: unavailableDayId,
     },
   };
 }
@@ -293,6 +300,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",
     values: [firmId, p.rows.shifts, p.rosterWorkerId, 1 + next()],
   }),
+  worker_unavailable_days: (firmId, p) => ({
+    text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, $3)",
+    values: [firmId, p.workerId, `2027-01-${String(1 + (next() % 28)).padStart(2, "0")}`],
+  }),
   pay_records: (firmId, p) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-02', '2026-11-08', 4, $3)`,
@@ -368,6 +379,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   offers_worker_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
     values: [firmId, own.rows.shifts, other.workerId, 1 + next()],
+  }),
+  worker_unavailable_days_worker_fk: (firmId, _own, other) => ({
+    text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2027-02-01')",
+    values: [firmId, other.workerId],
   }),
   pay_records_worker_fk: (firmId, _own, other) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)

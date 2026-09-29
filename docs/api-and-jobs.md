@@ -36,7 +36,17 @@ with reasons, try_again, logged_out, error) · `cancelShift(shiftId, reason)` (b
 `createRequest(type, payload)` (built for time changes and swaps: `createRequestAction(shiftId,
 kind, fields)` in `src/app/requests/actions.ts` → `createRequest()` in
 `src/lib/portal/requests.ts`; own upcoming booking only, one open request per shift and kind, a
-`request.created` event) · `setAvailability(dates)` · `raisePayQuery(form)` · `updateNotificationPrefs(...)`
+`request.created` event) · `setAvailability(dates)` (built one day at a time:
+`setUnavailableAction(day, on)` in `src/app/profile/actions.ts` → `setUnavailable()` in
+`src/lib/portal/profile.ts`; today to 180 days ahead, at most 60 upcoming days; outcomes: added
+(with whether a booking falls that day; it is never cancelled), removed, already, not_marked, past,
+too_far, too_many, invalid, logged_out, error; events `worker.unavailable_added` /
+`worker.unavailable_removed` with the day only) · `raisePayQuery(form)` ·
+`updateNotificationPrefs(...)` (built: `saveNotificationSettingsAction(channel, offerAlerts)` in
+`src/app/profile/actions.ts` → `setNotificationSettings()`; WhatsApp or SMS, and open-shift alerts
+on or off; a `worker.notification_settings_changed` event only when something changed. The Phase 4
+sender must read both: `notify_channel` picks WhatsApp or SMS, and `offer_alerts = false` means no
+open-shift offers, while login links and codes are always sent)
 
 Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/curtailments),
 `cancelShiftByFirm(shiftId, reason)`, `cancelBookingByFirm(shiftId, workerId, reason)`

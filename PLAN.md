@@ -137,7 +137,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] Request a time change or swap: creates a request for the office
 - [x] Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)
 - [x] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
-- [ ] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
+- [x] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
 - [ ] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
 - [ ] "My shifts" cached by a service worker (opens with poor signal); "Add to home screen" prompt on iPhone
 - [ ] Empty and error states written in plain language (see `docs/screens.md`)
@@ -492,6 +492,17 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   warning columns reset themselves by date) and logs `credential.renewed` with old and new dates.
 - `credential-scan-tick` skips a missed 08:00 (pg-boss `missed: skip`); the next day's run catches
   up. If workers are often down at 08:00, use `missed: "once"` plus a quiet-hours check in the job.
+- Profile follow-ups (from the Phase 3 profile task):
+  - Phase 4's sender must honour `workers.notify_channel` (WhatsApp or SMS) and
+    `workers.offer_alerts` (false means no open-shift offers). Login links and codes are always sent.
+    The credential expiry reminders (`src/lib/credentials/scan.ts`) send WhatsApp today whatever
+    the setting: move them onto the same sender (see the credential-scan item above).
+    Offer waves should skip workers who marked the shift's day unavailable. The rules already refuse
+    them, so this only saves sending a pointless offer.
+  - Office (Phase 5): see a worker's unavailable days on their record and in the booking picker,
+    and change contact details there (the profile says "To change these, ask the office").
+  - Credential photos or uploads from the profile ("send the new details to the office" is manual
+    for now).
 
 ## Hours log
 
@@ -516,3 +527,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 3 | 0.4 | Worker requests: "Ask for a change" on My shifts (a time change or a swap for their own upcoming shift), a confirmation with a reference, and My requests with each status in plain words; one open request per shift and kind (tested with taps at once); 1328 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.4 | Allocation mode: first come, first served (default) or fair rotation, where a new place is held 15 minutes for the 4 workers with the fewest hours that week (never for shifts within 24 hours, never past the start, never the office), enforced in booking, shown on Open shifts, logged; 1343 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.4 | Pay info page: new `pay_records` table (tenant-sealed, no deletes), `npm run import --kind pay` (money in exact pence, decimal commas refused), and the pay page behind the 6-digit code showing the last 8 weeks as payroll sent them; 1370 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 3 | 0.5 | Profile: the worker's details and licences (read-only, expired or suspended ones in red with what to do), days they can't work (new `worker_unavailable_days` table, which the rules now use to refuse bookings on those days; the office can override), and WhatsApp-or-text plus open-shift alerts settings; every change logged; 1412 tests + 12 e2e; verified and audited DONE (see docs/work-log.md) |

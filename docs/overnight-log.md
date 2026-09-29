@@ -1524,3 +1524,63 @@ To reach DONE: nothing — recommend ticking this PLAN.md line.
 
 **Ticked** in PLAN.md. **Hours:** 0.4 (00:04 to 00:27 UTC). Phase 3 so far: 2.2 h of its 35–45 h estimate.
 **Commit:** `4cacf8d`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 00:31 UTC: Phase 3, "Profile: credentials and expiry (read-only), mark dates unavailable, notification settings"
+
+**Plan.** `/profile` (docs/screens.md "Me"), linked from the home page:
+- **Contact details and credentials** (read-only): name, mobile and email as the office holds them
+  ("to change these, ask the office"); each credential with its name, status in words and expiry,
+  an expired one in red with what to do.
+- **Unavailable days**: a new table `worker_unavailable_days` (migration 0010) — the worker marks
+  days they can't work and removes them. It feeds the rules engine's check 8 ("not marked
+  unavailable"), which until now got an empty list, so an unavailable day really blocks booking
+  (the office may override; the office's sheet does, as before).
+- **Notification settings**: two new columns on `workers` for the Phase 4 notification job:
+  `notify_channel` (WhatsApp or text message) and `offer_alerts` (tell me about open shifts).
+- Every change is logged (golden rule 5). Tests: the loader and the changes on the real database
+  (including a booking refused on an unavailable day), the isolation fixtures for the new table,
+  the page rendered, the e2e login test opens the profile.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| `worker_unavailable_days`: one row per worker and firm-local date (unique), from today to 180 days ahead, at most 60 marked at once; the worker link cascades on delete (it's the worker's own preference, not evidence) | Simple for the worker (a day at a time) and for the rules (a list of dates); a cap stops junk | Date ranges (harder to show and check); availability as a request for the office (the `requests` kind stays for questions) |
+| Marking a day doesn't touch bookings already made that day: the page says "You're booked on {day}. Marking it doesn't cancel that shift." | A cancellation must be deliberate, with a reason and notice (golden rule 12) | Cancel automatically |
+| Notification settings as two columns on `workers`: `notify_channel` ('whatsapp' default, or 'sms') and `offer_alerts` (default on); login links and codes always go (they're asked for) | What the Phase 4 `notify` job needs; web push comes with the service-worker task | A settings table (more joins for two values) |
+| Contact details are read-only; changes go through the office | The mobile is the login key; changing it here would need a verification flow | Let workers edit their mobile |
+| Events: `worker.unavailable_added` / `worker.unavailable_removed` ({day}), `worker.notification_settings_changed` ({notifyChannel, offerAlerts}) | Golden rule 5; dates and choices only | No events |
+
+**Root causes of failures while building:**
+- The 60-day cap test's setup SQL failed with "column firm_id is of type uuid but expression is of
+  type text". In a `select ... union all`, Postgres types the bare `$1`/`$2` parameters as text,
+  and text can't go into a uuid column. Fixed in the test's SQL with `$1::uuid`; the code under
+  test was not involved.
+- The rendered radio-button test looked for `value="sms" checked=""`. React writes `checked`
+  before `value`, so the order never matched. The test now checks each `<input>` tag on its own,
+  whatever the attribute order.
+- Checked that the tests depend on the loader: with the loaded days blanked, the two check-8 tests
+  fail (booking on a marked day, the loader's day range). Restored afterwards.
+
+**Guardrails review:** no golden rule broken. FIX FIRST: run verify on the current files (done
+below). Should-fix items and what I did:
+
+| Finding | Done |
+|---|---|
+| An expired credential the worker has replaced (newer valid one) or is renewing (applied for) showed red with "You can't take shifts that need it" | Left out, as the home page's notices already do. Test added. |
+| The expiry reminders (`credential-scan`) send WhatsApp whatever the new setting says | Parked with the Phase 4 sender note (moving them onto the sender is Phase 4 messaging work) |
+| "Saved." didn't say what was saved; confirmations weren't signed | "Saved. We'll send shift messages by text message. We won't tell you about open shifts." Both forms' confirmations are signed "[Firm] Shift Team". Tests (unit and e2e) added. |
+| A suspended credential looked fine | Red, with "You can't take shifts that need it. Contact the office." Test added. |
+| The day was only checked for length at the boundary | zod regex `yyyy-mm-dd` in the action (the lib still checks it's a real date) |
+| `worker_unavailable_days` had full CRUD | SELECT, INSERT, DELETE only (a day is never edited); the tenancy suites adapt and pass |
+| Every "Remove" button had the same accessible name | Named per day ("Remove Wed 4 Nov"). Test added. |
+| One query per marked day for "booked that day" | One query for the whole list (`bookedDays`). Test added for a shift ending at midnight (it doesn't count for the next day) and a night shift (both days). |
+
+**For Dylan to confirm:** the new table and the two `workers` columns (a schema change, normally
+approved first), and the `/profile` row I rewrote in `docs/screens.md` to match the built copy.
+
+**Verify round 1: NOT VERIFIED** (e2e only; typecheck, lint, tests and invariants ok). The
+profile e2e test's `getByRole("status")` found two elements. Root cause: the day-off
+confirmation stays on the page after "Remove", so when the settings are saved there are two
+status areas. The test now looks inside each section ("Days you can't work", "How we reach
+you"); the expected text is unchanged.

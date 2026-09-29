@@ -28,7 +28,8 @@ architecture.md, Tenancy).
 |---|---|---|
 | firms | Name, slug, sector, branding, custom domain, settings | 1 |
 | office_users | Resourcers, payroll, admins (email, role, status) | 1 |
-| workers | Casual staff: name, mobile, email, status, roles | 1 |
+| workers | Casual staff: name, mobile, email, status, roles, how we reach them (WhatsApp or text) and whether they want open-shift alerts | 1 |
+| worker_unavailable_days | Days a worker marked as "can't work" on their profile (one row per firm-local day) | 3 |
 | credentials | Licences/cards per worker: type, number, expiry, status | 1 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
@@ -120,10 +121,27 @@ create table workers (
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
   external_ref text,                     -- the sheet's staff id (Sheets firms); null otherwise
+  notify_channel text not null default 'whatsapp', -- whatsapp | sms (profile page; Phase 3)
+  offer_alerts boolean not null default true,      -- tell me about open shifts (profile page)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, mobile_e164),
   unique (firm_id, external_ref)
+);
+
+-- Phase 3 (src/lib/db/schema/people.ts). Days the worker can't work, set on their profile: today
+-- to 180 days ahead, at most 60 upcoming. The rules engine's check 8 refuses a booking on a shift
+-- touching one (the office may override with a reason). Marking a day never cancels a booking
+-- already made. Removed with the worker (on delete cascade). Events: worker.unavailable_added and
+-- worker.unavailable_removed ({day}).
+create table worker_unavailable_days (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers, on delete cascade
+  day date not null,                     -- firm-local
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, worker_id, day)
 );
 
 create table credentials (

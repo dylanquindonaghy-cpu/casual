@@ -75,6 +75,36 @@ describe("loadEligibilityInput", () => {
     expect(input && checkEligibility(input).ok).toBe(true);
   });
 
+  it("reads the worker's marked days from the day before the shift to the day after", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const other = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    const jo = await f.worker({ first: "Jo" });
+    // Thursday 5 Nov 22:00 to Friday 6 Nov 06:00: it touches the 5th and 6th.
+    const shiftId = await f.shift({ startsAt: hoursFromNow(3 * 24 + 13) });
+    const days = async (firmId: string, workerId: string, list: string[]) => {
+      for (const day of list) {
+        await su.query(
+          "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, $3)",
+          [firmId, workerId, day],
+        );
+      }
+    };
+    await days(f.firmId, sam, [
+      "2026-11-03",
+      "2026-11-04",
+      "2026-11-06",
+      "2026-11-07",
+      "2026-11-08",
+    ]);
+    await days(f.firmId, jo, ["2026-11-05"]);
+    const kit = await other.worker({ first: "Kit" });
+    await days(other.firmId, kit, ["2026-11-05"]);
+    const input = await load(f.firmId, shiftId, sam);
+    expect(input?.unavailableDates.sort()).toEqual(["2026-11-04", "2026-11-06", "2026-11-07"]);
+    expect(input && checkEligibility(input).codes).toEqual(["unavailable"]);
+  });
+
   it("gives null for a role with no credential rule, so the rules fail closed", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker({ roles: ["bouncer"] });

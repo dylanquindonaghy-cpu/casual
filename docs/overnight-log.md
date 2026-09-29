@@ -5056,3 +5056,6 @@ auditor's "10" counts log lines.)
 over: most of the phase's Twilio work is parked). Phase 7 is finished as far as it can be tonight:
 2 tasks ticked (signatures, tests), 5 blocked on Twilio (shifts line, inbound WhatsApp, unknown
 number, call-to-text, STOP), each built and verified short of it.
+
+**Commit:** `48c53bd` "Phase 7: Tests: `webhook.idempotent`, signature contract tests with real Twilio
+sample payloads", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.

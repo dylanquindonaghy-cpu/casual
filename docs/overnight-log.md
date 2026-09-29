@@ -2387,3 +2387,36 @@ Other findings, and what I did:
 | Escalation is once per shift, not once per gap; escalate straight away when there's no one left | Parked (below) |
 | First come, first served offers everyone at once (as docs/api-and-jobs.md says), while PLAN.md says "best 3–5" | Kept as documented; **Dylan to confirm** |
 | For Sheets shifts, waves don't check the sheet copy is fresh | Parked |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=a1055ceecd143f4e e2e=true` (1597 tests, 23 e2e).
+`npm run build` run by hand: succeeds.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preconditions: `.claude/state/verified.json` = `{"ok":true,"tree":"a1055ceecd143f4e","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` = `a1055ceecd143f4e` — matches. `.claude/state/test.log` shows 81 files / 1597 tests passed, including RUN_E2E.
+
+Claims (task: "Offer waves (pg-boss): best 3–5 eligible, wait 15 min, next wave; stop when filled; escalate to resourcer at start minus X hours (all firm-configurable)"):
+
+- Best N eligible, ranked fairly, per wave — PROVEN. `src/lib/offers/waves.ts:73-80` (`pickWave`, uses `rankForFairRotation`), candidate selection in `src/lib/offers/candidates.ts:20-60` (`waveCandidates`, excludes non-active/opted-out/already-assigned/already-offered/other-firm/ineligible-by-rules workers). Test: `tests/integration/offers.waves.test.ts:222-265` ("a wave > goes to the 2 best eligible workers, then the next 2 after 15 minutes; never the rest") — passing at `.claude/state/test.log:271`.
+- Wait 15 min, next wave — PROVEN. `src/lib/offers/waves.ts:316-327` schedules next wave at `now + priorityMinutes`. Test asserts `next?.start_after` equals `later(15)` (`tests/integration/offers.waves.test.ts:242-244`); passing.
+- Stop when filled (offers to others become filled_elsewhere; taker's offer accepted) — PROVEN. `src/lib/offers/waves.ts:219-253` (`stop("filled")` logic) and `src/lib/roster/book.ts:259-267` (one conditional `UPDATE offers ... WHERE ... response IS NULL`). Tests: `tests/integration/offers.waves.test.ts:267-298` ("stops when the shift is filled..." and "an offered worker the office placed took it..."); passing at `.claude/state/test.log:272-273`.
+- Stop on no candidates / started / not open / urgent cleared — PROVEN. `src/lib/offers/waves.ts:251-269`; tests at lines 300-316 of the integration file; passing (`.claude/state/test.log:274-275`).
+- Escalate to resourcer at start minus X hours — PROVEN. `src/lib/offers/waves.ts:334-392` (`runEscalation`), queued alongside wave 1 in `startOfferWaves` (`waves.ts:92-118`). Tests: `tests/integration/offers.waves.test.ts:124-149` (queues escalation at start−3h) and `:342-369` (emails active admins/resourcers once, logs `shift.escalated`); passing (`.claude/state/test.log:267, 278-279`).
+- All firm-configurable (wave size, wave minutes, escalation hours) — PROVEN. `src/lib/roster/allocation-input.ts:29-36` (`wave_size` 1–50 default 4, `wave_minutes` 1–240 default 15) and `src/lib/offers/waves.ts:60-69` (`escalate_hours_before_start` 0–72 default 3, safe-parsed so a bad value never blocks a cancellation). Test: `tests/unit/offers.waves.test.ts:60-67` and integration fixture `waveFirm()` (`tests/integration/offers.waves.test.ts:42-51`) sets custom values that the wave/escalate jobs honour.
+- Built on pg-boss — PROVEN. `src/lib/jobs/firm-job.ts:2,57` uses `PgBoss`/`fromDrizzle`; `OFFER_WAVE_QUEUE`/`ESCALATE_SHIFT_QUEUE` registered in `src/worker/jobs/queues.ts:5,29-33`. Test: `tests/integration/offers.waves.test.ts:380-386` ("wiring > db:migrate and the worker create both queues"); passing (`.claude/state/test.log:280`).
+- Docs updated as listed (`docs/api-and-jobs.md` "Offer-wave ranking" section, job catalogue rows for `offer-wave`/`escalate-shift`) — PROVEN, `docs/api-and-jobs.md:77-78, 95-116` describe exactly this implementation.
+
+Fakes found: none. No `.only`/`.skip`/`TODO`/"not implemented" in `src/lib/offers/*` or the two offer test files. Tests hit a real Postgres (`appRolePool`/`superuserPool`), use a capturing (not mocked) transport, and assert on rows/events/pgboss.job — not hollow snapshots.
+
+Note: PLAN.md's checkbox for this line is still `[ ]` (unticked) and the file is unstaged (`?? src/lib/offers/`, `?? tests/.../offers.waves.test.ts` per git status) — consistent with "never tick a task yourself" until an auditor confirms. This audit found the underlying work fully proven; ticking the box and committing is the only remaining step, and per instructions I have not done either.
+
+To reach DONE: nothing — implementation and tests substantiate every part of this bullet. (Ticking the PLAN.md checkbox is a separate, deliberate step for whoever owns that action, not a gap in this claim.)
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.4 (03:49 to 04:16 UTC). Phase 4 so far: 1.0 h of its 27–37 h
+estimate.
+**Commit:** `fe90783`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

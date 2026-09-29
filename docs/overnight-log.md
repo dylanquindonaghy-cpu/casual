@@ -3981,3 +3981,16 @@ prettier would reflow; formatted).
 | No lowest date on the picker; bank details in free text | `min` 90 days back; "Don't include bank details."; retention parked for Dylan |
 | Firm-cancelled shifts not in the list; a database backstop for duplicates | Parked |
 
+
+**Verify round 2:** `VERIFIED tree=f690b2dd6638e514 e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2177 tests, 38 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — this bullet's scope is fully
+implemented and proven by passing tests on the currently verified tree."
+
+**Commit:** `dc74018` "Phase 6: Pay query form: …", pushed to `origin/build/overnight`. CI: `gh`
+isn't installed, so not checked.
+
+**Hours:** 0.5 h (12:58 to 13:26 UTC). Phase 6 so far 0.5 h of its 12–18 h estimate.
+
+**Parked:** see PLAN.md, "Pay query follow-ups" (two Dylan-to-confirm items).

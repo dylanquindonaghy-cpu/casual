@@ -1,5 +1,6 @@
+import { addOfficeUser } from "./db";
 import { expect, test } from "./fixtures";
-import { codeSentTo, loginLinkSentTo } from "./outbox";
+import { codeSentTo, loginLinkSentTo, sentTo } from "./outbox";
 
 // Raising a pay query in a real browser: behind the pay code, a day, what's wrong and a note, the
 // confirmation, then the query listed on the pay page "With payroll". A different seeded worker
@@ -54,4 +55,21 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
   await expect(page).toHaveURL(`${acme}/pay`);
   await expect(page.getByText(/^Paid late or not paid: \w{3} \d{1,2} \w{3}$/)).toBeVisible();
   await expect(page.getByText("With payroll")).toBeVisible();
+
+  // Payroll (a user of this spec's own) sees it in its group, with the note.
+  const email = "pay.payroll@example.com";
+  await addOfficeUser("acme", { email, name: "Pay Payroll", role: "payroll" });
+  const asked2 = new Date(Date.now() - 1000);
+  await page.goto(`${acme}/office/login`);
+  await page.getByLabel("Your work email").fill(email);
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await page.goto(await sentTo(email, asked2, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
+  await page.getByRole("button", { name: "Log me in" }).click();
+  await page.getByRole("link", { name: "Pay queries" }).click();
+  await expect(page).toHaveURL(`${acme}/office/pay-queries`);
+  const group = page.getByRole("region", {
+    name: /^\d+ quer(y|ies): paid late or not paid, the week of \w{3} \d{1,2} \w{3}\.$/,
+  });
+  await expect(group.getByRole("heading")).toBeVisible();
+  await expect(group.getByText("“Not paid for this day yet (e2e).”")).toBeVisible();
 });

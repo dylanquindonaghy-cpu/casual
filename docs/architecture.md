@@ -278,8 +278,10 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
 
 **Pay query**
 1. Worker (after OTP) fills a structured form.
-2. Code assigns grouping keys (week, site, rate code, issue type). Haiku writes a one-line
-   summary per group.
+2. Code assigns grouping keys: the issue and the week, plus the pay line's rate for a wrong
+   rate or the site for missing hours (`src/lib/pay/grouping.ts`). Haiku writes a one-line
+   summary per group from the group's facts only, checked before use, with the app's own line as
+   the fallback and always shown as the heading (Bedrock not connected yet).
 3. Digest to payroll at a set time. Payroll marks groups resolved → workers notified.
 
 **WhatsApp shifts line**

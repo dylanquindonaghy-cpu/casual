@@ -396,7 +396,8 @@ create table pay_queries (
   work_date date not null,               -- the day the question is about (firm time)
   issue_type text not null,              -- missing_hours | wrong_rate | late_pay | other
   details text,                          -- 1-1000 characters, or null
-  group_key text,                        -- set by code (week + site + rate code + issue), Phase 6 grouping
+  group_key text,                        -- set by code (src/lib/pay/grouping.ts): the issue and the week, plus
+                                         -- the pay line's rate (wrong rate) or the site (hours missing); "pay1:" versioned
   status text not null default 'open',   -- open | in_digest | resolved
   created_at timestamptz not null default now(),
   unique (firm_id, id)

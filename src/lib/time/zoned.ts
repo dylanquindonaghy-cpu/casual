@@ -94,3 +94,9 @@ export function addDays(isoDate: string, days: number): string {
   const moved = new Date(Date.UTC(y, m - 1, d + days));
   return `${moved.getUTCFullYear()}-${pad(moved.getUTCMonth() + 1)}-${pad(moved.getUTCDate())}`;
 }
+
+// The Monday of the week `day` (yyyy-mm-dd) is in.
+export function mondayOf(day: string): string {
+  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay(); // 0 Sunday … 6 Saturday
+  return addDays(day, -((weekday + 6) % 7));
+}

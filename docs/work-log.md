@@ -4598,3 +4598,89 @@ worker's side:
 3. "See your pay" → "Send me a code" (the code is in the terminal) → "Check code".
 4. "Raise a pay query" → choose a day, "Paid late or not paid" → "Send pay query".
 5. "Back to your pay": it's listed under "Your pay queries" as "With payroll".
+
+## 2026-09-29: Phase 6, task 2: Grouping pay queries by likely cause (0.4 h, BLOCKED)
+
+### Time
+
+0.4 hours of Claude's working time (13:28 to 13:53 UTC), in the unattended overnight loop.
+Phase 6 so far: 0.9 of its 12 to 18 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** The task says "Haiku summarises": that needs Claude on Amazon Bedrock,
+  an outside service with an AWS account and money, which tonight's rules don't allow. Everything
+  short of it is built, verified and committed; "Connect Bedrock" in `PLAN.md`'s Parking lot has
+  the steps.
+- `scripts/verify.sh` printed `VERIFIED tree=44d6498836690d17 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2191 tests (up from 2177);
+  - the 38 browser tests;
+  - the rule checks.
+- The guardrails review found nothing to fix first. No auditor round: the auditor decides a tick,
+  and this task can't be ticked until Bedrock is connected (the same rule as the earlier blocked
+  tasks).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+When a pay rate isn't updated, dozens of workers ask the same question. Payroll should see one
+group ("37 queries: wrong rate, the week of Mon 7 Sep, paid at £12.50") instead of 37 separate
+messages.
+- **Grouping keys, worked out by code** (never by AI: golden rules 1 and 9). Each query gets a
+  "key": queries with the same key share a likely cause.
+  - **Wrong rate**: the week and the rate the worker's imported pay line was paid at (a rate
+    change not applied).
+  - **Hours missing**: the week and the site (one site's timesheet).
+  - **Paid late**: the week (one pay run).
+  - **Something else**: the week.
+  The week is the Monday of the day worked. The key is set when the query is raised. It's worked
+  out again if a pay line arrives later ("regrouping").
+- **Payroll's "Pay queries" page** (payroll and admins): waiting queries grouped, biggest group
+  first. Each group has a plain line written by the app from its facts, and each worker's query
+  (their shift or day, their note, when). It's read only for now: answering, the digest email and
+  telling workers are the next tasks.
+- **The AI summary, ready but not connected:**
+  - The AI will get only a group's facts (how many, the issue, the week, the site, the rate). It
+    never gets names or the workers' own words.
+  - Its one line is used only if it passes a check: one line, short, no numbers that aren't in the
+    facts, no advice or blame. It's shown under the app's own line and labelled "written by AI".
+  - Until Bedrock is connected, the app's line is used everywhere.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | "Haiku summarises" can only be proven with Bedrock | Tick with the app's line (would claim something untested) |
+| Only the key parts that point at one cause | Every part for every issue would split one cause into many groups | Week + site + rate + issue for all |
+| The AI sees facts only; its line is checked; the app's line is always the heading | AI reads, code decides; less personal data leaves the app; a bad line never misleads payroll | Trust the AI's line |
+| AI calls happen outside database transactions | An AI call can take seconds; a transaction shouldn't wait | Call it while loading |
+
+### What the new tests prove
+
+- `tests/unit/pay.group-keys.test.ts`: every issue's key rule, the same cause gives the same key
+  (Monday and Sunday of one week, rates in any order), different weeks, rates or sites don't, and
+  every key reads back into its parts.
+- `tests/unit/ai.pay-summary.test.ts`: the app's line for each kind of group; with no AI, the
+  app's line; a good AI line is used and the AI gets the facts only; bad lines (too short, too
+  long, two lines, invented numbers, advice, blame) and an AI failure fall back to the app's line.
+- `tests/integration/pay.query-groups.test.ts` (4 tests, on the real database): keys set when
+  raised, one cause per group; a pay line imported later moves a query when regrouped (sorted
+  ones stay put; running it twice changes nothing); payroll's grouped view, with an AI line added
+  beneath afterwards; only this firm's queries; payroll and admins yes, resourcers no.
+- The browser test now also has payroll finding the worker's query in its group.
+
+### Parked, open, and things that need Dylan
+
+- **Connect Bedrock** (Parking lot, with steps): an AWS account, Bedrock model access for Claude
+  Haiku in the EU, a least-privilege role, the client behind the interface built tonight, and the
+  compliance note. Then this task can be ticked.
+- **Dylan to confirm** (Parking lot, "Pay query grouping follow-ups"): the grouping rules
+  (including workers with two pay rates in a week).
+- **Parked:** freezing keys once in a digest; a stricter count check before the AI line is shown.
+
+### How to see it working
+
+1. Raise a pay query as a worker (see the previous task's steps).
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.payroll@example.com`.
+3. Click "Pay queries": the query is in its group, under the app's line.

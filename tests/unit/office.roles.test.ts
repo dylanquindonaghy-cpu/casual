@@ -30,4 +30,10 @@ describe("office roles", () => {
     expect(canAccess("resourcer", "reports")).toBe(true);
     expect(canAccess("payroll", "reports")).toBe(false);
   });
+
+  it("pay queries are for payroll and admins", () => {
+    expect(canAccess("payroll", "pay")).toBe(true);
+    expect(canAccess("admin", "pay")).toBe(true);
+    expect(canAccess("resourcer", "pay")).toBe(false);
+  });
 });

@@ -5,7 +5,7 @@ import { firms, metricsDaily } from "../db/schema";
 import type { WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, rosterId } from "../roster/book";
-import { addDays, localDateOf } from "../time/zoned";
+import { localDateOf, mondayOf } from "../time/zoned";
 import {
   BASELINE_KEYS,
   BASELINE_METRICS,
@@ -45,11 +45,8 @@ export type SaveFiguresResult =
   | { status: "nothing" } // every figure blank
   | { status: "not_allowed" };
 
-// The Monday of the week `day` is in.
-export function mondayOf(day: string): string {
-  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay(); // 0 Sunday … 6 Saturday
-  return addDays(day, -((weekday + 6) % 7));
-}
+// The Monday of the week `day` is in (kept here too for the metrics code and its tests).
+export { mondayOf };
 
 export async function saveFigures(
   run: WithFirm,

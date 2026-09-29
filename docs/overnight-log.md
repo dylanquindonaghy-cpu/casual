@@ -3994,3 +3994,69 @@ isn't installed, so not checked.
 **Hours:** 0.5 h (12:58 to 13:26 UTC). Phase 6 so far 0.5 h of its 12–18 h estimate.
 
 **Parked:** see PLAN.md, "Pay query follow-ups" (two Dylan-to-confirm items).
+
+## 2026-09-29 13:28 UTC: Phase 6, "Group queries by likely cause (same rate change, same site, same week) — Haiku summarises, code does the grouping keys"
+
+**Blocked on an outside service (hard limit): "Haiku summarises" needs Claude on Amazon Bedrock.**
+Same rule as the earlier blocked tasks: build everything short of it, verify it, park "Connect
+Bedrock", record as **blocked, not ticked**. The grouping itself (the heart of the task) is code
+and is built and tested in full.
+
+**Plan:**
+1. **Grouping keys, by code** (`src/lib/pay/grouping.ts`, pure, plus the facts it reads): a key
+   per query from the likely cause, following docs/data-model.md "week + site + rate code +
+   issue", with only the parts that point at one cause:
+   - wrong rate: the week (Monday, firm time) and the rate the worker's imported pay line
+     for that day was paid at ("the new rate not applied to 12 Sep shifts");
+   - hours missing: the week and the site (one site's timesheet);
+   - paid late: the week (one pay run);
+   - something else: the week.
+   Versioned (`pay1:…`) so a later change of rule can't mix old and new keys. Set when the query
+   is raised (`raisePayQuery`), and `regroupPayQueries()` recomputes open ones (a pay line
+   imported later changes a wrong-rate key).
+2. **Groups for payroll** (`src/lib/office/pay-query-groups.ts`): open and in-digest queries by
+   key, biggest first, each with its facts (issue, week, site, rate, count) and its queries
+   (worker, day, shift, details, when). Details are shown to payroll here (it's their question to
+   answer), never logged.
+3. **Summaries** (`src/lib/ai/`): an `AiClient` interface with `none` (the default, and all there
+   is until Bedrock is connected) and a `fake` for tests; `summarisePayGroup()` asks for one line
+   from the group's facts only (no names, no typed details), accepts it only if it passes a zod
+   check (one line, 5 to 160 characters, no digits the facts don't have), and otherwise falls back
+   to a line written by code ("12 queries: wrong rate, the week of Mon 7 Sep, paid at £12.50").
+   The office page always shows the code line for now, labelled plainly.
+4. **Page `/office/pay-queries`** (new area `pay`: payroll and admins): the groups with their line,
+   count and queries. Read only here: resolving, the digest and telling workers are the next
+   tasks. Payroll's dashboard links to it.
+5. **Tests**: unit (every key rule, stability, the fallback line, the AI output check with the
+   fake: good, too long, extra numbers, a failure), integration (keys set on raise, regrouping
+   after a pay import, the groups loader, other firms, roles), e2e (payroll sees a raised query in
+   its group).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | "Haiku summarises" can only be proven with Bedrock (hard limit tonight) | Tick with the fallback line (would claim something untested) |
+| Only the key parts that point at one cause, per issue | "Same rate change" is week + rate; a site's missing hours is week + site; a late pay run is the week. Every part for every issue would split one cause into many groups | Week + site + rate + issue for all |
+| The AI sees the group's facts only | A one-line summary doesn't need names or the workers' own words; less personal data leaves the app | Send the typed details too |
+| The AI's line is checked, with a code fallback | "AI reads, code decides"; a bad or missing line never blocks payroll | Trust the AI's output |
+| Payroll and admins see the page | Pay queries are payroll's job; admins oversee | Resourcers too |
+
+**Built as planned.**
+
+**Verify round 1:** `VERIFIED tree=a42168e66c1752c2 e2e=true`.
+
+**Guardrails review: FIX FIRST none ("SAFE TO COMMIT").** Suggestions:
+
+| Suggestion | Done |
+|---|---|
+| The AI calls ran inside the database transaction (N groups × a timeout) | `summariseGroups()` runs after the groups are loaded, outside any transaction |
+| The AI line could state a wrong count (any number in the facts passes) | The heading is always the app's facts line; an AI line only beneath it, labelled; advice and blame words refused; tested. The count check itself parked for Connect Bedrock |
+| The 2,000-row cap was silent, dropping the newest | The newest 2,000, and "Showing the newest 2,000." |
+| A query with no key showed a day, not its week | `mondayOf` for the fallback |
+| The parser hard-coded "pay1" | Built from `GROUP_KEY_VERSION`; a round-trip test for every issue |
+| Two regroups could deadlock | Locks taken in id order |
+| Nits: `and()` around one condition, the list key, a stale comment, the key in the event | Fixed; `pay_query.created` now carries `groupKey` |
+| Several pay lines' rates split a group; in-digest keys; docs naming `pay.grouping` | Parked (the first for Dylan) |
+| docs/data-model.md and docs/architecture.md described one key for every issue | Updated to the per-issue rule |
+

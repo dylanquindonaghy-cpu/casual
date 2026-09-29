@@ -127,7 +127,8 @@ describe("raising a pay query", () => {
         work_date: "2026-10-31",
         issue_type: "wrong_rate",
         details: "Paid £11 an hour, not £13. My card ends 4321.",
-        group_key: null,
+        // Grouped by code: wrong rate, the week of Mon 26 Oct, no pay line imported for the day.
+        group_key: "pay1:wrong_rate:2026-10-26:rate:none",
         status: "open",
       },
     ]);
@@ -143,7 +144,12 @@ describe("raising a pay query", () => {
       {
         action: "pay_query.created",
         actor_id: t.ann,
-        data: { issueType: "wrong_rate", shiftId: t.saturday, workDate: "2026-10-31" },
+        data: {
+          issueType: "wrong_rate",
+          shiftId: t.saturday,
+          workDate: "2026-10-31",
+          groupKey: "pay1:wrong_rate:2026-10-26:rate:none",
+        },
       },
     ]);
     expect(result.status === "created" && result.ref).toMatch(/^[0-9A-F]{8}$/);

@@ -796,6 +796,39 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
      Phase 8 privacy notice).
   Also: push the office's escalation alert, and the push-first-then-WhatsApp order (the `notify`
   task).
+- **Connect Bedrock** (the Phase 6 "Group queries by likely cause … Haiku summarises" task is
+  blocked on it: an outside service with an AWS account and money). The grouping is built; only
+  the AI's one-line summary per group waits (the app writes its own line meanwhile).
+  1. In the AWS console (London account, eu-west-2), open Amazon Bedrock → Model access, and ask
+     for access to Claude Haiku (an EU cross-region inference profile, so data stays in the EU).
+  2. Create an IAM role for the worker's server allowing only `bedrock:InvokeModel` on that
+     profile. No keys in the repo: the Lightsail instance's role, or keys in its environment.
+  3. Write the Bedrock client behind `AiClient` (`src/lib/ai/client.ts`): a timeout (5 seconds),
+     no retries in a request path, and log the call (purpose, model, tokens; never the prompt).
+  4. Add `AI_TRANSPORT=bedrock|none` to the worker's environment (default `none`); the payroll
+     digest (next task) passes the client to `loadPayQueryGroups({ ai })`.
+  5. docs/compliance.md: Bedrock as a sub-processor (AI disclosure); the model sees only a
+     group's facts (count, issue, week, site, rate), no names or workers' words.
+  Then tick the grouping task after a real summary passes the checks.
+- Pay query grouping follow-ups (Phase 6):
+  - **Dylan to confirm the grouping rules:** wrong rate = the week + the rate the worker's pay
+    line for the day was paid at; hours missing = the week + the site; paid late = the week;
+    something else = the week. Payroll may prefer others (a pay date for late pay, say). A worker
+    with a day and a night pay line that week keys on both rates ("1250+1500"), so lands apart
+    from colleagues on one rate: use the lowest, or the shift's own rate, if that splits groups.
+  - For the digest: decide whether a query's key freezes once it's in a digest (today
+    `regroupPayQueries()` re-keys in-digest queries too, so one could move out of a group payroll
+    was emailed about).
+  - Before connecting Bedrock: the AI line's number check accepts any number in the facts (so a
+    wrong count equal to the week's day number would pass); the heading always shows the app's
+    own facts line, so check again when the AI line is first shown to payroll.
+  - docs/testing.md names `pay.grouping.test.ts` for the Phase 6 tests task; the keys and the
+    summary are tested in `tests/unit/pay.group-keys.test.ts` and `tests/unit/ai.pay-summary.test.ts`
+    so far.
+  - Regrouping runs when asked (`regroupPayQueries()`); the digest (next task) should run it
+    first, so a pay line imported after a query moves it to the right group.
+  - Payroll's page is read only: resolving a group and telling its workers is the "Worker sees
+    status updates" task.
 - Offer waves follow-ups (from the Phase 4 offer waves task):
   - Tell workers whose offer was "filled elsewhere" (the `offer-expire` job and `shift_filled`),
     and let a worker decline an offer (a "No thanks" on the shift page).
@@ -913,3 +946,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 0.6 | Pilot metrics: a new office page puts the week-0 baseline (a form for the playbook's 8 figures) against the app's own figures for chosen dates (portal actions, answered straight away, unanswered after 24 hours, refill time, active workers, adoption, urgent fill rate, no-shows, short-notice cancellations), plus a weekly tally form for what the app can't see; a nightly job at 00:30 (new `metrics_daily` table, isolated per firm) recomputes the last 7 days, or "Update the figures now"; the review caught requests counted as instant answers and partial days skewing the weekly figures (both fixed and tested); 2139 tests + 37 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.2 | Notice report tests: 7 tests drive the real paths (a worker taking and cancelling from the portal, the office cancelling a booking and a whole shift, moving and shortening, and the Google Sheets sync booking, shortening, moving and removing someone) and read the notice report and its CSV back: who started each change, notice hours, the flag exactly at 48 hours and at a firm's own threshold, negative notice after the start; no product code needed changing; 2146 tests + 37 e2e; verified and audited DONE. Phase 5 done: 5.5 h of the 23–33 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.5 | Pay query form: behind the pay code, a worker picks one of their recent shifts (or a day), what's wrong (hours missing, wrong rate, paid late, something else) and a note, and gets "Pay query sent." with a reference; the pay page lists their queries "With payroll" or "Sorted"; new `pay_queries` table (isolated per firm); one open query per question; the typed note never goes in the log; no AI (golden rule 9); the review caught nested brackets in the log's words, a stuck logged-out screen and small buttons (all fixed); 2177 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 6 | 0.4 | Pay query grouping, BLOCKED (not ticked: "Haiku summarises" needs Claude on Amazon Bedrock, an outside service): built everything short of it: grouping keys by code (wrong rate by week and pay-line rate, hours missing by week and site, paid late and something else by week), regrouping when a pay line arrives later, payroll's read-only "Pay queries" page grouped by likely cause with the app's own summary line, and the AI summary interface (facts only, checked, with the app's line as the fallback) with a fake for tests; connecting Bedrock is parked with steps; 2191 tests + 38 e2e; verified (see docs/work-log.md) |

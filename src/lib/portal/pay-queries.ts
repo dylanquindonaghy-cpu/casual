@@ -5,6 +5,7 @@ import { isSteppedUp } from "../auth/step-up";
 import { assignments, payQueries, shifts, sites } from "../db/schema";
 import { withFirm, type FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { groupFactsFor, payGroupKey } from "../pay/grouping";
 import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
 import { roleLabel, shiftWhen } from "./format";
@@ -184,6 +185,16 @@ export async function raisePayQuery(
         ),
       );
     if (waiting) return { status: "already_open", ref: refOf(waiting.id) };
+    // The grouping key, by code, from the facts as they stand (regroupPayQueries updates it if a
+    // pay line arrives later).
+    const groupKey = payGroupKey(
+      await groupFactsFor(tx, {
+        workerId,
+        shiftId: input.shiftId,
+        workDate,
+        issue: input.issue,
+      }),
+    );
     const [created] = await tx
       .insert(payQueries)
       .values({
@@ -193,6 +204,7 @@ export async function raisePayQuery(
         workDate,
         issueType: input.issue,
         details: input.details,
+        groupKey,
       })
       .returning({ id: payQueries.id });
     if (!created) throw new Error("pay query insert returned nothing");
@@ -202,7 +214,7 @@ export async function raisePayQuery(
       action: "pay_query.created",
       entityType: "pay_query",
       entityId: created.id,
-      data: { issueType: input.issue, shiftId: input.shiftId, workDate },
+      data: { issueType: input.issue, shiftId: input.shiftId, workDate, groupKey },
     });
     const w = wallTimeOf(now, tz);
     return {

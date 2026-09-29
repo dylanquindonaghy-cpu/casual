@@ -9,7 +9,7 @@ import { officeLogoutAction, refreshOfficeSessionAction } from "./session-action
 import { TodayContent } from "./today-view";
 
 // The office dashboard: Today for admins and resourcers (docs/screens.md `/office/today`);
-// payroll sees who they're logged in as (their pay queries screen comes in Phase 6).
+// payroll sees who they're logged in as, and the link to pay queries.
 export default async function OfficeHome() {
   const { firm, officeUser, session } = await requireOfficeArea("dashboard");
   const today = canAccess(officeUser.role, "today")
@@ -46,6 +46,11 @@ export default async function OfficeHome() {
         {canAccess(officeUser.role, "pilot") && (
           <Link href="/office/reports/pilot" className="underline">
             Pilot metrics
+          </Link>
+        )}
+        {canAccess(officeUser.role, "pay") && (
+          <Link href="/office/pay-queries" className="underline">
+            Pay queries
           </Link>
         )}
         {canAccess(officeUser.role, "team") && (

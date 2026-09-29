@@ -2604,3 +2604,13 @@ Other findings, and what I did:
 | Two held copies of a wave weren't tested | Test: two queued, one sends at 07:00, the other finds it sent |
 | `result` had no type; docs missing `reason`, "start = end" | Typed `SendResult`; docs updated |
 | SMS cost (UCS-2 dashes), settings validation, a wave held past the start | Parked under "Connect Twilio" |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=e6ac7939af395373 e2e=true` (1664 tests, 25 e2e). Dev
+database migrated to 0013.
+
+**Status: BLOCKED, not ticked** (hard limit: Twilio is an outside service; delivery-based
+fallback needs its status webhook). Quiet hours and the refusal fallback are built, verified and
+committed. The next step is "Connect Twilio" in the PLAN.md Parking lot.
+**Hours:** 0.3 (04:51 to 05:09 UTC). Phase 4 so far: 1.8 h of its 27–37 h estimate.
+**Commit:** `9f865db`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

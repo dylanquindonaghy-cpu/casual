@@ -92,12 +92,21 @@ async function provisionFirm(owner: Client, firm: SeedFirm): Promise<void> {
   try {
     await owner.query("select set_config('app.current_firm_id', $1, true)", [firm.id]);
     await owner.query(
-      `insert into firms (id, name, slug, sector, settings, shifts_line_e164)
-       values ($1, $2, $3, $4, $5, $6)
+      `insert into firms (id, name, slug, sector, settings, shifts_line_e164, brand_primary_color)
+       values ($1, $2, $3, $4, $5, $6, $7)
        on conflict (id) do update set name = excluded.name, slug = excluded.slug,
          sector = excluded.sector, settings = excluded.settings,
-         shifts_line_e164 = excluded.shifts_line_e164`,
-      [firm.id, firm.name, firm.slug, firm.sector, JSON.stringify(firm.settings), firm.shiftsLine],
+         shifts_line_e164 = excluded.shifts_line_e164,
+         brand_primary_color = excluded.brand_primary_color, brand_logo_url = null`,
+      [
+        firm.id,
+        firm.name,
+        firm.slug,
+        firm.sector,
+        JSON.stringify(firm.settings),
+        firm.shiftsLine,
+        firm.brandColour,
+      ],
     );
     await owner.query("commit");
   } catch (err) {

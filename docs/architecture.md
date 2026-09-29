@@ -372,7 +372,15 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - Firm adds `CNAME shifts.firmname.co.uk -> portal.<our-domain>`.
 - Caddy uses on-demand TLS and calls our `ask` endpoint, which only returns OK for domains in
   `firms.custom_domain` with `domain_verified = true`. This stops abuse.
-- Branding per firm: name, logo, primary colour, sign-off "[Firm] Shift Team".
+- Branding per firm: name, logo, primary colour, sign-off "[Firm] Shift Team". (Built in Phase 8:
+  every firm page, portal and office, opens with the firm's bar (`src/app/brand-bar.tsx`, from the
+  root layout): its logo, if set, and its name, on its colour, with black or white text, whichever
+  contrasts more (at least 4.5:1 for any colour). Read from the firm's own row for the request's
+  host (`src/lib/tenancy/brand.ts`); the logo is an https:// address on the firm's site, shown
+  with no referrer; values are checked again before they reach a page and only ever reach it as
+  an `<img>` address or a React style colour. The home-screen theme colour follows it. Set by the
+  owner: `npm run firm:brand` (name, colour, logo, sign-off), logged `firm.branding_changed`. The
+  office settings screen can offer it later: PLAN.md Parking lot.)
 - Office emails can later be sent from the firm's domain via SES (they add DKIM records).
 
 ## Deployment

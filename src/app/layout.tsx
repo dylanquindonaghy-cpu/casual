@@ -1,20 +1,34 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { getCurrentBrand } from "@/lib/tenancy/current-brand";
+import { BrandBar } from "./brand-bar";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "ShiftDesk",
-  description: "Your shifts, answered instantly.",
-  // Opens full screen when added to a phone's home screen (the name is in app/manifest.ts).
-  appleWebApp: { capable: true, statusBarStyle: "default" },
-};
+// The tab's title and the home screen's name are the firm's ("Acme Events shifts", as in
+// app/manifest.ts); "ShiftDesk" on the platform's own address. Opens full screen from a phone's
+// home screen.
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getCurrentBrand();
+  const title = brand ? `${brand.name} shifts` : "ShiftDesk";
+  return {
+    title,
+    description: "Your shifts, answered instantly.",
+    appleWebApp: { capable: true, statusBarStyle: "default", title },
+  };
+}
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+// Every firm page opens with the firm's bar (its logo, name and colour); the platform's own
+// address has none.
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const brand = await getCurrentBrand();
   return (
     <html lang="en-GB">
-      <body className="bg-white text-lg text-slate-900 antialiased">{children}</body>
+      <body className="bg-white text-lg text-slate-900 antialiased">
+        {brand && <BrandBar brand={brand} />}
+        {children}
+      </body>
     </html>
   );
 }

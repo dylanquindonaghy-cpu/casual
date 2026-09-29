@@ -143,6 +143,25 @@ office shift editor (Phase 5). Shifts that have started can't be imported or cha
 file without Shift IDs matches shifts by site, role and times, so changing a time in such a file
 adds a new shift and leaves the old one (and anyone booked on it) as it was.
 
+## Setting a firm's brand (name, colour, logo, sign-off)
+
+Owner-only (it uses `DATABASE_ADMIN_URL`), like `npm run firm:line`. Give only what changes:
+
+1. Colour: `npm run firm:brand -- --firm acme --colour "#1d4ed8"`. It should say "Saved colour for
+   acme, in …". Any colour works: the bar's text turns black or white to stay readable.
+2. Logo: an https:// address of the logo on the firm's own website (ask them for it), e.g.
+   `npm run firm:brand -- --firm acme --logo "https://www.acme-events.example/logo.png"`. Open the
+   firm's login page: the logo shows at the top left. `--no-logo` removes it.
+3. Sign-off (the end of every message) always ends "Shift Team" (golden rule 8); only the name
+   part can be shorter: `npm run firm:brand -- --firm acme --sign-off "Acme Shift Team"`.
+   `--default-sign-off` goes back to "[Firm name] Shift Team".
+4. Name: `--name "Acme Events Ltd"` (it's on every page and in every message). If the sign-off
+   stored was the old name's default ("Acme Events Shift Team"), it goes too, so messages are
+   signed with the new name.
+
+A value it can't use is refused with the reason, and nothing changes. Each change is in the office
+action log ("The firm's colour changed."), under "Firm settings".
+
 ## Custom domain not working
 
 - Check the CNAME points to `portal.<our-domain>`.

@@ -5882,3 +5882,103 @@ both work". It had failed once earlier tonight too.
 
 `npx vitest run tests/integration/webhook.idempotent.test.ts tests/integration/twilio.contract.test.ts`
 (needs the test database: `npm run db:up` first).
+
+## 2026-09-29: Phase 8, task 1: Each firm's own name, colour and logo (0.7 h, DONE)
+
+### Time
+
+0.7 hours of Claude's working time (20:56 to 21:38 UTC), in the unattended overnight loop.
+Phase 8 so far: 0.7 of its 18 to 28 hour estimate.
+
+### Result
+
+- **Done and ticked.** The independent auditor returned DONE (its verdict is in
+  `docs/overnight-log.md`).
+- `scripts/verify.sh` printed `VERIFIED tree=4ef3174113c319d3 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2469 tests (up from 2451);
+  - the 45 browser tests (up from 43);
+  - the rule checks.
+- The guardrails review found 2 things to fix first; both are done, with most of its suggestions
+  (below).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Staffing firms want the portal to look like theirs, so their staff trust it. Now:
+
+- **A bar at the top of every firm page**, on the staff portal and the office dashboard: the firm's
+  logo (if it has one) and its name, on the firm's colour. The text on the bar is black or white,
+  whichever is easier to read on that colour. For any colour at all, that gives at least 4.5 to 1
+  contrast (the WCAG accessibility standard for normal text); a test checks this across thousands
+  of colours.
+- **The browser tab** says "Acme Events shifts", and a phone's top bar takes the firm's colour when
+  the portal is saved to the home screen.
+- **Setting it** is the owner's job (like the shifts line), with a new command:
+  - `npm run firm:brand -- --firm acme --colour "#1d4ed8"`
+  - `npm run firm:brand -- --firm acme --logo "https://…"` (an address of the logo on the firm's
+    own website)
+  - `--name "…"` and `--sign-off "Acme Shift Team"`
+  Every value is checked before it's saved, and each change goes in the office's action log under
+  "Firm settings" ("The firm's colour changed."), without the values themselves.
+- **Messages stay signed "[Firm] Shift Team"** (golden rule 8). A firm can shorten the name part
+  ("Acme Shift Team" for "Acme Events Ltd"), but the sign-off always ends "Shift Team", so it can
+  never be a person's name.
+- **Safety**: a logo is only ever an https:// address, shown as a picture; a colour is only ever a
+  checked "#rrggbb" value. Neither is ever pasted into the page's code as text, so a bad value
+  can't change how the page works. The logo is fetched with no "referrer", so the firm's website
+  isn't told which page the worker was on.
+- **Demo firms**: Acme is blue (#1d4ed8) and Northline is teal (#0f766e).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Set by the owner's command, not an office screen yet | The app isn't allowed to change the firms table; allowing it is a security change best made with the settings screen | Build the settings screen now |
+| A logo is an address on the firm's own website | That's how the database was designed, and uploading needs storage (an outside service) | Upload logos to our own storage (later) |
+| Text colour worked out automatically, any brand colour accepted | Every colour then stays readable; firms keep their real colour | Refuse light colours |
+| The sign-off always ends "Shift Team" | Golden rule 8; the review found a firm could otherwise be signed "Sarah" | Any team name |
+| The bar on every firm page, from one place (the root layout) | One change instead of editing every page | A bar on each page |
+
+### What the review caught
+
+- **The sign-off could break golden rule 8.** The first version accepted any team name, even a
+  person's ("Sarah"). Now it must end "Shift Team".
+- **Empty values slipped through.** `--logo ""` (for example from a typo in a script) would have
+  quietly removed the logo. Empty values are now refused, and "no logo" must be asked for with
+  `--no-logo`.
+- **Smaller fixes**:
+  - renaming a firm now also updates a sign-off that was just the old name;
+  - the page no longer breaks if the brand can't be read (the database briefly down);
+  - the brand is read and changed in one locked step;
+  - a logo address that's too long once stored is refused;
+  - the home-screen colour is tested;
+  - the tab title is the firm's;
+  - a mistyped option prints the usage instead of crashing (`--color` works too);
+  - re-seeding the demo clears any logo;
+  - the docs' log filter list is up to date;
+  - the command no longer loads the app's database code.
+
+### What the new tests prove
+
+18 new tests, plus 2 browser tests:
+- `tests/unit/tenancy.brand.test.ts` (8): which logo addresses are allowed; colours; the contrast
+  maths (checked against the published values) and the whole-colour-cube check; the bar's picture
+  and colours.
+- `tests/integration/brand.test.ts` (9, on the real database): each firm sees only its own brand;
+  the database refuses bad values; the command sets, refuses, clears and logs; every message's
+  sign-off follows it; renaming.
+- `tests/e2e/brand.spec.ts` (2): Acme's and Northline's pages show their own bars and colours, and
+  the tab title; a logo set with the command shows up. The manifest test now checks the colour too.
+
+### Parked, open, and things that need Dylan
+
+- Later (in the Parking lot): a Branding section on the office settings screen; uploading logos to
+  our own storage; home-screen icons made from the logo; the brand colour on buttons too.
+- **To try it**: `npm run firm:brand -- --firm acme --colour "#b91c1c"` on your computer, then open
+  http://acme.localhost:3000 (with `npm run dev` running): the bar is red with white text.
+
+### How to see it working
+
+`npm run db:seed` then `npm run dev`, and open http://acme.localhost:3000 (blue bar) and
+http://northline.localhost:3000 (teal bar).

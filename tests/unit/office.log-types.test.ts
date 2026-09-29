@@ -12,8 +12,9 @@ import {
 
 // The action log (docs/screens.md `/office/log`) shows every event the app records, each in a plain
 // group for the "type" filter (src/lib/office/log-types.ts) and in plain words
-// (src/lib/office/event-words.ts). This test reads the code for every action name it records and
-// fails if one has no group or no words, so a new kind of event can't slip past the office.
+// (src/lib/office/event-words.ts). This test reads the code (src/, and the owner's scripts/, which
+// log firm-level changes) for every action name it records and fails if one has no group or no
+// words, so a new kind of event can't slip past the office.
 
 const ROOT = join(process.cwd(), "src");
 function sourceFiles(dir: string): string[] {
@@ -35,7 +36,7 @@ const NOT_EVENTS = new Set<string>([
   "s.starts_at",
 ]);
 const recorded = new Set(
-  sourceFiles(ROOT)
+  [...sourceFiles(ROOT), ...sourceFiles(join(process.cwd(), "scripts"))]
     .filter((path) => !path.endsWith("log-types.ts") && !path.endsWith("event-words.ts"))
     .flatMap((path) => [...readFileSync(path, "utf8").matchAll(ACTION)].map((m) => m[1] ?? ""))
     .filter((action) => !NOT_EVENTS.has(action)),
@@ -132,6 +133,12 @@ describe("the action log's types and words", () => {
     ).toBe("Ann Booker raised a pay query (wrong rate, Sat 31 Oct).");
     expect(say("shift.status_changed", { from: "open", to: "cancelled" })).toBe(
       "The rota sheet changed it from open to cancelled.",
+    );
+    expect(say("firm.branding_changed", { fields: ["colour", "signOff"] })).toBe(
+      "The firm's colour and sign-off changed.",
+    );
+    expect(say("firm.branding_changed", { fields: ["name", "colour", "logo"] })).toBe(
+      "The firm's name, colour and logo changed.",
     );
     // The shifts line: a voicemail is never called a WhatsApp.
     const received = (data: Record<string, unknown>, actorType = "worker") =>

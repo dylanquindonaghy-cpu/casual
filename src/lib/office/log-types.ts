@@ -145,6 +145,10 @@ export const LOG_TYPES = {
     label: "Pilot metrics",
     actions: ["metrics.baseline_saved", "metrics.tally_saved"],
   },
+  firm: {
+    label: "Firm settings",
+    actions: ["firm.branding_changed"],
+  },
   sheet: {
     label: "Rota sheet and imports",
     actions: [

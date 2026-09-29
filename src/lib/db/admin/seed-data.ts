@@ -92,6 +92,8 @@ export interface SeedFirm {
   settings: Record<string, unknown>;
   // A fake shifts line (Ofcom's drama range) for the demo's dashboard; Northline has none yet.
   shiftsLine: string | null;
+  // Its brand colour on the portal (no logo: a logo is an https:// address on the firm's site).
+  brandColour: string;
   sites: { id: string; name: string; town: string; postcode: string }[];
   officeUsers: {
     id: string;
@@ -204,6 +206,7 @@ function acme(today: Date): SeedFirm {
     slug,
     sector: "security",
     shiftsLine: "+447700900000",
+    brandColour: "#1d4ed8",
     settings: {
       allocation_mode: "fair_rotation",
       urgent_window_hours: 24,
@@ -270,6 +273,7 @@ function northline(today: Date): SeedFirm {
     slug,
     sector: "rail",
     shiftsLine: null,
+    brandColour: "#0f766e",
     settings: {
       allocation_mode: "first_come_first_served",
       urgent_window_hours: 12,

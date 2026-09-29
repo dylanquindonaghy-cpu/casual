@@ -265,6 +265,22 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker} was told their ${credential(d.type)} expires soon.`;
     case "credential.weekly_list_sent":
       return "The weekly list of expiring credentials was emailed to the office.";
+    case "firm.branding_changed": {
+      const FIELD_WORDS: Record<string, string> = {
+        name: "name",
+        colour: "colour",
+        logo: "logo",
+        signOff: "sign-off",
+      };
+      const fields = Array.isArray(d.fields)
+        ? d.fields.map((f) => FIELD_WORDS[String(f)] ?? "brand")
+        : [];
+      const list =
+        fields.length > 1
+          ? `${fields.slice(0, -1).join(", ")} and ${fields.at(-1)}`
+          : (fields[0] ?? "brand");
+      return `The firm's ${list} changed.`;
+    }
     case "credential_pack.applied":
       return "The credential rules for the firm's sector were set up.";
 

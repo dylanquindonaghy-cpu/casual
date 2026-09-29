@@ -89,13 +89,14 @@ test("a new login on the same phone never shows the last worker's copy", async (
   expect(await keptText(page)).not.toContain(first);
 });
 
-test("the web app manifest names the firm", async ({ page }) => {
+test("the web app manifest names the firm, in its colour", async ({ page }) => {
   const response = await page.request.get(`${acme}/manifest.webmanifest`);
   expect(response.ok()).toBe(true);
   expect(await response.json()).toMatchObject({
     name: "Acme Events shifts",
     start_url: "/",
     display: "standalone",
+    theme_color: "#1d4ed8", // the demo seed's Acme colour (Phase 8 branding)
   });
 });
 

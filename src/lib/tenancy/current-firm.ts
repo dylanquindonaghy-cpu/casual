@@ -11,10 +11,16 @@ import { firmForHost } from "./firm";
 // rendering). Unknown or non-firm hosts get the 404 page. cache() makes it one lookup per page
 // render; server actions don't share that cache, so call it once per action.
 export const getCurrentFirm = cache(async (): Promise<FirmDirectoryEntry> => {
-  const firm = await firmForHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
+  const firm = await findCurrentFirm();
   if (!firm) notFound();
   return firm;
 });
+
+// The same, or null on a host that isn't a firm's (the platform's own address): for the root
+// layout, which draws every page, a firm's or not.
+export const findCurrentFirm = cache(async (): Promise<FirmDirectoryEntry | null> =>
+  firmForHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN),
+);
 
 // The only way pages and actions reach firm data: the firm comes from this request's host, never
 // from input. ESLint stops src/app from calling withFirm() with a firm id of its own choosing.

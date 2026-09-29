@@ -211,7 +211,7 @@ Docs: `docs/api-and-jobs.md`, `docs/messaging-templates.md`.
 ## Phase 8 — Branding, custom domains, deploy (18–28 h)
 
 Docs: `docs/architecture.md` (Deployment, Custom domains).
-- [ ] Per-firm logo, colours and name; replies signed "[Firm] Shift Team"
+- [x] Per-firm logo, colours and name; replies signed "[Firm] Shift Team"
 - [ ] Custom domains: firm adds a CNAME (e.g. `shifts.firmname.co.uk`); Caddy on-demand TLS with
       an `ask` endpoint that only approves domains in the firms table
 - [ ] AWS: Lightsail 4 GB instance + managed Postgres (London), static IP, ports 80/443 only
@@ -272,7 +272,12 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - A short negative cache for unknown firm slugs if random subdomains ever cost noticeable load
   (each one is one `app_resolve_firm()` call).
 - Phase 8: branding. The database only accepts `#rrggbb` colours and `https://` logos; still never
-  render brand fields raw into CSS or HTML.
+  render brand fields raw into CSS or HTML. (Done in the branding task: checked again in
+  `src/lib/tenancy/brand.ts`, reaching the page only as an `<img>` address or a React style
+  colour.) Left for later: the office settings screen's Branding section (the app role would need
+  to update those `firms` columns; today `npm run firm:brand`, the owner's); uploading logos to our
+  own storage instead of the firm's site; home-screen icons made from the logo (the manifest has the
+  theme colour only); the brand colour on buttons too (today the bar only).
 - Phase 8: Caddy sets `X-Real-IP` (the app's only source of the client IP) and the web port is
   never published; Postgres TLS with `sslmode=verify-full` and the RDS CA bundle; a compose
   `migrate` service that alone holds `DATABASE_ADMIN_URL`.
@@ -1134,3 +1139,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 7 | 0.8 | STOP by text, BLOCKED (not ticked: a STOP only arrives through Twilio's SMS webhook): built everything short of it: the SMS webhook (the shared Twilio checks; one row and one job per text); a text that is only STOP (Twilio's standard words, CANCEL included, "Stop." too) turns that worker's texts off, START back on, with one confirmation text only when it changes and Twilio didn't confirm it itself; the notification policy: every sender now must say whether texts are allowed, and none texts a worker who replied STOP (WhatsApp instead if they chose texts; no text fallback); the profile says texts are off; the review caught a false "Saved… by text message" (fixed) and suggested an out-of-order guard, punctuation, and an office email that no longer claims we asked strangers for their name (all done); 2418 tests + 43 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.3 | Signature checks on all Twilio webhooks and storing once: the five webhooks built so far already started with the shared Twilio checks and kept one row per Twilio id; added a guard test that reads the source so it stays true (every Twilio route listed, its signature checked against its own configured address before anything else, every inbound row stored once with jobs only for new rows; checked it catches an unchecked new route and a missing repeat guard) and a "Twilio webhooks" section in the API doc; the delivery-status webhook is left for the Twilio sender; 2434 tests + 43 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.5 | Phase 7 tests: `webhook.idempotent` (each webhook that stores, the same Twilio id twice and then ten copies at once → one row and one job, the reply job ten times at once → one reply; checked they catch a missing repeat guard and a missing row lock) and signature contract tests (a signer written from Twilio's published algorithm reproduces Twilio's documented example, then signs requests shaped as Twilio sends them, with every documented field and tricky encodings: accepted and stored exactly; wrongly signed ones refused); the full run showed a login race test failing again: root cause was the test not forcing the overlap it claims (the app was right), fixed by holding both logins until they meet, same strict check; 2451 tests + 43 e2e; verified and audited DONE. Phase 7: 4.2 h of the 15–20 h estimate, 2 tasks done, 5 blocked on Twilio (see docs/work-log.md) |
+| 2026-09-29 | 8 | 0.7 | Branding: every firm page (portal and office) opens with the firm's bar (its logo if set, its name, on its colour with black or white text worked out for contrast: at least 4.5:1 for any colour, checked across the colour cube); the tab title and the home-screen colour are the firm's; `npm run firm:brand` for the owner to set name, colour, logo and sign-off, every value checked and the change logged (field names only); the sign-off always ends "Shift Team" (golden rule 8, which the review caught could be broken) and empty values are refused; demo colours for Acme and Northline; 2469 tests + 45 e2e; verified and audited DONE (see docs/work-log.md) |

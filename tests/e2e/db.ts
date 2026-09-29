@@ -14,6 +14,15 @@ function e2eAppUrl(): string {
   return withDatabase(url, `${databaseName(url)}_e2e`);
 }
 
+// The owner's address for the e2e database (never the dev one), for owner-only changes such as a
+// firm's brand (scripts/firm-brand-owner.ts).
+export function e2eAdminUrl(): string {
+  const url = process.env.DATABASE_ADMIN_URL;
+  if (!url) throw new Error("DATABASE_ADMIN_URL must be set");
+  if (!isLocalHost(url)) throw new Error("e2e rows go to a local database only");
+  return withDatabase(url, `${databaseName(url)}_e2e`);
+}
+
 // One firm setting for a seeded firm, in the e2e database (never the dev one): `value`, or
 // undefined to remove it. Returns what was there before (undefined if nothing), so a test can put
 // it back. Firms are the owner's to change (the app role can only read them); RLS is forced for the

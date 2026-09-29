@@ -5059,3 +5059,107 @@ number, call-to-text, STOP), each built and verified short of it.
 
 **Commit:** `48c53bd` "Phase 7: Tests: `webhook.idempotent`, signature contract tests with real Twilio
 sample payloads", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-29 20:56 UTC: Phase 8, "Per-firm logo, colours and name; replies signed "[Firm] Shift Team""
+
+**Not blocked (I think):** it's our own screens and data. A real logo lives on the firm's own
+website (an `https://` address), but nothing here needs to fetch one: tests use an address that
+can never resolve. The auditor decides.
+
+**Where things stand:** `firms` already has `name`, `brand_logo_url` (https:// only) and
+`brand_primary_color` (#rrggbb only), and `settings.sign_off`; every message is signed with
+`signOffFor()` ("[Firm] Shift Team" unless the firm set its own). Nothing shows the logo or colour,
+and nothing can set them: the app role may only read `firms` (the owner sets firm-level things, as
+with the shifts line).
+
+**Plan:**
+
+1. **`src/lib/tenancy/brand.ts`**: the current firm's brand for the request's host (name, logo,
+   colours), read under `withFirm` (the firm's own row only), cached per render; none on the
+   platform's own address. Pure helpers: the logo address re-checked (https only, no
+   credentials, at most 500 characters), the colour re-checked (#rrggbb) and the text colour on it
+   worked out for contrast (black or white, whichever is clearer: at least 4.5:1 for any colour,
+   WCAG AA), default slate when unset.
+2. **The portal and office**: the root layout shows a bar at the top on every firm page: the logo
+   (if set; decorative, the name is beside it; `referrerPolicy="no-referrer"` so the firm's site
+   doesn't learn which page) and the firm's name, on the brand colour with its readable text
+   colour. The colour only ever reaches the page as a checked `#rrggbb` value in a React style
+   object (never raw CSS or HTML). The home-screen manifest's theme colour follows the brand.
+3. **Setting it**: `npm run firm:brand -- --firm acme [--name "…"] [--colour "#1d4ed8"] [--logo
+   https://… | --no-logo] [--sign-off "…" | --default-sign-off]`, as the owner (like
+   `npm run firm:line`), checked before saving (a sign-off: 3 to 60 characters of letters, digits,
+   spaces and & ' . - , never a person's name, which the usage says), logged `firm.branding_changed`
+   {fields} (names of fields, never values). The office settings screen can offer it later
+   (parked: it needs the app role to update `firms`).
+4. **Demo seed**: Acme and Northline get their own colours (no logo: the seed has no https host).
+5. **Tests**: unit (contrast for every kind of colour, the logo check, the bar), integration (the
+   brand is the firm's own, another firm's never; the owner script sets, validates, clears, logs),
+   e2e (Acme's portal and office show the bar with Acme's colour and name; a logo set by the script
+   shows).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The brand is read under `withFirm` from the host, not added to the directory function | The directory function is a pinned, owner-run lookup; the firm's own row is readable already | Widen `app_resolve_firm()` |
+| Set by the owner's script, not an office screen yet | The app role can't update `firms`; giving it that is a tenancy change best made with the settings screen | Grant column updates now |
+| A logo by its https address, not uploaded | The columns and doc say so; uploading needs storage (S3, an outside service) | Store logos in Postgres |
+| Text colour worked out for contrast, colour accepted as is | Any colour then reads at 4.5:1 or better; firms keep their colour | Refuse light colours |
+| The bar on every firm page (portal and office), from the root layout | One place; the pages keep their own headings | Edit every page |
+
+**Built as planned**, plus: `src/lib/tenancy/brand-values.ts` (the pure checks, so the script
+doesn't load the database layer); `findCurrentFirm()` (cached, null on the platform address) shared
+with `getCurrentFirm()`; the tab title from the brand; the log test now also reads `scripts/`
+(events written by owner scripts need words too). Root causes written down on the way: the first
+integration run accepted "Acme\nEvents" because the script tidied whitespace (turning the new line
+into a space) before checking for control characters; it now only collapses spaces and checks
+after. The event name was inside SQL quotes, invisible to the log test's scan; it's now a named
+constant passed as a parameter.
+
+**Guardrails review: FIX FIRST (2 items), both done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the sign-off could be anything but "[Firm] Shift Team" (golden rule 8), even "Sarah"; the examples recommended "Acme Rota Desk" | The sign-off must match `{1–48 letters, digits, spaces, & ' . -} Shift Team`; examples, runbook and tests now use "Acme Shift Team"; tests refuse "Sarah", "Acme Rota Desk", "Shift Team" alone |
+| FIX FIRST: an empty value slipped past (`--sign-off ""` stored an empty sign-off; `--logo ""` quietly removed the logo) | Every value given is checked, empty ones too; only null means none / the default; tests for "" and "   " on sign-off, logo, colour and name |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| A rename left a stored default sign-off with the old name | Dropped when it equals "{old name} Shift Team" (a firm's own shortened one stays); tested both ways |
+| The layout's firm lookup was outside the try | The whole lookup is inside; a failure gives no bar (the page shows its own error screen) |
+| Read-then-write outside the transaction | The row is read `for update` inside the transaction that changes it |
+| Logo length checked before percent-encoding | The stored form is checked too; unit case with 200 "é" |
+| Manifest colour untested, errors swallowed | e2e asserts `theme_color: "#1d4ed8"`; failures logged with an error code |
+| Tab title "ShiftDesk" on firm pages | `generateMetadata` in the layout: "{firm} shifts"; e2e asserts it |
+| Unknown flags crashed the script | Usage printed; `--color` accepted |
+| Docs drift (log filter list; a plausible real domain in the runbook) | Fixed ("Pay records and queries", "Pilot metrics", "Firm settings"; `.example`) |
+| Re-seeding kept a logo | The seed upsert clears `brand_logo_url` |
+| The script pulled in the database layer | The checks moved to `brand-values.ts` |
+
+**Verify:** `VERIFIED tree=4ef3174113c319d3 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2469 tests, 45 e2e).
+
+**Auditor verdict (round 1, verbatim):**
+
+> VERDICT: DONE
+>
+> Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"4ef3174113c319d3","e2e":true,"at":"2026-09-29T21:34:00Z"}`; `./.claude/hooks/tree-hash.sh` = `4ef3174113c319d3`. Match, ok:true, e2e:true. Proceeding.
+>
+> Claims (Phase 8 bullet: "Per-firm logo, colours and name; replies signed "[Firm] Shift Team""):
+>
+> - Per-firm name, colour, logo shown on every portal/office page — PROVEN. Code: `src/lib/tenancy/brand.ts:28-40` (`firmBrand`, reads the firm's own row via `withFirm`), `src/lib/tenancy/brand-values.ts:10-48` (`safeLogoUrl` https-only checker, `brandColours` WCAG-contrast picker), `src/app/brand-bar.tsx:6-27` (renders logo as `<img>` and colour as React style, never raw HTML/CSS), wired into `src/app/layout.tsx:22-29` (every page, portal and office). Tests: `tests/unit/tenancy.brand.test.ts` (114 lines: logo URL edge cases, colour validation, contrast-ratio sweep of the whole colour cube, bar rendering) — all pass, `.claude/state/test.log:1938-1945`. `tests/integration/brand.test.ts` (225 lines, real Postgres): per-firm isolation ("each firm sees its own brand, never another's", line 58-80), DB check-constraint rejection of bad colour/logo (line 91-101) — pass at `.claude/state/test.log:1213-1221`. E2E (`tests/e2e/brand.spec.ts`): real browser renders the bar with correct CSS colour and logo `<img>` attributes on two distinct seeded firms — pass at `.claude/state/e2e.log:4-5`.
+> - Home-screen theme colour follows the brand colour — PROVEN. `src/app/manifest.ts:14-30` sets `theme_color: brand?.background ?? brandColours(null).background`. Test `tests/e2e/offline.worker.spec.ts:92-100` asserts `theme_color: "#1d4ed8"` against the live manifest endpoint; passes at `.claude/state/e2e.log:44`.
+> - Owner sets brand (logo/colour/name/sign-off), logged as `firm.branding_changed` — PROVEN. `scripts/firm-brand-owner.ts` (full validation, one transaction, event log with field names only, never values) and CLI `scripts/firm-brand.ts`, wired as `npm run firm:brand` (`package.json:29`). Integration tests cover: setting fields and log content excludes actual values (`tests/integration/brand.test.ts:105-132`), rejection of all bad inputs incl. XSS-shaped sign-off (`:147-181`), rename interaction with default sign-off (`:183-202`), idempotent no-op and firm-not-found (`:204-224`) — all pass, `.claude/state/test.log:1217-1221`.
+> - Replies signed "[Firm] Shift Team" (golden rule 8), tied to the new brand-setting flow — PROVEN. `src/lib/tenancy/sign-off.ts` (pre-existing since Phase 1) computes `${firmName} Shift Team` unless the firm set its own; `scripts/firm-brand-owner.ts` writes to the same `settings.sign_off` key firm-wide validated by regex requiring the literal " Shift Team" suffix (never a person's name), and `src/lib/messaging/templates.ts` / `whatsapp-templates.ts` already consume `firm.signOff` throughout. Cross-checked end-to-end in `tests/integration/brand.test.ts:134-145` ("every message's sign-off follows it") — passes at `.claude/state/test.log:1218`.
+> - Values never reach the page/CSS/HTML raw (guardrail cited in PLAN.md's own Parking-lot note) — PROVEN. Grep of the codebase shows `brand_logo_url`/`brand_primary_color`/camelCase equivalents are only touched in `src/lib/tenancy/brand.ts`, `brand-values.ts`, `src/app/manifest.ts` and the seed script — no other file reads the raw DB columns; the bar only ever receives the checked `Brand` object.
+> - DB-level defence in depth (check constraints) — PROVEN, pre-existing schema from Phase 1 (`src/lib/db/schema/tenancy.ts:47-48`, migration `drizzle/0002_phase1_tables.sql`), exercised by `tests/integration/brand.test.ts:91-101`.
+>
+> Fakes found: none. No `.only`/`.skip`/`.todo` in the suite (`.claude/state/invariants.log`: "ok: no .only/.skip/.todo in tests"; "2469 tests: 2469 passed, 0 failed, 0 skipped, 0 todo"). No TODO/not-implemented stubs in the brand code path. Tests exercise real Postgres and real Playwright browser rendering, not mocks of the thing under test.
+>
+> To reach DONE: nothing — this bullet is fully implemented, tested (unit + integration + e2e), documented (`docs/architecture.md:370-382`, `docs/screens.md:5-8`, `docs/data-model.md:90-91`) and covered by the current passing verify stamp. (Note: the rest of Phase 8 — custom domains, AWS deploy, GDPR export, alerts, runbooks-tried-for-real — is a separate set of unchecked bullets in the same phase and was not in scope for this audit request, which named only the branding/sign-off bullet.)
+
+**Ticked** in PLAN.md.
+
+**Hours:** 0.7 h (20:56 to 21:38 UTC). Phase 8 so far 0.7 h of its 18–28 h estimate.

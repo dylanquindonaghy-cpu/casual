@@ -87,8 +87,9 @@ create table firms (
   sector text not null,                 -- 'security' | 'rail' | 'construction' | 'cleaning'
   custom_domain text unique,
   domain_verified boolean not null default false,
-  brand_logo_url text,                  -- https:// only
-  brand_primary_color text,             -- #rrggbb only
+  brand_logo_url text,                  -- https:// only; set with `npm run firm:brand` (the owner)
+  brand_primary_color text,             -- #rrggbb only; the firm's bar (Phase 8); settings.sign_off
+                                         -- is its own sign-off, if any (else "[Firm] Shift Team")
   timezone text not null default 'Europe/London',
   shifts_line_e164 text unique,          -- the firm's own WhatsApp/text/calls number, E.164 (a CHECK
                                          -- like workers.mobile_e164's); null

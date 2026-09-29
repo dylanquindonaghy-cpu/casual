@@ -48,6 +48,12 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   users, or if an AI SDK is imported outside `src/lib/ai/`. It catches the likely mistakes; it
   can't prove every possible path.
 
+- A firm's logo (Phase 8) is an address on the firm's own website: a worker's browser fetches it
+  from there, so the firm's site sees the worker's IP address, as it would for any visit. It's
+  fetched with no referrer (the firm's site isn't told which page), and only from https://
+  addresses. Worth a line in the firm's privacy notice; uploading logos to our own storage would
+  avoid it (later, with the office settings screen).
+
 ## Retention defaults (per firm, adjustable)
 
 | Data | Keep |

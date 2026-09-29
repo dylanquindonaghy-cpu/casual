@@ -4960,3 +4960,6 @@ suite going from 2418 to 2434: the numbers in my notes are vitest's.)
 **Ticked** in PLAN.md.
 
 **Hours:** 0.3 h (20:01 to 20:19 UTC). Phase 7 so far 3.7 h of its 15–20 h estimate.
+
+**Commit:** `7cff363` "Phase 7: Signature checks on all Twilio webhooks; idempotent storage", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.

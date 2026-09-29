@@ -3906,3 +3906,16 @@ bookings carry the sync's fixed reason ("Put on the rota sheet by the office"), 
 rightly shows. No product code changed, so no guardrails review (the overnight rule asks for one
 when schema, auth, tenancy, messaging, jobs or rules change); the claims-auditor still checks it.
 
+
+**Verify:** `VERIFIED tree=efb7db49014ac169 e2e=true` (typecheck, lint, test, e2e, invariants all
+ok; 2146 tests, 37 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — verdict is DONE."
+
+**Commit:** `5d960e7` "Phase 5: Tests: notice.report (worker cancel, firm cancel, move, curtail)",
+pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.2 h (12:43 to 12:55 UTC). **Phase 5 done: 5.5 h of its 23–33 h estimate** (under
+it, not over).
+
+**Parked:** nothing new.

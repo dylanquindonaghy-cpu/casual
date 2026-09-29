@@ -1413,3 +1413,34 @@ booking moved earlier. (2) The start-cap test first passed without the guard (th
 hours fell in the previous week, so nobody was held), then failed with it (the rest rule refused
 the booking); the busy worker's hours moved to later in the same week, and the test was run with
 and without the guard to prove it.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=0ed73be4b3e436ea e2e=true` (1343 tests in 66 files, 10 e2e).
+`npm run build` run by hand: succeeds.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Pre-check: `.claude/state/verified.json` = `{"ok":true,"tree":"0ed73be4b3e436ea","e2e":true,"at":"2026-09-28T23:59:19Z"}`; `./.claude/hooks/tree-hash.sh` = `0ed73be4b3e436ea` — matches. Proceeding.
+
+Claims:
+- Two allocation modes exist, per firm, validated from firm settings (`first_come_first_served` default, `fair_rotation`) — PROVEN — `src/lib/roster/allocation-input.ts:29-69` (`parseAllocationSettings`, zod schemas, `AllocationSettingsError` on bad mode/numbers); tests `tests/integration/allocation.test.ts:224-240` ("fair-rotation numbers... don't touch a first come, first served firm", "a mode that isn't one of the two stops the booking rather than guessing") — passing in `.claude/state/test.log:335-336`.
+- Fair rotation holds a newly-opened place for the fewest-hours-this-week group until the wave window ends, then opens to all — PROVEN — pure logic `src/lib/rules/allocation.ts:16-37` (`fairRotationCutoff`, `allocationGate`); DB wiring `src/lib/roster/allocation-input.ts:74-139` (`loadAllocationGate`, `weeklyHours`); unit tests `tests/unit/rules.allocation.test.ts:20-44` (log lines 1200-1202) and integration test against real Postgres `tests/integration/allocation.test.ts:70-90` ("holds a new place for the fewest hours; the rest can take it when the window ends", log line 328).
+- First come, first served never holds anything — PROVEN — `src/lib/rules/allocation.ts:32`; tests `tests/unit/rules.allocation.test.ts:32-34` and `tests/integration/allocation.test.ts:232-235` (log line 336).
+- Edge cases (urgent window, window running past shift start, booking's own answer — filled/not_open/already_assigned — takes priority, hold clears on cancellation, office bookings never held) — PROVEN — `src/lib/roster/allocation-input.ts:109-122`; `src/lib/roster/book.ts:215-232` (office branch skipped); integration tests `tests/integration/allocation.test.ts:105-174` (log lines 329-333).
+- Weekly-hours counting is correct (confirmed/completed only, that week, active workers with the role, excludes cancelled/no-show/other firm/inactive/other role) — PROVEN — `src/lib/roster/allocation-input.ts:144-166`; test `tests/integration/allocation.test.ts:176-220` ("counts confirmed and completed hours that week only...", log line 334).
+- Held/offered order for later offer-wave ranking (fewest hours → longest since last offer → id) — PROVEN — `rankForFairRotation` `src/lib/rules/allocation.ts:47-55`; test `tests/unit/rules.allocation.test.ts:46-57` (log line 1203); documented consistently in `docs/api-and-jobs.md:83`.
+- Worker portal surfaces the hold (Open shifts list shows "opens at", Take-shift returns `not_yet`) — PROVEN — `src/lib/portal/open-shifts.ts:30-31,148-158`; `src/lib/portal/take-shift.ts:31,86-90`; UI `src/app/shifts/open/open-shifts-view.tsx:104-116`, `src/app/shifts/open/take-shift-result.tsx` (`not_yet` case); unit test `tests/unit/portal.open-shifts.test.ts:96-106` ("under fair rotation, shows a held shift...", log line 980).
+- Every hold and booking is logged as an event (golden rule 5) — PROVEN — `src/lib/roster/book.ts:220-231` (`shift.booking_held` with `opensAt`); asserted directly against the `events` table in `tests/integration/allocation.test.ts:74-84`.
+
+Fakes found: none. No `.only`/`.skip`/`xit` in the allocation test files; integration tests run against a real Postgres app-role connection (`appRolePool`), not mocks of the code under test; full suite log shows 66 files / 1343 tests passed, 0 failures (`.claude/state/test.log` tail).
+
+Note: `/office/settings` UI to let a firm change `allocation_mode` itself does not exist yet, but this is explicitly deferred (PLAN.md Parking Lot, lines ~291/369, ties it to a future "office settings screen"/Phase 5 `updateSettings`), not part of this Phase 3 bullet's scope, which is about the allocation engine and its effect on the worker's booking flow — both fully implemented and tested via firm `settings` JSON.
+
+To reach DONE: nothing — this task is already satisfied by code and passing tests under the current verified tree. (Files are uncommitted working-tree changes, matching the tree hash verify.sh ran against, per `.claude/hooks/tree-hash.sh` which hashes `git diff HEAD` + untracked files + HEAD — consistent with "the current files.")
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.4 (23:36 to 00:01 UTC). Phase 3 so far: 1.8 h of its 35–45 h estimate.
+**Commit:** `5302935`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

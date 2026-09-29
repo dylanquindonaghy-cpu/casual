@@ -2242,3 +2242,39 @@ plain-language screen states, 2 e2e).
 **Guardrails review: not run.** No schema, auth, tenancy, messaging, jobs or rules changed. The
 board reads through the existing Open shifts loader inside `withFirm`, and taking a shift is the
 existing `takeShift` path.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=ff128133b12ecea4 e2e=true` (1576 tests, 23 e2e).
+`npm run build` run by hand: succeeds, with `/urgent` in the route list.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preconditions: `.claude/state/verified.json` = `{"ok":true,"tree":"ff128133b12ecea4","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` → `ff128133b12ecea4` (matches). Proceeding.
+
+Claims (task: "Urgent board page for workers (only shifts they're eligible for)", PLAN.md line 159):
+
+- `/urgent` route exists and renders the urgent board — PROVEN — `src/app/urgent/page.tsx` calls `openShiftsFor(ctx, worker.id, { urgent: true })` (from `src/lib/portal/open-shifts.ts:59-186`) and renders `src/app/urgent/urgent-view.tsx`. Unit test `tests/unit/portal.urgent.test.ts:50-72` (3 cases) renders real HTML output; test.log:1220-1222 all `✓`.
+
+- Only shifts the worker is eligible for are shown (role, credentials/licence, capacity, not-already-booked, not another firm's, not started, fair-rotation hold) — PROVEN — `openShiftsFor` filters by `inArray(shifts.role, me.roles)`, excludes own existing non-cancelled bookings, checks `held >= headcount`, and calls `previewBooking()` (`src/lib/roster/book.ts:138-151`), which runs the real `checkEligibility` rules engine (credentials, overlap, rest, weekly hours, unavailable days) per shift — not a mock. Integration test against a real Postgres DB, `tests/integration/open-shifts.test.ts:135-167` ("lists only urgent shifts this worker could take, soonest first"): asserts exclusion of a full shift, wrong-role shift, started shift, another firm's shift, and a worker with no licence gets `[]`; test.log:311 `✓`.
+
+- Urgent flag is a real DB column driving the filter, not client-side — PROVEN — `eq(shifts.isUrgent, true)` in `open-shifts.ts:126`; same integration test marks/unmarks rows directly in Postgres and checks results.
+
+- UI: "Urgent shifts" heading, urgent-labelled cards, "Take shift", empty state "No urgent gaps right now." → "See all open shifts", fair-rotation "Check again" — PROVEN — `src/app/urgent/urgent-view.tsx:16-51`, shared `src/app/shifts/open/open-shift-card.tsx:8-53` (real component, also used by Open shifts, not a stub). Matches `docs/screens.md:15` spec verbatim.
+
+- My shifts banner ("N urgent shift(s) need someone" → "See urgent shifts") and Open shifts "Urgent" label wired to the same real data — PROVEN — `src/app/page.tsx:26,40` passes `urgentCount={urgent.shifts.length}` from the same `openShiftsFor(..., {urgent:true})` call; `tests/unit/portal.urgent.test.ts:75-117`, test.log:1223-1225 `✓`.
+
+- End-to-end browser flow on the demo seed (login → see urgent banner → open board → take shift → gap gone; ineligible role sees no gap) — PROVEN — `tests/e2e/urgent.worker.spec.ts`, confirmed passing in `.claude/state/e2e.log:26-27` ("2 passed" among "23 passed (1.4m)"), run with `RUN_E2E=1` per verify.sh.
+
+- Docs updated to match (`docs/screens.md:15`) — PROVEN — spec text matches implementation exactly (route, component source, empty-state copy).
+
+Fakes found: none. Checked for `.skip`/`.only`/`TODO`/"not implemented" in the new/changed files (`tests/unit/portal.urgent.test.ts`, `tests/integration/open-shifts.test.ts`, `tests/e2e/urgent.worker.spec.ts`, `src/app/urgent/*.tsx`, `src/lib/portal/open-shifts.ts`) — none found. `vitest.json`: 1576 total, 1576 passed, 0 failed, 0 skipped. PLAN.md line 159 remains unticked in the working tree (`git status --short PLAN.md` empty vs HEAD), i.e. not self-ticked ahead of this audit.
+
+To reach DONE: nothing — proceed to tick PLAN.md line 159.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.2 (03:35 to 03:46 UTC). Phase 4 so far: 0.6 h of its 27–37 h
+estimate.
+**Commit:** `13ede39`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

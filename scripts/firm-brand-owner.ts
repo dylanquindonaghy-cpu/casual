@@ -77,7 +77,7 @@ export async function setFirmBrand(
     try {
       await owner.query("select set_config('app.current_firm_id', $1, true)", [firmId]);
       // Read and change in one transaction, the row held, so two runs at once can't both work
-      // from the same old values.
+      // from the same old values (NO KEY UPDATE: rows that refer to the firm can still be written).
       const { rows } = await owner.query<{
         name: string;
         logo: string | null;
@@ -86,7 +86,7 @@ export async function setFirmBrand(
       }>(
         `select name, brand_logo_url as logo, brand_primary_color as colour,
                 settings ->> 'sign_off' as sign_off
-           from firms where id = $1 for update`,
+           from firms where id = $1 for no key update`,
         [firmId],
       );
       const firm = rows[0];

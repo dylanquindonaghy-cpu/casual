@@ -85,8 +85,10 @@ create table firms (
   name text not null,
   slug text not null unique,            -- 2-20 chars a-z0-9-; not www/portal/api/app/admin/xn--
   sector text not null,                 -- 'security' | 'rail' | 'construction' | 'cleaning'
-  custom_domain text unique,
-  domain_verified boolean not null default false,
+  custom_domain text unique,             -- a lowercase host name (a check); served and approved for a
+                                         -- certificate only when domain_verified (Phase 8)
+  domain_verified boolean not null default false, -- its CNAME points to <slug>.<base>
+                                         -- (`npm run firm:domain`, the owner)
   brand_logo_url text,                  -- https:// only; set with `npm run firm:brand` (the owner)
   brand_primary_color text,             -- #rrggbb only; the firm's bar (Phase 8); settings.sign_off
                                          -- is its own sign-off, if any (else "[Firm] Shift Team")

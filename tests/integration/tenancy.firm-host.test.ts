@@ -44,13 +44,27 @@ describe("firmForHost", () => {
     }
   });
 
-  it("does not resolve custom domains yet, even verified ones (Phase 8)", async () => {
+  it("resolves a firm's own domain only once it's verified (Phase 8), and to that firm alone", async () => {
     const domain = `${uniqueSlug("d")}.example.com`;
-    await su.query("update firms set custom_domain = $1, domain_verified = true where id = $2", [
+    await su.query("update firms set custom_domain = $1, domain_verified = false where id = $2", [
       domain,
       A.firmId,
     ]);
-    expect(await firmForHost(domain, BASE)).toBeNull();
+    try {
+      expect(await firmForHost(`${domain}:3000`, BASE)).toBeNull();
+      await su.query("update firms set domain_verified = true where id = $1", [A.firmId]);
+      expect((await firmForHost(`${domain}:3000`, BASE))?.id).toBe(A.firmId);
+      expect((await firmForHost(`${domain.toUpperCase()}.:3000`, BASE))?.id).toBe(A.firmId);
+      // Another name, a lookalike, or the right name on another port: nobody.
+      expect(await firmForHost(`x.${domain}:3000`, BASE)).toBeNull();
+      expect(await firmForHost(`${domain}:4000`, BASE)).toBeNull();
+    } finally {
+      // Firm A is shared by the file's other tests.
+      await su.query(
+        "update firms set custom_domain = null, domain_verified = false where id = $1",
+        [A.firmId],
+      );
+    }
   });
 });
 

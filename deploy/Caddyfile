@@ -1,0 +1,36 @@
+# Caddy in front of the web app (docs/architecture.md "Custom domains and branding", "Deployment";
+# Phase 8). Caddy gets and renews every HTTPS certificate itself (Let's Encrypt):
+# - our own domain (APP_BASE_DOMAIN), the ordinary way;
+# - every other name on demand: a firm's subdomain (<slug>.<our domain>) or a firm's own domain
+#   (shifts.firmname.co.uk, a CNAME to <slug>.<our domain>), the first time someone visits, and
+#   only after asking the app, which says yes only to names in the firms table
+#   (src/app/api/caddy/ask/route.ts). So nobody can make us fetch certificates for other names.
+# Every request goes to the web app with its real Host (the app finds the firm from it) and
+# X-Real-IP set from the connection, replacing any the client sent (the app's only source of the
+# client's IP, for rate limits: src/lib/request.ts). Not run yet: tried for real with the deploy
+# (PLAN.md, Phase 8).
+{
+	email {$ACME_EMAIL}
+	on_demand_tls {
+		ask http://web:3000/api/caddy/ask
+	}
+}
+
+(app) {
+	# Our certificate check is for Caddy alone (it asks web:3000 directly): not from outside.
+	respond /api/caddy/* 404
+	reverse_proxy web:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+{$APP_BASE_DOMAIN} {
+	import app
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	import app
+}

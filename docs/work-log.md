@@ -5982,3 +5982,109 @@ Staffing firms want the portal to look like theirs, so their staff trust it. Now
 
 `npm run db:seed` then `npm run dev`, and open http://acme.localhost:3000 (blue bar) and
 http://northline.localhost:3000 (teal bar).
+
+## 2026-09-29: Phase 8, task 2: A firm's own web address (0.8 h, DONE)
+
+### Time
+
+0.8 hours of Claude's working time (21:40 to 22:28 UTC), in the unattended overnight loop.
+Phase 8 so far: 1.5 of its 18 to 28 hour estimate.
+
+### Result
+
+- **Done and ticked.** The independent auditor returned DONE (its verdict is in
+  `docs/overnight-log.md`).
+- `scripts/verify.sh` printed `VERIFIED tree=c22cd521a0074ffb e2e=true` on the second run (the first
+  failed only because one file hadn't been through the formatter). That covers:
+  - the type checks and lint;
+  - all 2503 tests (up from 2469);
+  - the 47 browser tests (up from 45);
+  - the rule checks.
+- The guardrails review found 2 things to fix first; both are done, with most of its suggestions
+  (below).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+A firm can now have its staff portal on its own web address, like `shifts.acme.co.uk`, instead of
+`acme.<our domain>`:
+
+- **The firm adds one DNS record** (a CNAME: "this name is another name for that one") from
+  `shifts.acme.co.uk` to its own subdomain with us, `acme.<our domain>`.
+- **The owner saves it** with a new command: `npm run firm:domain -- --firm acme --domain
+  shifts.acme.co.uk`. The command looks up the record in DNS (the internet's address book). The
+  address only works once it's **verified**: the record points to that same firm's subdomain. So a
+  typo, or someone asking to put Acme's address on another firm, can't work.
+  - `--check` looks again (for example after the firm adds the record, or to catch a removed one);
+  - `--clear` removes it; `--replace` changes it.
+- **HTTPS certificates** (what makes the padlock appear) come from Caddy, the program in front of
+  our app. Caddy gets a certificate the first time someone visits a new name, but only after asking
+  our app "is this one of yours?" at `/api/caddy/ask`. The app says yes only to a firm's verified
+  address or an existing firm's subdomain. So nobody can make us fetch certificates for other
+  people's names, and we don't need a "wildcard" certificate (which would need a DNS provider
+  account).
+- **Caddy's settings** are in `deploy/Caddyfile`. It also passes each visitor's real IP address to
+  the app (for the login rate limits) and blocks the "is this one of yours?" check from outside.
+  It hasn't been run yet: there's no Caddy on this computer, and I didn't download one overnight.
+  A test checks its key lines; it gets tried for real with the deploy task.
+- **Before verification, the address shows nothing** (a "not found" page); after, it's the firm's
+  portal with its own bar.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The CNAME points to the firm's own subdomain | Ties the address to that firm; the review found a shared target let a mistyped firm take another's address | One shared target (`portal.<our domain>`), as the docs first said |
+| The owner sets and checks it with a command | The app isn't allowed to change the firms table (like the shifts line and brand) | An office screen and a background job (later) |
+| Firm subdomains also get certificates on demand | No wildcard certificate, so no DNS provider account needed | A wildcard certificate |
+| Only verified addresses are served | A mistyped or not-yet-pointed address must not get a certificate or show a portal | Serve as soon as it's saved |
+| Links in messages stay on `acme.<our domain>` for now | Both addresses work; changing every link is its own step | Switch links now (parked) |
+
+### What the review caught
+
+- **My shifts didn't show on a custom address.** The home page only knew about subdomains, so a
+  worker on `shifts.acme.co.uk` saw a "coming soon" page. Fixed, and the browser test now checks the
+  home page too (it goes to the firm's login page; before verification, "not found").
+- **A lock held during a DNS lookup.** The command held the firm's row locked while asking DNS; a
+  slow answer would have stalled every write for that firm (incoming messages, logins). DNS is now
+  looked up first, and the lock is a lighter kind that doesn't block other writes. (The branding
+  command got the lighter lock too.)
+- **Smaller fixes**:
+  - the certificate check is blocked from outside (Caddy answers it with "not found");
+  - the office log says which address was set, replaced or removed;
+  - a test pins exactly what the new database function returns;
+  - a test tidies up even if it fails;
+  - the runbook says to use a plain CNAME, not a proxied or "flattened" one;
+  - the Parking lot notes that health checks need deciding with the deploy.
+
+### What the new tests prove
+
+34 new tests and 2 browser tests:
+- **host tests (updated)**: which web addresses might be a firm's own, and which are always
+  refused (IP addresses, wrong ports, names under our own domain, malformed names).
+- `tests/integration/custom-domain.test.ts` (11, real database):
+  - only a verified address finds its firm, and only exactly;
+  - the database refuses badly formed addresses and duplicates;
+  - the certificate check says yes and no correctly;
+  - the command saves, verifies, re-checks, unverifies, replaces, refuses and clears, and logs each
+    change;
+  - an address pointing at another firm's subdomain can't be verified.
+- `tests/unit/deploy.caddyfile.test.ts` (4): Caddy asks the right address before any certificate,
+  passes the real IP, and blocks the check from outside.
+- `tests/e2e/custom-domain.spec.ts` (2): the browser visits `shifts.acme-events.test` (a made-up
+  name mapped to this computer): "not found" before verification, Acme's portal with its bar
+  after; the certificate check answers yes and no over the web.
+
+### Parked, open, and things that need Dylan
+
+- Later (in the Parking lot):
+  - links in messages on the firm's own address;
+  - a regular automatic re-check of each address;
+  - an office settings section for it;
+  - running `caddy validate` with the deploy;
+  - deciding the health check's address.
+- **To set one up for a real firm**: the runbook's new section, "A firm's own domain", has the steps.
+
+### How to see it working
+
+`npx playwright test tests/e2e/custom-domain.spec.ts` (stop `npm run dev` first).

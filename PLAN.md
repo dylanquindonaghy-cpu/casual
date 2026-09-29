@@ -212,7 +212,7 @@ Docs: `docs/api-and-jobs.md`, `docs/messaging-templates.md`.
 
 Docs: `docs/architecture.md` (Deployment, Custom domains).
 - [x] Per-firm logo, colours and name; replies signed "[Firm] Shift Team"
-- [ ] Custom domains: firm adds a CNAME (e.g. `shifts.firmname.co.uk`); Caddy on-demand TLS with
+- [x] Custom domains: firm adds a CNAME (e.g. `shifts.firmname.co.uk`); Caddy on-demand TLS with
       an `ask` endpoint that only approves domains in the firms table
 - [ ] AWS: Lightsail 4 GB instance + managed Postgres (London), static IP, ports 80/443 only
 - [ ] Docker Compose (web, worker, caddy); GitHub Actions deploy
@@ -265,10 +265,11 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Invariant: fail if `twilio` is imported anywhere under `tests/` (when the SDK arrives, Phase 4).
 - CI e2e job needs a Postgres service once e2e covers DB-backed flows (moved into Phase 1 with
   the worker-login e2e test).
-- Phase 8: custom domains in the host lookup (`app_resolve_firm` resolves subdomain slugs only)
-  and the Caddy `ask` endpoint. The proxy 404s every host but `<base>` and `<slug>.<base>`, so
-  decide then which hosts health checks (`localhost:3000/api/health`), Caddy (`web:3000`) and
-  webhooks may use.
+- Phase 8: custom domains in the host lookup and the Caddy `ask` endpoint (done in the custom
+  domains task: the proxy lets a possible custom domain through, and `/api/caddy/ask` on any
+  host). Still to decide with the deploy task: health checks. The proxy 404s
+  `localhost:3000/api/health` (the port isn't the base domain's), so a Docker healthcheck needs
+  that path allowed on any host too, like `/api/caddy/ask`, or to call the base domain.
 - A short negative cache for unknown firm slugs if random subdomains ever cost noticeable load
   (each one is one `app_resolve_firm()` call).
 - Phase 8: branding. The database only accepts `#rrggbb` colours and `https://` logos; still never
@@ -278,6 +279,12 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   to update those `firms` columns; today `npm run firm:brand`, the owner's); uploading logos to our
   own storage instead of the firm's site; home-screen icons made from the logo (the manifest has the
   theme colour only); the brand colour on buttons too (today the bar only).
+- Phase 8 custom domains, left for later: links in messages and emails on the firm's own domain
+  once verified (today `<slug>.<base>`, which also works); a periodic re-check of each verified
+  domain's CNAME (today `npm run firm:domain -- --check` by hand); an office settings section for it;
+  run `caddy validate` on `deploy/Caddyfile` with the deploy task (not run yet: no Caddy here);
+  `allowedDevOrigins` if anyone uses a custom domain against `npm run dev` (only live reload is
+  refused).
 - Phase 8: Caddy sets `X-Real-IP` (the app's only source of the client IP) and the web port is
   never published; Postgres TLS with `sslmode=verify-full` and the RDS CA bundle; a compose
   `migrate` service that alone holds `DATABASE_ADMIN_URL`.
@@ -1140,3 +1147,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 7 | 0.3 | Signature checks on all Twilio webhooks and storing once: the five webhooks built so far already started with the shared Twilio checks and kept one row per Twilio id; added a guard test that reads the source so it stays true (every Twilio route listed, its signature checked against its own configured address before anything else, every inbound row stored once with jobs only for new rows; checked it catches an unchecked new route and a missing repeat guard) and a "Twilio webhooks" section in the API doc; the delivery-status webhook is left for the Twilio sender; 2434 tests + 43 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.5 | Phase 7 tests: `webhook.idempotent` (each webhook that stores, the same Twilio id twice and then ten copies at once → one row and one job, the reply job ten times at once → one reply; checked they catch a missing repeat guard and a missing row lock) and signature contract tests (a signer written from Twilio's published algorithm reproduces Twilio's documented example, then signs requests shaped as Twilio sends them, with every documented field and tricky encodings: accepted and stored exactly; wrongly signed ones refused); the full run showed a login race test failing again: root cause was the test not forcing the overlap it claims (the app was right), fixed by holding both logins until they meet, same strict check; 2451 tests + 43 e2e; verified and audited DONE. Phase 7: 4.2 h of the 15–20 h estimate, 2 tasks done, 5 blocked on Twilio (see docs/work-log.md) |
 | 2026-09-29 | 8 | 0.7 | Branding: every firm page (portal and office) opens with the firm's bar (its logo if set, its name, on its colour with black or white text worked out for contrast: at least 4.5:1 for any colour, checked across the colour cube); the tab title and the home-screen colour are the firm's; `npm run firm:brand` for the owner to set name, colour, logo and sign-off, every value checked and the change logged (field names only); the sign-off always ends "Shift Team" (golden rule 8, which the review caught could be broken) and empty values are refused; demo colours for Acme and Northline; 2469 tests + 45 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 8 | 0.8 | Custom domains: a firm's own address (shifts.firmname.co.uk) is served, with its bar, once verified: its CNAME must point to that firm's own subdomain (so it can't be verified for another firm); `npm run firm:domain` (owner) saves, checks (DNS before any lock) and clears it; Caddy's `/api/caddy/ask` approves only a firm's verified domain or an existing firm's subdomain (so no wildcard certificate is needed), and is blocked from outside; `deploy/Caddyfile` written and pinned by a test (not run: no Caddy here); the review caught My shifts not showing on a custom domain and a lock held during DNS (both fixed); 2503 tests + 47 e2e; verified and audited DONE (see docs/work-log.md) |

@@ -147,7 +147,7 @@ export const LOG_TYPES = {
   },
   firm: {
     label: "Firm settings",
-    actions: ["firm.branding_changed"],
+    actions: ["firm.branding_changed", "firm.domain_changed"],
   },
   sheet: {
     label: "Rota sheet and imports",

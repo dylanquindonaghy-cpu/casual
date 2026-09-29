@@ -83,11 +83,22 @@ describe("hosts the proxy serves", () => {
 
   it("ignores X-Forwarded-Host: the Host header alone decides", () => {
     const res = quiet(
-      new NextRequest("http://evil.example:3000/", {
-        headers: { host: "evil.example:3000", "x-forwarded-host": "acme.localhost:3000" },
+      new NextRequest("http://127.0.0.1:3000/", {
+        headers: { host: "127.0.0.1:3000", "x-forwarded-host": "acme.localhost:3000" },
       }),
     );
     expect(res.status).toBe(404);
+  });
+
+  it("lets a name that may be a firm's own domain through (the page's firm lookup decides)", () => {
+    expect(status("shifts.acme-events.test:3000", "/login")).toBe(200);
+    expect(status("evil.example:3000", "/login")).toBe(200);
+  });
+
+  it("lets Caddy's certificate check through on any host (it calls http://web:3000), nothing else", () => {
+    expect(status("web:3000", "/api/caddy/ask")).toBe(200);
+    expect(status("web:3000", "/login")).toBe(404);
+    expect(status("web:3000", "/api/caddy/ask/x")).toBe(404);
   });
 
   it("returns 404 when there is no Host header", () => {
@@ -99,13 +110,12 @@ describe("hosts the proxy serves", () => {
   it.each([
     ["an IPv6 address", "[::1]:3000"],
     ["a dot after the port", "acme.localhost:3000."],
-    ["another site", "evil.example:3000"],
     ["an IP address", "127.0.0.1:3000"],
     ["a nested subdomain", "x.acme.localhost:3000"],
     ["a reserved subdomain", "portal.localhost:3000"],
     ["a punycode subdomain", "xn--80ak6aa92e.localhost:3000"],
     ["the wrong port", "acme.localhost:4000"],
-    ["a lookalike base domain", "acme.notlocalhost:3000"],
+    ["a custom domain on the wrong port", "shifts.acme-events.test:4000"],
   ])("returns 404 for %s (%s)", (_label, host) => {
     expect(status(host, "/login")).toBe(404);
   });

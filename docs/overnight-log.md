@@ -5166,3 +5166,112 @@ Other suggestions:
 
 **Commit:** `a244e6a` "Phase 8: Per-firm logo, colours and name; replies signed "[Firm] Shift Team"",
 pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-29 21:40 UTC: Phase 8, "Custom domains: firm adds a CNAME (e.g. `shifts.firmname.co.uk`); Caddy on-demand TLS with an `ask` endpoint that only approves domains in the firms table"
+
+**Maybe blocked, the auditor decides:** serving a firm on its own domain and the `ask` endpoint are
+our code and fully testable (the browser tests map a made-up domain to this machine). Real
+certificates need Caddy, Let's Encrypt and real DNS, which I can't use tonight: the Caddyfile is
+written and checked by a test, but not run (no Caddy here, and I won't download one overnight).
+
+**Plan:**
+
+1. **Hosts** (`src/lib/tenancy/host.ts`, pure): a third kind, `custom`: a proper public host name
+   (letters, digits and hyphens in dot-separated labels, a letter-only last label, at most 253
+   characters, not an IP address, not under our base domain), with no port (or the base domain's
+   own port, for local tests). The proxy lets it through (shape only, no database, as now); the
+   page's `getCurrentFirm()` looks it up.
+2. **Lookup**: `app_resolve_firm_by_domain(domain)` (migration 0025), like `app_resolve_firm()`: runs
+   as its owner, directory fields only, **only a verified domain** (`domain_verified`); only the app
+   role may call it. `firmForHost()` uses it for custom hosts.
+3. **`GET /api/caddy/ask?domain=`** (`src/app/api/caddy/ask/route.ts`): 200 only for a firm's
+   verified custom domain or `<slug>.<base>` of a firm that exists (so firm subdomains get
+   certificates on demand too, without a wildcard certificate, which needs a DNS provider's API);
+   404 for anything else, including our own base domain (Caddy gets that one normally) and a
+   malformed name. The proxy lets this one path through on any host (Caddy calls it at
+   `http://web:3000`).
+4. **Setting and verifying a domain**: `npm run firm:domain -- --firm acme --domain
+   shifts.acme.co.uk` (the owner, like `firm:line` and `firm:brand`: the app role can't change
+   firms): checks the name, that no other firm has it, then looks up its CNAME in DNS: verified
+   only if it points to `portal.<base>`. Saved either way (unverified until the CNAME is there);
+   `--check` looks again (and unverifies a domain whose CNAME has gone), `--clear` removes it.
+   Logged `firm.domain_changed` {change, verified}. Tests use a fake DNS lookup.
+5. **`deploy/Caddyfile`**: our own domain with its normal certificate; every other host on
+   on-demand TLS, asking `http://web:3000/api/caddy/ask`; both proxied to the web app with the
+   real `Host` kept and `X-Real-IP` set from the connection (the app's only client IP), any
+   client-sent one replaced.
+6. **Tests**: unit (host shapes, the proxy, the Caddyfile's ask path and headers), integration (the
+   lookup: verified only, the firm's own; the ask answers; the owner script with a fake DNS: set,
+   verify, re-check, clear, refusals, taken), e2e (the browser maps `shifts.acme-events.test` to
+   this machine: Acme's portal, with its bar, on the custom domain once verified; 404 before; the
+   ask endpoint).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The owner sets and verifies domains with a script | The app role can't update firms (like the shifts line and brand); an office screen comes with settings | The `domain-verify` job from an office action (docs): needs the settings screen and an update grant |
+| Firm subdomains also on on-demand TLS via the same ask | A wildcard certificate needs a DNS provider's API; on-demand needs nothing more | A wildcard with DNS-01 |
+| Only verified domains are served or approved | A domain typed wrong or not yet pointed at us must not get a certificate | Serve as soon as it's set |
+| Links in messages stay on `<slug>.<base>` for now | Both addresses serve the firm; changing every link is a separate step (parked) | Switch links to the custom domain now |
+
+**Built as planned**, changed by the review in two ways: the CNAME target is the firm's own
+subdomain (not `portal.<base>`), and DNS is looked up before the row is locked. Root causes written
+down on the way:
+- The host tests expected `evil.example` and our lookalikes to be refused; with custom domains they
+  are possible names the database decides on (updated on purpose, with new rejection cases).
+- The "doesn't resolve custom domains yet" test anticipated this task; it now checks verified only.
+- Verify round 1 failed on lint only: `src/lib/tenancy/host.ts` had been edited by script and never
+  formatted. Formatted; round 2 verified.
+
+**Guardrails review: FIX FIRST (2 items), both done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: My shifts never showed on a custom domain: `src/app/page.tsx` served the portal only for `kind === "firm"`, so a verified custom domain (and after login, and the home-screen app) showed the "coming soon" page; an unverified one answered 200 on `/` | Any non-apex host is a firm page (`requireWorker()` then 404s a name that isn't a verified firm's); e2e now checks `/`: 404 before verification, the firm's login page after |
+| FIX FIRST: the owner script looked up DNS while holding `SELECT … FOR UPDATE` on the firm's row, which blocks every foreign-key insert for that firm (events, messages, sessions) for as long as DNS takes | DNS first, then `FOR NO KEY UPDATE`, re-reading and stopping ("busy") if the domain changed meanwhile; the brand script uses `FOR NO KEY UPDATE` too |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| `/api/caddy/ask` public on every host (reveals slugs and domains) | `respond /api/caddy/* 404` in the Caddyfile's shared snippet; pinned in its test |
+| Verification didn't tie a domain to a firm (one shared target) | The CNAME must point to `<slug>.<base>`; tested that a domain pointing at another firm's subdomain never verifies; runbook, ADR-019 and docs updated |
+| The event didn't say which domain | `{change, verified, domain, before}`; tested |
+| The function's return shape wasn't pinned | `pg_get_function_result` pinned in the test |
+| Test cleanup not in `finally` | Fixed |
+| Runbook: flattened or proxied DNS records never verify | "A plain CNAME, DNS only" |
+| The parking entry about hosts only half settled | Rewritten: health checks remain, with the deploy task |
+| Periodic re-check | Already parked |
+
+**Verify:** `VERIFIED tree=c22cd521a0074ffb e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2503 tests, 47 e2e).
+
+**Auditor verdict (round 1, verbatim):**
+
+> VERDICT: DONE
+>
+> Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"c22cd521a0074ffb","e2e":true,"at":"2026-09-29T22:26:31Z"}`; `./.claude/hooks/tree-hash.sh` = `c22cd521a0074ffb` — matches. Proceeding.
+>
+> Claims:
+>
+> - Firm adds a CNAME (e.g. `shifts.firmname.co.uk`), verified before being served — PROVEN.
+>   - Schema: `src/lib/db/schema/tenancy.ts:26-28` (`customDomain`, `domainVerified`), host-format check constraint `firms_custom_domain_host` (`src/lib/db/schema/tenancy.ts:55-58`, `drizzle/0025_custom_domains.sql:1`).
+>   - Owner tool: `scripts/firm-domain-owner.ts` (`setCustomDomain`, CNAME target = `<slug>.<base>`, DNS lookup via `resolveCname`, verified only when CNAME matches target) and `scripts/firm-domain.ts` (CLI `npm run firm:domain`).
+>   - Lookup used to serve the portal: `src/lib/db/directory.ts` `createDomainDirectory`/`resolveFirmByDomain` → `app_resolve_firm_by_domain()` (`drizzle/0025_custom_domains.sql`), which only returns a row `WHERE f.custom_domain = p_domain AND f.domain_verified`; wired into `src/lib/tenancy/firm.ts:firmForHost`.
+>   - Tests: `tests/integration/custom-domain.test.ts` (11 cases, all passing per `.claude/state/test.log:995-1005`, e.g. "unverified: nobody; verified: that firm...", "a domain can only be verified for the firm its CNAME points to..."), plus real DB checks on the SECURITY DEFINER function's grants/search_path. `tests/e2e/custom-domain.spec.ts` drives a real HTTP request against `shifts.acme-events.test:3100` (mapped via Chromium host-resolver-rules in `playwright.config.ts:14,52`), confirming 404 before verification and 200 with the firm's brand bar after — passing per `.claude/state/e2e.log:17-18`.
+>
+> - Caddy on-demand TLS with an `ask` endpoint that only approves domains in the firms table — PROVEN.
+>   - `deploy/Caddyfile:12-17` configures `on_demand_tls { ask http://web:3000/api/caddy/ask }`; own domain gets certs the ordinary way (`deploy/Caddyfile:27-29`), everything else only on demand (`deploy/Caddyfile:31-36`).
+>   - Endpoint: `src/app/api/caddy/ask/route.ts` calls `approveCertificate` (`src/lib/tenancy/caddy-ask.ts:11-27`), which returns true only for a firm's subdomain (`resolveFirmBySlug`) or a verified custom domain (`resolveFirmByDomain`), false for malformed/foreign/base-domain names.
+>   - Tests: `tests/unit/deploy.caddyfile.test.ts` (4 cases passing, `.claude/state/test.log:2636-2639`) pins the Caddyfile wiring and that the route file exists; `tests/integration/custom-domain.test.ts` "Caddy's certificate check (/api/caddy/ask)" block (2 cases, `.claude/state/test.log:998-999`) exercises `approveCertificate` against a real DB for yes/no cases including unverified domain, wrong port, IP, oversized name; `tests/unit/proxy.test.ts` (`.claude/state/test.log:1918,1927`) confirms the ask path is let through the host-filtering proxy on any Host; e2e spec's second test hits the live `/api/caddy/ask` route over HTTP for both approve and reject cases (`.claude/state/e2e.log:18`).
+>
+> Fakes found: none. No `.only`/`.skip` in the relevant test files; DNS is a real interface (`ResolveCname`) with a fake implementation injected only in tests (standard dependency injection, not mocking the code under test); the SQL function and route are exercised for real, not stubbed.
+>
+> Docs: `docs/architecture.md:371-383` ("Custom domains and branding") describes exactly what's built, matching the code (CNAME to `<slug>.<our-domain>`, ask endpoint semantics, `npm run firm:domain`, `firmForHost()`).
+>
+> To reach DONE: nothing — already DONE.
+
+**Ticked** in PLAN.md.
+
+**Hours:** 0.8 h (21:40 to 22:28 UTC). Phase 8 so far 1.5 h of its 18–28 h estimate.

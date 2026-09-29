@@ -294,8 +294,9 @@ describe("the rest of the public schema", () => {
   });
 
   // A new function the app role may run must be added here on purpose (app_firm_by_line: the firm
-  // for an incoming message's number, Phase 7, ADR-018).
-  it("the app role can execute exactly four functions: app_current_firm_id, app_firm_by_line, app_firm_ids and app_resolve_firm", async () => {
+  // for an incoming message's number, Phase 7, ADR-018; app_resolve_firm_by_domain: the firm for
+  // its own verified domain, Phase 8).
+  it("the app role can execute exactly five functions: app_current_firm_id, app_firm_by_line, app_firm_ids, app_resolve_firm and app_resolve_firm_by_domain", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
@@ -307,6 +308,7 @@ describe("the rest of the public schema", () => {
       "app_firm_by_line",
       "app_firm_ids",
       "app_resolve_firm",
+      "app_resolve_firm_by_domain",
     ]);
   });
 

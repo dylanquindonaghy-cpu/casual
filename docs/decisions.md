@@ -308,3 +308,27 @@ sender does then (a shared ShiftDesk number, or no messages) is decided when it'
 second number per firm needs a table. **Revisit when:** a firm wants separate numbers (by site or
 sector), or numbers move between firms.
 
+## ADR-019: A firm's own domain is served only once verified, and Caddy asks before each certificate
+
+**Context:** Phase 8, "Custom domains: firm adds a CNAME (e.g. `shifts.firmname.co.uk`); Caddy
+on-demand TLS with an `ask` endpoint that only approves domains in the firms table". Staff trust a
+portal on their firm's own address; but any name could be pointed at our server, and Caddy fetching
+certificates for any name that arrives would be abused.
+**Decision:** a host that isn't ours is a possible custom domain (`parseHost()`: a proper public
+host name, no port in production); `firmForHost()` looks it up with `app_resolve_firm_by_domain()`,
+a SECURITY DEFINER function like `app_resolve_firm()` that returns a firm only if the name is its
+`custom_domain` **and** `domain_verified`. Caddy (`deploy/Caddyfile`) gets our own domain's
+certificate normally and every other name on demand after `GET /api/caddy/ask`, which approves only a
+verified custom domain or `<slug>.<base>` of an existing firm (so no wildcard certificate, which
+would need a DNS provider's API). The owner saves and verifies a domain with `npm run firm:domain`
+(the CNAME must point to the firm's own subdomain, `<slug>.<base>`, so a domain can only be verified
+for the firm it points to), like the shifts line and the brand, since the app role can't change
+firms.
+**Options:** serve a domain as soon as it's saved (a typo or an unpointed name would be served and
+get certificates); a wildcard certificate for subdomains (DNS-01); an office settings action with a
+`domain-verify` job (needs the settings screen and an update grant on firms).
+**Consequences:** onboarding a domain is a two-step owner task (save, then check once the CNAME is
+there); a domain whose CNAME goes away keeps being served until someone runs `--check` (a periodic
+re-check is parked). Links in messages still use `<slug>.<base>`. **Revisit when:** firms set their
+own domains in the office, or links should use the firm's domain.
+

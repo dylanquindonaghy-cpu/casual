@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { normaliseHost, parseHost } from "@/lib/tenancy/host";
 import { isValidSlug } from "@/lib/tenancy/slug";
 
-// Host -> firm, the pure part: which hosts are the home page, which are a firm's portal, and
+// Host -> firm, the pure part: which hosts are the home page, which are a firm's portal, which may
+// be a firm's own domain (Phase 8: the database decides, and only a verified one is served), and
 // which we don't serve at all.
 
 describe("parseHost with a dev base domain (localhost:3000)", () => {
@@ -22,13 +23,11 @@ describe("parseHost with a dev base domain (localhost:3000)", () => {
   it.each([
     ["no Host header", null],
     ["empty", ""],
-    ["another site", "evil.example:3000"],
     ["an IP address", "127.0.0.1:3000"],
     ["an IPv6 address", "[::1]:3000"],
     ["a nested subdomain", "x.acme.localhost:3000"],
     ["the wrong port", "acme.localhost:4000"],
     ["no port", "acme.localhost"],
-    ["a lookalike base", "acme.xlocalhost:3000"],
     ["an empty label", ".localhost:3000"],
     ["a one-letter slug", "a.localhost:3000"],
     ["a leading hyphen", "-acme.localhost:3000"],
@@ -47,6 +46,19 @@ describe("parseHost with a dev base domain (localhost:3000)", () => {
   ])("rejects %s", (_label, host) => {
     expect(parseHost(host, base)).toBeNull();
   });
+
+  // Maybe a firm's own domain, locally on the base domain's port: the database decides.
+  it.each([
+    ["another site", "evil.example:3000", "evil.example"],
+    ["a lookalike base", "acme.xlocalhost:3000", "acme.xlocalhost"],
+    ["a made-up test domain", "shifts.acme-events.test:3000", "shifts.acme-events.test"],
+  ])("%s (%s) may be a firm's own domain", (_label, host, domain) => {
+    expect(parseHost(host, base)).toEqual({ kind: "custom", domain });
+  });
+
+  it("a custom domain on another port isn't served", () => {
+    expect(parseHost("shifts.acme-events.test:4000", base)).toBeNull();
+  });
 });
 
 describe("parseHost with a production base domain (no port)", () => {
@@ -61,11 +73,33 @@ describe("parseHost with a production base domain (no port)", () => {
 
   it.each([
     "acme.shiftdesk.co.uk:443",
-    "shifts.acmeevents.co.uk", // a custom domain: Phase 8
-    "acme.shiftdesk.co.uk.evil.example",
-    "shiftdesk.co.uk.evil.example",
+    "shifts.acmeevents.co.uk:443", // a custom domain never has a port in production
+    "10.0.0.1",
+    "localhost",
+    "shifts",
+    "a..acme.co.uk",
+    "-shifts.acme.co.uk",
+    "shifts-.acme.co.uk",
+    "shifts.acme.123",
+    "shifts_x.acme.co.uk",
+    `${"a".repeat(64)}.acme.co.uk`, // a label over 63 characters
+    `${"abcdefghi.".repeat(25)}co.uk`, // over 253 characters
+    "x.acme.shiftdesk.co.uk", // under our own domain: only <slug>.<base>
+    "portal.shiftdesk.co.uk", // our CNAME target, not a firm
   ])("rejects %s", (host) => {
     expect(parseHost(host, base)).toBeNull();
+  });
+
+  // Maybe a firm's own domain (the database decides: only a verified one is served). A lookalike
+  // of ours is just another name nobody has verified.
+  it.each([
+    ["shifts.acmeevents.co.uk", "shifts.acmeevents.co.uk"],
+    ["SHIFTS.AcmeEvents.co.uk.", "shifts.acmeevents.co.uk"],
+    ["acme.shiftdesk.co.uk.evil.example", "acme.shiftdesk.co.uk.evil.example"],
+    ["shiftdesk.co.uk.evil.example", "shiftdesk.co.uk.evil.example"],
+    ["rota.xn--acm-ema.co.uk", "rota.xn--acm-ema.co.uk"],
+  ])("%s may be a firm's own domain", (host, domain) => {
+    expect(parseHost(host, base)).toEqual({ kind: "custom", domain });
   });
 });
 

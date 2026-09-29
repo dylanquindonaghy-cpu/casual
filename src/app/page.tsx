@@ -13,10 +13,12 @@ import { logoutAction, refreshSessionAction } from "./session-actions";
 import { SessionKeeper } from "./session-keeper";
 
 // The root URL serves two sites: the ShiftDesk home page on the base domain, and each firm's
-// portal on <slug>.<base domain>, where a logged-in worker sees My shifts (docs/screens.md, `/`).
+// portal on <slug>.<base domain> or the firm's own domain, where a logged-in worker sees My shifts
+// (docs/screens.md, `/`). Any host that isn't the base domain is a firm's page: requireWorker()
+// finds the firm (a name that isn't a firm's, or a custom domain not verified, is the 404 page).
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
-  if (match?.kind === "firm") {
+  if (match && match.kind !== "apex") {
     const { firm, worker, session } = await requireWorker();
     const view = (await searchParams).view === "past" ? "past" : "upcoming";
     const now = new Date();

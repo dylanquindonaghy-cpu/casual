@@ -140,6 +140,12 @@ describe("the action log's types and words", () => {
     expect(say("firm.branding_changed", { fields: ["name", "colour", "logo"] })).toBe(
       "The firm's name, colour and logo changed.",
     );
+    expect(say("firm.domain_changed", { change: "set", verified: false })).toBe(
+      "The firm's own web address was set. It works once its DNS points to us.",
+    );
+    expect(say("firm.domain_changed", { change: "verified", verified: true })).toBe(
+      "The firm's own web address was verified: it works now.",
+    );
     // The shifts line: a voicemail is never called a WhatsApp.
     const received = (data: Record<string, unknown>, actorType = "worker") =>
       say("message.received", data, actorType);

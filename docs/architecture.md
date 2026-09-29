@@ -34,8 +34,9 @@ mornings). Reliability matters far more than scale.
 ## Tenancy
 
 - Every request resolves a firm from the hostname: `firmslug.<our-domain>` or the firm's own
-  custom domain (lookup in `firms.custom_domain`, Phase 8). `src/proxy.ts` rejects hosts we don't
-  serve (404) without touching the database; pages and actions call `getCurrentFirm()` for the
+  custom domain (built in Phase 8: `app_resolve_firm_by_domain()`, only a verified one).
+  `src/proxy.ts` rejects hosts we don't serve (404) without touching the database (a name that
+  could be a firm's own domain goes through; the firm lookup decides); pages and actions call `getCurrentFirm()` for the
   firm itself (ADR-012). Slugs: 2-20 characters a-z, 0-9 and hyphens; `www`, `portal`, `api`,
   `app`, `admin` and punycode (`xn--`) are refused. Dev: `http://<slug>.localhost:3000`.
 - **Three database roles** (ADR-011):
@@ -369,9 +370,17 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 
 ## Custom domains and branding
 
-- Firm adds `CNAME shifts.firmname.co.uk -> portal.<our-domain>`.
+- Firm adds `CNAME shifts.firmname.co.uk -> portal.<our-domain>`. (As built in Phase 8: to the firm's
+  own subdomain, `<slug>.<our-domain>`, so the domain is tied to that firm when it's verified.)
 - Caddy uses on-demand TLS and calls our `ask` endpoint, which only returns OK for domains in
-  `firms.custom_domain` with `domain_verified = true`. This stops abuse.
+  `firms.custom_domain` with `domain_verified = true`. This stops abuse. (Built in Phase 8, short of
+  running Caddy: `deploy/Caddyfile` gets our own domain's certificate the ordinary way and every
+  other name on demand after asking `GET /api/caddy/ask`, which also approves `<slug>.<our-domain>`
+  for firms that exist, so no wildcard certificate (and no DNS provider API) is needed. Requests reach
+  the web app with their real Host and an `X-Real-IP` Caddy sets itself. The owner saves and
+  verifies a firm's domain with `npm run firm:domain` (its CNAME must point to
+  `<slug>.<our-domain>`); only then is it served (`firmForHost()`) or approved. Links in messages
+  still use `<slug>.<our-domain>`: parked.)
 - Branding per firm: name, logo, primary colour, sign-off "[Firm] Shift Team". (Built in Phase 8:
   every firm page, portal and office, opens with the firm's bar (`src/app/brand-bar.tsx`, from the
   root layout): its logo, if set, and its name, on its colour, with black or white text, whichever

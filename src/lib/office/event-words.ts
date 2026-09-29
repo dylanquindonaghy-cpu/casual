@@ -281,6 +281,19 @@ export function eventWords(e: LoggedEvent, names: Names): string {
           : (fields[0] ?? "brand");
       return `The firm's ${list} changed.`;
     }
+    case "firm.domain_changed":
+      switch (d.change) {
+        case "set":
+          return d.verified
+            ? "The firm's own web address was set and verified: it works now."
+            : "The firm's own web address was set. It works once its DNS points to us.";
+        case "verified":
+          return "The firm's own web address was verified: it works now.";
+        case "unverified":
+          return "The firm's own web address no longer points to us: it doesn't work until it does again.";
+        default:
+          return "The firm's own web address was removed.";
+      }
     case "credential_pack.applied":
       return "The credential rules for the firm's sector were set up.";
 

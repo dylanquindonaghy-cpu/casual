@@ -51,6 +51,12 @@ export const firms = pgTable(
     check("firms_brand_color_hex", sql`${t.brandPrimaryColor} ~ '^#[0-9a-fA-F]{6}$'`),
     check("firms_brand_logo_https", sql`${t.brandLogoUrl} like 'https://%'`),
     check("firms_shifts_line_e164", sql`${t.shiftsLineE164} ~ '^[+][1-9][0-9]{6,14}$'`),
+    // A firm's own domain (Phase 8): a lowercase host name, no port, no scheme (the owner's
+    // `npm run firm:domain` checks the full rules; this keeps anything else out).
+    check(
+      "firms_custom_domain_host",
+      sql`${t.customDomain} ~ '^[a-z0-9][a-z0-9.-]{0,251}[a-z]$' and ${t.customDomain} !~ '[.][.]'`,
+    ),
     firmIsolation(t.id),
     // The migrating owner may read the firm directory; app_resolve_firm() runs as the owner.
     // The app role gets no such policy: it only sees its own firm.

@@ -162,11 +162,36 @@ Owner-only (it uses `DATABASE_ADMIN_URL`), like `npm run firm:line`. Give only w
 A value it can't use is refused with the reason, and nothing changes. Each change is in the office
 action log ("The firm's colour changed."), under "Firm settings".
 
+## A firm's own domain (shifts.firmname.co.uk)
+
+Setting one up (owner-only, like `npm run firm:line`):
+
+1. Ask the firm to add a DNS record at their domain provider: type **CNAME**, name `shifts` (or
+   whatever they want before their domain), value **their own subdomain with us**, e.g.
+   `acme.<our domain>` for Acme (the command prints it). A plain CNAME, "DNS only": not flattened,
+   not an ALIAS, not proxied (Cloudflare's orange cloud off), or it can't be verified and HTTPS
+   won't reach us. Not their bare domain (`firmname.co.uk` itself can't be a CNAME): a name under
+   it. Pointing at their own subdomain ties the domain to them: it can't be verified for another
+   firm.
+2. Save it: `npm run firm:domain -- --firm acme --domain shifts.acme.co.uk`. If their record is
+   already there it says "… is verified for acme"; otherwise "saved … but not verified" and what
+   DNS said.
+3. Once they've added it (DNS can take up to an hour or so):
+   `npm run firm:domain -- --firm acme --check`. When it says verified, open
+   `https://shifts.acme.co.uk`: the first visit takes a few seconds while Caddy gets its
+   certificate; then it's the firm's portal with its bar.
+4. To change it: `--domain <new> --replace`. To remove it: `--clear`.
+
+Each change is in the office action log under "Firm settings".
+
 ## Custom domain not working
 
-- Check the CNAME points to `portal.<our-domain>`.
-- Run `domain-verify` from settings; check Caddy logs for the `ask` response.
-- TLS issuance can take a minute after verification.
+- `npm run firm:domain -- --firm <slug> --check`: it says what the CNAME points to. It must be
+  exactly `<slug>.<our domain>` (that firm's own subdomain), as a plain, unproxied CNAME. If the CNAME has gone, `--check` marks the domain unverified and
+  it stops being served (and approved for certificates) until it's back.
+- Check Caddy's logs for the `ask` request (`/api/caddy/ask?domain=…`): a 404 means the name isn't
+  a verified firm domain; the app logs `caddy ask` with `approved: false`.
+- A certificate can take a minute after verification; Let's Encrypt limits how often it's tried.
 
 ## GDPR requests
 

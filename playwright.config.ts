@@ -11,6 +11,7 @@ const ci = !!process.env.CI;
 const PORT = 3100;
 export const OUTBOX = ".dev/e2e-outbox.jsonl";
 export const E2E_TWILIO_AUTH_TOKEN = "e2e-twilio-auth-token-not-real-0000";
+export const CUSTOM_DOMAIN = "shifts.acme-events.test";
 const e2e = (url: string | undefined) => {
   if (!url) throw new Error("DATABASE_URL, DATABASE_JOBS_URL and DATABASE_ADMIN_URL must be set");
   return withDatabase(url, `${databaseName(url)}_e2e`);
@@ -40,8 +41,18 @@ export default defineConfig({
   workers: 1,
   reporter: ci ? "github" : "list",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
-  // Mobile first: workers use the portal from a phone.
-  projects: [{ name: "mobile-chrome", use: { ...devices["Pixel 7"] } }],
+  // Mobile first: workers use the portal from a phone. The browser (only) maps a made-up domain
+  // (.test is reserved: it never resolves on the internet) to this machine, so a firm's own domain
+  // can be tried (tests/e2e/custom-domain.spec.ts).
+  projects: [
+    {
+      name: "mobile-chrome",
+      use: {
+        ...devices["Pixel 7"],
+        launchOptions: { args: [`--host-resolver-rules=MAP ${CUSTOM_DOMAIN} 127.0.0.1`] },
+      },
+    },
+  ],
   webServer: [
     {
       // Takes the e2e lock, rebuilds and seeds the *_e2e database, then runs the worker (it sends

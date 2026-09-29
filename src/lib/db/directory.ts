@@ -94,6 +94,42 @@ export function resolveFirmByLine(number: string): Promise<FirmDirectoryEntry | 
   return defaultLineDirectory(number);
 }
 
+// A firm's own domain -> firm (Phase 8): the firm whose verified custom domain is exactly this
+// name, through app_resolve_firm_by_domain() (drizzle/0025_custom_domains.sql), with the same public
+// directory fields. The caller passes a checked, lowercase host name with no port
+// (src/lib/tenancy/host.ts); anything longer than a host name can be is null without asking.
+export type ResolveFirmByDomain = (domain: string) => Promise<FirmDirectoryEntry | null>;
+
+export function createDomainDirectory(pool: Pool): ResolveFirmByDomain {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async (domain) => {
+    if (domain.length === 0 || domain.length > 253) return null;
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select * from app_resolve_firm_by_domain(${domain})`);
+    if (result.rows.length === 0) return null;
+    const row = rowSchema.parse(result.rows[0]);
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      timezone: row.timezone,
+      signOff: signOffFor(row.name, row.sign_off),
+    };
+  };
+}
+
+let defaultDomainDirectory: ResolveFirmByDomain | undefined;
+
+export function resolveFirmByDomain(domain: string): Promise<FirmDirectoryEntry | null> {
+  defaultDomainDirectory ??= createDomainDirectory(appPool());
+  return defaultDomainDirectory(domain);
+}
+
 // Every firm's id, for the worker's scheduled jobs, which then visit each firm inside its own
 // withFirm transaction. Through app_firm_ids() (drizzle/0006_firm_ids.sql): ids only.
 export type ListFirmIds = () => Promise<string[]>;

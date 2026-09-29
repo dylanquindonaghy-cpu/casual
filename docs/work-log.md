@@ -6199,3 +6199,129 @@ Phase 8 so far: 2.0 of its 18 to 28 hour estimate.
 
 Nothing to see until it's run with a real account. `npx vitest run tests/unit/deploy.lightsail.test.ts`
 runs its checks.
+
+## 2026-09-29: Phase 8, task 4: Packaging the app and deploying it (0.6 h, BLOCKED)
+
+### Time
+
+0.6 hours of Claude's working time (23:03 to 23:41 UTC), in the unattended overnight loop.
+Phase 8 so far: 2.6 of its 18 to 28 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** A deploy needs the server (the AWS task, blocked on an account), and the
+  workflow that builds the image only runs on `main`, which the overnight rules never touch. I also
+  didn't download the base images to build locally; a new CI job builds the image on GitHub on the
+  next push, so you'll see there whether it builds.
+- `scripts/verify.sh` printed `VERIFIED tree=714a804035bdfb86 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2542 tests (up from 2516);
+  - the 47 browser tests;
+  - the rule checks.
+- The guardrails review found 5 things to fix first; all are done, with most of its suggestions
+  (below). No auditor round (a blocked task can't be ticked).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **The image** (`Dockerfile`): a packaged copy of the app (a "container image") that runs the same
+  way anywhere Docker runs. One image does three jobs:
+  - the web app;
+  - the job worker (it sends messages and runs timers);
+  - the one-off "migrate" step, which updates the database's structure.
+  It runs as an ordinary user, not the administrator. Its code belongs to the administrator, so the
+  app can't change itself. It contains no passwords.
+- **The server's services** (`deploy/docker-compose.yml`), which says how the pieces run together:
+  - **Caddy** is the only thing reachable from the internet (ports 80 and 443). The web app is
+    only reachable through it.
+  - **Each piece gets only the secrets it needs.** The database's owner password goes only to the
+    migrate step; the web app and worker never have it.
+  - **Everything restarts by itself**, for example after the server's nightly security reboot.
+  - **The worker stays switched off for now.** In production it refuses to start until the real
+    Twilio sender exists, by design, so that messages are never quietly printed instead of sent.
+    You switch it on after "Connect Twilio" (one setting).
+- **A health check** (`/api/health`): says "ok" when the web app can reach its database. Docker
+  uses it to know the app is really up. It says nothing else (it's public). Its answer is reused
+  for 5 seconds, so repeated calls can't slow the app down.
+- **Deploys "pull" rather than "push".** The remote login (SSH) is closed to the internet, so
+  nothing logs into the server:
+  1. When you merge to `main` and the checks pass, GitHub builds the image and stores it in
+     GitHub's own image registry.
+  2. Every 2 minutes, a small script on the server (`deploy/deploy.sh`) checks for a new image.
+     If there is one, it updates the database, starts the new version and waits until it's
+     healthy.
+  3. It never deploys between 05:30 and 09:00 UK time, because that's event mornings. A fix that
+     can't wait can be run by hand with `--now`.
+  4. If the database update fails, the old version keeps running.
+- **Rolling back**: set the version to an older one in the server's settings file and run
+  `deploy.sh --now --no-migrate`.
+- **`deploy/env.example`**: a list of every setting the server needs, with where each comes from.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | No server yet, and deploys only happen from `main` | Tick with nothing deployed |
+| The server pulls new versions (a timer) | SSH is closed to the internet; nothing needs opening | GitHub logging in by SSH (needs thousands of addresses opened); a VPN service (another account) |
+| One image for all three jobs | They need the same code | Separate slimmer images (later, if size matters) |
+| One settings file, each piece given only its part | Secrets live in one protected file; the web app still never sees the owner's password | A file per piece |
+| No automatic deploys 05:30–09:00 UK | The runbook's rule, enforced instead of remembered | Deploy any time |
+| The worker off until Twilio | It can't start in production before then, and would otherwise restart for ever | Let it keep crashing |
+
+### What the review caught
+
+- **Someone else's pull request could have been deployed.** GitHub runs the checks on pull
+  requests too, including from other people's copies of the repo. A branch there named "main"
+  would have passed the first version's filter and been published to the server, with production
+  passwords. Now only a push to this repository's own `main` counts.
+- **An older version could overwrite a newer one.** If two merges' checks finished in the wrong
+  order, the older one would have been deployed last. Now the "latest" label only moves to the tip
+  of `main`.
+- **A failed deploy was never tried again**, and it left the new, not-yet-migrated version waiting
+  to start by accident. Now the script compares what's actually running with the chosen version,
+  so it retries.
+- **Following the settings list, nothing would have deployed.** The empty messaging setting made
+  the whole file invalid. Now the worker is switched off properly until Twilio, and the web app
+  and Caddy run.
+- **The documented rollback couldn't work.** An older version's database step fails against a
+  newer database, and it was blocked on event mornings. Now there's `--no-migrate` and `--now`.
+- **Smaller fixes**:
+  - it waits for the new version to be healthy before saying "Deployed";
+  - a stuck deploy times out after 20 minutes;
+  - the worker gets 45 seconds to finish jobs (a job cut short could send a message twice);
+  - the health answer is reused briefly;
+  - no manual trigger that skips the checks;
+  - secret files in any folder are kept out of the image;
+  - only the app image is fetched each time.
+- **Parked for you**: whether the database needs encrypted connections (TLS), to check on first
+  connection, and pinning the build's exact versions.
+
+### What the new tests prove
+
+26 new tests:
+- `tests/unit/deploy.compose.test.ts` (22), using Docker's own reader of the compose file (nothing
+  is downloaded or built):
+  - who gets which secret, and that only Caddy is reachable;
+  - restarts after a reboot;
+  - the worker is off until switched on;
+  - missing settings are refused, and the settings list covers everything;
+  - the image's user and ownership, and no secrets in it;
+  - the deploy script's quiet hours, `--now`, retries, migrate-first and health wait;
+  - the timer, and the GitHub workflow's conditions.
+- `tests/integration/health.test.ts` (3): healthy with the database; not healthy (quickly) without
+  it; the answer reused and never checked twice at once.
+- The proxy test: `/api/health` is let through for Docker's check, nothing else.
+
+### Parked, open, and things that need Dylan
+
+- **Connect the deploy** (Parking lot):
+  - check the new "docker" CI job is green;
+  - merge `build/overnight` into `main` when you're happy (the overnight rules never touch `main`);
+  - follow the runbook's "Deploy" steps once the server exists;
+  - decide the database's TLS.
+- **The worker in production** waits for "Connect Twilio".
+
+### How to see it working
+
+`npx vitest run tests/unit/deploy.compose.test.ts` runs the checks. The real thing happens after
+"Connect AWS" and "Connect the deploy".

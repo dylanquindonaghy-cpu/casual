@@ -101,6 +101,14 @@ describe("hosts the proxy serves", () => {
     expect(status("web:3000", "/api/caddy/ask/x")).toBe(404);
   });
 
+  it("lets the health check through on any host (Docker calls http://localhost:3000), nothing else", () => {
+    expect(status("localhost:3000", "/api/health")).toBe(200);
+    expect(status("web:3000", "/api/health")).toBe(200);
+    expect(status("127.0.0.1:3000", "/api/health")).toBe(200);
+    expect(status("127.0.0.1:3000", "/api/healthz")).toBe(404);
+    expect(status("127.0.0.1:3000", "/")).toBe(404);
+  });
+
   it("returns 404 when there is no Host header", () => {
     const req = new NextRequest("http://acme.localhost:3000/");
     req.headers.delete("host");

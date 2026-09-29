@@ -1,0 +1,54 @@
+# Builds the ShiftDesk image and puts it in GitHub's container registry (Phase 8;
+# docs/runbooks.md "Deploy"), tagged with the commit's SHA, and "main" while that commit is still
+# the tip of main. The server picks it up by itself (deploy/deploy.sh, every 2 minutes): nothing
+# here reaches the server. Only after CI has passed on a push to this repository's own main branch:
+# never a pull request (a fork's branch can be called main too) and never by hand. Uses the built-in
+# GITHUB_TOKEN: no stored secrets.
+name: Deploy image
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-image
+  cancel-in-progress: false
+
+jobs:
+  image:
+    if: >-
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Build and push to GitHub's registry
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -t "$image:$SHA" .
+          docker push "$image:$SHA"
+          # "main" moves only to the tip of main: an older commit's run finishing late (or re-run)
+          # must never roll the server back.
+          tip="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$tip" = "$SHA" ]; then
+            docker tag "$image:$SHA" "$image:main"
+            docker push "$image:main"
+          else
+            echo "$SHA is no longer the tip of main ($tip): pushed as $SHA only."
+          fi

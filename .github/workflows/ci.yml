@@ -44,6 +44,13 @@ jobs:
           name: verify-logs
           path: .claude/state/*.log
 
+  docker:
+    # The production image builds (Dockerfile; Phase 8). Not pushed: that's deploy.yml, on main.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t shiftdesk:ci .
+
   e2e:
     # Browser tests of DB-backed flows (worker login). Playwright rebuilds and seeds its own
     # shiftdesk_e2e database and starts the web app and the worker itself.

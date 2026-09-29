@@ -1,0 +1,11 @@
+# Every 2 minutes (and 2 minutes after a boot): checks for a new ShiftDesk image
+# (shiftdesk-deploy.service). docs/runbooks.md "Deploy".
+[Unit]
+Description=ShiftDesk: check for a new image every 2 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

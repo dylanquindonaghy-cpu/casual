@@ -402,9 +402,16 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   with only 80 and 443 open to the internet (SSH only from Lightsail's browser console), and
   Postgres 16 not publicly accessible with nightly backups and an AWS-generated owner password.
   Steps: docs/runbooks.md "Set up AWS (once)".)
-- Docker Compose: `web`, `worker`, `caddy`. Deploy via GitHub Actions (SSH, pull, up -d). (To
-  rethink with the deploy task: `deploy/lightsail.sh` closes SSH to the internet; PLAN.md Parking
-  lot, "Connect AWS".)
+- Docker Compose: `web`, `worker`, `caddy`. Deploy via GitHub Actions (SSH, pull, up -d). (As
+  built in Phase 8, short of a server: deploys pull. `.github/workflows/deploy.yml` builds the
+  image (`Dockerfile`: one image, non-root, no secrets) after CI passes on `main` and pushes it to
+  GitHub's registry; `deploy/deploy.sh`, every 2 minutes on the server (a systemd timer), pulls a
+  new image, runs the one-off `migrate` step, then `up -d`, never between 05:30 and 09:00 UK.
+  `deploy/docker-compose.yml`: only Caddy published (80/443), each service given only the secrets
+  it needs (the owner's login only to `migrate`), everything `restart: unless-stopped`, the web
+  app's health check `GET /api/health`, the worker behind a profile until the Twilio sender exists.
+  Only a push to this repository's `main` that passed CI publishes `:main`, and only while it's the
+  tip. SSH stays closed.)
 - Secrets in a root-only `.env` on the server; move to AWS Secrets Manager later.
 - IAM user for the app with only: `bedrock:InvokeModel`, `ses:SendEmail` (+ S3 read in Stage 2).
 - Unattended security updates; snapshot before schema changes; test a restore monthly.

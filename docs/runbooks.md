@@ -70,24 +70,66 @@ database with public mode off), but the script is the checked version.
 
 ## Deploy
 
-1. CI green on `main`.
-2. GitHub Action SSHes to the Lightsail instance: `docker compose pull && docker compose up -d`.
-3. Migrations run as a one-off `migrate` step before `web` and `worker` start
-   (`docker compose run --rm migrate`, i.e. `npm run db:migrate`). Only that step has
-   `DATABASE_ADMIN_URL` (the owner). The web and worker must never hold owner credentials.
-   The migrate step also creates the app and jobs roles if missing, forces RLS, applies grants
-   and installs pg-boss; the worker's pg-boss never changes the schema itself.
-4. Check `/api/health` and the office Today page on a phone.
-5. Post a one-line note in the Hours log.
+How it works (Phase 8): deploys **pull**, nothing pushes into the server (SSH is closed to the
+internet). Merging to `main` runs CI; when CI passes, `.github/workflows/deploy.yml` builds the
+image and puts it in GitHub's registry as `ghcr.io/<owner>/<repo>:<commit SHA>` and `:main`. On the
+server, `deploy/deploy.sh` runs every 2 minutes (a systemd timer): if the running containers aren't
+on the chosen image (a new one, or a deploy that failed and needs retrying) it runs the migration
+step (`migrate`, the only service with the owner's database login: it also creates the app and
+jobs roles if missing, forces RLS, applies grants and installs pg-boss), then starts the new version
+and waits until it's healthy. A failed migration stops there and the old version keeps running; a
+new version that doesn't come up healthy shows as a failed run in `journalctl -u shiftdesk-deploy`.
+**It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge then goes
+out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh --now` by hand.
+
+The job worker stays off until the Twilio sender exists: it can't start in production before then
+(messages must never be printed instead of sent), so `.env` has `COMPOSE_PROFILES=` empty and only
+the web app and Caddy run. After "Connect Twilio": set `COMPOSE_PROFILES=worker` and the messaging
+values, then `./deploy.sh --now`.
+
+**The first time** (after "Set up AWS (once)"), in the server's browser console (`sudo -i` first):
+
+1. Copy the four files from the repo's `deploy/` folder into `/opt/shiftdesk`:
+   `docker-compose.yml`, `Caddyfile`, `deploy.sh` and `env.example` (the console has an upload
+   button, or paste each into `nano /opt/shiftdesk/<name>`). Then `chmod 700 /opt/shiftdesk/deploy.sh`.
+2. `cd /opt/shiftdesk && cp env.example .env && chmod 600 .env && nano .env`: fill in every value
+   (the comments in the file say where each comes from). Generate new secrets with
+   `openssl rand -base64 32` (the session secret) and `openssl rand -hex 24` (the app and jobs
+   passwords).
+3. Let the server read GitHub's registry: on GitHub → your picture → Settings → Developer settings →
+   Personal access tokens → Tokens (classic) → Generate new token (classic), tick only
+   `read:packages`, no expiry or a long one. Then on the server:
+   `echo <token> | docker login ghcr.io -u <your GitHub username> --password-stdin` (it says "Login
+   Succeeded"). The token is kept in root's Docker settings; keep a copy in your password manager.
+4. The image must exist: merge to `main` once and wait for "Deploy image" to finish in GitHub's
+   Actions tab.
+5. Start it by hand the first time: `./deploy.sh --now` (it prints "Deploying …" then "Deployed …").
+   Then `docker compose ps` shows web ("healthy") and caddy "Up" (and the worker, once it's turned
+   on after "Connect Twilio").
+6. Turn on the timer: copy `shiftdesk-deploy.service` and `shiftdesk-deploy.timer` from `deploy/`
+   into `/etc/systemd/system/`, then `systemctl daemon-reload && systemctl enable --now
+   shiftdesk-deploy.timer`. `systemctl list-timers shiftdesk-deploy` shows the next run.
+
+**Every deploy after that:** merge to `main`. Within a few minutes of CI passing (outside
+05:30–09:00 UK), `journalctl -u shiftdesk-deploy` shows "Deployed …". Then check
+`https://<a firm>.<our domain>/api/health` says `{"ok":true}` and the office Today page works on a
+phone. Post a one-line note in the Hours log.
 
 **Never deploy** between 05:30 and 09:00 UK on an event day for any pilot firm, or during a live
-event.
+event (the script enforces the first; for the second, pin the current version, below, until the
+event is over).
 
 ## Rollback
 
-1. `docker compose pull web:<previous-tag> worker:<previous-tag>` (tags are git SHAs).
-2. `docker compose up -d`.
-3. If a migration must be reverted, restore the database (below) rather than hand-editing.
+1. Find the last good version's commit SHA (GitHub → the repo → Actions → "Deploy image" runs, or
+   `git log`).
+2. On the server: `nano /opt/shiftdesk/.env`, set `SHIFTDESK_TAG=<that SHA>`, then
+   `/opt/shiftdesk/deploy.sh --now --no-migrate`. `--no-migrate` because an older version's
+   migration step can't run against a database a newer version has changed (and doesn't need to:
+   migrations only add). `--now` works on event mornings too. While pinned, merges to `main` aren't
+   deployed.
+3. When the fix is out: set `SHIFTDESK_TAG=main` again (the next run deploys it, with its migration).
+4. If a migration must be reverted, restore the database (below) rather than hand-editing.
 
 ## Restore the database
 

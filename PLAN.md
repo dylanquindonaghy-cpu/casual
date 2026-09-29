@@ -267,9 +267,7 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   the worker-login e2e test).
 - Phase 8: custom domains in the host lookup and the Caddy `ask` endpoint (done in the custom
   domains task: the proxy lets a possible custom domain through, and `/api/caddy/ask` on any
-  host). Still to decide with the deploy task: health checks. The proxy 404s
-  `localhost:3000/api/health` (the port isn't the base domain's), so a Docker healthcheck needs
-  that path allowed on any host too, like `/api/caddy/ask`, or to call the base domain.
+  host). Health checks settled in the deploy task: `/api/health` is let through on any host too.
 - A short negative cache for unknown firm slugs if random subdomains ever cost noticeable load
   (each one is one `app_resolve_firm()` call).
 - Phase 8: branding. The database only accepts `#rrggbb` colours and `https://` logos; still never
@@ -553,6 +551,22 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
     phone number, and would make the event write throw after the message went. Exempt that key
     or store only a safe form, with a test using a Twilio-shaped id.
+- **Connect the deploy** (the Phase 8 "Docker Compose (web, worker, caddy); GitHub Actions deploy"
+  task is blocked on it: the server from "Connect AWS", and the deploy workflow only runs on
+  `main`). Everything is written: `Dockerfile`, `.dockerignore`, `deploy/docker-compose.yml`,
+  `deploy/deploy.sh` with its systemd timer, `deploy/env.example`, `.github/workflows/deploy.yml`,
+  and a CI job that builds the image on every push (check the "docker" job is green in GitHub's
+  Actions tab before merging: `next build` has never run inside Docker yet). Follow
+  docs/runbooks.md "Deploy" ("The first time", 6 steps), then tick the task. **Before that:**
+  (1) the worker won't start in production until the Twilio sender exists (by design:
+  `MESSAGING_TRANSPORT=console` is refused in production), so it's behind `COMPOSE_PROFILES=worker`
+  and stays off; "Connect Twilio" comes before a real pilot; until then only the web app and Caddy
+  run; (2) merging `build/overnight` into `main` is yours to do (the overnight rules never touch
+  `main`), and it's what first builds the image; (3) **decide the database's TLS**: if Lightsail's
+  Postgres 16 insists on TLS, nothing connects until the three database addresses end with
+  `?sslmode=verify-full&sslrootcert=/app/rds-ca.pem` and Amazon's RDS certificate bundle is in the
+  image (or mounted); check on first connection. Later: pin `actions/checkout` to a commit SHA and
+  the Node base image to a digest.
 - **Connect AWS** (the Phase 8 "AWS: Lightsail 4 GB instance + managed Postgres" task is blocked on
   it: an AWS account and money). Everything is written: `deploy/lightsail.sh` and
   `deploy/cloud-init.sh`, checked by `tests/unit/deploy.lightsail.test.ts` but never run. Follow
@@ -1165,3 +1179,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 8 | 0.7 | Branding: every firm page (portal and office) opens with the firm's bar (its logo if set, its name, on its colour with black or white text worked out for contrast: at least 4.5:1 for any colour, checked across the colour cube); the tab title and the home-screen colour are the firm's; `npm run firm:brand` for the owner to set name, colour, logo and sign-off, every value checked and the change logged (field names only); the sign-off always ends "Shift Team" (golden rule 8, which the review caught could be broken) and empty values are refused; demo colours for Acme and Northline; 2469 tests + 45 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 8 | 0.8 | Custom domains: a firm's own address (shifts.firmname.co.uk) is served, with its bar, once verified: its CNAME must point to that firm's own subdomain (so it can't be verified for another firm); `npm run firm:domain` (owner) saves, checks (DNS before any lock) and clears it; Caddy's `/api/caddy/ask` approves only a firm's verified domain or an existing firm's subdomain (so no wildcard certificate is needed), and is blocked from outside; `deploy/Caddyfile` written and pinned by a test (not run: no Caddy here); the review caught My shifts not showing on a custom domain and a lock held during DNS (both fixed); 2503 tests + 47 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 8 | 0.5 | AWS, BLOCKED (not ticked: needs a real AWS account and money): `deploy/lightsail.sh` written (never run) to create the London server (Ubuntu 24.04, cheapest 2-CPU 4 GB plan, prices shown and a typed yes first), its firewall (only 80/443 to the internet, SSH only from Lightsail's browser console, read back and checked), a static IP and private Postgres 16 with nightly backups (checked after); `deploy/cloud-init.sh` for first boot (automatic security updates, Docker); a test pins it all; the review caught a first-boot script that would have stopped on Ubuntu's `sh`, no read-back of what AWS applied, and a password command showing two values (all fixed); runbook "Set up AWS (once)" in 9 beginner steps; 2516 tests + 47 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 8 | 0.6 | Docker Compose and deploy, BLOCKED (not ticked: no server yet, and the deploy workflow only runs on `main`): the image (`Dockerfile`: one image for web, worker and migrate, non-root, code owned by root, no secrets), `deploy/docker-compose.yml` (only Caddy published; the owner's database login only to migrate; the worker off until Twilio exists, since production refuses printed messages), `GET /api/health`, deploys that pull (a GitHub workflow builds and pushes the image after CI passes on main; a timer on the server pulls it, migrates, starts it, never 05:30–09:00 UK); a CI job builds the image on every push; the review caught a fork's pull request being able to publish, an older build rolling the server back, failed deploys never retried, nothing deploying with the documented settings, and a rollback that couldn't work (all fixed); 2542 tests + 47 e2e; verified (see docs/work-log.md) |

@@ -5356,3 +5356,96 @@ written, checked and committed. No auditor round. Next step is Dylan's: "Connect
 **Commit:** `2b0813e` "Phase 8 (BLOCKED, not ticked): AWS: Lightsail 4 GB instance + managed Postgres
 (London), static IP, ports 80/443 only", pushed to `origin/build/overnight`. CI: `gh` isn't
 installed, so not checked.
+
+## 2026-09-29 23:03 UTC: Phase 8, "Docker Compose (web, worker, caddy); GitHub Actions deploy"
+
+**Blocked (hard limit):** a deploy needs the server (AWS, blocked) and GitHub's container registry
+(the deploy workflow runs on `main` only; I never push `main`). I also won't download base images
+tonight, so the image isn't built here: a CI job builds it on GitHub (which already runs on every
+push). Everything short of it is written and checked; recorded as blocked, not ticked.
+
+**Found while planning:** in production the worker refuses to start until the Twilio sender exists
+(`MESSAGING_TRANSPORT` can only be `console`, which production refuses: by design, messages are never
+silently printed instead of sent). So the worker can't run in production before "Connect Twilio";
+noted for Dylan.
+
+**Plan:**
+
+1. **`Dockerfile`** (one image for web, worker and migrate): Node 22 (`.nvmrc`), `npm ci`, `next build`,
+   run as the unprivileged `node` user, `NODE_ENV=production`, no secrets in it; **`.dockerignore`**
+   keeps `.env*`, `.git`, `node_modules`, `.next`, `.dev`, `.claude` and secrets out.
+2. **`deploy/docker-compose.yml`**: `web` (not published: only Caddy reaches it), `worker`, `caddy`
+   (the only published ports, 80 and 443; the Caddyfile read-only; certificates in a volume) and a
+   one-off `migrate` (a profile, so `up` never starts it). One root-only `.env` on the server; each
+   service is given only the variables it needs: `DATABASE_ADMIN_URL` only to `migrate`,
+   `DATABASE_JOBS_URL` only to `worker` and `migrate`. Every long-running service
+   `restart: unless-stopped` (the server's nightly reboot). Images by tag
+   (`SHIFTDESK_TAG`, default `main`; a git SHA to pin or roll back).
+3. **`GET /api/health`**: 200 when the web app can reach the database as the app role, 503
+   otherwise, nothing more said; let through the proxy on any host (Docker's health check calls
+   `localhost:3000`), settling the parked question. Compose's web health check uses it.
+4. **Deploys pull, not push** (SSH is closed to the internet): `.github/workflows/deploy.yml` builds
+   and pushes the image to GitHub's registry (`ghcr.io/<repo>:<sha>` and `:main`) after CI passes
+   on `main`, with only the built-in `GITHUB_TOKEN`. On the server, `deploy/deploy.sh` (run every 2
+   minutes by a systemd timer, `deploy/shiftdesk-deploy.{service,timer}`) pulls; if the image
+   changed, runs `migrate` then `up -d`; never between 05:30 and 09:00 UK time (event mornings:
+   it waits until 09:00); one run at a time.
+5. **CI**: a `docker` job builds the image (no push) on every push, so a broken Dockerfile shows.
+6. **Tests**: `docker compose config` on the compose file (no images pulled); which service gets
+   which secrets; only Caddy publishes ports; restarts; the Dockerfile's user and contents; the
+   deploy script (bash -n; the quiet window via a test clock; dry run); the workflows' triggers and
+   permissions; the health route (up, down, and let through the proxy).
+7. **Docs**: runbooks "Deploy" (first time and after), "Rollback" (pin a SHA), architecture
+   Deployment, api-and-jobs `/api/health`; Parking lot "Connect the deploy".
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | No server (AWS blocked) and the registry/deploy only run on `main` | Tick with nothing deployed |
+| The server pulls new images (a timer), not GitHub pushing over SSH | SSH is closed to the internet (the AWS task); nothing to open | Opening 22 to GitHub's IP ranges (thousands, changing); a VPN service (another account) |
+| One image, three commands | The worker and migrate need the same code and `tsx` | Separate slim images (later, if size matters) |
+| One `.env`, each service mapped only what it needs | Secrets live in one root-only file; web and worker still never see the owner's | A file per service |
+| No deploys 05:30–09:00 UK | The runbook's rule, enforced by the script rather than remembered | Deploy whenever |
+
+**Built as planned**, then changed by the review (below). Root causes written down on the way:
+- The first run of the "refuses without SESSION_SECRET" test passed wrongly because `docker compose`
+  reads the caller's environment before the env file, and the test process had the dev `.env`'s
+  `SESSION_SECRET`: compose runs now get a clean environment (and a test checks values come from the
+  given file).
+- `src/lib/health.ts` broke the database-boundary lint rule (app code can't import the pool): moved
+  to `src/lib/db/health.ts`, inside the database layer like the directory look-ups.
+
+**Guardrails review: FIX FIRST (5 items), all done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: a fork's pull request whose branch is named `main` would pass `branches: [main]` (it matches `head_branch`), and its successful CI run would publish `:main`, which the server then runs with production secrets | The job requires `event == 'push'`, `head_branch == 'main'` and `head_repository.full_name == github.repository` (and success); `workflow_dispatch` removed (it skipped CI); tested |
+| FIX FIRST: an older commit's run finishing last (or re-run) would overwrite `:main` and the server would roll back | `:$SHA` always; `:main` only if `$SHA` is still the tip of main (`gh api …/commits/main`); tested |
+| FIX FIRST: deploy.sh compared the pre-pull image ID, so after a failed migrate or up it never retried, and a manual `up` would start the unmigrated image | It compares the pulled image with the image the running web and worker containers use, deploying whenever they differ or nothing runs; tested |
+| FIX FIRST: env.example's empty `MESSAGING_TRANSPORT` failed compose's `:?` check, so nothing (not even web) would deploy; no value works for the worker in production today | The worker behind `profiles: ["worker"]` (`COMPOSE_PROFILES=worker` in `.env` after Twilio), `MESSAGING_TRANSPORT` optional in the file; env.example, runbook and PLAN corrected; tested with the shipped settings (web and Caddy only) |
+| FIX FIRST: the rollback (pin an older SHA, run deploy.sh) runs the old image's migrate, which fails against a newer database; and a manual run 05:30–09:00 did nothing | `--no-migrate` and `--now` flags; the runbook's rollback uses `--now --no-migrate`; tested |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| `up -d` without `--wait` reports a crash-looping version as deployed | `up -d --remove-orphans --wait --wait-timeout 180` |
+| A hung oneshot blocks the timer for ever | `TimeoutStartSec=20min` |
+| Docker's 10 s stop kills jobs pg-boss would finish in 30 s (a double send on retry) | `stop_grace_period: 45s` on the worker |
+| The public health endpoint: two round trips per call, no cache | The answer cached for 5 s, one check at a time; tested |
+| `workflow_dispatch` skips CI | Removed |
+| `.dockerignore` only matched secrets at the root | `**/.env`, `**/.env.*`, `**/secrets/`, `**/*.pem`, … |
+| The runtime user owned the code | Copied as root; only `.next/cache` is the node user's |
+| Pulling Caddy every 2 minutes ties deploys to Docker Hub | Only the app image is pulled |
+| Pin `actions/checkout` and the base image; `persist-credentials` | `persist-credentials: false` done; the two pins parked (I won't guess a commit SHA) |
+| Database TLS on Lightsail's Postgres 16 | Parked for Dylan under "Connect the deploy" (decide on first connection; `verify-full` needs Amazon's CA bundle) |
+
+**Verify:** `VERIFIED tree=714a804035bdfb86 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2542 tests, 47 e2e).
+
+**Status: BLOCKED, not ticked** (hard limits: no server; the registry and deploy run only on `main`).
+Everything short of it is written, checked and committed. No auditor round. Next steps are Dylan's:
+"Connect AWS", then "Connect the deploy".
+
+**Hours:** 0.6 h (23:03 to 23:41 UTC). Phase 8 so far 2.6 h of its 18–28 h estimate.

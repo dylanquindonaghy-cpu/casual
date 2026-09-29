@@ -1,0 +1,96 @@
+# ShiftDesk on the server (Phase 8; docs/architecture.md "Deployment", docs/runbooks.md "Deploy").
+# Lives in /opt/shiftdesk with the Caddyfile, deploy.sh and one root-only .env holding every value
+# below (docs/runbooks.md lists them). Each service is given only what it needs: the owner's
+# database login (DATABASE_ADMIN_URL) only to the one-off migrate step, the jobs login only to the
+# worker and migrate. Only Caddy is reachable from outside (80 and 443); the web app listens inside
+# the server's Docker network alone. deploy.sh pulls new images and runs migrate, then up.
+name: shiftdesk
+
+x-app-image: &app-image ${SHIFTDESK_IMAGE:?set SHIFTDESK_IMAGE in .env (ghcr.io/<owner>/<repo>)}:${SHIFTDESK_TAG:-main}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  web:
+    image: *app-image
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:?}
+      DATABASE_URL: ${DATABASE_URL:?}
+      SESSION_SECRET: ${SESSION_SECRET:?}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *logging
+
+  # Only with COMPOSE_PROFILES=worker in .env: it refuses to start in production until the Twilio
+  # sender exists (MESSAGING_TRANSPORT=console is refused there, by design), so until "Connect
+  # Twilio" it stays off rather than restarting for ever.
+  worker:
+    image: *app-image
+    profiles: ["worker"]
+    restart: unless-stopped
+    # pg-boss lets running jobs finish for up to 30 seconds when it's stopped: give it longer
+    # than Docker's default 10 before being killed (a job cut off mid-way would run again).
+    stop_grace_period: 45s
+    command: ["node", "--import", "tsx", "src/worker/index.ts"]
+    environment:
+      NODE_ENV: production
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:?}
+      DATABASE_URL: ${DATABASE_URL:?}
+      DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
+      SESSION_SECRET: ${SESSION_SECRET:?}
+      MESSAGING_TRANSPORT: ${MESSAGING_TRANSPORT:-}
+      PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
+      SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+    logging: *logging
+
+  # One-off: `docker compose run --rm migrate` (deploy.sh does it before every start). Never
+  # started by `up` (its profile). The only service with the owner's login.
+  migrate:
+    image: *app-image
+    profiles: ["migrate"]
+    command: ["node", "--import", "tsx", "scripts/migrate.ts"]
+    environment:
+      NODE_ENV: production
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?}
+      DATABASE_URL: ${DATABASE_URL:?}
+      DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
+    logging: *logging
+
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:?}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env (for Let's Encrypt)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    logging: *logging
+
+volumes:
+  caddy_data: # the certificates: keep it (a new volume means new certificates, and rate limits)
+  caddy_config:

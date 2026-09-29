@@ -1680,3 +1680,32 @@ Tests:
 
 **For Dylan to confirm:** migration 0011 (the new `review` request type) and the rewritten
 `/shifts/[id]` row in `docs/screens.md`.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=8aa6427c55e0a62a e2e=true` (1431 tests, 14 e2e). Dev
+database migrated to 0011.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Pre-check: `.claude/state/verified.json` = `{"ok":true,"tree":"8aa6427c55e0a62a","e2e":true,"at":"2026-09-29T01:28:18Z"}`; `./.claude/hooks/tree-hash.sh` = `8aa6427c55e0a62a` — matches exactly (hash includes uncommitted diff + untracked files, so it covers the current working tree). Proceeding.
+
+Claims:
+- Blocked shift shows the rules' reasons in plain English — PROVEN. Code: `src/lib/portal/shift-detail.ts:150-160` (`shiftForWorker` returns `{ state: "blocked", shift, reasons: verdict.reasons, review }` from `previewBooking`); rendered in `src/app/shifts/[id]/shift-view.tsx:96-108` under heading "You can't take this shift:". Tests: `tests/unit/portal.shift-detail.test.ts` "blocked: the reasons in plain English..." (test.log:1117); `tests/integration/shift-detail.test.ts` "blocked: the rules' reasons in plain English, never the instructions" (test.log:481, also asserts instructions are never leaked); e2e `tests/e2e/shift.blocked.spec.ts` checks `getByText(/Your SIA door supervisor licence expired on /)` and passed (`.claude/state/e2e.log` line 16).
+- "Ask the office to review" button/flow on the blocked-shift screen — PROVEN. Code: `src/app/shifts/[id]/review-form.tsx` (note field + button), `src/app/shifts/[id]/actions.ts` (`askForReviewAction`), `src/lib/portal/review.ts` (`askForReview`, locks the shift row, rejects if rules now say yes/already booked/not open, dedupes to one waiting review, writes `requests` row + `request.created` event). Migration `drizzle/0011_review_requests.sql` adds `'review'` to `requests_type_check` and `requests_shift_required`; schema updated in `src/lib/db/schema/roster.ts:53,301,309`. Tests: unit (test.log:1117-1124), integration `tests/integration/shift-detail.test.ts` `askForReview` suite including a concurrency test "five taps at once add one review" → exactly one row created (test.log:486-489), schema test `tests/integration/roster.schema.test.ts` "a time change, swap or review names its shift..." (test.log:554), e2e spec asks review, gets confirmation with reference/sign-off, reloads to see it persisted, and finds it under My requests as "Review: ... Waiting for the office" (e2e.log line 16, passed).
+- Matches product copy spec in `docs/screens.md` (`/shifts/[id]` row) — PROVEN by direct text comparison: reasons list, "If you think this is wrong, ask the office to review it.", optional note, confirmation copy ("We've sent this to the office.", "Sent at {time}", "Reference: {8 chars}", sign-off, "See my requests"), "already asked"/"eligible now"/"already booked"/"not open" variants all present verbatim in `shift-view.tsx` / `review-form.tsx` and covered by tests.
+- Open-shifts list also links a refusal to the review flow (consistent secondary entry point per docs/screens.md `/shifts/open` row) — PROVEN. `src/app/shifts/open/take-shift-button.tsx` and `take-shift-result.tsx` diffs add `reviewHref`/inline `ReviewForm`; test `tests/unit/portal.open-shifts.test.ts` "links a refusal to the shift's page..." (test.log:1113).
+- Everything ran on real Postgres/RLS-scoped role, not mocked — PROVEN. `tests/integration/shift-detail.test.ts` uses `appRolePool`/`createWithFirm` against the real DB (`tests/helpers/db.ts`), asserts actual `requests`/`events` rows via a superuser pool.
+- No fakes — checked for `.only`/`.skip`/TODO/"not implemented" in all touched files and tests: none found. `.claude/state/invariants.log` confirms "no .only/.skip/.todo in tests", "1431 tests: 1431 passed, 0 failed, 0 skipped, 0 todo".
+- Phase-3 "Done when" (login/take/cancel <30s, demo script runnable) not broken — PROVEN by full e2e run: 14/14 Playwright specs passed including login, pay, profile and this new blocked-shift spec (`.claude/state/e2e.log`).
+
+Fakes found: none.
+
+To reach DONE: nothing — the task is proven by code + passing unit, integration, and e2e tests, all present in the current verified tree. Ready to tick in PLAN.md.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.4 (01:05 to 01:31 UTC). Phase 3 so far: 3.1 h of its 35–45 h
+estimate.
+**Commit:** `12d694a`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

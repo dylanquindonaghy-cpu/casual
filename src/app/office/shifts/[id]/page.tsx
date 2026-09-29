@@ -9,6 +9,7 @@ import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import type { OverridableCode } from "@/lib/rules/eligibility";
 import { AssignButton } from "./assign-button";
 import { EditShiftForm } from "./edit-form";
+import { CancelBookingForm, CancelShiftForm, MoveShiftForm } from "./firm-change-forms";
 
 const section = "mt-8";
 const heading = "text-2xl font-bold";
@@ -96,6 +97,32 @@ export default async function OfficeShiftPage({
         )}
       </section>
 
+      {page.edit.editable && (
+        <section className={section} aria-labelledby="change">
+          <h2 id="change" className={heading}>
+            {shift.booked > 0 ? "Move, shorten or cancel" : "Cancel"}
+          </h2>
+          {shift.booked > 0 && (
+            <>
+              <p className="mt-2">
+                Everyone booked is told, and the notice they had is logged for each of them.
+              </p>
+              <MoveShiftForm
+                shiftId={shift.shiftId}
+                sites={form.sites}
+                defaults={{
+                  date: page.edit.date,
+                  start: page.edit.start,
+                  end: page.edit.end,
+                  siteId: shift.siteId ?? "",
+                }}
+              />
+            </>
+          )}
+          <CancelShiftForm shiftId={shift.shiftId} booked={shift.booked} />
+        </section>
+      )}
+
       <section className={section} aria-labelledby="places">
         <h2 id="places" className={heading}>
           Places
@@ -107,6 +134,13 @@ export default async function OfficeShiftPage({
             {live.map((p) => (
               <li key={p.assignmentId}>
                 {p.worker}: {PLACE_STATUS_WORDS[p.status] ?? p.status}
+                {page.edit.editable && p.status === "confirmed" && p.workerId && (
+                  <CancelBookingForm
+                    shiftId={shift.shiftId}
+                    workerId={p.workerId}
+                    name={p.worker}
+                  />
+                )}
               </li>
             ))}
           </ul>

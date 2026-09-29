@@ -55,7 +55,10 @@ export function EditShiftForm({
       }}
     >
       {lockTimes && (
-        <p>People are booked on this shift, so only the places and instructions can change here.</p>
+        <p>
+          People are booked on this shift, so only the places and instructions can change here. To
+          move or shorten it, use &quot;Move, shorten or cancel&quot; below.
+        </p>
       )}
       <div className="flex flex-wrap gap-3">
         <label className="flex flex-col">

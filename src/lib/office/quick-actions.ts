@@ -2,7 +2,15 @@ import type { Clock } from "../auth/clock";
 import { withFirm, type WithFirm } from "../db/scoped";
 import { queueOfficeOffer, type QueueOfficeOfferResult } from "../offers/office-offer";
 import { bookShift, type BookingResult } from "../roster/book";
+import {
+  cancelBooking,
+  cancelShiftByFirm,
+  type CancelBookingResult,
+  type CancelShiftResult,
+} from "../roster/cancel";
 import { closeShift, reopenShift, type CloseShiftResult } from "../roster/close";
+import { moveShiftByFirm, type MoveShiftResult } from "../roster/firm-change";
+import { FIRM_CHANGE_REASONS, type FirmChangeReason } from "../roster/firm-reasons";
 import type { OverridableCode } from "../rules/eligibility";
 import { setShiftUrgent, type SetUrgentResult } from "../roster/urgent";
 
@@ -74,6 +82,41 @@ export function assignWorker(
         ...(override ? { reason: override.reason } : {}),
       },
     },
+    deps,
+  );
+}
+
+// The office's firm-initiated changes (golden rule 12): each takes a reason from the fixed list,
+// logs notice hours per booked worker and tells them (src/lib/roster/cancel.ts, firm-change.ts).
+export function moveShift(
+  ctx: OfficeContext,
+  shiftId: string,
+  input: { date: string; start: string; end: string; siteId: string; reason: FirmChangeReason },
+): Promise<MoveShiftResult> {
+  const { run, by, deps } = parts(ctx);
+  return moveShiftByFirm(run, ctx.firm.id, { shiftId, ...input, by }, deps);
+}
+
+export function cancelShift(
+  ctx: OfficeContext,
+  shiftId: string,
+  reason: FirmChangeReason,
+): Promise<CancelShiftResult> {
+  const { run, by, deps } = parts(ctx);
+  return cancelShiftByFirm(run, ctx.firm.id, { shiftId, reason, by }, deps);
+}
+
+export function cancelBookingByOffice(
+  ctx: OfficeContext,
+  shiftId: string,
+  workerId: string,
+  reason: FirmChangeReason,
+): Promise<CancelBookingResult> {
+  const { run, by, deps } = parts(ctx);
+  return cancelBooking(
+    run,
+    ctx.firm.id,
+    { shiftId, workerId, reason: FIRM_CHANGE_REASONS[reason], by },
     deps,
   );
 }

@@ -6,11 +6,14 @@ import {
   credentialExpiringMessage,
   credentialMarkedExpiredMessage,
   credentialWeeklyListEmail,
+  firmChangePush,
   loginCodeMessage,
   loginLinkMessage,
   offerPush,
   officeLoginLinkEmail,
   reminderPush,
+  shiftCancelledByFirmMessage,
+  shiftChangedByFirmMessage,
   shiftEscalationEmail,
   shiftOfferMessage,
   shiftOfferSms,
@@ -95,6 +98,7 @@ describe("the doc's templates table", () => {
       "shift_reminder_2h",
       "cancellation_ack",
       "shift_changed_by_firm",
+      "shift_cancelled_by_firm",
       "request_update",
       "credential_expiring",
       "credential_expired",
@@ -115,12 +119,13 @@ describe("the doc's templates table", () => {
     "shift_reminder_2h",
     "credential_expiring",
     "credential_expired",
+    "shift_changed_by_firm",
+    "shift_cancelled_by_firm",
   ];
   const NOT_BUILT: Record<string, string> = {
     shift_filled: "a reply to an offer: inbound WhatsApp (Phase 7)",
     shift_confirmed: "booking confirmations are on screen; by message with notify (parked)",
     cancellation_ack: "cancellation confirmations are on screen; by message with notify (parked)",
-    shift_changed_by_firm: "firm-initiated changes (Phase 5)",
     request_update: "the office answering requests (Phase 5)",
     pay_query_update: "pay queries (Phase 6)",
     unknown_number: "a service reply to an inbound message (Phase 7)",
@@ -148,6 +153,34 @@ describe("the code says what the doc says", () => {
     expect(shiftOfferMessage(docVoice, shift)).toBe(docBody("shift_offer"));
     expect(shiftOfferMessage(docVoice, { ...shift, site: null })).toBe(
       docBody("shift_offer").replace(" at {site}", ""),
+    );
+  });
+
+  it("shift_changed_by_firm and shift_cancelled_by_firm, with and without a site", () => {
+    const changed = {
+      date: "{date}",
+      site: "{site}",
+      change: "{change}",
+      start: "{start}",
+      end: "{end}",
+      link: "{link}",
+    };
+    expect(shiftChangedByFirmMessage(docVoice, changed)).toBe(docBody("shift_changed_by_firm"));
+    expect(shiftChangedByFirmMessage(docVoice, { ...changed, site: null })).toBe(
+      docBody("shift_changed_by_firm").replace(" at {site}", ""),
+    );
+    const cancelled = {
+      date: "{date}",
+      site: "{site}",
+      start: "{start}",
+      end: "{end}",
+      link: "{link}",
+    };
+    expect(shiftCancelledByFirmMessage(docVoice, cancelled)).toBe(
+      docBody("shift_cancelled_by_firm"),
+    );
+    expect(shiftCancelledByFirmMessage(docVoice, { ...cancelled, site: null })).toBe(
+      docBody("shift_cancelled_by_firm").replace(" at {site}", ""),
     );
   });
 
@@ -314,6 +347,14 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
   it.each([
     ["login_link", loginLinkMessage(voice, "L")],
     ["login_code", loginCodeMessage(voice, "123456")],
+    [
+      "shift_changed_by_firm",
+      shiftChangedByFirmMessage(voice, { ...shift, date: "Sat 7 Nov", change: "c", link: "L" }),
+    ],
+    [
+      "shift_cancelled_by_firm",
+      shiftCancelledByFirmMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" }),
+    ],
     ["shift_offer", shiftOfferMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_offer (SMS)", shiftOfferSms(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_urgent", shiftUrgentMessage(voice, { ...shift, link: "L" })],
@@ -348,6 +389,18 @@ describe("the pushes", () => {
     });
   });
 
+  it("the office changed or cancelled a shift", () => {
+    const [t1, b1, t2, b2] = quotes(push, "Shift changed:");
+    expect(firmChangePush({ kind: "changed", date: "{date}", change: "{change}" })).toEqual({
+      title: t1,
+      body: b1,
+    });
+    expect(firmChangePush({ kind: "cancelled", date: "{date}", start: "{start}" })).toEqual({
+      title: t2,
+      body: b2,
+    });
+  });
+
   it("reminder, 24 h and 2 h", () => {
     const [title24, body24, title2, body2] = quotes(push, "Reminder:");
     expect(
@@ -377,11 +430,15 @@ describe("every template function is checked here", () => {
         "credentialExpiringMessage",
         "credentialMarkedExpiredMessage",
         "credentialWeeklyListEmail",
+        "changeWords",
+        "firmChangePush",
         "loginCodeMessage",
         "loginLinkMessage",
         "offerPush",
         "officeLoginLinkEmail",
         "reminderPush",
+        "shiftCancelledByFirmMessage",
+        "shiftChangedByFirmMessage",
         "shiftEscalationEmail",
         "shiftOfferMessage",
         "shiftOfferSms",
@@ -407,6 +464,40 @@ describe("the WhatsApp submission pack", () => {
 
   // What the code sends by WhatsApp, given the pack's sample values.
   const SENT: Record<string, () => string> = {
+    shift_changed_by_firm: () =>
+      shiftChangedByFirmMessage(voice("shift_changed_by_firm"), {
+        date: ex("shift_changed_by_firm", "date"),
+        site: ex("shift_changed_by_firm", "site"),
+        change: ex("shift_changed_by_firm", "change"),
+        start: ex("shift_changed_by_firm", "start"),
+        end: ex("shift_changed_by_firm", "end"),
+        link: ex("shift_changed_by_firm", "link"),
+      }),
+    shift_changed_by_firm_no_site: () =>
+      shiftChangedByFirmMessage(voice("shift_changed_by_firm_no_site"), {
+        date: ex("shift_changed_by_firm_no_site", "date"),
+        site: null,
+        change: ex("shift_changed_by_firm_no_site", "change"),
+        start: ex("shift_changed_by_firm_no_site", "start"),
+        end: ex("shift_changed_by_firm_no_site", "end"),
+        link: ex("shift_changed_by_firm_no_site", "link"),
+      }),
+    shift_cancelled_by_firm: () =>
+      shiftCancelledByFirmMessage(voice("shift_cancelled_by_firm"), {
+        date: ex("shift_cancelled_by_firm", "date"),
+        site: ex("shift_cancelled_by_firm", "site"),
+        start: ex("shift_cancelled_by_firm", "start"),
+        end: ex("shift_cancelled_by_firm", "end"),
+        link: ex("shift_cancelled_by_firm", "link"),
+      }),
+    shift_cancelled_by_firm_no_site: () =>
+      shiftCancelledByFirmMessage(voice("shift_cancelled_by_firm_no_site"), {
+        date: ex("shift_cancelled_by_firm_no_site", "date"),
+        site: null,
+        start: ex("shift_cancelled_by_firm_no_site", "start"),
+        end: ex("shift_cancelled_by_firm_no_site", "end"),
+        link: ex("shift_cancelled_by_firm_no_site", "link"),
+      }),
     shift_offer: () =>
       shiftOfferMessage(voice("shift_offer"), {
         role: ex("shift_offer", "roleName").replace(/ /g, "_"),

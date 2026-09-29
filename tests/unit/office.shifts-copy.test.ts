@@ -53,6 +53,52 @@ describe("a shift's history", () => {
       "Sam Rota offered it to Ann Booker.",
     );
     expect(ev("shift.closed", {}, "office", "o1")).toBe("Sam Rota marked it as filled.");
+    expect(
+      ev(
+        "shift.moved",
+        { workerId: "w1", noticeHours: 30, reason: "Weather or safety" },
+        "office",
+        "o1",
+      ),
+    ).toBe("Sam Rota moved Ann Booker's shift, with 30 hours' notice. Reason: Weather or safety.");
+    expect(
+      ev(
+        "shift.moved",
+        { workerId: "w1", noticeHours: 30, rulesOk: false, codes: ["unavailable"] },
+        "office",
+        "o1",
+      ),
+    ).toBe(
+      "Sam Rota moved Ann Booker's shift, with 30 hours' notice. The rules said they may not be able to work the new time.",
+    );
+    expect(
+      ev(
+        "shift.move_refused",
+        { workers: [{ workerId: "w1", codes: ["credential_expired"] }] },
+        "office",
+        "o1",
+      ),
+    ).toBe("Sam Rota tried to move the shift. Not moved: someone booked can't work the new time.");
+    expect(ev("shift.curtailed", { workerId: "w1", noticeHours: 2 }, "office", "o1")).toBe(
+      "Sam Rota shortened Ann Booker's shift, with 2 hours' notice.",
+    );
+    expect(
+      ev("shift.cancelled_by_firm", { reason: "The event was cancelled" }, "office", "o1"),
+    ).toBe("Sam Rota cancelled the shift. Reason: The event was cancelled.");
+    expect(
+      ev(
+        "shift.cancelled",
+        { by: "firm", workerId: "w1", noticeHours: 50, reason: "Weather or safety" },
+        "office",
+        "o1",
+      ),
+    ).toBe("Sam Rota cancelled Ann Booker, with 2 days' notice. Reason: Weather or safety.");
+    expect(ev("shift.change_notice_sent", { workerId: "w1" })).toBe(
+      "Ann Booker was told about the change.",
+    );
+    expect(ev("shift.change_notice_skipped", { workerId: "w1", reason: "unchanged" })).toBe(
+      "Ann Booker wasn't told: the shift is back to what they knew.",
+    );
     expect(ev("something.new")).toBe("Recorded: something.new.");
   });
 });

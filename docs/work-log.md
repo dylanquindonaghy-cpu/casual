@@ -3839,3 +3839,129 @@ All for admins and resourcers, from a new "Shifts" link on Today:
 2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
 3. Open "Shifts", then "New shift". Create one.
 4. On its page, choose someone under "Assign someone", press "Check", then "Assign".
+
+## 2026-09-29: Phase 5, task 3: The office cancelling, moving or shortening a shift (1.1 h)
+
+### Time
+
+1.1 hours of Claude's working time (08:48 to 09:51 UTC), in the unattended overnight loop.
+Phase 5 so far: 2.7 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=986cd04d62f23cf6 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1965 tests (up from 1924);
+  - the 32 browser tests (1 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+This is about **firm-initiated changes**: the office (not the worker) cancelling or changing a
+shift someone is booked on. The Employment Rights Act means firms will need evidence of every
+such change and how much warning ("notice") each worker had. Golden rule 12 says every one is
+logged with a reason and the notice hours per worker.
+
+On each shift's page, admins and resourcers now get a **"Move, shorten or cancel"** section:
+- **Why?** Every change needs a reason from a fixed list: "The event's times or place changed",
+  "The event was cancelled", "The client needs fewer staff", "Weather or safety", "Another
+  reason". Only these words go in the action log (the append-only record of everything that
+  happened). Typed-in text never does, because it could hold personal details.
+- **Cancel this shift.** Every booking on it is cancelled. For each worker the log gets a
+  `shift.cancelled` entry with the reason and their **notice hours** (hours between the change
+  and the shift's start). Then the shift itself is marked cancelled, and any offers still out
+  expire.
+- **Cancel one person's booking**, with a reason. Their place opens again.
+- **Move or shorten.** A new date, new times and/or another site.
+  - It's logged as **shortened** ("curtailed") when the new times sit inside the old ones at the
+    same site, and as **moved** otherwise.
+  - Each booked worker gets a log entry with the old and new times and site, and their notice
+    hours (counted from the old start).
+  - **Before anything changes**, the booking rules are run for each booked worker at the new time.
+    If someone fails a rule the office can't override (a licence that runs out before the new
+    day, the wrong role, a clash with another booking), **nothing moves**. The office is told who
+    and why, and cancels those bookings first (with notice). The refusal is logged too
+    (`shift.move_refused`).
+  - Someone failing only a rule the office *may* override (too little rest, too many weekly
+    hours, a day off) stays booked. They're listed for the office, and the log says the rules
+    had a problem.
+- **Telling each worker.** Every change queues a **job** (a small task run by the separate
+  background process) called `firm-change-notice`. It sends "Change to your shift on Sat 7 Nov
+  at Riverside Arena: new times, and it's now at Other Stadium. New time: Sun 8 Nov 10:00–18:00…"
+  or "Your shift on Sat 7 Nov 08:00–16:00 at Riverside Arena has been cancelled by the office…",
+  signed "[Firm] Shift Team", by WhatsApp or text (console only, no real messages), plus a phone
+  notification.
+  - **Once only.** It first writes "sending" to the log and saves that, then sends, then logs
+    "sent" or "failed". A crash in the middle can't cause a second message.
+  - **Quiet hours.** At night it waits for the morning, unless the shift starts soon (inside the
+    firm's "urgent window") or is already under way. A held message is logged, and the history
+    says "phone them" if it would arrive after the start.
+  - **Stacked changes.** If the office changes the same booking again before the first message
+    goes, only one message is sent. It goes from what the worker last knew to what's true now. If
+    the shift is moved back to what they knew, nothing is sent (and that's logged).
+- The shift's **history** shows all of it in plain words: "Sam Rota moved Ann Booker's shift,
+  with 5 days' notice. Reason: Weather or safety." / "Ann Booker was told about the change."
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Reasons from a fixed list, whose words go in the log | The log never holds typed text; the coming notice report needs a reason for each change | A typed reason kept only on the booking (can't be reported on) |
+| A move is refused while anyone booked fails a rule the office can't override | A worker must never stay booked on a shift their licence doesn't cover (golden rule 6) | Move anyway and warn (breaks the rule) |
+| Notice hours counted from the old start | Matches cancellations and the Google Sheets sync | From the new start |
+| A message is urgent when the shift starts soon or is under way | A late change must reach someone before they travel | Always wait for the morning |
+| One message from "what they knew" to "now", when changes stack up | The first review found a message could lose the new day and place | One message per change (noisy and confusing) |
+| No "they asked to cancel" option for the office (yet) | The review found it would record a cancellation as the worker's and tell no one | Keep it (parked for Dylan with a safer design) |
+| New `shift_cancelled_by_firm` message | The change message says "New time: …", which a cancellation doesn't have | Reuse it with odd wording |
+| Buttons stay disabled until the page is ready | Found by an e2e failure: a click before the page was ready did nothing | Leave it (a dead button on slow phones) |
+
+### What the new tests prove
+
+- `tests/integration/office.firm-change.test.ts` (27 tests, on the real database):
+  - cancelling a shift: every booking cancelled with the reason and notice hours, one log entry
+    and one message job per worker; empty, already cancelled, started, Google Sheet, payroll and
+    another firm's shifts refused;
+  - cancelling one booking: the firm's reason in the log, and the worker told;
+  - a worker's own cancellation: their typed reason stays out of the log, and no office message;
+  - moving and shortening: the log per worker, a site change, a licence running out before the
+    new day and a clash (nothing moves, the refusal logged), a day off (stays booked, the log
+    says so), another firm's shift, bad input;
+  - the messages: exact words for a cancellation, a move to another day and site, a shorter
+    shift; once only; quiet hours (held, sent inside the urgent window, sent when under way,
+    the earlier start counts); held messages logged and queued again; stacked changes (one
+    message naming the original day and place, a cancellation after an untold move, moved
+    back); two copies at once send one; another firm's change sends nothing; failed and
+    refused sends; the background process runs the job.
+- `tests/unit/office.shifts-copy.test.ts`: the history words and screen replies.
+- `tests/unit/copy.templates-doc.test.ts`: the new messages match `docs/messaging-templates.md`
+  and the WhatsApp template pack (now 16 templates).
+- `tests/e2e/office.changes.spec.ts` (1 browser test): create a shift, book someone, move it (a
+  reason is required), see the move and the message in the history, cancel the booking.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`, Parking lot, "Firm-initiated changes follow-ups"):
+  - the reason list;
+  - a move refused while anyone fails a rule that can't be overridden (or ask each worker?);
+  - when a change message may go at night;
+  - how the office records a worker's own cancellation when they ring in (the option now: none;
+    the suggested design records it as theirs and sends them the usual confirmation);
+  - "The client needs fewer staff" on one booking still reopens the place;
+  - notice counted from the old start.
+- **Parked:** the Google Sheets sync's changes don't send these messages yet; the office's
+  escalation email isn't re-timed after a move; log the reason's code too; the other office
+  buttons should also wait until the page is ready.
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
+3. Open "Shifts", then "New shift". Create one a few days ahead.
+4. Under "Assign someone", choose a person, press "Check", then "Assign".
+5. Under "Move, shorten or cancel", change the start, choose a reason and press "Move for
+   everyone booked". You should see "Moved. 1 person booked will be told…".
+6. The terminal running `npm run dev` prints the message the worker would get. Reload the page:
+   the history says they were told.

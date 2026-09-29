@@ -1,13 +1,15 @@
-import { eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
-import { shifts } from "../db/schema";
+import { assignments, offers, shifts } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
 import type { CancelResult } from "./plug";
+import { queueFirmChangeNotice } from "../notices/firm-change";
 import { markUrgentAfterDropout } from "./urgent";
+import { FIRM_CHANGE_REASON_CODES, FIRM_CHANGE_REASONS, firmReasonWords } from "./firm-reasons";
 
 // Cancelling a booking: the one path for a worker cancelling their own shift, or the office
 // cancelling someone's (golden rules 5 and 12; docs/architecture.md, "Cancel"). In its own
@@ -79,27 +81,142 @@ async function cancelInTransaction(
   }
   if (shift.endsAt.getTime() <= now.getTime()) return { status: "ended" };
 
+  const initiator = by.type === "worker" ? "worker" : "firm";
   const cancelled = await plugFor(tx, shift.source, now).markCancelled(shiftId, workerId, {
     reason,
-    by: by.type === "worker" ? "worker" : "firm",
+    by: initiator,
     at: now,
   });
   if (cancelled.status !== "cancelled") return cancelled;
 
-  await recordEvent(tx, {
+  // The firm's reason is from its fixed list, so its words may go in the log; any other reason is
+  // free text and stays on the row.
+  const firmReason = initiator === "firm" ? firmReasonWords(reason) : null;
+  const eventId = await recordEvent(tx, {
     actorType: by.type,
     actorId: by.id,
     action: "shift.cancelled",
     entityType: "assignment",
     entityId: cancelled.assignmentId,
     data: {
-      by: by.type === "worker" ? "worker" : "firm",
+      by: initiator,
       shiftId,
       workerId,
       noticeHours: cancelled.noticeHours,
+      ...(firmReason ? { reason: firmReason } : {}),
     },
   });
+  // The firm cancelled someone's booking: they're told (golden rule 12).
+  if (initiator === "firm") {
+    await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });
+  }
   // A place reopened close to the start: the shift is urgent (golden rule 5: logged too).
   await markUrgentAfterDropout(tx, { shiftId, now });
   return cancelled;
+}
+
+// The office cancelling a whole shift (docs/api-and-jobs.md, "Firm-initiated changes"; golden
+// rule 12). In one transaction: an active admin or resourcer; the shift locked (shift first, as
+// every booking); not a Google Sheet's (the sheet owns it), not one that has started, not one
+// already cancelled. Each confirmed booking is cancelled through the plug (cancelled_firm, the
+// reason's words on the row, notice hours from the start), logged shift.cancelled {by: "firm",
+// shiftId, workerId, reason, noticeHours}, and the worker is told (a firm-change-notice job). Then
+// the shift is cancelled, offers still out expire, and shift.cancelled_by_firm {reason, bookings}
+// is logged. No offer waves: there's no shift to fill.
+
+export const cancelShiftRequestSchema = z.strictObject({
+  shiftId: rosterId,
+  reason: z.enum(FIRM_CHANGE_REASON_CODES),
+  by: z.strictObject({ type: z.literal("office"), id: rosterId }),
+});
+export type CancelShiftRequest = z.input<typeof cancelShiftRequestSchema>;
+
+export type CancelShiftResult =
+  | { status: "cancelled"; bookings: number }
+  | { status: "unchanged" } // already cancelled
+  | { status: "started" }
+  | { status: "sheet" }
+  | { status: "not_found" }
+  | { status: "not_allowed" };
+
+export async function cancelShiftByFirm(
+  run: WithFirm,
+  firmId: string,
+  raw: CancelShiftRequest,
+  deps: { clock?: Clock } = {},
+): Promise<CancelShiftResult> {
+  const request = cancelShiftRequestSchema.parse(raw);
+  const now = (deps.clock ?? systemClock).now();
+  const reason = FIRM_CHANGE_REASONS[request.reason];
+  return retryAborted(() =>
+    run(firmId, async (tx) => {
+      if (!(await officeCanPlace(tx, request.by.id))) return { status: "not_allowed" as const };
+      const [shift] = await tx
+        .select({ source: shifts.source, status: shifts.status, startsAt: shifts.startsAt })
+        .from(shifts)
+        .where(eq(shifts.id, request.shiftId))
+        .for("no key update");
+      if (!shift) return { status: "not_found" as const };
+      if (shift.source === "sheets") return { status: "sheet" as const };
+      if (shift.status === "cancelled") return { status: "unchanged" as const };
+      if (shift.startsAt.getTime() <= now.getTime()) return { status: "started" as const };
+
+      const holders = await tx
+        .select({ workerId: assignments.workerId })
+        .from(assignments)
+        .where(
+          and(
+            eq(assignments.shiftId, request.shiftId),
+            eq(assignments.status, "confirmed"),
+            isNotNull(assignments.workerId),
+          ),
+        )
+        .orderBy(asc(assignments.slot));
+      const plug = plugFor(tx, shift.source, now);
+      let bookings = 0;
+      for (const h of holders) {
+        if (!h.workerId) continue;
+        const cancelled = await plug.markCancelled(request.shiftId, h.workerId, {
+          reason,
+          by: "firm",
+          at: now,
+        });
+        // Under the shift lock nothing else can change these bookings: anything else is a bug, and
+        // the whole cancellation rolls back rather than leave someone booked on a cancelled shift.
+        if (cancelled.status !== "cancelled") {
+          throw new Error(`cancelling a booking returned ${cancelled.status}`);
+        }
+        bookings += 1;
+        const eventId = await recordEvent(tx, {
+          actorType: "office",
+          actorId: request.by.id,
+          action: "shift.cancelled",
+          entityType: "assignment",
+          entityId: cancelled.assignmentId,
+          data: {
+            by: "firm",
+            shiftId: request.shiftId,
+            workerId: h.workerId,
+            reason,
+            noticeHours: cancelled.noticeHours,
+          },
+        });
+        await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });
+      }
+      await tx.update(shifts).set({ status: "cancelled" }).where(eq(shifts.id, request.shiftId));
+      await tx
+        .update(offers)
+        .set({ response: "expired", respondedAt: now })
+        .where(and(eq(offers.shiftId, request.shiftId), isNull(offers.response)));
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: request.by.id,
+        action: "shift.cancelled_by_firm",
+        entityType: "shift",
+        entityId: request.shiftId,
+        data: { by: "firm", reason, bookings },
+      });
+      return { status: "cancelled" as const, bookings };
+    }),
+  );
 }

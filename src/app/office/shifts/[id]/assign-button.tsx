@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { assignResultText } from "@/lib/office/shifts-copy";
 import type { OverridableCode } from "@/lib/rules/eligibility";
+import { useHydrated } from "@/app/use-hydrated";
 import { assignAction } from "../actions";
 
 const button =
@@ -27,6 +28,7 @@ export function AssignButton({
   const [message, setMessage] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [pending, startTransition] = useTransition();
+  const ready = useHydrated();
   const assign = () =>
     startTransition(async () => {
       if (overrides && !reason.trim()) {
@@ -59,7 +61,7 @@ export function AssignButton({
         </label>
       )}
       {!done && (
-        <button type="button" className={button} disabled={pending} onClick={assign}>
+        <button type="button" className={button} disabled={pending || !ready} onClick={assign}>
           {overrides ? "Assign anyway" : `Assign ${name}`}
         </button>
       )}

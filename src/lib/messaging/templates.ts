@@ -156,6 +156,47 @@ export function shiftUrgentSms(
   return `${firm.name} URGENT: ${role} needed${site} ${shift.day} ${shift.start}. ${shift.link} - ${firm.signOff}`;
 }
 
+// shift_changed_by_firm (WhatsApp, utility): the office moved or shortened a booked shift. {date}
+// and {site} are the shift as it was; {change} says what changed (changeWords); {start}–{end} are
+// the new times ({start} names the day too when it moved to another day).
+export function shiftChangedByFirmMessage(
+  firm: FirmVoice,
+  shift: {
+    date: string;
+    site: string | null;
+    change: string;
+    start: string;
+    end: string;
+    link: string;
+  },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Change to your shift on ${shift.date}${at}: ${shift.change}. New time: ${shift.start}–${shift.end}. Details: ${shift.link}. — ${firm.signOff}`;
+}
+
+// What changed, for shift_changed_by_firm's {change}.
+export function changeWords(change: {
+  curtailed: boolean;
+  timesChanged: boolean;
+  newSite: string | null; // the new site's name when the site changed
+  siteChanged: boolean;
+}): string {
+  if (change.curtailed) return "it's now shorter";
+  const place = change.newSite ? `it's now at ${change.newSite}` : "the place has changed";
+  if (change.siteChanged && change.timesChanged) return `new times, and ${place}`;
+  if (change.siteChanged) return place;
+  return "the times have changed";
+}
+
+// shift_cancelled_by_firm (WhatsApp, utility): the office cancelled a booked shift, or the booking.
+export function shiftCancelledByFirmMessage(
+  firm: FirmVoice,
+  shift: { date: string; site: string | null; start: string; end: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Your shift on ${shift.date} ${shift.start}–${shift.end}${at} has been cancelled by the office. Open shifts: ${shift.link}. — ${firm.signOff}`;
+}
+
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
 // or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
 export function shiftReminder24hMessage(
@@ -248,4 +289,19 @@ export function offerPush(shift: { site: string | null; date: string; start: str
 } {
   const at = shift.site ? ` at ${shift.site}` : "";
   return { title: "Shift available", body: `${shift.date} ${shift.start}${at}. Tap to take it.` };
+}
+
+// Push (title / body), docs/messaging-templates.md "Push": the office changed or cancelled a booked
+// shift.
+export function firmChangePush(
+  change:
+    | { kind: "changed"; date: string; change: string }
+    | { kind: "cancelled"; date: string; start: string },
+): { title: string; body: string } {
+  return change.kind === "changed"
+    ? { title: "Shift changed", body: `${change.date}: ${change.change}. Tap to see it.` }
+    : {
+        title: "Shift cancelled",
+        body: `${change.date} ${change.start} was cancelled by the office.`,
+      };
 }

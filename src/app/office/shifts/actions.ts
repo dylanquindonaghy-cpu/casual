@@ -4,7 +4,12 @@ import { z } from "zod";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
 import type { OfficeContext } from "@/lib/office/quick-actions";
-import { assignWorker } from "@/lib/office/quick-actions";
+import {
+  assignWorker,
+  cancelBookingByOffice,
+  cancelShift,
+  moveShift,
+} from "@/lib/office/quick-actions";
 import {
   createShifts,
   createShiftsSchema,
@@ -15,6 +20,9 @@ import {
 } from "@/lib/office/shift-editor";
 import { importShiftsFile, type ShiftImportResult } from "@/lib/office/shift-import";
 import type { BookingResult } from "@/lib/roster/book";
+import type { CancelBookingResult, CancelShiftResult } from "@/lib/roster/cancel";
+import type { MoveShiftResult } from "@/lib/roster/firm-change";
+import { FIRM_CHANGE_REASON_CODES } from "@/lib/roster/firm-reasons";
 import { OVERRIDABLE_CODES } from "@/lib/rules/eligibility";
 import { requestLog } from "@/lib/request";
 
@@ -84,4 +92,48 @@ export async function assignAction(raw: unknown): Promise<BookingResult | Common
   if (!input.success) return { status: "not_found" };
   const { shiftId, workerId, override } = input.data;
   return asOffice("assign", (ctx) => assignWorker(ctx, shiftId, workerId, override));
+}
+
+const reasonSchema = z.enum(FIRM_CHANGE_REASON_CODES);
+
+const moveSchema = z.strictObject({
+  date: z.string().max(20),
+  start: z.string().max(10),
+  end: z.string().max(10),
+  siteId: z.string().max(100),
+  reason: reasonSchema,
+});
+
+// Move or shorten a booked shift: a reason from the list is required.
+export async function moveShiftAction(
+  shiftId: string,
+  raw: unknown,
+): Promise<MoveShiftResult | Common | { status: "no_reason" }> {
+  if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
+  const input = moveSchema.safeParse(raw);
+  if (!input.success) return { status: "no_reason" };
+  return asOffice("move shift", (ctx) => moveShift(ctx, shiftId, input.data));
+}
+
+export async function cancelShiftAction(
+  shiftId: string,
+  reason: unknown,
+): Promise<CancelShiftResult | Common | { status: "no_reason" }> {
+  if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
+  const r = reasonSchema.safeParse(reason);
+  if (!r.success) return { status: "no_reason" };
+  return asOffice("cancel shift", (ctx) => cancelShift(ctx, shiftId, r.data));
+}
+
+export async function cancelBookingAction(
+  shiftId: string,
+  workerId: string,
+  reason: unknown,
+): Promise<CancelBookingResult | Common | { status: "no_reason" }> {
+  if (!z.uuid().safeParse(shiftId).success || !z.uuid().safeParse(workerId).success) {
+    return { status: "not_found" };
+  }
+  const r = reasonSchema.safeParse(reason);
+  if (!r.success) return { status: "no_reason" };
+  return asOffice("cancel booking", (ctx) => cancelBookingByOffice(ctx, shiftId, workerId, r.data));
 }

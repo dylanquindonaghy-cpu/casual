@@ -75,8 +75,36 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "shift.cancelled": {
       const notice = hours(d.noticeHours);
       const who = byOffice ? `${officeName} cancelled ${worker}` : `${worker} cancelled`;
-      return `${who}${notice ? `, with ${notice}` : ""}.`;
+      const reason = byOffice && typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
+      return `${who}${notice ? `, with ${notice}` : ""}.${reason}`;
     }
+    case "shift.moved":
+    case "shift.curtailed": {
+      const notice = hours(d.noticeHours);
+      const what = e.action === "shift.moved" ? "moved" : "shortened";
+      const reason = typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
+      const rules =
+        d.rulesOk === false ? " The rules said they may not be able to work the new time." : "";
+      return `${officeName} ${what} ${worker}'s shift${notice ? `, with ${notice}` : ""}.${reason}${rules}`;
+    }
+    case "shift.move_refused":
+      return `${officeName} tried to move the shift. Not moved: someone booked can't work the new time.`;
+    case "shift.cancelled_by_firm":
+      return `${officeName} cancelled the shift.${typeof d.reason === "string" ? ` Reason: ${d.reason}.` : ""}`;
+    case "shift.change_notice":
+      return `Telling ${worker} about the change.`;
+    case "shift.change_notice_sent":
+      return `${worker} was told about the change.`;
+    case "shift.change_notice_failed":
+      return `Telling ${worker} about the change failed.`;
+    case "shift.change_notice_held":
+      return d.afterStart
+        ? `Telling ${worker} waits for quiet hours to end, after the start: phone them.`
+        : `Telling ${worker} waits for quiet hours to end.`;
+    case "shift.change_notice_skipped":
+      return d.reason === "unchanged"
+        ? `${worker} wasn't told: the shift is back to what they knew.`
+        : `${worker} wasn't told about an older change (there's a newer one, or they're not booked).`;
     case "shift.marked_urgent":
       return d.cause === "office"
         ? `${officeName} marked it urgent.`

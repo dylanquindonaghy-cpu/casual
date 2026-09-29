@@ -173,7 +173,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
 - [x] Today view: gaps, urgent shifts with wave status, fresh cancellations with notice hours,
       pending requests, credential expiries this week, quick actions
 - [x] Shifts: create/edit, bulk create for an event, CSV import, manual assign with logged override
-- [ ] **Firm-initiated cancel / move / curtail**: reason required; notice hours logged per assigned
+- [x] **Firm-initiated cancel / move / curtail**: reason required; notice hours logged per assigned
       worker; workers notified (compliance-critical, see `docs/api-and-jobs.md`)
 - [ ] Mark no-show / completed
 - [ ] Approve/decline requests (time changes, swaps, availability, general) with a note → worker notified
@@ -604,9 +604,45 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Booked workers aren't told when the instructions change: do it with the move task's notices.
   - No upper limit on how far ahead a shift can be created; raising the places on an urgent shift
     that had filled doesn't restart its offers ("Mark urgent" again does).
+- Firm-initiated changes follow-ups (Phase 5):
+  - **Dylan to confirm:** the reason list ("The event's times or place changed", "The event was
+    cancelled", "The client needs fewer staff", "Weather or safety", "Another reason"); "Another
+    reason" carries no detail (events refuse free text).
+  - **Dylan to confirm:** a move is refused while anyone booked fails a check the office can't
+    override at the new time (a credential, their role, a clash): the office cancels them first,
+    with notice. Anyone failing only an overridable check (rest, weekly hours, a day off) stays
+    booked and is listed. Should a move ask each worker to confirm instead?
+  - **Dylan to confirm:** how the office records a worker's own cancellation when they ring or
+    message in. For now there's no such option: an office cancellation is always the firm's (the
+    firm's reason, notice logged, the worker told). Option: a "They asked to cancel" reason that
+    records it as theirs (`cancelled_worker`) and sends them the usual cancellation confirmation
+    (`cancellation_ack`), so they can see it was recorded and object if it wasn't them.
+  - **Dylan to confirm:** a change notice is urgent (sent at night if the firm lets urgent
+    through) when the shift starts within the firm's urgent window; otherwise it waits for the
+    morning.
+  - Role changes for a booked shift are still refused (cancel and rebook).
+  - The Sheets sync's moves, curtailments and cancellations don't queue notices yet (the parked
+    "Workers aren't told when an office edit in the sheet…"): reuse `queueFirmChangeNotice()`.
+  - Compensation for short-notice changes: Stage 2 (docs/compliance.md), from these events.
+  - **Dylan to confirm:** "The client needs fewer staff" on one booking still reopens the place
+    (and, close to the start, offer waves start for it). Lower the places instead for that reason?
+  - **Dylan to confirm:** notice hours for a move count from the old start, so a move to an earlier
+    time overstates the notice the worker had (the new start and the change time are both logged,
+    so it can be worked out later).
+  - A move doesn't re-schedule the office's escalation email (still due at the old start minus X
+    hours) or re-check urgency; workers whose offers expired aren't offered it again by later
+    waves; open time-change or swap requests on a cancelled or moved shift stay open; a notice
+    left "sending" by a crash isn't shown to the office; the message says "New time:" even when
+    only the site changed (a template variant would fix it); a notice whose send failed still
+    counts as what the worker was last told when the next change is described; firm-change
+    events log the reason's words, not its code (log the code too, so the notice report groups
+    reliably if the wording changes).
+  - Other office client buttons (edit shift, create, import, offer, quick actions) can be clicked
+    before the page is hydrated and then do nothing: give them `useHydrated()` like the assign,
+    move and cancel buttons.
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
-  pack is `src/lib/messaging/whatsapp-templates.ts`: 12 templates (5 are "no site" variants), each
+  pack is `src/lib/messaging/whatsapp-templates.ts`: 16 templates (6 are "no site" variants), each
   with its category, language (English UK), body with `{{1}}`-style variables and sample values. A
   test proves the code sends exactly these words.
   1. In the Twilio Console, open Messaging → Content Template Builder → Create new.
@@ -759,3 +795,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.3 | Phase 4 tests: a fake job worker runs the real queue on a fake clock, so wave timing is tested end to end (every 15 minutes, stop on fill, the office emailed once, quiet hours, the start ends it); the notification policy is tested for offers and reminders alike (channel order, quiet hours, daily cap, no double sends), and over a whole chain only eligible workers who want offers get anything; 1827 tests + 25 e2e; verified and audited DONE. Phase 4 done except the 3 blocked tasks: 3.5 h of the 27–37 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 5 | 1.0 | Today view: the office dashboard now shows urgent shifts with wave status, gaps in the next 7 days, cancellations in the last 24 hours with notice, requests waiting and credentials expiring this week, with quick actions (offer to someone, mark urgent or not, mark as filled and undo); office offers go through the same rules, daily cap and quiet hours as every offer (new schema: office offers on the offers table); the review caught a misleading "offer on its way" after a failed send and a daily-cap race (both fixed and tested); 1886 tests + 28 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.6 | Office shift screens: a 4-week shift list, create one shift or up to 12 for an event (nothing saved unless every line is right), edit (booked shifts: places and instructions only, moves come with the next task), import a .csv/.xlsx checked first, and each shift's page with its places, offers, history in plain words and "Assign someone" (the rules' answer first; the office may override only rest, hours, a day off or a started shift, with a logged reason); the review caught a closed shift reopening on edit and the import moving a booked shift's site (both fixed and tested); 1924 tests + 31 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 5 | 1.1 | Office cancels, moves and shortens: a reason from a fixed list is required; each booked worker's notice hours are logged; each is told by a notice job (once only, from what they last knew to what's true now, quiet hours unless the shift is close or under way); a move is refused while anyone booked fails a rule the office can't override; the reviews caught a lost message when changes stacked up and an office "they asked to cancel" that told nobody (fixed; the second parked for Dylan); two e2e root causes fixed (a shared login limit, a button clicked before the page was ready); 1965 tests + 32 e2e; verified and audited DONE (see docs/work-log.md) |

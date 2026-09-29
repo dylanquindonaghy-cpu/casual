@@ -14,8 +14,8 @@ import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeCanPlace } from "../roster/book";
 import { refreshShiftStatus } from "../roster/native";
-import { normaliseRole, parseSheetDate, parseSheetTime } from "../roster/sheets/parse";
-import { nextDay, zonedToUtc } from "../time/zoned";
+import { normaliseRole } from "../roster/sheets/parse";
+import { isoDate, timesOn } from "../roster/shift-times";
 import type { OfficeContext } from "./quick-actions";
 
 // The office's shift editor (docs/screens.md `/office/shifts`): creating shifts one at a time or
@@ -81,28 +81,6 @@ interface CheckedLine {
 // A line left empty: no role, start or finish (the places box starts at 1, so it doesn't count).
 const blankLine = (l: z.output<typeof lineSchema>) =>
   !l.role.trim() && !l.start.trim() && !l.end.trim();
-
-// The start and finish on the date, in the firm's time zone; a finish at or before the start is
-// the next day.
-function timesOn(
-  date: { year: number; month: number; day: number },
-  start: string,
-  end: string,
-  timeZone: string,
-): { startsAt: Date; endsAt: Date } | null {
-  const s = parseSheetTime(start);
-  const e = parseSheetTime(end);
-  if (!s || !e) return null;
-  const startsAt = zonedToUtc({ ...date, ...s }, timeZone);
-  let endsAt = zonedToUtc({ ...date, ...e }, timeZone);
-  if (endsAt.getTime() <= startsAt.getTime()) {
-    endsAt = zonedToUtc({ ...nextDay({ ...date, ...e }), ...e }, timeZone);
-  }
-  return { startsAt, endsAt };
-}
-
-const isoDate = (raw: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(raw.trim()) ? parseSheetDate(raw.trim()) : null;
 
 const headcountOf = (raw: string) => {
   const n = Number(raw.trim());

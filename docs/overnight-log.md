@@ -3285,3 +3285,150 @@ To reach DONE: nothing — this sub-task (line 2 of Phase 5) is fully proven by 
   for the next task; the 1 MB web import.
 - Instructions changes aren't notified; no picker search or list filters; big imports in the
   background; no upper date limit; raised places on a filled urgent shift don't restart offers.
+
+## 2026-09-29 08:48 UTC: Phase 5, "Firm-initiated cancel / move / curtail: reason required; notice hours logged per assigned worker; workers notified"
+
+**Plan** (docs/api-and-jobs.md, "Firm-initiated changes"; golden rule 12; docs/compliance.md,
+Employment Rights Act). On the office's shift page, for admins and resourcers:
+1. **Reasons** come from a fixed list (`FIRM_CHANGE_REASONS`):
+   - "The event's times or place changed";
+   - "The event was cancelled";
+   - "The client needs fewer staff";
+   - "Weather or safety";
+   - "Another reason".
+
+   The words go in the action log, as the Sheets sync does ("Times changed on the rota sheet").
+   Free text never does. Required for every change.
+2. **Cancel the shift** (`cancelShiftByFirm` in `src/lib/roster/cancel.ts`, the only file allowed
+   to cancel bookings):
+   - each confirmed booking is cancelled through the plug's `markCancelled` (`cancelled_firm`,
+     notice hours from the start, the reason's words on the row);
+   - logged `shift.cancelled` {by: "firm", shiftId, workerId, reason, noticeHours} per worker;
+   - the shift's status becomes `cancelled`, offers still out expire, and a shift-level
+     `shift.cancelled_by_firm` {reason, bookings} is logged;
+   - one notice job per worker. No urgent waves (the shift is gone). Not a started shift, and
+     not a Google Sheet's.
+3. **Cancel one booking** (the existing `cancelBooking` with `by: office`): the reason from the
+   list, which also goes in its event, and a notice job for that worker.
+4. **Move or shorten** (`moveShiftByFirm`, `src/lib/roster/firm-change.ts`): new date, times
+   and/or site.
+   - It's **curtailed** when the new times sit inside the old ones at the same site; otherwise
+     **moved** (the Sheets sync's rule).
+   - Per confirmed worker: `shift.curtailed` / `shift.moved` {by: "firm", shiftId, workerId,
+     reason, old/new times, old/new site, noticeHours (from the old start)}, and a notice job.
+   - Offers still out expire, and `shift.changed` is logged for the shift.
+   - Workers stay booked. The rules are then run for each of them at the new time
+     (`previewBooking`; the shift itself is excluded from their other bookings), and anyone who
+     may not be able to work it is listed for the office (code decides, the office acts).
+5. **Notice job** `firm-change-notice` (a firm task, ids only: the change event's id and the
+   assignment).
+   - At most once: claim under an advisory lock (the `shift.change_notice` event), send outside
+     any transaction, then record the outcome (`shift.change_notice_sent` / `_failed`).
+   - Quiet hours: urgent when the old start is within the firm's urgent window (so a late change
+     reaches the worker at night if the firm allows urgent), otherwise it waits for the morning.
+   - `shift_changed_by_firm` ({change}: "the times have changed" / "it's now shorter" / "the place
+     has changed" / "the times and place have changed") or a new `shift_cancelled_by_firm`. The
+     worker's channel and fallback, a push, "no site" variants, and the WhatsApp pack updated.
+6. **Tests:** each change on the real database (events per worker with notice hours, statuses,
+   offers, refusals, roles, other firms), the notice job (message words, at most once, quiet
+   hours, failures), the boundary tests, the copy and pack tests, and an e2e run (move a booked
+   shift, cancel a booking, see the notice logged).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Reasons from a fixed list, in the log | Events never hold free text (personal data); the notice report needs a reason | A typed reason on the row only (not reportable) |
+| A moved worker stays booked, with a rules check shown to the office | The office decides whether to cancel them (with notice) | Cancel them automatically (the worker may be fine) |
+| Notice hours counted from the old start | Matches the Sheets sync and the cancellation rule | From the new start |
+| Firm-change messages are urgent inside the urgent window | A late cancellation must reach someone before they travel | Always wait for the morning |
+| A new `shift_cancelled_by_firm` template | `shift_changed_by_firm` says "New time: …", which a cancellation has none of | Reuse it with odd wording |
+| At-most-once notices using a claim event under a lock | No new table; the same guarantee as reminders | At-least-once in one transaction |
+
+**Root causes (while building):**
+- The notice jobs are created in one transaction and share `created_on`, so ordering by it was
+  flaky (found when a deliberate break made another test run first). Ordered by event id.
+- Three test mistakes in the new e2e: a text match hit both a summary and its button; a select
+  matched the hidden reason box of the closed cancel panel; a first version assumed a job order.
+
+**Guardrails review: FIX FIRST (2), both fixed.**
+1. **A move could leave someone booked whose credential no longer covers the new day, and the
+   check wasn't logged** (golden rules 5 and 6).
+   - **Fix:** before anything is written, the rules run for each booked worker at the new time. If
+     anyone fails a check the office can't override (credential, role, clash), nothing moves: the
+     result is `blocked`, with their names and reasons, so the office cancels those bookings first,
+     with notice.
+   - Otherwise every worker's event records `rulesOk` (and `codes`), and overridable problems are
+     listed.
+   - Tested: an expiry between the old and new date, a clash, and a day off.
+2. **Quiet hours looked only at the old start.**
+   - **Fix:** urgency uses the earlier of the old and new start. Tested: at 23:00 a shift moved to
+     06:00 tomorrow is told at once.
+
+**Lesser suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| Held notices left no trace, and an after-quiet job could be dropped | `shift.change_notice_held` {until, afterStart} is logged, the job is queued again every time, and the history says "phone them" when it will arrive after the start; tested |
+| Office cancels accepted free text | Kept (the booking-approval flow will use it), but the office screen offers only the list. (Round 1 also added "They asked to cancel"; the re-review below removed it.) |
+| Shift cancel skipped unexpected results | It throws, so the whole cancellation rolls back |
+| Out-of-date notices | Skipped and logged (`superseded` by a later change, or `not_booked`); tested |
+| Tests: concurrent notices, cross-tenant, early move in quiet hours, expiry, e2e "told" | All added (the e2e accepts "told" or "held for quiet hours", so it passes at night) |
+| `shift.changed` from/to missing the site | Added |
+| "Ended" reply pointed to an unbuilt feature | Reworded |
+| "Fewer staff" reopens the place; notice counted from the old start; escalation not re-scheduled; stale requests; "sending" not shown; "New time:" for a site-only change | Parked (two as **Dylan to confirm**) |
+
+**Guardrails re-review: FIX FIRST (2), both fixed.**
+1. **A superseded notice lost information.** Moved to another day and site, then only the times
+   changed before the worker was told: the one message sent described only the last step, so
+   they never heard about the new day and site.
+   - **Root cause:** each notice was built from its own change event's old and new values, while
+     the out-of-date rule threw the earlier notices away.
+   - **Fix:** the notice describes the shift as the worker last knew it (the "as it was" of the
+     earliest move since their last notice) and as it is now. A cancellation after an untold move
+     names the shift they knew. Moved and moved back before they were told: nothing is sent
+     (`shift.change_notice_skipped` {reason: "unchanged"}). Urgency uses the soonest start still
+     ahead of the two.
+   - Tested: two moves then one message naming Saturday at Riverside Arena; a third move after
+     that describes it from Sunday at Other Stadium; a move then a cancellation; a move and back.
+2. **"They asked to cancel" let the office record a cancellation as the worker's with no message
+   to them**, so a mistaken or false entry would count as the worker's short notice (golden
+   rule 12 evidence) and they'd never know.
+   - **Decision (Dylan to confirm, parked):** the option is removed. An office cancellation is
+     always the firm's: the firm's reason, notice logged, the worker told. The parked option is a
+     "They asked to cancel" reason that records it as theirs and sends them the usual
+     cancellation confirmation.
+
+**Re-review suggestions, all done:**
+
+| Suggestion | Done |
+|---|---|
+| No rules answer for someone (their record missing) counted as overridable | Counts as a no the office can't override ("Their record couldn't be checked.") |
+| A refused move left no trace | `shift.move_refused` {by, reason, workers: [{workerId, codes}]} in a short transaction after the rollback; in the history; tested |
+| The history hid a failed rules check on a move | "The rules said they may not be able to work the new time."; tested |
+| "Cancel each booking instead" for a started shift (the page offers no booking cancel once it has started) | "This shift has started, so it can't be cancelled." |
+
+**Guardrails re-check of the fixes: FIX FIRST none ("SAFE TO COMMIT, once verify.sh prints
+VERIFIED").** Suggestions:
+
+| Suggestion | Done |
+|---|---|
+| A Google Sheet's `shift.moved` has no `oldSiteId`, read as "no site" | Missing means the site didn't change |
+| The claim lock was per change, so two claims for one booking could run side by side | The lock is per booking; each claim sees the one before |
+| No history words for an "unchanged" skip | "{name} wasn't told: the shift is back to what they knew."; tested |
+| An office cancel of a booking on a shift under way at night waited for the morning | A shift under way is urgent; tested |
+| Log the reason code as well as its words | Parked |
+
+**Verify round 1: NOT VERIFIED (e2e, 2 failed).** Root causes:
+1. `office.today` got "Too many tries": the seeded resourcer's email is limited to 3 login links
+   every 15 minutes, and the new spec made it the fourth. (Each test already gets its own IP; the
+   per-email limit was still shared.) **Fix:** the new spec adds and uses an office user of its
+   own (`addOfficeUser` in `tests/e2e/db.ts`); the limit is unchanged.
+2. `office.changes`: the "Assign {name}" click sent no request (the trace shows none). "Check" is a
+   plain GET form, so the page reloads, and the Assign button is a client button that does nothing
+   until React has hydrated the page. Under `next dev` that can take seconds, and the test clicked
+   in between. A real user on a slow connection would hit the same dead button. **Fix:**
+   `useHydrated()` (`src/app/use-hydrated.ts`): the assign, move and cancel buttons stay disabled
+   until they work (Playwright waits for an enabled button). Other office buttons from earlier
+   tasks: parked.
+

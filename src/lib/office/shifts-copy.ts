@@ -1,6 +1,9 @@
 import type { ImportResult } from "../imports/import";
 import { PROBLEM_TEXT } from "../imports/messages";
 import type { BookingResult } from "../roster/book";
+import type { CancelBookingResult, CancelShiftResult } from "../roster/cancel";
+import type { MoveShiftResult } from "../roster/firm-change";
+import { noticeText } from "../portal/cancel-reasons";
 import type { CreateShiftsResult, EditShiftResult, ShiftProblem } from "./shift-editor";
 import type { ShiftImportResult } from "./shift-import";
 import { FILE_ERROR_TEXT } from "../imports/messages";
@@ -77,7 +80,7 @@ export function editResultText(result: EditShiftResult | Common): string {
     case "invalid":
       return result.problems.map((p) => SHIFT_PROBLEM_TEXT[p]).join(" ");
     case "has_bookings":
-      return "People are booked on this shift, so its date, times, role and site can't change here. Moving a booked shift comes with the office's move and cancel screen.";
+      return 'People are booked on this shift, so its date, times, role and site can\'t change here. Use "Move, shorten or cancel" below: everyone booked is told.';
     case "below_bookings":
       return "There are more people booked than that. Cancel a booking first, or keep more places.";
     case "not_open":
@@ -134,6 +137,92 @@ export function assignResultText(result: BookingResult | Common, name: string): 
       return "Try again in a few minutes.";
     case "needs_approval":
       return "This rota can't be changed from here.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+type NoReason = { status: "no_reason" };
+const NO_REASON = "Choose a reason.";
+
+export function moveResultLines(result: MoveShiftResult | Common | NoReason): string[] {
+  switch (result.status) {
+    case "moved":
+    case "curtailed": {
+      const what = result.status === "moved" ? "Moved" : "Shortened";
+      const told =
+        result.told === 0
+          ? "Nobody was booked on it."
+          : `${plural(result.told, "person", "people")} booked will be told. Their notice: ${noticeText(result.noticeHours)}.`;
+      return [
+        `${what}. ${told}`,
+        ...result.warnings.map(
+          (w) => `${w.name} may not be able to work the new time: ${w.reasons.join(" ")}`,
+        ),
+      ];
+    }
+    case "unchanged":
+      return ["Nothing changed."];
+    case "blocked":
+      return [
+        "Not moved: these people can't work the new time, for reasons that can't be overridden. Cancel their bookings first (they'll be told), then move it.",
+        ...result.workers.map((w) => `${w.name}: ${w.reasons.join(" ")}`),
+      ];
+    case "invalid":
+      return [SHIFT_PROBLEM_TEXT[result.problem]];
+    case "not_open":
+      return ["This shift has started or was cancelled, so it can't be moved."];
+    case "sheet":
+      return ["This shift comes from your Google Sheet. Change it there."];
+    case "not_found":
+      return ["We can't find that shift."];
+    case "no_reason":
+      return [NO_REASON];
+    default:
+      return [COMMON[result.status]];
+  }
+}
+
+export function cancelShiftResultText(result: CancelShiftResult | Common | NoReason): string {
+  switch (result.status) {
+    case "cancelled":
+      return result.bookings === 0
+        ? "Shift cancelled. Nobody was booked on it."
+        : `Shift cancelled. ${plural(result.bookings, "person", "people")} booked will be told, and the notice they had is logged.`;
+    case "unchanged":
+      return "This shift is already cancelled.";
+    case "started":
+      return "This shift has started, so it can't be cancelled.";
+    case "sheet":
+      return "This shift comes from your Google Sheet. Change it there.";
+    case "not_found":
+      return "We can't find that shift.";
+    case "no_reason":
+      return NO_REASON;
+    default:
+      return COMMON[result.status];
+  }
+}
+
+export function cancelBookingResultText(
+  result: CancelBookingResult | Common | NoReason,
+  name: string,
+): string {
+  switch (result.status) {
+    case "cancelled":
+      return `Cancelled ${name}'s booking with ${noticeText(result.noticeHours)}. They'll be told.`;
+    case "not_assigned":
+      return `${name} isn't booked on this shift any more.`;
+    case "ended":
+      return "This shift has ended, so bookings on it can't be cancelled.";
+    case "started":
+      return "This shift has started.";
+    case "needs_approval":
+      return "This rota can't be changed from here.";
+    case "not_found":
+      return "We can't find that shift or person.";
+    case "no_reason":
+      return NO_REASON;
     default:
       return COMMON[result.status];
   }

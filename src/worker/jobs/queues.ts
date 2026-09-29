@@ -2,6 +2,7 @@ import type { Queue } from "pg-boss";
 import { SEND_LOGIN_CODE_QUEUE } from "../../lib/auth/send-login-code";
 import { SEND_PORTAL_LINK_QUEUE } from "../../lib/auth/send-portal-link";
 import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/credentials/scan";
+import { FIRM_CHANGE_NOTICE_QUEUE } from "../../lib/notices/firm-change";
 import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
 import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
 import { SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDERS_QUEUE } from "../../lib/reminders/send";
@@ -37,6 +38,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   ESCALATE_SHIFT_QUEUE,
   SHIFT_REMINDERS_QUEUE,
   OFFICE_OFFER_QUEUE,
+  FIRM_CHANGE_NOTICE_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);

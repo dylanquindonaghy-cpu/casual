@@ -17,20 +17,26 @@ export interface EventInput {
   data?: Record<string, unknown>;
 }
 
-export async function recordEvent(tx: FirmTx, event: EventInput): Promise<void> {
+// Returns the new event's id (a job can then carry it instead of the event's details).
+export async function recordEvent(tx: FirmTx, event: EventInput): Promise<number> {
   const firmId = activeFirmId();
   if (!firmId) throw new Error("recordEvent must be called inside withFirm");
   const data = event.data ?? {};
   if (JSON.stringify(redact(data)) !== JSON.stringify(data)) {
     throw new Error(`events.data for ${event.action} holds personal or secret data`);
   }
-  await tx.insert(events).values({
-    firmId,
-    actorType: event.actorType,
-    actorId: event.actorId ?? null,
-    action: event.action,
-    entityType: event.entityType,
-    entityId: event.entityId ?? null,
-    data,
-  });
+  const [row] = await tx
+    .insert(events)
+    .values({
+      firmId,
+      actorType: event.actorType,
+      actorId: event.actorId ?? null,
+      action: event.action,
+      entityType: event.entityType,
+      entityId: event.entityId ?? null,
+      data,
+    })
+    .returning({ id: events.id });
+  if (!row) throw new Error("event insert returned nothing");
+  return row.id;
 }

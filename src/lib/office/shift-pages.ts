@@ -158,6 +158,7 @@ export interface ShiftDetail {
   places: {
     assignmentId: string;
     slot: number;
+    workerId: string | null;
     worker: string;
     status: string;
     cancelledAt: Date | null;
@@ -358,6 +359,7 @@ export async function officeShiftDetail(
       places: placeRows.map((p) => ({
         assignmentId: p.id,
         slot: p.slot,
+        workerId: p.worker_id,
         worker: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim(),
         status: p.status,
         cancelledAt: p.cancelled_at ? new Date(p.cancelled_at) : null,

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { classifyMessage } from "../ai/classify-message";
 import { noAi, type AiClient } from "../ai/client";
@@ -8,7 +8,7 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { errorCode, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
-import { sendToWorker } from "../notify/send";
+import { sendToWorker, smsAllowedFor } from "../notify/send";
 import {
   shiftsLineReply,
   unknownNumberAlertEmail,
@@ -18,10 +18,12 @@ import {
 } from "../messaging/templates";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
+import { lockUnhandled } from "./claim";
 import { inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
+import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from "./opt-out";
 
-// Answering a WhatsApp or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
+// Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
 // docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
 // One job per stored message (src/lib/inbound/receive.ts, src/lib/inbound/voice.ts). A voicemail
 // always goes to the office (no keywords or AI) and its answer is `voicemail_received`, by the
@@ -29,8 +31,10 @@ import { keywordIntent, type Intent } from "./keywords";
 // crash before the reply goes is simply retried; after it, the reply is never sent again:
 //   1. a read: the message, the firm, the worker by the number it came from (an active worker of
 //      this firm) and a keyword: cancel, pay, shifts or the office, in that order
-//      (src/lib/inbound/keywords.ts). A number that isn't an active worker's: answerUnknown()
-//      below (a polite reply and an office alert, once per number per 24 hours);
+//      (src/lib/inbound/keywords.ts). A text that is only STOP or START (or that Twilio's own
+//      opt-out handling acted on): answerOptOut() (src/lib/inbound/opt-out.ts). A number that isn't
+//      an active worker's: answerUnknown() below (a polite reply and an office alert, once per
+//      number per 24 hours);
 //   2. no keyword: the AI picks one of those four labels from the worker's text, outside any
 //      transaction (src/lib/ai/classify-message.ts); no answer, a failure or anything else: the
 //      office. A message with no text (a photo) goes to the office;
@@ -60,6 +64,7 @@ export type InboundResult =
       reply: "sent" | "failed" | "none"; // the polite reply (none: a former worker, or a repeat)
       alerted: number; // office users emailed
     }
+  | OptOutResult
   | { status: "already" }
   | { status: "gone" };
 
@@ -71,6 +76,7 @@ type Channel = "whatsapp" | "sms" | "voice";
 
 type Read =
   | { kind: "done"; result: InboundResult }
+  | OptOutRead
   | {
       kind: "unknown";
       channel: Channel;
@@ -85,6 +91,7 @@ type Read =
       workerId: string;
       mobile: string;
       notifyChannel: "whatsapp" | "sms"; // how they asked to be messaged (a voicemail's reply)
+      smsAllowed: boolean; // false: they replied STOP to a text
       line: string;
       body: string | null;
       keyword: Intent | null;
@@ -101,6 +108,7 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
       from: messages.fromE164,
       to: messages.toE164,
       body: messages.body,
+      twilioOptOut: messages.twilioOptOut,
     })
     .from(messages)
     .where(eq(messages.id, messageId));
@@ -112,9 +120,36 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
     .where(eq(firms.id, sql`app_current_firm_id()`));
   if (!firm) throw new Error("firm not visible inside its own transaction");
   const from = m.from;
+  // A text saying only STOP or START (or one Twilio's own opt-out handling acted on).
+  if (m.channel === "sms" && from) {
+    const ours = smsOptOutWord(m.body);
+    let word = m.twilioOptOut ?? ours;
+    // YES, or anything else Twilio calls START: only for a number with texts off.
+    if (word === "yes" || (word === "start" && ours !== "start")) {
+      const [off] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(and(eq(workers.mobileE164, from), isNotNull(workers.smsOptedOutAt)));
+      word = off ? "start" : null;
+    }
+    if (word) {
+      return {
+        kind: "opt_out",
+        word,
+        byTwilio: m.twilioOptOut !== null,
+        from,
+        line: m.to,
+        firm: { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) },
+      };
+    }
+  }
   const [worker] = from
     ? await tx
-        .select({ id: workers.id, notifyChannel: workers.notifyChannel })
+        .select({
+          id: workers.id,
+          notifyChannel: workers.notifyChannel,
+          smsOptedOutAt: workers.smsOptedOutAt,
+        })
         .from(workers)
         .where(and(eq(workers.mobileE164, from), eq(workers.status, "active")))
         .limit(1)
@@ -147,6 +182,7 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
     workerId: worker.id,
     mobile: from,
     notifyChannel: worker.notifyChannel,
+    smsAllowed: smsAllowedFor(worker),
     line: m.to,
     body: m.body,
     // A voicemail is for the office: no keywords (nor AI) for it.
@@ -162,16 +198,6 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
 // Where an office request came from, in its payload and event.
 const via = (channel: Channel) => (channel === "voice" ? "voicemail" : channel);
 
-// Locks the message: true if this run is the one handling it (nobody has yet).
-async function lockUnhandled(tx: FirmTx, messageId: string): Promise<boolean> {
-  const [m] = await tx
-    .select({ handledAt: messages.handledAt })
-    .from(messages)
-    .where(eq(messages.id, messageId))
-    .for("update");
-  return m !== undefined && m.handledAt === null;
-}
-
 export async function runInboundMessage(
   payload: InboundMessagePayload,
   run: WithFirm,
@@ -179,6 +205,7 @@ export async function runInboundMessage(
 ): Promise<InboundResult> {
   const c = await run(payload.firmId, (tx) => read(tx, payload.messageId));
   if (c.kind === "done") return c.result;
+  if (c.kind === "opt_out") return answerOptOut(payload, run, deps, c);
   if (c.kind === "unknown") return answerUnknown(payload, run, deps, c);
 
   // Step 2: what they asked: a keyword, else the AI's label (outside any transaction), else the
@@ -260,6 +287,7 @@ export async function runInboundMessage(
   const sent = await sendToWorker(deps, {
     mobile: c.mobile,
     channel: c.channel === "voice" ? c.notifyChannel : c.channel,
+    smsAllowed: c.smsAllowed,
     body: { whatsapp: replyText, sms: replyText },
     from: c.line,
   });
@@ -401,9 +429,12 @@ async function answerUnknown(
       reply = { error: errorCode(err) };
     }
   }
+  // Says whether they were asked for their name: only a WhatsApp from a number nobody here has
+  // gets the polite reply (not a text, a voicemail or a former worker), and only if it went.
   const email = unknownNumberAlertEmail(
     c.firm,
     `${portalUrl(c.firm.slug, deps.baseDomain)}/office`,
+    { askedName: reply !== null && !("error" in reply) },
   );
   let alerted = 0;
   const failures: string[] = [];

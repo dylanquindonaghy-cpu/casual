@@ -300,7 +300,9 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
    firm from the number it was sent to (`resolveFirmByLine()`, `app_firm_by_line()`). The number is
    bought in Twilio and set with `npm run firm:line` (PLAN.md Parking lot, "Connect Twilio").
 1. Twilio webhook → verify signature → store message (idempotent) → queue job → 200. (Built for
-   WhatsApp in Phase 7: `src/lib/inbound/webhook.ts`.)
+   WhatsApp and SMS in Phase 7: `src/lib/inbound/webhook.ts`. A text that is only STOP or START
+   turns that worker's texts off or on, `src/lib/inbound/opt-out.ts`; no sender texts them while
+   off.)
 2. Known worker: keyword match (shifts, cancel, pay, help) → instant reply with the right link.
    Unclear text → Haiku classifies → reply with link or create a request for the office. (Built in
    Phase 7, `src/lib/inbound/reply.ts`, short of Bedrock: the AI only picks one of four labels and

@@ -27,6 +27,7 @@ const profile = (over: Partial<Profile> = {}): Profile => ({
   email: null,
   notifyChannel: "whatsapp",
   offerAlerts: true,
+  textsOff: false,
   credentials: [],
   unavailable: [],
   today: "2026-11-02",
@@ -146,6 +147,13 @@ describe("ProfileView", () => {
     expect(text(render(profile()))).toContain("No days marked.");
   });
 
+  it("says when texts are off (they replied STOP), and how to turn them back on", () => {
+    expect(text(render(profile()))).not.toContain("Texts are off");
+    expect(text(render(profile({ notifyChannel: "sms", textsOff: true })))).toContain(
+      "Texts are off: you replied STOP to one of our texts. We'll send shift messages by WhatsApp. To turn texts back on, text START to our number.",
+    );
+  });
+
   it("shows the notification settings as saved", () => {
     const html = render(profile({ notifyChannel: "sms", offerAlerts: false }));
     const page = text(html);
@@ -171,6 +179,15 @@ describe("the answer to saving the settings", () => {
     );
     expect(savedText("whatsapp", true)).toBe(
       "Saved. We'll send shift messages by WhatsApp. We'll tell you about open shifts.",
+    );
+  });
+
+  it("choosing texts while they're off (replied STOP) says what will really happen", () => {
+    expect(savedText("sms", true, true)).toBe(
+      "Saved. Texts are off, so we'll send shift messages by WhatsApp until you text START. We'll tell you about open shifts.",
+    );
+    expect(savedText("whatsapp", false, true)).toBe(
+      "Saved. We'll send shift messages by WhatsApp. We won't tell you about open shifts.",
     );
   });
 });

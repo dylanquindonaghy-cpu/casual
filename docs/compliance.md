@@ -114,7 +114,9 @@ What the product does about it:
 ## WhatsApp rules
 
 - Business-initiated messages need approved templates (utility for offers and login links).
-- Staff must have given the firm their number for work contact; include opt-out handling.
+- Staff must have given the firm their number for work contact; include opt-out handling. (Built
+  in Phase 7 short of Twilio: STOP to the shifts line by text turns texts off for that worker
+  until START, and no sender texts them meanwhile: docs/messaging-templates.md.)
 - From 1 October 2026 Meta charges per service message beyond 1,000 free per number per month,
   and a payment method must be on file or service messages stop.
 

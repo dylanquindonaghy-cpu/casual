@@ -4,7 +4,7 @@ import { sendToWorker } from "@/lib/notify/send";
 
 // The shared message sender (src/lib/notify/send.ts), used by offer waves and shift reminders:
 // the worker's channel, a refused WhatsApp goes by text, any other failure is reported, never
-// sent again another way.
+// sent again another way; never a text to a worker who replied STOP.
 
 function transport(behaviour: {
   whatsapp?: "ok" | "refused" | "fails";
@@ -24,8 +24,14 @@ function transport(behaviour: {
   return { t, tried };
 }
 
-// No shifts line (a firm without its own number yet): no `from` on the message.
-const input = { mobile: "+447700900123", body: { whatsapp: "Hello", sms: "Hi" }, from: null };
+// No shifts line (a firm without its own number yet): no `from` on the message. Texts allowed
+// (they haven't replied STOP) unless a test says otherwise.
+const input = {
+  mobile: "+447700900123",
+  body: { whatsapp: "Hello", sms: "Hi" },
+  from: null,
+  smsAllowed: true,
+};
 
 describe("sendToWorker", () => {
   it("by WhatsApp when that's the channel", async () => {
@@ -86,6 +92,37 @@ describe("sendToWorker", () => {
       code: "ChannelRefusedError",
     });
     expect(tried).toEqual(["sms"]);
+  });
+
+  it("replied STOP and chose texts: WhatsApp instead, and says so", async () => {
+    const { t, tried } = transport({ whatsapp: "ok", sms: "ok" });
+    expect(
+      await sendToWorker({ transport: t }, { ...input, channel: "sms", smsAllowed: false }),
+    ).toEqual({
+      ok: true,
+      channel: "whatsapp",
+      providerMessageId: "id-whatsapp",
+      fellBackFrom: "sms",
+    });
+    expect(tried).toEqual(["whatsapp"]);
+  });
+
+  it("replied STOP: a refused WhatsApp is never sent as a text (reported as opted out)", async () => {
+    for (const channel of ["whatsapp", "sms"] as const) {
+      const { t, tried } = transport({ whatsapp: "refused", sms: "ok" });
+      expect(
+        await sendToWorker({ transport: t }, { ...input, channel, smsAllowed: false }),
+      ).toEqual({ ok: false, channel: "whatsapp", code: "sms_opted_out" });
+      expect(tried).toEqual(["whatsapp"]);
+    }
+  });
+
+  it("replied STOP: a WhatsApp that goes is just a WhatsApp", async () => {
+    const { t, tried } = transport({ whatsapp: "ok", sms: "ok" });
+    expect(
+      await sendToWorker({ transport: t }, { ...input, channel: "whatsapp", smsAllowed: false }),
+    ).toEqual({ ok: true, channel: "whatsapp", providerMessageId: "id-whatsapp" });
+    expect(tried).toEqual(["whatsapp"]);
   });
 
   it("each channel gets its own text: a text message the SMS version, the fallback too", async () => {

@@ -29,10 +29,13 @@ import {
   shiftUrgentMessage,
   shiftUrgentSms,
   unknownNumberAlertEmail,
+  smsStartedMessage,
+  smsStoppedMessage,
   unknownNumberMessage,
   urgentPush,
   voicemailReceivedMessage,
 } from "@/lib/messaging/templates";
+import { TEXTS_OFF } from "@/app/profile/profile-view";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
 
 // All copy from docs/messaging-templates.md (Phase 4). Every message the code builds is checked
@@ -221,6 +224,13 @@ describe("the code says what the doc says", () => {
     ]);
   });
 
+  it("sms_stopped and sms_started (text only: a plain hyphen), and the profile's texts-off note", () => {
+    const stop = section("STOP and START by text");
+    expect(smsStoppedMessage(docVoice)).toBe(quotes(stop, "`sms_stopped`:")[0]);
+    expect(smsStartedMessage(docVoice)).toBe(quotes(stop, "`sms_started`:")[0]);
+    expect(stop).toContain(`"${TEXTS_OFF}"`);
+  });
+
   it("voicemail_received", () => {
     expect(voicemailReceivedMessage(docVoice, "{ref}")).toBe(docBody("voicemail_received"));
   });
@@ -228,11 +238,17 @@ describe("the code says what the doc says", () => {
   it("unknown_number, and the office's alert email (subject, and the body's words)", () => {
     expect(unknownNumberMessage(docVoice)).toBe(docBody("unknown_number"));
     const office = section("Office notifications");
-    const [subject, ...body] = quotes(office, "`unknown_number_alert`");
-    const email = unknownNumberAlertEmail(docVoice, "{link}");
+    const [subject, first, asked, notReplied, see, signOff] = quotes(
+      office,
+      "`unknown_number_alert`",
+    );
+    // Asked for their name (a WhatsApp from a number nobody has, and it went), or not.
+    const email = unknownNumberAlertEmail(docVoice, "{link}", { askedName: true });
     expect(email.subject).toBe(subject);
-    // The doc's quotes in order, without the Today section's name (the bullet's last quote).
-    expect(words(email.body)).toEqual(words(body.slice(0, -1).join(" ")));
+    expect(words(email.body)).toEqual(words([first, asked, see, signOff].join(" ")));
+    expect(words(unknownNumberAlertEmail(docVoice, "{link}", { askedName: false }).body)).toEqual(
+      words([first, notReplied, see, signOff].join(" ")),
+    );
   });
 
   it("the shifts line's instant replies: each row's words, signed", () => {
@@ -494,6 +510,8 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ["the My shifts banner", credentialMarkedExpiredMessage(voice, "PTS card")],
     ["office_login_link", officeLoginLinkEmail(voice, "L").body],
     ["voicemail_received", voicemailReceivedMessage(voice, "R")],
+    ["sms_stopped", smsStoppedMessage(voice)],
+    ["sms_started", smsStartedMessage(voice)],
   ])("%s", (_name, text) => {
     expect(text).toMatch(/\s[—-] Acme Rota Desk$/);
   });
@@ -591,6 +609,8 @@ describe("every template function is checked here", () => {
         "shiftUrgentSms",
         "unknownNumberAlertEmail",
         "unknownNumberMessage",
+        "smsStartedMessage",
+        "smsStoppedMessage",
         "urgentPush",
         "voicemailReceivedMessage",
       ].sort(),

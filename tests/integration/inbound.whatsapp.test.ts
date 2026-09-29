@@ -454,6 +454,7 @@ describe("replying (the inbound-message job)", () => {
     );
     expect(emails[0]?.body).not.toContain("900998");
     expect(emails[0]?.body).not.toContain("Sam");
+    expect(emails[0]?.body).toContain("We asked them for their full name.");
     // The reply is stored; the log has labels and counts only.
     expect((await t.messageRows()).map((r) => [r.direction, r.handled_as, r.worker_id])).toEqual([
       ["in", "unknown", null],
@@ -524,6 +525,9 @@ describe("replying (the inbound-message job)", () => {
       alerted: 1,
     });
     expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    // The email doesn't claim we asked for their name.
+    const alert = sent[0] as Extract<OutboundMessage, { channel: "email" }>;
+    expect(alert.body).toContain("We haven't replied to them.");
     expect((await t.messageRows())[0]).toMatchObject({ handled_as: "unknown", worker_id: t.ann });
     expect((await t.eventsOf("message.office_alerted"))[0]?.data).toMatchObject({
       reason: "former_worker",

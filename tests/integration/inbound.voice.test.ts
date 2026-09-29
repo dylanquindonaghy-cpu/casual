@@ -628,6 +628,7 @@ describe("a voicemail (the inbound-message job)", () => {
     expect(sent.map((m) => m.channel)).toEqual(["email"]);
     const email = sent[0] as Extract<OutboundMessage, { channel: "email" }>;
     expect(email.body).not.toMatch(/900997|Jo/);
+    expect(email.body).toContain("We haven't replied to them.");
     expect(await requestsOf(t.f.firmId)).toEqual([]);
     expect((await t.eventsOf("message.%")).map((e) => [e.action, e.data])).toEqual([
       [

@@ -17,6 +17,7 @@ const candidate = (
   lastOfferedAt,
   mobile: "+447700900100",
   channel: "whatsapp",
+  smsAllowed: true,
 });
 
 describe("pickWave", () => {

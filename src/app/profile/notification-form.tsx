@@ -10,10 +10,12 @@ import { tryAgainText } from "@/lib/portal/copy";
 export function NotificationForm({
   channel: initialChannel,
   offerAlerts: initialAlerts,
+  textsOff,
   signOff,
 }: {
   channel: Channel;
   offerAlerts: boolean;
+  textsOff: boolean; // they replied STOP to a text: no texts until START
   signOff: string;
 }) {
   const router = useRouter();
@@ -30,7 +32,7 @@ export function NotificationForm({
       if (result.status === "logged_out") return router.replace("/login");
       setMessage(
         result.status === "saved"
-          ? { text: savedText(channel, offerAlerts), alert: false }
+          ? { text: savedText(channel, offerAlerts, textsOff), alert: false }
           : { text: tryAgainText(), alert: true },
       );
     });
@@ -86,10 +88,14 @@ export function NotificationForm({
   );
 }
 
-// The confirmation says what was saved (exported for the tests).
-export function savedText(channel: Channel, offerAlerts: boolean): string {
-  const by = channel === "sms" ? "text message" : "WhatsApp";
-  return `Saved. We'll send shift messages by ${by}. ${
+// The confirmation says what was saved, and what will really happen: texts chosen while they're
+// off (they replied STOP) go by WhatsApp until START (exported for the tests).
+export function savedText(channel: Channel, offerAlerts: boolean, textsOff = false): string {
+  const how =
+    channel === "sms" && textsOff
+      ? "Texts are off, so we'll send shift messages by WhatsApp until you text START."
+      : `We'll send shift messages by ${channel === "sms" ? "text message" : "WhatsApp"}.`;
+  return `Saved. ${how} ${
     offerAlerts ? "We'll tell you about open shifts." : "We won't tell you about open shifts."
   }`;
 }

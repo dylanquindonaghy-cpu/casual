@@ -173,6 +173,15 @@ describe("the page", async () => {
           formerWorkerActive: false,
         },
         {
+          messageId: "m5",
+          channel: "sms",
+          from: "+447700900995",
+          text: "Who is this?",
+          receivedAt: new Date("2026-11-01T06:00:00Z"),
+          formerWorker: null,
+          formerWorkerActive: false,
+        },
+        {
           messageId: "m3",
           channel: "whatsapp",
           from: "+447700900996",
@@ -198,6 +207,10 @@ describe("the page", async () => {
     // A voicemail from a withheld number that couldn't be turned into text.
     expect(page).toContain("Number withheld · 07:00 on Sun 1 Nov · Voicemail");
     expect(page).toContain("(A voicemail we couldn't turn into text.)");
+    // A text message.
+    expect(page).toContain("+44 7700 900995 · 06:00 on Sun 1 Nov · Text");
+    // A WhatsApp says nothing more.
+    expect(page).not.toMatch(/Mon 2 Nov · (Text|Voicemail)/);
   });
 
   it("shows each item with its facts and quick actions", () => {

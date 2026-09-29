@@ -169,6 +169,13 @@
       "when": 1790707506458,
       "tag": "0023_messages_voice",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790709214661,
+      "tag": "0024_sms_opt_out",
+      "breakpoints": true
     }
   ]
 }

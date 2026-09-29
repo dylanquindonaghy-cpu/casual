@@ -276,6 +276,12 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 8: Caddy sets `X-Real-IP` (the app's only source of the client IP) and the web port is
   never published; Postgres TLS with `sslmode=verify-full` and the RDS CA bundle; a compose
   `migrate` service that alone holds `DATABASE_ADMIN_URL`.
+- Phase 7 STOP by text, left for later: a roster sync that changes a worker's number keeps their
+  "texts off" on the row (the safe side, but it's about the old number); a HELP that Twilio's own
+  handling answers also gets our office reply (two replies); if CANCEL stays an opt-out word, the
+  `sms_stopped` confirmation for it could add the cancel link. The SMS fallback for login links
+  (below) must go through sendToWorker() or check the opt-out itself (a test holds direct texts to
+  the STOP confirmation only).
 - Phase 4/7: SMS fallback for login links and codes, with an ASCII " - " sign-off (an em dash
   turns an SMS into UCS-2 and 3 segments).
 - Pay data: `myPay()` (Phase 3) re-checks the stepped-up session it's given (kind, worker and the
@@ -552,7 +558,21 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   4. The status webhook (`POST /api/webhooks/twilio/status`): signature check, the `messages`
      table with `provider_message_id` (golden rule 3), then the 60-second "not delivered → SMS"
      fallback job.
-  5. STOP replies to SMS mark the channel opted out.
+  5. STOP replies to SMS mark the channel opted out. (Built in Phase 7 short of Twilio, and the
+     Phase 7 "STOP handling" task is blocked on this.) On each firm's number (Phone Numbers →
+     Manage → Active numbers → the number → Messaging configuration), set "A message comes in" to
+     `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/sms` (HTTP POST). Check whether Twilio's own
+     opt-out handling is on for UK numbers (Messaging → Services → the service → Opt-out
+     management): if it is, keep its keyword list the same as ours in `src/lib/inbound/opt-out.ts`.
+     To check there: (a) Twilio sends `OptOutType` (which stops us sending a second confirmation)
+     only with its Advanced Opt-Out, I believe; with only its basic STOP handling, our STOP
+     confirmation would be refused (logged as a failed reply) and START confirmed twice: then turn
+     Advanced Opt-Out on, or its own replies off. (b) If the number is in a Messaging Service, the
+     number's own webhook is only used when the service is set to "Defer to sender's webhook".
+     Then text the line "STOP" from a worker's phone: you should get "You won't get texts from
+     {firm} now…" (or Twilio's own reply), their profile says texts are off, and "START" turns them
+     back on. Then tick the STOP task. **Dylan to decide:** drop CANCEL from Twilio's list and
+     ours, so "cancel" alone by text means cancelling a shift, not stopping texts.
   6. Test with 3 real phones (Android, iPhone, an older phone by SMS): the pre-pilot checklist.
   7. **One number per firm (the Phase 7 "shifts line" task is blocked on this):** buy a UK number
      for each firm in Twilio (Phone Numbers → Buy a number, with SMS, voice and WhatsApp), register
@@ -1107,3 +1127,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 7 | 0.7 | Inbound WhatsApp, BLOCKED (not ticked: "Haiku only for unclear text" needs Bedrock, and real WhatsApps need Twilio): built everything short of them: a new `messages` table, Twilio's webhook (signature checked, reproducing Twilio's own example; one row and one job per message, repeats ignored), and the reply job: keywords first (open shifts, cancelling, pay links; "help" makes an office request with a reference), the AI only ever picking one of those replies, with unclear messages going to the office meanwhile; replies from the firm's own number, at most once; the review caught a way a message could be lost and dropouts getting the open shifts link (both fixed and tested); 2344 tests + 40 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.5 | Unknown number, BLOCKED (not ticked: it's set off by a real incoming WhatsApp and replies from the firm's own number, both needing Twilio, like the last two tasks): built everything short of it: a stranger gets the doc's polite "reply with your full name", a former worker gets no reply, and the office's admins and resourcers get an email (no number or message in it); a new "Messages from numbers we don't know" list on Today; at most one reply and one email per number in any 24 hours (so auto-replies can't loop); the review caught two messages at once both being answered (fixed with a lock, and a test that fails without it) and a false "emailed 0 people" log line; 2356 tests + 41 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.8 | Call-to-text, BLOCKED (not ticked: calls, the spoken message and voicemail transcription only exist in Twilio): built everything short of it: Twilio's voice, transcription and "done" webhooks (one shared set of checks, the WhatsApp webhook moved onto it); a caller hears the firm's message in British English and a worker's number gets their login link through the login page's own request (same limits, same answer for any number; a withheld number or a stopped one isn't promised a link); every call stored once; a voicemail's text becomes a request for the office and the worker gets a new `voicemail_received` template by the channel they chose; unknown or withheld callers' voicemails on Today; the review caught 4 things (a free-text WhatsApp a call can't open, a database check that let an empty sender through, voicemails logged as WhatsApps, withheld calls not stored once): all fixed and tested; 2383 tests + 42 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 7 | 0.8 | STOP by text, BLOCKED (not ticked: a STOP only arrives through Twilio's SMS webhook): built everything short of it: the SMS webhook (the shared Twilio checks; one row and one job per text); a text that is only STOP (Twilio's standard words, CANCEL included, "Stop." too) turns that worker's texts off, START back on, with one confirmation text only when it changes and Twilio didn't confirm it itself; the notification policy: every sender now must say whether texts are allowed, and none texts a worker who replied STOP (WhatsApp instead if they chose texts; no text fallback); the profile says texts are off; the review caught a false "Saved… by text message" (fixed) and suggested an out-of-order guard, punctuation, and an office email that no longer claims we asked strangers for their name (all done); 2418 tests + 43 e2e; verified (see docs/work-log.md) |

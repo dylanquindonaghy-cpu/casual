@@ -73,6 +73,9 @@ export const workers = pgTable(
     // The worker's own notification settings (the profile page).
     notifyChannel: text("notify_channel", { enum: NOTIFY_CHANNELS }).notNull().default("whatsapp"),
     offerAlerts: boolean("offer_alerts").notNull().default(true),
+    // When they replied STOP to a text (Phase 7): no texts until they reply START (null: texts are
+    // fine). Every sender reads it with the channel (src/lib/notify/send.ts).
+    smsOptedOutAt: timestamptz("sms_opted_out_at"),
     createdAt: createdAt(),
   },
   (t) => [

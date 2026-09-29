@@ -156,7 +156,7 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
                     ? ` (${u.formerWorker}${u.formerWorkerActive ? "" : ", not active"})`
                     : ""}{" "}
                   · {timeOnDay(u.receivedAt, view.timeZone)}
-                  {u.channel === "voice" ? " · Voicemail" : ""}
+                  {u.channel === "voice" ? " · Voicemail" : u.channel === "sms" ? " · Text" : ""}
                 </p>
                 <p>
                   {u.text

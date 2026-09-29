@@ -39,6 +39,20 @@ describe("messages go from the firm's shifts line", () => {
       "src/lib/inbound/reply.ts",
     ]);
     for (const m of found) expect(m.next, m.path).toMatch(/\bfrom\b/);
+    // Written on one line: the same rule.
+    const oneLine = /\{ channel: "(whatsapp|sms)"(?: as const)?, to: [^,]+, ([^}]*)\}/g;
+    const short = files.flatMap((f) =>
+      [...f.text.matchAll(oneLine)].map((m) => ({ path: f.path, rest: m[2] ?? "" })),
+    );
+    expect(short.map((m) => m.path).sort()).toEqual(["src/lib/inbound/opt-out.ts"]);
+    for (const m of short) expect(m.rest, m.path).toMatch(/\bfrom: /);
+  });
+
+  it("only the STOP / START confirmation sends a text directly: every other text goes through sendToWorker() (never to a worker who replied STOP)", () => {
+    const texts = files.filter((f) =>
+      /channel: "sms"(?: as const)?,\s*(?:\n\s*)?to: /.test(f.text),
+    );
+    expect(texts.map((f) => f.path)).toEqual(["src/lib/inbound/opt-out.ts"]);
   });
 
   it("every call to sendToWorker() or notifyWorker() names `from`", () => {
@@ -60,6 +74,29 @@ describe("messages go from the firm's shifts line", () => {
       expect(c.args, c.path).toMatch(/\bfrom: /);
       // The type checker allows a hard-coded null; the firm's line is the only source.
       expect(c.args, c.path).not.toMatch(/\bfrom: null\b/);
+    }
+  });
+
+  it("every call to sendToWorker() or notifyWorker() passes the worker's own STOP setting", () => {
+    const calls = files.flatMap((f) =>
+      [...f.text.matchAll(/\b(sendToWorker|notifyWorker)\((?:tx, )?deps, \{([\s\S]*?)\}\);/g)].map(
+        (m) => ({ path: f.path, args: m[2] ?? "" }),
+      ),
+    );
+    expect(calls).toHaveLength(7);
+    // Never a hard-coded value: always the worker's, read with their channel.
+    for (const c of calls) expect(c.args, c.path).toMatch(/\bsmsAllowed: \w+\.smsAllowed,/);
+    // Where each reads it: the worker row's sms_opted_out_at.
+    for (const path of [
+      "src/lib/inbound/reply.ts",
+      "src/lib/notices/firm-change.ts",
+      "src/lib/notices/pay-query-update.ts",
+      "src/lib/notices/request-update.ts",
+      "src/lib/offers/candidates.ts", // the offer waves' and the office offer's workers
+      "src/lib/reminders/send.ts",
+    ]) {
+      const text = files.find((f) => f.path === path)?.text ?? "";
+      expect(text, path).toMatch(/smsOptedOutAt|sms_opted_out_at is null as sms_allowed/);
     }
   });
 

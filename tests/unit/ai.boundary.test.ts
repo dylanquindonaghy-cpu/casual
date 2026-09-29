@@ -151,6 +151,16 @@ describe("AI never answers a dispute", () => {
     expect(classify).toMatch(/Promise<Intent \| null>/);
   });
 
+  it("STOP and START get only the app's fixed confirmation texts", () => {
+    const optOut = readFileSync(join(SRC, "lib/inbound/opt-out.ts"), "utf8");
+    expect(optOut.match(/transport\.send\(\{[\s\S]*?\}\)/g)).toEqual([
+      'transport.send({ channel: "sms", to: c.from, from: c.line, body })',
+    ]);
+    expect(optOut).toMatch(
+      /const body = c\.word === "stop" \? smsStoppedMessage\(c\.firm\) : smsStartedMessage\(c\.firm\);/,
+    );
+  });
+
   it("no AI SDK is imported outside src/lib/ai/", () => {
     const sdk = files
       .filter((file) => !isAi(file))
@@ -179,6 +189,7 @@ describe("AI never answers a dispute", () => {
   // The shifts line's webhook, which only checks, stores and queues (the reply job is apart).
   const WEBHOOK_PATH = [
     "src/app/api/webhooks/twilio/whatsapp/route.ts",
+    "src/app/api/webhooks/twilio/sms/route.ts",
     "src/app/api/webhooks/twilio/voice/route.ts",
     "src/app/api/webhooks/twilio/voice/transcription/route.ts",
     "src/app/api/webhooks/twilio/voice/done/route.ts",
@@ -189,6 +200,9 @@ describe("AI never answers a dispute", () => {
     "src/lib/inbound/job.ts",
     "src/lib/inbound/keywords.ts",
     "src/lib/inbound/twilio-signature.ts",
+    // STOP and START by text: answered with fixed texts only, never through the AI.
+    "src/lib/inbound/opt-out.ts",
+    "src/lib/inbound/claim.ts",
   ];
 
   // Payroll's "Mark as sorted and tell them", where the note to the workers is typed and saved;

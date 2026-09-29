@@ -24,6 +24,7 @@ import { localDateOf } from "../time/zoned";
 export interface WaveCandidate extends RotationCandidate {
   mobile: string;
   channel: "whatsapp" | "sms";
+  smsAllowed: boolean; // false: they replied STOP to a text (src/lib/notify/send.ts)
 }
 
 // Holds, until the transaction ends, the lock on each worker's offer count for the day (in id
@@ -67,10 +68,12 @@ export async function waveCandidates(
     worker_id: string;
     mobile: string;
     channel: "whatsapp" | "sms";
+    sms_allowed: boolean;
     last_offered_at: string | Date | null;
     offers_today: number;
   }>(sql`
     select w.id as worker_id, w.mobile_e164 as mobile, w.notify_channel as channel,
+           w.sms_opted_out_at is null as sms_allowed,
            (select max(o.sent_at) from offers o where o.worker_id = w.id) as last_offered_at,
            (select count(*)::int from offers o
              where o.worker_id = w.id and o.response is distinct from 'failed'
@@ -101,6 +104,7 @@ export async function waveCandidates(
       workerId: r.worker_id,
       mobile: r.mobile,
       channel: r.channel,
+      smsAllowed: r.sms_allowed,
       hoursThisWeek: hours.get(r.worker_id) ?? 0,
       lastOfferedAt: r.last_offered_at ? new Date(r.last_offered_at) : null,
     });

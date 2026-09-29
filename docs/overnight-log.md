@@ -4795,3 +4795,91 @@ Everything short of it is built, verified and committed. No auditor round. Next 
 **Commit:** `19bb492` "Phase 7 (BLOCKED, not ticked): Call-to-text: short recorded message, then
 WhatsApp/SMS with the link; optional voicemail transcribed into a request", pushed to
 `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-29 19:09 UTC: Phase 7, "STOP handling for SMS; opt-out respected in the notification policy"
+
+**Blocked (hard limit), like the other Twilio tasks:** a STOP arrives as a real text through
+Twilio's SMS webhook. Everything short of it is built and tested with signed sample requests;
+recorded as blocked, not ticked. The "opt-out respected" half is internal: tests are planned for
+it here, and verify.sh decides.
+
+**Plan:**
+
+1. **Schema** (migration 0024):
+   - `workers.sms_opted_out_at` (null: texts allowed; set by STOP, cleared by START). On the worker
+     row, which is unique per firm and number, so every sender already reading the worker gets it.
+   - `messages.twilio_opt_out` (`stop` / `start`, incoming texts only): Twilio's own `OptOutType`,
+     when its opt-out handling acted on the text (it then sends its own confirmation).
+   - `messages.handled_as` may be `opt_out`.
+2. **`POST /api/webhooks/twilio/sms`**: the same shared checks as the other Twilio webhooks
+   (`readTwilioRequest()`), the fields checked (MessageSid, From and To E.164, Body, OptOutType),
+   the firm by the number texted, one `messages` row (channel `sms`) and one `inbound-message` job,
+   an empty TwiML 200.
+3. **The reply job, for a text**: a whole-message opt-out word, as Twilio's standard English list
+   (STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT → off; START, UNSTOP, YES → on, "YES" only when
+   the number is opted out), or Twilio's `OptOutType`, comes before keywords. In the claim
+   transaction: every worker row with that number marked (off: the first time only; on: cleared),
+   `worker.sms_opted_out` / `worker.sms_opted_in` per worker whose state changed, the message
+   marked `opt_out`. Then one confirmation text, only when a worker's state changed and Twilio
+   didn't already confirm it: `sms_stopped` "You won't get texts from {firm} now. Reply START to
+   turn them back on. - {firm} Shift Team" / `sms_started` "Texts from {firm} are back on. Reply
+   STOP to turn them off. - {firm} Shift Team" (new doc copy; SMS only, so a plain hyphen). Any
+   other text: the same keywords / AI / office path as a WhatsApp, answered by text.
+4. **The notification policy** (`sendToWorker()` / `notifyWorker()` take `smsAllowed`, required,
+   so every sender must say): never a text to an opted-out worker. A worker who chose texts and
+   replied STOP gets WhatsApp instead (`fellBackFrom: sms`); a WhatsApp refused for an opted-out
+   worker doesn't fall back to a text (failed, code `sms_opted_out`). The seven senders (offer
+   waves, office offers, reminders, the three notices, the shifts line's replies) read it with the
+   worker's channel.
+5. **Screens**: the profile's "How we reach you" says when texts are off and how to turn them back
+   on; the office log words; Today marks a text from a number we don't know " · Text".
+6. **Tests**: unit (the opt-out words; sendToWorker's rules; copy against the doc), integration
+   (the SMS webhook; STOP and START, repeats, Twilio's own handling, a former worker, other firms;
+   every sender skipping texts for an opted-out worker), e2e (a signed STOP turns texts off, the
+   confirmation arrives, and the profile says so).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | A STOP only arrives through Twilio | Tick with signed samples |
+| The opt-out lives on the worker row | Unique per firm and number; every sender already reads the worker | A separate opt-out table by number (would also cover strangers, who we never text anyway) |
+| Twilio's standard word list, whole message only (CANCEL included) | Our record must match what Twilio does when its opt-out handling is on; "can I cancel my shift" is not an opt-out, only "cancel" alone | Our own shorter list (would disagree with Twilio). **Dylan to decide**: drop CANCEL from Twilio's list and ours, so "cancel" alone by text cancels a shift |
+| Texts off means WhatsApp instead for a worker who chose texts | STOP turns off a channel, not work contact; offers are their income | No messages at all |
+| One confirmation text, only when the state changed and Twilio didn't send its own | Every action ends with a confirmation; no loops with auto-replies; no double confirmations | Always confirm |
+
+**Built as planned.** Also: `src/lib/inbound/claim.ts` (the claim helper both reply modules use);
+the office alert email now says whether we replied (below). Nothing failed along the way that
+needed a root cause: the type checker listed every sender once `smsAllowed` became required, which
+was the point. Checked the tests bite: with `sendToWorker()` ignoring the opt-out, 7 tests failed;
+with the ordering guard removed, its test failed.
+
+**Guardrails review: FIX FIRST (1 item), done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: choosing "Text message" and saving while texts are off said "Saved. We'll send shift messages by text message." (untrue: they go by WhatsApp) | `savedText()` gets `textsOff`: "Saved. Texts are off, so we'll send shift messages by WhatsApp until you text START."; screens.md; unit and plain-language tests |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| STOP and START handled out of order (a retried job) leave the wrong setting | A STOP or START handled after a later handled one from the same number changes nothing (`superseded` in the event); the worker row's lock puts the jobs in turn; tested (fails without the guard) |
+| The office alert said "we asked them for their full name", untrue for texts, voicemails and former workers | `unknownNumberAlertEmail(…, { askedName })`: "We asked them for their full name." only when the polite reply went, else "We haven't replied to them."; the doc and three integration tests |
+| "Stop." / "STOP!" not recognised; Twilio's newer OPTOUT and REVOKE | A trailing full stop or "!" is ignored; both words added (to check against Twilio's list when connecting); a unit test of the matcher |
+| Twilio's START on a plain "Yes" from a worker with texts on would swallow the message | Anything Twilio calls START that isn't START or UNSTOP follows the YES rule (only when texts are off); tested |
+| Twilio setup notes: `OptOutType` may need Advanced Opt-Out; a Messaging Service ignores the number's webhook unless set to defer | Added to Connect Twilio step 5, hedged ("to check") |
+| The guard test only covered `sendToWorker()` callers | `notify.from-line` now also catches one-line message literals, and holds direct texts to the STOP confirmation only |
+| "fully tested" in this log before verify | Reworded |
+| CANCEL alone turns texts off | Already **Dylan to decide**; parked the idea of adding the cancel link to that confirmation |
+| A number change keeps the opt-out; HELP gets two replies | Parked (Parking lot, "Phase 7 STOP by text, left for later") |
+| reply.ts header, a misplaced comment | Fixed |
+
+**Verify:** `VERIFIED tree=c9f081989204efdd e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2418 tests, 43 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: a STOP only arrives through Twilio). Everything short
+of it is built, verified and committed. No auditor round. Next step is Dylan's: "Connect Twilio"
+step 5.
+
+**Hours:** 0.8 h (19:09 to 19:57 UTC). Phase 7 so far 3.4 h of its 15–20 h estimate.

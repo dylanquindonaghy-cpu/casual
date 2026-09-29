@@ -195,7 +195,14 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     // Requests.
     case "message.received": {
       const voicemail = d.channel === "voice";
-      const what = voicemail ? "A voicemail was left on" : "A WhatsApp came to";
+      const kind = d.channel === "sms" ? "text" : "WhatsApp";
+      if (d.handledAs === "opt_out") {
+        const word = d.optOut === "start" ? "START" : "STOP";
+        return d.workerId
+          ? `${worker} texted ${word} to the shifts line.`
+          : `Someone texted ${word} to the shifts line from a number that isn't one of your staff's.`;
+      }
+      const what = voicemail ? "A voicemail was left on" : `A ${kind} came to`;
       if (d.handledAs === "unknown") {
         return d.formerWorker
           ? `${what} the shifts line from someone who isn't active any more.`
@@ -203,17 +210,22 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       }
       return voicemail
         ? `${who} left a voicemail on the shifts line (for the office).`
-        : `${who} sent a WhatsApp to the shifts line (${INTENT_WORDS[String(d.intent)] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).`;
+        : `${who} sent a ${kind} to the shifts line (${INTENT_WORDS[String(d.intent)] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).`;
     }
     case "call.received":
       return d.withheld
         ? "Someone rang the shifts line from a withheld number."
         : "Someone rang the shifts line. A login link was asked for (it goes only to your staff's numbers).";
     case "message.replied":
+      if (d.reply === "sms_stopped") return `${worker} was told by text that texts are off.`;
+      if (d.reply === "sms_started") return `${worker} was told by text that texts are back on.`;
       return d.reply === "unknown_number"
         ? "The shifts line asked a number we don't know for their full name."
         : `${worker} got the shifts line's reply (${INTENT_WORDS[String(d.intent)] ?? "a message"}).`;
     case "message.reply_failed":
+      if (d.reply === "sms_stopped" || d.reply === "sms_started") {
+        return `The text telling ${worker} texts are ${d.reply === "sms_stopped" ? "off" : "back on"} couldn't be sent.`;
+      }
       return d.reply === "unknown_number"
         ? "The shifts line's reply to a number we don't know couldn't be sent."
         : `The shifts line's reply to ${worker} couldn't be sent.`;
@@ -265,6 +277,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker}'s details were updated.`;
     case "worker.notification_settings_changed":
       return `${worker} changed how we reach them.`;
+    case "worker.sms_opted_out":
+      return `${who} turned off texts (replied STOP). No texts go to them until they reply START.`;
+    case "worker.sms_opted_in":
+      return `${who} turned texts back on (replied START).`;
     case "worker.unavailable_added":
       return `${worker} marked a day off${day(d.day)}.`;
     case "worker.unavailable_removed":

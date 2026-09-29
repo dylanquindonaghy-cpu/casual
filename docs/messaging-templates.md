@@ -31,7 +31,10 @@ Rules:
 - Every outbound message is stored in `messages` and logged in `events`.
 - Replies to an inbound WhatsApp inside the 24-hour window are "service" messages: first 1,000
   per number per month free (from 1 October 2026), then charged per message.
-- Workers can reply STOP to SMS; honour it and mark the channel opted-out.
+- Workers can reply STOP to SMS; honour it and mark the channel opted-out. (Built in Phase 7,
+  short of Twilio: see "STOP and START by text" below. A worker who replied STOP gets no texts from
+  any sender: one who chose texts gets WhatsApp instead, and a WhatsApp refused for them isn't sent
+  as a text. `sendToWorker()` takes `smsAllowed` from every sender.)
 
 ## Sign-off
 
@@ -118,6 +121,24 @@ offer's and the office offer's SMS versions are built so far; the others come wi
   `shift_urgent`; {site} left out when there's none)
 - Confirmed: "{firm}: confirmed {date} {start} at {site}. {link}"
 
+## STOP and START by text
+
+Built in Phase 7 short of Twilio (`src/lib/inbound/opt-out.ts`). A text to the shifts line that is
+only one of Twilio's standard opt-out words (any case): STOP, STOPALL, UNSUBSCRIBE, CANCEL, END or
+QUIT turns texts off for that number's worker; START or UNSTOP turns them back on, and YES does too
+for a number that has them off. The whole message only: "can I cancel my shift" is a cancel, not an
+opt-out. When Twilio's own opt-out handling acted on the text (it says so, `OptOutType`), Twilio has
+sent its own confirmation; otherwise, only when the worker's setting changed, one text (a plain
+hyphen before the sign-off: text only):
+
+- `sms_stopped`: "You won't get texts from {firm} now. Reply START to turn them back on. - {firm}
+  Shift Team"
+- `sms_started`: "Texts from {firm} are back on. Reply STOP to turn them off. - {firm} Shift Team"
+
+The worker's profile says "Texts are off: you replied STOP to one of our texts. We'll send shift
+messages by WhatsApp. To turn texts back on, text START to our number." Any other text to the shifts
+line is answered like a WhatsApp (the instant replies above), by text.
+
 ## Push (title / body)
 
 - Offer: "Shift available" / "{date} {start} at {site}. Tap to take it." (built: `offerPush()`, with
@@ -166,11 +187,12 @@ placeholder numbers for a hidden caller ID count as withheld.
 - Unknown number message (below), failed Sheets sync, domain verified/failed, credential expiries
   (weekly), pay digest (per schedule, below).
 - `unknown_number_alert` (email, to active admins and resourcers, built in Phase 7,
-  `unknownNumberAlertEmail()`: the first WhatsApp in 24 hours from a number that isn't one of the
-  firm's active staff): subject "{firm}: a message from a number we don't know"; body "Someone
-  messaged the shifts line from a number that isn't one of your active staff." / "If it's a number
-  we don't have at all, we asked them for their full name." / "See the message on the office
-  dashboard: {link}" / "— {firm} Shift Team". Neither the number nor the message is in the email
+  `unknownNumberAlertEmail()`: the first message in 24 hours, a WhatsApp, a text or a voicemail,
+  from a number that isn't one of the firm's active staff): subject "{firm}: a message from a
+  number we don't know"; body "Someone messaged the shifts line from a number that isn't one of
+  your active staff." / "We asked them for their full name." (when they were sent `unknown_number`:
+  a WhatsApp from a number nobody here has, and the reply went; otherwise "We haven't replied to
+  them.") / "See the message on the office dashboard: {link}" / "— {firm} Shift Team". Neither the number nor the message is in the email
   (previews, forwards): they're on Today, "Messages from numbers we don't know".
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30

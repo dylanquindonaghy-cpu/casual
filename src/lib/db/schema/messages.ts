@@ -25,8 +25,11 @@ export const MESSAGE_DIRECTIONS = ["in", "out"] as const;
 // voice: a call (body null) or a voicemail's text (Phase 7, call-to-text).
 export const MESSAGE_CHANNELS = ["whatsapp", "sms", "voice"] as const;
 // keyword: a word matched; ai: the AI picked; office: sent to the office (asked for, or unclear);
-// unknown: the sender isn't a worker here.
-export const MESSAGE_HANDLING = ["keyword", "ai", "office", "unknown"] as const;
+// unknown: the sender isn't a worker here; opt_out: a text saying STOP or START (Phase 7).
+export const MESSAGE_HANDLING = ["keyword", "ai", "office", "unknown", "opt_out"] as const;
+// Twilio's OptOutType on an incoming text, when its own opt-out handling acted on it (and sent its
+// own confirmation).
+export const TWILIO_OPT_OUTS = ["stop", "start"] as const;
 export const MESSAGE_INTENTS = ["shifts", "cancel", "pay", "office"] as const;
 
 export const messages = pgTable(
@@ -47,6 +50,7 @@ export const messages = pgTable(
     intent: text("intent", { enum: MESSAGE_INTENTS }),
     handledAt: timestamptz("handled_at"), // an inbound message claimed by the job
     replyTo: uuid("reply_to"), // an outbound reply: the message it answers
+    twilioOptOut: text("twilio_opt_out", { enum: TWILIO_OPT_OUTS }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -70,7 +74,7 @@ export const messages = pgTable(
     check("messages_channel_check", sql`${t.channel} in ('whatsapp', 'sms', 'voice')`),
     check(
       "messages_handled_as_check",
-      sql`${t.handledAs} in ('keyword', 'ai', 'office', 'unknown')`,
+      sql`${t.handledAs} in ('keyword', 'ai', 'office', 'unknown', 'opt_out')`,
     ),
     check("messages_intent_check", sql`${t.intent} in ('shifts', 'cancel', 'pay', 'office')`),
     check(
@@ -80,6 +84,11 @@ export const messages = pgTable(
         or (${t.fromE164} is null and ${t.channel} = 'voice' and ${t.direction} = 'in')`,
     ),
     check("messages_to_e164", sql`${t.toE164} ~ '^[+][1-9][0-9]{6,14}$'`),
+    check(
+      "messages_twilio_opt_out",
+      sql`${t.twilioOptOut} is null
+        or (${t.twilioOptOut} in ('stop', 'start') and ${t.channel} = 'sms' and ${t.direction} = 'in')`,
+    ),
     check("messages_body_length", sql`${t.body} is null or char_length(${t.body}) <= 1600`),
     // Only a reply answers a message; only an inbound message is handled.
     check(

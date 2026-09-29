@@ -8,7 +8,13 @@ import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
 import { requestUpdateMessage, requestUpdatePush } from "../messaging/templates";
-import { pushToWorker, sendToWorker, type NotifyDeps, type WorkerChannel } from "../notify/send";
+import {
+  pushToWorker,
+  sendToWorker,
+  type NotifyDeps,
+  type WorkerChannel,
+  smsAllowedFor,
+} from "../notify/send";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { getPushTransport } from "../push/transport";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
@@ -68,6 +74,7 @@ type Claim =
       workerId: string;
       mobile: string;
       channel: WorkerChannel;
+      smsAllowed: boolean;
       body: string;
       from: string | null; // the firm's shifts line
       push: { title: string; body: string; url: string };
@@ -92,6 +99,7 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
       workerId: workers.id,
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
+      smsOptedOutAt: workers.smsOptedOutAt,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
       firmName: firms.name,
@@ -165,6 +173,7 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
     workerId: row.workerId,
     mobile: row.mobile,
     channel: row.channel,
+    smsAllowed: smsAllowedFor(row),
     body,
     from: row.line,
     push: { ...requestUpdatePush({ type: kind, status: row.status }), url: "/requests" },
@@ -182,6 +191,7 @@ export async function runRequestUpdate(
   const sent = await sendToWorker(deps, {
     mobile: c.mobile,
     channel: c.channel,
+    smsAllowed: c.smsAllowed,
     body: { whatsapp: c.body, sms: c.body },
     from: c.from,
   });

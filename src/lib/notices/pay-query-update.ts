@@ -8,7 +8,13 @@ import { recordEvent } from "../events/record";
 import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
 import { payQueryUpdateMessage, payQueryUpdatePush } from "../messaging/templates";
-import { pushToWorker, sendToWorker, type NotifyDeps, type WorkerChannel } from "../notify/send";
+import {
+  pushToWorker,
+  sendToWorker,
+  type NotifyDeps,
+  type WorkerChannel,
+  smsAllowedFor,
+} from "../notify/send";
 import { getPushTransport } from "../push/transport";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { signOffFor } from "../tenancy/sign-off";
@@ -65,6 +71,7 @@ type Claim =
       workerId: string;
       mobile: string;
       channel: WorkerChannel;
+      smsAllowed: boolean;
       body: string;
       from: string | null; // the firm's shifts line
     }
@@ -87,6 +94,7 @@ async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Pro
       workerId: workers.id,
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
+      smsOptedOutAt: workers.smsOptedOutAt,
       firmName: firms.name,
       line: firms.shiftsLineE164,
       timezone: firms.timezone,
@@ -148,6 +156,7 @@ async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Pro
     workerId: row.workerId,
     mobile: row.mobile,
     channel: row.channel,
+    smsAllowed: smsAllowedFor(row),
     body,
     from: row.line,
   };
@@ -164,6 +173,7 @@ export async function runPayQueryUpdate(
   const sent = await sendToWorker(deps, {
     mobile: c.mobile,
     channel: c.channel,
+    smsAllowed: c.smsAllowed,
     body: { whatsapp: c.body, sms: c.body },
     from: c.from,
   });

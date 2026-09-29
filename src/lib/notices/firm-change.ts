@@ -13,7 +13,13 @@ import {
   shiftCancelledByFirmMessage,
   shiftChangedByFirmMessage,
 } from "../messaging/templates";
-import { pushToWorker, sendToWorker, type NotifyDeps, type WorkerChannel } from "../notify/send";
+import {
+  pushToWorker,
+  sendToWorker,
+  type NotifyDeps,
+  type WorkerChannel,
+  smsAllowedFor,
+} from "../notify/send";
 import { getPushTransport } from "../push/transport";
 import { dayLabel } from "../rules/reasons";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
@@ -101,6 +107,7 @@ type Claim =
       workerId: string;
       mobile: string;
       channel: WorkerChannel;
+      smsAllowed: boolean;
       body: string;
       from: string | null; // the firm's shifts line
       push: { title: string; body: string; url: string };
@@ -138,6 +145,7 @@ async function claimNotice(
       workerId: workers.id,
       mobile: workers.mobileE164,
       channel: workers.notifyChannel,
+      smsOptedOutAt: workers.smsOptedOutAt,
       shiftId: shifts.id,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
@@ -301,6 +309,7 @@ async function claimNotice(
     workerId: row.workerId,
     mobile: row.mobile,
     channel: row.channel,
+    smsAllowed: smsAllowedFor(row),
     body,
     from: row.line,
     push,
@@ -318,6 +327,7 @@ export async function runFirmChangeNotice(
   const sent = await sendToWorker(deps, {
     mobile: claim.mobile,
     channel: claim.channel,
+    smsAllowed: claim.smsAllowed,
     body: { whatsapp: claim.body, sms: claim.body },
     from: claim.from,
   });

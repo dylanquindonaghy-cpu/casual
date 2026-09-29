@@ -70,6 +70,7 @@ interface Booking {
   siteName: string | null;
   mobile: string;
   channel: WorkerChannel;
+  smsAllowed: boolean; // false: they replied STOP to a text
 }
 
 type Due = Booking & { decision: Extract<ReminderDecision, { action: "send" | "skip" }> };
@@ -107,12 +108,14 @@ export async function dueReminders(
     site_name: string | null;
     mobile: string;
     channel: WorkerChannel;
+    sms_allowed: boolean;
     has_24h: boolean;
     has_2h: boolean;
   }>(sql`
     select a.id as assignment_id, a.worker_id, a.confirmed_at,
            s.id as shift_id, s.starts_at, s.ends_at, si.name as site_name,
            w.mobile_e164 as mobile, w.notify_channel as channel,
+           w.sms_opted_out_at is null as sms_allowed,
            exists (select 1 from shift_reminders r
                     where r.firm_id = a.firm_id and r.assignment_id = a.id and r.kind = '24h'
                       and r.starts_at = s.starts_at) as has_24h,
@@ -150,6 +153,7 @@ export async function dueReminders(
       siteName: r.site_name,
       mobile: r.mobile,
       channel: r.channel,
+      smsAllowed: r.sms_allowed,
       decision,
     });
   }
@@ -245,6 +249,7 @@ export async function runShiftReminders(
     const sent = await sendToWorker(deps, {
       mobile: b.mobile,
       channel: b.channel,
+      smsAllowed: b.smsAllowed,
       body: { whatsapp: body, sms: body },
       from: firm.line,
     });

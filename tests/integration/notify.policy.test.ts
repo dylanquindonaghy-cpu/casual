@@ -31,6 +31,8 @@ import { fakeWorker } from "../helpers/fake-worker";
 // - quiet hours: urgent offers go at night only if the firm allows it; reminders always wait.
 // - the daily cap: at most 3 offers a worker a day unless urgent; reminders aren't offers.
 // - idempotency: a retried or doubled job never sends a message twice.
+// - STOP: never a text to a worker who replied STOP (workers.sms_opted_out_at): WhatsApp instead
+//   if they chose texts, and no text when the WhatsApp is refused.
 // - no notifications to ineligible workers: over a whole chain, exactly the workers the booking
 //   rules allow get anything.
 // NOW is Monday 2 November 2026, 09:00 London (GMT).
@@ -202,6 +204,34 @@ describe.each(SENDERS)("channel order: %s", (_name, sender) => {
     const mobile = await mobileOf(t.workerId);
     await t.run();
     expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `sms:${mobile}`]);
+  });
+});
+
+describe.each(SENDERS)("replied STOP: %s", (_name, sender) => {
+  const stopped = (workerId: string) =>
+    su.query("update workers set sms_opted_out_at = $2 where id = $1", [workerId, NOW]);
+
+  it("chose texts, then replied STOP: WhatsApp instead, then the push", async () => {
+    const t = await sender.setup();
+    await su.query("update workers set notify_channel = 'sms' where id = $1", [t.workerId]);
+    await stopped(t.workerId);
+    const endpoint = await subscribe(t.f, t.workerId);
+    const mobile = await mobileOf(t.workerId);
+    await t.run();
+    expect(t.rec.log).toEqual([`whatsapp:${mobile}`, `push:${endpoint}`]);
+  });
+
+  it("a refused WhatsApp is never sent as a text (and no push)", async () => {
+    for (const channel of ["whatsapp", "sms"]) {
+      const t = await sender.setup();
+      await su.query("update workers set notify_channel = $2 where id = $1", [t.workerId, channel]);
+      await stopped(t.workerId);
+      t.rec.state.whatsapp = "refused";
+      await subscribe(t.f, t.workerId);
+      const mobile = await mobileOf(t.workerId);
+      await t.run();
+      expect(t.rec.log).toEqual([`whatsapp:${mobile}`]);
+    }
   });
 });
 

@@ -255,12 +255,13 @@ export function unknownNumberMessage(firm: FirmVoice): string {
 export function unknownNumberAlertEmail(
   firm: FirmVoice,
   link: string, // the office dashboard
+  opts: { askedName: boolean }, // they were sent unknown_number (a WhatsApp only, and it went)
 ): { subject: string; body: string } {
   return {
     subject: `${firm.name}: a message from a number we don't know`,
     body: [
       "Someone messaged the shifts line from a number that isn't one of your active staff.",
-      "If it's a number we don't have at all, we asked them for their full name.",
+      opts.askedName ? "We asked them for their full name." : "We haven't replied to them.",
       `See the message on the office dashboard: ${link}`,
       `— ${firm.signOff}`,
     ].join("\n\n"),
@@ -289,6 +290,17 @@ export function callGreeting(firm: FirmVoice, link: CallLink): string {
 // 24-hour window for free text, so this is a template, sent by the channel the worker chose.
 export function voicemailReceivedMessage(firm: FirmVoice, ref: string): string {
   return `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. — ${firm.signOff}`;
+}
+
+// sms_stopped / sms_started (text only, the answer to their own text): a worker replied STOP or
+// START to a text (src/lib/inbound/opt-out.ts). A plain hyphen before the sign-off: a text-only
+// message, kept to standard text characters.
+export function smsStoppedMessage(firm: FirmVoice): string {
+  return `You won't get texts from ${firm.name} now. Reply START to turn them back on. - ${firm.signOff}`;
+}
+
+export function smsStartedMessage(firm: FirmVoice): string {
+  return `Texts from ${firm.name} are back on. Reply STOP to turn them off. - ${firm.signOff}`;
 }
 
 // After a voicemail, and when the number called isn't any firm's.

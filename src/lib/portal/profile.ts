@@ -44,6 +44,7 @@ export interface Profile {
   email: string | null;
   notifyChannel: Channel;
   offerAlerts: boolean;
+  textsOff: boolean; // they replied STOP to a text: no texts until they reply START
   credentials: ProfileCredential[];
   unavailable: { day: string; booked: boolean }[];
   today: string;
@@ -82,6 +83,7 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
         email: workers.email,
         notifyChannel: workers.notifyChannel,
         offerAlerts: workers.offerAlerts,
+        smsOptedOutAt: workers.smsOptedOutAt,
       })
       .from(workers)
       .where(eq(workers.id, workerId));
@@ -132,8 +134,10 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
         .filter((c) => (c.status === "valid" && !c.expired) || c.status === "applied")
         .map((c) => c.type),
     );
+    const { smsOptedOutAt, ...contact } = me;
     return {
-      ...me,
+      ...contact,
+      textsOff: smsOptedOutAt !== null,
       credentials: shown.filter((c) => !(c.expired && covered.has(c.type))),
       unavailable: days.map(({ day }) => ({ day, booked: booked.has(day) })),
       today,

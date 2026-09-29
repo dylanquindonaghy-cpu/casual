@@ -15,6 +15,9 @@ import type { PushPayload, PushTransport } from "../push/transport";
 //   text at once. Any other failure (a timeout, an outage) might already have arrived, so it's
 //   never sent again: the caller records it as failed. (Falling back when a WhatsApp isn't
 //   delivered within 60 seconds needs Twilio's delivery reports: parked with Twilio.)
+// - never a text to a worker who replied STOP (`smsAllowed` false: workers.sms_opted_out_at is
+//   set): one who chose texts gets WhatsApp instead (`fellBackFrom: "sms"`), and a WhatsApp refused
+//   for them isn't sent as a text (failed, code `sms_opted_out`). Every sender passes it.
 // - once the message has gone, a push to each phone the worker turned notifications on for
 //   (free). A phone the push service says is gone is forgotten and logged.
 //
@@ -26,6 +29,10 @@ export interface NotifyDeps {
 }
 
 export type WorkerChannel = "whatsapp" | "sms";
+
+// Whether a worker may be sent texts: not after they replied STOP (workers.sms_opted_out_at).
+export const smsAllowedFor = (w: { smsOptedOutAt: Date | string | null }) =>
+  w.smsOptedOutAt === null;
 
 // A message's text for each channel (the same text for both when the doc has no SMS version).
 export interface MessageText {
@@ -50,12 +57,18 @@ export type NotifyResult =
 // from it (tests/unit/notify.from-line.test.ts holds every sender to this).
 export async function sendToWorker(
   deps: Pick<NotifyDeps, "transport">,
-  input: { mobile: string; channel: WorkerChannel; body: MessageText; from: string | null },
+  input: {
+    mobile: string;
+    channel: WorkerChannel;
+    smsAllowed: boolean; // false: they replied STOP (never a text)
+    body: MessageText;
+    from: string | null;
+  },
 ): Promise<
   | { ok: true; channel: WorkerChannel; providerMessageId: string; fellBackFrom?: WorkerChannel }
   | { ok: false; channel: WorkerChannel; code: string }
 > {
-  let channel = input.channel;
+  let channel: WorkerChannel = input.smsAllowed ? input.channel : "whatsapp";
   let providerMessageId: string;
   const from = input.from ? { from: input.from } : {};
   try {
@@ -68,6 +81,7 @@ export async function sendToWorker(
       }));
     } catch (error) {
       if (!(error instanceof ChannelRefusedError) || channel !== "whatsapp") throw error;
+      if (!input.smsAllowed) return { ok: false, channel, code: "sms_opted_out" };
       channel = "sms";
       ({ providerMessageId } = await deps.transport.send({
         channel,
@@ -123,6 +137,7 @@ export async function notifyWorker(
     workerId: string;
     mobile: string;
     channel: WorkerChannel;
+    smsAllowed: boolean; // false: they replied STOP (never a text)
     body: MessageText;
     push: PushPayload;
     from: string | null; // the firm's shifts line

@@ -17,6 +17,10 @@ const STATUS_WORDS = {
   suspended: "Suspended",
 } as const;
 
+// A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START.
+export const TEXTS_OFF =
+  "Texts are off: you replied STOP to one of our texts. We'll send shift messages by WhatsApp. To turn texts back on, text START to our number.";
+
 // "07700 900123" from "+447700900123"; other numbers as stored.
 export const ukMobile = (e164: string) =>
   /^\+44\d{10}$/.test(e164) ? `0${e164.slice(3, 7)} ${e164.slice(7)}` : e164;
@@ -108,9 +112,15 @@ export function ProfileView({
         <h2 id="notify-heading" className="text-xl font-semibold">
           How we reach you
         </h2>
+        {profile.textsOff && (
+          <p role="note" className="mt-3 rounded-xl bg-amber-50 p-3">
+            {TEXTS_OFF}
+          </p>
+        )}
         <NotificationForm
           channel={profile.notifyChannel}
           offerAlerts={profile.offerAlerts}
+          textsOff={profile.textsOff}
           signOff={signOff}
         />
         {push && <PushSetting publicKey={push.publicKey} firmName={push.firmName} />}

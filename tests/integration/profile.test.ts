@@ -71,6 +71,7 @@ describe("myProfile", () => {
       email: "sam.booker@example.com",
       notifyChannel: "whatsapp",
       offerAlerts: true,
+      textsOff: false,
       today: TODAY,
       unavailable: [
         { day: "2026-11-04", booked: true },

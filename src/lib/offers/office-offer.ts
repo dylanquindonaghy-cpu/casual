@@ -322,6 +322,7 @@ export async function runOfficeOffer(
     workerId: payload.workerId,
     mobile: candidate.mobile,
     channel: candidate.channel,
+    smsAllowed: candidate.smsAllowed,
     body,
     push: { ...push, url: `/shifts/${shift.id}` },
     from: firm.line,

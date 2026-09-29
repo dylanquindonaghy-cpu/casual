@@ -454,6 +454,7 @@ const SCREENS: [string, ReactElement][] = [
         email: null,
         notifyChannel: "whatsapp",
         offerAlerts: true,
+        textsOff: true,
         today: "2026-11-02",
         unavailable: [
           { day: "2026-11-04", booked: true },
@@ -510,6 +511,7 @@ const SCREENS: [string, ReactElement][] = [
         email: null,
         notifyChannel: "sms",
         offerAlerts: false,
+        textsOff: false,
         today: "2026-11-02",
         unavailable: [],
         credentials: [],
@@ -535,6 +537,7 @@ const SCREENS: [string, ReactElement][] = [
   ]),
   ["Settings saved (text, no alerts)", paragraph(savedText("sms", false))],
   ["Settings saved (WhatsApp, alerts)", paragraph(savedText("whatsapp", true))],
+  ["Settings saved (texts, but texts are off)", paragraph(savedText("sms", true, true))],
   ["Log in", createElement(LoginForm, { firmName: "Acme Events", signOff })],
   ["Too many tries", createElement(TooManyTries, { minutes: 847 })],
   ["A tap failed, with signal", paragraph(tryAgainText(true))],

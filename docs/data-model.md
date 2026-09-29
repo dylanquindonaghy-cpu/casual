@@ -136,6 +136,8 @@ create table workers (
   external_ref text,                     -- the sheet's staff id (Sheets firms); null otherwise
   notify_channel text not null default 'whatsapp', -- whatsapp | sms (profile page; Phase 3)
   offer_alerts boolean not null default true,      -- tell me about open shifts (profile page)
+  sms_opted_out_at timestamptz,          -- they replied STOP to a text (Phase 7): no texts from any
+                                         -- sender until START (src/lib/notify/send.ts)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, mobile_e164),
@@ -363,7 +365,7 @@ create table roster_sources (
 );
 create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
 
-create table messages (                 -- built in Phase 7 (migrations 0022, 0023): WhatsApp, calls
+create table messages (                 -- built in Phase 7 (migrations 0022-0024): WhatsApp, texts, calls
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   direction text not null,               -- in | out
@@ -376,10 +378,12 @@ create table messages (                 -- built in Phase 7 (migrations 0022, 00
                                          -- its voicemail) from a withheld number (a check says so)
   to_e164 text not null,                 -- inbound: the firm's shifts line
   body text,                             -- at most 1600; the worker's words: never copied into events
-  handled_as text,                       -- keyword | ai | office | unknown (inbound only)
+  handled_as text,                       -- keyword | ai | office | unknown | opt_out (inbound only)
   intent text,                           -- shifts | cancel | pay | office
   handled_at timestamptz,                -- the reply job claimed it (at most one reply)
   reply_to uuid,                         -- outbound: (firm_id, reply_to) -> the message it answers
+  twilio_opt_out text,                   -- stop | start: Twilio's own opt-out handling acted on this
+                                         -- incoming text (and confirmed it); null otherwise
   created_at timestamptz not null default now(),
   unique (firm_id, id), unique (firm_id, provider_message_id)
 );

@@ -97,6 +97,8 @@ export const LOG_TYPES = {
       "worker.linked",
       "worker.updated",
       "worker.notification_settings_changed",
+      "worker.sms_opted_out",
+      "worker.sms_opted_in",
       "worker.unavailable_added",
       "worker.unavailable_removed",
     ],

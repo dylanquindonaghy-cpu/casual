@@ -349,6 +349,7 @@ export async function runOfferWave(
       workerId: c.workerId,
       mobile: c.mobile,
       channel: c.channel,
+      smsAllowed: c.smsAllowed,
       body,
       push: { ...pushed, url: `/shifts/${shift.id}` },
       from: firm.line,

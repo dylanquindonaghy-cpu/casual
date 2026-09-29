@@ -4,6 +4,7 @@ import { SEND_PORTAL_LINK_QUEUE } from "../../lib/auth/send-portal-link";
 import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/credentials/scan";
 import { FIRM_CHANGE_NOTICE_QUEUE } from "../../lib/notices/firm-change";
 import { METRICS_ROLLUP_QUEUE, METRICS_ROLLUP_TICK_QUEUE } from "../../lib/metrics/rollup";
+import { INBOUND_MESSAGE_QUEUE } from "../../lib/inbound/job";
 import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
@@ -47,6 +48,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   METRICS_ROLLUP_QUEUE,
   PAY_DIGEST_QUEUE,
   PAY_QUERY_UPDATE_QUEUE,
+  INBOUND_MESSAGE_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);

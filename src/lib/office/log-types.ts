@@ -49,7 +49,7 @@ export const LOG_TYPES = {
     ],
   },
   messages: {
-    label: "Messages to workers",
+    label: "Messages to and from workers",
     actions: [
       "shift.change_notice",
       "shift.change_notice_sent",
@@ -68,6 +68,9 @@ export const LOG_TYPES = {
       "push.subscribed",
       "push.unsubscribed",
       "push.forgotten",
+      "message.received",
+      "message.replied",
+      "message.reply_failed",
     ],
   },
   requests: {

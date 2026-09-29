@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { pounds } from "../portal/pay-format";
 import { dayLabel } from "../rules/reasons";
+import { AI_TIMEOUT_MS, askAi } from "./ask";
 import type { AiClient } from "./client";
 
 // One line per pay query group, for payroll (docs/architecture.md "Haiku writes a one-line summary
@@ -83,44 +84,19 @@ export function checkedLine(raw: string, f: PayGroupFacts): string | null {
   return numbers.every((n) => allowed.has(n)) ? line.data : null;
 }
 
-// How long a summary may take before the code's line is used: a client that never answers must
-// never stall the digest, whichever client is plugged in.
-export const AI_SUMMARY_TIMEOUT_MS = 5000;
-
-class SummaryTimeout extends Error {}
+// How long a summary may take before the code's line is used (src/lib/ai/ask.ts).
+export const AI_SUMMARY_TIMEOUT_MS = AI_TIMEOUT_MS;
 
 export async function summarisePayGroup(
   f: PayGroupFacts,
   ai: AiClient,
   opts: { timeoutMs?: number } = {},
 ): Promise<PayGroupSummary> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    // Through Promise.resolve, so a client that throws at once or answers a plain value (breaking
-    // its type) still counts: a failure, or an answer to check.
-    const answer = Promise.resolve().then(() =>
-      ai.complete({
-        purpose: "pay_group_summary",
-        system: SYSTEM,
-        prompt: promptFor(f),
-        maxTokens: 80,
-      }),
-    );
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new SummaryTimeout()),
-        opts.timeoutMs ?? AI_SUMMARY_TIMEOUT_MS,
-      );
-    });
-    // A late answer is ignored (and its failure swallowed) once the timeout has won.
-    answer.catch(() => undefined);
-    const raw: unknown = await Promise.race([answer, timeout]);
-    const line = typeof raw === "string" ? checkedLine(raw, f) : null;
-    if (line) return { text: line, byAi: true };
-  } catch {
-    // Not connected, timed out, refused or broken: the code line below.
-  } finally {
-    clearTimeout(timer);
-  }
-  return { text: codeSummary(f), byAi: false };
+  const raw = await askAi(
+    ai,
+    { purpose: "pay_group_summary", system: SYSTEM, prompt: promptFor(f), maxTokens: 80 },
+    opts.timeoutMs ?? AI_SUMMARY_TIMEOUT_MS,
+  );
+  const line = typeof raw === "string" ? checkedLine(raw, f) : null;
+  return line ? { text: line, byAi: true } : { text: codeSummary(f), byAi: false };
 }

@@ -219,6 +219,29 @@ export function payQueryUpdateMessage(
   return `Update on your pay query (ref ${query.ref}): ${query.status}. ${query.note} — ${firm.signOff}`;
 }
 
+// Instant replies on the shifts line (docs/messaging-templates.md "Instant replies on the shifts
+// line"): the answer to a worker's own WhatsApp, sent at once (free text: within 24 hours of their
+// message WhatsApp needs no template). The app's fixed words only: a keyword or the AI picks which
+// (src/lib/inbound/reply.ts), never what it says.
+export type ShiftsLineReply =
+  { intent: "shifts" | "cancel" | "pay"; link: string } | { intent: "office"; ref: string };
+
+export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
+  const text = (() => {
+    switch (reply.intent) {
+      case "shifts":
+        return `Open shifts you're eligible for: ${reply.link}`;
+      case "cancel":
+        return `To cancel a shift, tap here and choose the shift: ${reply.link}. It's recorded instantly.`;
+      case "pay":
+        return `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in).`;
+      case "office":
+        return `The office will see this and get back to you. Ref ${reply.ref}.`;
+    }
+  })();
+  return `${text} — ${firm.signOff}`;
+}
+
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
 // or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
 export function shiftReminder24hMessage(

@@ -5243,3 +5243,114 @@ call). This task gets the app ready for it:
    "No shifts line yet."
 3. Log in as a worker (see earlier tasks): the WhatsApp message printed in the `npm run dev` terminal
    now shows "from +447700900000".
+
+## 2026-09-29: Phase 7, task 2: Answering WhatsApps on the shifts line (0.7 h, BLOCKED)
+
+### Time
+
+0.7 hours of Claude's working time (17:02 to 17:42 UTC), in the unattended overnight loop.
+Phase 7 so far: 1.3 of its 15 to 20 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** The task says "Haiku only for unclear text": that needs Claude on Amazon
+  Bedrock, and real WhatsApps need Twilio. Both are outside services tonight's rules don't allow.
+  Everything short of them is built, verified and committed. "Connect Bedrock" and "Connect Twilio"
+  (step 9) in `PLAN.md`'s Parking lot have the steps; the task is ticked after both.
+- `scripts/verify.sh` printed `VERIFIED tree=774604c4e49d992e e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2344 tests (up from 2299);
+  - the 40 browser tests (up from 39);
+  - the rule checks.
+- The guardrails review found 3 things to fix first; all are fixed (below). No auditor round (a
+  blocked task can't be ticked).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+A worker messages their firm's WhatsApp number ("the shifts line") and gets the right link back
+straight away, without waiting for the office.
+- **A place to keep messages**: a new `messages` table holds each WhatsApp that arrives and each
+  reply sent, per firm like every other table (one firm never sees another's).
+- **The webhook** (the web address Twilio calls when a message arrives):
+  - It checks Twilio's signature: a code Twilio makes from the message with a secret key, so
+    nobody else can pretend to be Twilio. My check reproduces the example in Twilio's own
+    documentation exactly.
+  - It finds the firm from the number the message was sent to (the shifts line, from the last
+    task), stores the message once (Twilio sometimes sends the same one twice) and hands it to a
+    background job. It answers Twilio at once.
+  - Without the secret key set (as now), it answers "not configured" and stores nothing.
+- **The reply job**:
+  - It finds the worker by the number the message came from.
+  - Keywords decide first: "cancel" → the link to cancel a shift; "pay", "wages", "payslip" → the
+    pay page (behind the pay code); "shifts", "work", "available" → open shifts; "help",
+    "office", "talk" → a request for the office, and the reply gives its reference.
+  - If none matches, the AI would pick one of those four replies (it can't write its own words).
+    Until Bedrock is connected, those messages go to the office.
+  - Replies come from the firm's own number, signed "{firm} Shift Team", at most once.
+  - Someone who isn't one of the firm's workers gets no reply yet (that's the next task).
+- **Pay is safe**: a pay question only ever gets the pay link, never an answer (golden rule 9).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | "Haiku only for unclear text" needs Bedrock (like the grouping task) | Tick on the keywords alone |
+| The webhook is built now, with its signature check | Without the check anyone could make the app send messages; the later task covers the other Twilio webhooks | Wait for the signature task |
+| Replies go from the job, not in the webhook's answer | The webhook stays quick; one path for every reply | Answer inside the webhook |
+| The AI picks a reply, never writes one | AI reads, code decides; nothing the AI writes reaches a worker | Let the AI draft replies |
+| Unclear messages go to the office | Nothing a worker asks is lost | Reply "I didn't understand" |
+| Message ids are unique within a firm | A key unique across firms could tell one firm about another's rows | Unique across all firms |
+
+### What the review and the test runs caught
+
+- **A message could be lost.** The job marked a message as handled before doing anything. If it
+  then failed (or the server restarted while waiting for the AI), a retry would skip the message:
+  no reply, no office request, nothing in the log. Now nothing is written until the moment just
+  before sending, so an earlier failure is simply retried. A test proves it.
+- **Dropouts got the wrong link.** "Can't make my shift tomorrow" matched "shift" and got the open
+  shifts link. Now "shift" isn't a keyword, and open shifts keywords don't count when the message
+  says "can't", "not", "sick", "late" and the like: those go to the AI or the office.
+- **A log entry that could fail.** A real Twilio message id can contain a long run of digits,
+  which the log's privacy filter would mistake for a phone number, and the log entry would be
+  refused after the reply had gone. The id is now kept on the stored reply instead. The same risk in
+  the other senders is noted for when Twilio is connected.
+- **A rule test**: every unique key must start with the firm, so message ids are now unique per
+  firm. My own test helper also picked the wrong job once (fixed).
+
+### What the new tests prove
+
+- `tests/integration/inbound.whatsapp.test.ts` (13 tests, on the real database): a signed message
+  is stored once with one job (a repeat stores nothing); no key, a missing or wrong signature, a
+  wrong address, the wrong type, too big (declared or real) and bad fields are refused with nothing
+  stored; a long message is kept, cut to size; nothing from a message is logged; a number no firm
+  has is ignored; each keyword gets its link from the firm's number, signed, stored as a reply and
+  logged without the text; "help" makes an office request with the message as its note and gives its
+  reference; the AI's label picks the reply and anything else it says goes nowhere (a pay answer
+  like "£40 extra" is never sent); a photo goes to the office; strangers and ex-workers get no reply
+  here; at most one reply, a failed one logged and not retried; a failure before the reply is retried
+  and answered once; one number at two firms reaches the right firm; another firm's message can't be
+  touched.
+- `tests/unit/inbound.signature.test.ts`: Twilio's documented example, and every kind of tampering.
+- `tests/unit/inbound.keywords.test.ts`: each keyword, the order, dropouts, and the AI's label
+  (only one of four words counts; failures and slow answers count as none).
+- `tests/unit/ai.boundary.test.ts` (updated on purpose): the AI's new job is listed, only the
+  reply job may use it, the webhook can't reach AI code, and the reply is always the fixed text.
+- A new browser test posts a signed WhatsApp as Twilio would; the real app answers with the open
+  shifts link from Acme's number. An unsigned post is refused.
+
+### Parked, open, and things that need Dylan
+
+- **Connect Twilio, step 9**: point each WhatsApp sender at the webhook and set the secret key.
+  **Connect Bedrock**: pass the AI to the reply job. Then tick this task.
+- **Dylan to confirm the keywords** ("work" and "available").
+- Limits against reply loops with other bots, folding repeated "ok"/"thanks" messages, telling the
+  office when a reply fails, deleting messages (and the office request's copy) after 90 days, and
+  keeping Twilio ids out of all log entries.
+
+### How to see it working
+
+Real WhatsApps need Twilio. The browser test shows the whole path:
+`npx playwright test tests/e2e/whatsapp.inbound.spec.ts` (stop `npm run dev` first). It posts a
+signed message to the webhook and checks the reply in `.dev/e2e-outbox.jsonl`: "Open shifts you're
+eligible for: http://acme.localhost:3100/shifts/open — Acme Events Shift Team".

@@ -52,6 +52,13 @@ const hours = (value: unknown) => {
   return Number.isFinite(n) ? noticeText(n) : null;
 };
 
+const INTENT_WORDS: Record<string, string> = {
+  shifts: "open shifts",
+  cancel: "cancelling",
+  pay: "pay",
+  office: "for the office",
+};
+
 const IMPORT_KIND_WORDS: Record<string, string> = {
   workers: "a file of staff",
   credentials: "a file of licences and cards",
@@ -186,6 +193,14 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `The rota sheet changed it from ${String(d.from ?? "?")} to ${String(d.to ?? "?")}.`;
 
     // Requests.
+    case "message.received":
+      return d.handledAs === "unknown"
+        ? "A WhatsApp came to the shifts line from a number that isn't one of your staff."
+        : `${who} sent a WhatsApp to the shifts line (${INTENT_WORDS[String(d.intent)] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).`;
+    case "message.replied":
+      return `${worker} got the shifts line's reply (${INTENT_WORDS[String(d.intent)] ?? "a message"}).`;
+    case "message.reply_failed":
+      return `The shifts line's reply to ${worker} couldn't be sent.`;
     case "request.created":
       return `${worker} sent a request (${kind(d.type)}).`;
     case "request.approved":

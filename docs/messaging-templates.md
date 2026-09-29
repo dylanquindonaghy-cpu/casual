@@ -88,13 +88,19 @@ together. Not submitted yet: PLAN.md Parking lot, "Submit the WhatsApp templates
 
 ## Instant replies on the shifts line (keyword first)
 
+Built in Phase 7 (`shiftsLineReply()`; the job `src/lib/inbound/reply.ts`), short of Twilio and
+Bedrock. Each reply ends "— {firm} Shift Team" and goes from the firm's shifts line, at once (free
+text: within 24 hours of the worker's message WhatsApp needs no template). Keywords are whole words,
+any case, checked in the order below (so "cancel my shift" is a cancel). The AI only picks a row;
+the words are always these.
+
 | Worker types | Reply |
 |---|---|
-| "shifts", "work", "available" | "Open shifts you're eligible for: {link}" |
-| "cancel" | "To cancel a shift, tap here and choose the shift: {link}. It's recorded instantly." |
-| "pay", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in)." |
-| "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}." + create request |
-| anything else | Haiku classifies → one of the above, or a request for the office |
+| "cancel" | "To cancel a shift, tap here and choose the shift: {link}. It's recorded instantly." ({link} is My shifts) |
+| "pay", "paid", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in)." ({link} is the pay page) |
+| "shifts", "work", "available" | "Open shifts you're eligible for: {link}" ({link} is Open shifts). Not when the message also says they can't make it or are late ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): that's about their own shift, so the AI or the office gets it. "shift" alone isn't a keyword for the same reason |
+| "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}." + a request for the office (a question, the message as its note) |
+| anything else | Haiku picks one of the rows above (the worker's text only; an answer that isn't exactly one label counts as none); no AI, a failure, or no answer within 5 seconds: the office row. A photo with no text: the office row |
 
 ## SMS (fallback only, keep under 160 characters)
 

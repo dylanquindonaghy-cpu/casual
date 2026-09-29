@@ -15,6 +15,7 @@ export const EXPECTED_TABLES = [
   "events",
   "firms",
   "magic_links",
+  "messages",
   "metrics_daily",
   "offers",
   "office_users",
@@ -220,6 +221,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, '2026-10-26', 'missing_hours')`,
     [firmId, rosterWorkerId],
   );
+  // A WhatsApp from the rota worker (no ON DELETE action on its worker link either); the reply
+  // link is tested in FK_CASES.
+  const messageId = await one(
+    su,
+    `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164, body)
+     values ($1, 'in', 'whatsapp', $2, $3, '+447700900111', '+447700900000', 'shifts')`,
+    [firmId, `SM${randomBytes(16).toString("hex")}`, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -253,6 +262,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       shift_reminders: shiftReminderId,
       metrics_daily: metricsId,
       pay_queries: payQueryId,
+      messages: messageId,
     },
   };
 }
@@ -359,6 +369,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
            values ($1, $2, '2026-11-02', 'late_pay')`,
     values: [firmId, p.rosterWorkerId],
   }),
+  messages: (firmId, p) => ({
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164, body)
+           values ($1, 'in', 'sms', $2, $3, '+447700900112', '+447700900000', 'pay')`,
+    values: [firmId, `SM${randomBytes(16).toString("hex")}`, p.rosterWorkerId],
+  }),
   metrics_daily: (firmId) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value)
            values ($1, $2, 'daily', 'portal_actions', 3)`,
@@ -464,6 +479,16 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into pay_queries (firm_id, worker_id, shift_id, work_date, issue_type)
            values ($1, $2, $3, '2026-11-04', 'wrong_rate')`,
     values: [firmId, own.rosterWorkerId, other.rows.shifts],
+  }),
+  messages_worker_fk: (firmId, _own, other) => ({
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, worker_id, from_e164, to_e164)
+           values ($1, 'in', 'whatsapp', $2, $3, '+447700900113', '+447700900000')`,
+    values: [firmId, `SM${randomBytes(16).toString("hex")}`, other.workerId],
+  }),
+  messages_reply_to_fk: (firmId, _own, other) => ({
+    text: `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, reply_to)
+           values ($1, 'out', 'whatsapp', $2, '+447700900000', '+447700900113', $3)`,
+    values: [firmId, `console-${randomUUID()}`, other.rows.messages],
   }),
   pay_queries_resolved_by_fk: (firmId, own, other) => ({
     text: `insert into pay_queries (firm_id, worker_id, work_date, issue_type, status, resolved_by,

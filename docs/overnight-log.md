@@ -4520,3 +4520,91 @@ Twilio", steps 7 and 8.
 pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
 
 **Hours:** 0.6 h (16:22 to 16:58 UTC). Phase 7 so far 0.6 h of its 15–20 h estimate.
+
+## 2026-09-29 17:02 UTC: Phase 7, "Inbound WhatsApp: known worker → reply instantly with the right link (keywords first: shifts, cancel, pay, help; Haiku only for unclear text)"
+
+**Blocked (hard limit), like the grouping task:** "Haiku only for unclear text" can only be shown
+with Claude on Amazon Bedrock. Everything short of it is built: the keyword replies, the office
+request, and the AI step behind the `AiClient` interface with a checked answer and a fallback,
+tested with a fake. Real WhatsApp needs Twilio too (a number, a sender): the webhook is built and
+checked against Twilio's signing scheme with a test key.
+
+**Plan:**
+
+1. **`messages` table** (migration 0022; docs/data-model.md has it for Phase 7): every WhatsApp in
+   (and each reply out): firm, direction, channel, `provider_message_id` (unique: golden rule 3),
+   the worker if known, from/to numbers, the text, how it was handled (keyword / ai / office /
+   unknown), the intent, when it was answered. `firm_id`, RLS, `TABLE_ACCESS` (no delete), tenant
+   fixtures, composite FK to workers. Its text stays here and in the reply, never in an event.
+2. **The webhook** `POST /api/webhooks/twilio/whatsapp` (on the platform address, not a firm's):
+   Twilio's `X-Twilio-Signature` checked (HMAC-SHA1 of the webhook URL and the sorted form fields,
+   keyed with `TWILIO_AUTH_TOKEN`; not set: 503, nothing stored); fields checked with zod; the firm
+   found from the `To` number (`resolveFirmByLine()`; none: 200, nothing stored); one `messages`
+   row (a repeat of the same MessageSid stores nothing) and one `inbound-message` job; an empty
+   TwiML 200 at once. Replies go from the job, not in the webhook's answer.
+3. **The job** `inbound-message`: the worker by the `From` number in that firm (unknown: logged,
+   no reply here: the next task answers unknown numbers). Then what they asked:
+   - keywords first (word match, case-insensitive; in this order): "cancel" → cancel; "pay",
+     "wages", "payslip" → pay; "shifts", "shift", "work", "available" → shifts; "help", "office",
+     "talk" → the office;
+   - nothing matched: the AI picks one of shifts / cancel / pay / office (purpose
+     `classify_message`, the worker's text only; the answer must be exactly one of those words, or
+     it counts as a failure); no AI, a failure or anything else: the office.
+   The reply is always the doc's fixed text (the AI only picks which): open shifts
+   `{portal}/shifts/open`, cancelling `{portal}/` (My shifts), pay `{portal}/pay`, or "The office
+   will see this and get back to you. Ref {ref}." with a `general` request for the office (the
+   message as its note). Signed "{firm} Shift Team", from the firm's shifts line, at most once
+   (claimed before sending, recorded after), at once (a reply to their own message: quiet hours
+   don't apply, and WhatsApp allows free text within 24 hours of their message).
+   Events: `message.received` {handledAs, intent} and `message.replied` / `message.reply_failed`
+   {channel, intent, providerMessageId / code}; never the text or a number.
+4. **AI boundary**: `classify_message` joins `AI_PURPOSES` on purpose; the inbound job joins the
+   files allowed to use AI; a test proves the reply is always one of the fixed texts whatever the
+   AI says, and that a pay question gets the pay link, never an answer (golden rule 9).
+5. **Tests**: unit (the signature check, including Twilio's documented example if my code
+   reproduces it; the keyword matcher; the reply texts against the doc), integration (the webhook:
+   signature, bad fields, unknown line, repeats; the job: each keyword, the office request, the AI
+   picking and failing, an unknown sender, at most once, from the firm's line, other firms), e2e (a
+   signed WhatsApp posted to the webhook gets the open-shifts reply in the outbox).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | "Haiku only for unclear text" needs Bedrock (as the grouping task) | Tick on keywords alone |
+| The WhatsApp webhook is built now, signature checked | An inbound handler without the check would let anyone make the app send messages; the later task extends it to every Twilio webhook and adds contract tests | Leave the route to the signature task |
+| Replies from the job, not in the webhook's TwiML answer | The webhook stays "check, store, queue, 200"; one path for all replies (from the firm's line, logged) | Reply in TwiML |
+| The AI returns a label only; the text is always ours | AI reads, code decides; nothing the AI writes reaches a worker | Let the AI draft replies |
+| Unclear or failed → an office request | Nothing a worker asks is lost | Reply "I didn't understand" |
+| "cancel" first, "help" last in the keyword order | "Can I cancel my shift" is a cancel; "help" is the least specific | First word wins |
+
+**Built as planned.**
+
+**Failures on the way, root causes first:**
+
+| Failure | Root cause | Fix |
+|---|---|---|
+| `rls.every-table` "every unique key on a firm table starts with firm_id" | `provider_message_id` was unique across all firms: a clash would tell one firm another has that value | Unique per firm, `(firm_id, provider_message_id)`: the same Twilio message always reaches the same firm by its number. The first version of migration 0022 had only reached my local databases (the test and e2e ones are rebuilt each run): regenerated, and the dev database rebuilt with `npm run db:reset` |
+| Two of my integration tests got "already" | My test helper took "the last" queued job from a query with no order, so it sometimes ran an earlier message's job | It takes the job queued for that exact message |
+| `auth.magic-link` "two of one worker's links used at the same moment…" failed once in the full run | Not touched by this change; a timing-sensitive race test (it forces a deadlock that Postgres detects after a second). Passed 3 times out of 3 alone and in its file | None: noted; watched in verify |
+
+**Guardrails review: FIX FIRST (3 items), all fixed.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the job marked the message handled in its first transaction, before deciding anything; a failure or crash after that (the AI call can take 5 s) left it "already" handled: no reply, no office request, no event | Nothing is written before the point of no return: step 1 only reads; the claim (the row locked, marked handled only if nobody has), the office request and `message.received` go in one transaction just before sending. Tested: that transaction failing once, then the retry answers once with one request |
+| FIX FIRST: keywords sent dropouts to the open shifts link ("can't make my shift", "not available", "late for work"; "shift" wasn't in the doc) | "shift" is no longer a keyword; open shifts keywords don't count next to dropout words ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): those go to the AI or the office. Cancel and pay still match. Tested; doc table updated; "work"/"available" parked for Dylan to confirm |
+| FIX FIRST: `message.replied` carried the provider's id, which (a real Twilio SID with 10+ digits in a row) the masker would take for a phone number, making the event throw after the reply went | Left out of the event (the stored reply has it); the same problem in the other senders parked under Connect Twilio |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| Read the body only after checking its declared length; 16 KB was near a long WhatsApp's size | Content-Length checked first; limit 64 KB; tested |
+| A signed request that fails the field check was dropped silently; an over-long text dropped | The failing field names are logged (never values); a long text is kept, cut to 1,600 characters; tested, with a capturing logger proving no number or text is logged |
+| Fields collected in a plain object (a `__proto__` field dropped) | A prototype-free object |
+| Tests: the same mobile at two firms | Added: each firm's line answers its own worker with its own links |
+| Docs: the old `classify-message` row, the transcription pointer, the boundary test's header; the unblock condition | Updated; unblocking needs Connect Twilio step 9 and Connect Bedrock |
+| The log filed a worker's message under "Messages to workers" | Renamed "Messages to and from workers" |
+| Rate limits against auto-reply loops, folding repeated office messages, telling the office of a failed reply, retention of the request's note, a dev tunnel override, subaccounts | Parked |
+| `z.enum` in the classifier; the reply building its own links | Left as they are (small): the classifier's `includes` check is the same, and the boundary test plus the integration tests prove the words are fixed |

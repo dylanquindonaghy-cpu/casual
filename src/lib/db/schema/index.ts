@@ -2,6 +2,7 @@
 // FORCE RLS and grants are applied by db:migrate from src/lib/db/admin/access.ts.
 export * from "./auth";
 export * from "./events";
+export * from "./messages";
 export * from "./metrics";
 export * from "./people";
 export * from "./pay";

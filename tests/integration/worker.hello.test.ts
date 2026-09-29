@@ -7,6 +7,7 @@ import {
   offerWavePayload,
 } from "@/lib/offers/waves";
 import { PAY_QUERY_UPDATE_QUEUE, payQueryUpdatePayload } from "@/lib/notices/pay-query-update";
+import { inboundMessageJob } from "@/lib/inbound/job";
 import { payDigestJob } from "@/lib/pay/digest";
 import { createBoss } from "@/worker/boss";
 import { registerJobs } from "@/worker/jobs";
@@ -34,6 +35,7 @@ describe("worker (real pg-boss on the test database, as the jobs role)", () => {
     // clock).
     await registerJobs(boss, {
       payDigest: { ...payDigestJob, task: async () => null },
+      inboundMessages: { ...inboundMessageJob, task: async () => null },
       payQueryUpdates: {
         queue: PAY_QUERY_UPDATE_QUEUE,
         schema: payQueryUpdatePayload,

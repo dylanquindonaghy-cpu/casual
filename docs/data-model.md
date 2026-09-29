@@ -363,17 +363,23 @@ create table roster_sources (
 );
 create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
 
-create table messages (
+create table messages (                 -- built in Phase 7 (migration 0022): WhatsApp so far
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   direction text not null,               -- in | out
-  channel text not null,                 -- whatsapp | sms | email | voice | portal
-  provider_message_id text unique,       -- idempotency
-  worker_id uuid references workers(id),
-  body text,
-  transcript text,
-  handled_as text,                       -- keyword | ai | office
-  created_at timestamptz not null default now()
+  channel text not null,                 -- whatsapp | sms (voice, email later)
+  provider_message_id text not null,     -- Twilio's MessageSid, or the transport's id for a reply;
+                                         -- unique per firm (golden rule 3: a repeat stores nothing)
+  worker_id uuid,                        -- (firm_id, worker_id) -> workers; set when the sender is one
+  from_e164 text not null,
+  to_e164 text not null,                 -- inbound: the firm's shifts line
+  body text,                             -- at most 1600; the worker's words: never copied into events
+  handled_as text,                       -- keyword | ai | office | unknown (inbound only)
+  intent text,                           -- shifts | cancel | pay | office
+  handled_at timestamptz,                -- the reply job claimed it (at most one reply)
+  reply_to uuid,                         -- outbound: (firm_id, reply_to) -> the message it answers
+  created_at timestamptz not null default now(),
+  unique (firm_id, id), unique (firm_id, provider_message_id)
 );
 
 -- Phase 3 (src/lib/db/schema/pay.ts). The payroll's figures as imported (`npm run import --kind

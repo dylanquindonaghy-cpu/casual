@@ -9,3 +9,13 @@ export function portalUrl(slug: string, baseDomain: string): string {
   const local = hostname === "localhost" || hostname.endsWith(".localhost");
   return `${local ? "http" : "https"}://${slug}.${base}`;
 }
+
+// An address on the platform itself (no firm): where Twilio sends its webhooks. Built only from
+// our configuration, never from a request, so a webhook's signature is checked against the address
+// Twilio was given.
+export function platformUrl(baseDomain: string, path: string): string {
+  const base = normaliseHost(baseDomain);
+  const hostname = base.replace(/:\d+$/, "");
+  const local = hostname === "localhost" || hostname.endsWith(".localhost");
+  return `${local ? "http" : "https"}://${base}${path}`;
+}

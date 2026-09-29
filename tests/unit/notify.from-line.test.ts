@@ -36,6 +36,7 @@ describe("messages go from the firm's shifts line", () => {
       "src/lib/auth/send-portal-link.ts",
       "src/lib/credentials/scan.ts",
       "src/lib/credentials/scan.ts",
+      "src/lib/inbound/reply.ts",
     ]);
     for (const m of found) expect(m.next, m.path).toMatch(/\bfrom\b/);
   });

@@ -25,6 +25,8 @@ import {
   metricsRollupFirmTask,
   runMetricsRollupTick,
 } from "../../lib/metrics/rollup";
+import type { InboundMessagePayload } from "../../lib/inbound/job";
+import { inboundMessageFirmTask } from "../../lib/inbound/reply";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
@@ -74,6 +76,7 @@ export interface JobDeps {
   requestUpdates?: FirmTask<RequestUpdatePayload>;
   payDigest?: FirmTask<PayDigestPayload>;
   payQueryUpdates?: FirmTask<PayQueryUpdatePayload>;
+  inboundMessages?: FirmTask<InboundMessagePayload>;
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -91,6 +94,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
   // Telling a worker payroll has sorted their pay query.
   await registerFirmTask(boss, deps.payQueryUpdates ?? payQueryUpdateTask);
+  // Answering WhatsApps on the shifts line (stored by the Twilio webhook).
+  await registerFirmTask(boss, deps.inboundMessages ?? inboundMessageFirmTask);
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
   await registerFirmTask(boss, deps.reminders ?? shiftRemindersTask);

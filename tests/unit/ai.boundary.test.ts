@@ -4,12 +4,15 @@ import { describe, expect, it } from "vitest";
 import { AI_PURPOSES } from "@/lib/ai/client";
 
 // "AI never answers a dispute" (Phase 6; golden rules 1 and 9; docs/compliance.md "Pay disputes
-// always go to a person"). The AI code (src/lib/ai/) writes one thing: a summary line for payroll
-// about a group of pay queries, beneath the app's own line. This test is a tripwire:
-// - the AI's purposes are a fixed list: only that summary;
-// - only the payroll-facing code imports src/lib/ai/ (the grouped view and the digest job), and
-//   the AI line is made in one place (summariseGroups, called only by the digest); the files that
-//   import those two are listed too, so passing their output anywhere new means changing this test;
+// always go to a person"). The AI code (src/lib/ai/) does two things: a summary line for payroll
+// about a group of pay queries, beneath the app's own line; and (Phase 7) a label for a worker's
+// WhatsApp on the shifts line that no keyword matched, which only picks which of the app's own fixed
+// replies goes back (src/lib/inbound/reply.ts). This test is a tripwire:
+// - the AI's purposes are a fixed list: that summary, and the shifts line label;
+// - only three files import src/lib/ai/: payroll's grouped view, the digest job, and the shifts
+//   line's reply job (which only ever sends shiftsLineReply()'s fixed words); the AI line is made
+//   in one place (summariseGroups, called only by the digest); the files that import those are
+//   listed too, so passing their output anywhere new means changing this test;
 // - no AI SDK (Bedrock, Anthropic) is imported outside src/lib/ai/;
 // - nothing a worker sees or receives can reach src/lib/ai/: the staff pages, the portal code, the
 //   notices and notify code, the message templates; nor can payroll's "sort and tell them" path,
@@ -82,16 +85,20 @@ function aiChain(entry: string): string[] | null {
 }
 
 describe("AI never answers a dispute", () => {
-  it("the AI does one job: a summary line for payroll", () => {
-    expect([...AI_PURPOSES]).toEqual(["pay_group_summary"]);
+  it("the AI does two jobs: a summary line for payroll, and a label for a shifts line message", () => {
+    expect([...AI_PURPOSES]).toEqual(["pay_group_summary", "classify_message"]);
   });
 
-  it("only payroll's grouped view and the digest import the AI code", () => {
+  it("only payroll's grouped view, the digest and the shifts line's reply job import the AI code", () => {
     const importers = files
       .filter((file) => !isAi(file) && (graph.get(file) ?? []).some(isAi))
       .map(rel)
       .sort();
-    expect(importers).toEqual(["src/lib/office/pay-query-groups.ts", "src/lib/pay/digest.ts"]);
+    expect(importers).toEqual([
+      "src/lib/inbound/reply.ts",
+      "src/lib/office/pay-query-groups.ts",
+      "src/lib/pay/digest.ts",
+    ]);
   });
 
   it("only these files import the two modules that use AI", () => {
@@ -114,6 +121,22 @@ describe("AI never answers a dispute", () => {
       "src/worker/jobs/index.ts",
       "src/worker/jobs/queues.ts",
     ]);
+  });
+
+  it("the shifts line's reply job is only worked by the job worker; its reply is always a fixed text", () => {
+    const importers = files
+      .filter((file) => (graph.get(file) ?? []).some((f) => rel(f) === "src/lib/inbound/reply.ts"))
+      .map(rel);
+    expect(importers).toEqual(["src/worker/jobs/index.ts"]);
+    const reply = readFileSync(join(SRC, "lib/inbound/reply.ts"), "utf8");
+    // The one message it sends carries `replyText`, and `replyText` is shiftsLineReply()'s answer.
+    expect(reply.match(/transport\.send\(\{[\s\S]*?\}\)/g)).toEqual([
+      expect.stringMatching(/body: replyText,/),
+    ]);
+    expect(reply).toMatch(/return shiftsLineReply\(/);
+    // The AI's answer is only ever a label: classifyMessage() returns an intent or null.
+    const classify = readFileSync(join(SRC, "lib/ai/classify-message.ts"), "utf8");
+    expect(classify).toMatch(/Promise<Intent \| null>/);
   });
 
   it("no AI SDK is imported outside src/lib/ai/", () => {
@@ -140,6 +163,16 @@ describe("AI never answers a dispute", () => {
       .map(rel);
     expect(direct).toEqual(["src/lib/office/pay-query-groups.ts"]);
   });
+
+  // The shifts line's webhook, which only checks, stores and queues (the reply job is apart).
+  const WEBHOOK_PATH = [
+    "src/app/api/webhooks/twilio/whatsapp/route.ts",
+    "src/lib/inbound/webhook.ts",
+    "src/lib/inbound/receive.ts",
+    "src/lib/inbound/job.ts",
+    "src/lib/inbound/keywords.ts",
+    "src/lib/inbound/twilio-signature.ts",
+  ];
 
   // Payroll's "Mark as sorted and tell them", where the note to the workers is typed and saved;
   // and payroll's pay import, where the pay figures come in (read by code, never by AI: rule 1).
@@ -179,10 +212,13 @@ describe("AI never answers a dispute", () => {
         path.startsWith("src/lib/notices/") ||
         path.startsWith("src/lib/notify/") ||
         path.startsWith("src/lib/messaging/") ||
-        PAYROLL_PATHS.includes(path)
+        PAYROLL_PATHS.includes(path) ||
+        WEBHOOK_PATH.includes(path)
       );
     });
-    for (const path of PAYROLL_PATHS) expect(workerFacing.map(rel)).toContain(path);
+    for (const path of [...PAYROLL_PATHS, ...WEBHOOK_PATH]) {
+      expect(workerFacing.map(rel)).toContain(path);
+    }
     expect(workerFacing.length).toBeGreaterThan(50);
     expect(workerFacing.map(rel)).toContain("src/lib/notices/pay-query-update.ts");
     expect(workerFacing.map(rel)).toContain("src/app/pay/pay-view.tsx");

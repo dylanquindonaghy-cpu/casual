@@ -299,9 +299,12 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
    passes it, held by `tests/unit/notify.from-line.test.ts`), and an incoming message finds its
    firm from the number it was sent to (`resolveFirmByLine()`, `app_firm_by_line()`). The number is
    bought in Twilio and set with `npm run firm:line` (PLAN.md Parking lot, "Connect Twilio").
-1. Twilio webhook → verify signature → store message (idempotent) → queue job → 200.
+1. Twilio webhook → verify signature → store message (idempotent) → queue job → 200. (Built for
+   WhatsApp in Phase 7: `src/lib/inbound/webhook.ts`.)
 2. Known worker: keyword match (shifts, cancel, pay, help) → instant reply with the right link.
-   Unclear text → Haiku classifies → reply with link or create a request for the office.
+   Unclear text → Haiku classifies → reply with link or create a request for the office. (Built in
+   Phase 7, `src/lib/inbound/reply.ts`, short of Bedrock: the AI only picks one of four labels and
+   the reply is always the app's fixed text; no AI yet, so unclear text goes to the office.)
 3. Unknown number → polite reply + office alert.
 
 **Call-to-text**

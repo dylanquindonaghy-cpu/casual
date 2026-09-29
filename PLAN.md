@@ -563,6 +563,11 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
      `from`: the Twilio sender sends from `message.from`. Then tick the shifts line task.
   8. **Dylan to decide:** a firm with no line yet: send from a shared ShiftDesk number, or no
      WhatsApp/text until its line is live (today the app builds the message with no `from`).
+  9. **Incoming WhatsApps:** in each WhatsApp sender's settings, set "When a message comes in" to
+     `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/whatsapp` (HTTP POST), and put the account's
+     auth token (Account → API keys & tokens) in the web app's environment as `TWILIO_AUTH_TOKEN`
+     (never in the repo). Send the line a WhatsApp saying "shifts": you should get the open shifts
+     link back within seconds.
   Also: validate `quiet_hours` on the settings screen (Phase 5); and decide what a wave held past
   the shift's start should do (today it stops as "started" at the end of the quiet hours, and
   only the escalation tells the office).
@@ -818,7 +823,11 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
      digest (next task) passes the client to `loadPayQueryGroups({ ai })`.
   5. docs/compliance.md: Bedrock as a sub-processor (AI disclosure); the model sees only a
      group's facts (count, issue, week, site, rate), no names or workers' words.
-  Then tick the grouping task after a real summary passes the checks.
+  Then tick the grouping task after a real summary passes the checks. The same client serves the
+  shifts line's classifier (`classify_message`, `src/lib/ai/classify-message.ts`): pass it in
+  `inboundMessageFirmTask` (`src/lib/inbound/reply.ts`) instead of `noAi`, check a few real
+  unclear messages get the right label, and (with "Connect Twilio" step 9 done too, so real
+  WhatsApps arrive and replies go) tick the Phase 7 "Inbound WhatsApp" task.
   Also, with the real client (from the pay.grouping tests review):
   - give `AiRequest` an `AbortSignal` and abort it when our 5-second timeout wins, so a request we
     stopped waiting for isn't still running (and billed);
@@ -883,6 +892,29 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     noisy.
   - The key-freeze question above still stands: a query in a digest can still move group when
     regrouped; the digest's list shows the group it was sent in.
+- Shifts line replies follow-ups (Phase 7 "Inbound WhatsApp" task, blocked on Bedrock):
+  - Delete messages after 90 days with the retention job (Phase 8; docs/compliance.md).
+  - When the office answers a WhatsApp's `general` request, the worker's notice says "Your request
+    (question, ref …) is approved.": for a question, "answered" would read better (the
+    request-update wording).
+  - Texts (SMS) to the line, and answering unknown numbers, are the next tasks.
+  - **Dylan to confirm the keywords:** "work" and "available" still give the open shifts link
+    (unless the message also says "can't", "not", "sick", "late"…); "shift" alone doesn't. Real
+    messages from the pilot will show which words mislead.
+  - Limit replies per worker (a few an hour): a WhatsApp Business away message, or another bot,
+    would otherwise answer every reply for ever, at Twilio's price.
+  - Many "ok"/"thanks" messages each make an office request: fold a worker's repeats into their
+    open one.
+  - Tell the office when a reply couldn't be sent (today it's only in the log).
+  - Retention: the worker's words are also in the office request's note (`requests.payload.note`),
+    not only in `messages`: delete both after 90 days.
+  - A webhook address override for a dev tunnel (ngrok) when testing with a real phone; and if
+    firms ever get their own Twilio subaccounts, one auth token per subaccount.
+  - **Before connecting Twilio (every sender):** a real Twilio id (SM… with a long run of digits)
+    can look like a phone number to the log's masker, and `recordEvent` then refuses the event
+    after the message has gone. The new `message.replied` keeps it out of the event; the other
+    senders log `providerMessageId`: stop the masker treating SID shapes as phone numbers, or keep
+    ids out of events.
 - Shifts line follow-ups (Phase 7 "One business WhatsApp number per firm" task, blocked):
   - Show the line to workers (the home page, and `/help` when it's built: "Message the shifts line:
     {number} (WhatsApp or text)" with a WhatsApp link) once incoming messages are answered (the
@@ -1040,3 +1072,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 6 | 0.5 | Pay records import screen: payroll and admins upload their payroll's .csv or .xlsx at `/office/pay/import` (Staff ID or mobile, period, hours, rate, gross, pay date), "Check the file" first (nothing saved or logged), then "Import these pay records"; problems listed by row, never the contents; waiting pay queries regroup to match the new lines (logged); the importer itself was Phase 3's, and the shifts and pay screens now share one upload path; the review found nothing to fix first, and its suggestions were done (checks can never write, a deadlock retry, more cross-firm tests, the AI tripwire extended to the import); 2275 tests + 39 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.3 | Phase 6 tests (`pay.grouping`): a new file on the real database proves grouping keys are stable (the same facts give the same key whoever raises it and whenever; the firm's own week, across the clocks going back; regrouping and re-importing change nothing; keys move only when their facts do; firms never share a group) and that every kind of AI failure (throwing, hanging, answering late, nonsense, advice) leaves the payroll digest word for word as it is with no AI; planning found the digest could wait for ever on an AI that never answers (fixed: a 5-second limit a group); the review's suggestions done (late answers tested in the digest, AI calls counted, no leftover timers); 2285 tests + 39 e2e; verified and audited DONE. Phase 6 done except the blocked grouping task: 3.1 h of the 12–18 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.6 | Shifts line, BLOCKED (not ticked: the number and its WhatsApp sender only exist in Twilio, an outside service): built everything short of it: each firm's own number (`firms.shifts_line_e164`, one number per firm), every WhatsApp and text to a worker carrying it as `from` (a tripwire test holds every sender to it), finding the firm for an incoming message's number (`app_firm_by_line`), the office dashboard showing it, `npm run firm:line` to set it (asks before replacing), and a fake number for the demo firm; the review caught an invariant the owner-only script broke (moved to `scripts/`) and a test that could clash with the seed; buying and connecting the numbers is parked under "Connect Twilio"; 2299 tests + 39 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 7 | 0.7 | Inbound WhatsApp, BLOCKED (not ticked: "Haiku only for unclear text" needs Bedrock, and real WhatsApps need Twilio): built everything short of them: a new `messages` table, Twilio's webhook (signature checked, reproducing Twilio's own example; one row and one job per message, repeats ignored), and the reply job: keywords first (open shifts, cancelling, pay links; "help" makes an office request with a reference), the AI only ever picking one of those replies, with unclear messages going to the office meanwhile; replies from the firm's own number, at most once; the review caught a way a message could be lost and dropouts getting the open shifts link (both fixed and tested); 2344 tests + 40 e2e; verified (see docs/work-log.md) |

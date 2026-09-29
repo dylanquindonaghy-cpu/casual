@@ -54,6 +54,13 @@ const appFields = {
       .regex(/^[A-Za-z0-9_-]{80,100}$/, { message: "must be a base64url VAPID public key" })
       .optional(),
   ),
+  // Twilio signs every webhook with the account's auth token (X-Twilio-Signature): the webhooks
+  // check it. Unset (as .env.example ships it): the webhooks answer 503 and store nothing (PLAN.md
+  // Parking lot, "Connect Twilio"). A secret: never in the repo.
+  TWILIO_AUTH_TOKEN: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().min(16, { message: "must be the Twilio account's auth token" }).optional(),
+  ),
 };
 
 const realSecret = (e: { NODE_ENV: string; SESSION_SECRET: string }) =>

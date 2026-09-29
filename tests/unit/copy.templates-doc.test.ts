@@ -24,6 +24,7 @@ import {
   shiftOfferSms,
   shiftReminder24hMessage,
   shiftReminder2hMessage,
+  shiftsLineReply,
   shiftUrgentMessage,
   shiftUrgentSms,
   urgentPush,
@@ -194,6 +195,24 @@ describe("the code says what the doc says", () => {
     expect(requestUpdateMessage(docVoice, request)).toBe(docBody("request_update"));
     expect(requestUpdateMessage(docVoice, { ...request, note: null })).toBe(
       docBody("request_update").replace(" The office says: {note}", ""),
+    );
+  });
+
+  it("the shifts line's instant replies: each row's words, signed", () => {
+    const table = doc.slice(
+      doc.indexOf("## Instant replies on the shifts line"),
+      doc.indexOf("\n## ", doc.indexOf("## Instant replies on the shifts line") + 1),
+    );
+    const replyFor = (keyword: string) => {
+      const row = table.split("\n").find((l) => l.startsWith(`| "${keyword}"`)) ?? "";
+      return /^\|[^|]*\| "([^"]+)"/.exec(row)?.[1];
+    };
+    const signed = (text: string | undefined) => `${text} — {firm} Shift Team`;
+    for (const intent of ["shifts", "cancel", "pay"] as const) {
+      expect(shiftsLineReply(docVoice, { intent, link: "{link}" })).toBe(signed(replyFor(intent)));
+    }
+    expect(shiftsLineReply(docVoice, { intent: "office", ref: "{ref}" })).toBe(
+      signed(replyFor("help")),
     );
   });
 
@@ -527,6 +546,7 @@ describe("every template function is checked here", () => {
         "shiftOfferMessage",
         "shiftOfferSms",
         "shiftReminder24hMessage",
+        "shiftsLineReply",
         "shiftReminder2hMessage",
         "shiftUrgentMessage",
         "shiftUrgentSms",

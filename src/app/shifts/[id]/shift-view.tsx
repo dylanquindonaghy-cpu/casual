@@ -1,20 +1,12 @@
 import Link from "next/link";
-import { roleLabel, shiftWhen, siteAddress, soonLabel } from "@/lib/portal/format";
+import { roleLabel, shiftWhen, siteAddress, soonLabel, timeOnDay } from "@/lib/portal/format";
 import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
-import { dayLabel } from "@/lib/rules/reasons";
-import { localDateOf, wallTimeOf } from "@/lib/time/zoned";
 import { ShiftActions, ShiftDetails } from "../../my-shifts-view";
 import { TakeShiftButton } from "../open/take-shift-button";
 import { ReviewForm } from "./review-form";
 
 // One shift's page (docs/screens.md, `/shifts/[id]`): the shift, then what the worker can do
 // about it. When the rules say no, their reasons in plain English and "Ask the office to review".
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const at = (instant: Date, timeZone: string) => {
-  const w = wallTimeOf(instant, timeZone);
-  return `${pad(w.hour)}:${pad(w.minute)} on ${dayLabel(localDateOf(instant, timeZone))}`;
-};
 
 function Heading({ shift, timeZone }: { shift: ShiftSummary; timeZone: string }) {
   const address = shift.site ? siteAddress(shift.site) : null;
@@ -109,7 +101,7 @@ export function ShiftView({
           {page.review ? (
             <div role="status" className="mt-4">
               <p className="font-semibold">
-                You asked the office to review this at {at(page.review.askedAt, timeZone)}.
+                You asked the office to review this at {timeOnDay(page.review.askedAt, timeZone)}.
                 Reference: {page.review.ref}.
               </p>
               <p className="mt-1">You can see it in My requests.</p>

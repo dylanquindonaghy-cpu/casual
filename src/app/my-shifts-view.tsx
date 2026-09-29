@@ -5,7 +5,14 @@ import {
   credentialMarkedExpiredMessage,
   type FirmVoice,
 } from "@/lib/messaging/templates";
-import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
+import {
+  isOnNow,
+  mapLink,
+  roleLabel,
+  shiftWhen,
+  siteAddress,
+  timeOnDay,
+} from "@/lib/portal/format";
 import type { CredentialNotice, MyShift, ShiftsView } from "@/lib/portal/my-shifts";
 import { shortDate } from "@/lib/rules/reasons";
 import { wallTimeOf } from "@/lib/time/zoned";
@@ -27,11 +34,26 @@ export interface MyShiftsViewProps {
 }
 
 export function MyShiftsView(props: MyShiftsViewProps) {
-  const { firstName, voice, view, shifts } = props;
+  const { firstName, voice, view, shifts, now, timeZone } = props;
+  const updated = timeOnDay(now, timeZone);
   return (
     <>
       <p className="text-base text-slate-600">{voice.name}</p>
       <h1 className="text-3xl font-bold">Hello {firstName}</h1>
+      <p className="text-base text-slate-600">Updated {updated}</p>
+      {/* Shown only in the copy kept for when there's no signal: public/sw.js removes `hidden`
+          when it serves that copy. It carries the time the copy was made. */}
+      <div
+        data-offline-notice=""
+        hidden
+        suppressHydrationWarning
+        role="status"
+        className="mt-4 rounded-xl border-2 border-amber-600 bg-amber-50 p-4"
+      >
+        <p className="font-semibold">No signal.</p>
+        <p>These are your shifts from {updated}. They may have changed.</p>
+        <p>Taking or cancelling a shift needs signal.</p>
+      </div>
       <Notices {...props} />
       <nav aria-label="Which shifts" className="mt-6 grid grid-cols-2 gap-2">
         <Toggle href="/" current={view === "upcoming"}>

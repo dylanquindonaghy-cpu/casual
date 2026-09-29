@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { clearOfflineCopy } from "@/lib/portal/offline";
 
 // Logs out through the given server action, then the browser goes to `after` itself.
 export function LogoutButton({ action, after }: { action: () => Promise<void>; after: string }) {
@@ -13,6 +14,9 @@ export function LogoutButton({ action, after }: { action: () => Promise<void>; a
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
+          // The offline copy of My shifts goes first, even if logging out fails (no signal): a
+          // shared phone must not keep it. It never throws or waits long.
+          await clearOfflineCopy();
           await action();
           router.replace(after);
         })

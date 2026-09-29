@@ -72,6 +72,25 @@ but never changes an existing password. Rotate by hand as the owner:
    offers marked failed.
 6. Write a 5-line post-mortem in the Hours log.
 
+## A bad service worker (My shifts offline copy)
+
+The service worker (`public/sw.js`) stays on workers' phones until a new one replaces it.
+Browsers check for a new one each time the portal opens, at least once a day. **Never delete
+`public/sw.js` from the site:** a phone that gets a 404 when it checks keeps the old one.
+
+0. Quickest: set `OFFLINE_COPY=off` and redeploy. Each phone removes the service worker and its
+   copy the next time My shifts opens. (If My shifts itself won't open, use step 2.)
+
+1. To fix a bug, deploy a corrected `public/sw.js`. Phones pick it up the next time the portal
+   opens. If the stored copy's format changed, change `CACHE` in `public/sw.js` and
+   `OFFLINE_CACHE` in `src/lib/portal/offline.ts` together; a unit test checks they match. The new
+   worker deletes the old caches.
+2. To switch it off completely, replace `public/sw.js` with just:
+   `self.addEventListener("install", () => self.skipWaiting()); self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))).then(() => self.registration.unregister())));`
+   and set `OFFLINE_COPY=off`.
+3. One worker's phone: logging out deletes the copy. Clearing the browser's data for the portal
+   removes the service worker too.
+
 ## WhatsApp problems
 
 - **Template rejected:** simplify wording, remove marketing-like phrases, resubmit. Use SMS fallback meanwhile.

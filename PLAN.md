@@ -139,7 +139,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
 - [x] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
 - [x] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
-- [ ] "My shifts" cached by a service worker (opens with poor signal); "Add to home screen" prompt on iPhone
+- [x] "My shifts" cached by a service worker (opens with poor signal); "Add to home screen" prompt on iPhone
 - [ ] Empty and error states written in plain language (see `docs/screens.md`)
 - [ ] Demo seed: Acme's Saturday event day with an urgent dropout (`docs/testing.md`)
 - [ ] Playwright: login → take shift → cancel → request → pay OTP
@@ -514,6 +514,19 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     index over every request kind). The code holds it today by locking the shift row.
   - The demo seed has no shifts yet, so the blocked-shift e2e test adds its own shift
     (`tests/e2e/db.ts`). Once the demo seed has shifts, it can use a seeded one.
+- Offline and home-screen follow-ups (from the Phase 3 service-worker task):
+  - **Dylan, on a real iPhone:** add the portal to the home screen, open it from there, and check
+    you're still logged in. Then log out inside the home-screen app and log in again: the WhatsApp
+    link opens Safari. If the app stays logged out, workers need a typed code login (a code in
+    the login message, typed into the app). Until then the hint can be removed from
+    `src/app/page.tsx` and `src/app/profile/page.tsx`.
+  - App icons for the home screen, in the firm's branding (with custom domains and branding).
+  - An "Install" button on Android (Chrome's install prompt).
+  - Web push (Phase 4) through the same service worker.
+  - Privacy notice (Phase 8): say the offline copy of My shifts is stored on the phone (strictly
+    necessary storage) and what deletes it.
+  - The hint's wording "Open your browser's Share menu" is meant to fit Safari's and Chrome's
+    layouts; check it on the real iPhone too.
 
 ## Hours log
 
@@ -540,3 +553,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 3 | 0.4 | Pay info page: new `pay_records` table (tenant-sealed, no deletes), `npm run import --kind pay` (money in exact pence, decimal commas refused), and the pay page behind the 6-digit code showing the last 8 weeks as payroll sent them; 1370 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.5 | Profile: the worker's details and licences (read-only, expired or suspended ones in red with what to do), days they can't work (new `worker_unavailable_days` table, which the rules now use to refuse bookings on those days; the office can override), and WhatsApp-or-text plus open-shift alerts settings; every change logged; 1412 tests + 12 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.4 | Blocked-shift screen: the shift's own page `/shifts/[id]` (booked, open, held, blocked, filled, started, cancelled, missing), the rules' reasons in plain English when blocked, and "Ask the office to review" (a new `review` request, one per shift, only while the rules still say no, tested with taps at once); Open shifts refusals link to it; 1431 tests + 14 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 3 | 0.6 | Offline My shifts and iPhone home screen: a small service worker keeps the last copy of My shifts on the phone and shows it with no signal, marked "No signal. These are your shifts from {time}" (deleted on logout, login and when logged out; never shown after 14 days; only the page and its own files are kept), a per-firm web app manifest, and an iPhone "Put your shifts on your home screen" hint; the review caught a path trick that could have kept other pages (fixed and tested); 1453 tests + 19 e2e; verified and audited DONE (see docs/work-log.md) |

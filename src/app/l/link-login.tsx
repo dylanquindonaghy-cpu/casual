@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { clearOfflineCopy } from "@/lib/portal/offline";
 import { TooManyTries } from "../too-many-tries";
 import { consumeLoginLinkAction } from "./actions";
 
@@ -79,8 +80,11 @@ export function LinkLogin({
             setWaitMinutes(null);
             try {
               const result = await action(token);
-              if (result.status === "ok") router.replace(home);
-              else if (result.status === "rejected") setRejected(true);
+              if (result.status === "ok") {
+                // A new login starts without any earlier worker's offline copy of My shifts.
+                await clearOfflineCopy();
+                router.replace(home);
+              } else if (result.status === "rejected") setRejected(true);
               else if (result.status === "rate_limited") setWaitMinutes(result.retryAfterMinutes);
               else setFailed(true);
             } catch {

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { myProfile } from "@/lib/portal/profile";
 import { refreshSessionAction } from "../session-actions";
+import { HomeScreenHint } from "../home-screen-hint";
 import { SessionKeeper } from "../session-keeper";
 import { ProfileView } from "./profile-view";
 
@@ -14,6 +15,7 @@ export default async function ProfilePage() {
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <p className="text-base text-slate-600">{firm.name}</p>
       <ProfileView profile={profile} signOff={firm.signOff} />
+      <HomeScreenHint />
     </main>
   );
 }

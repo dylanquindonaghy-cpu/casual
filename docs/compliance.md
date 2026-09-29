@@ -51,6 +51,19 @@ HTTPS everywhere · encryption at rest (managed Postgres) · MFA on every accoun
 IAM · tested backups · per-firm access control · no personal data in logs · verified webhooks ·
 rate-limited login. Breach plan: one page, who to tell, within 72 hours.
 
+**On the worker's phone:** so My shifts opens without signal, the browser keeps the last copy
+of that one page (ADR-016): the worker's first name, their upcoming shifts with times, sites and
+instructions, and any licence expiry banner (type and date). It never holds pay, requests or
+anyone else's data; only the page itself and the site's own style and script files are kept.
+It is deleted when the worker logs out or logs in on that browser, and when the server answers
+"not logged in" the next time My shifts loads. A copy older than 14 days is never shown, and is
+deleted the next time My shifts opens; until then it stays in the browser's storage. On iPhone,
+Safari and a home-screen app keep separate storage, so logging out in one doesn't clear the
+other. It's off unless switched on (`OFFLINE_COPY`; on in production). The "don't show the home
+screen hint again" choice is a flag in the phone's browser storage, with no personal data. The
+privacy notice should say the copy is stored on the device (storage that's strictly necessary
+for the service the worker asked for): parked in PLAN.md.
+
 ## Credential checks
 
 - Store each worker's credential number and expiry; the rules engine blocks offers after expiry.

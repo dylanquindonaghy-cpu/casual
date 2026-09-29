@@ -21,6 +21,8 @@ const env = {
   APP_BASE_DOMAIN: `localhost:${PORT}`,
   MESSAGING_TRANSPORT: "console",
   CONSOLE_OUTBOX_FILE: OUTBOX,
+  // The offline copy of My shifts is off by default in development; the e2e run tests it.
+  OFFLINE_COPY: "on",
 };
 
 export default defineConfig({

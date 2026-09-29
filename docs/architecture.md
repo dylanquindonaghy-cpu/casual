@@ -292,7 +292,13 @@ sync may call a plug's `markCancelled` (`tests/unit/booking.boundary.test.ts`).
 
 Order: web push (free) → WhatsApp template → SMS fallback.
 - Web push works on Android browsers. On iPhone it only works when the portal is added to the
-  home screen, so prompt for it after first login.
+  home screen, so prompt for it after first login. Built in Phase 3: My shifts and Profile show
+  iPhone and iPad users "Put your shifts on your home screen" (`src/app/home-screen-hint.tsx`)
+  until they tap "Don't show again". A per-firm web app manifest (`src/app/manifest.ts`) names
+  the portal "{Firm} shifts" on the home screen.
+- Offline: a service worker (`public/sw.js`, ADR-016) keeps the last copy of My shifts, so it
+  opens without signal, marked "No signal. These are your shifts from {time}". Phase 4's web push
+  will use the same service worker.
 - WhatsApp: business-initiated messages must use approved templates (utility category for
   offers and login links). From 1 October 2026 Meta charges per service message beyond the
   free tier of 1,000 per number per month, and a payment method must be on file.

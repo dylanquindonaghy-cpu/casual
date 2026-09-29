@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { requireWorker } from "@/lib/auth/current-worker";
-import { appEnv } from "@/lib/env";
+import { appEnv, offlineCopyOn } from "@/lib/env";
 import { credentialNotices, myShifts } from "@/lib/portal/my-shifts";
 import { parseHost } from "@/lib/tenancy/host";
+import { HomeScreenHint } from "./home-screen-hint";
 import { LogoutButton } from "./logout-button";
 import { MyShiftsView } from "./my-shifts-view";
+import { OfflineCopy } from "./offline-copy";
 import { logoutAction, refreshSessionAction } from "./session-actions";
 import { SessionKeeper } from "./session-keeper";
 
@@ -16,6 +18,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   if (match?.kind === "firm") {
     const { firm, worker, session } = await requireWorker();
     const view = (await searchParams).view === "past" ? "past" : "upcoming";
+    const now = new Date();
     const [shifts, notices] = await Promise.all([
       myShifts({ firm }, worker.id, view),
       credentialNotices({ firm }, worker.id),
@@ -23,15 +26,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     return (
       <main className="mx-auto max-w-md p-6">
         <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
+        <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
         <MyShiftsView
           firstName={worker.firstName}
           voice={{ name: firm.name, signOff: firm.signOff }}
           timeZone={firm.timezone}
-          now={new Date()}
+          now={now}
           view={view}
           shifts={shifts}
           notices={notices}
         />
+        <HomeScreenHint />
         <Link
           href="/requests"
           className="mt-8 block w-full rounded-xl border-2 border-slate-900 px-4 py-4 text-center text-lg font-semibold"

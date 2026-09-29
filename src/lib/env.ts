@@ -41,6 +41,9 @@ const appFields = {
     .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:\d{1,5})?$/, {
       message: "must be a lowercase host name, optionally with a port (e.g. localhost:3000)",
     }),
+  // The offline copy of My shifts (public/sw.js, ADR-016). Unset: on in production, off in
+  // development (a slow first compile would show an old copy). The e2e run sets "on".
+  OFFLINE_COPY: z.enum(["on", "off"]).optional(),
 };
 
 const realSecret = (e: { NODE_ENV: string; SESSION_SECRET: string }) =>
@@ -107,6 +110,9 @@ export const parseAdminEnv = (source: Source): AdminEnv => parseWith(adminEnvSch
 let app: AppEnv | undefined;
 let worker: WorkerEnv | undefined;
 let admin: AdminEnv | undefined;
+
+export const offlineCopyOn = (e: { NODE_ENV: string; OFFLINE_COPY?: "on" | "off" }) =>
+  e.OFFLINE_COPY ? e.OFFLINE_COPY === "on" : e.NODE_ENV === "production";
 
 export function appEnv(): AppEnv {
   app ??= parseAppEnv(process.env);

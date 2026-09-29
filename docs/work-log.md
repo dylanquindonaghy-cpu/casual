@@ -2316,3 +2316,128 @@ here later. The browser test shows the whole flow on a phone-sized screen:
 3. You should see `2 passed` at the end. It logs in as a demo worker whose SIA licence has
    expired, opens a door-supervisor shift, sees why they can't take it, and asks the office to
    review it.
+
+## 2026-09-29: Phase 3, task 9: My shifts without signal, and "Add to home screen" on iPhone (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (01:34 to 02:10 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=4435071fb786f4b5 e2e=true`. That covers the type
+  checks, lint, all 1453 tests (up from 1431), the 19 browser tests (up from 14) and the rule
+  checks. A production build was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+**My shifts opens with no signal.** A **service worker** is a small script the browser runs
+beside the page. It can answer the page's requests itself, from a store on the phone called
+the **cache**. Ours is `public/sw.js`, about 180 lines, and it does one job:
+
+- Each time My shifts loads properly, it keeps a copy on the phone. That's the page itself plus
+  the site's own style and script files, so it looks right.
+- When the worker opens My shifts with no signal, or no answer comes within 4 seconds, it shows
+  that copy. At the top it says: "No signal. These are your shifts from 14:05 on Sat 7 Nov. They
+  may have changed. Taking or cancelling a shift needs signal."
+- If there's no copy yet, it shows a plain "No signal" page instead of the browser's error.
+- My shifts now always says "Updated {time}" under the greeting.
+
+**Keeping personal data safe on the phone:**
+
+- Only My shifts is kept. Pay, requests and the office are never kept.
+- The copy is deleted when the worker logs out, when anyone logs in on that phone, and when the
+  server says they're no longer logged in. It's never shown if it's more than 14 days old.
+- A setting, `OFFLINE_COPY`, switches it. It's on in production and off while developing, and
+  switching it off removes it from phones.
+
+**"Add to home screen" on iPhone.** iPhones have no install button for websites, so My shifts
+and Profile show iPhone and iPad users "Put your shifts on your home screen. Open your browser's
+Share menu, then tap Add to Home Screen." There's a "Don't show again" button. A **web app
+manifest** (a small file describing the app to the phone) names it "{Firm} shifts" on the home
+screen and opens it at My shifts.
+
+### What the safety review found
+
+The guardrails reviewer found one real problem, now fixed. The service worker kept any style
+or script path it found written in the page. The page includes text the firm types, such as
+shift instructions. A crafted path like `/_next/static/../../pay` would really point at the pay
+page, and the service worker would have saved that page on the phone. Now a path is kept only if
+it really points at the site's style and script files, and those are fetched without the
+worker's login. A test tries three tricky spellings. I checked that the test fails if the fix is
+removed.
+
+It also found gaps, all fixed:
+
+- The copy was only kept after a full page load. Now it's also kept after logging in or going
+  back to My shifts.
+- If the service worker's storage failed, My shifts wouldn't open. Now it always falls back to
+  the network.
+- Logout now deletes the copy first, even if the logout itself fails for lack of signal.
+- There's now a test that a second worker logging in on the same phone never sees the first
+  worker's copy.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A small hand-written service worker, no library | We only keep one page; easy to read and test | Workbox / next-pwa (keeps far more) |
+| Network first, the copy only after 4 seconds or with no signal | Fresh whenever possible | Always show the copy first |
+| The "No signal" notice is built into the page, hidden; the service worker unhides it | Works even if scripts fail offline | A script that checks for signal |
+| Delete the copy on logout, login and "logged out"; not shown after 14 days | A shared or lost phone shouldn't keep it | Keep it forever |
+| iPhone hint only, no icons yet | The task says iPhone; icons come with firm branding | Android install button (parked) |
+
+Full list: `docs/overnight-log.md`, this task's entry. New decision record: ADR-016 in
+`docs/decisions.md`.
+
+### What the new tests prove
+
+- `tests/unit/offline.sw.test.ts` (17 tests). It runs the real `public/sw.js` in a sandbox,
+  with a pretend cache and network. It checks:
+  - which requests it answers;
+  - keeping the copy and its files, never other pages (the path trick), and with only the
+    headers it needs;
+  - the "keep" message and its 10-second skip;
+  - forgetting the copy when logged out, and keeping it through a server error;
+  - no signal, poor signal (the 4-second switch, then updating the copy), no copy, and a copy
+    too old to show;
+  - falling back to the network when its storage fails;
+  - old caches removed by a new version;
+  - the `OFFLINE_COPY` switch.
+- `tests/unit/portal.home-screen.test.ts` (3 tests): the hint shows on iPhone and iPad only,
+  not from the home screen, and not once dismissed.
+- `tests/e2e/offline.worker.spec.ts` (5 browser tests):
+  - My shifts opens offline with the notice, and logging out deletes the copy;
+  - a second worker logging in on the same phone gets their own copy, never the first worker's;
+  - the manifest names the firm;
+  - on an iPhone the hint shows and stays hidden after "Don't show again";
+  - on Android there's no hint.
+
+### Parked, open, and things that need Dylan
+
+- **Please check on a real iPhone (important):**
+  1. Log in and add the portal to the home screen.
+  2. Open it from the home screen: are you still logged in?
+  3. Log out there and log in again: the WhatsApp link opens Safari. Does the home-screen app
+     stay logged out?
+  If it does, workers need a typed login code. Until then the hint can be taken out of
+  `src/app/page.tsx` and `src/app/profile/page.tsx`. Also check the hint's wording matches what
+  you see.
+- **Please look over:** ADR-016 and the new paragraph in `docs/compliance.md` about what's kept
+  on the phone.
+- Parked in `PLAN.md`:
+  - home-screen icons in the firm's branding;
+  - an Android install button;
+  - web push (Phase 4);
+  - a line in the privacy notice about the copy on the phone.
+
+### How to see it working
+
+The offline copy is off while developing (a slow first page build would show an old copy). The
+browser test switches it on and shows it working:
+
+1. Stop `npm run dev` if it's running (Ctrl+C in its terminal).
+2. In the project folder, type: `npm run e2e -- tests/e2e/offline.worker.spec.ts`
+3. You should see `5 passed` at the end.

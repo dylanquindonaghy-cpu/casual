@@ -51,6 +51,11 @@ export function mapLink(site: NonNullable<MyShift["site"]>): string | null {
 export const isOnNow = (shift: Pick<MyShift, "startsAt" | "endsAt">, now: Date) =>
   shift.startsAt.getTime() <= now.getTime() && now.getTime() < shift.endsAt.getTime();
 
+// A moment with its day, for "when": "14:05 on Mon 2 Nov".
+export function timeOnDay(instant: Date, timeZone: string): string {
+  return `${timeOf(instant, timeZone)} on ${dayLabel(localDateOf(instant, timeZone))}`;
+}
+
 // A moment soon after now, as the worker would say it: "14:15" today, "Sat 7 Nov, 00:10" otherwise.
 export function soonLabel(instant: Date, now: Date, timeZone: string): string {
   const time = timeOf(instant, timeZone);

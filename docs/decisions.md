@@ -225,3 +225,30 @@ list (no fairness); run the full rules for every worker to find the group (too s
 hours, so one of the fewest-hours workers may not be eligible and the place still waits for the
 window. **Revisit when:** pilot firms say the window is too long or the group too small, or the
 offer waves (Phase 4) should replace it.
+
+## ADR-016: An offline copy of My shifts, kept by a small service worker
+
+**Context:** workers open their shifts at venues with poor signal (docs/screens.md copy rules;
+product spec P1-9: "last loaded shifts open without signal; clearly marked as last updated").
+**Decision:** a hand-written service worker (`public/sw.js`) handles only two things: opening My
+shifts (`/`) and the site's own styles and scripts. It goes to the network first, and shows the
+copy kept from the last good load when there's no signal or no answer within 4 seconds. The copy's
+"No signal" notice is part of the page, hidden; the service worker unhides it, so it needs no
+JavaScript. The page always says "Updated {time}". It is also kept when My shifts is shown
+without a full load (after logging in, or going back to it): the page sends the service worker a
+"keep" message. Besides the page, only same-origin `/_next/static/` files are kept, checked after
+resolving the path and fetched without cookies (the page's text includes what the firm typed).
+The copy lives only on the worker's phone. It is deleted on logout, on login, when the server
+answers "not logged in", and is never shown after 14 days. Every other page (pay, requests, the
+office) is never cached. `OFFLINE_COPY` switches it: on in production, off in development (a slow
+first compile would show an old copy); off also removes the service worker from phones that
+open My shifts.
+**Options:** a PWA library such as Workbox (caches far more than one page, another dependency);
+caching every page (more personal data on the phone, stale pay and requests); no offline copy.
+**Consequences:** the phone holds the worker's upcoming shifts, including instructions, until
+one of those events (docs/compliance.md). Taking, cancelling and other pages still need signal. A
+broken service worker would stick on phones until replaced: docs/runbooks.md says how to replace
+it. "Not logged in" is recognised because My shifts answers with a redirect; if a loading screen
+(`loading.tsx` or Suspense) is ever put above the login check, that answer changes and this needs
+revisiting. **Revisit when:** web push (Phase 4) needs the service worker to receive notifications.
+

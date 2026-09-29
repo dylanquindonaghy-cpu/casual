@@ -1709,3 +1709,104 @@ To reach DONE: nothing — the task is proven by code + passing unit, integratio
 **Ticked** in PLAN.md. **Hours:** 0.4 (01:05 to 01:31 UTC). Phase 3 so far: 3.1 h of its 35–45 h
 estimate.
 **Commit:** `12d694a`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 01:34 UTC: Phase 3, "'My shifts' cached by a service worker (opens with poor signal); 'Add to home screen' prompt on iPhone"
+
+**Plan.**
+- `public/sw.js`: a small hand-written service worker. A service worker is a script the browser
+  runs beside the page; it can answer the page's requests from a local cache. It handles only
+  two things:
+  - **Opening My shifts (`/`):** it tries the network first. With no signal, or no answer
+    within 4 seconds, it shows the last copy it kept, and unhides a "No signal" notice in that
+    copy. With no copy, it shows a plain "No signal" page.
+  - **The page's styles and scripts (`/_next/static/`):** network first, the kept copy as a
+    fallback, so the copy looks right offline.
+  - Every other page and request passes through untouched. Nothing is cached for the office.
+- Keeping the copy:
+  - each time My shifts loads with a real answer, the SW stores it and the styles and scripts
+    it names, and drops ones it no longer uses;
+  - a redirect (logged out) or a 401/403/404 deletes the copy;
+  - a copy older than 14 days is never shown.
+- My shifts shows "Updated {14:05 on Mon 2 Nov}" (server-rendered, so the kept copy carries its
+  own time). It also has a hidden notice: "No signal. These are your shifts from {time}. They may
+  have changed. Taking or cancelling a shift needs signal." The SW unhides it only when it serves
+  the kept copy, so the notice needs no JavaScript.
+- Logging out and logging in delete the copy (a shared phone never shows the previous worker's
+  shifts).
+- "Add to home screen" on iPhone:
+  - a hint on My shifts and Profile, only on an iPhone or iPad that isn't already running it
+    from the home screen: "Put your shifts on your home screen. Tap the Share button, then Add
+    to Home Screen.";
+  - "Don't show again" hides it on that phone (a flag in the phone's browser storage, no
+    personal data);
+  - a per-firm web app manifest (`/manifest.webmanifest`: "{Firm} shifts", opens at `/`,
+    standalone), plus the `mobile-web-app-capable` meta tag.
+
+Tests:
+- `sw.js` run in a sandbox with a fake cache and network: which requests it handles, keeping,
+  deleting and ageing the copy, the 4-second fallback, the notice, the no-copy page;
+- the hint's conditions;
+- My shifts' "Updated" line and hidden notice;
+- the cache name shared by the page and the SW;
+- e2e: log in, open My shifts, go offline, reload: the kept copy shows with the notice; log
+  out: the copy is gone; the manifest names the firm; the iPhone hint shows and stays hidden
+  after "Don't show again".
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| A hand-written ~150-line service worker, no library | Small, readable and testable; we only cache one page | next-pwa / Workbox (another dependency; caches far more than we want) |
+| Cache only My shifts (upcoming) and its styles and scripts; network first, 4-second fallback | Fresh data whenever there's signal; the copy only when there isn't | Cache every page (more personal data on the phone; stale pay or requests) |
+| The copy holds the worker's upcoming shifts, including instructions, on their own phone. It is deleted on logout, on login, when the server says they're logged out, and after 14 days | The whole point is to open without signal. The limits keep a shared or lost phone from keeping it for long (added to docs/compliance.md) | Keep it indefinitely; or leave out instructions (they're what a worker needs at the gate) |
+| The "No signal" notice is in the page, hidden, and the SW unhides it | Works without JavaScript, so the copy is readable even if scripts fail offline | A client script checking `navigator.onLine` (doesn't catch "poor signal", needs JS) |
+| iPhone hint only (no Android install button yet); no app icons yet | The task says iPhone; branded icons belong with firm branding | Android install prompt, generated icons (parked) |
+
+**Risk for Dylan to check on a real iPhone (I can't test Safari here):** a home-screen web app
+on iPhone may keep its own cookies, separate from Safari. Login links from WhatsApp open in
+Safari. So a worker whose session in the home-screen app has run out could end up logged in
+in Safari but not in the app. If that happens, the fix is a typed code login (parked); the hint
+can be switched off until then.
+
+**Root causes of failures while building:**
+- The unit test tying My shifts to the service worker compared plain text against HTML with tags
+  between the sentences. The notice was right. The test now strips the tags first.
+- Checked that the tests catch real mistakes. With the "forget the copy when logged out" step
+  removed, the logged-out test fails. With the timeout changed from 4 to 5 seconds, the
+  poor-signal test fails. Both restored.
+- The e2e offline test passed first time. It proves the service worker served the page: the
+  "No signal." notice only appears when the service worker unhides it, and offline the browser
+  would otherwise show its own error page.
+- `npm run build` run by hand: succeeds, with `/manifest.webmanifest` in the route list.
+
+**Guardrails review: FIX FIRST (one item), fixed.** The service worker kept every
+`/_next/static/...` path it found in the page's text, and the page's text includes what the firm
+typed (instructions, addresses). A path like `/_next/static/../../pay` resolves to `/pay`, which
+it would then have fetched with the worker's cookies and kept on the phone. Fix: a path is kept
+only if, once resolved, it is still same-origin and under `/_next/static/`; files are fetched
+without cookies. A unit test puts `../..`, `%2e%2e` and `..%2f` paths in the page, and fails if
+the check is removed (checked).
+
+Its other findings, and what I did:
+
+| Finding | Done |
+|---|---|
+| The copy was only kept on a full page load of `/`, not after logging in or going back to My shifts inside the portal | The page sends the service worker a "keep" message each time My shifts is shown or refreshed (skipped within 10 seconds of a copy). The e2e test no longer reloads to make a copy |
+| If the service worker's own storage failed, My shifts wouldn't open | Any failure falls back to the network; the network request and "keep" work are set up synchronously; unit test with broken storage |
+| Logout cleared the copy only if the logout itself succeeded | Clearing comes first, and gives up after 1.5 seconds so it can never hold up logging in or out |
+| No test that a new login clears the previous worker's copy | e2e: worker A has a copy; worker B's link is opened on the same phone; the copy is B's and never A's |
+| The compliance note was incomplete (first name and licence banner, "after 14 days" is lazy, iPhone's separate storage) | Rewritten; privacy notice wording parked |
+| Static files were network-first and a 404 after a deploy would show the copy unstyled | Kept files are served from the copy (their names change whenever their contents do); unit test |
+| The copy kept the original compression and length headers | Only the content type and the kept time are stored; unit test |
+| Stale code in development (a slow first compile shows the old copy) | New `OFFLINE_COPY` setting: on in production, off in development; off also removes the service worker. The e2e run sets it on |
+| Hint wording may not match iPhone's newer Safari layout | "Open your browser's Share menu, then tap Add to Home Screen." Check on a real iPhone (parked) |
+| Runbook: never delete `public/sw.js` | Added, with the quicker `OFFLINE_COPY=off` switch |
+| PLAN.md: a blocked-shift bullet ended up under the new heading | Moved back |
+| Put the iPhone hint behind a flag until checked | Not done: the task asks for it and there is no pilot yet. The risk is at the top of the Parking lot for Dylan, with how to remove the hint |
+
+**Root causes while fixing:**
+- The shared-phone e2e test first looked for "Hello Ruth" in the kept HTML. React writes
+  "Hello <!-- -->Ruth", so it never matched. The test now removes those markers first.
+- It then waited for the login form while still logged in. The login page sends a logged-in
+  worker straight to My shifts. The second worker now asks for a link from another browser (as
+  from their own phone) and opens it on the first, which is the real situation.

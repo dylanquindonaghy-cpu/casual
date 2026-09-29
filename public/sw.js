@@ -1,0 +1,184 @@
+// ShiftDesk service worker: keeps the worker's last "My shifts" page on their phone, so it opens
+// with poor signal at a venue (docs/screens.md, `/`; docs/decisions.md ADR-016).
+//
+// It handles only two kinds of request; everything else goes to the network untouched:
+// - Opening My shifts (`/`, no query): the network first. With no signal, or no answer within
+//   NETWORK_TIMEOUT_MS, the copy kept from the last good load, with its "No signal" notice
+//   unhidden. With no copy (or one older than MAX_AGE_MS), a plain "No signal" page. If anything
+//   in here goes wrong, the page is fetched as if this worker weren't there.
+// - The kept page's own styles and scripts (`/_next/static/`, whose names change whenever their
+//   contents do): from the copy when kept, else the network.
+// A good load of My shifts replaces the copy, and so does a "keep" message from the page (sent
+// when My shifts is shown without a full load: after logging in, or going back to it). A redirect
+// (logged out) or a 401, 403 or 404 deletes it. The page deletes it on logout and login
+// (src/lib/portal/offline.ts, same cache name). Only same-origin `/_next/static/` files are ever
+// kept besides the page, fetched without cookies.
+//
+// Never delete this file from the site: a phone checking for an update and getting a 404 keeps
+// the old worker. To switch it off, see docs/runbooks.md ("A bad service worker").
+//
+// Plain JavaScript with no build step. Tests run it in a sandbox (tests/unit/offline.sw.test.ts).
+
+const CACHE = "shiftdesk-my-shifts-v1";
+const PAGE = "/";
+const STATIC = "/_next/static/";
+const KEPT_AT = "x-shiftdesk-kept-at";
+const NETWORK_TIMEOUT_MS = 4000;
+const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const RECENT_MS = 10 * 1000; // a "keep" message this soon after a copy was made is skipped
+const MAX_ASSETS = 100;
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      // Caches from older versions of this file.
+      for (const key of await caches.keys()) {
+        if (key.startsWith("shiftdesk-") && key !== CACHE) await caches.delete(key);
+      }
+      await self.clients.claim();
+    })(),
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (request.mode === "navigate" && url.pathname === PAGE && url.search === "") {
+    // Set up synchronously: the network request, and keeping its answer alongside.
+    const network = fetch(request);
+    const copy = network.then((response) => response.clone());
+    event.waitUntil(
+      copy
+        .then((response) => caches.open(CACHE).then((cache) => remember(cache, response)))
+        .catch(() => undefined),
+    );
+    event.respondWith(openMyShifts(network).catch(() => network));
+  } else if (url.pathname.startsWith(STATIC)) {
+    event.respondWith(staticFile(request).catch(() => fetch(request)));
+  }
+});
+
+// My shifts is showing without a full load (after logging in, or going back to it): keep it now.
+self.addEventListener("message", (event) => {
+  if (!event.data || event.data.type !== "keep-my-shifts") return;
+  event.waitUntil(refreshCopy().catch(() => undefined));
+});
+
+async function openMyShifts(network) {
+  const kept = await keptPage(await caches.open(CACHE));
+  if (!kept) return network.catch(() => noSignalPage());
+  return Promise.race([network, wait(NETWORK_TIMEOUT_MS).then(() => kept)]).catch(() => kept);
+}
+
+async function refreshCopy() {
+  const cache = await caches.open(CACHE);
+  const kept = await cache.match(PAGE);
+  const at = kept ? Number(kept.headers.get(KEPT_AT)) : NaN;
+  if (Number.isFinite(at) && Date.now() - at < RECENT_MS) return;
+  await remember(cache, await fetch(PAGE, { redirect: "manual", credentials: "same-origin" }));
+}
+
+// Keep a good answer; forget the copy when the server says the worker isn't logged in.
+async function remember(cache, response) {
+  if (
+    response.type === "opaqueredirect" ||
+    response.redirected ||
+    [401, 403, 404].includes(response.status)
+  ) {
+    await forget(cache);
+    return;
+  }
+  if (response.status !== 200 || response.type !== "basic") return;
+  const html = await response.text();
+  // Only what's needed to show it again (not the original encoding or length headers).
+  const headers = new Headers({
+    "content-type": response.headers.get("content-type") || "text/html; charset=utf-8",
+    [KEPT_AT]: String(Date.now()),
+  });
+  await cache.put(PAGE, new Response(html, { status: 200, headers }));
+
+  // The styles and scripts the page names, so the copy looks right offline; drop the rest.
+  const files = assetsIn(html).slice(0, MAX_ASSETS);
+  const wanted = new Set(files);
+  await Promise.all(
+    files.map(async (href) => {
+      try {
+        const file = await fetch(href, { credentials: "omit" });
+        if (file.ok) await cache.put(href, file);
+      } catch {
+        // Not fatal: that file just won't be there offline.
+      }
+    }),
+  );
+  for (const request of await cache.keys()) {
+    const url = new URL(request.url);
+    if (url.pathname !== PAGE && !wanted.has(url.href)) await cache.delete(request);
+  }
+}
+
+async function forget(cache) {
+  for (const request of await cache.keys()) await cache.delete(request);
+}
+
+// The kept page, if there is one young enough to show, with its "No signal" notice unhidden.
+async function keptPage(cache) {
+  const kept = await cache.match(PAGE);
+  if (!kept) return null;
+  const at = Number(kept.headers.get(KEPT_AT));
+  if (!Number.isFinite(at) || Date.now() - at > MAX_AGE_MS) {
+    await forget(cache);
+    return null;
+  }
+  const html = showNoSignalNotice(await kept.text());
+  return new Response(html, { status: 200, headers: kept.headers });
+}
+
+async function staticFile(request) {
+  const kept = await (await caches.open(CACHE)).match(request);
+  return kept || fetch(request);
+}
+
+// Every same-origin /_next/static/ file the page names, once each, as full URLs. The page's text
+// can include what the firm typed (instructions, addresses), so a path is taken only if it still
+// points into /_next/static/ once resolved ("/_next/static/../../pay" is not kept).
+function assetsIn(html) {
+  const found = new Set();
+  for (const raw of html.match(/\/_next\/static\/[^"'\s)\\<>]+/g) || []) {
+    let url;
+    try {
+      url = new URL(raw, self.location.origin);
+    } catch {
+      continue;
+    }
+    if (url.origin === self.location.origin && url.pathname.startsWith(STATIC)) found.add(url.href);
+  }
+  return [...found];
+}
+
+// My shifts renders the notice with `hidden` (src/app/my-shifts-view.tsx); unhide only that one.
+function showNoSignalNotice(html) {
+  return html.replace(/<[^>]*\bdata-offline-notice\b[^>]*>/, (tag) =>
+    tag.replace(/\s+hidden(="[^"]*")?/, ""),
+  );
+}
+
+function noSignalPage() {
+  return new Response(
+    '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1"><title>No signal</title></head>' +
+      '<body style="font-family:system-ui,sans-serif;font-size:1.125rem;line-height:1.5;max-width:28rem;margin:0 auto;padding:1.5rem">' +
+      "<h1>No signal</h1><p>Your shifts will open here without signal once you've opened them with signal.</p>" +
+      "<p>Try again when you have signal.</p></body></html>",
+    { status: 503, headers: { "content-type": "text/html; charset=utf-8" } },
+  );
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

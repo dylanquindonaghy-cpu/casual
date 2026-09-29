@@ -1918,3 +1918,81 @@ To reach DONE: nothing — this claim is fully proven. (Note: this audit covers 
 **Ticked** in PLAN.md. **Hours:** 0.2 (02:13 to 02:26 UTC). Phase 3 so far: 3.9 h of its 35–45 h
 estimate.
 **Commit:** `8644431`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 02:29 UTC: Phase 3, "Demo seed: Acme's Saturday event day with an urgent dropout (docs/testing.md)"
+
+**Plan.** `npm run db:seed` (and `db:reset`) adds to Acme Events (docs/testing.md "Fixtures and
+the demo seed"):
+- **The Saturday event day:** the next Saturday after the day the seed runs, 40 shifts across the
+  three sites:
+  - Arena match day: 14 stewards, 8 door supervisors, 1 early door supervisor;
+  - Racecourse: 6 stewards, 4 security officers;
+  - Shopping centre: 4 early and 3 late security officers.
+  Each shift has instructions. 32 are booked by workers who hold the right licence, and 8 are
+  open. (The first draft of this plan said 31: a sum error, caught by the test.)
+- **The urgent dropout:** the early door supervisor (08:00) was booked, then the worker cancelled
+  at 06:00 on the day the seed runs ("I'm unwell", notice hours recorded). The shift is open again
+  and marked urgent.
+- **Two open requests:** a time change and a swap, from booked workers.
+- **Pay records for 8 weeks** for every Acme worker (the last 8 complete weeks), as payroll's
+  file would give them, so the pay page has something to show.
+- **The action log:** `shift.assigned` for each booking, `shift.cancelled` for the dropout (with
+  its notice hours) and `request.created` for the requests, as the app would write them.
+- The builder is a pure function (`src/lib/db/admin/seed-saturday.ts`), so it's easy to test.
+  The loader inserts by fixed ids and skips rows already there. Running it again changes
+  nothing, and logs nothing new.
+- Workers 07700 900100 to 900104 stay unbooked, so a demo (and the e2e tests) has free workers
+  to log in as.
+- Two e2e tests assumed an empty firm. They now check the seeded day instead, which is just as
+  strict:
+  - "Nothing open right now." becomes: the Saturday's steward shifts are listed with "Take
+    shift";
+  - "No pay data yet" becomes: the seeded pay lines show.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| The event is the next Saturday after the seed runs, and its ids include that date | Always in the future for a demo; re-running the same week changes nothing and never moves shifts people have booked | A fixed date (goes stale); ids without the date (re-running next week would move booked shifts) |
+| Event rows are only added, never reset, by a re-run (`on conflict do nothing`) | A re-run mid-demo mustn't undo what the demo did; `npm run db:reset` gives the exact demo state | Reset them like workers (could leave more bookings than places) |
+| The dropout happened "at 6am" on the seed day (or just now, if the seed runs before 6am) | docs/testing.md: "one 6am cancellation that becomes urgent"; the log's notice hours stay real | A cancellation on the event morning itself (it's in the future) |
+| Seeded bookings, the dropout and the requests are logged; seeded pay lines are not | The demo walks the notice log; the pay lines didn't come through an import, so a `pay_record.imported` event would be untrue | Log everything, or nothing |
+| Northline's mocked sheet and pay queries stay parked (Phase 2 leftover, Phase 6) | Not this task | Add now |
+
+**Built:** `src/lib/db/admin/seed-saturday.ts` (the pure builder), `loadSaturday()` in
+`src/lib/db/admin/seed.ts` (inserts by fixed ids, skips rows already there, logs only what it
+added), the seed summary line ("40 shifts on Saturday 2026-10-03"), docs/testing.md (the day and a
+demo logins table). The dev database is seeded with it.
+
+**Root causes of failures while building:**
+- Three seed tests failed on counts: I had written 31 booked and 9 open. The plan books
+  11 + 7 + 5 + 3 + 4 + 2 = 32 workers, so 32 filled and 8 open. That was my arithmetic, not the
+  code. The tests and comments now say 32; the plan above notes the correction.
+- The login e2e test's "Acme Demo Arena is visible" matched the hidden choice in the Site
+  drop-down first. The test now counts the shift cards in the list (3 at the arena, 1 at the
+  racecourse).
+
+**Checks:**
+- Every seeded booking passes the real rules (`previewBooking` for all 32).
+- A free worker can take an open shift through `takeShift`. Re-running the seed then leaves
+  that booking alone.
+- A re-run changes no ids and adds no log entries (the snapshot now covers shifts, bookings,
+  requests, pay and those events).
+
+**Guardrails review:** SAFE TO COMMIT, no FIX FIRST items. Its suggestions and what I did:
+
+| Finding | Done |
+|---|---|
+| Stewards at £12.21 an hour may be under the 2026 National Living Wage (a prospect would notice) | Stewards £13.00, security officers £13.50, door supervisors £14.50: comfortably above it, whatever the exact 2026 figure. Tests and docs follow |
+| The pay test compared London weeks with the database's UTC date: it would fail for an hour after midnight on Mondays in summer | Uses London's date (`now() at time zone 'Europe/London'`) |
+| Seeded shifts were dated after the bookings made on them | Shifts are dated a week before the seed runs; a test checks every booking came after its shift |
+| Log entries are dated when the seed ran, not when the bookings "happened" | Documented in docs/testing.md and the builder (the append-only log can't be backdated) |
+| No `shift.created` entries for seeded shifts (imports log them) | Added, as the system; tests updated |
+| The urgent flag has no log entry | Parked for when the office's "make urgent" exists |
+| Tests could be stricter | The cancellation event's notice equals the row's; the dropout's worker passes the rules too; the pay e2e checks the exact number of lines and every gross, worked out from the builder |
+| docs/testing.md: pay is 1 to 8 lines, not all 8; the before-6am case; a re-run on a Saturday adds the next one; how to reach the blocked page | Corrected; the seed now prints the urgent dropout's link, and the logins table says to use it; worker 07700 900137 added |
+| A re-run with a changed plan could put a booking on a shift that was already there | Bookings and requests are only added with shifts added in the same run |
+| `rng` copied from seed-data.ts | Exported and reused |
+
+The dev database was recreated with `npm run db:reset` so it holds this version (a re-run
+never overwrites earlier seeded rows).

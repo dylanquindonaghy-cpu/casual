@@ -2521,3 +2521,113 @@ into the not-found page.
    find that page." with a "Go to my shifts" button.
 2. Log in, turn off "Tell me about open shifts" in My profile, then open "See open shifts". With
    nothing open it says "Nothing open right now. Check back later."
+
+## 2026-09-29: Phase 3, task 11: Demo seed with Acme's Saturday and an urgent dropout (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (02:29 to 02:57 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=dec40ac0860376b2 e2e=true`. That covers the type
+  checks, lint, all 1545 tests (up from 1531), the 20 browser tests and the rule checks. A
+  production build was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+The **demo seed** is the fake data that `npm run db:seed` (or `npm run db:reset`) loads, so
+there's something to show on a call. It now includes **Acme's Saturday event day**, always the
+coming Saturday:
+
+- **40 shifts** at the three demo sites, each with instructions:
+  - a match day at the arena: stewards, door supervisors and one early door supervisor;
+  - a race day at the racecourse: stewards and security officers;
+  - security officers at the shopping centre, early and late.
+- **32 shifts are booked**, each by a worker the booking rules would allow (a test checks all
+  32 against the real rules). **8 are open.**
+- **The urgent dropout:** a door supervisor booked the 08:00 shift three days ago and cancelled
+  at 6am ("I'm unwell"). The notice he gave is recorded, and the shift is open again and marked
+  urgent. The seed prints a link to that shift's page.
+- **Two open requests:** a time change and a swap.
+- **Pay for 8 weeks** for every Acme worker, as payroll's file would give it. Stewards get
+  £13.00 an hour, door supervisors £14.50 and security officers £13.50, all above the minimum
+  wage.
+- **The action log** has each shift, booking, the cancellation and the requests, as the app
+  itself would log them.
+
+Running the seed again the same week adds nothing, and never undoes what a demo did. For a
+clean slate before a call, use `npm run db:reset`. Workers 07700 900100 to 900104 are never
+booked, so they're free for a demo login. `docs/testing.md` now has a table of which demo
+mobile numbers are good for what.
+
+Two browser tests had assumed an empty firm. They now check the seeded day just as strictly:
+
+- the free steward sees exactly the 4 open steward shifts;
+- the pay page shows exactly that worker's seeded lines and amounts.
+
+### What the safety review found (all fixed or parked)
+
+The review found no broken rule. Its suggestions, all done except one parked:
+
+- raise the steward rate above the minimum wage;
+- fix a test that would fail for an hour after midnight on summer Mondays (UTC and London
+  dates differ);
+- date the seeded shifts before the bookings on them;
+- log each shift's creation;
+- stricter tests;
+- doc corrections;
+- only add bookings along with their own shifts.
+
+Parked: a log entry for the "urgent" mark, for when the office can mark shifts urgent.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The event is always the coming Saturday, and its ids include the date | A demo is always in the future; re-runs never move booked shifts | A fixed date (would go stale) |
+| Re-runs only add, never reset, the event day | A re-run mid-demo mustn't undo the demo | Resetting (could leave more bookings than places) |
+| The dropout happened at 6am on the day the seed runs | docs/testing.md asks for "a 6am cancellation"; the notice given is then real | Cancelling on the event morning (in the future) |
+| Log the bookings, the cancellation and requests, but not the pay lines | The pay lines didn't come through an import, so an "imported" entry would be untrue | Log everything, or nothing |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/unit/seed.saturday.test.ts` (7 tests). It covers:
+  - which date "next Saturday" is;
+  - the counts;
+  - the 6am rule, including before 6am;
+  - ids staying the same all week and changing the next;
+  - London times either side of the clocks going back;
+  - the pay weeks and amounts.
+- `tests/integration/seed.test.ts` (7 new tests, real database). It checks:
+  - the day's shape;
+  - the dropout's evidence;
+  - every booking passing the real rules, with the free workers left free;
+  - the requests, the pay and the log entries;
+  - a free worker taking a shift, and a re-run leaving that booking alone.
+  The "running it again changes nothing" check now covers all the new rows and log entries.
+- The login and pay browser tests now check the seeded day.
+
+### Parked, open, and things that need Dylan
+
+- Parked in `PLAN.md`:
+  - Northline's mocked sheet;
+  - the firm's short-notice cancellation (Phase 5);
+  - pay queries (Phase 6);
+  - past shifts to match the pay lines;
+  - a log entry for the urgent mark.
+- Nothing needs Dylan for this task.
+
+### How to see it working
+
+1. `npm run db:reset` (this wipes your local database and loads the demo). Then `npm run
+   db:seed`: it adds nothing, but prints the Saturday's date and a link to the urgent dropout's
+   page.
+2. `npm run dev`, then log in at `http://acme.localhost:3000/login` as `07700 900100`. Tap "See
+   open shifts": you should see four steward shifts on Saturday with "Take shift".
+3. Log in as `07700 900125` (expired SIA licence) and open the urgent dropout's link. It says
+   why you can't take it, with "Ask the office to review".

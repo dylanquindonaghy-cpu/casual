@@ -38,7 +38,14 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await page.getByRole("link", { name: "See open shifts" }).click();
   await expect(page).toHaveURL(`${acme}/shifts/open`);
   await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
-  await expect(page.getByText("Nothing open right now.")).toBeVisible();
+  // The demo seed's Saturday: this steward is free, and the four open steward places are theirs
+  // to take (the other open places need other roles).
+  await expect(page.getByRole("button", { name: "Take shift" })).toHaveCount(4);
+  // (inside the list: the site filter's choices name the arena too)
+  await expect(page.getByRole("listitem").filter({ hasText: "Acme Demo Arena" })).toHaveCount(3);
+  await expect(page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" })).toHaveCount(
+    1,
+  );
   await page.getByRole("link", { name: "Back to my shifts" }).click();
   await expect(page).toHaveURL(`${acme}/`);
   await page.getByRole("link", { name: "My requests" }).click();

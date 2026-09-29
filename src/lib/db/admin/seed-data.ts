@@ -14,7 +14,7 @@ export function seedId(name: string): string {
 }
 
 // A small seeded random generator (mulberry32), for varied but repeatable data.
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let a = seed;
   return () => {
     a = (a + 0x6d2b79f5) | 0;

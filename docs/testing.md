@@ -56,11 +56,45 @@ D&A dates, night possessions, one short-notice firm cancellation.
 **What exists when.** `npm run db:seed` (also run by `npm run db:reset`) grows with each phase.
 Phase 1 loads both firms, their sites, office users (admin, resourcer, payroll), workers and
 credentials (Phase 2 adds each firm's credential pack: security for Acme, rail for Northline): Acme's 60 workers (5 expired SIA, 3 applied) and Northline's 30 with PTS, Sentinel
-and drugs and alcohol dates. Still to come: requests and Northline's mocked sheet (Phase 2), Acme's
-Saturday event day and pay records (Phase 3), the short-notice firm cancellation (Phase 5) and pay
-queries (Phase 6). Numbers are in Ofcom's drama range (+447700900000-999), emails are
+and drugs and alcohol dates. Phase 3 adds Acme's Saturday event day
+(`src/lib/db/admin/seed-saturday.ts`), described below. Still to come: Northline's mocked sheet
+(Phase 2), the short-notice firm cancellation (Phase 5) and pay queries (Phase 6). Numbers are in Ofcom's drama range (+447700900000-999), emails are
 @example.com, credential numbers start `TEST-`; the seed refuses production and non-local
 databases, and running it twice changes nothing (fixed ids, upserts).
+
+**Acme's Saturday (Phase 3).** The next Saturday after the seed runs (re-run `npm run db:reset`
+before a call so it's the coming one):
+- 40 shifts across the three sites, each with instructions:
+  - arena match day: 14 stewards 12:00 to 18:30, 8 door supervisors 11:30 to 19:00, and one
+    early door supervisor 08:00 to 16:00;
+  - racecourse: 6 stewards 10:30 to 18:30, 4 security officers 09:00 to 19:00;
+  - shopping centre: 4 security officers 07:00 to 15:00, 3 more 15:00 to 23:00.
+- 32 shifts are booked, each by a worker the rules allow, and 8 are open.
+- The early door supervisor is the urgent dropout. Worker 37 (07700 900137) booked it three days
+  before the seed ran and cancelled at 06:00 on the seed day, or at the moment the seed ran if
+  that was before 06:00 ("I'm unwell", notice recorded). It's open again and marked urgent. The
+  seed prints a link to its page.
+- Two open requests: a time change and a swap.
+- Every Acme worker has 1 to 8 weekly pay lines from the last 8 complete weeks (stewards £13.00
+  an hour, door supervisors £14.50, security officers £13.50).
+- The action log has each shift's creation, each booking, the cancellation (with notice hours) and
+  the requests. Those entries are dated when the seed ran (the log can't be backdated); the
+  shifts are dated a week earlier, before every booking.
+- Re-running `npm run db:seed` the same week adds nothing and never undoes a demo's changes. Run
+  in a later week, it adds that week's Saturday too; run on a Saturday, it adds next Saturday
+  while today's is still there. Use `npm run db:reset` for exactly one Saturday.
+
+**Demo logins (Acme, `http://acme.localhost:3000/login`):**
+
+| Mobile | Who | Good for |
+|---|---|---|
+| 07700 900100 to 900104 | Stewards, never booked by the seed | Log in, see the 4 open steward shifts, take one, cancel it |
+| 07700 900105 | Steward, booked at the arena, asked for a time change | My shifts with a booking, My requests |
+| 07700 900125 to 900129 | Door supervisors (and stewards) whose SIA licence has expired | Profile's red licence. Open the urgent dropout's link (the seed prints it): the page says why they can't take it, with "Ask the office to review" |
+| 07700 900130 to 900136 | Door supervisors, booked at the arena | A booked shift with instructions |
+| 07700 900137 | The door supervisor who dropped out | Nothing booked; the dropout's page shows it's open again |
+
+The login link appears in the `npm run dev` terminal (console messaging).
 
 The demo script for calls walks Acme's Saturday: worker logs in → takes an open shift → cancels →
 resourcer sees it → urgent wave fills it → notice report shows both.

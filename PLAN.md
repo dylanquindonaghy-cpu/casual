@@ -141,7 +141,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
 - [x] "My shifts" cached by a service worker (opens with poor signal); "Add to home screen" prompt on iPhone
 - [x] Empty and error states written in plain language (see `docs/screens.md`)
-- [ ] Demo seed: Acme's Saturday event day with an urgent dropout (`docs/testing.md`)
+- [x] Demo seed: Acme's Saturday event day with an urgent dropout (`docs/testing.md`)
 - [ ] Playwright: login → take shift → cancel → request → pay OTP
 
 **Done when:** on a phone, a fake worker can log in, take and cancel shifts in under 30 seconds each,
@@ -478,9 +478,12 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   of" only. Needed before the security pack goes live if a firm accepts either licence.
 - Phase 2 CSV import / office worker editing: validate `workers.roles` as snake_case with zod
   (shifts and credential_rules enforce it in the database; workers.roles doesn't yet).
-- Demo seed, still to add (see docs/testing.md): requests and Northline's mocked sheet (Phase 2),
-  Acme's Saturday event day with the 6am dropout and pay records (Phase 3), the short-notice firm
-  cancellation (Phase 5), 12 pay queries, 9 about one rate change (Phase 6).
+- Demo seed, still to add (see docs/testing.md): Northline's mocked sheet (Phase 2), the
+  short-notice firm cancellation (Phase 5), 12 pay queries, 9 about one rate change (Phase 6).
+  Acme's Saturday, the two requests and 8 weeks of pay are in (Phase 3). Also worth adding: past
+  shifts matching the pay lines, so "Past 30 days" on My shifts isn't empty in a demo. The seeded
+  shift's "urgent" flag has no log entry: add one when the office's "make urgent" exists (Phase
+  4/5).
 - Credential expiry messages go straight to the transport. Once Phase 4's `notify` job exists,
   send them through it (push first, per-firm quiet hours), and through the queue-then-send outbox
   when Twilio is connected, so a retried scan can't repeat a message.
@@ -562,3 +565,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 3 | 0.4 | Blocked-shift screen: the shift's own page `/shifts/[id]` (booked, open, held, blocked, filled, started, cancelled, missing), the rules' reasons in plain English when blocked, and "Ask the office to review" (a new `review` request, one per shift, only while the rules still say no, tested with taps at once); Open shifts refusals link to it; 1431 tests + 14 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.6 | Offline My shifts and iPhone home screen: a small service worker keeps the last copy of My shifts on the phone and shows it with no signal, marked "No signal. These are your shifts from {time}" (deleted on logout, login and when logged out; never shown after 14 days; only the page and its own files are kept), a per-firm web app manifest, and an iPhone "Put your shifts on your home screen" hint; the review caught a path trick that could have kept other pages (fixed and tested); 1453 tests + 19 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 3 | 0.2 | Empty and error states: plain "We can't find that page." instead of Next's 404, plain words when a page or the whole frame fails, "No signal" instead of "Something went wrong" when there's no network, Open shifts only promises a message to workers who want them, and a lasting test that renders every staff screen state and fails on jargon, raw codes or long sentences; 1531 tests + 20 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 3 | 0.5 | Demo seed: Acme's Saturday event day (40 shifts over three sites, 32 booked by workers the rules allow, 8 open), the urgent 6am dropout, two open requests, 8 weeks of pay for every Acme worker, and matching log entries; re-runs add nothing and never undo a demo; the seed prints the urgent shift's link; a demo logins table in docs/testing.md; 1545 tests + 20 e2e; verified and audited DONE (see docs/work-log.md) |

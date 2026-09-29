@@ -1,5 +1,17 @@
 import { expect, test } from "./fixtures";
 import { codeSentTo, loginLinkSentTo } from "./outbox";
+import { seedFirms } from "../../src/lib/db/admin/seed-data";
+import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
+import { pounds } from "../../src/lib/portal/pay-format";
+
+// The pay lines the demo seed gives this worker (Acme worker 2), worked out the same way.
+function expectedPay() {
+  const now = new Date();
+  const acme = seedFirms(now).find((f) => f.slug === "acme");
+  if (!acme) throw new Error("no Acme in the seed");
+  const worker = acme.workers[2];
+  return acmeSaturday(acme.workers, acme.sites, now).pay.filter((p) => p.workerId === worker?.id);
+}
 
 // The pay pages' step-up in a real browser: a 6-digit code by WhatsApp (console mode).
 
@@ -35,11 +47,19 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
 
   await page.getByLabel("Your code").fill(code);
   await page.getByRole("button", { name: "Check code" }).click();
-  await expect(page.getByText("No pay data yet for this period.")).toBeVisible();
+  // The demo seed's pay lines for this steward: payroll's own figures, the last 8 weeks.
+  await expect(page.getByText("The last 8 weeks, from Acme Events's payroll.")).toBeVisible();
+  // Exactly this steward's seeded lines (their hours come from a fixed random seed).
+  const mine = expectedPay();
+  await expect(page.getByText(/^Pay date: /)).toHaveCount(mine.length);
+  await expect(page.getByText(/ at £13\.00 an hour$/)).toHaveCount(mine.length);
+  for (const line of mine) {
+    await expect(page.getByText(`Gross pay: ${pounds(line.grossPence)}`).first()).toBeVisible();
+  }
 
   // Still open after a reload (30 minutes).
   await page.reload();
-  await expect(page.getByText("No pay data yet for this period.")).toBeVisible();
+  await expect(page.getByText("The last 8 weeks, from Acme Events's payroll.")).toBeVisible();
 });
 
 test("pay without logging in goes to the login page", async ({ page }) => {

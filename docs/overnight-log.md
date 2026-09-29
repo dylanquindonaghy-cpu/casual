@@ -5352,3 +5352,7 @@ Other suggestions:
 written, checked and committed. No auditor round. Next step is Dylan's: "Connect AWS".
 
 **Hours:** 0.5 h (22:31 to 23:01 UTC). Phase 8 so far 2.0 h of its 18–28 h estimate.
+
+**Commit:** `2b0813e` "Phase 8 (BLOCKED, not ticked): AWS: Lightsail 4 GB instance + managed Postgres
+(London), static IP, ports 80/443 only", pushed to `origin/build/overnight`. CI: `gh` isn't
+installed, so not checked.

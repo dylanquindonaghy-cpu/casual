@@ -3432,3 +3432,17 @@ VERIFIED").** Suggestions:
    until they work (Playwright waits for an enabled button). Other office buttons from earlier
    tasks: parked.
 
+
+**Verify round 2:** `VERIFIED tree=986cd04d62f23cf6 e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 1965 tests, 32 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — already DONE."
+
+**Commit:** `4375c42` "Phase 5: Firm-initiated cancel / move / curtail: reason required; notice
+hours logged per assigned worker; workers notified", pushed to `origin/build/overnight`. CI: `gh`
+isn't installed, so not checked.
+
+**Hours:** 1.1 h (08:48 to 09:51 UTC). Phase 5 so far 2.7 h of its 23–33 h estimate.
+
+**Parked:** see PLAN.md, "Firm-initiated changes follow-ups" (six Dylan-to-confirm items,
+including how the office records a worker's own cancellation).

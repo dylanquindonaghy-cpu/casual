@@ -3523,3 +3523,72 @@ CI: `gh` isn't installed, so not checked.
 **Hours:** 0.5 h (09:54 to 10:22 UTC). Phase 5 so far 3.2 h of its 23–33 h estimate.
 
 **Parked:** see PLAN.md, "Marking who worked follow-ups" (three Dylan-to-confirm items).
+
+## 2026-09-29 10:25 UTC: Phase 5, "Approve/decline requests (time changes, swaps, availability, general) with a note → worker notified"
+
+**Plan** (docs/screens.md `/office/requests` and `/requests`; docs/messaging-templates.md
+`request_update` and its push; product spec P0-6 "office approves/declines; worker sees status";
+docs/data-model.md `requests`).
+1. **Schema:** `requests.resolution_note text` (null, at most 500 characters, only on an approved
+   or declined request). The office's note is free text written to the worker, so it lives on
+   the row and in the message, never in an event or a log line. Migration via `db:generate`.
+2. **`resolveRequest()`** (`src/lib/requests/resolve.ts`): an active admin or resourcer approves
+   or declines an open (or escalated) request, with a note (optional to approve, required to
+   decline). The request row is locked, so two office users can't both answer it. Status,
+   resolved_by, resolved_at and the note in one update; `request.approved` / `request.declined`
+   {type, shiftId, withNote} (no note text); a `request-update` job queued in the same
+   transaction. Any kind (time_change, swap, availability, general, review). Deciding doesn't
+   change the shift: the office makes the change on the shift's page (said on the screen).
+3. **`request-update` job** (`src/lib/notices/request-update.ts`, a firm task, ids only): at most
+   once like the other notices (claim under a lock, send outside any transaction, record sent or
+   failed); the worker's channel with the WhatsApp-to-text fallback, plus a push ("Request
+   approved" / "Time change — tap to view."). Quiet hours: held until they end, unless the shift
+   starts within the firm's urgent window. `request_update` with the note, and a
+   `request_update_no_note` variant (WhatsApp won't send an empty variable). The note's line
+   breaks become spaces (WhatsApp variables can't hold them).
+4. **Office page `/office/requests`** (new area `requests`: admins and resourcers): "Waiting",
+   oldest first, each with the worker, the shift (linking to its page), what they asked (times,
+   who they'd swap with, the rules' reasons for a review), their note, when and the reference;
+   "Note to {name}", "Approve and tell {name}" / "Decline and tell {name}"; "Answered in the last
+   7 days" with who answered and the note. Links from the nav and Today's Requests.
+5. **Worker's My requests** shows the office's note under an answered request.
+6. **Tests:** integration (the queue, approve and decline, the note rules, already answered, two
+   at once, roles, other firms, the job's words, once only, quiet hours, failures, the worker's
+   list), unit (copy, templates doc and WhatsApp pack), e2e (decline a seeded request with a
+   note, see it answered).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| The note is a column on `requests`, not in events | It's free text (could name people); events hold ids and codes only | An events field (refused by the log's masker) |
+| A note is required to decline, optional to approve | A "no" needs a reason the worker can act on | Always optional; always required |
+| Approving doesn't change the shift | The spec asks for a decision and a status; a time change on a shared shift needs the office's judgement (move it, or cancel and rebook) | Apply approved time changes and swaps automatically (parked) |
+| Not urgent unless the shift is within the urgent window | Same rule as the other notices; a reply about next week can wait for the morning | Always send at once |
+| Admins and resourcers answer (payroll doesn't) | Requests are about shifts | Payroll too |
+
+**Built as planned**, plus: the answered list shows whether the worker has been told ("{name} was
+told." / "Telling {name} waits for quiet hours to end." / "Telling {name} failed. Phone them."),
+from the latest `request.update_*` event; and the e2e helper `addSwapRequest` (a request of the
+spec's own, so the demo's requests stay waiting for the Today spec).
+
+**Verify round 1 (before the review):** `VERIFIED tree=73a78eabf88e066e e2e=true`.
+
+**Guardrails review: FIX FIRST (1), fixed.**
+1. **A reply about a shift that had already ended counted as urgent and could go at night.**
+   - **Root cause:** "urgent" was "the shift's start is in the past, or inside the urgent window",
+     so any past shift counted, not only one under way; the claim didn't read the shift's end.
+   - **Fix:** urgent only while the shift is under way (start ≤ now < end) or starts within the
+     window. Tested: a shift that ended this morning, answered at 23:00, is held; one under way
+     at 23:00 is sent.
+
+**Suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| The note's length was checked in two places with different limits (a crafted note could give "Something went wrong" or "We can't find that request") | One check in `resolveRequest()` (500 once trimmed); the action only refuses absurd input, as "too long" |
+| Label the office's note in the message | "The office says: {note}" (doc, template, pack and tests updated); also helps Meta's words-to-variables check |
+| "approved" can read as "booked" or "the times changed"; "approved" for a question | Parked for Dylan |
+| A 500-character note costs about 9 text messages | Parked |
+| Firm id in the "told" subquery | Added (RLS covered it already) |
+| "Telling {name}." missing from docs/screens.md | Added |

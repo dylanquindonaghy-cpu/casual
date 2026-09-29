@@ -55,7 +55,7 @@ dash isn't a standard text character and would make the text cost more.
 | `cancellation_ack` | Utility | "We've recorded your cancellation of {date} {start} at {site} (ref {ref}). — {firm} Shift Team" |
 | `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" ({date} and {site} are the shift as it was; {change} is "the times have changed", "it's now shorter", "it's now at {new site}" or "new times, and it's now at {new site}"; {start} names the day too when the shift moved to another day; "at {site}" left out when there was none. Sent to each booked worker when the office moves or shortens a shift, `src/lib/notices/firm-change.ts`) |
 | `shift_cancelled_by_firm` | Utility | "Your shift on {date} {start}–{end} at {site} has been cancelled by the office. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none. Sent when the office cancels a shift, or someone's booking) |
-| `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. {note} — {firm} Shift Team" |
+| `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. The office says: {note} — {firm} Shift Team" ({type} is the kind in words: "time change", "swap", "availability", "question" or "review"; {status} "approved" or "declined"; {note} is the office's note on one line; "The office says: {note}" is left out when there isn't one: `request_update_no_note`. Sent when the office answers a request, `src/lib/notices/request-update.ts`) |
 | `credential_expiring` | Utility | "Your {credential} expires on {date}. Renew it and send the new details to the office so you can keep taking shifts. — {firm} Shift Team" |
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
 | (screen only: My shifts banner) | — | "Your {credential} is marked as expired. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" (the banner otherwise uses `credential_expiring` and `credential_expired` word for word) |
@@ -68,11 +68,13 @@ WhatsApp only delivers a message a business starts if it matches an approved tem
 with only the variable parts filled in. The submission pack is
 `src/lib/messaging/whatsapp-templates.ts`: every template the code sends by WhatsApp, with its
 category, language, body in Meta's `{{1}}` style and sample values. Built so far: `login_link`,
-`login_code`, `shift_offer`, `shift_urgent`, `shift_reminder_24h`, `shift_reminder_2h`, `credential_expiring`,
+`login_code`, `shift_offer`, `shift_urgent`, `shift_reminder_24h`, `shift_reminder_2h`,
+`shift_changed_by_firm`, `shift_cancelled_by_firm`, `request_update`, `credential_expiring`,
 `credential_expired`.
 - Words that are sometimes left out need their own template: `shift_offer`, `shift_urgent`,
-  `shift_reminder_24h` and `shift_reminder_2h` each have a `_no_site` variant, used when the
-  shift has no site.
+  `shift_reminder_24h`, `shift_reminder_2h`, `shift_changed_by_firm` and
+  `shift_cancelled_by_firm` each have a `_no_site` variant, used when the shift has no site;
+  `request_update_no_note` is used when the office wrote no note.
 - "a" or "an" before the role is part of the role's variable ("a door supervisor").
 - The sign-off is a variable, because a firm may set its own.
 
@@ -119,7 +121,8 @@ offer's and the office offer's SMS versions are built so far; the others come wi
 - Shift changed: "Shift changed" / "{date}: {change}. Tap to see it." Shift cancelled: "Shift
   cancelled" / "{date} {start} was cancelled by the office." (built: `firmChangePush()`, with the
   office's change notices)
-- Request update: "Request {status}" / "{type} — tap to view."
+- Request update: "Request {status}" / "{type} — tap to view." (built: `requestUpdatePush()`, with
+  the office's answer; {type} as the list names it, "Time change"; tapping opens My requests)
 
 ## Call-to-text recording (voice)
 

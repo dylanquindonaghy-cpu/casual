@@ -6,8 +6,9 @@
 //   (tests/unit/copy.templates-doc.test.ts) checks the template functions in templates.ts produce
 //   exactly this text with the sample values: what we send is what we submitted.
 // - Words that are sometimes left out need their own template: "at {site}" when the shift has no
-//   site (the `_no_site` variants). In shift_urgent, "a" or "an" before the role goes inside the
-//   role's variable (`role`); shift_offer names the role alone (`roleName`).
+//   site (the `_no_site` variants), and the office's note (`request_update_no_note`). In
+//   shift_urgent, "a" or "an" before the role goes inside the role's variable (`role`); shift_offer
+//   names the role alone (`roleName`).
 // - The sign-off is a variable, because a firm may set its own (src/lib/tenancy/sign-off.ts).
 //
 // Not submitted yet: that needs Dylan's WhatsApp Business account (PLAN.md Parking lot,
@@ -226,6 +227,30 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
       link: "https://acme.shiftdesk.example/shifts/open",
       signOff: SIGN_OFF,
     },
+  },
+  {
+    name: "request_update",
+    docName: "request_update",
+    category: "utility",
+    language: "en_GB",
+    variables: ["type", "ref", "status", "note", "signOff"],
+    body: "Your request ({{1}}, ref {{2}}) is {{3}}. The office says: {{4}} — {{5}}",
+    example: {
+      type: "time change",
+      ref: "3F2A9C1B",
+      status: "approved",
+      note: "See you at 13:00.",
+      signOff: SIGN_OFF,
+    },
+  },
+  {
+    name: "request_update_no_note",
+    docName: "request_update",
+    category: "utility",
+    language: "en_GB",
+    variables: ["type", "ref", "status", "signOff"],
+    body: "Your request ({{1}}, ref {{2}}) is {{3}}. — {{4}}",
+    example: { type: "swap", ref: "3F2A9C1B", status: "declined", signOff: SIGN_OFF },
   },
   {
     name: "credential_expiring",

@@ -197,6 +197,18 @@ export function shiftCancelledByFirmMessage(
   return `Your shift on ${shift.date} ${shift.start}–${shift.end}${at} has been cancelled by the office. Open shifts: ${shift.link}. — ${firm.signOff}`;
 }
 
+// request_update (WhatsApp or SMS, utility): the office answered a worker's request. {type} is the
+// kind in words ("time change"), {status} "approved" or "declined", {note} the office's note on
+// one line. With no note, "The office says: {note}" is left out (request_update_no_note: WhatsApp
+// won't send an empty variable).
+export function requestUpdateMessage(
+  firm: FirmVoice,
+  request: { type: string; ref: string; status: string; note: string | null },
+): string {
+  const note = request.note ? ` The office says: ${request.note}` : "";
+  return `Your request (${request.type}, ref ${request.ref}) is ${request.status}.${note} — ${firm.signOff}`;
+}
+
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
 // or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
 export function shiftReminder24hMessage(
@@ -304,4 +316,13 @@ export function firmChangePush(
         title: "Shift cancelled",
         body: `${change.date} ${change.start} was cancelled by the office.`,
       };
+}
+
+// Push (title / body): the office answered a request. {Type} is the kind as the list names it
+// ("Time change").
+export function requestUpdatePush(request: { type: string; status: string }): {
+  title: string;
+  body: string;
+} {
+  return { title: `Request ${request.status}`, body: `${request.type} — tap to view.` };
 }

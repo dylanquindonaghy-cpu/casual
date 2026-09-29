@@ -12,6 +12,8 @@ import {
   offerPush,
   officeLoginLinkEmail,
   reminderPush,
+  requestUpdateMessage,
+  requestUpdatePush,
   shiftCancelledByFirmMessage,
   shiftChangedByFirmMessage,
   shiftEscalationEmail,
@@ -121,12 +123,12 @@ describe("the doc's templates table", () => {
     "credential_expired",
     "shift_changed_by_firm",
     "shift_cancelled_by_firm",
+    "request_update",
   ];
   const NOT_BUILT: Record<string, string> = {
     shift_filled: "a reply to an offer: inbound WhatsApp (Phase 7)",
     shift_confirmed: "booking confirmations are on screen; by message with notify (parked)",
     cancellation_ack: "cancellation confirmations are on screen; by message with notify (parked)",
-    request_update: "the office answering requests (Phase 5)",
     pay_query_update: "pay queries (Phase 6)",
     unknown_number: "a service reply to an inbound message (Phase 7)",
   };
@@ -181,6 +183,14 @@ describe("the code says what the doc says", () => {
     );
     expect(shiftCancelledByFirmMessage(docVoice, { ...cancelled, site: null })).toBe(
       docBody("shift_cancelled_by_firm").replace(" at {site}", ""),
+    );
+  });
+
+  it("request_update, with and without the office's note", () => {
+    const request = { type: "{type}", ref: "{ref}", status: "{status}", note: "{note}" };
+    expect(requestUpdateMessage(docVoice, request)).toBe(docBody("request_update"));
+    expect(requestUpdateMessage(docVoice, { ...request, note: null })).toBe(
+      docBody("request_update").replace(" The office says: {note}", ""),
     );
   });
 
@@ -348,6 +358,14 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ["login_link", loginLinkMessage(voice, "L")],
     ["login_code", loginCodeMessage(voice, "123456")],
     [
+      "request_update",
+      requestUpdateMessage(voice, { type: "swap", ref: "R", status: "declined", note: "No." }),
+    ],
+    [
+      "request_update (no note)",
+      requestUpdateMessage(voice, { type: "swap", ref: "R", status: "approved", note: null }),
+    ],
+    [
       "shift_changed_by_firm",
       shiftChangedByFirmMessage(voice, { ...shift, date: "Sat 7 Nov", change: "c", link: "L" }),
     ],
@@ -401,6 +419,11 @@ describe("the pushes", () => {
     });
   });
 
+  it("request update", () => {
+    const [title, body] = quotes(push, "Request update:");
+    expect(requestUpdatePush({ type: "{type}", status: "{status}" })).toEqual({ title, body });
+  });
+
   it("reminder, 24 h and 2 h", () => {
     const [title24, body24, title2, body2] = quotes(push, "Reminder:");
     expect(
@@ -437,6 +460,8 @@ describe("every template function is checked here", () => {
         "offerPush",
         "officeLoginLinkEmail",
         "reminderPush",
+        "requestUpdateMessage",
+        "requestUpdatePush",
         "shiftCancelledByFirmMessage",
         "shiftChangedByFirmMessage",
         "shiftEscalationEmail",
@@ -584,6 +609,20 @@ describe("the WhatsApp submission pack", () => {
         ex("credential_expired", "credential"),
         ex("credential_expired", "date"),
       ),
+    request_update: () =>
+      requestUpdateMessage(voice("request_update"), {
+        type: ex("request_update", "type"),
+        ref: ex("request_update", "ref"),
+        status: ex("request_update", "status"),
+        note: ex("request_update", "note"),
+      }),
+    request_update_no_note: () =>
+      requestUpdateMessage(voice("request_update_no_note"), {
+        type: ex("request_update_no_note", "type"),
+        ref: ex("request_update_no_note", "ref"),
+        status: ex("request_update_no_note", "status"),
+        note: null,
+      }),
   };
 
   it("has a template for every message the code sends by WhatsApp, and no others", () => {
@@ -611,7 +650,7 @@ describe("the WhatsApp submission pack", () => {
     },
   );
 
-  it("each template is the doc's wording (a no-site variant without 'at {site}')", () => {
+  it("each template is the doc's wording (a no-site variant without 'at {site}', a no-note one without the note)", () => {
     const placeholder: Record<string, string> = {
       firm: "{firm}",
       signOff: "{firm} Shift Team",
@@ -622,7 +661,9 @@ describe("the WhatsApp submission pack", () => {
       const values = Object.fromEntries(t.variables.map((v) => [v, placeholder[v] ?? `{${v}}`]));
       const expected = t.name.endsWith("_no_site")
         ? docBody(t.docName).replace(" at {site}", "")
-        : docBody(t.docName);
+        : t.name.endsWith("_no_note")
+          ? docBody(t.docName).replace(" The office says: {note}", "")
+          : docBody(t.docName);
       expect(fillWhatsAppTemplate(t, values), t.name).toBe(expected);
     }
   });

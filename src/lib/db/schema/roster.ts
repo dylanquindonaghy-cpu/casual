@@ -283,6 +283,9 @@ export const requests = pgTable(
     status: text("status", { enum: REQUEST_STATUSES }).notNull().default("open"),
     resolvedBy: uuid("resolved_by"),
     resolvedAt: timestamptz("resolved_at"),
+    // The office's note to the worker with its answer (free text: stays on the row and in the
+    // message to them, never in an event).
+    resolutionNote: text("resolution_note"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -322,6 +325,12 @@ export const requests = pgTable(
       sql`(${t.status} in ('open', 'escalated') and ${t.resolvedAt} is null and ${t.resolvedBy} is null)
         or (${t.status} = 'auto_resolved' and ${t.resolvedAt} is not null)
         or (${t.status} in ('approved', 'declined') and ${t.resolvedAt} is not null and ${t.resolvedBy} is not null)`,
+    ),
+    // Only an office answer carries a note, and a short one.
+    check(
+      "requests_resolution_note",
+      sql`${t.resolutionNote} is null
+        or (${t.status} in ('approved', 'declined') and char_length(${t.resolutionNote}) between 1 and 500)`,
     ),
     firmIsolation(t.firmId),
   ],

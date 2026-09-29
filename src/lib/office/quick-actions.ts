@@ -20,6 +20,11 @@ import { moveShiftByFirm, type MoveShiftResult } from "../roster/firm-change";
 import { FIRM_CHANGE_REASONS, type FirmChangeReason } from "../roster/firm-reasons";
 import type { OverridableCode } from "../rules/eligibility";
 import { setShiftUrgent, type SetUrgentResult } from "../roster/urgent";
+import {
+  resolveRequest,
+  type RequestDecision,
+  type ResolveRequestResult,
+} from "../requests/resolve";
 
 // Today's quick actions for server actions: the firm comes from the request (the session's firm),
 // the office user from the session. Each underlying function checks the user again inside the
@@ -144,4 +149,14 @@ export function markTheRestWorked(
 ): Promise<MarkRestWorkedResult> {
   const { run, by, deps } = parts(ctx);
   return markRestWorked(run, ctx.firm.id, { shiftId, by }, deps);
+}
+
+export function answerRequest(
+  ctx: OfficeContext,
+  requestId: string,
+  decision: RequestDecision,
+  note: string,
+): Promise<ResolveRequestResult> {
+  const { run, by, deps } = parts(ctx);
+  return resolveRequest(run, ctx.firm.id, { requestId, decision, note, by }, deps);
 }

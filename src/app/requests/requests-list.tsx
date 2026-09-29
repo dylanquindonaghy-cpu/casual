@@ -35,6 +35,7 @@ export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; ti
               <p className="mt-1">
                 <span className="font-semibold">{STATUS_WORDS[r.status] ?? r.status}</span>
               </p>
+              {r.note && <p>The office says: {r.note}</p>}
               <p className="text-base text-slate-600">
                 Sent {dayLabel(localDateOf(r.createdAt, timeZone))} · Reference {r.ref}
               </p>

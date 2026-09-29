@@ -4066,3 +4066,109 @@ Saturday has passed:
 
 Or watch the browser test do it: stop `npm run dev`, then run
 `npx playwright test tests/e2e/office.attendance.spec.ts --headed`.
+
+## 2026-09-29: Phase 5, task 5: Answering workers' requests (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (10:25 to 10:55 UTC), in the unattended overnight loop.
+Phase 5 so far: 3.7 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=cc24f2e47c9699a3 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2005 tests (up from 1979);
+  - the 34 browser tests (1 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Workers could already ask for a time change or a swap (and ask the office to look again at a
+shift the rules refused), but nobody could answer. Now:
+- **A Requests page for the office** (`/office/requests`, for admins and resourcers, linked from
+  the office menu and from Today):
+  - **"Waiting for an answer"**, oldest first: who asked, the shift (a link to its page), what
+    they asked ("Asks for 13:00 to 18:30.", "Could swap with: Cal Jones.", or the rules' reasons
+    for a review), their note, when, and the reference.
+  - A **note** box and two buttons: **"Approve and tell Ann"** and **"Decline and tell Ann"**. A
+    note is needed to decline (a "no" needs a reason). The page then says "Declined. Ann will be
+    told."
+  - The page says plainly that approving doesn't change the shift: the office makes the change on
+    the shift's page.
+  - **"Answered in the last 7 days"**: who answered, when, the note, and whether the worker has
+    been told yet.
+- **Only one answer counts.** The request row is locked while it's answered (a database lock
+  makes a second person wait, then see "This request was already answered."). A test sends two
+  answers at the same moment.
+- **The worker is told** by a background job (a small task run by the separate worker process),
+  by WhatsApp or text, as they chose: "Your request (swap, ref 3F2A9C1B) is declined. The office
+  says: Sorry, we need you there. — Acme Events Shift Team", plus a phone notification. (Console
+  only: no real messages.)
+  - **Once only**, the same way as the other messages: "sending" is saved first, then the message
+    goes, then "sent" or "failed" is saved.
+  - **Quiet hours**: at night it waits for the morning, unless the shift starts soon or is under
+    way.
+  - The note is put on one line, because WhatsApp can't take line breaks in the filled-in parts
+    of an approved message.
+- **The worker's "My requests"** now shows "The office says: …" under the answer.
+- **One database change:** a new `resolution_note` column on requests, holding the office's note.
+  The note is free text, so it's kept on the request and in the message, never in the action log
+  (the log only holds ids and fixed words). A test checks the log never contains it.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The note lives on the request row, not in the log | Free text can hold personal details; the log refuses them | Put it in the log (blocked by its safety check) |
+| A note is required to decline, optional to approve | A "no" needs a reason the worker can act on | Always optional; always required |
+| Approving doesn't change the shift | The spec asks for a decision and a status; changing a shared shift needs the office's judgement | Apply time changes and swaps automatically (parked for Dylan) |
+| Replies wait for the morning unless the shift is soon or under way | The same rule as the other messages | Always send at once |
+| "The office says:" before the note | Clear to the worker, matches My requests, and helps WhatsApp's template approval | The note alone |
+
+### What the new tests prove
+
+- `tests/integration/office.requests.test.ts` (12 tests, on the real database):
+  - the page: waiting oldest first, what each asked, answered ones from the last 7 days with who
+    and the note, and never another firm's;
+  - answering: the row, the log line (without the note), the job; the shift unchanged;
+  - the note rules (needed to decline, 500 characters at most);
+  - only once: already answered, already sorted, two people at the same moment;
+  - payroll and disabled users refused, another firm's request not found;
+  - the worker's My requests shows the note;
+  - the message: exact words with and without a note, the note on one line, once only, the office
+    sees "was told";
+  - quiet hours: held for next week, for a question and for a finished shift; sent for a shift
+    soon or under way;
+  - failed sends logged and never repeated, WhatsApp refused → text;
+  - nothing for an unanswered request or another firm's; the worker process runs the job.
+- Unit tests: the page's words, the office roles, the worker's list, and every new message
+  checked against `docs/messaging-templates.md` and the WhatsApp template pack (now 18
+  templates).
+- `tests/e2e/office.requests.spec.ts` (1 browser test): from Today to Requests, decline without a
+  note (asked for one), decline with one, see the confirmation, then see it answered with the note
+  and "was told" (or "waits for quiet hours" at night).
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`, Parking lot, "Answering requests follow-ups"):
+  - note needed to decline, optional to approve;
+  - approving doesn't change the shift (or apply safe changes automatically?);
+  - the message's "approved" could be read as "you're booked" or "the times changed": reword per
+    kind?
+- **Parked:** requests about cancelled or finished shifts should sort themselves; workers can't
+  send "availability" or "question" requests yet (Phase 7); check Meta accepts the note as a
+  template variable; a 500-character note costs about 9 texts; words for these events in the
+  action log (next task).
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
+3. Click "Requests". The demo has a time change and a swap waiting.
+4. Write a note and press "Decline and tell …". The terminal running `npm run dev` prints the
+   message the worker would get.
+5. Reload: it's under "Answered in the last 7 days", with "… was told."

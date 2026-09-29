@@ -176,7 +176,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
 - [x] **Firm-initiated cancel / move / curtail**: reason required; notice hours logged per assigned
       worker; workers notified (compliance-critical, see `docs/api-and-jobs.md`)
 - [x] Mark no-show / completed
-- [ ] Approve/decline requests (time changes, swaps, availability, general) with a note → worker notified
+- [x] Approve/decline requests (time changes, swaps, availability, general) with a note → worker notified
 - [ ] Action log with filters (worker, shift, date, type)
 - [ ] Notice and cancellation report: every offer/change/cancel with timestamps, initiator and
       notice hours; short-notice flag at a firm-set threshold (final 2027 rules still pending); CSV export
@@ -641,6 +641,26 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Other office client buttons (edit shift, create, import, offer, quick actions) can be clicked
     before the page is hydrated and then do nothing: give them `useHydrated()` like the assign,
     move and cancel buttons.
+- Answering requests follow-ups (Phase 5):
+  - **Dylan to confirm:** a note is required to decline and optional to approve.
+  - **Dylan to confirm:** approving doesn't change anything else: the office moves the shift,
+    or cancels and rebooks for a swap, on the shift's page. Apply an approved time change or swap
+    automatically where it's safe (a one-person shift; a named colleague the rules allow)?
+  - Requests about a shift that was cancelled, or has started, stay waiting: mark them
+    `auto_resolved` ("Sorted") when the booking is cancelled or the shift ends.
+  - Workers can't make "availability" or "question" requests yet (inbound messages, Phase 7;
+    days off are on the profile). The queue already handles them.
+  - The office's note goes into the WhatsApp template as a variable: check at submission that
+    Meta accepts a free-text variable in a utility template (the fixed words "The office says:"
+    help its words-to-variables check).
+  - **Dylan to confirm:** "Your request (review, ref …) is approved." can read as "you're booked",
+    and an approved time change as "the times changed", though neither is done until the office
+    acts. Reword `request_update` per kind (e.g. "approved: the office will update the shift"),
+    and something better than "approved/declined" for a question?
+  - A 500-character note is about 9 text messages (the dash makes it Unicode). Lower the limit,
+    or accept the cost.
+  - The action log (next task) needs words for `request.approved` / `request.declined` and the
+    `request.update_*` events.
 - Marking who worked follow-ups (Phase 5):
   - **Dylan to confirm:** a worker isn't messaged when marked as didn't attend (they see "Marked
     as not attended" in their past shifts). Tell them, so they can say if it's wrong?
@@ -668,7 +688,7 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     loses its "booked" flag on the unavailable-days list.
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
-  pack is `src/lib/messaging/whatsapp-templates.ts`: 16 templates (6 are "no site" variants), each
+  pack is `src/lib/messaging/whatsapp-templates.ts`: 18 templates (6 "no site" variants and a "no note" one), each
   with its category, language (English UK), body with `{{1}}`-style variables and sample values. A
   test proves the code sends exactly these words.
   1. In the Twilio Console, open Messaging → Content Template Builder → Create new.
@@ -823,3 +843,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 0.6 | Office shift screens: a 4-week shift list, create one shift or up to 12 for an event (nothing saved unless every line is right), edit (booked shifts: places and instructions only, moves come with the next task), import a .csv/.xlsx checked first, and each shift's page with its places, offers, history in plain words and "Assign someone" (the rules' answer first; the office may override only rest, hours, a day off or a started shift, with a logged reason); the review caught a closed shift reopening on edit and the import moving a booked shift's site (both fixed and tested); 1924 tests + 31 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 1.1 | Office cancels, moves and shortens: a reason from a fixed list is required; each booked worker's notice hours are logged; each is told by a notice job (once only, from what they last knew to what's true now, quiet hours unless the shift is close or under way); a move is refused while anyone booked fails a rule the office can't override; the reviews caught a lost message when changes stacked up and an office "they asked to cancel" that told nobody (fixed; the second parked for Dylan); two e2e root causes fixed (a shared login limit, a button clicked before the page was ready); 1965 tests + 32 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.5 | Mark who worked: on a shift's page, once it has started, the office marks each person as worked or not attended (and can put a mistake right); after the end, "mark the rest as worked" after a "Yes"; every mark logged with what it was before; a new "Who worked?" list on Today shows shifts from the last 7 days with people not marked yet; the review caught a confirmation that vanished on refresh (fixed, and the browser test now proves it stays); 1979 tests + 33 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 5 | 0.5 | Answering requests: a new office Requests page lists what workers asked (oldest first) with the shift and their note; the office approves or declines with a note (needed to decline), one answer only even if two people try at once; the worker gets "Your request (swap, ref …) is declined. The office says: …" by WhatsApp or text (quiet hours respected, once only) and sees the note in My requests; the office sees whether they were told; the review caught a reply about a finished shift that could go at night (fixed and tested); 2005 tests + 34 e2e; verified and audited DONE (see docs/work-log.md) |

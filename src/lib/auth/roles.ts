@@ -11,6 +11,7 @@ export const OFFICE_AREAS = {
   team: ["admin"], // who has office access, and their roles
   today: ["admin", "resourcer"], // gaps, urgent shifts, cancellations, requests, expiries
   shifts: ["admin", "resourcer"], // the shift list, creating, editing, importing, assigning
+  requests: ["admin", "resourcer"], // workers' requests: approve or decline with a note
 } as const satisfies Record<string, readonly OfficeRole[]>;
 
 export type OfficeArea = keyof typeof OFFICE_AREAS;

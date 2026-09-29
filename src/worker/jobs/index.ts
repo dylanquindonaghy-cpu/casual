@@ -19,6 +19,7 @@ import {
   type FirmTask,
 } from "../../lib/jobs/firm-job";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
+import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { officeOfferJob, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import {
   escalateShiftJob,
@@ -55,6 +56,7 @@ export interface JobDeps {
   };
   reminders?: FirmTask<ShiftRemindersPayload>;
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
+  requestUpdates?: FirmTask<RequestUpdatePayload>;
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -69,6 +71,7 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmJob(boss, deps.offers?.office ?? officeOfferJob);
   // Telling workers the office changed or cancelled their booked shift (golden rule 12).
   await registerFirmTask(boss, deps.firmChangeNotices ?? firmChangeNoticeTask);
+  await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
   await registerFirmTask(boss, deps.reminders ?? shiftRemindersTask);

@@ -16,14 +16,15 @@ import {
 } from "./request-kinds";
 
 // Worker requests (docs/screens.md, `/requests`): a time change or a swap for one of the worker's
-// own upcoming shifts, for the office to approve or decline (the office's queue is Phase 5).
+// own upcoming shifts, for the office to approve or decline (src/lib/requests/resolve.ts).
 // Server only (it reaches the database); the browser-safe kinds and wording are request-kinds.ts.
 //
 // - createRequest: only for the worker's confirmed booking on a shift that hasn't started; one
 //   open request per shift and kind (asking again returns the waiting one's reference). The row
 //   and a request.created event go in together; the event holds ids and the kind only, never
 //   the worker's typed note or a colleague's name (they stay on the row).
-// - myRequests: the worker's requests from the last 90 days, newest first, with their status.
+// - myRequests: the worker's requests from the last 90 days, newest first, with their status and
+//   the office's note with its answer.
 // - requestableShifts: the worker's upcoming bookings, for the form's shift picker.
 
 export const REQUESTS_SHOWN_DAYS = 90;
@@ -118,6 +119,7 @@ export interface MyRequest {
   ref: string;
   type: string;
   status: string;
+  note: string | null; // the office's note with its answer
   createdAt: Date;
   shift: { when: string; role: string; siteName: string | null } | null;
 }
@@ -131,6 +133,7 @@ export async function myRequests(ctx: Ctx, workerId: string): Promise<MyRequest[
         id: requests.id,
         type: requests.type,
         status: requests.status,
+        note: requests.resolutionNote,
         createdAt: requests.createdAt,
         startsAt: shifts.startsAt,
         endsAt: shifts.endsAt,
@@ -152,6 +155,7 @@ export async function myRequests(ctx: Ctx, workerId: string): Promise<MyRequest[
     ref: refOf(r.id),
     type: r.type,
     status: r.status,
+    note: r.note,
     createdAt: r.createdAt,
     shift:
       r.startsAt && r.endsAt && r.role

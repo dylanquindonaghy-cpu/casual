@@ -272,6 +272,9 @@ create table requests (
   status text not null default 'open',   -- open | approved | declined | auto_resolved | escalated
   resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users
   resolved_at timestamptz,
+  resolution_note text,                  -- the office's note to the worker with its answer (Phase 5):
+                                         -- approved/declined only, 1-500 characters; free text, so
+                                         -- never copied into events
   -- open/escalated: neither set. approved/declined: both set. auto_resolved: resolved_at only.
   created_at timestamptz not null default now(),
   unique (firm_id, id)

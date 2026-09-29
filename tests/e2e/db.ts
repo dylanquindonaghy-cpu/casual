@@ -1,8 +1,8 @@
-import { and, arrayContains, desc, eq } from "drizzle-orm";
+import { and, arrayContains, desc, eq, gt } from "drizzle-orm";
 import { Pool } from "pg";
 import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
-import { assignments, officeUsers, shifts, workers } from "../../src/lib/db/schema";
+import { assignments, officeUsers, requests, shifts, workers } from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
@@ -117,6 +117,60 @@ export async function addPastBookedShift(
         })),
       );
       return { shiftId: shift.id, names: people.map((p) => `${p.first} ${p.last}`) };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A swap request of this spec's own from a seeded worker booked on an upcoming shift (so the demo's
+// two requests stay waiting for the other specs). Returns its reference and the worker's name.
+export async function addSwapRequest(
+  slug: string,
+  note: string,
+): Promise<{ ref: string; worker: string; firstName: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [booked] = await tx
+        .select({
+          workerId: assignments.workerId,
+          shiftId: assignments.shiftId,
+          first: workers.firstName,
+          last: workers.lastName,
+        })
+        .from(assignments)
+        .innerJoin(
+          workers,
+          and(eq(workers.firmId, assignments.firmId), eq(workers.id, assignments.workerId)),
+        )
+        .innerJoin(
+          shifts,
+          and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+        )
+        .where(and(eq(assignments.status, "confirmed"), gt(shifts.startsAt, new Date())))
+        .orderBy(desc(workers.lastName), desc(workers.firstName))
+        .limit(1);
+      if (!booked?.workerId) throw new Error("no upcoming booking to ask about");
+      const [created] = await tx
+        .insert(requests)
+        .values({
+          firmId,
+          workerId: booked.workerId,
+          shiftId: booked.shiftId,
+          type: "swap",
+          payload: { swapWith: "", note },
+        })
+        .returning({ id: requests.id });
+      if (!created) throw new Error("request insert returned nothing");
+      return {
+        ref: created.id.slice(0, 8).toUpperCase(),
+        worker: `${booked.first} ${booked.last}`,
+        firstName: booked.first,
+      };
     });
   } finally {
     await pool.end();

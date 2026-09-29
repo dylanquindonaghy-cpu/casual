@@ -131,6 +131,9 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
           Requests
         </h2>
         <p className="mt-2">{requestsText(view.requests)}</p>
+        <Link href="/office/requests" className="mt-1 inline-block underline">
+          See requests
+        </Link>
       </section>
 
       <section className={section} aria-labelledby="expiring">

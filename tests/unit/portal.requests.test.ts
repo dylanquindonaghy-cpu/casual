@@ -103,7 +103,7 @@ describe("the answers after Send request", () => {
 });
 
 describe("My requests and New request", () => {
-  it("lists each request with its shift, status, day sent and reference", () => {
+  it("lists each request with its shift, status, the office's note, day sent and reference", () => {
     const html = renderToStaticMarkup(
       createElement(RequestsList, {
         timeZone: "Europe/London",
@@ -112,6 +112,7 @@ describe("My requests and New request", () => {
             ref: "3F2A9C1B",
             type: "time_change",
             status: "escalated",
+            note: null,
             createdAt: new Date("2026-11-02T10:00:00Z"),
             shift: {
               when: "Sat 7 Nov, 14:00 to 22:00",
@@ -123,6 +124,7 @@ describe("My requests and New request", () => {
             ref: "AB12CD34",
             type: "swap",
             status: "declined",
+            note: "We need you at the arena that day.",
             createdAt: new Date("2026-11-01T10:00:00Z"),
             shift: null,
           },
@@ -137,6 +139,8 @@ describe("My requests and New request", () => {
     expect(words).toContain("Waiting for the office");
     expect(words).toContain("Sent Mon 2 Nov · Reference 3F2A9C1B");
     expect(words).toContain("Declined");
+    expect(words).toContain("The office says: We need you at the arena that day.");
+    expect(words.match(/The office says/g)).toHaveLength(1);
     expect(html).toContain('href="/requests/new"');
   });
 

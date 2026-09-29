@@ -8,12 +8,17 @@ import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import type { OverridableCode } from "@/lib/rules/eligibility";
 import { AssignButton } from "./assign-button";
+import { AttendanceButtons, MarkRestWorked } from "./attendance-forms";
 import { EditShiftForm } from "./edit-form";
 import { CancelBookingForm, CancelShiftForm, MoveShiftForm } from "./firm-change-forms";
 
 const section = "mt-8";
 const heading = "text-2xl font-bold";
 const button = "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100";
+
+const MARKABLE = ["confirmed", "completed", "no_show"] as const;
+const isMarkable = (status: string): status is (typeof MARKABLE)[number] =>
+  (MARKABLE as readonly string[]).includes(status);
 
 const RESPONSE: Record<string, string> = {
   accepted: "took it",
@@ -46,6 +51,7 @@ export default async function OfficeShiftPage({
   const tz = form.timeZone;
   const live = page.places.filter((p) => !p.status.startsWith("cancelled"));
   const cancelled = page.places.filter((p) => p.status.startsWith("cancelled"));
+  const unmarked = live.filter((p) => p.status === "confirmed").length;
   return (
     <main className="mx-auto max-w-4xl p-6">
       <p className="text-base text-slate-600">{firm.name} office</p>
@@ -130,20 +136,35 @@ export default async function OfficeShiftPage({
         {live.length === 0 ? (
           <p className="mt-2">Nobody booked yet.</p>
         ) : (
-          <ul className="mt-2 list-disc pl-6">
-            {live.map((p) => (
-              <li key={p.assignmentId}>
-                {p.worker}: {PLACE_STATUS_WORDS[p.status] ?? p.status}
-                {page.edit.editable && p.status === "confirmed" && p.workerId && (
-                  <CancelBookingForm
-                    shiftId={shift.shiftId}
-                    workerId={p.workerId}
-                    name={p.worker}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
+          <>
+            {shift.started && (
+              <p className="mt-2">Mark who worked it and who didn&apos;t attend.</p>
+            )}
+            <ul className="mt-2 list-disc pl-6">
+              {live.map((p) => (
+                <li key={p.assignmentId}>
+                  {p.worker}: {PLACE_STATUS_WORDS[p.status] ?? p.status}
+                  {page.edit.editable && p.status === "confirmed" && p.workerId && (
+                    <CancelBookingForm
+                      shiftId={shift.shiftId}
+                      workerId={p.workerId}
+                      name={p.worker}
+                    />
+                  )}
+                  {shift.started && p.workerId && isMarkable(p.status) && (
+                    <AttendanceButtons
+                      shiftId={shift.shiftId}
+                      workerId={p.workerId}
+                      name={p.worker}
+                      status={p.status}
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+            {/* Stays after the last one is marked, so its confirmation survives the refresh. */}
+            {shift.ended && <MarkRestWorked shiftId={shift.shiftId} count={unmarked} />}
+          </>
         )}
         {cancelled.length > 0 && (
           <>

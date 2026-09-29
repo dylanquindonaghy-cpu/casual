@@ -1,6 +1,13 @@
 import type { Clock } from "../auth/clock";
 import { withFirm, type WithFirm } from "../db/scoped";
 import { queueOfficeOffer, type QueueOfficeOfferResult } from "../offers/office-offer";
+import {
+  markAttendance,
+  markRestWorked,
+  type AttendanceOutcome,
+  type MarkAttendanceResult,
+  type MarkRestWorkedResult,
+} from "../roster/attendance";
 import { bookShift, type BookingResult } from "../roster/book";
 import {
   cancelBooking,
@@ -119,4 +126,22 @@ export function cancelBookingByOffice(
     { shiftId, workerId, reason: FIRM_CHANGE_REASONS[reason], by },
     deps,
   );
+}
+
+export function markAttended(
+  ctx: OfficeContext,
+  shiftId: string,
+  workerId: string,
+  outcome: AttendanceOutcome,
+): Promise<MarkAttendanceResult> {
+  const { run, by, deps } = parts(ctx);
+  return markAttendance(run, ctx.firm.id, { shiftId, workerId, outcome, by }, deps);
+}
+
+export function markTheRestWorked(
+  ctx: OfficeContext,
+  shiftId: string,
+): Promise<MarkRestWorkedResult> {
+  const { run, by, deps } = parts(ctx);
+  return markRestWorked(run, ctx.firm.id, { shiftId, by }, deps);
 }

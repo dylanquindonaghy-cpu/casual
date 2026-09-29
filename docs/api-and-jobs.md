@@ -76,7 +76,15 @@ escalation stop; logged `shift.closed` / `shift.reopened` {by: "firm", placesLef
 shift),
 `assignManually(shiftId, workerId, override?)` (`bookShift()` with `by: office`; overrides only
 of checks 0 and 6-8, with a reason; active admins and resourcers only; built as `assignWorker()`,
-"Assign" on the shift's page, `assignAction`), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the shifts screen is built: `importShiftsFile()`, `importShiftsAction`, files up to 1 MB on the web),
+"Assign" on the shift's page, `assignAction`), `markNoShow` (built as `markAttendance()` /
+`markRestWorked()` in `src/lib/roster/attendance.ts`, "Mark as worked" / "Mark as not attended" /
+"Mark the {n} not marked yet as worked" on the shift's page, `markAttendanceAction` /
+`markRestWorkedAction`: active admins and resourcers; once the shift has started (the rest: once it
+has ended), no end limit; a live booking (confirmed, completed or no_show) becomes `completed` or
+`no_show`, a marked one can be changed; the shift locked first, then the booking; logged
+`shift.completed` / `shift.no_show` {by: "firm", shiftId, workerId, from}; any source, since the
+Google Sheets sync only changes `confirmed` bookings; the worker isn't messaged, and sees "Worked" /
+"Marked as not attended" in their past shifts), `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the shifts screen is built: `importShiftsFile()`, `importShiftsAction`, files up to 1 MB on the web),
 `upsertCredential`, `verifyCredential`, `resolvePayQueryGroup`, `updateSettings`, `verifyDomain`,
 `exportWorkerData(workerId)`, `deleteWorker(workerId)`.
 

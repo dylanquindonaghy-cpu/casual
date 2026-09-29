@@ -44,6 +44,10 @@ const REQUEST_WORDS: Record<string, [string, string]> = {
   review: ["review of a refused shift", "reviews of refused shifts"],
 };
 
+// "Who worked?": people on a shift that ended, not marked as worked or not attended yet.
+export const toMarkText = (n: number) =>
+  n === 1 ? "1 person not marked yet." : `${n} people not marked yet.`;
+
 // "3 requests waiting: 2 time changes, 1 swap." / "No requests waiting."
 export function requestsText(requests: TodayView["requests"]): string {
   if (requests.total === 0) return "No requests waiting.";

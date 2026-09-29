@@ -1,6 +1,12 @@
 import Link from "next/link";
 import type { TodayShift, TodayView } from "@/lib/office/today";
-import { placesText, requestsText, stoppedText, waveText } from "@/lib/office/today-copy";
+import {
+  placesText,
+  requestsText,
+  stoppedText,
+  toMarkText,
+  waveText,
+} from "@/lib/office/today-copy";
 import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { dayLabel } from "@/lib/rules/reasons";
@@ -93,6 +99,31 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
             ))}
           </ul>
         )}
+      </section>
+
+      <section className={section} aria-labelledby="to-mark">
+        <h2 id="to-mark" className={heading}>
+          Who worked?
+        </h2>
+        {view.toMark.length === 0 ? (
+          <p className="mt-2">Nothing to mark from the last 7 days.</p>
+        ) : (
+          <ul>
+            {view.toMark.map((t) => (
+              <li key={t.shiftId} className={card}>
+                <p className="text-lg font-semibold">
+                  <Link href={`/office/shifts/${t.shiftId}`} className="underline">
+                    {roleLabel(t.role)}
+                    {t.site ? ` at ${t.site}` : ""}
+                  </Link>
+                </p>
+                <p>{shiftWhen(t.startsAt, t.endsAt, tz)}</p>
+                <p>{toMarkText(t.unmarked)}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+        {view.toMarkMore && <p className="mt-2">Showing the first 50.</p>}
       </section>
 
       <section className={section} aria-labelledby="requests">

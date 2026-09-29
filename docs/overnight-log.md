@@ -3446,3 +3446,67 @@ isn't installed, so not checked.
 
 **Parked:** see PLAN.md, "Firm-initiated changes follow-ups" (six Dylan-to-confirm items,
 including how the office records a worker's own cancellation).
+
+## 2026-09-29 09:54 UTC: Phase 5, "Mark no-show / completed"
+
+**Plan** (docs/screens.md shift detail "Places"; docs/api-and-jobs.md server action `markNoShow`;
+product-spec P1-8 "no-show count tracked"; docs/pilot-playbook.md no-shows per week). For admins
+and resourcers:
+1. **`markAttendance()`** (`src/lib/roster/attendance.ts`): mark one booked worker as worked
+   (`completed`) or didn't attend (`no_show`).
+   - Only once the shift has started. Any time after (timesheets come in days later).
+   - Only a live booking (confirmed, completed or no_show); a cancelled one can't be marked.
+   - A correction (no_show ↔ completed) is allowed and logged with what it was.
+   - The shift is locked first (the same order as every booking), then the booking row.
+   - Logged `shift.completed` / `shift.no_show` {by: "firm", shiftId, workerId, from}.
+   - Any source: the Google Sheets sync only changes `confirmed` bookings and keeps marked ones as
+     holders, so marking a sheet's shift is safe.
+2. **`markRestWorked()`**: once the shift has ended, every booking still `confirmed` becomes
+   `completed`, one event per worker. For big events (50 stewards, 2 didn't come).
+3. **The shift page's "Places"** (once started): "Mark as worked" / "Mark as didn't attend" per
+   person, "Change to …" for a marked one, and "Mark the {n} not marked yet as worked" after the
+   end. Each ends with a confirmation line. Buttons wait for the page to be ready (`useHydrated`).
+4. **Today: "Who worked?"**: shifts that ended in the last 7 days with bookings not marked yet
+   ("{n} not marked yet"), linking to the shift's page, so nothing is missed.
+5. **History words** for the new events. `markNoShow` in the server-action list becomes built.
+6. **Tests:** integration (marks, refusals, corrections, the rest, events, roles, other firms,
+   the Today section, weekly hours no longer counting a no-show), unit (copy), e2e (a started
+   shift booked through a new e2e helper: mark one worked and one didn't attend, see Today).
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Marking starts at the shift's start, with no end limit | A no-show is known once they're late; timesheets and corrections come days later | Only after the end (a late-running no-show waits); a 7-day limit (corrections blocked) |
+| Corrections allowed, logged with `from` | Mistakes happen; the log keeps both | Final once marked |
+| The worker isn't messaged when marked | Not in the docs; they see "Marked as not attended" in their past shifts | A message (parked for Dylan) |
+| Nothing is marked automatically | "Worked" is the office's statement; an automatic mark could hide a no-show | Auto-complete after the end (parked for Dylan) |
+| Attendance written directly, not through the roster plug | It's our record whatever the rota source; a sheet has no attendance column | A plug method (nothing to write to) |
+
+**Built as planned**, plus: the booking lock is `no key update` (the lightest that blocks a
+concurrent change), and the e2e helpers `addPastBookedShift` (a shift days back with seeded
+workers booked) and this spec's own office user.
+
+**Verify round 1 (before the review):** `VERIFIED tree=cfeb4ef89be3e57f e2e=true`.
+
+**Guardrails review: FIX FIRST (1), fixed.**
+1. **"Mark the rest as worked" lost its confirmation** (golden rule 11): the page showed the
+   component only while someone was unmarked, so the refresh after marking removed it and its
+   "Marked 2 people as worked." with it. The e2e only passed by catching the text before the
+   refresh. **Fix:** the component stays once the shift has ended (the choice hides itself when
+   nobody is left); the e2e now waits for the refresh (the choice gone) and then checks the
+   confirmation is still there, which fails on the old code.
+
+**Suggestions:**
+
+| Suggestion | Done |
+|---|---|
+| A no-show lowers weekly hours, so fair rotation moves them up the queue | Added to the parked Dylan-to-confirm item |
+| `for update` on the booking is heavier than needed | `for no key update` |
+| "Who worked?" didn't say when it was cut at 50; shared the gaps' constant; header comment; another firm's shifts | "Showing the first 50.", `TODAY_MARK_DAYS`, comment, tested |
+| A `starts_at` lower bound for the index | Not done: shifts have no maximum length, so a bound could hide a long one |
+| "Mark as didn't attend" is awkward; "(it said worked)" vague | "Mark as not attended" / "Marked {name} as not attended." / "(was: worked)" |
+| The bulk mark had no confirm step | "Only if they all worked it. You can change anyone afterwards." → "Yes, mark them as worked" |
+| The e2e helper's comment overstated "weekly hours untouched" | Reworded |
+| Worker's "On now" card, the cancel-booking confirmation, sheet edge cases, metrics counting | Parked |
+

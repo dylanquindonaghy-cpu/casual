@@ -87,6 +87,17 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         d.rulesOk === false ? " The rules said they may not be able to work the new time." : "";
       return `${officeName} ${what} ${worker}'s shift${notice ? `, with ${notice}` : ""}.${reason}${rules}`;
     }
+    case "shift.completed":
+    case "shift.no_show": {
+      const what = e.action === "shift.completed" ? "worked" : "not attended";
+      const was =
+        d.from === "completed"
+          ? " (was: worked)"
+          : d.from === "no_show"
+            ? " (was: not attended)"
+            : "";
+      return `${officeName} marked ${worker} as ${what}${was}.`;
+    }
     case "shift.move_refused":
       return `${officeName} tried to move the shift. Not moved: someone booked can't work the new time.`;
     case "shift.cancelled_by_firm":

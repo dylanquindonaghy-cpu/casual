@@ -16,7 +16,7 @@ import { FIRM_CHANGE_REASON_CODES, FIRM_CHANGE_REASONS, firmReasonWords } from "
 // transaction (a deadlock retries it, twice at most):
 //   1. who may cancel whom: a worker only their own booking, and not once the shift has started
 //      (that's a conversation with the office); the office only as an active admin or resourcer,
-//      and not once the shift has ended (no-shows and completed shifts are Phase 5);
+//      and not once the shift has ended (then it's who worked it: attendance.ts);
 //   2. the plug's markCancelled: locks the shift, frees the place (reopened only while the shift
 //      hasn't started), and stores on the assignment row who cancelled, why, when and the notice
 //      hours (shift start minus now);
@@ -42,7 +42,7 @@ export type CancelBookingResult =
   | CancelResult
   // A worker asking after the shift started: the office handles it.
   | { status: "started" }
-  // The office asking after the shift ended: that's a no-show or a completed shift (Phase 5).
+  // The office asking after the shift ended: that's a no-show or a completed shift (attendance.ts).
   | { status: "ended" }
   // The office user can't cancel staff (disabled, or payroll).
   | { status: "not_allowed" };

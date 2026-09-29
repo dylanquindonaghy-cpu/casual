@@ -1,5 +1,6 @@
 import type { ImportResult } from "../imports/import";
 import { PROBLEM_TEXT } from "../imports/messages";
+import type { MarkAttendanceResult, MarkRestWorkedResult } from "../roster/attendance";
 import type { BookingResult } from "../roster/book";
 import type { CancelBookingResult, CancelShiftResult } from "../roster/cancel";
 import type { MoveShiftResult } from "../roster/firm-change";
@@ -223,6 +224,41 @@ export function cancelBookingResultText(
       return "We can't find that shift or person.";
     case "no_reason":
       return NO_REASON;
+    default:
+      return COMMON[result.status];
+  }
+}
+
+// Who worked it (docs/screens.md, the shift's "Places", once it has started).
+export function attendanceResultText(result: MarkAttendanceResult | Common, name: string): string {
+  switch (result.status) {
+    case "marked":
+      return result.outcome === "completed"
+        ? `Marked ${name} as worked.`
+        : `Marked ${name} as not attended.`;
+    case "unchanged":
+      return `${name} is already marked that way.`;
+    case "not_started":
+      return "This shift hasn't started yet.";
+    case "not_booked":
+      return `${name} isn't booked on this shift any more.`;
+    case "not_found":
+      return "We can't find that shift or person.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+export function restWorkedResultText(result: MarkRestWorkedResult | Common): string {
+  switch (result.status) {
+    case "marked":
+      return result.count === 0
+        ? "Everyone was already marked."
+        : `Marked ${plural(result.count, "person", "people")} as worked.`;
+    case "not_ended":
+      return "This shift hasn't ended yet. Mark each person instead.";
+    case "not_found":
+      return "We can't find that shift.";
     default:
       return COMMON[result.status];
   }

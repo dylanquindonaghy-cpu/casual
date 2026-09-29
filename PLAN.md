@@ -175,7 +175,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
 - [x] Shifts: create/edit, bulk create for an event, CSV import, manual assign with logged override
 - [x] **Firm-initiated cancel / move / curtail**: reason required; notice hours logged per assigned
       worker; workers notified (compliance-critical, see `docs/api-and-jobs.md`)
-- [ ] Mark no-show / completed
+- [x] Mark no-show / completed
 - [ ] Approve/decline requests (time changes, swaps, availability, general) with a note → worker notified
 - [ ] Action log with filters (worker, shift, date, type)
 - [ ] Notice and cancellation report: every offer/change/cancel with timestamps, initiator and
@@ -510,8 +510,9 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     inactive or blocked. Decide with the Phase 5 worker screen whether blocking cancels their
     bookings.
   - No per-worker opt-out for reminders (only the channel). Add one if pilots ask.
-  - The "no-show count tracked" half of product-spec P1-8 comes with Phase 5 "Mark no-show /
-    completed" (the `shift_reminders` rows show whether a reminder went).
+  - The "no-show count tracked" half of product-spec P1-8: no-shows are now marked and logged
+    (`shift.no_show`); counting them per worker and per week is parked under "Marking who worked
+    follow-ups" (the `shift_reminders` rows show whether a reminder went).
   - A push transport that throws (rather than answering "gone") fails the whole offer wave after
     messages have gone (a reminder is left `sending` and never resent). The real web push sender
     must catch its own errors (note for "connect the real web push").
@@ -640,6 +641,31 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Other office client buttons (edit shift, create, import, offer, quick actions) can be clicked
     before the page is hydrated and then do nothing: give them `useHydrated()` like the assign,
     move and cancel buttons.
+- Marking who worked follow-ups (Phase 5):
+  - **Dylan to confirm:** a worker isn't messaged when marked as didn't attend (they see "Marked
+    as not attended" in their past shifts). Tell them, so they can say if it's wrong?
+  - **Dylan to confirm:** nothing is marked automatically. Mark bookings nobody marked as worked
+    some days after the end, or leave them for the office?
+  - **Dylan to confirm:** should no-shows count against a worker in fair rotation (offers go to
+    others first)? Code would decide from the counts, never a model. Today it's the reverse: fair
+    rotation ranks by confirmed and completed hours this week, so a no-show lowers their hours and
+    moves them up the queue.
+  - Show each worker's no-show count (last 90 days) on their office record and in "Assign
+    someone"; the pilot metrics task counts no-shows per week.
+  - The demo seed has no past shifts: add last week's event with bookings to mark (also for the
+    notice report and metrics demos).
+  - Pilot metrics: count no-shows from the bookings' current status, not from `shift.no_show`
+    events (a correction logs both).
+  - A worker marked as not attended mid-shift still sees it as "On now" with no sign of the mark;
+    show "Marked as not attended" on that card too.
+  - "Cancel {name}'s booking" on the shift page: its confirmation ("…They'll be told.") goes when
+    the page refreshes and the booking moves to "Cancelled" (the Cancelled line stays). Keep the
+    confirmation like "Mark the rest as worked" does.
+  - Edge cases: the Google Sheets sync can still move a started shift's times (marks stay on a
+    shift the sheet moved into the future); a sheet shift cancelled after it started keeps its
+    bookings, shows under "Who worked?" and can be marked, but hours on a cancelled shift don't
+    count; the profile's booked days count only `confirmed` bookings, so a day marked as worked
+    loses its "booked" flag on the unavailable-days list.
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
   pack is `src/lib/messaging/whatsapp-templates.ts`: 16 templates (6 are "no site" variants), each
@@ -796,3 +822,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 5 | 1.0 | Today view: the office dashboard now shows urgent shifts with wave status, gaps in the next 7 days, cancellations in the last 24 hours with notice, requests waiting and credentials expiring this week, with quick actions (offer to someone, mark urgent or not, mark as filled and undo); office offers go through the same rules, daily cap and quiet hours as every offer (new schema: office offers on the offers table); the review caught a misleading "offer on its way" after a failed send and a daily-cap race (both fixed and tested); 1886 tests + 28 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 0.6 | Office shift screens: a 4-week shift list, create one shift or up to 12 for an event (nothing saved unless every line is right), edit (booked shifts: places and instructions only, moves come with the next task), import a .csv/.xlsx checked first, and each shift's page with its places, offers, history in plain words and "Assign someone" (the rules' answer first; the office may override only rest, hours, a day off or a started shift, with a logged reason); the review caught a closed shift reopening on edit and the import moving a booked shift's site (both fixed and tested); 1924 tests + 31 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 5 | 1.1 | Office cancels, moves and shortens: a reason from a fixed list is required; each booked worker's notice hours are logged; each is told by a notice job (once only, from what they last knew to what's true now, quiet hours unless the shift is close or under way); a move is refused while anyone booked fails a rule the office can't override; the reviews caught a lost message when changes stacked up and an office "they asked to cancel" that told nobody (fixed; the second parked for Dylan); two e2e root causes fixed (a shared login limit, a button clicked before the page was ready); 1965 tests + 32 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 5 | 0.5 | Mark who worked: on a shift's page, once it has started, the office marks each person as worked or not attended (and can put a mistake right); after the end, "mark the rest as worked" after a "Yes"; every mark logged with what it was before; a new "Who worked?" list on Today shows shifts from the last 7 days with people not marked yet; the review caught a confirmation that vanished on refresh (fixed, and the browser test now proves it stays); 1979 tests + 33 e2e; verified and audited DONE (see docs/work-log.md) |

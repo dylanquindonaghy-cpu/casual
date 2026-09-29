@@ -153,6 +153,7 @@ export interface ShiftDetail {
     fromSheet: boolean;
     fromImport: boolean;
     started: boolean;
+    ended: boolean;
   };
   edit: { date: string; start: string; end: string; editable: boolean };
   places: {
@@ -349,6 +350,7 @@ export async function officeShiftDetail(
         fromSheet: s.source === "sheets",
         fromImport: s.source === "csv",
         started,
+        ended: s.endsAt.getTime() <= now.getTime(),
       },
       edit: {
         date: localDateOf(s.startsAt, tz),

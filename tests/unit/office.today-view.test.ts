@@ -8,6 +8,7 @@ import {
   placesText,
   requestsText,
   stoppedText,
+  toMarkText,
   urgentResultText,
   waveText,
 } from "@/lib/office/today-copy";
@@ -67,6 +68,11 @@ describe("the words", () => {
     expect(stoppedText(urgent())).toBeNull();
   });
 
+  it("people not marked yet", () => {
+    expect(toMarkText(1)).toBe("1 person not marked yet.");
+    expect(toMarkText(4)).toBe("4 people not marked yet.");
+  });
+
   it("requests", () => {
     expect(requestsText({ total: 0, byType: {} })).toBe("No requests waiting.");
     expect(requestsText({ total: 3, byType: { time_change: 2, swap: 1 } })).toBe(
@@ -110,6 +116,8 @@ describe("the page", async () => {
     gaps: [],
     gapsMore: false,
     cancellations: [],
+    toMark: [],
+    toMarkMore: false,
     requests: { total: 0, byType: {} },
     expiring: [],
   };
@@ -122,6 +130,7 @@ describe("the page", async () => {
       "No urgent shifts.",
       "No gaps in the next 7 days.",
       "No cancellations in the last 24 hours.",
+      "Nothing to mark from the last 7 days.",
       "No requests waiting.",
       "Nothing expires in the next 7 days.",
     ]) {
@@ -149,11 +158,25 @@ describe("the page", async () => {
           reason: "I'm unwell",
         },
       ],
+      toMark: [
+        {
+          shiftId: "m",
+          role: "steward",
+          site: "Acme Demo Racecourse",
+          startsAt: new Date("2026-10-31T10:00:00Z"),
+          endsAt: new Date("2026-10-31T18:00:00Z"),
+          unmarked: 3,
+        },
+      ],
       requests: { total: 2, byType: { time_change: 1, swap: 1 } },
       expiring: [
         { worker: "Dee Patel", credential: "SIA door supervisor licence", expiresOn: "2026-11-05" },
       ],
     });
+    expect(page).toContain("Who worked?");
+    expect(page).toContain("Steward at Acme Demo Racecourse");
+    expect(page).toContain("Sat 31 Oct, 10:00 to 18:00");
+    expect(page).toContain("3 people not marked yet.");
     expect(page).toContain("Door supervisor at Acme Demo Arena");
     expect(page).toContain("Sat 7 Nov, 06:00 to 14:00");
     expect(page).toContain("Wave 2 · 4 offered · 0 accepted");
@@ -170,6 +193,12 @@ describe("the page", async () => {
     expect(page).toContain("Reason: I&#x27;m unwell");
     expect(page).toContain("2 requests waiting: 1 time change, 1 swap.");
     expect(page).toContain("Dee Patel: SIA door supervisor licence, expires Thu 5 Nov");
+  });
+
+  it("says when Who worked? has more than it shows", () => {
+    const page = text({ ...empty, toMarkMore: true });
+    expect(page).toContain("Showing the first 50.");
+    expect(text(empty)).not.toContain("Showing the first 50.");
   });
 
   it("a sheet's shift has no Mark as filled (it's changed in the sheet)", () => {

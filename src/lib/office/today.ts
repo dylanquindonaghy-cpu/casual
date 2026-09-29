@@ -17,12 +17,15 @@ import { addDays, localDateOf } from "../time/zoned";
 //   emailed.
 // - gaps: other open shifts in the next 7 days with a place free.
 // - cancellations: bookings cancelled in the last 24 hours, newest first, with notice hours.
+// - toMark ("Who worked?"): shifts that ended in the last 7 days with people booked not marked as
+//   worked or not attended yet, latest first.
 // - requests: open requests (and escalated ones) by kind.
 // - expiring: credentials of active workers expiring in the next 7 days (the firm's calendar),
 //   leaving out one the worker has already renewed.
 // At most 50 in each list; `more` says there were others.
 
 export const TODAY_GAP_DAYS = 7;
+export const TODAY_MARK_DAYS = 7; // "Who worked?" looks back this far
 const LIST_MAX = 50;
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 
@@ -62,6 +65,16 @@ export interface TodayCancellation {
   reason: string | null;
 }
 
+// A shift that ended with people on it not marked as worked or didn't attend yet.
+export interface TodayToMark {
+  shiftId: string;
+  role: string;
+  site: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  unmarked: number;
+}
+
 export interface TodayExpiry {
   worker: string;
   credential: string;
@@ -75,6 +88,8 @@ export interface TodayView {
   gaps: TodayShift[];
   gapsMore: boolean;
   cancellations: TodayCancellation[];
+  toMark: TodayToMark[]; // shifts that ended in the last 7 days
+  toMarkMore: boolean; // more than the list shows
   requests: { total: number; byType: Partial<Record<(typeof REQUEST_TYPES)[number], number>> };
   expiring: TodayExpiry[];
 }
@@ -210,6 +225,25 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
      limit ${LIST_MAX}
   `);
 
+  const { rows: toMark } = await tx.execute<{
+    id: string;
+    role: string;
+    starts_at: string | Date;
+    ends_at: string | Date;
+    site_name: string | null;
+    unmarked: number;
+  }>(sql`
+    select s.id, s.role, s.starts_at, s.ends_at, si.name as site_name, count(a.id)::int as unmarked
+      from shifts s
+      join assignments a on a.firm_id = s.firm_id and a.shift_id = s.id and a.status = 'confirmed'
+      left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+     where s.ends_at <= ${now}
+       and s.ends_at > ${new Date(now.getTime() - TODAY_MARK_DAYS * 24 * 3_600_000)}
+     group by s.id, si.name
+     order by s.ends_at desc, s.id
+     limit ${LIST_MAX + 1}
+  `);
+
   const { rows: requestRows } = await tx.execute<{ type: string; n: number }>(sql`
     select type, count(*)::int as n from requests
      where status in ('open', 'escalated')
@@ -264,6 +298,15 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
       noticeHours: Number(c.notice_hours ?? 0),
       byFirm: c.status === "cancelled_firm",
       reason: c.cancel_reason,
+    })),
+    toMarkMore: toMark.length > LIST_MAX,
+    toMark: toMark.slice(0, LIST_MAX).map((t) => ({
+      shiftId: t.id,
+      role: t.role,
+      site: t.site_name,
+      startsAt: new Date(t.starts_at),
+      endsAt: new Date(t.ends_at),
+      unmarked: t.unmarked,
     })),
     requests: { total, byType },
     expiring: expiring.map((e) => ({

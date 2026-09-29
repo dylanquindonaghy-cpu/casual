@@ -8,6 +8,8 @@ import {
   assignWorker,
   cancelBookingByOffice,
   cancelShift,
+  markAttended,
+  markTheRestWorked,
   moveShift,
 } from "@/lib/office/quick-actions";
 import {
@@ -19,6 +21,11 @@ import {
   type EditShiftResult,
 } from "@/lib/office/shift-editor";
 import { importShiftsFile, type ShiftImportResult } from "@/lib/office/shift-import";
+import {
+  ATTENDANCE_OUTCOMES,
+  type MarkAttendanceResult,
+  type MarkRestWorkedResult,
+} from "@/lib/roster/attendance";
 import type { BookingResult } from "@/lib/roster/book";
 import type { CancelBookingResult, CancelShiftResult } from "@/lib/roster/cancel";
 import type { MoveShiftResult } from "@/lib/roster/firm-change";
@@ -136,4 +143,24 @@ export async function cancelBookingAction(
   const r = reasonSchema.safeParse(reason);
   if (!r.success) return { status: "no_reason" };
   return asOffice("cancel booking", (ctx) => cancelBookingByOffice(ctx, shiftId, workerId, r.data));
+}
+
+// Who worked it and who didn't attend (once it has started).
+export async function markAttendanceAction(
+  shiftId: string,
+  workerId: string,
+  outcome: unknown,
+): Promise<MarkAttendanceResult | Common> {
+  const o = z.enum(ATTENDANCE_OUTCOMES).safeParse(outcome);
+  if (!z.uuid().safeParse(shiftId).success || !z.uuid().safeParse(workerId).success || !o.success) {
+    return { status: "not_found" };
+  }
+  return asOffice("mark attendance", (ctx) => markAttended(ctx, shiftId, workerId, o.data));
+}
+
+export async function markRestWorkedAction(
+  shiftId: string,
+): Promise<MarkRestWorkedResult | Common> {
+  if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
+  return asOffice("mark the rest worked", (ctx) => markTheRestWorked(ctx, shiftId));
 }

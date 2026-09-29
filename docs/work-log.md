@@ -3965,3 +3965,104 @@ On each shift's page, admins and resourcers now get a **"Move, shorten or cancel
    everyone booked". You should see "Moved. 1 person booked will be told…".
 6. The terminal running `npm run dev` prints the message the worker would get. Reload the page:
    the history says they were told.
+
+## 2026-09-29: Phase 5, task 4: Marking who worked a shift (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (09:54 to 10:22 UTC), in the unattended overnight loop.
+Phase 5 so far: 3.2 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=10df6a00466eef70 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1979 tests (up from 1965);
+  - the 33 browser tests (1 new);
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+A **no-show** is someone booked on a shift who doesn't turn up. Firm owners want fewer of them,
+and the product spec says the count must be tracked. Until now a booking stayed "Booked" forever.
+Now the office records what happened:
+- **On a shift's page**, once the shift has started, each booked person gets two buttons:
+  **"Mark as worked"** and **"Mark as not attended"**. Once marked, the other one says "Change to
+  …", so a mistake can be put right. Each press ends with a line saying what happened ("Marked Ann
+  Booker as not attended.").
+- **After the shift ends**, "Mark the 12 people not marked yet as worked" does everyone left in
+  one go, after a "Yes" (for a big event where only a few didn't come).
+- **Every mark is logged** in the action log (the append-only record of everything that
+  happened) as `shift.completed` or `shift.no_show`, with who did it and what it was before. The
+  shift's history says it in words: "Sam Rota marked Ann Booker as worked (was: not attended)."
+- **Today** has a new **"Who worked?"** list: shifts that ended in the last 7 days with people
+  not marked yet ("3 people not marked yet."), each linking to the shift's page. So nothing is
+  forgotten.
+- **Rules:**
+  - only admins and resourcers can mark, checked again inside the database transaction (the
+    all-or-nothing unit of work);
+  - not before the shift starts; there's no end limit (timesheets come days later);
+  - only someone still booked (not a cancelled booking).
+- **A knock-on effect:** a "not attended" shift no longer counts towards that worker's weekly
+  hours limit (they didn't work those hours). A test proves it.
+- Google Sheets firms can mark too: the sheet has no attendance column, and the sheet sync only
+  changes bookings that are still "Booked".
+- The worker isn't sent a message. They already see "Worked" or "Marked as not attended" in their
+  past shifts.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Marking opens at the shift's start, with no end limit | A no-show is known once they're late; corrections come days later | Only after the end; a 7-day limit |
+| Mistakes can be changed, and the log keeps both | People mis-tap; the record stays honest | Final once marked |
+| Nothing is marked automatically | "Worked" is the office's statement; an automatic mark could hide a no-show | Auto-mark worked after the end (parked for Dylan) |
+| No message to the worker | Not in the docs; they can see it in their past shifts | Tell them (parked for Dylan) |
+| "Mark the rest" needs a "Yes" | One tap could mark 50 people | One tap (each can be undone, but one by one) |
+
+### What the new tests prove
+
+- `tests/integration/office.attendance.test.ts` (11 tests, on the real database):
+  - marking worked and not attended, and the exact log entries;
+  - putting a mistake right (logged with what it was), and "already marked";
+  - not before the start, yes 20 minutes after it, yes days later;
+  - not a cancelled booking or someone never booked;
+  - a Google Sheet's shift can be marked;
+  - payroll and disabled users refused, admins allowed, another firm's shift not found;
+  - a "not attended" shift stops counting towards the weekly hours limit;
+  - "mark the rest": only those not marked yet, one log line each, not before the end, not for
+    payroll;
+  - Today's "Who worked?": the right shifts (not too old, not fully marked, not still running,
+    not another firm's), and it empties as people are marked.
+- Unit tests: every new message and history line, and the Today section (including "Showing the
+  first 50.").
+- `tests/e2e/office.attendance.spec.ts` (1 browser test): a shift from 3 days ago with 3 people
+  shows on Today; mark one not attended, the other two as worked in one go (the confirmation stays
+  after the page refreshes), correct the first to worked, see it in the history, and Today no
+  longer lists it.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`, Parking lot, "Marking who worked follow-ups"):
+  - tell a worker when they're marked as not attended?
+  - mark bookings nobody marked as worked automatically after a few days?
+  - should no-shows count against a worker for offers? (Today it's the reverse: fewer hours
+    worked puts them higher in the queue.)
+- **Parked:** each worker's no-show count on their record; a past event in the demo seed; the
+  worker's "On now" card doesn't show a mark; the cancel-booking confirmation also vanishes on
+  refresh; a few Google Sheets edge cases.
+
+### How to see it working
+
+The demo data has no shifts in the past yet (parked), so in the app this shows after the demo
+Saturday has passed:
+1. Run `npm run dev`.
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.resourcer@example.com`.
+3. On Today, look for "Who worked?", then open a shift and use "Mark as worked" / "Mark as not
+   attended".
+
+Or watch the browser test do it: stop `npm run dev`, then run
+`npx playwright test tests/e2e/office.attendance.spec.ts --headed`.

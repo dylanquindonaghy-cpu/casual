@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { eventWords, type Names } from "@/lib/office/event-words";
 import {
   assignResultText,
+  attendanceResultText,
   createProblems,
   createResultText,
   editResultText,
   importResultLines,
+  restWorkedResultText,
 } from "@/lib/office/shifts-copy";
 
 // The office's shift screens in plain words (src/lib/office/shifts-copy.ts) and a shift's history
@@ -99,11 +101,50 @@ describe("a shift's history", () => {
     expect(ev("shift.change_notice_skipped", { workerId: "w1", reason: "unchanged" })).toBe(
       "Ann Booker wasn't told: the shift is back to what they knew.",
     );
+    expect(ev("shift.completed", { workerId: "w1", from: "confirmed" }, "office", "o1")).toBe(
+      "Sam Rota marked Ann Booker as worked.",
+    );
+    expect(ev("shift.no_show", { workerId: "w1", from: "confirmed" }, "office", "o1")).toBe(
+      "Sam Rota marked Ann Booker as not attended.",
+    );
+    expect(ev("shift.completed", { workerId: "w1", from: "no_show" }, "office", "o1")).toBe(
+      "Sam Rota marked Ann Booker as worked (was: not attended).",
+    );
+    expect(ev("shift.no_show", { workerId: "w1", from: "completed" }, "office", "o1")).toBe(
+      "Sam Rota marked Ann Booker as not attended (was: worked).",
+    );
     expect(ev("something.new")).toBe("Recorded: something.new.");
   });
 });
 
 describe("the shift screens' words", () => {
+  it("who worked it", () => {
+    const marked = (outcome: "completed" | "no_show") =>
+      attendanceResultText({ status: "marked", outcome, from: "confirmed" }, "Ann Booker");
+    expect(marked("completed")).toBe("Marked Ann Booker as worked.");
+    expect(marked("no_show")).toBe("Marked Ann Booker as not attended.");
+    expect(attendanceResultText({ status: "unchanged" }, "Ann Booker")).toBe(
+      "Ann Booker is already marked that way.",
+    );
+    expect(attendanceResultText({ status: "not_started" }, "Ann Booker")).toBe(
+      "This shift hasn't started yet.",
+    );
+    expect(attendanceResultText({ status: "not_booked" }, "Ann Booker")).toBe(
+      "Ann Booker isn't booked on this shift any more.",
+    );
+    expect(attendanceResultText({ status: "not_allowed" }, "Ann Booker")).toBe(
+      "You can't change shifts.",
+    );
+    expect(restWorkedResultText({ status: "marked", count: 1 })).toBe("Marked 1 person as worked.");
+    expect(restWorkedResultText({ status: "marked", count: 3 })).toBe("Marked 3 people as worked.");
+    expect(restWorkedResultText({ status: "marked", count: 0 })).toBe(
+      "Everyone was already marked.",
+    );
+    expect(restWorkedResultText({ status: "not_ended" })).toBe(
+      "This shift hasn't ended yet. Mark each person instead.",
+    );
+  });
+
   it("creating", () => {
     expect(createResultText({ status: "created", shiftIds: ["a"] })).toBe("Shift created.");
     expect(createResultText({ status: "created", shiftIds: ["a", "b", "c"] })).toBe(

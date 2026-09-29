@@ -1491,3 +1491,36 @@ superseded rows or versions); Windows-1252 CSVs with £; Phase 6's import line i
 **Implementation root causes noted while building:** an existing import test used "pay" as its
 example of a kind the importer doesn't have; "pay" is now real, so it reached the column check
 instead of the setup error. The example is now "invoices"; the test still checks an unknown kind.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=7602a49bc1175996 e2e=true` (1370 tests in 68 files, 10 e2e).
+`npm run build` run by hand: succeeds. Dev database migrated to 0009.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Step 1 check: `.claude/state/verified.json` = `{"ok":true,"tree":"7602a49bc1175996","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` = `7602a49bc1175996` — matches. Proceeding.
+
+Claims (from the task line "Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data"):
+
+- Pay data imported from firm's payroll file — PROVEN. `src/lib/db/schema/pay.ts` (pay_records table, firm_id, RLS, composite FK to workers, check constraints); `src/lib/imports/columns.ts:51-67` adds `pay` kind with hours/rate/gross/payDate columns; import logic in `src/lib/imports/import.ts`. Test: `tests/integration/pay.test.ts:82-172` ("importing pay (npm run import --kind pay)") — creates/updates/re-import idempotency, skip reasons by row — all passing per `.claude/state/test.log:882-883`.
+
+- Page is behind OTP/step-up (6-digit code, 30 min window) — PROVEN. `src/app/pay/page.tsx` calls `steppedUpWorker()` then `myPay()`; `src/lib/portal/pay.ts:30-35` (`myPay`) independently re-checks `session.kind`, `subjectId`, `isSteppedUp` and throws `StepUpRequiredError` (matches PLAN.md's explicit rule that pay data loaders must self-check, not trust the page). Tests: `tests/integration/pay.test.ts:176-214` (`myPay` refuses no-code / expired / other-worker sessions), `tests/integration/auth.otp.test.ts` ("the pay pages for exactly 30 minutes", test.log:216), e2e `tests/e2e/pay.worker.spec.ts:9-42` (code request, wrong code countdown, correct code opens page, survives reload) — passing per `.claude/state/e2e.log` (test #9, #10 passed).
+
+- Shows hours logged, rates, pay dates, gross when present, last 8 weeks newest-first — PROVEN. `src/lib/portal/pay.ts:38-58` queries last `PAY_WEEKS=8` by `periodEnd`, ordered desc; `src/app/pay/pay-view.tsx` renders period, hours, rate, gross (only if non-null), pay date. Test: `tests/integration/pay.test.ts:176-214` asserts exact ordering/window; `tests/unit/portal.pay.test.ts:64-97` renders the component and checks each string appears, including that an ungiven gross is never computed (`not.toContain("£60.00")`) — matches golden rule 9 (pay figures come from imported data, never derived).
+
+- Tenant isolation on pay data — PROVEN. `tests/integration/pay.test.ts:216-224` ("never shows another firm's pay"); `tests/integration/tenancy.isolation.test.ts:415-420,473` (pay_records read/write/insert/move probes); `tests/integration/rls.mutation.test.ts:518-521`; `tests/integration/rls.every-table.test.ts:831-836` (RLS enabled/forced, exact policy, exact TABLE_ACCESS grants) — all in test.log, all passing. `src/lib/db/admin/access.ts:43` has `pay_records: NO_DELETE`.
+
+- Copy matches `docs/screens.md` — PROVEN. `docs/screens.md:18` spec strings ("To see your pay, we'll send you a 6-digit code.", "The last 8 weeks, from {firm}'s payroll.", "Gross pay:", "No pay data yet for this period.") match verbatim in `src/app/pay/code-gate.tsx` and `src/app/pay/pay-view.tsx`, and are asserted in the e2e spec and unit test.
+
+Fakes found: none. `invariants.log` confirms "no .only/.skip/.todo in tests" and "1370 tests: 1370 passed, 0 failed, 0 skipped, 0 todo". No TODO/not-implemented in the pay code path. `pounds`/`hoursText` are pure display formatting with real assertions, not hard-coded to test fixtures.
+
+Note: PLAN.md's checkbox for this line is still `[ ]` (correctly not self-ticked by the builder, per golden rule 13) — this audit is the input to that decision, not a finding against it.
+
+To reach DONE: nothing — recommend ticking this PLAN.md line.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.4 (00:04 to 00:27 UTC). Phase 3 so far: 2.2 h of its 35–45 h estimate.
+**Commit:** `4cacf8d`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

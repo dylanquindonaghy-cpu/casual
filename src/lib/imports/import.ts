@@ -6,6 +6,7 @@ import {
   assignments,
   CANCELLED_ASSIGNMENT_STATUSES,
   credentials,
+  payRecords,
   shifts,
   sites,
   workers,
@@ -40,6 +41,9 @@ import { resolveColumns, type ColumnsOf, type ImportKind } from "./columns";
 //   keeps its times and role, and its headcount can't go down: that is a firm-initiated change,
 //   logged per worker with notice (golden rule 12), and belongs to the office's shift editor.
 //   Shifts that have started are history: never created or changed by an import.
+// - Pay: the worker by Staff ID or mobile; one line per worker, pay period and rate (a re-import
+//   updates its hours, gross and pay date). The figures are the payroll's, stored as given (money
+//   in pence). The log records what changed, never the amounts.
 
 export const IMPORT_PROBLEM_CODES = [
   "missing_value",
@@ -57,6 +61,9 @@ export const IMPORT_PROBLEM_CODES = [
   "duplicate_mobile", // the mobile belongs to another worker already
   "shift_has_bookings",
   "shift_started",
+  "bad_hours", // pay: hours that aren't a number from 0 to 1000 with at most 2 decimals
+  "bad_money", // pay: a rate or gross that isn't an amount of money
+  "bad_period", // pay: the period ends before it starts
 ] as const;
 export type ImportProblemCode = (typeof IMPORT_PROBLEM_CODES)[number];
 
@@ -113,6 +120,37 @@ export function importMobile(raw: string): string | null {
 }
 
 const email = z.email().max(254);
+
+// A spreadsheet's stored number can carry float noise ("36.299999999999997" for 36.3): take it
+// as 2 decimals only when it is that close to one; anything else is left for the checks to refuse.
+function spreadsheetDecimal(text: string): string {
+  if (!/^\d+\.\d{3,}$/.test(text)) return text;
+  const value = Number(text);
+  const rounded = Math.round(value * 100) / 100;
+  return Math.abs(value - rounded) < 1e-6 ? rounded.toFixed(2) : text;
+}
+
+// Hours as payroll writes them ("37.5", "7.25"): 0 to 1000, at most 2 decimals. As text, for the
+// numeric column (no float rounding on the way in).
+export function importHours(raw: string): string | null {
+  const text = spreadsheetDecimal(raw.trim());
+  if (!/^\d{1,4}(\.\d{1,2})?$/.test(text)) return null;
+  const value = Number(text);
+  return value <= 1000 ? value.toFixed(2) : null;
+}
+
+// Money as payroll writes it ("£12.50", "12.5", "1,234.56", " £ 12 "), in whole pence, up to
+// £9,999,999.99. Commas only as thousands separators in groups of three: "12,50" (a decimal
+// comma) is refused, never read as £1,250.
+export function importPence(raw: string): number | null {
+  const text = spreadsheetDecimal(raw.replace(/[£\s]/g, ""));
+  if (!/^(\d{1,3}(,\d{3})+|\d{1,7})(\.\d{1,2})?$/.test(text)) return null;
+  const m = /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(text.replace(/,/g, ""));
+  if (!m) return null;
+  const pounds = Number(m[1]);
+  const pence = Number((m[2] ?? "").padEnd(2, "0"));
+  return pounds * 100 + pence;
+}
 
 export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<ImportResult> {
   const [header = [], ...data] = opts.rows;
@@ -251,6 +289,108 @@ function rowImporter(
         { source: "csv", actor: office, now: opts.now, via: opts.via },
       );
       return outcome === "added" ? "created" : outcome === "unchanged" ? "unchanged" : "updated";
+    };
+  }
+
+  if (opts.kind === "pay") {
+    const c = columns as ColumnsOf<"pay">;
+    const iso = (d: { year: number; month: number; day: number }) =>
+      `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+    const dateCell = (cell: string, required: boolean): string | null => {
+      if (!cell) {
+        if (required) throw new Problem("missing_value");
+        return null;
+      }
+      const parsed = parseSheetDate(cell);
+      if (!parsed) throw new Problem("bad_date");
+      return iso(parsed);
+    };
+    return async (tx, row) => {
+      const ref = cellOf(row, c.ref);
+      const mobileCell = cellOf(row, c.mobile);
+      if (!ref && !mobileCell) throw new Problem("missing_value");
+      const mobile = ref ? null : importMobile(mobileCell);
+      if (!ref && !mobile) throw new Problem("bad_mobile");
+      const periodStart = dateCell(cellOf(row, c.periodStart), true) ?? "";
+      const periodEnd = dateCell(cellOf(row, c.periodEnd), true) ?? "";
+      if (periodEnd < periodStart) throw new Problem("bad_period");
+      const hoursCell = cellOf(row, c.hours);
+      if (!hoursCell) throw new Problem("missing_value");
+      const hours = importHours(hoursCell);
+      if (hours === null) throw new Problem("bad_hours");
+      const rateCell = cellOf(row, c.rate);
+      if (!rateCell) throw new Problem("missing_value");
+      const ratePence = importPence(rateCell);
+      if (ratePence === null) throw new Problem("bad_money");
+      const grossCell = cellOf(row, c.gross);
+      const grossPence = grossCell ? importPence(grossCell) : null;
+      if (grossCell && grossPence === null) throw new Problem("bad_money");
+      const payDate = dateCell(cellOf(row, c.payDate), false);
+
+      const [worker] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(ref ? eq(workers.externalRef, ref) : eq(workers.mobileE164, mobile ?? ""));
+      if (!worker) throw new Problem("unknown_worker");
+      once(`pay:${worker.id}:${periodStart}:${periodEnd}:${ratePence}`);
+
+      const line = and(
+        eq(payRecords.workerId, worker.id),
+        eq(payRecords.periodStart, periodStart),
+        eq(payRecords.periodEnd, periodEnd),
+        eq(payRecords.ratePence, ratePence),
+      );
+      const [existing] = await tx
+        .select({
+          id: payRecords.id,
+          hours: payRecords.hours,
+          grossPence: payRecords.grossPence,
+          payDate: payRecords.payDate,
+        })
+        .from(payRecords)
+        .where(line)
+        .for("no key update");
+      if (!existing) {
+        const [added] = await tx
+          .insert(payRecords)
+          .values({
+            firmId: sql`app_current_firm_id()`,
+            workerId: worker.id,
+            periodStart,
+            periodEnd,
+            hours,
+            ratePence,
+            grossPence,
+            payDate,
+          })
+          .returning({ id: payRecords.id });
+        if (added) {
+          await event(tx, "pay_record.imported", "pay_record", added.id, {
+            periodStart,
+            periodEnd,
+          });
+        }
+        return "created";
+      }
+      // A blank pay date leaves what's there (a later file may not repeat it). A blank gross does
+      // too, unless the hours changed: a gross from before a correction no longer matches them, so
+      // it's cleared rather than shown next to the new hours.
+      const hoursChanged = Number(existing.hours) !== Number(hours);
+      const next = {
+        hours,
+        grossPence: grossPence ?? (hoursChanged ? null : existing.grossPence),
+        payDate: payDate ?? existing.payDate,
+      };
+      const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) =>
+        k === "hours" ? Number(existing.hours) !== Number(next.hours) : existing[k] !== next[k],
+      );
+      if (changed.length === 0) return "unchanged";
+      await tx
+        .update(payRecords)
+        .set({ ...next, updatedAt: opts.now })
+        .where(eq(payRecords.id, existing.id));
+      await event(tx, "pay_record.updated", "pay_record", existing.id, { fields: changed });
+      return "updated";
     };
   }
 

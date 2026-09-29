@@ -3,7 +3,7 @@ import { ImportFileError } from "./errors";
 // Which header names mean what, per kind of import. Firms' spreadsheets name columns differently,
 // so each field accepts a few common names (case, spaces and punctuation ignored).
 
-export const IMPORT_KINDS = ["workers", "credentials", "shifts"] as const;
+export const IMPORT_KINDS = ["workers", "credentials", "shifts", "pay"] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 
 interface FieldSpec {
@@ -48,6 +48,24 @@ export const COLUMNS = {
     headcount: { names: ["needed", "headcount", "number needed", "staff needed", "qty"] },
     instructions: { names: ["instructions", "notes"] },
   },
+  pay: {
+    // One of ref or mobile identifies the worker (checked below).
+    ref: { names: ["staff id", "staff no", "staff number", "employee id", "payroll id"] },
+    mobile: { names: ["mobile", "mobile number", "phone", "phone number", "mobile phone"] },
+    periodStart: {
+      names: ["period start", "week start", "from", "from date", "start date"],
+      required: true,
+    },
+    periodEnd: {
+      names: ["period end", "week end", "week ending", "to", "to date", "end date"],
+      required: true,
+    },
+    hours: { names: ["hours", "hours worked", "total hours"], required: true },
+    rate: { names: ["rate", "hourly rate", "pay rate", "rate per hour"], required: true },
+    // Not "amount" or "total pay": in many payroll files those mean net pay.
+    gross: { names: ["gross", "gross pay"] },
+    payDate: { names: ["pay date", "paid on", "payment date", "pay day"] },
+  },
 } as const satisfies Record<ImportKind, Record<string, FieldSpec>>;
 
 export type ColumnsOf<K extends ImportKind> = {
@@ -74,7 +92,11 @@ export function resolveColumns<K extends ImportKind>(kind: K, header: string[]):
     if (hit !== undefined) used.add(hit);
     found[field] = hit;
   }
-  if (kind === "credentials" && found.ref === undefined && found.mobile === undefined) {
+  if (
+    (kind === "credentials" || kind === "pay") &&
+    found.ref === undefined &&
+    found.mobile === undefined
+  ) {
     throw new ImportFileError("missing_column");
   }
   return found as ColumnsOf<K>;

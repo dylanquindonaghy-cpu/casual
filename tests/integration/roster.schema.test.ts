@@ -661,6 +661,12 @@ describe("deletes that would erase or orphan rota history", () => {
       "offers_worker_fk",
       "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
     ],
+    [
+      "a pay record",
+      "pay_records_worker_fk",
+      `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
+       select $1, $3, '2026-10-26', '2026-11-01', 8, 1250 where $2::uuid is not null`,
+    ],
   ])("a worker with %s can't be deleted", async (_label, fk, attach) => {
     await inT(async (c) => {
       const workerId = await newWorker(c);

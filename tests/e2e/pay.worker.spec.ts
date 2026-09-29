@@ -35,11 +35,11 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
 
   await page.getByLabel("Your code").fill(code);
   await page.getByRole("button", { name: "Check code" }).click();
-  await expect(page.getByText("Your hours, rates and pay dates will appear here.")).toBeVisible();
+  await expect(page.getByText("No pay data yet for this period.")).toBeVisible();
 
   // Still open after a reload (30 minutes).
   await page.reload();
-  await expect(page.getByText("Your hours, rates and pay dates will appear here.")).toBeVisible();
+  await expect(page.getByText("No pay data yet for this period.")).toBeVisible();
 });
 
 test("pay without logging in goes to the login page", async ({ page }) => {

@@ -28,7 +28,7 @@ const { values, positionals } = parseArgs({
 const [path] = positionals;
 if (!values.firm || !values.kind || !values.as || !path || positionals.length !== 1) {
   console.error(
-    "Usage: npm run import -- --firm <slug> --kind workers|credentials|shifts --as <office email> <file> [--apply]",
+    "Usage: npm run import -- --firm <slug> --kind workers|credentials|shifts|pay --as <office email> <file> [--apply]",
   );
   process.exit(2);
 }

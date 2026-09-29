@@ -42,7 +42,7 @@ Office server actions: `createShift`, `updateShift` (logs firm-initiated moves/c
 `cancelShiftByFirm(shiftId, reason)`, `cancelBookingByFirm(shiftId, workerId, reason)`
 (`cancelBooking()` with `by: office`), `makeUrgent(shiftId)`, `offerTo(shiftId, workerIds)`,
 `assignManually(shiftId, workerId, override?)` (`bookShift()` with `by: office`; overrides only
-of checks 0 and 6-8, with a reason; active admins and resourcers only), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/`, dry run first; the screen is Phase 5),
+of checks 0 and 6-8, with a reason; active admins and resourcers only), `markNoShow`, `resolveRequest`, `importCsv(kind, file)` (built as `readTable()` + `runImport()` in `src/lib/imports/` for workers, credentials, shifts and pay, dry run first; the screen is Phase 5),
 `upsertCredential`, `verifyCredential`, `resolvePayQueryGroup`, `updateSettings`, `verifyDomain`,
 `exportWorkerData(workerId)`, `deleteWorker(workerId)`.
 

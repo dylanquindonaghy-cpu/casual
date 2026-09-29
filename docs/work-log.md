@@ -1982,3 +1982,84 @@ Full list: `docs/overnight-log.md`, this task's entry, and ADR-015 in `docs/deci
 The demo data has no open shifts yet (the demo-seed task adds them). The tests show it:
 `npm test -- allocation` runs the allocation tests (2 files); you should see
 `Tests  14 passed (14)` and no failures.
+
+## 2026-09-29: Phase 3, task 6: Pay info page (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (00:04 to 00:27 UTC), in the unattended overnight loop.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=7602a49bc1175996 e2e=true`: type checks, lint, all
+  1370 tests (up from 1343), the 10 browser tests and the rule checks passed. A production build
+  was also run and succeeded.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`; push result in `docs/overnight-log.md`.
+
+### What was built
+
+Workers can now check their pay without messaging payroll:
+
+- **A new table, `pay_records`**: one line per worker, pay period and rate (a week can have a day
+  rate and a night rate): hours, rate, gross pay if payroll gave it, and the pay date. Like every
+  table, it's sealed per firm, and the tests that try to reach another firm's data now include it.
+  The app can add and correct lines but never delete them: they're what a pay question gets
+  checked against.
+- **Importing pay**: `npm run import -- --firm acme --kind pay --as <office email> pay.csv` reads a
+  payroll file with Staff ID (or mobile), week start, week ending, hours, rate, gross pay and pay
+  date. Money is stored exactly in **pence** (no rounding errors). Importing the same file again
+  updates lines instead of doubling them. The action log records which fields changed, never the
+  amounts.
+- **The pay page**: after the worker types their 6-digit code, they see the last 8 weeks, newest
+  first: "Mon 26 Oct to Sun 1 Nov", "37.5 hours at £12.50 an hour", "Gross pay: £468.75", "Pay
+  date: Fri 6 Nov". We never work out a figure ourselves. If payroll didn't send a gross, none is
+  shown. The code check happens twice, on the page and again in the code that reads the pay.
+
+### Two problems the safety review found (fixed and tested)
+
+1. **Decimal commas.** Some spreadsheets write £12.50 as "12,50". The first version read that
+   as £1,250.00. Now a comma is only accepted as a thousands separator ("1,234.56"); "12,50" is
+   refused with a clear message instead of a wrong number.
+2. **Corrected hours.** If payroll corrected someone's hours but left gross pay blank, the old
+   gross stayed, and the page showed hours and a gross that didn't match. Now the old gross is
+   cleared when the hours change.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The table follows the data model doc, one line per worker, period and rate | A week can have two rates | One row per week |
+| No deleting pay records from the app | They're the evidence for pay questions (Dylan to confirm; removal comes with the Phase 6 payroll screen) | Allow deletes |
+| Only show figures payroll sent | Golden rules 1 and 9: pay figures come from the firm's data | Work out a gross from hours × rate |
+| "Raise a pay query" waits for Phase 6 | That's where pay queries are built | Build it now |
+
+Full list: `docs/overnight-log.md`, this task's entry.
+
+### What the new tests prove
+
+- `tests/integration/pay.test.ts` (4 tests, real database): importing adds, updates and leaves
+  lines alone correctly, with amounts never in the log; bad rows are skipped by row number and
+  reason; the page's data is the last 8 weeks, only with a code from the last 30 minutes, and
+  never another firm's.
+- `tests/unit/portal.pay.test.ts` (5 tests): reading money and hours exactly (including decimal
+  commas refused), and the page rendered.
+- The isolation and database-rule suites now cover `pay_records`. The browser pay test now expects
+  "No pay data yet for this period." after the code.
+
+### Parked, open, and things that need Dylan
+
+- **Please look over:** the new `pay_records` table (in `docs/data-model.md`) and "no deletes".
+- Parked in `PLAN.md`: how the office corrects a wrong line and how a corrected rate is handled
+  (Phase 6); pay records and GDPR deletion (Phase 8); demo pay data (the demo-seed task).
+
+### How to see it working
+
+1. Log in (`npm run dev`, then `http://acme.localhost:3000/login`), tap "See your pay", ask for a
+   code and type it in (the code appears in the `npm run dev` terminal).
+2. With no pay data yet it says "No pay data yet for this period." To see figures, import a small
+   file, for example a `pay.csv` with the header `Mobile,Week start,Week ending,Hours,Rate,Gross
+   pay,Pay date` and a line `07700 900100,26/10/2026,01/11/2026,37.5,12.50,468.75,06/11/2026`
+   (for the demo worker you logged in as), then `npm run import -- --firm acme --kind pay --as
+   acme.payroll@example.com pay.csv --apply`, and open the pay page again (type a new code if 30
+   minutes have passed). It shows the line you imported.

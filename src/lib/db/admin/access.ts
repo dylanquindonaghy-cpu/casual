@@ -38,6 +38,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   offers: NO_DELETE,
   // Sheet connection settings (office settings later; the sync updates its status columns).
   roster_sources: CRUD,
+  // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are
+  // what a pay question is checked against).
+  pay_records: NO_DELETE,
 };
 
 export function schemaTableNames(): string[] {

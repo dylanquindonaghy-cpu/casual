@@ -285,18 +285,25 @@ create table messages (
   created_at timestamptz not null default now()
 );
 
+-- Phase 3 (src/lib/db/schema/pay.ts). The payroll's figures as imported (`npm run import --kind
+-- pay`), never worked out here. The app may insert and update, not delete (NO_DELETE, like the
+-- rota's evidence); the worker link has no ON DELETE action. Events: pay_record.imported
+-- ({source, periodStart, periodEnd}) and pay_record.updated ({source, fields}): never amounts.
 create table pay_records (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
-  worker_id uuid not null references workers(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers(firm_id, id)
   period_start date not null,
-  period_end date not null,
-  hours numeric not null,
-  rate_pence int not null,
-  gross_pence int,
+  period_end date not null,              -- >= period_start
+  hours numeric(6,2) not null,           -- 0 to 1000
+  rate_pence int not null,               -- >= 0
+  gross_pence int,                       -- >= 0; only when payroll gave it
   pay_date date,
-  source text not null default 'import',
-  created_at timestamptz not null default now()
+  source text not null default 'import', -- import
+  updated_at timestamptz,                -- set when a re-import changes the line
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, worker_id, period_start, period_end, rate_pence)  -- one line per period and rate
 );
 
 create table pay_queries (

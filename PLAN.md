@@ -136,7 +136,7 @@ Docs: `docs/product-spec.md` (Staff stories).
 - [x] Cancel a shift: instant confirmation, reason, notice period recorded
 - [x] Request a time change or swap: creates a request for the office
 - [x] Allocation mode per firm: first come first served, or fair rotation (fewest hours this week first)
-- [ ] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
+- [x] Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data
 - [ ] Profile: credentials and expiry (read-only), mark dates unavailable, notification settings
 - [ ] Blocked-shift screen shows plain-English reasons + "Ask the office to review"
 - [ ] "My shifts" cached by a service worker (opens with poor signal); "Add to home screen" prompt on iPhone
@@ -278,9 +278,9 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   `migrate` service that alone holds `DATABASE_ADMIN_URL`.
 - Phase 4/7: SMS fallback for login links and codes, with an ASCII " - " sign-off (an em dash
   turns an SMS into UCS-2 and 3 segments).
-- Phase 3: pay data loaders and the "Raise a pay query" action must each call
-  `steppedUpWorker()` (src/lib/auth/current-worker.ts) themselves, not rely on the /pay page
-  having shown the code gate.
+- Pay data: `myPay()` (Phase 3) re-checks the stepped-up session it's given (kind, worker and the
+  30-minute window) and throws `StepUpRequiredError` otherwise. The Phase 6 "Raise a pay query"
+  action must do the same (call `steppedUpWorker()` itself), not rely on the /pay page.
 - Before Twilio (Phase 4), send-login-code too: make a retried job a no-op (a unique request id
   on otp_codes, like magic_links.request_id; a schema change). Today a retry after a real send
   sends a second code that replaces the first.
@@ -389,6 +389,15 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 5: let the office look a booking up by the 8-character reference on the worker's
   confirmation.
 - Open shifts cards: the pay rate "if the firm shows it" comes with pay data (Phase 6).
+- Pay records: no app path deletes a wrongly imported line (NO_DELETE); decide with Phase 6
+  (payroll screen) how the office corrects or removes one, and with Phase 8 how GDPR deletion and
+  retention treat pay records. A corrected rate re-imports as a second line (the rate is part of
+  the key), so the worker sees both; and an update overwrites the old hours and gross (the log
+  keeps field names only), so what a worker was shown before is lost. Consider superseded rows or
+  a versions table in Phase 6. A Windows-1252 CSV with £ is refused as "not text" (ask for UTF-8
+  or .xlsx). Demo pay records come with the demo-seed task.
+- Phase 6's "Pay records CSV import" line is effectively built in Phase 3 (the `pay` kind of the
+  importer); Phase 6 adds the office screen for it.
 - Fair rotation: a shift created as a draft and opened later counts its window from creation (no
   "opened at" is stored); a cancellation restarts the window for every open place on the shift
   (even ones open for days), and counts even when no place reopened (after the start, or above a
@@ -506,3 +515,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-28 | 3 | 0.3 | Cancel a shift: "Cancel this shift" on My shifts, quick reasons, instant confirmation (the shift, notice given, when recorded, the booking reference, sign-off), recorded through the Phase 2 cancel path; the review caught a broken production build (fixed, and a new test guards it); 1311 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.4 | Worker requests: "Ask for a change" on My shifts (a time change or a swap for their own upcoming shift), a confirmation with a reference, and My requests with each status in plain words; one open request per shift and kind (tested with taps at once); 1328 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-28 | 3 | 0.4 | Allocation mode: first come, first served (default) or fair rotation, where a new place is held 15 minutes for the 4 workers with the fewest hours that week (never for shifts within 24 hours, never past the start, never the office), enforced in booking, shown on Open shifts, logged; 1343 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 3 | 0.4 | Pay info page: new `pay_records` table (tenant-sealed, no deletes), `npm run import --kind pay` (money in exact pence, decimal commas refused), and the pay page behind the 6-digit code showing the last 8 weeks as payroll sent them; 1370 tests + 10 e2e; verified and audited DONE (see docs/work-log.md) |

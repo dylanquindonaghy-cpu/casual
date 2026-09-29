@@ -508,7 +508,11 @@ describe("importFromFile (npm run import)", () => {
     expect(done?.actor_id).toBe(f.officeId);
 
     await expect(
-      importFromFile({ firmSlug: slug, kind: "pay", officeEmail: email, path, apply: false }, deps),
+      // A kind the importer doesn't have ("pay" became a real one in Phase 3).
+      importFromFile(
+        { firmSlug: slug, kind: "invoices", officeEmail: email, path, apply: false },
+        deps,
+      ),
     ).rejects.toBeInstanceOf(ImportSetupError);
     await expect(
       importFromFile(

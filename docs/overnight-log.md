@@ -1444,3 +1444,50 @@ To reach DONE: nothing — this task is already satisfied by code and passing te
 
 **Ticked** in PLAN.md. **Hours:** 0.4 (23:36 to 00:01 UTC). Phase 3 so far: 1.8 h of its 35–45 h estimate.
 **Commit:** `5302935`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 00:04 UTC: Phase 3, "Pay info page (behind OTP): hours logged, rates, pay dates from imported pay data"
+
+**Plan.** There's no pay data yet, so three parts:
+- **Schema** (`src/lib/db/schema/pay.ts`, migration 0009): `pay_records` as in docs/data-model.md
+  (worker, period start and end, hours, rate in pence, gross in pence (optional), pay date
+  (optional), source `import`), with `firm_id`, RLS, a `TABLE_ACCESS` entry, isolation fixtures, a
+  composite `(firm_id, worker_id)` foreign key, and a unique key for re-imports.
+- **Import** (`src/lib/imports/`): a `pay` kind for the existing importer (`npm run import`):
+  staff ID or mobile, period start, period end, hours, rate, gross, pay date. Re-importing the same
+  line updates it. New problem codes in plain words for bad hours, money and periods.
+- **Page** (`/pay`, after the code): the last 8 weeks, newest first: the period, hours, rate,
+  gross (when the file had it) and the pay date. `myPay()` (`src/lib/portal/pay.ts`) checks the
+  30-minute code window itself (not just the page), as the Phase 1 note on `steppedUpWorker()` asks.
+- Tests: the loader (step-up required, 8 weeks, only their own), the import kind, the page
+  rendered, the isolation suites (via the fixtures), and the e2e pay test's empty state.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| `pay_records` follows docs/data-model.md; hours `numeric(6,2)`, money as integer pence; unique `(firm_id, worker_id, period_start, period_end, rate_pence)` so one line per worker, period and rate, and a re-import updates it | The doc's shape; a worker can have two rates in a week (day and night) | One row per period (loses the second rate) |
+| The app may insert and update pay records but not delete them (like the rota's evidence tables); the worker link has no ON DELETE action | Pay figures are what disputes are checked against; removal and GDPR deletion are Phase 6/8 decisions | Full delete rights |
+| The page shows only imported figures: gross appears only if the file had it (never hours × rate worked out by us) | Golden rule 1 and 9: pay figures come from firm data; a calculated figure could contradict the payslip | Calculate a gross |
+| Import events hold which fields changed, never the amounts | The action log isn't a copy of payroll | Log the amounts |
+| "Raise a pay query" waits for Phase 6 (`pay_queries`); the page says "If something looks wrong, contact the office." | Pay queries are Phase 6 | Build the form now |
+
+**Guardrails review (round 1): FIX FIRST ×2, both fixed with tests; most lesser items too.**
+
+| Finding | Root cause | Fix | Test |
+|---|---|---|---|
+| FIX FIRST: "12,50" (a decimal comma, as semicolon CSVs from some locales write) was read as £1,250.00 | Every comma was stripped as a thousands separator | Commas accepted only in groups of three ("1,234.56"); anything else is `bad_money` | unit: "12,50", "468,75", "1,2,3,4" refused; "12,345.67" and "1,234,567" read |
+| FIX FIRST: corrected hours kept the old gross, so the page showed hours and a gross that don't match | A blank gross always kept the stored one | When the hours change and the file gives no gross, the gross is cleared; a later file can add it | integration: re-import with new hours clears the gross; a later file adds one |
+| Lesser: "amount" and "total pay" may mean net pay | Loose column names | Only "gross" and "gross pay" | — |
+| Lesser: the formatters sat next to database code | — | `src/lib/portal/pay-format.ts` (browser-safe) | client-boundary test |
+| Lesser: a code expiring between the page's check and the loader's gave an error page | — | `StepUpRequiredError`, caught by the page (shows the code gate) | integration asserts the error type |
+| Lesser: no delete-protection test for pay records | — | Added to roster.schema's "a worker with … can't be deleted" | integration |
+| Lesser: spreadsheet float noise ("36.299999999999997") refused | Numbers read as stored | Taken as 2 decimals only when within 1e-6 of one | unit |
+| Lesser: comment said "up to £1m" | — | "£9,999,999.99" | — |
+
+Parked (PLAN.md): a corrected rate becomes a second line, and updates overwrite history (Phase 6:
+superseded rows or versions); Windows-1252 CSVs with £; Phase 6's import line is effectively built
+(Phase 6 adds the office screen); the step-up note updated to match `myPay()`.
+
+**Implementation root causes noted while building:** an existing import test used "pay" as its
+example of a kind the importer doesn't have; "pay" is now real, so it reached the column check
+instead of the setup error. The example is now "invoices"; the test still checks an unknown kind.

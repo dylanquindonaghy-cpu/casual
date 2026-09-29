@@ -18,6 +18,7 @@ export const EXPECTED_TABLES = [
   "offers",
   "office_users",
   "otp_codes",
+  "pay_records",
   "requests",
   "roster_sources",
   "sessions",
@@ -174,6 +175,13 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, 1, 'push')",
     [firmId, shiftId, rosterWorkerId],
   );
+  // Pay records point at the rota worker too: their worker link has no ON DELETE action.
+  const payRecordId = await one(
+    su,
+    `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
+     values ($1, $2, '2026-10-26', '2026-11-01', 8, 1250)`,
+    [firmId, rosterWorkerId],
+  );
   return {
     firmId,
     slug,
@@ -201,6 +209,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       requests: requestId,
       offers: offerId,
       roster_sources: rosterSourceId,
+      pay_records: payRecordId,
     },
   };
 }
@@ -284,6 +293,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'whatsapp')",
     values: [firmId, p.rows.shifts, p.rosterWorkerId, 1 + next()],
   }),
+  pay_records: (firmId, p) => ({
+    text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
+           values ($1, $2, '2026-11-02', '2026-11-08', 4, $3)`,
+    values: [firmId, p.rosterWorkerId, 1000 + next()],
+  }),
 };
 
 // Every composite foreign key between firm tables. `own` supplies the row's other parents;
@@ -354,5 +368,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   offers_worker_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
     values: [firmId, own.rows.shifts, other.workerId, 1 + next()],
+  }),
+  pay_records_worker_fk: (firmId, _own, other) => ({
+    text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
+           values ($1, $2, '2026-11-09', '2026-11-15', 1, $3)`,
+    values: [firmId, other.workerId, 2000 + next()],
   }),
 };

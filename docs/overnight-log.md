@@ -4351,3 +4351,64 @@ pay date)", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not
 lot is updated).
 
 **Hours:** 0.5 h (15:30 to 15:57 UTC). Phase 6 so far 2.8 h of its 12–18 h estimate.
+
+## 2026-09-29 15:59 UTC: Phase 6, "Tests: `pay.grouping` (stable keys; AI failure falls back cleanly)"
+
+**Is it blocked?** No. "AI failure falls back cleanly" is about what the app does when the AI
+fails, which a fake AI client can act out (throwing, hanging, returning nonsense). No Bedrock call
+is needed. (The grouping task itself stays blocked: it claims "Haiku summarises", which only a real
+model can show.)
+
+**What exists:** unit tests for the key rules (`tests/unit/pay.group-keys.test.ts`) and for the
+summary's check and fallback (`tests/unit/ai.pay-summary.test.ts`). docs/testing.md names
+`pay.grouping.test.ts` as the must-have test: this task writes it, on the real database, around
+what the unit tests can't see.
+
+**Plan:**
+
+1. **A gap found while planning (root cause first):** `summarisePayGroup()` waits for the AI as
+   long as the client takes. A client that never answers (a hung connection) would stall the
+   digest job for ever: nothing on our side stops it; the "5-second timeout" was only a note for
+   the future Bedrock client. Fix: the summary gives up after 5 seconds (`AI_SUMMARY_TIMEOUT_MS`,
+   the timer cleared afterwards) and uses the code's line; anything but a string counts as a
+   failure too. The digest passes its own timeout through (tests use a short one).
+2. **`tests/integration/pay.grouping.test.ts`**, on the real database as the app role:
+   - **Stable keys**: the same facts give the same key whoever raises it, whatever they write,
+     whenever it's raised and in which order; the Monday and Sunday of one week (and a week across
+     the clocks going back) share a key; regrouping again and again changes nothing; importing the
+     same pay file again changes nothing; two firms with the same facts get the same key text but
+     never share a group; a key changes only when its facts do (a pay line arriving, a corrected
+     rate), for queries open or in a digest, never for sorted ones.
+   - **AI failure falls back cleanly**: in the digest job, an AI that throws, hangs past the
+     timeout, returns nothing, returns something that isn't text, or returns lines that fail the
+     check gives exactly the email the app sends with no AI (same headings, no "AI summary"), and
+     the digest is still sent and logged as usual; an AI failing for some groups only leaves just
+     those without a line; payroll's page never asks the AI.
+3. docs/testing.md and the Parking lot note updated.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Not blocked | The fallback is ours to prove with a fake; only the real summary needs Bedrock | Block with the grouping task |
+| A timeout in our code, not only in the future client | A hung call must never stall the digest, whichever client is plugged in | Trust each client's own timeout |
+| New integration file beside the unit tests | The docs name it; the unit tests stay as they are | Rename or merge the unit tests |
+
+**Built as planned.** The first run of the new file failed once: the root cause was my test, not
+the code (a query raised three hours later needs a pay code valid then; the fake session's code
+ran out after 10 minutes). Fixed by making the fake session follow the raise time.
+
+**Guardrails review: "SAFE TO COMMIT", no FIX FIRST.** It checked the timeout is correct (no
+unhandled rejections, no leaked timers, a late answer never used, the 5-second default in the
+worker). Suggestions:
+
+| Suggestion | Done |
+|---|---|
+| docs/testing.md said the digest was tested with an AI that "answers late", but only the summary was | A good line arriving after the timeout is now one of the digest's failure cases (it would pass the check, so the case really tests the timeout) |
+| The failure loop never checked the AI was asked | Each case counts the calls: 2 per digest (one per group) |
+| "Payroll's page never waits for the AI" was tautological | Renamed "payroll's page shows the app's own lines only", with a comment pointing at the boundary test that holds the real guarantee |
+| Nothing checked the timer is cleared | A unit test with fake timers: no timer left after an answer, or after giving up |
+| A client answering a plain value or throwing at once | The call now goes through `Promise.resolve()`: both handled, and tested |
+| The test helper found a new query by time, not its reference | It finds it by the reference the worker is shown |
+| With the real client: abort on timeout, stop after the first failure, count fallbacks | Parked under "Connect Bedrock" |
+| A production change inside a "Tests" task | Said so in the plan (a gap found while planning) and in the commit message |

@@ -140,14 +140,15 @@ export async function loadPayQueryGroups(
 
 // The AI's line for each group (the digest, once Bedrock is connected), after the groups are
 // loaded: never inside a database transaction (an AI call can take seconds). A line that fails the
-// check, or no AI, leaves `aiLine` empty.
+// check, no AI, or no answer within the timeout (5 seconds a group) leaves `aiLine` empty.
 export async function summariseGroups(
   groups: PayQueryGroup[],
   ai: AiClient,
+  opts: { timeoutMs?: number } = {},
 ): Promise<PayQueryGroup[]> {
   const out: PayQueryGroup[] = [];
   for (const g of groups) {
-    const s = await summarisePayGroup(g.facts, ai);
+    const s = await summarisePayGroup(g.facts, ai, opts);
     out.push({ ...g, aiLine: s.byAi ? s.text : null });
   }
   return out;

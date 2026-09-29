@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AiUnavailableError, createFakeAi, noAi, type AiRequest } from "@/lib/ai/client";
 import {
+  AI_SUMMARY_TIMEOUT_MS,
   checkedLine,
   codeSummary,
   summarisePayGroup,
@@ -107,5 +108,22 @@ describe("pay group summaries", () => {
       "37 queries about the Mon 7 Sep week at £12.50",
     );
     expect(checkedLine("38 queries about the rate", wrongRate)).toBeNull();
+  });
+
+  it("leaves no timer running once it has an answer, or has given up", async () => {
+    vi.useFakeTimers();
+    try {
+      const quick = createFakeAi(() => "37 queries: the week of Mon 7 Sep still paid at £12.50.");
+      const summary = await summarisePayGroup(wrongRate, quick);
+      expect(summary.byAi).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      const hangs = createFakeAi(() => new Promise<string>(() => undefined));
+      const pending = summarisePayGroup(wrongRate, hangs);
+      await vi.advanceTimersByTimeAsync(AI_SUMMARY_TIMEOUT_MS);
+      expect((await pending).byAi).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

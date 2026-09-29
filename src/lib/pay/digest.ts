@@ -93,6 +93,7 @@ export interface PayDigestDeps {
   ai: AiClient;
   baseDomain: string;
   logger?: Logger;
+  aiTimeoutMs?: number; // per group (default AI_SUMMARY_TIMEOUT_MS); tests pass a short one
 }
 
 export type PayDigestResult =
@@ -262,7 +263,9 @@ export async function runPayDigest(
 
   // The AI's line for the biggest groups, outside any transaction (none until Bedrock is
   // connected: every heading stays the code's line).
-  const top = await summariseGroups(claim.groups.slice(0, PAY_DIGEST_AI_GROUPS), deps.ai);
+  const top = await summariseGroups(claim.groups.slice(0, PAY_DIGEST_AI_GROUPS), deps.ai, {
+    timeoutMs: deps.aiTimeoutMs,
+  });
   const groups = [...top, ...claim.groups.slice(PAY_DIGEST_AI_GROUPS)];
   const biggest = groups[0];
   const filename = payDigestFilename(date);

@@ -83,18 +83,44 @@ export function checkedLine(raw: string, f: PayGroupFacts): string | null {
   return numbers.every((n) => allowed.has(n)) ? line.data : null;
 }
 
-export async function summarisePayGroup(f: PayGroupFacts, ai: AiClient): Promise<PayGroupSummary> {
+// How long a summary may take before the code's line is used: a client that never answers must
+// never stall the digest, whichever client is plugged in.
+export const AI_SUMMARY_TIMEOUT_MS = 5000;
+
+class SummaryTimeout extends Error {}
+
+export async function summarisePayGroup(
+  f: PayGroupFacts,
+  ai: AiClient,
+  opts: { timeoutMs?: number } = {},
+): Promise<PayGroupSummary> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const raw = await ai.complete({
-      purpose: "pay_group_summary",
-      system: SYSTEM,
-      prompt: promptFor(f),
-      maxTokens: 80,
+    // Through Promise.resolve, so a client that throws at once or answers a plain value (breaking
+    // its type) still counts: a failure, or an answer to check.
+    const answer = Promise.resolve().then(() =>
+      ai.complete({
+        purpose: "pay_group_summary",
+        system: SYSTEM,
+        prompt: promptFor(f),
+        maxTokens: 80,
+      }),
+    );
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new SummaryTimeout()),
+        opts.timeoutMs ?? AI_SUMMARY_TIMEOUT_MS,
+      );
     });
-    const line = checkedLine(raw, f);
+    // A late answer is ignored (and its failure swallowed) once the timeout has won.
+    answer.catch(() => undefined);
+    const raw: unknown = await Promise.race([answer, timeout]);
+    const line = typeof raw === "string" ? checkedLine(raw, f) : null;
     if (line) return { text: line, byAi: true };
   } catch {
-    // Not connected, timed out or refused: the code line below.
+    // Not connected, timed out, refused or broken: the code line below.
+  } finally {
+    clearTimeout(timer);
   }
   return { text: codeSummary(f), byAi: false };
 }

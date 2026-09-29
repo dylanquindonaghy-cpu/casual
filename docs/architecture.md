@@ -281,7 +281,8 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
 2. Code assigns grouping keys: the issue and the week, plus the pay line's rate for a wrong
    rate or the site for missing hours (`src/lib/pay/grouping.ts`). Haiku writes a one-line
    summary per group from the group's facts only, checked before use, with the app's own line as
-   the fallback and always shown as the heading (Bedrock not connected yet).
+   the fallback and always shown as the heading (Bedrock not connected yet). The app stops waiting
+   after 5 seconds a group; a failed, late or unusable answer changes nothing else.
 3. Digest to payroll at a set time (built: `src/lib/pay/digest.ts`, the firm's `pay_digest`
    setting, default 09:00 Monday to Friday): the new queries, grouped, emailed to payroll with the
    list attached (names and workers' words only in the attachment), marked `in_digest`. Payroll can

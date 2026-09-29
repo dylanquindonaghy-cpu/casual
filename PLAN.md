@@ -193,7 +193,7 @@ Docs: `docs/screens.md`, `docs/pilot-playbook.md`.
       to 12 Sep shifts" with the list attached
 - [x] Worker sees status updates; AI never answers a dispute
 - [x] Pay records CSV import (period, hours, rate, gross, pay date)
-- [ ] Tests: `pay.grouping` (stable keys; AI failure falls back cleanly)
+- [x] Tests: `pay.grouping` (stable keys; AI failure falls back cleanly)
 
 ## Phase 7 — WhatsApp shifts line and call-to-text (15–20 h)
 
@@ -810,6 +810,13 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   5. docs/compliance.md: Bedrock as a sub-processor (AI disclosure); the model sees only a
      group's facts (count, issue, week, site, rate), no names or workers' words.
   Then tick the grouping task after a real summary passes the checks.
+  Also, with the real client (from the pay.grouping tests review):
+  - give `AiRequest` an `AbortSignal` and abort it when our 5-second timeout wins, so a request we
+    stopped waiting for isn't still running (and billed);
+  - after the first timeout or "unavailable" in a digest, stop asking for the remaining groups
+    (today a Bedrock that hangs costs up to 10 × 5 seconds while the queries wait);
+  - count fallbacks (timeout / error / failed check) in the log or in `pay_digest.sent`'s data,
+    never the model's text, so an AI that always fails gets noticed.
 - Pay query grouping follow-ups (Phase 6):
   - **Dylan to confirm the grouping rules:** wrong rate = the week + the rate the worker's pay
     line for the day was paid at; hours missing = the week + the site; paid late = the week;
@@ -822,9 +829,10 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - Before connecting Bedrock: the AI line's number check accepts any number in the facts (so a
     wrong count equal to the week's day number would pass); the heading always shows the app's
     own facts line, so check again when the AI line is first shown to payroll.
-  - docs/testing.md names `pay.grouping.test.ts` for the Phase 6 tests task; the keys and the
-    summary are tested in `tests/unit/pay.group-keys.test.ts` and `tests/unit/ai.pay-summary.test.ts`
-    so far.
+  - `tests/integration/pay.grouping.test.ts` (the Phase 6 tests task) now covers stable keys on
+    the real database and the digest's fallback for every kind of AI failure, beside the unit tests
+    (`tests/unit/pay.group-keys.test.ts`, `tests/unit/ai.pay-summary.test.ts`). Our side already
+    stops waiting after 5 seconds a group (`AI_SUMMARY_TIMEOUT_MS`), whatever the client does.
   - Regrouping runs when asked (`regroupPayQueries()`); the digest now runs it first, so a pay
     line imported after a query moves it to the right group (done in the digest task).
   - Payroll sorting a group and telling its workers: built in the "Worker sees status updates"
@@ -1005,3 +1013,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 6 | 0.8 | Payroll digest: at the firm's set time (default 09:00 Monday to Friday, a new `pay_digest` setting) payroll gets one email: "42 new pay queries since the last digest. 37 are about the same thing: …", the groups biggest first, and the list attached as a spreadsheet file (names and what workers wrote only in the attachment); each query goes once and is marked "In a digest", back to waiting if no email gets through; payroll's page shows the schedule, the last digest and "Send the digest now"; email through the console transport (connecting Amazon SES parked with steps); the review caught per-query log entries in the wrong transaction, an outcome step that could fail silently and a lost digest the page never mentioned (all fixed and tested); 2231 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.6 | Pay query status: payroll marks a group "sorted" with a note (required, at most 500 characters, never in the log; new columns on `pay_queries`); each worker gets "Update on your pay query (ref …): sorted. {note}" by WhatsApp or text (once, quiet hours respected, a push that says nothing about pay) and sees "Sorted on {day}" with "Payroll says: …" on their pay page; a new test pins which files may use AI code and fails if anything a worker sees, or payroll's sorting path, can reach it; the review caught that the test missed the office side where the note is typed (fixed: the sort path has its own modules, and the reviewer's breach now fails the test); two old test-helper root causes fixed on the way (a missing cross-firm case, ids sorted as text); 2264 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.5 | Pay records import screen: payroll and admins upload their payroll's .csv or .xlsx at `/office/pay/import` (Staff ID or mobile, period, hours, rate, gross, pay date), "Check the file" first (nothing saved or logged), then "Import these pay records"; problems listed by row, never the contents; waiting pay queries regroup to match the new lines (logged); the importer itself was Phase 3's, and the shifts and pay screens now share one upload path; the review found nothing to fix first, and its suggestions were done (checks can never write, a deadlock retry, more cross-firm tests, the AI tripwire extended to the import); 2275 tests + 39 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 6 | 0.3 | Phase 6 tests (`pay.grouping`): a new file on the real database proves grouping keys are stable (the same facts give the same key whoever raises it and whenever; the firm's own week, across the clocks going back; regrouping and re-importing change nothing; keys move only when their facts do; firms never share a group) and that every kind of AI failure (throwing, hanging, answering late, nonsense, advice) leaves the payroll digest word for word as it is with no AI; planning found the digest could wait for ever on an AI that never answers (fixed: a 5-second limit a group); the review's suggestions done (late answers tested in the digest, AI calls counted, no leftover timers); 2285 tests + 39 e2e; verified and audited DONE. Phase 6 done except the blocked grouping task: 3.1 h of the 12–18 h estimate (see docs/work-log.md) |

@@ -58,7 +58,17 @@ without breaking a 6am cancellation.
   change, notice hours from the path's own clock, the flag exactly at 48 hours (48.00 not short,
   47.99 short) and at a firm's own threshold, negative notice after the start, and the firm's
   reason (a worker's typed reason never appears).
-- `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly.
+- `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly. Built in Phase 6
+  (`tests/integration/pay.grouping.test.ts`, on the real database): the same facts give the same key
+  whoever raises it, whatever they write, whenever and in any order; the firm's week (Monday and
+  Sunday together, across the clocks going back); regrouping and re-importing the same pay file
+  change nothing; keys move only when their facts do (open and in-digest queries, never sorted
+  ones); two firms' same facts give the same key text but separate groups. In the digest job, an AI
+  that throws, hangs (the 5-second timeout, `AI_SUMMARY_TIMEOUT_MS`), answers late, answers
+  something that isn't text, or answers lines that fail the check gives the email the app sends
+  with no AI, word for word; a failure for some groups leaves just those without a line. The key
+  rules and the summary's check are also unit-tested (`tests/unit/pay.group-keys.test.ts`,
+  `tests/unit/ai.pay-summary.test.ts`).
 - `sheets.sync.test.ts` — a seeded (fake) Google Sheet syncs both ways: staff, sites, shifts and
   who holds each come in (one read per sync, columns by header); bookings made here go back in one
   batch write; the three-way merge (office and portal changes at once), sheet names through the

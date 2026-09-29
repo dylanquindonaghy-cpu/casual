@@ -5047,3 +5047,89 @@ terminal (`npm run import --kind pay`). Payroll can now do it themselves in the 
 4. Click "Check the file": it says it would add 1 pay line. Click "Import these pay records".
 5. Log in as that worker at `http://acme.localhost:3000/login` and open "Your pay" with the code:
    the line shows "12.5 hours at £19.87 an hour".
+
+## 2026-09-29: Phase 6, task 6: Tests for pay query grouping (0.3 h)
+
+### Time
+
+0.3 hours of Claude's working time (16:00 to 16:19 UTC), in the unattended overnight loop.
+**Phase 6 is done** apart from the blocked grouping task (it waits for Bedrock): 3.1 hours of its
+12 to 18 hour estimate.
+
+### Result
+
+- **Ticked.** The independent auditor said "VERDICT: DONE" in its first round.
+- `scripts/verify.sh` printed `VERIFIED tree=d6fc474c3ea95332 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2285 tests (up from 2275);
+  - the 39 browser tests;
+  - the rule checks.
+- The guardrails review said "safe to commit"; its suggestions were done.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### Why this wasn't blocked
+
+The grouping task stays blocked because it says "Haiku summarises", and only a real AI model can
+show that. This task is about what the app does when the AI **fails**, and a pretend AI (a "fake":
+a stand-in the tests control) can act out every kind of failure. No outside service is needed.
+
+### What was built
+
+- **A real gap, found while planning.** The payroll digest asks the AI for a summary line for each
+  group and waited for as long as it took. An AI that never answered (a stuck connection) would have
+  held the digest up for ever. Now the app stops waiting after 5 seconds per group and uses its own
+  line; a late answer is ignored. An answer that isn't text, or a pretend AI that breaks its rules,
+  counts as a failure too.
+- **The test file docs/testing.md asked for**: `tests/integration/pay.grouping.test.ts`, 9 tests on
+  the real database.
+  - **Stable keys** (a "key" is the label that puts queries with the same likely cause in one
+    group):
+    - the same facts give the same key, whoever raises the query, whatever they write, whenever and
+      in whatever order;
+    - the week is the firm's own week: a Monday just after midnight in summer time, and a Sunday
+      night after the clocks went back, land in the right weeks;
+    - regrouping again and again, or importing the same pay file again, changes nothing (and it's
+      logged once);
+    - a key changes only when its facts do: a new or corrected pay line moves open queries and ones
+      already in a digest, but never sorted ones;
+    - two firms with the same facts get the same key text but never share a group.
+  - **AI failure falls back cleanly**: the digest runs again and again with a different pretend AI
+    each time, and for all 12 kinds of failure the email and its attached list are word for word the
+    same as with no AI at all, and still sent and logged. The 12 are:
+    - not connected; an error; failing a moment later; never answering; a good answer that comes
+      too late;
+    - an empty answer; something that isn't text;
+    - too long; two lines; a made-up number; advice.
+    Each case checks the AI really was asked (once per group). When the AI fails for some groups
+    only, just those lose their AI line.
+- **Unit tests** (small tests with no database): no timer is left running after an answer, or
+  after giving up; a pretend AI that answers without waiting, or fails at once, is handled.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Not blocked | The fallback is ours to prove with a fake; only the real summary needs Bedrock | Block it with the grouping task |
+| The time limit is in our code, not only in the future Bedrock client | A stuck call must never hold up the digest, whichever client is plugged in | Trust each client's own time limit |
+| A new file beside the existing small tests | docs/testing.md names it; the small tests stay as they are | Merge them |
+
+### What the review suggested (and what was done)
+
+- docs/testing.md claimed the digest was tested with an AI that answers late; only the summary
+  was. Now a good answer arriving after the time limit is one of the digest's failure cases.
+- The failure cases now check the AI was actually asked, so none can pass without it.
+- One test only restated how the page is built; it's renamed and points at the test that holds the
+  real guarantee.
+- For the real Bedrock connection (parked under "Connect Bedrock"): cancel a request the app has
+  stopped waiting for (so it isn't still running and billed), stop asking after the first failure
+  in a digest, and count how often the AI fails (never logging what it wrote).
+
+### Parked, open, and things that need Dylan
+
+- Nothing new for Dylan. The Bedrock follow-ups above join "Connect Bedrock" in the Parking lot.
+
+### How to see it working
+
+There's nothing new on screen: this task proves behaviour. To run just these tests:
+`npx vitest run tests/integration/pay.grouping.test.ts` (with the database up: `npm run db:up`).
+You should see "9 passed".

@@ -4608,3 +4608,15 @@ Other suggestions:
 | The log filed a worker's message under "Messages to workers" | Renamed "Messages to and from workers" |
 | Rate limits against auto-reply loops, folding repeated office messages, telling the office of a failed reply, retention of the request's note, a dev tunnel override, subaccounts | Parked |
 | `z.enum` in the classifier; the reply building its own links | Left as they are (small): the classifier's `includes` check is the same, and the boundary test plus the integration tests prove the words are fixed |
+
+**Verify:** `VERIFIED tree=774604c4e49d992e e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2344 tests, 40 e2e). The `auth.magic-link` race test passed in this run.
+
+**Status: BLOCKED, not ticked** (hard limits: "Haiku only for unclear text" needs Bedrock; real
+WhatsApps need Twilio). Everything short of them is built, verified and committed. No auditor round.
+Next steps are Dylan's: "Connect Twilio" step 9 and "Connect Bedrock".
+
+**Commit:** `1dbecf9` "Phase 7 (BLOCKED, not ticked): Inbound WhatsApp: …", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Hours:** 0.7 h (17:02 to 17:42 UTC). Phase 7 so far 1.3 h of its 15–20 h estimate.

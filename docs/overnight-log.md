@@ -2614,3 +2614,92 @@ fallback needs its status webhook). Quiet hours and the refusal fallback are bui
 committed. The next step is "Connect Twilio" in the PLAN.md Parking lot.
 **Hours:** 0.3 (04:51 to 05:09 UTC). Phase 4 so far: 1.8 h of its 27–37 h estimate.
 **Commit:** `9f865db`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 05:12 UTC: Phase 4, "Only eligible workers are ever notified; max 3 offers per worker per day unless urgent"
+
+**Plan.**
+- **"Only eligible workers are ever notified"** is already how offer waves choose: the rules on
+  the current rows, for every worker, at send time (`waveCandidates` → `previewBooking`). This
+  task makes it a guarantee that can't quietly break. A boundary test (like the booking one)
+  fails if:
+  - an `offers` row is written anywhere but `src/lib/offers/waves.ts`;
+  - a shift-offer message or push is built anywhere but there;
+  - the candidate list stops going through `previewBooking`.
+
+  The integration tests already prove ineligible workers (no licence, messages off, already on
+  the shift) are never sent one.
+- **The daily cap:** a pure rule (`src/lib/rules/offer-cap.ts`): at most 3 offers per worker per
+  firm-local day, unless the offer is urgent. `waveCandidates` leaves out workers who've had 3
+  offers today (failed sends don't count) unless the shift is urgent. Offer waves are urgent
+  today, so the cap never stops them; the office's offers and waves for non-urgent open shifts
+  (both parked) will be capped. (After review: the list reads the urgency from the shift itself.)
+
+Tests:
+- the rule;
+- the candidate list with and without urgency on the real database (3 offers today excludes;
+  yesterday's and failed ones don't count; urgent ignores the cap; local midnight in London);
+- the boundary test.
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| The cap counts every offer the worker got that local day (urgent ones too), except failed sends | It's about how many messages a person gets; urgent ones still land on their phone | Count only non-urgent offers |
+| The cap lives in the candidate list, the one place any offer picks its recipients | So every offer path gets it | A check in each sender |
+| A boundary test makes "only eligible workers" structural | A new offer path added later can't skip the rules without failing the build | Rely on reviews |
+
+**Root causes (while building):**
+- Test fixture insert failed with `offers_response_has_time`. The offers table requires
+  `responded_at` whenever `response` is set, and my fixture didn't set it. Fixed the fixture.
+- "Inconsistent types deduced for parameter $4". `$4` was used both as `sent_at` and inside a
+  `case`, where Postgres guessed a different type. Cast it to `timestamptz` in both places.
+- One eligibility test expected only one candidate but got three. My mistake: the "cancelled off"
+  and "offered before" workers were set up on the other shift, so on this one the rules really do
+  allow them. Fixed the expectation (on the other shift they're left out, tested).
+
+**The tests catch it when broken** (each broken on purpose, run, then restored):
+
+| Break | Result |
+|---|---|
+| The cap always says yes | 3 of 9 candidate tests fail |
+| The candidate list ignores the rules' verdict | 3 of 9 candidate tests fail |
+| A new file `src/lib/offers/sneaky.ts` writes an offer | the boundary test fails, naming the file |
+| The cap applied to urgent shifts too | the new wave test fails |
+
+**Guardrails review:** SAFE TO COMMIT, no FIX FIRST. Suggestions and what I did:
+
+| Suggestion | Done |
+|---|---|
+| 1. Stale "daily cap is a later task" comment in waves.ts | Fixed |
+| 2. Don't trust the caller's `urgent`, role and time zone | `waveCandidates(tx, shiftId, now)` now reads them from the shift and firm itself |
+| 3. Count-then-send race once non-urgent offers exist | Parked, with the fix (advisory lock, or a soft cap) |
+| 4. Boundary regex misses `insert(schema.offers)` / `insert into public."offers"`; the comment stripper ate code after `"a//b"`; formatting-pinned checks | Regex widened, with a test of its own cases; alias imports refused; the stripper only treats `//` after a space or line start as a comment; the `for (const c of chosen)` check dropped; comments now name the integration tests as the proof |
+| 5. The cross-firm test overclaimed | Renamed; a comment says the composite key is what rules out cross-firm counts |
+| 6. No wave test for "3 offers today still gets the urgent wave" | Added, shown failing when broken |
+| 7. Log how many were capped | Parked (matters once non-urgent offers exist) |
+| 8. Say the 3 is fixed | Said in docs/api-and-jobs.md; parked "may a firm change it?" |
+
+**Verify:**
+```
+== typecheck ... ok
+== lint ... ok
+== test ... ok
+== e2e ... ok
+== invariants ... ok
+VERIFIED tree=65a6b41516cd7f59 e2e=true
+```
+1690 tests (up from 1664) + 25 e2e.
+
+**Claims auditor, round 1:** `VERDICT: NOT DONE (task item itself is not yet ticked, but the work behind it is real and fully proven — recommend ticking)`.
+Its "To reach DONE" was: "nothing further is needed for this specific PLAN.md line on the evidence — code and tests fully prove both halves of the claim. The only remaining step is procedural: run `/close-task` (or otherwise have the task owner tick PLAN.md line 165 and record it in the work log) since a hook — not this auditor — is what's actually allowed to flip the checkbox."
+
+The only open item was the tick itself, and ticking comes after DONE, so I didn't tick. For round 2, I sent the same task text plus one sentence explaining that order. I added no summary of the work. The files were unchanged, and the stamp still matched.
+
+**Claims auditor, round 2 (verbatim verdict):**
+```
+VERDICT: DONE
+To reach DONE: nothing — already DONE per the evidence above.
+```
+Its note (not a defect): the cap's non-urgent branch is exercised only by the rule and candidate-list tests, because no non-urgent offer path exists yet. That matches the docs.
+
+**Ticked.** 0.4 h. Phase 4: 2.2 h of 27–37 h.

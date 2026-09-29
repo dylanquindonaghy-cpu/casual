@@ -3158,3 +3158,116 @@ Phase 4 so far: 1.8 of its 27 to 37 hour estimate.
 
 `npx vitest run tests/unit/rules.quiet-hours.test.ts tests/integration/offers.waves.test.ts`
 (stop `npm run dev` first) should say all passed.
+
+## 2026-09-29: Phase 4, task 6: Only eligible workers are notified, and at most 3 offers a day (0.4 h)
+
+### Time
+
+0.4 hours of Claude's working time (05:12 to 05:38 UTC), in the unattended overnight loop.
+Phase 4 so far: 2.2 of its 27 to 37 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=65a6b41516cd7f59 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1690 tests (up from 1664);
+  - the 25 browser tests;
+  - the rule checks.
+- The independent auditor took two rounds:
+  - Round 1 said "NOT DONE" only because the PLAN.md box wasn't ticked yet. It found every
+    claim proven and listed nothing to fix. The box is only ever ticked *after* the auditor says
+    DONE, so I didn't tick it.
+  - Round 2 had the same task text, plus one line explaining that order. It said
+    **"VERDICT: DONE"**.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **A daily limit on offers.** A worker gets at most 3 shift offers a day. The limit doesn't
+  apply when the shift is urgent: a gap that needs filling now always gets through.
+  - "A day" is the firm's own calendar day: midnight to midnight, London time.
+  - An offer that failed to send doesn't count.
+  - Urgent offers do count. They still buzzed the worker's phone.
+- **Where the limit lives.** Every shift offer picks its workers in one place, the *candidate
+  list* (the code that works out who may be offered a shift). That list now does three things:
+  - counts each worker's offers so far today;
+  - asks the limit rule (`src/lib/rules/offer-cap.ts`, a *pure function*: it only takes numbers
+    in and gives an answer back, so it's easy to test);
+  - asks the booking rules about each worker, as it already did.
+- **Urgency comes from the shift.** The list reads whether the shift is urgent from the
+  database. No other code can tell it "this is urgent" to get round the limit.
+- **"Only eligible workers" as a guarantee.** The booking rules check credentials, clashes,
+  rest, hours and days off. Offers already went only to workers those rules allow. A new
+  *boundary test* now keeps it that way. (A boundary test reads the source code and fails if a
+  rule about *where* code may do something is broken.) It fails if any file other than the
+  offer-wave job:
+  - writes an offer;
+  - builds the offer message or phone notification;
+  - picks recipients some other way.
+- **What it changes today.** Offer waves only run for urgent shifts, so the limit doesn't stop
+  any message yet. It's ready for the first non-urgent offer, like the office offering a shift
+  to named workers later on.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Urgent offers count towards the 3 | The limit is about how often a phone buzzes | Count only non-urgent offers |
+| Failed sends don't count | The worker never got them | Count every offer row |
+| The day is the firm's calendar day (London) | That's how workers and offices think of "today" | A rolling 24 hours |
+| The limit is fixed at 3, not a firm setting | The docs say 3; no firm has asked otherwise | A setting per firm (parked as a question) |
+| The candidate list reads urgency, role and time zone from the shift | No caller can skip the limit or shift its day by passing the wrong value | Let the caller pass them in (the first version) |
+
+### What the safety review found
+
+There was nothing that had to be fixed first. Its suggestions:
+- **Done:** an out-of-date comment; urgency read from the shift, not passed in; a stricter
+  boundary test (it now also catches `insert(schema.offers)` and `insert into public."offers"`);
+  a more honest name for the other-firm test; a new test that an urgent wave still reaches
+  someone already offered 3 shifts today.
+- **Parked**, for when non-urgent offers arrive:
+  - Two offer jobs at the same moment could both see "2 so far" and send a 3rd and a 4th. The
+    fix is a per-worker lock, or deciding the limit can be a little soft.
+  - Log how many workers the limit left out.
+
+### What the new tests prove
+
+- `tests/unit/rules.offer-cap.test.ts` (8 tests):
+  - the limit is 3;
+  - urgent always passes;
+  - where the London day starts and ends, in winter and summer;
+  - on the 23-hour and 25-hour days when the clocks change.
+- `tests/integration/offers.candidates.test.ts` (9 tests, on the real database):
+  - 3 offers today leaves a worker out, 2 doesn't, and urgent ignores the limit;
+  - yesterday's and failed offers don't count, and answered ones do;
+  - in summer, an offer at 00:30 London time counts for that day;
+  - another firm's workers never appear;
+  - 12 kinds of ineligible worker are never picked, and every worker who *is* picked gets a
+    "yes" from the booking rules. The 12 are: no licence, expired or suspended licence, wrong
+    role, inactive, blocked, messages off, a day off, a clash, already on the shift, cancelled
+    off it, already offered it.
+- `tests/unit/offers.boundary.test.ts` (8 tests): only the offer-wave job writes offers or builds
+  their messages. The check also has tests of its own.
+- `tests/integration/offers.waves.test.ts` (1 new test): an urgent wave still reaches a worker
+  already offered 3 shifts today.
+- Each of these was broken on purpose and seen to fail, then put back:
+  - the limit switched off;
+  - the rules ignored;
+  - a new file writing offers;
+  - the limit wrongly applied to urgent shifts.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm:** urgent offers count towards the 3. So after 3 urgent offers in a day, a
+  worker gets no non-urgent ones.
+- **Parked:** the same-moment race, logging how many the limit left out, and whether a firm may
+  change the 3. All are only needed once non-urgent offers exist.
+
+### How to see it working
+
+Stop `npm run dev` first. Then run:
+
+`npx vitest run tests/unit/rules.offer-cap.test.ts tests/integration/offers.candidates.test.ts tests/unit/offers.boundary.test.ts`
+
+It should say all passed.

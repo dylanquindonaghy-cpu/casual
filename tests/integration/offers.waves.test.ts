@@ -522,6 +522,20 @@ describe("a wave", () => {
     expect((await queued(t.shiftId)).filter((j) => j.name === OFFER_WAVE_QUEUE)).toEqual([]);
   });
 
+  it("an urgent wave still reaches a worker already offered 3 shifts today (the cap is for non-urgent offers)", async () => {
+    const t = await waveFirm({ allocation_mode: "first_come_first_served" });
+    for (const h of [200, 224, 248]) {
+      const other = await t.f.shift({ startsAt: hoursFromNow(h) });
+      await su.query(
+        `insert into offers (firm_id, shift_id, worker_id, wave, channel, sent_at)
+         values ($1, $2, $3, 1, 'whatsapp', $4)`,
+        [t.f.firmId, other, t.ann.id, later(-60)],
+      );
+    }
+    expect(await t.wave(1)).toEqual({ status: "sent", sent: 4, next: null });
+    expect(phones(t.sent)).toContain(t.ann.mobile);
+  });
+
   it("never offers it back to someone who cancelled it, and never another firm's workers", async () => {
     const t = await waveFirm({ allocation_mode: "first_come_first_served" });
     const other = await bookingFirm(su, withFirm);

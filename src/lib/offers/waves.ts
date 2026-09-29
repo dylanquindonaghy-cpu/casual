@@ -49,7 +49,8 @@ import { waveCandidates, type WaveCandidate } from "./candidates";
 // Messages go through the configured transport (console in development and tests); each offer is
 // also pushed to the worker's subscribed phones (PUSH_TRANSPORT: console or none until the real
 // sender is connected). Quiet hours hold a wave unless the firm lets urgent override them; a
-// WhatsApp that won't send goes by SMS. The daily cap is a later Phase 4 task.
+// WhatsApp that won't send goes by SMS. Workers come only from waveCandidates() (the rules, and the
+// daily cap, which never holds back an urgent offer).
 
 export const OFFER_WAVE_QUEUE = "offer-wave";
 export const ESCALATE_SHIFT_QUEUE = "escalate-shift";
@@ -264,11 +265,8 @@ export async function runOfferWave(
 
   const firm = await firmVoice(tx, shift.firmId);
   const settings = parseAllocationSettings(firm.settings);
-  const candidates = await waveCandidates(
-    tx,
-    { id: shift.id, role: shift.role, startsAt: shift.startsAt, timeZone: firm.timezone },
-    now,
-  );
+  // Waves only run for urgent shifts (checked above), so the daily cap doesn't hold them back.
+  const candidates = await waveCandidates(tx, shift.id, now);
   const chosen = pickWave(
     candidates,
     settings.mode,

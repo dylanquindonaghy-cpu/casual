@@ -18,7 +18,10 @@ Rules:
   Times that make no sense use the default, but an explicit `urgent_override: false` is kept. A
   start equal to the end means no quiet hours. On the night the clocks go back, an end time that
   happens twice ends at the later one if the earlier has passed.)
-- Max 3 shift offers per worker per day unless urgent.
+- Max 3 shift offers per worker per day unless urgent. (Built: `src/lib/rules/offer-cap.ts`; the
+  day is the firm's calendar day; urgent offers count towards it but are never held back by it;
+  failed sends don't count. Offers only ever go to workers the booking rules allow: see
+  `docs/api-and-jobs.md`, "Offer-wave ranking".)
 - One message per event. Never send the same template twice for the same entity on the same day
   (idempotency key).
 - Every outbound message is stored in `messages` and logged in `events`.

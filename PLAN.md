@@ -162,7 +162,7 @@ Docs: `docs/screens.md`.
 - [ ] Web push (VAPID); iPhone push only works when the portal is added to the home screen, so
       show an "Add to home screen" prompt
 - [ ] WhatsApp utility templates via Twilio for urgent offers; SMS fallback; quiet hours
-- [ ] Only eligible workers are ever notified; max 3 offers per worker per day unless urgent
+- [x] Only eligible workers are ever notified; max 3 offers per worker per day unless urgent
 - [ ] Shift reminders 24 h and 2 h before start (cuts no-shows)
 - [ ] All copy from `docs/messaging-templates.md`; templates submitted to Meta for approval
 - [ ] Tests: `waves.timing`, `notify.policy`, stop-on-fill, no notifications to ineligible workers
@@ -489,6 +489,19 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - The flag stays when an urgent shift fills; if the office wants filled shifts shown as not
     urgent, clear it on fill in `bookShift()` and the sync.
   - (Done in the offer waves task: waves start from "a place reopened inside the window".)
+- Daily offer cap (Phase 4): offer waves are always urgent, so the cap doesn't hold them back
+  today. Before any non-urgent offer is added (the office offering a shift to named workers, or
+  waves for open shifts that aren't urgent):
+  - pick its workers with `waveCandidates()`, which reads the urgency from the shift
+    (`tests/unit/offers.boundary.test.ts` fails until the new path is added there on purpose);
+  - close the count-then-send gap: two offer jobs for different shifts at the same moment could
+    both see a worker at 2 offers and send a 3rd and a 4th. Take a per-worker advisory lock around
+    the count and the insert, or decide the cap is soft;
+  - log how many workers the cap left out (in `offer.sent` / `offer.waves_stopped`), so "everyone
+    capped" doesn't look like "nobody eligible";
+  - decide whether a firm may change the 3 (fixed policy today).
+- **Dylan to confirm:** urgent offers count towards a worker's 3 a day (they still land on their
+  phone), so after 3 urgent offers that day they get no non-urgent ones; failed sends don't count.
 - **Connect Twilio** (the Phase 4 "WhatsApp utility templates via Twilio…" task is blocked on it:
   an account, a UK number, approved templates and money):
   1. Create the Twilio account and a UK number; set up the WhatsApp sender (Meta business
@@ -627,3 +640,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.4 | Offer waves: when a place reopens close to the start (or the office marks a shift urgent), the best eligible workers get the urgent offer by WhatsApp or text (console only), the next group 15 minutes later, stopping when filled, started, cleared or out of people; the office is emailed if still unfilled 3 hours before (all firm settings); the review caught a cancellation-blocking setting and a false "filled elsewhere" (fixed and tested); 1597 tests + 23 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.5 | Web push, BLOCKED (not ticked: real delivery needs Google/Apple push services and a secret key): built everything short of it: phone subscriptions (new table), the subscribe route, the profile's "Notifications on this phone", pushes with each urgent offer through a console sender, the service worker showing and opening them; connecting the real sender is parked; 1649 tests + 25 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.3 | WhatsApp via Twilio, SMS fallback, quiet hours: BLOCKED (not ticked: Twilio is an outside service): built quiet hours (waves held until they end unless urgent may override, safe on clock-change nights) and the immediate SMS fallback when WhatsApp is refused, with other send failures logged per worker instead of rolling back the wave; connecting Twilio is parked with steps; 1664 tests + 25 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 4 | 0.4 | Only eligible workers notified, daily offer cap: at most 3 shift offers per worker per London day unless the shift is urgent (failed sends don't count), checked in the one place every offer picks its workers, which also asks the booking rules about each one; a boundary test fails if any other code writes an offer or builds its message; the review's suggestions done or parked; 1690 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |

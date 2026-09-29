@@ -3880,3 +3880,29 @@ to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
 **Hours:** 0.6 h (12:03 to 12:40 UTC). Phase 5 so far 5.3 h of its 23–33 h estimate.
 
 **Parked:** see PLAN.md, "Pilot metrics follow-ups" (the definitions for Dylan to confirm).
+
+## 2026-09-29 12:43 UTC: Phase 5, "Tests: `notice.report` (worker cancel, firm cancel, move, curtail)"
+
+**Plan** (docs/testing.md: "`notice.report.test.ts` — worker cancel, firm cancel/move/curtail all
+produce correct notice hours and flags"). A new `tests/integration/notice.report.test.ts` that
+drives each change through the **real paths** (not hand-made events, which the report's own test
+already covers) and reads the result through the report and its CSV:
+- a worker takes a shift and cancels it from the portal (`takeShift`, `cancelMyShift`);
+- the office cancels one booking (`cancelBookingByOffice`) and a whole shift (`cancelShift`);
+- the office moves a shift and shortens one (`moveShift`);
+- the rota sheet (the Google Sheets sync against the fake sheet) books, shortens, moves and
+  removes someone;
+- the short-notice flag exactly at the threshold (48.00 hours: not short; 47.99: short) and at a
+  firm's own threshold; notice after the start is negative and flagged.
+Each row's kind, who started it, notice hours (from the path's own clock), flag and reason are
+checked; so is its CSV line. Events are stamped by the database's real clock, so each test reads
+the report for the real days (the notice figures come from the paths' fixed clocks).
+
+**Decisions:** no product code changes planned: this task proves the report against the real
+writers. If a test finds a defect, the root cause is written here before any change.
+
+**Built as planned**, 7 tests. One expectation of mine was wrong, not the code: the sheet's
+bookings carry the sync's fixed reason ("Put on the rota sheet by the office"), which the report
+rightly shows. No product code changed, so no guardrails review (the overnight rule asks for one
+when schema, auth, tenancy, messaging, jobs or rules change); the claims-auditor still checks it.
+

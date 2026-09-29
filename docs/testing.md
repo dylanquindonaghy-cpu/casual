@@ -52,6 +52,12 @@ without breaking a 6am cancellation.
   jobs at once send once, quiet hours hold or skip, channel and fallback, the tick; the timing
   rules in `rules.reminders.test.ts`.
 - `notice.report.test.ts` — worker cancel, firm cancel/move/curtail all produce correct notice hours and flags.
+  Built (`tests/integration/notice.report.test.ts`): through the real paths (the portal's take and
+  cancel, the office's cancel-one, cancel-shift, move and shorten, and the Google Sheets sync's
+  book, shorten, move and remove), read back through the report and its CSV: who started each
+  change, notice hours from the path's own clock, the flag exactly at 48 hours (48.00 not short,
+  47.99 short) and at a firm's own threshold, negative notice after the start, and the firm's
+  reason (a worker's typed reason never appears).
 - `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly.
 - `sheets.sync.test.ts` — a seeded (fake) Google Sheet syncs both ways: staff, sites, shifts and
   who holds each come in (one read per sync, columns by header); bookings made here go back in one

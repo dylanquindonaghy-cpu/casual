@@ -4449,3 +4449,67 @@ office's workload before the app (the "baseline") against after. Now:
 3. Click "Pilot metrics". Fill in a few baseline figures and press "Save the baseline".
 4. Press "Update the figures now", then set "To" to today and press "Show": the demo's bookings
    appear as portal actions.
+
+## 2026-09-29: Phase 5, task 9: Tests for the notice report (0.2 h)
+
+### Time
+
+0.2 hours of Claude's working time (12:43 to 12:55 UTC), in the unattended overnight loop.
+**Phase 5 is done: 5.5 hours against its 23 to 33 hour estimate.**
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=efb7db49014ac169 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2146 tests (up from 2139);
+  - the 37 browser tests;
+  - the rule checks.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+The notice and cancellation report (task 7) already had tests that fed it hand-made records. This
+task adds `tests/integration/notice.report.test.ts`, which proves the report against the **real
+code that writes those records**, end to end:
+- a worker takes a shift on the portal and then cancels it: two rows started by the worker, with
+  the notice from the moment they did it;
+- the office cancels one booking, then the whole shift: each worker's row with the notice they had
+  and the firm's reason;
+- the office moves a shift, then shortens it: notice counted from the old start, and the times
+  before and after;
+- the Google Sheets sync (against a pretend sheet) books someone, shortens their shift, moves it
+  and removes them: four rows started by "The rota sheet";
+- the short-notice flag exactly at the line: 48.00 hours isn't short notice, 47.99 is (36 seconds
+  make the difference); a firm's own threshold (96 hours) changes the flag;
+- the office sending someone home during the shift: negative notice, flagged, and "After the
+  start" in the file;
+- the CSV file's lines match the page, and a worker's typed reason ("flu") never appears.
+
+No product code needed changing: every path already wrote what the report needs (after the fixes
+the report's own review asked for in task 7).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Drive the real code, not hand-made records | That's what proves the evidence is right; the hand-made case is already covered | Only hand-made records |
+| Include the Google Sheets path | Firms on a sheet make their changes there; those rows are the firm's too | Office screens only |
+| Test exactly at the threshold | "Under 48 hours" must not flag 48.00 | Round numbers only |
+
+### What the new tests prove
+
+See "What was built": 7 tests, each on the real database, each checking the row's kind, who
+started it, the notice hours, the flag and the reason, and two checking the CSV lines.
+
+### Parked, open, and things that need Dylan
+
+Nothing new. Phase 5's open questions are in `PLAN.md`'s Parking lot (firm-initiated changes,
+marking who worked, answering requests, the action log, the notice report and pilot metrics
+follow-ups), each with its "Dylan to confirm" items.
+
+### How to see it working
+
+Run the tests: `npx vitest run tests/integration/notice.report.test.ts` (with the database
+started: `npm run db:up`). You should see 7 tests pass.

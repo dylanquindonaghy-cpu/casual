@@ -31,7 +31,7 @@ import { hoursToStart } from "../rules/urgent";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
-import { waveCandidates, type WaveCandidate } from "./candidates";
+import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
 
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
 // docs/architecture.md, "Offer waves"). Two firm jobs:
@@ -132,7 +132,7 @@ export interface OfferDeps extends NotifyDeps {
   clock: Clock;
 }
 
-interface LockedShift {
+export interface LockedShift {
   id: string;
   firmId: string;
   role: string;
@@ -145,7 +145,7 @@ interface LockedShift {
 }
 
 // The shift, locked (the same shift-first order as booking), with its places still free.
-async function lockShift(tx: FirmTx, shiftId: string): Promise<LockedShift | null> {
+export async function lockShift(tx: FirmTx, shiftId: string): Promise<LockedShift | null> {
   const [row] = await tx
     .select({
       id: shifts.id,
@@ -171,7 +171,7 @@ async function lockShift(tx: FirmTx, shiftId: string): Promise<LockedShift | nul
   return { ...row, freePlaces: Math.max(0, row.headcount - (rows[0]?.taken ?? 0)) };
 }
 
-async function firmVoice(tx: FirmTx, firmId: string) {
+export async function firmVoice(tx: FirmTx, firmId: string) {
   const [firm] = await tx
     .select({
       name: firms.name,
@@ -189,7 +189,7 @@ async function firmVoice(tx: FirmTx, firmId: string) {
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const timeOf = (d: Date, tz: string) => {
+export const timeOf = (d: Date, tz: string) => {
   const w = wallTimeOf(d, tz);
   return `${pad(w.hour)}:${pad(w.minute)}`;
 };
@@ -252,7 +252,8 @@ export async function runOfferWave(
   };
   if (shift.startsAt.getTime() <= now.getTime()) return stop("started");
   if (shift.status !== "open" && shift.status !== "filled") return stop("not_open");
-  if (shift.freePlaces === 0) return stop("filled");
+  // No place free, or the office marked it filled (it found someone another way: closeShift()).
+  if (shift.freePlaces === 0 || shift.status === "filled") return stop("filled");
   // The office cleared the urgent mark: no more urgent offers.
   if (!shift.isUrgent) return stop("not_urgent");
 
@@ -315,6 +316,12 @@ export async function runOfferWave(
   // Every offer row first, then the messages: if the transaction is going to fail (a lock
   // conflict, say), it fails before anyone has been messaged.
   const recorded: { offerId: string; candidate: WaveCandidate }[] = [];
+  // Urgent, so the cap doesn't limit this wave; the lock makes an office offer being counted at
+  // the same moment wait for these offers (candidates.ts).
+  await lockOfferCounts(
+    tx,
+    chosen.map((c) => c.workerId),
+  );
   for (const c of chosen) {
     const [offer] = await tx
       .insert(offers)
@@ -408,7 +415,7 @@ export async function runEscalation(
     !shift ||
     !shift.isUrgent ||
     shift.freePlaces === 0 ||
-    (shift.status !== "open" && shift.status !== "filled") ||
+    shift.status !== "open" || // filled (by bookings or by the office), cancelled or draft
     shift.startsAt.getTime() <= now.getTime()
   ) {
     return { status: "not_needed" };

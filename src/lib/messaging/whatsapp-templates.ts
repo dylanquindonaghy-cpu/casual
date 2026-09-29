@@ -6,7 +6,8 @@
 //   (tests/unit/copy.templates-doc.test.ts) checks the template functions in templates.ts produce
 //   exactly this text with the sample values: what we send is what we submitted.
 // - Words that are sometimes left out need their own template: "at {site}" when the shift has no
-//   site (the `_no_site` variants). "a" or "an" before the role goes inside the role's variable.
+//   site (the `_no_site` variants). In shift_urgent, "a" or "an" before the role goes inside the
+//   role's variable (`role`); shift_offer names the role alone (`roleName`).
 // - The sign-off is a variable, because a firm may set its own (src/lib/tenancy/sign-off.ts).
 //
 // Not submitted yet: that needs Dylan's WhatsApp Business account (PLAN.md Parking lot,
@@ -52,6 +53,39 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     variables: ["firm", "code", "signOff"],
     body: "Your {{1}} code is {{2}}. It works for 10 minutes. Don't share it with anyone. — {{3}}",
     example: { firm: "Acme Events", code: "482913", signOff: SIGN_OFF },
+  },
+  {
+    name: "shift_offer",
+    docName: "shift_offer",
+    category: "utility",
+    language: "en_GB",
+    variables: ["date", "start", "end", "site", "roleName", "link", "signOff"],
+    body: "Shift available: {{1}} {{2}}–{{3}} at {{4}} ({{5}}). Tap to take it: {{6}}. First to accept gets it. — {{7}}",
+    example: {
+      date: "Sat 7 Nov",
+      start: "08:00",
+      end: "16:00",
+      site: "Riverside Arena",
+      roleName: "steward",
+      link: LINK,
+      signOff: SIGN_OFF,
+    },
+  },
+  {
+    name: "shift_offer_no_site",
+    docName: "shift_offer",
+    category: "utility",
+    language: "en_GB",
+    variables: ["date", "start", "end", "roleName", "link", "signOff"],
+    body: "Shift available: {{1}} {{2}}–{{3}} ({{4}}). Tap to take it: {{5}}. First to accept gets it. — {{6}}",
+    example: {
+      date: "Sat 7 Nov",
+      start: "08:00",
+      end: "16:00",
+      roleName: "door supervisor",
+      link: LINK,
+      signOff: SIGN_OFF,
+    },
   },
   {
     name: "shift_urgent",

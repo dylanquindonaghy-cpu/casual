@@ -327,7 +327,9 @@ export const requests = pgTable(
   ],
 ).enableRLS();
 
-// Each offer sent in a wave (Phase 4 sends them) and the worker's response.
+// Each shift offer sent and the worker's response: in a wave (src/lib/offers/waves.ts: `wave` set),
+// or by the office to one worker (src/lib/offers/office-offer.ts: `offered_by` set). Exactly one of
+// the two, so office offers never take a wave's number.
 export const offers = pgTable(
   "offers",
   {
@@ -337,7 +339,8 @@ export const offers = pgTable(
       .references(() => firms.id),
     shiftId: uuid("shift_id").notNull(),
     workerId: uuid("worker_id").notNull(),
-    wave: integer("wave").notNull(),
+    wave: integer("wave"),
+    offeredBy: uuid("offered_by"),
     channel: text("channel", { enum: OFFER_CHANNELS }).notNull(),
     sentAt: timestamptz("sent_at").notNull().defaultNow(),
     respondedAt: timestamptz("responded_at"),
@@ -363,9 +366,19 @@ export const offers = pgTable(
       columns: [t.firmId, t.workerId],
       foreignColumns: [workers.firmId, workers.id],
     }),
+    foreignKey({
+      name: "offers_offered_by_fk",
+      columns: [t.firmId, t.offeredBy],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
+    // One office offer per worker per shift (a retried office-offer job sends nothing new).
+    uniqueIndex("offers_one_office_offer_per_worker")
+      .on(t.firmId, t.shiftId, t.workerId)
+      .where(sql`${t.wave} is null`),
     // The daily offer cap counts a worker's offers by sent_at.
     index("offers_firm_id_worker_id_sent_at_idx").on(t.firmId, t.workerId, t.sentAt),
     check("offers_wave_positive", sql`${t.wave} >= 1`),
+    check("offers_wave_or_office", sql`(${t.wave} is null) = (${t.offeredBy} is not null)`),
     check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms')`),
     check(
       "offers_response_check",

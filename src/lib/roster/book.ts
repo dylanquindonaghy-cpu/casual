@@ -54,7 +54,7 @@ import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 // sync's mirror transaction there).
 
 export const SHEET_COPY_FRESH_MS = 20 * MINUTE;
-const OFFICE_ROLES_THAT_PLACE = ["admin", "resourcer"] as const;
+export const OFFICE_ROLES_THAT_PLACE = ["admin", "resourcer"] as const;
 
 // Ids as the database writes them (lower case), so they match the pass the rules issue.
 export const rosterId = z.uuid().transform((id) => id.toLowerCase());

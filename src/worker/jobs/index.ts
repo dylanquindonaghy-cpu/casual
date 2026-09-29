@@ -18,6 +18,7 @@ import {
   type FirmJobEnvelope,
   type FirmTask,
 } from "../../lib/jobs/firm-job";
+import { officeOfferJob, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import {
   escalateShiftJob,
   offerWaveJob,
@@ -49,6 +50,7 @@ export interface JobDeps {
   offers?: {
     wave: FirmJob<OfferWavePayload>;
     escalate: FirmJob<EscalateShiftPayload>;
+    office?: FirmJob<OfficeOfferPayload>;
   };
   reminders?: FirmTask<ShiftRemindersPayload>;
 }
@@ -61,6 +63,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
   await registerFirmJob(boss, deps.offers?.wave ?? offerWaveJob);
   await registerFirmJob(boss, deps.offers?.escalate ?? escalateShiftJob);
+  // An offer the office sends to one worker (Today's "Offer to someone").
+  await registerFirmJob(boss, deps.offers?.office ?? officeOfferJob);
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
   await registerFirmTask(boss, deps.reminders ?? shiftRemindersTask);

@@ -134,9 +134,13 @@ checks log in, take and cancel each finish in under 30 seconds):**
 7. Also worth showing: the urgent dropout's page (the seed prints its link) as `07700 900125`,
    whose SIA licence has expired: why they can't take it, and "Ask the office to review".
 
-**Office part (Phase 4 and 5):** "resourcer sees it" (the office Today view), "urgent wave fills
-it" (offer waves) and "notice report shows both" (the notice report) aren't built yet. The
-action log already records every step above.
+**Office part (Phase 4 and 5):** "resourcer sees it": log in at `/office/login` as
+`acme.resourcer@example.com` (the link appears in the terminal). Today shows the urgent dropout
+(with its wave status once the worker process has sent offers), the Saturday gaps, the dropout
+under "Cancelled in the last 24 hours" with its notice, and the two requests. "Offer to someone"
+on a gap lists who could take it. "Urgent wave fills it" runs by itself with `npm run dev` (offer
+waves; messages print in the terminal). "Notice report shows both" (the notice report) isn't built
+yet; the action log already records every step above.
 
 ## Pre-pilot checklist
 

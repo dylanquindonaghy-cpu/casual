@@ -170,7 +170,7 @@ Docs: `docs/messaging-templates.md`, `docs/api-and-jobs.md` (offer-wave ranking)
 
 ## Phase 5 — Resourcer dashboard, action log, notice report (23–33 h)
 
-- [ ] Today view: gaps, urgent shifts with wave status, fresh cancellations with notice hours,
+- [x] Today view: gaps, urgent shifts with wave status, fresh cancellations with notice hours,
       pending requests, credential expiries this week, quick actions
 - [ ] Shifts: create/edit, bulk create for an event, CSV import, manual assign with logged override
 - [ ] **Firm-initiated cancel / move / curtail**: reason required; notice hours logged per assigned
@@ -489,17 +489,13 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - The flag stays when an urgent shift fills; if the office wants filled shifts shown as not
     urgent, clear it on fill in `bookShift()` and the sync.
   - (Done in the offer waves task: waves start from "a place reopened inside the window".)
-- Daily offer cap (Phase 4): offer waves are always urgent, so the cap doesn't hold them back
-  today. Before any non-urgent offer is added (the office offering a shift to named workers, or
-  waves for open shifts that aren't urgent):
-  - pick its workers with `waveCandidates()`, which reads the urgency from the shift
-    (`tests/unit/offers.boundary.test.ts` fails until the new path is added there on purpose);
-  - close the count-then-send gap: two offer jobs for different shifts at the same moment could
-    both see a worker at 2 offers and send a 3rd and a 4th. Take a per-worker advisory lock around
-    the count and the insert, or decide the cap is soft;
-  - log how many workers the cap left out (in `offer.sent` / `offer.waves_stopped`), so "everyone
-    capped" doesn't look like "nobody eligible";
-  - decide whether a firm may change the 3 (fixed policy today).
+- Daily offer cap (Phase 4): offer waves are always urgent, so the cap doesn't hold them back.
+  The office's "Offer to someone" (Phase 5) is the first non-urgent offer. It picks its workers
+  with `waveCandidates()` and counts under a per-worker lock that waves also take before writing
+  offers (`lockOfferCounts()`), so two offers at the same moment can't pass the cap (tested).
+  Still open: decide whether a firm may change the 3 (fixed policy today). Scale: under first
+  come, first served a wave takes one lock per eligible worker and holds them while it sends; fine
+  at pilot size, but for firms with hundreds of casuals chunk the waves or use one firm-wide lock.
 - **Dylan to confirm:** urgent offers count towards a worker's 3 a day (they still land on their
   phone), so after 3 urgent offers that day they get no non-urgent ones; failed sends don't count.
 - Shift reminders (Phase 4) follow-ups:
@@ -562,9 +558,38 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   docs' "push → WhatsApp → SMS" order could mean "push only, when the phone has it" to save the
   WhatsApp fee (about 2p a message), but a push can't confirm it was seen. Worth revisiting for
   reminders once pilots show how many workers turn push on.
+- Today view follow-ups (Phase 5):
+  - **Dylan to confirm:** payroll doesn't see Today (worker names, cancellations and gaps aren't
+    payroll's job); they keep the plain dashboard until their pay queries screen (Phase 6).
+  - **Dylan to confirm:** "Mark as filled" means "we filled it another way": the shift's status
+    becomes `filled` with places free, and offers stop. It records who did it and when, but not
+    how it was filled (events refuse free text). Add a short choice ("agency", "someone rang in")
+    if firms want it in the notice report.
+  - Today doesn't refresh itself: the resourcer reloads the page. Consider a gentle refresh every
+    minute or two.
+  - The requests line has no link until the requests queue is built (the next Phase 5 tasks).
+  - "Offer to someone" offers one worker per click (the docs' `offerTo(shiftId, workerIds)` said
+    several). Add "offer to these 3" if resourcers ask.
+  - The urgent section runs one small query per urgent shift: fine at pilot size.
+  - A CSV re-import that changes a closed shift recalculates its status and can reopen it, logged
+    only as `shift.changed` (no `shift.reopened`). Decide with the Phase 5 CSV screen whether
+    closed shifts stay closed.
+  - A second "Send offer" before the job runs (or while one is held for quiet hours) queues a
+    second job and logs a second `offer.office_queued`; nothing is sent twice. A firm-scoped
+    pg-boss singleton key would stop the extra records.
+  - The e2e Today test sends a real office offer in the shared e2e database (one demo worker gets
+    one offer that day). Harmless today; watch for it if an e2e test ever counts offers.
+  - Google Sheet sync errors, clashes and bad rows on Today (from the Sheets items above): not in
+    this task's wording; do with the Phase 5 settings or action log tasks.
+  - Offers restarted by "Open it again" skip workers whose earlier offers "Mark as filled" turned
+    into "filled elsewhere" (their links still work, but they get no new message). Decide whether
+    reopening should offer it to them again.
+  - **Dylan to confirm** (copy): the office's SMS offer now ends " - {firm} Shift Team" (golden
+    rule 8; the doc's line had no sign-off), which makes the demo text 163 characters: 2 texts,
+    against the doc's "keep under 160".
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
-  pack is `src/lib/messaging/whatsapp-templates.ts`: 10 templates (4 are "no site" variants), each
+  pack is `src/lib/messaging/whatsapp-templates.ts`: 12 templates (5 are "no site" variants), each
   with its category, language (English UK), body with `{{1}}`-style variables and sample values. A
   test proves the code sends exactly these words.
   1. In the Twilio Console, open Messaging → Content Template Builder → Create new.
@@ -715,3 +740,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 4 | 0.6 | Shift reminders: every confirmed booking gets "Reminder: tomorrow…" 24 hours before and "Your shift starts at…" 2 hours before (by the worker's channel, with a push; console only), each once, recorded in a new `shift_reminders` table before it goes; quiet hours hold or skip them; a check every 5 minutes; the review caught a way a retry could resend (fixed: claim, send, then record, each separately); 1748 tests + 25 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.4 | All copy from the messaging doc; templates to Meta: BLOCKED (not ticked: submitting needs the WhatsApp Business account): a test now holds every message (WhatsApp, text, push, email) to the doc's words and checks every message to a worker ends with the firm's sign-off; urgent offers by text use the doc's short SMS copy; the ready-to-submit WhatsApp template pack (10 templates) is tested against what the code sends; submission steps parked; 1799 tests + 25 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 4 | 0.3 | Phase 4 tests: a fake job worker runs the real queue on a fake clock, so wave timing is tested end to end (every 15 minutes, stop on fill, the office emailed once, quiet hours, the start ends it); the notification policy is tested for offers and reminders alike (channel order, quiet hours, daily cap, no double sends), and over a whole chain only eligible workers who want offers get anything; 1827 tests + 25 e2e; verified and audited DONE. Phase 4 done except the 3 blocked tasks: 3.5 h of the 27–37 h estimate (see docs/work-log.md) |
+| 2026-09-29 | 5 | 1.0 | Today view: the office dashboard now shows urgent shifts with wave status, gaps in the next 7 days, cancellations in the last 24 hours with notice, requests waiting and credentials expiring this week, with quick actions (offer to someone, mark urgent or not, mark as filled and undo); office offers go through the same rules, daily cap and quiet hours as every offer (new schema: office offers on the offers table); the review caught a misleading "offer on its way" after a failed send and a daily-cap race (both fixed and tested); 1886 tests + 28 e2e; verified and audited DONE (see docs/work-log.md) |

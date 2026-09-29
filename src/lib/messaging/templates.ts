@@ -98,6 +98,33 @@ export function credentialWeeklyListEmail(
   };
 }
 
+// shift_offer (WhatsApp, utility): the office offering a shift that isn't urgent to one worker
+// (src/lib/offers/office-offer.ts; by text: shiftOfferSms). {date} is "Sat 7 Nov".
+export function shiftOfferMessage(
+  firm: FirmVoice,
+  shift: {
+    role: string;
+    site: string | null;
+    date: string;
+    start: string;
+    end: string;
+    link: string;
+  },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Shift available: ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Tap to take it: ${shift.link}. First to accept gets it. — ${firm.signOff}`;
+}
+
+// The office's offer as a text message (docs/messaging-templates.md, "SMS"): standard text
+// characters only, the sign-off after a plain hyphen.
+export function shiftOfferSms(
+  firm: FirmVoice,
+  shift: { site: string | null; date: string; start: string; link: string },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `${firm.name}: shift ${shift.date} ${shift.start}${at}. Take it: ${shift.link} - ${firm.signOff}`;
+}
+
 // shift_urgent (WhatsApp, utility): an offer in an urgent wave (by text: shiftUrgentSms). {day} is "today",
 // "tomorrow" or "on Sat 7 Nov" (the approved template's "today" can't be right for tomorrow).
 export function shiftUrgentMessage(
@@ -212,4 +239,13 @@ export function reminderPush(shift: {
         ? `${shift.start}–${shift.end}. Tap for instructions.`
         : `Starts at ${shift.start}. Tap for instructions.`,
   };
+}
+
+// Push (title / body), docs/messaging-templates.md "Push": the office's offer.
+export function offerPush(shift: { site: string | null; date: string; start: string }): {
+  title: string;
+  body: string;
+} {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return { title: "Shift available", body: `${shift.date} ${shift.start}${at}. Tap to take it.` };
 }

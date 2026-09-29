@@ -8,9 +8,12 @@ import {
   credentialWeeklyListEmail,
   loginCodeMessage,
   loginLinkMessage,
+  offerPush,
   officeLoginLinkEmail,
   reminderPush,
   shiftEscalationEmail,
+  shiftOfferMessage,
+  shiftOfferSms,
   shiftReminder24hMessage,
   shiftReminder2hMessage,
   shiftUrgentMessage,
@@ -106,6 +109,7 @@ describe("the doc's templates table", () => {
     "login_link",
     "login_code",
     "office_login_link",
+    "shift_offer",
     "shift_urgent",
     "shift_reminder_24h",
     "shift_reminder_2h",
@@ -113,7 +117,6 @@ describe("the doc's templates table", () => {
     "credential_expired",
   ];
   const NOT_BUILT: Record<string, string> = {
-    shift_offer: "non-urgent offers (PLAN.md Parking lot, the daily offer cap)",
     shift_filled: "a reply to an offer: inbound WhatsApp (Phase 7)",
     shift_confirmed: "booking confirmations are on screen; by message with notify (parked)",
     cancellation_ack: "cancellation confirmations are on screen; by message with notify (parked)",
@@ -131,6 +134,21 @@ describe("the code says what the doc says", () => {
   it("login_link and login_code", () => {
     expect(loginLinkMessage(docVoice, "{link}")).toBe(docBody("login_link"));
     expect(loginCodeMessage(docVoice, "{code}")).toBe(docBody("login_code"));
+  });
+
+  it("shift_offer, with and without a site", () => {
+    const shift = {
+      role: "{role}",
+      site: "{site}",
+      date: "{date}",
+      start: "{start}",
+      end: "{end}",
+      link: "{link}",
+    };
+    expect(shiftOfferMessage(docVoice, shift)).toBe(docBody("shift_offer"));
+    expect(shiftOfferMessage(docVoice, { ...shift, site: null })).toBe(
+      docBody("shift_offer").replace(" at {site}", ""),
+    );
   });
 
   it("shift_urgent, with and without a site", () => {
@@ -231,6 +249,23 @@ describe("the SMS versions", () => {
     );
   });
 
+  it("the office's offer says what the doc says, with and without a site", () => {
+    const [text] = quotes(sms, "Offer:");
+    const shift = { site: "{site}", date: "{date}", start: "{start}", link: "{link}" };
+    expect(shiftOfferSms(docVoice, shift)).toBe(text);
+    expect(shiftOfferSms(docVoice, { ...shift, site: null })).toBe(
+      (text ?? "").replace(" at {site}", ""),
+    );
+    const real = shiftOfferSms(demo, {
+      site: "Acme Demo Arena",
+      date: "Sat 7 Nov",
+      start: "08:00",
+      link,
+    });
+    expect(Number.isFinite(gsmLength(real))).toBe(true);
+    expect(parts(real)).toBe(2); // with the sign-off: parked for Dylan (the doc says under 160)
+  });
+
   // GSM 03.38: the characters one standard text message can carry (anything else, like a dash,
   // makes the whole message a smaller, dearer kind). Basic set plus the escaped extension table.
   const GSM =
@@ -279,6 +314,8 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
   it.each([
     ["login_link", loginLinkMessage(voice, "L")],
     ["login_code", loginCodeMessage(voice, "123456")],
+    ["shift_offer", shiftOfferMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
+    ["shift_offer (SMS)", shiftOfferSms(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_urgent", shiftUrgentMessage(voice, { ...shift, link: "L" })],
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
     ["shift_reminder_24h", shiftReminder24hMessage(voice, { ...shift, link: "L" })],
@@ -294,6 +331,14 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
 
 describe("the pushes", () => {
   const push = section("Push (title / body)");
+
+  it("the office's offer", () => {
+    const [title, body] = quotes(push, "Offer:");
+    expect(offerPush({ site: "{site}", date: "{date}", start: "{start}" })).toEqual({
+      title,
+      body,
+    });
+  });
 
   it("urgent", () => {
     const [title, body] = quotes(push, "Urgent:");
@@ -334,9 +379,12 @@ describe("every template function is checked here", () => {
         "credentialWeeklyListEmail",
         "loginCodeMessage",
         "loginLinkMessage",
+        "offerPush",
         "officeLoginLinkEmail",
         "reminderPush",
         "shiftEscalationEmail",
+        "shiftOfferMessage",
+        "shiftOfferSms",
         "shiftReminder24hMessage",
         "shiftReminder2hMessage",
         "shiftUrgentMessage",
@@ -359,6 +407,24 @@ describe("the WhatsApp submission pack", () => {
 
   // What the code sends by WhatsApp, given the pack's sample values.
   const SENT: Record<string, () => string> = {
+    shift_offer: () =>
+      shiftOfferMessage(voice("shift_offer"), {
+        role: ex("shift_offer", "roleName").replace(/ /g, "_"),
+        site: ex("shift_offer", "site"),
+        date: ex("shift_offer", "date"),
+        start: ex("shift_offer", "start"),
+        end: ex("shift_offer", "end"),
+        link: ex("shift_offer", "link"),
+      }),
+    shift_offer_no_site: () =>
+      shiftOfferMessage(voice("shift_offer_no_site"), {
+        role: ex("shift_offer_no_site", "roleName").replace(/ /g, "_"),
+        site: null,
+        date: ex("shift_offer_no_site", "date"),
+        start: ex("shift_offer_no_site", "start"),
+        end: ex("shift_offer_no_site", "end"),
+        link: ex("shift_offer_no_site", "link"),
+      }),
     login_link: () =>
       loginLinkMessage(
         { name: ex("login_link", "firm"), signOff: ex("login_link", "signOff") },
@@ -459,6 +525,7 @@ describe("the WhatsApp submission pack", () => {
       firm: "{firm}",
       signOff: "{firm} Shift Team",
       role: "a {role}",
+      roleName: "{role}",
     };
     for (const t of WHATSAPP_TEMPLATES) {
       const values = Object.fromEntries(t.variables.map((v) => [v, placeholder[v] ?? `{${v}}`]));

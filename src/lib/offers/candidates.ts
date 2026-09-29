@@ -26,6 +26,18 @@ export interface WaveCandidate extends RotationCandidate {
   channel: "whatsapp" | "sms";
 }
 
+// Holds, until the transaction ends, the lock on each worker's offer count for the day (in id
+// order, so two holders never wait on each other). Every sender takes it before writing offers,
+// and the office's offer before counting too, so two offers at the same moment can't both see
+// "2 today" and send a 3rd and a 4th that isn't urgent.
+export async function lockOfferCounts(tx: FirmTx, workerIds: string[]): Promise<void> {
+  for (const workerId of [...new Set(workerIds)].sort()) {
+    await tx.execute(sql`
+      select pg_advisory_xact_lock(hashtextextended('offer-count:' || app_current_firm_id()::text || ':' || ${workerId}, 0))
+    `);
+  }
+}
+
 export async function waveCandidates(
   tx: FirmTx,
   shiftId: string,

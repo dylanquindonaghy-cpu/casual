@@ -2,14 +2,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// One offer path (Phase 4: "only eligible workers are ever notified"). A shift offer reaches a
-// worker only through the offer-wave job (src/lib/offers/waves.ts), which sends only to the
-// workers its candidate list returns (src/lib/offers/candidates.ts), and that list keeps only the
-// workers the booking rules allow (previewBooking) and the daily offer cap lets through
-// (mayOfferToday). This test is a tripwire: a new file writing an offer or building the offer
+// Two offer paths (Phase 4: "only eligible workers are ever notified"; Phase 5: the office's "Offer
+// to someone"). A shift offer reaches a worker only through the offer-wave job
+// (src/lib/offers/waves.ts) or the office-offer job (src/lib/offers/office-offer.ts). Both send
+// only to workers the candidate list returns (src/lib/offers/candidates.ts), and that list keeps
+// only the workers the booking rules allow (previewBooking) and the daily offer cap lets through
+// (mayOfferToday). This test is a tripwire: a new file writing an offer or building an offer
 // message must be added here on purpose, and go through the candidate list. The proof that
-// workers left out never get one is behaviour, in tests/integration/offers.candidates.test.ts and
-// offers.waves.test.ts. Tests are exempt.
+// workers left out never get one is behaviour, in tests/integration/offers.candidates.test.ts,
+// offers.waves.test.ts, office.offer.test.ts and notify.policy.test.ts. Tests are exempt.
 
 const ROOT = join(process.cwd(), "src");
 
@@ -34,6 +35,7 @@ const files = sourceFiles(ROOT).map((path) => ({
 const WAVES = "src/lib/offers/waves.ts";
 const CANDIDATES = "src/lib/offers/candidates.ts";
 const TEMPLATES = "src/lib/messaging/templates.ts";
+const OFFICE = "src/lib/offers/office-offer.ts";
 
 const OFFER_INSERT =
   /\binsert\(\s*(?:\w+\.)*offers\s*\)|insert\s+into\s+(?:"?\w+"?\.)?"?offers"?(?![\w"])/i;
@@ -41,21 +43,32 @@ const OFFER_INSERT =
 const CALLS: [string, RegExp, string[]][] = [
   // Drizzle (`insert(offers)`, `insert(schema.offers)`) or SQL (`insert into offers`,
   // `insert into public."offers"`).
-  ["writes an offer", OFFER_INSERT, [WAVES]],
+  ["writes an offer", OFFER_INSERT, [WAVES, OFFICE]],
   // An alias would hide the table from the check above.
   ["imports the offers table under another name", /\boffers\s+as\s+\w/, []],
   [
-    "builds the shift offer message (shiftUrgentMessage)",
+    "builds the urgent offer message (shiftUrgentMessage)",
     /\bshiftUrgentMessage\(/,
-    [TEMPLATES, WAVES],
+    [TEMPLATES, WAVES, OFFICE],
   ],
-  ["builds the shift offer push (urgentPush)", /\burgentPush\(/, [TEMPLATES, WAVES]],
+  ["builds the urgent offer push (urgentPush)", /\burgentPush\(/, [TEMPLATES, WAVES, OFFICE]],
   [
-    "builds the shift offer text message (shiftUrgentSms)",
+    "builds the urgent offer text message (shiftUrgentSms)",
     /\bshiftUrgentSms\(/,
-    [TEMPLATES, WAVES],
+    [TEMPLATES, WAVES, OFFICE],
   ],
-  ["picks offer recipients (waveCandidates)", /\bwaveCandidates\(/, [CANDIDATES, WAVES]],
+  [
+    "builds the office offer message (shiftOfferMessage)",
+    /\bshiftOfferMessage\(/,
+    [TEMPLATES, OFFICE],
+  ],
+  [
+    "builds the office offer text message (shiftOfferSms)",
+    /\bshiftOfferSms\(/,
+    [TEMPLATES, OFFICE],
+  ],
+  ["builds the office offer push (offerPush)", /\bofferPush\(/, [TEMPLATES, OFFICE]],
+  ["picks offer recipients (waveCandidates)", /\bwaveCandidates\(/, [CANDIDATES, WAVES, OFFICE]],
 ];
 
 const text = (path: string) => files.find((f) => f.path === path)?.text ?? "";
@@ -80,6 +93,25 @@ describe("the offer boundary", () => {
     expect(waves).toMatch(/=\s*await waveCandidates\(/);
     expect(waves).toMatch(/=\s*pickWave\(\s*candidates\b/);
     expect(waves).not.toMatch(/\bfrom workers\b|\.from\(\s*workers\s*\)/);
+  });
+
+  it("every file that writes offers takes the offer-count lock before its insert", () => {
+    for (const path of [WAVES, OFFICE]) {
+      const code = text(path);
+      const lock = code.indexOf("lockOfferCounts(");
+      const insert = code.search(OFFER_INSERT);
+      expect(lock, path).toBeGreaterThan(-1);
+      expect(lock, path).toBeLessThan(insert);
+    }
+  });
+
+  it("the office offer asks the candidate list and messages the candidate's own number", () => {
+    const office = text(OFFICE);
+    expect(office).toMatch(/await waveCandidates\(/);
+    expect(office).toMatch(/mobile:\s*candidate\.mobile/);
+    // The only other read of workers there is their names, for the office's list.
+    expect(office.match(/\.from\(\s*workers\s*\)/g)).toHaveLength(1);
+    expect(office).not.toMatch(/mobile_e164|mobileE164/);
   });
 
   it("the check catches the ways code can write an offer, and not updates", () => {

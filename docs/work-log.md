@@ -3597,3 +3597,123 @@ Stop `npm run dev` first. Then run:
 `npx vitest run tests/integration/waves.timing.test.ts tests/integration/notify.policy.test.ts`
 
 It should say all passed.
+
+## 2026-09-29: Phase 5, task 1: The office's Today view (1.0 h)
+
+### Time
+
+1.0 hour of Claude's working time (07:09 to 08:08 UTC), in the unattended overnight loop.
+Phase 5 so far: 1.0 of its 23 to 33 hour estimate.
+
+### Result
+
+- **Done and ticked.**
+- `scripts/verify.sh` printed `VERIFIED tree=7758166631a3e2e8 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 1886 tests (up from 1827);
+  - the 28 browser tests (3 new);
+  - the rule checks.
+- The first verify run failed one new browser test. Another browser test adds a request to the
+  shared test database, so the count was 3, not 2. It also showed a real bug: the request kinds
+  came out in a random order. Both were fixed.
+- The independent auditor said **"VERDICT: DONE"** on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **Today**, the office's home page at `/office`, for admins and resourcers. One screen, so that
+  nothing is missed:
+  - **Urgent shifts**, with how the automatic offers are going: "Wave 2 · 4 offered · 0 accepted",
+    why they stopped ("nobody else can take it"), and whether the office was emailed.
+  - **Gaps in the next 7 days**: open shifts with places free, soonest first.
+  - **Cancelled in the last 24 hours**: who, which shift, how much notice they gave, and why.
+  - **Requests**: how many are waiting, and what kinds.
+  - **Credentials expiring this week**: whose licence or card runs out in the next 7 days.
+    Someone who has already renewed isn't listed.
+- **Quick actions** on each urgent shift and gap:
+  - **Offer to someone.** Opens a page listing who could take the shift, with the fewest hours
+    booked that week first, and a "Send offer" button for each. The list comes from the same
+    checks as every automatic offer: the booking rules, whether they want offers, whether
+    they've been offered it, and the 3-a-day limit unless it's urgent. The office chooses *who*,
+    never *whether the rules allow it*.
+  - **Mark urgent / Not urgent.** Marking starts the automatic offers.
+  - **Mark as filled.** For when the office filled it another way. Nobody else is offered it, and
+    "Open it again" undoes it.
+- **Payroll** users keep the plain dashboard; Today isn't their job.
+
+### What the safety review found (both fixed)
+
+- **A misleading message.** If an office offer failed to send, trying again said "Offer on its way"
+  but sent nothing. It can't be resent, because it may have arrived. The office now reads: "The
+  last offer to {name} couldn't be sent, so it isn't sent again. Contact them another way."
+- **The 3-a-day limit could be passed in a race.** Two offers to the same person at the same moment
+  could both see "2 today". Now each person's offer count is *locked* (only one sender at a time
+  can count and add) while an offer is written. A test runs two at once; without the lock it
+  failed every time.
+- **Smaller fixes:**
+  - a broken web address shows "not found" instead of an error;
+  - someone the office had placed on a shift is marked as having taken the offer;
+  - reopening an urgent shift restarts its offers.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Today lives at `/office`; `/office/today` redirects there | The dashboard "becomes Today" (screens doc), and logging in already lands there | Two pages showing the same thing |
+| Payroll doesn't see Today | Worker names and gaps aren't their job (least access) | Everyone in the office |
+| Gaps look 7 days ahead | Covers the weekend's event and tomorrow's early shifts | Today only |
+| No "wave 2 of 4" | Knowing the total means checking every worker on each page view | An estimate (could mislead) |
+| "Mark as filled" sets the shift to filled and stops offers | The screens already read "filled" as "no place left, or the office closed it"; no new column needed | Lowering the number of places (loses the original) |
+| Office offers stored with the office user and no wave number (a small database change) | They never clash with the automatic waves, and record who sent them | Wave number 0 as a marker |
+
+### What the new tests prove
+
+- `tests/integration/office.today.test.ts` (6 tests, real database):
+  - each section shows the right rows, and leaves out full, started, draft and cancelled shifts,
+    old cancellations, answered requests, renewed licences and inactive workers;
+  - more than 50 gaps says so;
+  - another firm's data never shows;
+  - payroll and other firms' sessions can't see it.
+- `tests/integration/office.quick-actions.test.ts` (10 tests):
+  - "Mark as filled" stops bookings, offers and the office email;
+  - "Open it again" works, and restarts offers for urgent shifts;
+  - a Google Sheet's shifts are refused;
+  - only active admins and resourcers.
+- `tests/integration/office.offer.test.ts` (17 tests):
+  - the exact message and push;
+  - text messages and the backup;
+  - never someone the rules, their settings or the daily limit leave out;
+  - the checks run again when the job runs;
+  - no double sends, quiet hours, the race, a failed send;
+  - office offers never disturb the automatic waves.
+- `tests/unit/office.today-view.test.ts` (7), `tests/unit/office.roles.test.ts` (2): the wording
+  and the page, and that "who sees Today" matches "who may change shifts".
+- `tests/e2e/office.today.spec.ts` (3 browser tests on the demo data): a resourcer sees every
+  section and offers a gap; `/office/today` opens Today; payroll can't.
+- The existing safety tests were extended on purpose. The offer boundary check now allows exactly
+  two ways to send offers, both through the checks and both taking the lock. The message-wording
+  test now covers the office offer.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm:**
+  - payroll doesn't see Today;
+  - what "Mark as filled" means (it doesn't say how it was filled);
+  - the office's text-message offer ends with the sign-off, which makes it 2 texts.
+- **Parked:**
+  - Today doesn't refresh by itself;
+  - no link from the requests line until the requests screen exists;
+  - one worker per "Send offer" click;
+  - a CSV re-import can reopen a closed shift;
+  - double clicks queue an extra (harmless) job;
+  - Google Sheet errors on Today;
+  - reopened shifts skip people offered it before.
+
+### How to see it working
+
+1. Run `npm run dev`.
+2. Open `http://acme.localhost:3000/office/login` and log in as `acme.resourcer@example.com`. The
+   login link appears in the terminal.
+3. Today shows the demo Saturday: the urgent dropout, the gaps, the dropout under "Cancelled", and
+   two requests.
+4. Try "Offer to someone" on a gap. The offer message prints in the terminal.

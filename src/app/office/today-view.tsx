@@ -1,0 +1,120 @@
+import type { TodayShift, TodayView } from "@/lib/office/today";
+import { placesText, requestsText, stoppedText, waveText } from "@/lib/office/today-copy";
+import { noticeText } from "@/lib/portal/cancel-reasons";
+import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
+import { dayLabel } from "@/lib/rules/reasons";
+import { ShiftActions } from "./shift-actions";
+
+// The office's Today view (docs/screens.md `/office/today`). Pure: the page loads the data.
+
+const section = "mt-8";
+const heading = "text-2xl font-bold";
+const card = "mt-3 rounded-xl border border-slate-300 p-4";
+
+function ShiftHeading({ shift, timeZone }: { shift: TodayShift; timeZone: string }) {
+  return (
+    <>
+      <p className="text-lg font-semibold">
+        {roleLabel(shift.role)}
+        {shift.site ? ` at ${shift.site}` : ""}
+      </p>
+      <p>{shiftWhen(shift.startsAt, shift.endsAt, timeZone)}</p>
+      <p>{placesText(shift.placesLeft, shift.headcount)}</p>
+    </>
+  );
+}
+
+export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) {
+  const tz = view.timeZone;
+  return (
+    <>
+      <section className={section} aria-labelledby="urgent">
+        <h2 id="urgent" className={heading}>
+          Urgent shifts
+        </h2>
+        {view.urgent.length === 0 ? (
+          <p className="mt-2">No urgent shifts.</p>
+        ) : (
+          view.urgent.map((u) => (
+            <article key={u.shiftId} className={card}>
+              <ShiftHeading shift={u} timeZone={tz} />
+              <p className="mt-2">{waveText(u)}</p>
+              {stoppedText(u) && <p>{stoppedText(u)}</p>}
+              {u.escalated && <p>The office was emailed about it.</p>}
+              <ShiftActions shiftId={u.shiftId} isUrgent fromSheet={u.fromSheet} />
+            </article>
+          ))
+        )}
+      </section>
+
+      <section className={section} aria-labelledby="gaps">
+        <h2 id="gaps" className={heading}>
+          Gaps in the next 7 days
+        </h2>
+        {view.gaps.length === 0 ? (
+          <p className="mt-2">No gaps in the next 7 days.</p>
+        ) : (
+          view.gaps.map((g) => (
+            <article key={g.shiftId} className={card}>
+              <ShiftHeading shift={g} timeZone={tz} />
+              <ShiftActions shiftId={g.shiftId} isUrgent={false} fromSheet={g.fromSheet} />
+            </article>
+          ))
+        )}
+        {view.gapsMore && <p className="mt-2">Showing the first 50.</p>}
+      </section>
+
+      <section className={section} aria-labelledby="cancelled">
+        <h2 id="cancelled" className={heading}>
+          Cancelled in the last 24 hours
+        </h2>
+        {view.cancellations.length === 0 ? (
+          <p className="mt-2">No cancellations in the last 24 hours.</p>
+        ) : (
+          <ul>
+            {view.cancellations.map((c) => (
+              <li key={c.assignmentId} className={card}>
+                <p className="font-semibold">
+                  {c.byFirm ? `The office cancelled ${c.worker}` : `${c.worker} cancelled`}
+                </p>
+                <p>
+                  {roleLabel(c.role)}
+                  {c.site ? ` at ${c.site}` : ""}, {shiftWhen(c.startsAt, c.endsAt, tz)}
+                </p>
+                <p>
+                  {noticeText(c.noticeHours).replace(/^./, (ch) => ch.toUpperCase())}. Recorded at{" "}
+                  {timeOnDay(c.cancelledAt, tz)}.
+                </p>
+                {c.reason && <p>Reason: {c.reason}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className={section} aria-labelledby="requests">
+        <h2 id="requests" className={heading}>
+          Requests
+        </h2>
+        <p className="mt-2">{requestsText(view.requests)}</p>
+      </section>
+
+      <section className={section} aria-labelledby="expiring">
+        <h2 id="expiring" className={heading}>
+          Credentials expiring this week
+        </h2>
+        {view.expiring.length === 0 ? (
+          <p className="mt-2">Nothing expires in the next 7 days.</p>
+        ) : (
+          <ul className="mt-2 list-disc pl-6">
+            {view.expiring.map((e, i) => (
+              <li key={`${e.worker}-${e.credential}-${i}`}>
+                {e.worker}: {e.credential}, expires {dayLabel(e.expiresOn)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}

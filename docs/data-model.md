@@ -37,7 +37,7 @@ architecture.md, Tenancy).
 | shifts | Site, role, start/end, headcount, urgent flag, source | 2 |
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed | 2 |
 | requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
-| offers | Each offer sent in a wave and the response (table Phase 2; sending Phase 4) | 2 |
+| offers | Each offer sent (in a wave, or by the office to one worker) and the response (table Phase 2; waves Phase 4; office offers Phase 5) | 2 |
 | shift_reminders | Each 24 h / 2 h reminder a booking got (sent, failed or skipped for quiet hours) | 4 |
 | messages | Every inbound/outbound message (WhatsApp, SMS, email, voice, portal) | 7 |
 | pay_records | Imported hours, rates, pay dates | 3 |
@@ -282,7 +282,8 @@ create table offers (
   firm_id uuid not null references firms(id),
   shift_id uuid not null,                -- (firm_id, shift_id) -> shifts
   worker_id uuid not null,               -- (firm_id, worker_id) -> workers
-  wave int not null,                     -- >= 1
+  wave int,                              -- >= 1: sent in a wave; null: sent by the office
+  offered_by uuid,                       -- (firm_id, offered_by) -> office_users; set exactly when wave is null
   channel text not null,                 -- push | whatsapp | sms
   sent_at timestamptz not null default now(),
   responded_at timestamptz,              -- set exactly when response is set
@@ -290,6 +291,8 @@ create table offers (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, shift_id, worker_id, wave) -- a retried offer-wave job (key shift:wave) sends nothing new
+  -- plus a unique index on (firm_id, shift_id, worker_id) where wave is null: one office offer
+  -- per worker per shift
 );
 
 -- Each shift reminder a booking got, or why not (src/lib/reminders/send.ts). Written before the
@@ -383,6 +386,8 @@ create table events (
   data jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
+-- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (Today's
+-- wave status, the action log by shift or worker).
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
 -- (recordEvent() refuses anything the log masker would change).

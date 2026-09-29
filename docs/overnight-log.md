@@ -1996,3 +1996,35 @@ demo logins table). The dev database is seeded with it.
 
 The dev database was recreated with `npm run db:reset` so it holds this version (a re-run
 never overwrites earlier seeded rows).
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=dec40ac0860376b2 e2e=true` (1545 tests, 20 e2e).
+`npm run build` run by hand: succeeds.
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preconditions: `.claude/state/verified.json` = `{"ok":true,"tree":"dec40ac0860376b2","e2e":true,...}`; `./.claude/hooks/tree-hash.sh` = `dec40ac0860376b2` — matches. RUN_E2E=1 was used (`e2e:true`), and `.claude/state/e2e.log` shows a real Playwright run (20/20 passed), including `login.worker.spec.ts` and `pay.worker.spec.ts`, both of which were changed for this task.
+
+Claims (task: "Demo seed: Acme's Saturday event day with an urgent dropout", `docs/testing.md`):
+- 40 shifts, 3 sites, correct roles/times/instructions — PROVEN — `src/lib/db/admin/seed-saturday.ts:87-232` (PLAN table sums to 40); `tests/unit/seed.saturday.test.ts:26-38`; `tests/integration/seed.test.ts` "is the next Saturday, with 40 shifts..." (test.log:287).
+- 32 booked / 8 open, only rule-eligible workers, 5 free demo workers untouched — PROVEN — `seed-saturday.ts:201-232`; integration test "books only workers the rules allow..." actually calls the real `previewBooking` for all 32 bookings plus the dropout (test.log:289).
+- Urgent dropout: worker 37 booked 3 days prior, cancelled 06:00 (or seed time if earlier), reopened + `isUrgent`, link printed — PROVEN — `seed-saturday.ts:234-250`; `scripts/seed.ts` diff prints `http://acme.localhost:3000/shifts/<id>`; unit tests "before 6am, the dropout is recorded as just now" and integration test "has the urgent dropout..." (test.log:288, 970).
+- Two open requests (time change, swap) from booked workers — PROVEN — `seed-saturday.ts:252-276`; integration test "has two open requests..." (test.log:290).
+- Pay: 1–8 lines/worker over last 8 complete weeks at correct rates (£13.00/£14.50/£13.50) — PROVEN — `seed-saturday.ts:278-301`; unit test (test.log:973) and integration test (test.log:291); e2e `pay.worker.spec.ts` diff checks exact seeded lines against the real page.
+- Action log entries (shift.created×40, shift.assigned×33, shift.cancelled×1, request.created×2), dated when seed ran; shifts dated a week earlier — PROVEN — `seed.ts` `loadSaturday()`; integration test "logs the day as the app would..." (test.log:292), which asserts exact per-action counts and that every booking postdates its shift.
+- Idempotent, never undoes demo progress; re-run of `db:seed` adds nothing new — PROVEN — `onConflictDoNothing` + "fresh shift ids only" gating in `seed.ts`; `tests/integration/seed.test.ts` snapshot() now covers shifts/assignments/requests/pay_records/roster_events (test.log:275); "a free worker can see and take one of the open shifts" re-runs the seed after a live booking and confirms it survives (test.log:293).
+- Demo logins table (100-104, 105, 125-129, 130-136, 137) matches actual seeded role/credential/booking assignments — PROVEN — cross-checked `seed-data.ts` role/credential ranges (i<25 steward, i<45 door_supervisor+steward, 25-29 expired SIA, 45-47 applied) against the PLAN's booked arrays; all consistent.
+
+Fakes found: none. No `.only`/`.skip`/`.todo` (`invariants.log`: "ok: no .only/.skip/.todo in tests"), no TODO/not-implemented in touched files, tests hit real DB/rules code (`previewBooking`, `openShiftsFor`, `takeShift`), not mocks. `invariants.log` also confirms 1545/1545 tests passed, 0 skipped.
+
+To reach DONE: nothing — this task's claims are all PROVEN on the current (matching) tree.
+
+Note for context only (not this task): PLAN.md's Phase 3 "Done when" line also depends on the next, still-unchecked line "Playwright: login → take shift → cancel → request → pay OTP" (PLAN.md:145), which is a separate task and out of scope here.
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.5 (02:29 to 02:57 UTC). Phase 3 so far: 4.4 h of its 35–45 h
+estimate.
+**Commit:** `9072efc`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).

@@ -7,6 +7,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { INBOUND_MESSAGE_QUEUE } from "@/lib/inbound/job";
 import { receiveWhatsApp } from "@/lib/inbound/receive";
 import { runInboundMessage } from "@/lib/inbound/reply";
+import { loadToday } from "@/lib/office/today";
 import { twilioSignature } from "@/lib/inbound/twilio-signature";
 import { handleTwilioWhatsApp, MAX_WEBHOOK_BYTES } from "@/lib/inbound/webhook";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
@@ -404,7 +405,7 @@ describe("replying (the inbound-message job)", () => {
     expect(onlyBody(sent).join(" ")).not.toContain("£40");
   });
 
-  it("a photo with no text goes to the office; a sender who isn't a worker (or has left) gets no reply here", async () => {
+  it("a photo with no text goes to the office", async () => {
     const t = await lineFirm();
     const { transport, sent } = captureTransport();
     await run(await t.incoming(null), transport);
@@ -414,20 +415,235 @@ describe("replying (the inbound-message job)", () => {
       [t.f.firmId],
     );
     expect(rows.map((r) => r.note)).toEqual(["(A photo or file, with no text.)"]);
+  });
 
-    expect(await run(await t.incoming("shifts", "+447700900998"), transport)).toEqual({
+  it("a number we don't know: the polite reply from the firm's line, and the office's admins and resourcers emailed (no number, no message); shown on Today", async () => {
+    const t = await lineFirm();
+    const admin = await t.f.office("admin");
+    const resourcer = await t.f.office("resourcer");
+    await t.f.office("payroll");
+    await t.f.office("admin", "disabled");
+    const emailOf = async (id: string) =>
+      (await su.query<{ email: string }>("select email from office_users where id = $1", [id]))
+        .rows[0]?.email;
+    const stranger = "+447700900998";
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.incoming("Hi, it's Sam, new phone", stranger), transport)).toEqual({
       status: "unknown_sender",
+      reply: "sent",
+      alerted: 2,
     });
+    const whatsapps = sent.filter((m) => m.channel === "whatsapp");
+    expect(whatsapps).toEqual([
+      {
+        channel: "whatsapp",
+        to: stranger,
+        from: t.line,
+        body: `Thanks for your message. We don't recognise this number. If you work with ${t.name}, reply with your full name and the office will get back to you. — ${t.name} Shift Team`,
+      },
+    ]);
+    const emails = sent.filter(
+      (m): m is Extract<OutboundMessage, { channel: "email" }> => m.channel === "email",
+    );
+    expect(emails.map((m) => m.to).sort()).toEqual(
+      [await emailOf(admin), await emailOf(resourcer)].sort(),
+    );
+    expect(emails[0]?.subject).toBe(`${t.name}: a message from a number we don't know`);
+    expect(emails[0]?.body).toContain(
+      `See the message on the office dashboard: https://${t.slug}.shiftdesk.test/office`,
+    );
+    expect(emails[0]?.body).not.toContain("900998");
+    expect(emails[0]?.body).not.toContain("Sam");
+    // The reply is stored; the log has labels and counts only.
+    expect((await t.messageRows()).map((r) => [r.direction, r.handled_as, r.worker_id])).toEqual([
+      ["in", "unknown", null],
+      ["out", null, null],
+    ]);
+    const logged = await t.eventsOf("message.%");
+    expect(logged.map((e) => [e.action, e.data])).toEqual([
+      [
+        "message.received",
+        { channel: "whatsapp", handledAs: "unknown", repeat: false, formerWorker: false },
+      ],
+      [
+        "message.replied",
+        { channel: "whatsapp", reply: "unknown_number", replyId: expect.any(String) },
+      ],
+      [
+        "message.office_alerted",
+        { reason: "unknown_number", recipients: 2, failed: 0, skipped: 0 },
+      ],
+    ]);
+    expect(JSON.stringify(logged)).not.toMatch(/900998|Sam/);
+    // Today shows it to the office.
+    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
+    expect(today.unknownMessages).toEqual([
+      {
+        messageId: expect.any(String),
+        from: stranger,
+        text: "Hi, it's Sam, new phone",
+        receivedAt: expect.any(Date),
+        formerWorker: null,
+        formerWorkerActive: false,
+      },
+    ]);
+  });
+
+  it("from the same number again within 24 hours: stored and on Today, but no second reply or email (no loops)", async () => {
+    const t = await lineFirm();
+    await t.f.office("admin");
+    const stranger = "+447700900997";
+    const { transport, sent } = captureTransport();
+    await run(await t.incoming("hello?", stranger), transport);
+    const before = sent.length;
+    expect(await run(await t.incoming("Sam Smith", stranger), transport)).toEqual({
+      status: "unknown_sender",
+      reply: "none",
+      alerted: 0,
+    });
+    expect(sent).toHaveLength(before);
+    expect((await t.eventsOf("message.received")).at(-1)?.data).toMatchObject({ repeat: true });
+    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
+    expect(today.unknownMessages.map((u) => u.text)).toEqual(["Sam Smith", "hello?"]);
+    // Another number is its own first message.
+    expect(await run(await t.incoming("hi", "+447700900996"), transport)).toMatchObject({
+      reply: "sent",
+      alerted: 1,
+    });
+  });
+
+  it("a worker who has left: no 'we don't recognise this number'; the office is alerted, and Today names them", async () => {
+    const t = await lineFirm();
+    await t.f.office("resourcer");
     await su.query("update workers set status = 'inactive' where id = $1", [t.ann]);
-    expect(await run(await t.incoming("shifts"), transport)).toEqual({ status: "unknown_sender" });
-    expect(sent).toHaveLength(1);
-    expect(
-      (await t.messageRows()).filter((r) => r.handled_as === "unknown").map((r) => r.worker_id),
-    ).toEqual([null, null]);
-    expect((await t.eventsOf("message.received")).at(-1)).toMatchObject({
-      actor_type: "system",
-      data: { channel: "whatsapp", handledAs: "unknown" },
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.incoming("shifts"), transport)).toEqual({
+      status: "unknown_sender",
+      reply: "none",
+      alerted: 1,
     });
+    expect(sent.map((m) => m.channel)).toEqual(["email"]);
+    expect((await t.messageRows())[0]).toMatchObject({ handled_as: "unknown", worker_id: t.ann });
+    expect((await t.eventsOf("message.office_alerted"))[0]?.data).toMatchObject({
+      reason: "former_worker",
+    });
+    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
+    expect(today.unknownMessages[0]?.formerWorker).toBe(`Ann Booker`);
+  });
+
+  it("two messages from one stranger handled at once: one reply and one set of emails", async () => {
+    const t = await lineFirm();
+    await t.f.office("admin");
+    const stranger = "+447700900989";
+    const [one, two] = [await t.incoming("hello", stranger), await t.incoming("anyone?", stranger)];
+    const { transport, sent } = captureTransport();
+    // The first run's claim holds its transaction open for a moment after deciding (as a slow
+    // commit would); the second starts inside that moment. Without the per-number lock the second
+    // wouldn't see the first's claim and would answer too.
+    let claimed = () => {};
+    const firstClaimed = new Promise<void>((resolve) => (claimed = resolve));
+    let calls = 0;
+    const slowCommit: WithFirm = (firmId, fn) =>
+      withFirm(firmId, async (tx) => {
+        const result = await fn(tx);
+        calls += 1;
+        if (calls === 2) {
+          claimed();
+          await new Promise((r) => setTimeout(r, 300));
+        }
+        return result;
+      });
+    const first = runInboundMessage(
+      one as Parameters<typeof runInboundMessage>[0],
+      slowCommit,
+      replyDeps(transport),
+    );
+    await firstClaimed;
+    const second = run(two, transport);
+    const results = await Promise.all([first, second]);
+    expect(results.map((r) => ("reply" in r ? r.reply : r.status))).toEqual(["sent", "none"]);
+    expect(sent.map((m) => m.channel).sort()).toEqual(["email", "whatsapp"]);
+  });
+
+  it("at most one reply and one alert in any 24 hours, counted from the last one answered", async () => {
+    const t = await lineFirm();
+    await t.f.office("admin");
+    const stranger = "+447700900988";
+    const { transport, sent } = captureTransport();
+    await run(await t.incoming("hello", stranger), transport);
+    // A day and a bit later (the first one's answer moved back 25 hours): answered again.
+    await su.query(
+      `update events set created_at = now() - interval '25 hours'
+        where firm_id = $1 and action = 'message.received'`,
+      [t.f.firmId],
+    );
+    expect(await run(await t.incoming("hello again", stranger), transport)).toMatchObject({
+      reply: "sent",
+      alerted: 1,
+    });
+    expect(sent.filter((m) => m.channel === "whatsapp")).toHaveLength(2);
+  });
+
+  it("other firms: a worker there is a stranger here; a stranger's message there doesn't make one here a repeat", async () => {
+    const t = await lineFirm();
+    const other = await lineFirm();
+    await t.f.office("admin");
+    const { transport, sent } = captureTransport();
+    // Ann at the other firm (an active worker there) writes to this firm's line.
+    expect(await run(await t.incoming("shifts", other.mobile), transport)).toEqual({
+      status: "unknown_sender",
+      reply: "sent",
+      alerted: 1,
+    });
+    expect((await t.messageRows())[0]).toMatchObject({ handled_as: "unknown", worker_id: null });
+    // A stranger writes to the other firm first, then here: here it's still their first.
+    const stranger = "+447700900987";
+    await run(await other.incoming("hi", stranger), transport);
+    const before = sent.filter((m) => m.channel === "whatsapp").length;
+    expect(await run(await t.incoming("hi", stranger), transport)).toMatchObject({
+      reply: "sent",
+    });
+    expect(sent.filter((m) => m.channel === "whatsapp")).toHaveLength(before + 1);
+  });
+
+  it("a failed reply or failed emails are logged, never retried; no office user to email is fine", async () => {
+    const t = await lineFirm();
+    const broken: MessagingTransport = {
+      name: "broken",
+      send: async () => {
+        throw new Error("provider down");
+      },
+    };
+    // Nobody in the office: the reply still goes, nobody is emailed, and the log says so.
+    const { transport, sent } = captureTransport();
+    expect(await run(await t.incoming("hi", "+447700900995"), transport)).toEqual({
+      status: "unknown_sender",
+      reply: "sent",
+      alerted: 0,
+    });
+    expect(sent.map((m) => m.channel)).toEqual(["whatsapp"]);
+    expect(await t.eventsOf("message.office_alert%")).toEqual([
+      expect.objectContaining({
+        action: "message.office_alert_skipped",
+        data: { reason: "unknown_number", skipped: 0 },
+      }),
+    ]);
+    await t.f.office("admin");
+    const job = await t.incoming("hi", "+447700900994");
+    expect(await run(job, broken)).toEqual({
+      status: "unknown_sender",
+      reply: "failed",
+      alerted: 0,
+    });
+    expect(await run(job, transport)).toEqual({ status: "already" });
+    const failures = (await t.eventsOf("message.%_failed")).map((e) => [e.action, e.data]);
+    expect(failures).toEqual([
+      ["message.reply_failed", { channel: "whatsapp", reply: "unknown_number", code: "Error" }],
+      [
+        "message.office_alert_failed",
+        { reason: "unknown_number", recipients: 0, failed: 1, skipped: 0 },
+      ],
+    ]);
   });
 
   it("at most once: a second run does nothing; a failed send is logged and never retried", async () => {

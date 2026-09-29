@@ -129,11 +129,19 @@ describe("AI never answers a dispute", () => {
       .map(rel);
     expect(importers).toEqual(["src/worker/jobs/index.ts"]);
     const reply = readFileSync(join(SRC, "lib/inbound/reply.ts"), "utf8");
-    // The one message it sends carries `replyText`, and `replyText` is shiftsLineReply()'s answer.
+    // Every message it sends is one of the app's fixed texts: the worker's reply (`replyText`, which is
+    // shiftsLineReply()'s answer), the polite reply to a number we don't know (`plan.reply`, from
+    // unknownNumberMessage()) and the office's alert email (unknownNumberAlertEmail()).
     expect(reply.match(/transport\.send\(\{[\s\S]*?\}\)/g)).toEqual([
       expect.stringMatching(/body: replyText,/),
+      expect.stringMatching(/body: plan\.reply,/),
+      expect.stringMatching(/\.\.\.email \}/),
     ]);
     expect(reply).toMatch(/return shiftsLineReply\(/);
+    expect(reply).toMatch(
+      /reply: c\.formerWorkerId === null \? unknownNumberMessage\(c\.firm\) : null/,
+    );
+    expect(reply).toMatch(/const email = unknownNumberAlertEmail\(/);
     // The AI's answer is only ever a label: classifyMessage() returns an intent or null.
     const classify = readFileSync(join(SRC, "lib/ai/classify-message.ts"), "utf8");
     expect(classify).toMatch(/Promise<Intent \| null>/);

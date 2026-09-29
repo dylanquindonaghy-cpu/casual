@@ -22,10 +22,14 @@ import { addDays, localDateOf } from "../time/zoned";
 // - requests: open requests (and escalated ones) by kind.
 // - expiring: credentials of active workers expiring in the next 7 days (the firm's calendar),
 //   leaving out one the worker has already renewed.
+// - unknownMessages: WhatsApps on the shifts line in the last 7 days from numbers that aren't one of
+//   the firm's active workers, newest first: the number, their words, when, and the name when the
+//   number is a former worker's (Phase 7; the office was emailed about the first from each number).
 // At most 50 in each list; `more` says there were others.
 
 export const TODAY_GAP_DAYS = 7;
 export const TODAY_MARK_DAYS = 7; // "Who worked?" looks back this far
+export const TODAY_UNKNOWN_DAYS = 7; // messages from numbers we don't know
 const LIST_MAX = 50;
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 
@@ -81,6 +85,15 @@ export interface TodayExpiry {
   expiresOn: string; // yyyy-mm-dd
 }
 
+export interface TodayUnknownMessage {
+  messageId: string;
+  from: string; // E.164
+  text: string | null; // null: a photo or file with no text
+  receivedAt: Date;
+  formerWorker: string | null; // "Ann Booker", when the number was a worker's who wasn't active
+  formerWorkerActive: boolean; // they've been made active again since
+}
+
 export interface TodayView {
   officeUser: { id: string; name: string; role: OfficeRole };
   timeZone: string;
@@ -92,6 +105,8 @@ export interface TodayView {
   toMarkMore: boolean; // more than the list shows
   requests: { total: number; byType: Partial<Record<(typeof REQUEST_TYPES)[number], number>> };
   expiring: TodayExpiry[];
+  unknownMessages: TodayUnknownMessage[];
+  unknownMore: boolean;
 }
 
 type ShiftRow = {
@@ -281,6 +296,25 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
      limit ${LIST_MAX}
   `);
 
+  const { rows: unknown } = await tx.execute<{
+    id: string;
+    from_e164: string;
+    body: string | null;
+    created_at: string | Date;
+    first_name: string | null;
+    last_name: string | null;
+    worker_status: string | null;
+  }>(sql`
+    select m.id, m.from_e164, m.body, m.created_at, w.first_name, w.last_name,
+           w.status as worker_status
+      from messages m
+      left join workers w on w.firm_id = m.firm_id and w.id = m.worker_id
+     where m.direction = 'in' and m.handled_as = 'unknown'
+       and m.created_at > ${new Date(now.getTime() - TODAY_UNKNOWN_DAYS * 86_400_000)}
+     order by m.created_at desc, m.id
+     limit ${LIST_MAX + 1}
+  `);
+
   return {
     timeZone,
     urgent,
@@ -313,6 +347,15 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
       worker: `${e.first_name} ${e.last_name}`,
       credential: e.type_name ?? e.type.replace(/_/g, " "),
       expiresOn: e.expires_on,
+    })),
+    unknownMore: unknown.length > LIST_MAX,
+    unknownMessages: unknown.slice(0, LIST_MAX).map((u) => ({
+      messageId: u.id,
+      from: u.from_e164,
+      text: u.body,
+      receivedAt: new Date(u.created_at),
+      formerWorker: u.first_name !== null ? `${u.first_name} ${u.last_name}` : null,
+      formerWorkerActive: u.worker_status === "active",
     })),
   };
 }

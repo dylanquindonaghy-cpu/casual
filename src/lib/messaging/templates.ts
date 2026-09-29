@@ -242,6 +242,31 @@ export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string
   return `${text} — ${firm.signOff}`;
 }
 
+// unknown_number (WhatsApp, a service reply within 24 hours of their message): someone messaged the
+// shifts line from a number that isn't any worker's here (src/lib/inbound/reply.ts). At most once
+// per number per 24 hours.
+export function unknownNumberMessage(firm: FirmVoice): string {
+  return `Thanks for your message. We don't recognise this number. If you work with ${firm.name}, reply with your full name and the office will get back to you. — ${firm.signOff}`;
+}
+
+// unknown_number_alert (email to the office's active admins and resourcers): a message on the
+// shifts line from a number that isn't one of the firm's active staff. Neither the number nor the
+// message is in the email (previews, forwards): they're on the office dashboard.
+export function unknownNumberAlertEmail(
+  firm: FirmVoice,
+  link: string, // the office dashboard
+): { subject: string; body: string } {
+  return {
+    subject: `${firm.name}: a message from a number we don't know`,
+    body: [
+      "Someone messaged the shifts line from a number that isn't one of your active staff.",
+      "If it's a number we don't have at all, we asked them for their full name.",
+      `See the message on the office dashboard: ${link}`,
+      `— ${firm.signOff}`,
+    ].join("\n\n"),
+  };
+}
+
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
 // or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
 export function shiftReminder24hMessage(

@@ -64,7 +64,7 @@ it.
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
 | (screen only: My shifts banner) | — | "Your {credential} is marked as expired. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" (the banner otherwise uses `credential_expiring` and `credential_expired` word for word) |
 | `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" ({status} is "sorted"; {note} is payroll's note on one line, always written by a person, never by AI. Sent to each worker when payroll marks their query sorted, `src/lib/notices/pay-query-update.ts`; quiet hours hold it) |
-| `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" |
+| `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" (built in Phase 7, `unknownNumberMessage()`: a WhatsApp to the shifts line from a number no worker here has; only the first from that number in 24 hours; from the firm's line. A former worker's number gets no reply: the office is alerted) |
 
 ## Submitting to Meta
 
@@ -148,8 +148,15 @@ take open shifts or cancel straight away. To leave a message for the office, spe
   {Role} at {site}, {Sat 7 Nov, 08:00 to 16:00}"; body "The {role} shift at {site}, {when}, still
   has {n place(s)} free." / "{k offer(s)} sent, none accepted for the free place(s)." / "Open the
   office dashboard: {link}" / "— {firm} Shift Team". To active admins and resourcers.
-- Unknown number message, failed Sheets sync, domain verified/failed, credential expiries (weekly),
-  pay digest (per schedule, below).
+- Unknown number message (below), failed Sheets sync, domain verified/failed, credential expiries
+  (weekly), pay digest (per schedule, below).
+- `unknown_number_alert` (email, to active admins and resourcers, built in Phase 7,
+  `unknownNumberAlertEmail()`: the first WhatsApp in 24 hours from a number that isn't one of the
+  firm's active staff): subject "{firm}: a message from a number we don't know"; body "Someone
+  messaged the shifts line from a number that isn't one of your active staff." / "If it's a number
+  we don't have at all, we asked them for their full name." / "See the message on the office
+  dashboard: {link}" / "— {firm} Shift Team". Neither the number nor the message is in the email
+  (previews, forwards): they're on Today, "Messages from numbers we don't know".
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
   days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these

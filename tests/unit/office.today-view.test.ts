@@ -120,6 +120,8 @@ describe("the page", async () => {
     toMarkMore: false,
     requests: { total: 0, byType: {} },
     expiring: [],
+    unknownMessages: [],
+    unknownMore: false,
   };
   const text = (view: Omit<TodayView, "officeUser">) =>
     renderToStaticMarkup(createElement(TodayContent, { view })).replace(/<[^>]+>/g, " ");
@@ -133,9 +135,54 @@ describe("the page", async () => {
       "Nothing to mark from the last 7 days.",
       "No requests waiting.",
       "Nothing expires in the next 7 days.",
+      "None in the last 7 days.",
     ]) {
       expect(page).toContain(line);
     }
+  });
+
+  it("messages from numbers we don't know: the number, their words, when; a former worker named", () => {
+    const html = text({
+      ...empty,
+      unknownMessages: [
+        {
+          messageId: "m1",
+          from: "+447700900998",
+          text: "Hi, it's Sam, new phone",
+          receivedAt: new Date("2026-11-02T09:14:00Z"),
+          formerWorker: null,
+          formerWorkerActive: false,
+        },
+        {
+          messageId: "m2",
+          from: "+447700900997",
+          text: null,
+          receivedAt: new Date("2026-11-01T18:30:00Z"),
+          formerWorker: "Ann Booker",
+          formerWorkerActive: false,
+        },
+        {
+          messageId: "m3",
+          from: "+447700900996",
+          text: `${"x".repeat(300)}HIDDEN`,
+          receivedAt: new Date("2026-11-01T08:00:00Z"),
+          formerWorker: "Ben Booker",
+          formerWorkerActive: true,
+        },
+      ],
+      unknownMore: true,
+    });
+    const page = html.replace(/&#x27;/g, "'"); // apostrophes arrive HTML-escaped
+    expect(page).toContain("Messages from numbers we don't know");
+    expect(page).toContain("+44 7700 900998 · 09:14 on Mon 2 Nov");
+    expect(page).toContain("“Hi, it's Sam, new phone”");
+    expect(page).toContain("+44 7700 900997 (Ann Booker, not active) · 18:30 on Sun 1 Nov");
+    expect(page).toContain("(A photo or file, with no text.)");
+    expect(page).toContain("Showing the newest 50.");
+    // Made active again since: named, not called inactive. A long message shows its start.
+    expect(page).toContain("+44 7700 900996 (Ben Booker) · 08:00 on Sun 1 Nov");
+    expect(page).toContain(`“${"x".repeat(300)}…”`);
+    expect(page).not.toContain("HIDDEN");
   });
 
   it("shows each item with its facts and quick actions", () => {

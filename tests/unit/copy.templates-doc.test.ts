@@ -27,6 +27,8 @@ import {
   shiftsLineReply,
   shiftUrgentMessage,
   shiftUrgentSms,
+  unknownNumberAlertEmail,
+  unknownNumberMessage,
   urgentPush,
 } from "@/lib/messaging/templates";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
@@ -129,12 +131,12 @@ describe("the doc's templates table", () => {
     "shift_cancelled_by_firm",
     "request_update",
     "pay_query_update",
+    "unknown_number",
   ];
   const NOT_BUILT: Record<string, string> = {
     shift_filled: "a reply to an offer: inbound WhatsApp (Phase 7)",
     shift_confirmed: "booking confirmations are on screen; by message with notify (parked)",
     cancellation_ack: "cancellation confirmations are on screen; by message with notify (parked)",
-    unknown_number: "a service reply to an inbound message (Phase 7)",
   };
   it("every template is built or waiting for a named task", () => {
     expect([...TEMPLATES.keys()].sort()).toEqual([...BUILT, ...Object.keys(NOT_BUILT)].sort());
@@ -196,6 +198,16 @@ describe("the code says what the doc says", () => {
     expect(requestUpdateMessage(docVoice, { ...request, note: null })).toBe(
       docBody("request_update").replace(" The office says: {note}", ""),
     );
+  });
+
+  it("unknown_number, and the office's alert email (subject, and the body's words)", () => {
+    expect(unknownNumberMessage(docVoice)).toBe(docBody("unknown_number"));
+    const office = section("Office notifications");
+    const [subject, ...body] = quotes(office, "`unknown_number_alert`");
+    const email = unknownNumberAlertEmail(docVoice, "{link}");
+    expect(email.subject).toBe(subject);
+    // The doc's quotes in order, without the Today section's name (the bullet's last quote).
+    expect(words(email.body)).toEqual(words(body.slice(0, -1).join(" ")));
   });
 
   it("the shifts line's instant replies: each row's words, signed", () => {
@@ -550,6 +562,8 @@ describe("every template function is checked here", () => {
         "shiftReminder2hMessage",
         "shiftUrgentMessage",
         "shiftUrgentSms",
+        "unknownNumberAlertEmail",
+        "unknownNumberMessage",
         "urgentPush",
       ].sort(),
     );

@@ -10,9 +10,13 @@ import {
 import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { dayLabel } from "@/lib/rules/reasons";
+import { lineWords } from "@/lib/tenancy/shifts-line";
 import { ShiftActions } from "./shift-actions";
 
 // The office's Today view (docs/screens.md `/office/today`). Pure: the page loads the data.
+
+// A message from a number we don't know shows its first 300 characters (the rest is stored).
+const UNKNOWN_TEXT_MAX = 300;
 
 const section = "mt-8";
 const heading = "text-2xl font-bold";
@@ -134,6 +138,35 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
         <Link href="/office/requests" className="mt-1 inline-block underline">
           See requests
         </Link>
+      </section>
+
+      <section className={section} aria-labelledby="unknown">
+        <h2 id="unknown" className={heading}>
+          Messages from numbers we don&apos;t know
+        </h2>
+        {view.unknownMessages.length === 0 ? (
+          <p className="mt-2">None in the last 7 days.</p>
+        ) : (
+          <ul className="mt-2 divide-y">
+            {view.unknownMessages.map((u) => (
+              <li key={u.messageId} className="py-2">
+                <p className="font-semibold">
+                  {lineWords(u.from)}
+                  {u.formerWorker
+                    ? ` (${u.formerWorker}${u.formerWorkerActive ? "" : ", not active"})`
+                    : ""}{" "}
+                  · {timeOnDay(u.receivedAt, view.timeZone)}
+                </p>
+                <p>
+                  {u.text
+                    ? `“${u.text.length > UNKNOWN_TEXT_MAX ? `${u.text.slice(0, UNKNOWN_TEXT_MAX)}…` : u.text}”`
+                    : "(A photo or file, with no text.)"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+        {view.unknownMore && <p className="mt-2">Showing the newest 50.</p>}
       </section>
 
       <section className={section} aria-labelledby="expiring">

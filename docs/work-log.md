@@ -5354,3 +5354,98 @@ Real WhatsApps need Twilio. The browser test shows the whole path:
 `npx playwright test tests/e2e/whatsapp.inbound.spec.ts` (stop `npm run dev` first). It posts a
 signed message to the webhook and checks the reply in `.dev/e2e-outbox.jsonl`: "Open shifts you're
 eligible for: http://acme.localhost:3100/shifts/open — Acme Events Shift Team".
+
+## 2026-09-29: Phase 7, task 3: Messages from numbers we don't know (0.5 h, BLOCKED)
+
+### Time
+
+0.5 hours of Claude's working time (17:45 to 18:14 UTC), in the unattended overnight loop.
+Phase 7 so far: 1.8 of its 15 to 20 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** What sets this off is a real WhatsApp arriving, and the reply goes from
+  the firm's own number: both need Twilio, an outside service tonight's rules don't allow. The last
+  two tasks were recorded the same way, so this one is too. Everything short of Twilio is built,
+  verified and committed. "Connect Twilio" step 9 says how to check it and to tick it then.
+- `scripts/verify.sh` printed `VERIFIED tree=0f57d531044375ba e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2356 tests (up from 2344);
+  - the 41 browser tests (up from 40);
+  - the rule checks.
+- The guardrails review found 4 things to fix first; all are done (below). No auditor round (a
+  blocked task can't be ticked).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+When someone messages a firm's shifts line from a number that isn't one of its active workers:
+- **A stranger** (a number nobody at the firm has) gets the reply the message doc sets out:
+  "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with
+  your full name and the office will get back to you. — {firm} Shift Team", from the firm's number.
+- **A former worker** (their number is on file, but they're not active) gets no reply: "we don't
+  recognise this number" wouldn't be true. The office decides what to say.
+- **The office is told.** Its active admins and resourcers get an email: "{firm}: a message from a
+  number we don't know", pointing to the office dashboard. The email doesn't contain the number or
+  the message (email previews and forwards spread personal data); those are on Today.
+- **Today** has a new list, "Messages from numbers we don't know": the number, what they wrote (the
+  first 300 characters), when, and the name if it was a former worker's number.
+- **No loops.** A number gets at most one reply and one office email in any 24 hours. Without this,
+  an automatic "away" reply or another bot could bounce messages back and forth for ever, and the
+  office would get an email for every one. Later messages are still kept and shown on Today.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | Set off by a real WhatsApp, replies from the firm's number: both need Twilio (like the last two tasks) | Tick with the console messenger |
+| One reply and one email per number in any 24 hours | Stops loops with other bots; one email for the office, not one per message | Reply to every message |
+| No number or message in the email | Email previews and forwards; the office sees them on Today | Put the message in the email |
+| A former worker gets no "we don't recognise this number" | It isn't true; the office decides | The same reply as a stranger |
+| Admins and resourcers are told | They handle staff; payroll doesn't | Everyone in the office |
+
+### What the review caught
+
+- **Two messages at the same moment.** If one stranger sent two messages that were handled at the
+  same time, both could have been treated as "the first", so both would get a reply and the office
+  two emails. It only worked because the queue happens to run one job at a time. Now a lock (a
+  database "one at a time" rule for that number) makes the second wait for the first. I checked the
+  new test really catches it: with the lock removed it fails, with it it passes.
+- **A false log line.** With nobody in the office to email, the log said "The office was emailed …
+  (0 people)". Now it says nobody could be emailed.
+- **Tests across firms**: a worker at one firm writing to another firm's number is a stranger
+  there; a stranger's message at one firm doesn't count at another; Today never shows another
+  firm's messages.
+- **Smaller fixes**: the 24 hours now count from the last message that was answered (so someone
+  writing every day gets one reply a day, not none); a worker made active again isn't called "not
+  active" on Today; long messages are shortened on Today; the browser test uses a different number
+  each try.
+
+### What the new tests prove
+
+- `tests/integration/inbound.whatsapp.test.ts` (6 new tests, 19 in all, on the real database): the
+  polite reply from the firm's number and the office's emails (to admins and resourcers, not payroll
+  or disabled users; no number or message in them); the log holds labels and counts only; Today
+  shows the message; a second message within 24 hours gets no reply or email but shows on Today; a
+  former worker gets no reply, the office is told, Today names them; failed sends are logged and not
+  retried; nobody to email is logged as such; two messages at once get one reply; the 24 hours count
+  from the last answered message; other firms don't mix.
+- `tests/unit/office.today-view.test.ts`: the new Today list, a former worker, someone active again,
+  a long message, and "None in the last 7 days."
+- `tests/unit/copy.templates-doc.test.ts`: the reply and the email match the message doc.
+- The browser test: a WhatsApp from an unknown number gets the polite reply; the office's email
+  arrives; an admin logs in and sees the message on Today.
+
+### Parked, open, and things that need Dylan
+
+- **Connect Twilio step 9** (now also checks this), then tick this task.
+- **Dylan to confirm**: no reply to former workers; the doc's "reply with your full name" for
+  strangers; one reply and one email per number per 24 hours.
+- From Today, adding the number to a worker (a new phone) or marking it done; a cap when many
+  different numbers write at once.
+
+### How to see it working
+
+`npx playwright test tests/e2e/whatsapp.inbound.spec.ts` (stop `npm run dev` first): the second test
+posts a WhatsApp from a made-up number, checks the polite reply and the office email in
+`.dev/e2e-outbox.jsonl`, and logs in as an admin to see the message on Today.

@@ -71,6 +71,9 @@ export const LOG_TYPES = {
       "message.received",
       "message.replied",
       "message.reply_failed",
+      "message.office_alerted",
+      "message.office_alert_failed",
+      "message.office_alert_skipped",
     ],
   },
   requests: {

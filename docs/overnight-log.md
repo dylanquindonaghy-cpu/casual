@@ -4620,3 +4620,73 @@ Next steps are Dylan's: "Connect Twilio" step 9 and "Connect Bedrock".
 `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
 
 **Hours:** 0.7 h (17:02 to 17:42 UTC). Phase 7 so far 1.3 h of its 15–20 h estimate.
+
+## 2026-09-29 17:44 UTC: Phase 7, "Unknown number → polite reply + office alert"
+
+**Not blocked (I think):** like every sender so far, the reply goes through the messaging
+transport (console until Twilio is connected, as ticked tasks before it) and the office alert is an
+email through the same transport plus a list on Today. It builds on the webhook and reply job from
+the last task (itself blocked only on its AI step). The auditor decides.
+
+**Plan:**
+
+1. **The reply job** (`src/lib/inbound/reply.ts`), when the sender isn't one of the firm's active
+   workers, in the claim transaction (message locked, marked `unknown`):
+   - **The first message from that number in 24 hours** gets the polite reply and alerts the
+     office; later ones are stored and shown on Today, no reply and no alert (a bot or an
+     auto-reply would otherwise loop, and the office would get an email per message).
+   - **A number nobody here has**: `unknown_number` from the doc ("Thanks for your message. We
+     don't recognise this number. If you work with {firm}, reply with your full name and the office
+     will get back to you. — {firm} Shift Team"), from the firm's line, at most once.
+   - **A worker who has left or is blocked** (their number is on file, not active): no "we don't
+     recognise this number" (we do); the office is alerted.
+   - **The office alert**: an email to active admins and resourcers, "{firm}: a message from a
+     number we don't know" / "Someone messaged the shifts line from a number that isn't one of
+     your active staff. We asked them for their full name. See the message on the office
+     dashboard: {link}". No number and no text in the email (email previews and forwards): they're
+     on Today.
+   - Events (labels and counts only): `message.received` {handledAs: unknown}, `message.replied`
+     {reply: unknown_number, replyId} / `message.reply_failed`, `message.office_alerted`
+     {reason, recipients, skipped} / `message.office_alert_failed`.
+2. **Today** (`src/lib/office/today.ts`, `today-view.tsx`): "Messages from numbers we don't know"
+   (the last 7 days, newest first, at most 50): the number, their words (or "(A photo or file,
+   with no text.)"), when; "{Ann Booker}, not active" when the number is a former worker's; "None
+   in the last 7 days."
+3. **Copy**: `unknownNumberMessage()` (doc template, now built), `unknownNumberAlertEmail()` (new
+   doc bullet under Office notifications).
+4. **Tests**: integration (the reply and alert; once per number per 24 hours; a former worker;
+   no reply twice; a failed reply or email; other firms; Today's list), unit (copy, doc), e2e (a
+   signed WhatsApp from an unknown number gets the polite reply; the office sees it on Today).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One reply and one alert per number per 24 hours | Auto-replies and bots would loop; the office needs one email, not one per message | Reply to every message |
+| No number or text in the alert email; they're on Today | Email previews and forwards; the office logs in to see them | The message in the email |
+| A former worker gets no "we don't recognise this number" | It isn't true; the office decides what to say | The same reply as a stranger |
+| The alert goes to admins and resourcers | They handle staff; payroll doesn't | Everyone in the office |
+
+**Built as planned** (the reply job's unknown path, Today's list, the two texts). The two tripwire
+tests (`ai.boundary`, `notify.from-line`) failed first, as they should: the job now sends three
+kinds of message. Updated on purpose: each send must use one of the app's fixed texts.
+
+**Guardrails review: FIX FIRST (4 items), all done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the "first in 24 hours" check wasn't safe when two messages from one stranger were handled at once (each locked only its own row, and neither could see the other's claim): both would reply and both email the office. It only held because the queue happens to run one job at a time | A per-firm, per-number advisory lock around the check. Tested with the first claim held open while the second runs: without the lock the test fails (tried), with it one reply and one set of emails |
+| FIX FIRST: with nobody to email, the log said "The office was emailed … (0 people)" | `message.office_alert_skipped` {reason, skipped} instead, with its words; tested |
+| FIX FIRST: no cross-firm tests for the new look-ups | Today's isolation test now has another firm's unknown message; a worker at one firm writing to another's line is a stranger there; a stranger's message at one firm doesn't make one at another a repeat |
+| FIX FIRST: the status. The flow is triggered by a real incoming WhatsApp and replies "from the firm's line": both need Twilio (steps 7 and 9), exactly as the last two tasks were recorded | **Recorded as BLOCKED, not ticked**, for consistency (no auditor round). Connect Twilio step 9 now says how to check it and to tick this task then. No Bedrock dependency |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| The 24-hour window slid: a number writing daily would never get another reply | Counted from the last answered message (logged `repeat: false`): at most one reply and one alert in any 24 hours, one a day for a daily writer; tested by moving the first one's answer back 25 hours |
+| Today: a reactivated worker still called "not active"; very long messages | "(Ann Booker)" once active again; the first 300 characters, then "…"; tested |
+| Log words: a former worker called "not one of your staff"; partial email failures unmentioned | Both fixed |
+| The e2e test would fail on a retry (same number within 24 hours) | A random drama-range number per attempt |
+| screens.md's broken bold; compliance: non-staff numbers and words | Fixed; compliance says where they're kept, who sees them, and that the privacy notice should cover the line |
+| A flood from many numbers | Parked: a per-firm cap and one combined email |

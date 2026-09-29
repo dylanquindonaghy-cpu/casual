@@ -195,12 +195,27 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     // Requests.
     case "message.received":
       return d.handledAs === "unknown"
-        ? "A WhatsApp came to the shifts line from a number that isn't one of your staff."
+        ? d.formerWorker
+          ? "A WhatsApp came to the shifts line from someone who isn't active any more."
+          : "A WhatsApp came to the shifts line from a number that isn't one of your staff."
         : `${who} sent a WhatsApp to the shifts line (${INTENT_WORDS[String(d.intent)] ?? "a message"}${d.handledAs === "ai" ? ", sorted by AI" : ""}).`;
     case "message.replied":
-      return `${worker} got the shifts line's reply (${INTENT_WORDS[String(d.intent)] ?? "a message"}).`;
+      return d.reply === "unknown_number"
+        ? "The shifts line asked a number we don't know for their full name."
+        : `${worker} got the shifts line's reply (${INTENT_WORDS[String(d.intent)] ?? "a message"}).`;
     case "message.reply_failed":
-      return `The shifts line's reply to ${worker} couldn't be sent.`;
+      return d.reply === "unknown_number"
+        ? "The shifts line's reply to a number we don't know couldn't be sent."
+        : `The shifts line's reply to ${worker} couldn't be sent.`;
+    case "message.office_alerted": {
+      const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
+      const failed = Number(d.failed ?? 0);
+      return `The office was emailed about a message from ${d.reason === "former_worker" ? "someone who isn't active any more" : "a number we don't know"} (${people(Number(d.recipients ?? 0))}${failed > 0 ? `; ${failed} couldn't be emailed` : ""}).`;
+    }
+    case "message.office_alert_failed":
+      return "Emailing the office about a message from a number we don't know failed.";
+    case "message.office_alert_skipped":
+      return "Nobody in the office could be emailed about a message from a number we don't know (no active admin or resourcer with an email address). It's on Today.";
     case "request.created":
       return `${worker} sent a request (${kind(d.type)}).`;
     case "request.approved":

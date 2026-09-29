@@ -305,7 +305,10 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
    Unclear text → Haiku classifies → reply with link or create a request for the office. (Built in
    Phase 7, `src/lib/inbound/reply.ts`, short of Bedrock: the AI only picks one of four labels and
    the reply is always the app's fixed text; no AI yet, so unclear text goes to the office.)
-3. Unknown number → polite reply + office alert.
+3. Unknown number → polite reply + office alert. (Built in Phase 7: the first message from a
+   number in 24 hours gets `unknown_number` and emails the office's admins and resourcers, without
+   the number or the message; a former worker gets no reply, the office is alerted; every such
+   message is on Today.)
 
 **Call-to-text**
 1. Twilio voice webhook returns a short recorded message.

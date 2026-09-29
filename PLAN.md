@@ -567,7 +567,9 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
      `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/whatsapp` (HTTP POST), and put the account's
      auth token (Account → API keys & tokens) in the web app's environment as `TWILIO_AUTH_TOKEN`
      (never in the repo). Send the line a WhatsApp saying "shifts": you should get the open shifts
-     link back within seconds.
+     link back within seconds. Then from a phone that isn't on file: you should get "Thanks for your
+     message. We don't recognise this number…", and the office's admins and resourcers an email;
+     the message shows on Today. Then tick the "Unknown number" task too.
   Also: validate `quiet_hours` on the settings screen (Phase 5); and decide what a wave held past
   the shift's start should do (today it stops as "started" at the end of the quiet hours, and
   only the escalation tells the office).
@@ -897,7 +899,14 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - When the office answers a WhatsApp's `general` request, the worker's notice says "Your request
     (question, ref …) is approved.": for a question, "answered" would read better (the
     request-update wording).
-  - Texts (SMS) to the line, and answering unknown numbers, are the next tasks.
+  - Texts (SMS) to the line are a later task (answering unknown numbers is built: the next task).
+- Unknown number follow-ups (Phase 7 "Unknown number → polite reply + office alert" task):
+  - From Today, let the office add the number to a worker (a new phone) or mark it as nobody: today
+    it can only read it. A "sorted" state would also stop it showing for 7 days.
+  - **Dylan to confirm:** a former worker's message gets no reply (the office decides); a stranger
+    gets the doc's "reply with your full name"; one reply and one email per number per 24 hours.
+  - A flood from many different numbers means one email per number to every admin and resourcer:
+    cap it per firm (say 5 an hour) and send one combined email after that.
   - **Dylan to confirm the keywords:** "work" and "available" still give the open shifts link
     (unless the message also says "can't", "not", "sick", "late"…); "shift" alone doesn't. Real
     messages from the pilot will show which words mislead.
@@ -1073,3 +1082,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 6 | 0.3 | Phase 6 tests (`pay.grouping`): a new file on the real database proves grouping keys are stable (the same facts give the same key whoever raises it and whenever; the firm's own week, across the clocks going back; regrouping and re-importing change nothing; keys move only when their facts do; firms never share a group) and that every kind of AI failure (throwing, hanging, answering late, nonsense, advice) leaves the payroll digest word for word as it is with no AI; planning found the digest could wait for ever on an AI that never answers (fixed: a 5-second limit a group); the review's suggestions done (late answers tested in the digest, AI calls counted, no leftover timers); 2285 tests + 39 e2e; verified and audited DONE. Phase 6 done except the blocked grouping task: 3.1 h of the 12–18 h estimate (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.6 | Shifts line, BLOCKED (not ticked: the number and its WhatsApp sender only exist in Twilio, an outside service): built everything short of it: each firm's own number (`firms.shifts_line_e164`, one number per firm), every WhatsApp and text to a worker carrying it as `from` (a tripwire test holds every sender to it), finding the firm for an incoming message's number (`app_firm_by_line`), the office dashboard showing it, `npm run firm:line` to set it (asks before replacing), and a fake number for the demo firm; the review caught an invariant the owner-only script broke (moved to `scripts/`) and a test that could clash with the seed; buying and connecting the numbers is parked under "Connect Twilio"; 2299 tests + 39 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 7 | 0.7 | Inbound WhatsApp, BLOCKED (not ticked: "Haiku only for unclear text" needs Bedrock, and real WhatsApps need Twilio): built everything short of them: a new `messages` table, Twilio's webhook (signature checked, reproducing Twilio's own example; one row and one job per message, repeats ignored), and the reply job: keywords first (open shifts, cancelling, pay links; "help" makes an office request with a reference), the AI only ever picking one of those replies, with unclear messages going to the office meanwhile; replies from the firm's own number, at most once; the review caught a way a message could be lost and dropouts getting the open shifts link (both fixed and tested); 2344 tests + 40 e2e; verified (see docs/work-log.md) |
+| 2026-09-29 | 7 | 0.5 | Unknown number, BLOCKED (not ticked: it's set off by a real incoming WhatsApp and replies from the firm's own number, both needing Twilio, like the last two tasks): built everything short of it: a stranger gets the doc's polite "reply with your full name", a former worker gets no reply, and the office's admins and resourcers get an email (no number or message in it); a new "Messages from numbers we don't know" list on Today; at most one reply and one email per number in any 24 hours (so auto-replies can't loop); the review caught two messages at once both being answered (fixed with a lock, and a test that fails without it) and a false "emailed 0 people" log line; 2356 tests + 41 e2e; verified (see docs/work-log.md) |

@@ -209,7 +209,14 @@ describe("loadToday", () => {
 
   it("never shows another firm's rows", async () => {
     const mine = await bookingFirm(su, withFirm);
-    await todayFirm(); // another firm, full of data
+    const other = await todayFirm(); // another firm, full of data
+    // Including a WhatsApp from a number it doesn't know.
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, handled_as, handled_at)
+       values ($1, 'in', 'whatsapp', $2, '+447700900986', '+447700900985', 'hello', 'unknown', now())`,
+      [other.f.firmId, `SM${"a".repeat(32)}`],
+    );
     const view = await withFirm(mine.firmId, (tx) => loadToday(tx, NOW));
     expect(view).toMatchObject({
       urgent: [],
@@ -217,6 +224,7 @@ describe("loadToday", () => {
       cancellations: [],
       requests: { total: 0, byType: {} },
       expiring: [],
+      unknownMessages: [],
     });
   });
 

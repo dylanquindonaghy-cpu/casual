@@ -32,6 +32,10 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   > You can ask for any decision about your shifts to be reviewed by a member of our team."
 - Anyone significantly affected by an automated decision (e.g. refused a shift) can ask for a
   human review. Build a "Ask the office to review" button on refusal screens.
+- People who aren't staff (Phase 7): a message to the shifts line from a number that isn't an
+  active worker's is kept in `messages` (the number and their words, 90 days with the retention
+  job), shown to the firm's admins and resourcers on Today, and never put in the log, an email or
+  the AI. The firm's privacy notice should cover messages to its shifts line.
 - The shifts line (Phase 7): a WhatsApp no keyword matches is sorted by AI (once Bedrock is
   connected) into one of four labels, from the worker's text alone; the reply is always the app's own
   fixed words, so the AI never writes to a worker, and a pay question gets the pay link, never an

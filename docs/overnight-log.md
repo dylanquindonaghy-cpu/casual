@@ -3592,3 +3592,16 @@ spec's own, so the demo's requests stay waiting for the Today spec).
 | A 500-character note costs about 9 text messages | Parked |
 | Firm id in the "told" subquery | Added (RLS covered it already) |
 | "Telling {name}." missing from docs/screens.md | Added |
+
+**Verify round 2:** `VERIFIED tree=cc24f2e47c9699a3 e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2005 tests, 34 e2e).
+
+**Auditor (round 1):** "VERDICT: DONE" … "To reach DONE: nothing — verdict is DONE."
+
+**Commit:** `8cce0bf` "Phase 5: Approve/decline requests (time changes, swaps, availability,
+general) with a note → worker notified", pushed to `origin/build/overnight`. CI: `gh` isn't
+installed, so not checked.
+
+**Hours:** 0.5 h (10:25 to 10:55 UTC). Phase 5 so far 3.7 h of its 23–33 h estimate.
+
+**Parked:** see PLAN.md, "Answering requests follow-ups" (three Dylan-to-confirm items).

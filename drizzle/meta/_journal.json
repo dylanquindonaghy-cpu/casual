@@ -134,6 +134,13 @@
       "when": 1790686823042,
       "tag": "0018_pay_queries",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790693596933,
+      "tag": "0019_pay_query_resolution",
+      "breakpoints": true
     }
   ]
 }

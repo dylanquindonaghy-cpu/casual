@@ -285,7 +285,12 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
 3. Digest to payroll at a set time (built: `src/lib/pay/digest.ts`, the firm's `pay_digest`
    setting, default 09:00 Monday to Friday): the new queries, grouped, emailed to payroll with the
    list attached (names and workers' words only in the attachment), marked `in_digest`. Payroll can
-   also send it at once from its page. Payroll marks groups resolved → workers notified.
+   also send it at once from its page.
+4. Payroll marks a group sorted with a note (built: `src/lib/pay/resolve.ts`); each worker gets it
+   by message (`pay_query_update`, quiet hours respected) and sees "Sorted on {day}" with the note on
+   their pay page. The note is always a person's words: no AI answers a pay dispute. A test
+   (`tests/unit/ai.boundary.test.ts`) keeps AI code out of the code that builds what workers see or
+   receive and out of payroll's sorting path, and pins which files may use the AI modules.
 
 **WhatsApp shifts line**
 1. Twilio webhook → verify signature → store message (idempotent) → queue job → 200.

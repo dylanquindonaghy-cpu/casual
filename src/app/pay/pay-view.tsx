@@ -39,11 +39,19 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
   );
 }
 
-// "Raise a pay query", and the worker's own pay queries from the last 90 days with their status.
+// "Raise a pay query", and the worker's own pay queries from the last 90 days with their status:
+// once payroll has sorted one, the day and payroll's note (a person's words).
 export function PayQueries({
   queries,
 }: {
-  queries: { ref: string; issue: PayIssue; day: string; status: string }[];
+  queries: {
+    ref: string;
+    issue: PayIssue;
+    day: string;
+    status: string;
+    sortedOn?: string | null; // absent for one sorted without a date (none are, since Phase 6)
+    note?: string | null;
+  }[];
 }) {
   return (
     <section className="mt-6" aria-labelledby="pay-queries">
@@ -65,7 +73,12 @@ export function PayQueries({
               <p className="font-semibold">
                 {ISSUE_LABELS[q.issue]}: {dayLabel(q.day)}
               </p>
-              <p>{PAY_QUERY_STATUS_WORDS[q.status] ?? q.status}</p>
+              <p>
+                {q.sortedOn
+                  ? `Sorted on ${dayLabel(q.sortedOn)}`
+                  : (PAY_QUERY_STATUS_WORDS[q.status] ?? q.status)}
+              </p>
+              {q.note && <p>Payroll says: &ldquo;{q.note}&rdquo;</p>}
               <p className="text-base text-slate-600">Reference {q.ref}</p>
             </li>
           ))}

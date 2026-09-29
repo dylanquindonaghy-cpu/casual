@@ -4822,3 +4822,127 @@ Key numbers: at most 1,000 queries per digest (the oldest first); an attachment 
    `CONSOLE_OUTBOX_FILE` (a path starting `.dev/`), the whole email, attachment included, is also
    saved in that file.
 6. Refresh the page: "Last digest: …" appears and the query says "In a digest".
+
+## 2026-09-29: Phase 6, task 4: Workers see their pay query answered; AI never answers (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (14:50 to 15:28 UTC), in the unattended overnight loop.
+Phase 6 so far: 2.3 of its 12 to 18 hour estimate.
+
+### Result
+
+- **Ticked.** The independent auditor said "VERDICT: DONE" in its first round.
+- `scripts/verify.sh` printed `VERIFIED tree=747ac438704f6c19 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2264 tests (up from 2231);
+  - the 38 browser tests;
+  - the rule checks.
+- The guardrails review found 1 thing to fix first. It's fixed and tested (below).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+Before this task, a worker's pay query just said "With payroll" forever. Now payroll can answer it,
+and the worker hears back.
+- **Payroll marks a group sorted.** On payroll's "Pay queries" page, each group has a box, "Tell
+  them what payroll did", and a button, "Mark as sorted and tell them". The note is required (a
+  pay question answered with no explanation isn't an answer) and at most 500 characters.
+  - It sorts only the queries payroll can see in that group, so nothing they didn't read is sorted.
+  - If two payroll people click at once, each query is sorted once. The second person is told
+    "These were already sorted by someone else."
+  - The database now remembers who sorted each query, when, and the note (three new columns, a
+    "migration": a script that changes the database's shape).
+  - The action log gets one line per query ("Office Person sorted Ann Booker's pay query and wrote
+    them a note."). The note itself is never written to the log.
+- **The worker is told.** Each worker gets one WhatsApp (or text) message: "Update on your pay
+  query (ref 3F2A9C1B): sorted. {payroll's note} — {firm} Shift Team".
+  - It goes once only, even if the job runs twice.
+  - It waits for quiet hours to end (22:00 to 07:00 by default): pay answers are never urgent.
+  - Their phone also gets a push notification, "Pay query sorted", which says nothing about the
+    pay itself, because lock screens show notifications.
+- **The worker sees it on their pay page** (behind the pay code): "Sorted on Tue 3 Nov" and
+  "Payroll says: “…”". Queries not yet answered still say "With payroll".
+- **AI never answers a pay dispute.** The note is always a person's words. A new test,
+  `tests/unit/ai.boundary.test.ts`, is a "tripwire": it reads how the code files import each
+  other and fails if:
+  - the AI is given any job other than payroll's summary line;
+  - any file other than the two payroll-facing ones starts using the AI code, or anything new
+    starts using those two;
+  - an AI company's code library is used outside `src/lib/ai/`;
+  - anything that builds what a worker sees or receives can reach AI code;
+  - payroll's sorting path can reach AI code, from the note box to the database.
+  It can't prove every possible path, and the docs now say exactly what it checks.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Sort the queries payroll saw, not "the group" by its key | A query can move group between loading the page and clicking | Sort by the group's key |
+| A note is required | The worker needs to know what payroll did | Optional, like approving a request |
+| The note goes in the message itself, as the doc's template says; the push stays generic | The doc's wording; a lock screen shouldn't show pay details | Keep the note behind the pay code (Dylan to confirm) |
+| One "sorted" status | Payroll's note says whether anything changed | A separate "answered, no change" |
+| No message when a query goes into a digest | It's still with payroll; one message when it's answered | Tell them at each step |
+| The sort path has its own small files | So the test can prove nothing there reaches AI code | Keep it with the other office actions |
+
+### What the reviews and test runs caught
+
+- **The guardrails review:** the no-AI test didn't cover the office side, where payroll types the
+  note. The sort path reached AI code indirectly (through a shared office file), so someone could
+  have added an "AI draft note" there without failing it. Fixed by giving the sort path its own
+  files and protecting them. I then made the reviewer's example breach on purpose: the test
+  failed as it should, and I removed it.
+- **Two older test problems**, found by the first full run (root causes found before changing
+  anything):
+  - The tenant-isolation test (it checks one firm can never link to another firm's rows) wants a
+    cross-firm case for every link between tables. The new "sorted by" link needed one; added.
+  - An older test sorted event numbers as text, so "1000003" came before "999998". The test
+    database's event numbers have just grown past a million, so it started failing now and then.
+    Fixed to sort by the number; what it checks is unchanged.
+- Smaller ones: the note box now warns that everyone in the group gets the same note; the action
+  log's worker filter finds these entries; a group can hold up to 2,000 queries (the page's own
+  limit); the helper that builds id lists refuses anything that isn't an id.
+
+### What the new tests prove
+
+- `tests/integration/pay.resolve.test.ts` (11 tests, on the real database): sorting marks only the
+  queries given, with the note, who and when, logs each without the note and queues one message
+  each; payroll and admins only (not resourcers, disabled users or another firm's payroll); a note
+  is needed and a short one; only waiting ones, two people at once sort each once, and ones
+  already sorted are counted; another firm's queries can't be sorted; the worker's pay page shows
+  the day and note; the action log finds it under the worker; the message is payroll's note in the
+  doc's exact words, once only, with a push to the pay page; text when WhatsApp refuses or the
+  worker chose text; quiet hours hold it until 07:00; a failed send is logged and never resent; an
+  unsorted query sends nothing; the worker wiring.
+- `tests/unit/ai.boundary.test.ts` (7 tests): the rules listed above.
+- `tests/unit/portal.pay.test.ts`: the "Sorted on…" and "Payroll says…" lines.
+- `tests/unit/copy.templates-doc.test.ts`: the message and push match the docs word for word, and
+  the WhatsApp template pack now has `pay_query_update`.
+- `tests/unit/pay.digest-copy.test.ts` and `tests/unit/db.arrays.test.ts`: payroll's result
+  messages; the id-list helper refusing bad input.
+- The browser test now goes on: payroll sorts the group with a note, the worker's message reaches
+  the outbox, and the worker's pay page shows "Sorted on {today}" and the note.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (Parking lot, "Pay query status follow-ups"): payroll's note goes in the
+  WhatsApp/text message itself, as the doc's template says. The pay page is behind a code, but the
+  message isn't. If it should stay behind the code, the message would say "See it on your pay page"
+  instead (a template change for Meta).
+- **Parked:** sorting one query on its own inside a bigger group; a "sorted recently" list for
+  payroll; a stricter database check (a sorted query must always name who, when and the note);
+  queueing the messages in one batch; and, for the Phase 7 WhatsApp line, pay messages must only
+  ever get the "raise a pay query" link, never an answer.
+
+### How to see it working
+
+1. Start the app (`npm run dev`) and raise a pay query as a worker (see the pay query form task).
+2. Log in at `http://acme.localhost:3000/office/login` as `acme.payroll@example.com` and open "Pay
+   queries".
+3. Under the query's group, type a note in "Tell them what payroll did" and click "Mark as sorted
+   and tell them". You should see "Marked as sorted: 1 query. Each person will get your note by
+   message."
+4. In the terminal running `npm run dev`, the worker's WhatsApp message is printed ("Update on your
+   pay query …: sorted. …"), unless it's quiet hours (22:00 to 07:00), when it waits.
+5. As the worker, open "Your pay" (with the pay code): the query says "Sorted on {today}" and
+   "Payroll says: …".

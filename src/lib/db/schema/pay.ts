@@ -12,7 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
-import { workers } from "./people";
+import { officeUsers, workers } from "./people";
 import { shifts } from "./roster";
 import { firms } from "./tenancy";
 
@@ -72,7 +72,9 @@ export const payRecords = pgTable(
 // always set (the shift's day, or the day they typed); the shift only if they picked one. Their
 // details are free text: kept here, never copied into events. group_key is set by code when the
 // queries are grouped for payroll's digest (no AI decides anything about pay: golden rule 9).
-// The app may resolve queries but not delete them.
+// The app may resolve queries but not delete them. Payroll sorts them with a note to the worker
+// (resolution_note: free text, on the row and in the message to them, never in an event), who and
+// when (src/lib/pay/resolve.ts).
 
 export const PAY_QUERY_ISSUES = ["missing_hours", "wrong_rate", "late_pay", "other"] as const;
 export const PAY_QUERY_STATUSES = ["open", "in_digest", "resolved"] as const;
@@ -91,10 +93,18 @@ export const payQueries = pgTable(
     details: text("details"),
     groupKey: text("group_key"),
     status: text("status", { enum: PAY_QUERY_STATUSES }).notNull().default("open"),
+    resolvedBy: uuid("resolved_by"),
+    resolvedAt: timestamptz("resolved_at"),
+    resolutionNote: text("resolution_note"),
     createdAt: createdAt(),
   },
   (t) => [
     unique("pay_queries_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "pay_queries_resolved_by_fk",
+      columns: [t.firmId, t.resolvedBy],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
     foreignKey({
       name: "pay_queries_worker_fk",
       columns: [t.firmId, t.workerId],
@@ -115,6 +125,16 @@ export const payQueries = pgTable(
     check(
       "pay_queries_details_length",
       sql`${t.details} is null or char_length(${t.details}) between 1 and 1000`,
+    ),
+    // Only a sorted query carries who sorted it, when, and payroll's short note.
+    check(
+      "pay_queries_resolution",
+      sql`${t.status} = 'resolved'
+        or (${t.resolvedAt} is null and ${t.resolvedBy} is null and ${t.resolutionNote} is null)`,
+    ),
+    check(
+      "pay_queries_resolution_note_length",
+      sql`${t.resolutionNote} is null or char_length(${t.resolutionNote}) between 1 and 500`,
     ),
     firmIsolation(t.firmId),
   ],

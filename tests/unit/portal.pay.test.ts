@@ -122,6 +122,34 @@ describe("showing pay", () => {
     );
   });
 
+  it("a sorted query shows the day payroll sorted it and payroll's note", () => {
+    const words = text(
+      renderToStaticMarkup(
+        createElement(PayQueries, {
+          queries: [
+            {
+              ref: "0F0F0F0F",
+              issue: "wrong_rate",
+              day: "2026-10-29",
+              status: "resolved",
+              sortedOn: "2026-11-03",
+              note: "The new rate is now applied. The difference is paid on Fri 13 Nov.",
+            },
+            { ref: "3F2A9C1B", issue: "late_pay", day: "2026-10-31", status: "in_digest" },
+          ],
+        }),
+      ),
+    );
+    expect(words).toContain("Wrong rate: Thu 29 Oct");
+    expect(words).toContain("Sorted on Tue 3 Nov");
+    expect(words).toContain(
+      "Payroll says: “The new rate is now applied. The difference is paid on Fri 13 Nov.”",
+    );
+    // Still with payroll: no note.
+    expect(words).toContain("With payroll");
+    expect(words.match(/Payroll says/g)).toHaveLength(1);
+  });
+
   it("says so plainly when there's nothing yet", () => {
     expect(
       text(renderToStaticMarkup(createElement(PayView, { firmName: "Acme Events", lines: [] }))),

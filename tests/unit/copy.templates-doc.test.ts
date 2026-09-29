@@ -12,6 +12,8 @@ import {
   offerPush,
   officeLoginLinkEmail,
   payDigestEmail,
+  payQueryUpdateMessage,
+  payQueryUpdatePush,
   reminderPush,
   requestUpdateMessage,
   requestUpdatePush,
@@ -125,12 +127,12 @@ describe("the doc's templates table", () => {
     "shift_changed_by_firm",
     "shift_cancelled_by_firm",
     "request_update",
+    "pay_query_update",
   ];
   const NOT_BUILT: Record<string, string> = {
     shift_filled: "a reply to an offer: inbound WhatsApp (Phase 7)",
     shift_confirmed: "booking confirmations are on screen; by message with notify (parked)",
     cancellation_ack: "cancellation confirmations are on screen; by message with notify (parked)",
-    pay_query_update: "pay queries (Phase 6)",
     unknown_number: "a service reply to an inbound message (Phase 7)",
   };
   it("every template is built or waiting for a named task", () => {
@@ -193,6 +195,12 @@ describe("the code says what the doc says", () => {
     expect(requestUpdateMessage(docVoice, { ...request, note: null })).toBe(
       docBody("request_update").replace(" The office says: {note}", ""),
     );
+  });
+
+  it("pay_query_update: payroll's note in the doc's words", () => {
+    expect(
+      payQueryUpdateMessage(docVoice, { ref: "{ref}", status: "{status}", note: "{note}" }),
+    ).toBe(docBody("pay_query_update"));
   });
 
   it("shift_urgent, with and without a site", () => {
@@ -408,6 +416,10 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
       requestUpdateMessage(voice, { type: "swap", ref: "R", status: "approved", note: null }),
     ],
     [
+      "pay_query_update",
+      payQueryUpdateMessage(voice, { ref: "R", status: "sorted", note: "Paid on Friday." }),
+    ],
+    [
       "shift_changed_by_firm",
       shiftChangedByFirmMessage(voice, { ...shift, date: "Sat 7 Nov", change: "c", link: "L" }),
     ],
@@ -464,6 +476,8 @@ describe("the pushes", () => {
   it("request update", () => {
     const [title, body] = quotes(push, "Request update:");
     expect(requestUpdatePush({ type: "{type}", status: "{status}" })).toEqual({ title, body });
+    const [payTitle, payBody] = quotes(push, "Pay query update:");
+    expect(payQueryUpdatePush()).toEqual({ title: payTitle, body: payBody });
   });
 
   it("reminder, 24 h and 2 h", () => {
@@ -502,6 +516,8 @@ describe("every template function is checked here", () => {
         "offerPush",
         "officeLoginLinkEmail",
         "payDigestEmail",
+        "payQueryUpdateMessage",
+        "payQueryUpdatePush",
         "reminderPush",
         "requestUpdateMessage",
         "requestUpdatePush",
@@ -658,6 +674,12 @@ describe("the WhatsApp submission pack", () => {
         ref: ex("request_update", "ref"),
         status: ex("request_update", "status"),
         note: ex("request_update", "note"),
+      }),
+    pay_query_update: () =>
+      payQueryUpdateMessage(voice("pay_query_update"), {
+        ref: ex("pay_query_update", "ref"),
+        status: ex("pay_query_update", "status"),
+        note: ex("pay_query_update", "note"),
       }),
     request_update_no_note: () =>
       requestUpdateMessage(voice("request_update_no_note"), {

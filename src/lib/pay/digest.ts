@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { canAccess } from "../auth/roles";
 import { noAi, type AiClient } from "../ai/client";
 import { factsPhrase } from "../ai/pay-summary";
 import { events, firms, officeUsers, payQueries } from "../db/schema";
+import { uuidArray } from "../db/arrays";
 import { retryAborted } from "../db/retry";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
@@ -62,9 +63,6 @@ const DAY_SECONDS = 24 * 60 * 60;
 const KEY_PREFIX = "pay-digest:";
 const KEY =
   /^pay-digest:\d{4}-\d{2}-\d{2}(?::now:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/;
-
-// A list of uuids as one Postgres array parameter (our own ids, never user input).
-export const uuidArray = (ids: string[]): SQL => sql`${`{${ids.join(",")}}`}::uuid[]`;
 
 export const DIGEST_ACTIONS = {
   sending: "pay_digest.sending",

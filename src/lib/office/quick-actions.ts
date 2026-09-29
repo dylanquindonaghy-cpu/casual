@@ -1,5 +1,4 @@
-import type { Clock } from "../auth/clock";
-import { withFirm, type WithFirm } from "../db/scoped";
+import { parts, type OfficeContext } from "./office-context";
 import {
   saveFigures,
   updateFiguresNow,
@@ -38,18 +37,7 @@ import {
 // the office user from the session. Each underlying function checks the user again inside the
 // firm's transaction (an active admin or resourcer; for the payroll digest, payroll or an admin).
 
-export interface OfficeContext {
-  firm: { id: string };
-  officeUserId: string;
-  run?: WithFirm; // tests pass a withFirm on their own pool
-  clock?: Clock;
-}
-
-const parts = (ctx: OfficeContext) => ({
-  run: ctx.run ?? withFirm,
-  by: { type: "office" as const, id: ctx.officeUserId },
-  deps: ctx.clock ? { clock: ctx.clock } : {},
-});
+export type { OfficeContext };
 
 export function markUrgent(
   ctx: OfficeContext,

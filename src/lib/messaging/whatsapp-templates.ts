@@ -270,6 +270,20 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     body: "Your {{1}} expired on {{2}}. You can't take shifts that need it until you renew it and send the new details to the office. — {{3}}",
     example: { credential: "SIA door supervisor licence", date: "Sat 7 Nov", signOff: SIGN_OFF },
   },
+  {
+    name: "pay_query_update",
+    docName: "pay_query_update",
+    category: "utility",
+    language: "en_GB",
+    variables: ["ref", "status", "note", "signOff"],
+    body: "Update on your pay query (ref {{1}}): {{2}}. {{3}} — {{4}}",
+    example: {
+      ref: "3F2A9C1B",
+      status: "sorted",
+      note: "The new rate is now applied. The difference is paid on Fri 13 Nov.",
+      signOff: SIGN_OFF,
+    },
+  },
 ];
 
 // The template's text with its {{n}} parts filled in from `values` (by variable name).

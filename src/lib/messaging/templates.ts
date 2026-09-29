@@ -209,6 +209,16 @@ export function requestUpdateMessage(
   return `Your request (${request.type}, ref ${request.ref}) is ${request.status}.${note} — ${firm.signOff}`;
 }
 
+// pay_query_update (WhatsApp or SMS, utility): payroll has sorted a worker's pay query
+// (src/lib/notices/pay-query-update.ts). {status} is "sorted"; {note} is payroll's note on one line
+// (always written by a person: pay disputes never get an AI answer, golden rule 9).
+export function payQueryUpdateMessage(
+  firm: FirmVoice,
+  query: { ref: string; status: string; note: string },
+): string {
+  return `Update on your pay query (ref ${query.ref}): ${query.status}. ${query.note} — ${firm.signOff}`;
+}
+
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
 // or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
 export function shiftReminder24hMessage(
@@ -398,4 +408,10 @@ export function requestUpdatePush(request: { type: string; status: string }): {
   body: string;
 } {
   return { title: `Request ${request.status}`, body: `${request.type} — tap to view.` };
+}
+
+// Push: a pay query sorted. Nothing about the pay itself (a lock screen shows it): tapping opens the
+// pay page, behind the pay code.
+export function payQueryUpdatePush(): { title: string; body: string } {
+  return { title: "Pay query sorted", body: "Payroll has answered. Open your pay page to see it." };
 }

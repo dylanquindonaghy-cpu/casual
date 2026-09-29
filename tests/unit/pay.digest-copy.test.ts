@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PAY_DIGEST_MAX_GROUPS, payDigestEmail } from "@/lib/messaging/templates";
 import { digestLines, sendNowText } from "@/lib/office/pay-digest-copy";
+import { sortText } from "@/lib/office/pay-sort-copy";
 import type { PayQueryGroup } from "@/lib/office/pay-query-groups";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/messaging/transport";
 import { PAY_DIGEST_ROWS } from "@/lib/pay/digest";
@@ -280,5 +281,26 @@ describe("payroll's page", () => {
         "Europe/London",
       )[1],
     ).toBe("Last digest: 09:02 on Mon 2 Nov, 3 queries to 1 person (1 address failed).");
+  });
+
+  it("the result of Mark as sorted and tell them", () => {
+    expect(sortText({ status: "sorted", count: 2, skipped: 0 })).toBe(
+      "Marked as sorted: 2 queries. Each person will get your note by message.",
+    );
+    expect(sortText({ status: "sorted", count: 1, skipped: 0 })).toBe(
+      "Marked as sorted: 1 query. Each person will get your note by message.",
+    );
+    expect(sortText({ status: "sorted", count: 3, skipped: 1 })).toBe(
+      "Marked as sorted: 3 queries. 1 was already sorted by someone else. Each person will get your note by message.",
+    );
+    expect(sortText({ status: "sorted", count: 1, skipped: 2 })).toBe(
+      "Marked as sorted: 1 query. 2 were already sorted by someone else. Each person will get your note by message.",
+    );
+    expect(sortText({ status: "already" })).toBe("These were already sorted by someone else.");
+    expect(sortText({ status: "note_needed" })).toBe("Tell them what payroll did first.");
+    expect(sortText({ status: "note_too_long" })).toBe("That's too long (500 characters at most).");
+    expect(sortText({ status: "not_allowed" })).toBe("You can't sort pay queries.");
+    expect(sortText({ status: "logged_out" })).toBe("Your session has ended. Log in again.");
+    expect(sortText({ status: "error" })).toBe("Something went wrong. Try again.");
   });
 });

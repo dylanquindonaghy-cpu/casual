@@ -158,6 +158,8 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
           select c.id from credentials c where c.firm_id = e.firm_id and c.worker_id = ${w}::uuid))
       or (e.entity_type = 'pay_record' and e.entity_id in (
           select p.id from pay_records p where p.firm_id = e.firm_id and p.worker_id = ${w}::uuid))
+      or (e.entity_type = 'pay_query' and e.entity_id in (
+          select q.id from pay_queries q where q.firm_id = e.firm_id and q.worker_id = ${w}::uuid))
       or (e.entity_type = 'magic_link' and e.entity_id in (
           select m.id from magic_links m where m.firm_id = e.firm_id and m.worker_id = ${w}::uuid))
       or (e.entity_type = 'login_request' and e.entity_id in (

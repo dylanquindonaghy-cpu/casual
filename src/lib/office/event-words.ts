@@ -283,6 +283,16 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker}'s pay record was updated.`;
     case "pay_query.in_digest":
       return "A pay query was added to the pay digest.";
+    case "pay_query.resolved":
+      return `${officeName} sorted ${worker}'s pay query and wrote them a note.`;
+    case "pay_query.update_notice":
+      return `Telling ${worker} their pay query is sorted.`;
+    case "pay_query.update_sent":
+      return `${worker} was told their pay query is sorted.`;
+    case "pay_query.update_failed":
+      return `Couldn't tell ${worker} their pay query is sorted: the message failed.`;
+    case "pay_query.update_held":
+      return `${worker} will be told their pay query is sorted when quiet hours end.`;
     case "pay_query.back_to_open":
       return "A pay query went back to wait for the next pay digest (the email couldn't be sent).";
     case "pay_digest.sending":

@@ -405,8 +405,13 @@ create table pay_queries (
   group_key text,                        -- set by code (src/lib/pay/grouping.ts): the issue and the week, plus
                                          -- the pay line's rate (wrong rate) or the site (hours missing); "pay1:" versioned
   status text not null default 'open',   -- open | in_digest | resolved
+  resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users: who sorted it
+  resolved_at timestamptz,               -- when payroll sorted it
+  resolution_note text,                  -- payroll's note to the worker, 1-500 characters (typed by a
+                                         -- person; sent to the worker, never in an event)
   created_at timestamptz not null default now(),
   unique (firm_id, id)
+  -- Only a sorted query carries resolved_by, resolved_at and resolution_note (migration 0019).
 );
 
 create table events (

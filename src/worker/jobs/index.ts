@@ -26,6 +26,7 @@ import {
   runMetricsRollupTick,
 } from "../../lib/metrics/rollup";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
+import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { officeOfferJob, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import {
@@ -72,6 +73,7 @@ export interface JobDeps {
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
   requestUpdates?: FirmTask<RequestUpdatePayload>;
   payDigest?: FirmTask<PayDigestPayload>;
+  payQueryUpdates?: FirmTask<PayQueryUpdatePayload>;
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -87,6 +89,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // Telling workers the office changed or cancelled their booked shift (golden rule 12).
   await registerFirmTask(boss, deps.firmChangeNotices ?? firmChangeNoticeTask);
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
+  // Telling a worker payroll has sorted their pay query.
+  await registerFirmTask(boss, deps.payQueryUpdates ?? payQueryUpdateTask);
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
   await registerFirmTask(boss, deps.reminders ?? shiftRemindersTask);

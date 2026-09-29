@@ -32,7 +32,13 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   > You can ask for any decision about your shifts to be reviewed by a member of our team."
 - Anyone significantly affected by an automated decision (e.g. refused a shift) can ask for a
   human review. Build a "Ask the office to review" button on refusal screens.
-- Pay disputes always go to a person.
+- Pay disputes always go to a person. Built that way: payroll answers each group of pay queries in
+  its own words; the only AI use is a summary line for payroll. A test (`tests/unit/ai.boundary.test.ts`)
+  fails if the code that builds what a worker sees or receives (the staff pages, portal, notices,
+  notify and message templates), or payroll's sorting path from the note box to the database, can
+  import AI code, if any other file starts importing the AI modules or their two payroll-facing
+  users, or if an AI SDK is imported outside `src/lib/ai/`. It catches the likely mistakes; it
+  can't prove every possible path.
 
 ## Retention defaults (per firm, adjustable)
 

@@ -59,6 +59,8 @@ async function changeFirm(settings: Record<string, unknown> = {}) {
   return { f, resourcer, arena, stadium, shiftId, ann, ben, annBooking, benBooking, ctx };
 }
 
+// Ordered by the number (events.id): a bare "id" would be the text column selected above, and
+// "1000003" sorts before "999998".
 const eventsOf = async (firmId: string, like: string) =>
   (
     await su.query<{
@@ -69,7 +71,7 @@ const eventsOf = async (firmId: string, like: string) =>
       data: Record<string, unknown>;
     }>(
       `select id::text, action, actor_type, entity_id::text, data from events
-        where firm_id = $1 and action like $2 order by id`,
+        where firm_id = $1 and action like $2 order by events.id`,
       [firmId, like],
     )
   ).rows;

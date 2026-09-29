@@ -191,7 +191,7 @@ Docs: `docs/screens.md`, `docs/pilot-playbook.md`.
       code does the grouping keys
 - [x] Digest to payroll by email at a set time: "42 queries, 37 about the new rate not applied
       to 12 Sep shifts" with the list attached
-- [ ] Worker sees status updates; AI never answers a dispute
+- [x] Worker sees status updates; AI never answers a dispute
 - [ ] Pay records CSV import (period, hours, rate, gross, pay date)
 - [ ] Tests: `pay.grouping` (stable keys; AI failure falls back cleanly)
 
@@ -827,8 +827,8 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     so far.
   - Regrouping runs when asked (`regroupPayQueries()`); the digest now runs it first, so a pay
     line imported after a query moves it to the right group (done in the digest task).
-  - Payroll's page is read only (apart from "Send the digest now"): resolving a group and telling
-    its workers is the "Worker sees status updates" task.
+  - Payroll sorting a group and telling its workers: built in the "Worker sees status updates"
+    task.
 - **Connect Amazon SES** (every office email goes through the console transport until then: login
   links by email, escalations, the credential list and now the payroll digest with its attached
   list; an outside service with an AWS account):
@@ -866,6 +866,24 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     noisy.
   - The key-freeze question above still stands: a query in a digest can still move group when
     regrouped; the digest's list shows the group it was sent in.
+- Pay query status follow-ups (Phase 6 "Worker sees status updates" task):
+  - **Dylan to confirm:** payroll's note goes in the WhatsApp/text message itself, as the doc's
+    `pay_query_update` template says (the pay page is behind a code, but the message isn't). The
+    push says nothing about pay. If the note should stay behind the code, the message becomes
+    "Payroll has answered your pay query. See it on your pay page." (a template change for Meta).
+  - Sorting one query on its own when a group holds a few different cases (today payroll sorts the
+    whole group it sees, with one note).
+  - A sorted query leaves payroll's page: a "Sorted recently" list (with who sorted it and the note)
+    would let payroll check what was said.
+  - Make the `pay_queries_resolution` check work both ways (a sorted query must name who, when and
+    the note). Every sort sets all three today; a few older test fixtures mark queries sorted
+    directly without them, so they'd change with it (a new migration).
+  - Sorting queues one notice job per query inside the transaction; a 2,000-query group means 2,000
+    inserts there. Queue them in one batch if that's ever slow.
+  - Phase 7 (the WhatsApp line): a worker's free-text message about pay must be sorted into "pay"
+    and answered only with the link to raise a pay query, never with an answer. Add the new AI
+    purpose to `AI_PURPOSES` and to `tests/unit/ai.boundary.test.ts` on purpose, and keep its
+    output away from pay answers.
 - Offer waves follow-ups (from the Phase 4 offer waves task):
   - Tell workers whose offer was "filled elsewhere" (the `offer-expire` job and `shift_filled`),
     and let a worker decline an offer (a "No thanks" on the shift page).
@@ -985,3 +1003,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 6 | 0.5 | Pay query form: behind the pay code, a worker picks one of their recent shifts (or a day), what's wrong (hours missing, wrong rate, paid late, something else) and a note, and gets "Pay query sent." with a reference; the pay page lists their queries "With payroll" or "Sorted"; new `pay_queries` table (isolated per firm); one open query per question; the typed note never goes in the log; no AI (golden rule 9); the review caught nested brackets in the log's words, a stuck logged-out screen and small buttons (all fixed); 2177 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.4 | Pay query grouping, BLOCKED (not ticked: "Haiku summarises" needs Claude on Amazon Bedrock, an outside service): built everything short of it: grouping keys by code (wrong rate by week and pay-line rate, hours missing by week and site, paid late and something else by week), regrouping when a pay line arrives later, payroll's read-only "Pay queries" page grouped by likely cause with the app's own summary line, and the AI summary interface (facts only, checked, with the app's line as the fallback) with a fake for tests; connecting Bedrock is parked with steps; 2191 tests + 38 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 6 | 0.8 | Payroll digest: at the firm's set time (default 09:00 Monday to Friday, a new `pay_digest` setting) payroll gets one email: "42 new pay queries since the last digest. 37 are about the same thing: …", the groups biggest first, and the list attached as a spreadsheet file (names and what workers wrote only in the attachment); each query goes once and is marked "In a digest", back to waiting if no email gets through; payroll's page shows the schedule, the last digest and "Send the digest now"; email through the console transport (connecting Amazon SES parked with steps); the review caught per-query log entries in the wrong transaction, an outcome step that could fail silently and a lost digest the page never mentioned (all fixed and tested); 2231 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 6 | 0.6 | Pay query status: payroll marks a group "sorted" with a note (required, at most 500 characters, never in the log; new columns on `pay_queries`); each worker gets "Update on your pay query (ref …): sorted. {note}" by WhatsApp or text (once, quiet hours respected, a push that says nothing about pay) and sees "Sorted on {day}" with "Payroll says: …" on their pay page; a new test pins which files may use AI code and fails if anything a worker sees, or payroll's sorting path, can reach it; the review caught that the test missed the office side where the note is typed (fixed: the sort path has its own modules, and the reviewer's breach now fails the test); two old test-helper root causes fixed on the way (a missing cross-firm case, ids sorted as text); 2264 tests + 38 e2e; verified and audited DONE (see docs/work-log.md) |

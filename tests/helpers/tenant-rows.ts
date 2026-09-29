@@ -465,6 +465,12 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
            values ($1, $2, $3, '2026-11-04', 'wrong_rate')`,
     values: [firmId, own.rosterWorkerId, other.rows.shifts],
   }),
+  pay_queries_resolved_by_fk: (firmId, own, other) => ({
+    text: `insert into pay_queries (firm_id, worker_id, work_date, issue_type, status, resolved_by,
+             resolved_at, resolution_note)
+           values ($1, $2, '2026-11-05', 'late_pay', 'resolved', $3, now(), 'Paid Friday.')`,
+    values: [firmId, own.rosterWorkerId, other.officeUserId],
+  }),
   metrics_daily_recorded_by_fk: (firmId, _own, other) => ({
     text: `insert into metrics_daily (firm_id, day, kind, metric, value, recorded_by)
            values ($1, $2, 'tally', 'calls_per_day', 1, $3)`,

@@ -59,7 +59,7 @@ dash isn't a standard text character and would make the text cost more.
 | `credential_expiring` | Utility | "Your {credential} expires on {date}. Renew it and send the new details to the office so you can keep taking shifts. — {firm} Shift Team" |
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
 | (screen only: My shifts banner) | — | "Your {credential} is marked as expired. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" (the banner otherwise uses `credential_expiring` and `credential_expired` word for word) |
-| `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" |
+| `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" ({status} is "sorted"; {note} is payroll's note on one line, always written by a person, never by AI. Sent to each worker when payroll marks their query sorted, `src/lib/notices/pay-query-update.ts`; quiet hours hold it) |
 | `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" |
 
 ## Submitting to Meta
@@ -70,7 +70,7 @@ with only the variable parts filled in. The submission pack is
 category, language, body in Meta's `{{1}}` style and sample values. Built so far: `login_link`,
 `login_code`, `shift_offer`, `shift_urgent`, `shift_reminder_24h`, `shift_reminder_2h`,
 `shift_changed_by_firm`, `shift_cancelled_by_firm`, `request_update`, `credential_expiring`,
-`credential_expired`.
+`credential_expired`, `pay_query_update`.
 - Words that are sometimes left out need their own template: `shift_offer`, `shift_urgent`,
   `shift_reminder_24h`, `shift_reminder_2h`, `shift_changed_by_firm` and
   `shift_cancelled_by_firm` each have a `_no_site` variant, used when the shift has no site;
@@ -123,6 +123,9 @@ offer's and the office offer's SMS versions are built so far; the others come wi
   office's change notices)
 - Request update: "Request {status}" / "{type} — tap to view." (built: `requestUpdatePush()`, with
   the office's answer; {type} as the list names it, "Time change"; tapping opens My requests)
+- Pay query update: "Pay query sorted" / "Payroll has answered. Open your pay page to see it."
+  (built: `payQueryUpdatePush()`, with payroll's answer; nothing about the pay itself, since a lock
+  screen shows it; tapping opens the pay page, behind the pay code)
 
 ## Call-to-text recording (voice)
 

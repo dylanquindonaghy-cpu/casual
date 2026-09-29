@@ -9,13 +9,14 @@ import { timeOnDay } from "@/lib/portal/format";
 import { ISSUE_LABELS } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 import { SendDigestButton } from "./send-digest-button";
+import { SortGroupForm } from "./sort-group-form";
 
 const card = "mt-3 rounded-xl border border-slate-300 p-4";
 
 // Payroll's pay queries (docs/screens.md `/office/pay-queries`): open ones grouped by likely cause,
 // biggest first, with a one-line summary and each worker's query; the digest's schedule, the last
-// one sent and "Send the digest now". Payroll and admins. Resolving a group and telling workers
-// come next.
+// one sent and "Send the digest now"; and each group's "Mark as sorted and tell them" (the workers
+// get payroll's note). Payroll and admins.
 export default async function PayQueriesPage() {
   const { firm } = await requireOfficeArea("pay");
   const token = (await readSessionToken("office")) ?? "";
@@ -66,6 +67,7 @@ export default async function PayQueriesPage() {
               </li>
             ))}
           </ul>
+          <SortGroupForm ids={g.queries.map((q) => q.id)} />
         </section>
       ))}
       {data.more && <p className="mt-4">Showing the newest 2,000.</p>}

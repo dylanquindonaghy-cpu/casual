@@ -14,10 +14,11 @@ function e2eAppUrl(): string {
   return withDatabase(url, `${databaseName(url)}_e2e`);
 }
 
-// One firm setting for a seeded firm, in the e2e database (never the dev one). Firms are the
-// owner's to change (the app role can only read them); RLS is forced for the owner too, so it sets
-// the firm first, like the seed.
-export async function setFirmSetting(slug: string, key: string, value: unknown): Promise<void> {
+// One firm setting for a seeded firm, in the e2e database (never the dev one): `value`, or
+// undefined to remove it. Returns what was there before (undefined if nothing), so a test can put
+// it back. Firms are the owner's to change (the app role can only read them); RLS is forced for the
+// owner too, so it sets the firm first, like the seed.
+export async function setFirmSetting(slug: string, key: string, value: unknown): Promise<unknown> {
   const url = process.env.DATABASE_ADMIN_URL;
   if (!url) throw new Error("DATABASE_ADMIN_URL must be set");
   if (!isLocalHost(url)) throw new Error("e2e rows go to a local database only");
@@ -33,12 +34,19 @@ export async function setFirmSetting(slug: string, key: string, value: unknown):
     await client.query("begin");
     try {
       await client.query("select set_config('app.current_firm_id', $1, true)", [firmId]);
-      const updated = await client.query(
-        "update firms set settings = settings || jsonb_build_object($2::text, $3::jsonb) where id = $1",
-        [firmId, key, JSON.stringify(value)],
+      const before = await client.query<{ value: unknown }>(
+        "select settings -> $2::text as value from firms where id = $1 for update",
+        [firmId, key],
       );
-      if (updated.rowCount !== 1) throw new Error(`firm ${slug} not updated`);
+      if (before.rowCount !== 1) throw new Error(`firm ${slug} not found`);
+      await client.query(
+        value === undefined
+          ? "update firms set settings = settings - $2::text where id = $1"
+          : "update firms set settings = settings || jsonb_build_object($2::text, $3::jsonb) where id = $1",
+        value === undefined ? [firmId, key] : [firmId, key, JSON.stringify(value)],
+      );
       await client.query("commit");
+      return before.rows[0]?.value ?? undefined;
     } catch (err) {
       await client.query("rollback");
       throw err;

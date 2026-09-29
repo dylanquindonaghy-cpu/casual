@@ -101,6 +101,8 @@ export interface MyPayQuery {
   day: string; // the day worked
   status: string;
   createdAt: Date;
+  sortedOn: string | null; // the firm-local day payroll sorted it (yyyy-mm-dd)
+  note: string | null; // payroll's note to them, once sorted (typed by a person, never an AI)
 }
 
 export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQuery[]> {
@@ -115,6 +117,8 @@ export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQue
         day: payQueries.workDate,
         status: payQueries.status,
         createdAt: payQueries.createdAt,
+        resolvedAt: payQueries.resolvedAt,
+        note: payQueries.resolutionNote,
       })
       .from(payQueries)
       .where(
@@ -131,6 +135,9 @@ export async function myPayQueries(ctx: Ctx, stepped: Stepped): Promise<MyPayQue
     day: r.day,
     status: r.status,
     createdAt: r.createdAt,
+    sortedOn:
+      r.status === "resolved" && r.resolvedAt ? localDateOf(r.resolvedAt, ctx.firm.timezone) : null,
+    note: r.status === "resolved" ? r.note : null,
   }));
 }
 

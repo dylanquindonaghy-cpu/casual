@@ -6,6 +6,7 @@ import {
   OFFER_WAVE_QUEUE,
   offerWavePayload,
 } from "@/lib/offers/waves";
+import { PAY_QUERY_UPDATE_QUEUE, payQueryUpdatePayload } from "@/lib/notices/pay-query-update";
 import { payDigestJob } from "@/lib/pay/digest";
 import { createBoss } from "@/worker/boss";
 import { registerJobs } from "@/worker/jobs";
@@ -28,10 +29,16 @@ describe("worker (real pg-boss on the test database, as the jobs role)", () => {
   beforeAll(async () => {
     boss = createBoss(urls.jobs);
     await boss.start();
-    // Offer jobs and a payroll digest that do nothing: this real worker mustn't pick up another
-    // test file's queued waves or digests (it would message and write for them with the real clock).
+    // Offer jobs, a payroll digest and pay query notices that do nothing: this real worker mustn't
+    // pick up another test file's queued jobs (it would message and write for them with the real
+    // clock).
     await registerJobs(boss, {
       payDigest: { ...payDigestJob, task: async () => null },
+      payQueryUpdates: {
+        queue: PAY_QUERY_UPDATE_QUEUE,
+        schema: payQueryUpdatePayload,
+        task: async () => null,
+      },
       offers: {
         wave: { queue: OFFER_WAVE_QUEUE, schema: offerWavePayload, handler: async () => null },
         escalate: {

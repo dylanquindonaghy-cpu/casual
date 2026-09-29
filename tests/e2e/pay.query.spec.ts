@@ -1,3 +1,4 @@
+import { dayLabel } from "../../src/lib/rules/reasons";
 import { addOfficeUser, setFirmSetting } from "./db";
 import { expect, test } from "./fixtures";
 import { codeSentTo, emailSentTo, loginLinkSentTo, sentTo } from "./outbox";
@@ -6,6 +7,7 @@ import { codeSentTo, emailSentTo, loginLinkSentTo, sentTo } from "./outbox";
 // confirmation, then the query listed on the pay page "With payroll". A different seeded worker
 // from the pay spec, so the two don't share the per-number login and code limits. Then payroll
 // sees it in its group and sends the digest: the email, with the list attached, reaches the outbox.
+// Last, payroll sorts it with a note: the worker gets the message and sees "Sorted" on the pay page.
 
 const acme = "http://acme.localhost:3100";
 const mobile = "+447700900103"; // a seeded Acme worker
@@ -109,4 +111,38 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
     ).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 15_000 });
   await expect(mine.getByText(/· In a digest$/)).toBeVisible();
+
+  // Payroll sorts the group with a note; the worker is told (quiet hours off for Acme just while
+  // it goes, so the time of day doesn't matter, then put back as it was).
+  const quietBefore = await setFirmSetting("acme", "quiet_hours", {
+    start: "00:00",
+    end: "00:00",
+    urgent_override: true,
+  });
+  try {
+    const sortedAfter = new Date(Date.now() - 1000);
+    await group
+      .getByLabel("Tell them what payroll did")
+      .fill("Paid on Friday with the rest (e2e).");
+    await group.getByRole("button", { name: "Mark as sorted and tell them" }).click();
+    await expect(group.getByRole("status")).toHaveText(
+      /^Marked as sorted: \d+ quer(y|ies)\. Each person will get your note by message\.$/,
+    );
+    const update = await sentTo(
+      mobile,
+      sortedAfter,
+      /(Update on your pay query \(ref [0-9A-F]{8}\): sorted\. Paid on Friday with the rest \(e2e\)\. — Acme Events Shift Team)/,
+    );
+    expect(update).toBeTruthy();
+  } finally {
+    await setFirmSetting("acme", "quiet_hours", quietBefore);
+  }
+
+  // The worker's pay page (the pay code is still good): sorted today, with payroll's note.
+  await page.goto(`${acme}/pay`);
+  const today = dayLabel(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date()),
+  );
+  await expect(page.getByText(`Sorted on ${today}`)).toBeVisible();
+  await expect(page.getByText("Payroll says: “Paid on Friday with the rest (e2e).”")).toBeVisible();
 });

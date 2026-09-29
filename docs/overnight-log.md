@@ -4183,3 +4183,85 @@ the defaults and that the list may go by email; the settings screen; re-sending 
 stopped part way; SES message ids; the daily "nothing new" log line).
 
 **Hours:** 0.8 h (13:56 to 14:46 UTC). Phase 6 so far 1.7 h of its 12–18 h estimate.
+
+## 2026-09-29 14:50 UTC: Phase 6, "Worker sees status updates; AI never answers a dispute"
+
+**Plan:**
+
+1. **Schema** (migration 0019): `pay_queries` gets `resolution_note` (1 to 500 characters),
+   `resolved_at` and `resolved_by` (a composite FK to `office_users`, like `requests`).
+2. **Payroll sorts a group** (`src/lib/pay/resolve.ts`, `resolvePayQueries()`): an active payroll
+   user or admin; the query ids payroll saw in the group (so nothing they didn't see is sorted);
+   a note to the workers, required, at most 500 characters; the waiting ones (open or in a digest)
+   locked in id order, marked `resolved`; one `pay_query.resolved` {previous, withNote} per query
+   (never the note); one `pay-query-update` job per query. None still waiting: "already".
+3. **Telling the worker** (`src/lib/notices/pay-query-update.ts`, like `request-update`): at most
+   once (claim `pay_query.update_notice`, send outside any transaction, then
+   `pay_query.update_sent`/`_failed` and a push); quiet hours hold it (pay answers are never
+   urgent: `pay_query.update_held`, queued again). Message `pay_query_update` from the doc:
+   "Update on your pay query (ref {ref}): sorted. {note} — {firm} Shift Team"; the push stays
+   generic ("Pay query sorted" / "Payroll has answered. Open your pay page to see it.": a lock
+   screen shouldn't show pay details) and opens `/pay`.
+4. **The worker sees it**: on `/pay` (behind the pay code), a sorted query shows "Sorted on
+   {Tue 3 Nov}" and "Payroll says: “{note}”"; open and in-digest ones stay "With payroll".
+5. **Payroll's page**: each group gets "Tell these workers what payroll did" and "Mark as sorted and
+   tell them", with the answer shown in place (the group stays on screen with it until reload, so
+   the confirmation can't vanish on refresh).
+6. **AI never answers a dispute**, enforced by tests: a boundary test lists every file that
+   imports `src/lib/ai/` (only the payroll-facing summary: `ai/pay-summary.ts`,
+   `office/pay-query-groups.ts`, `pay/digest.ts`), so no worker-facing code (portal, notices,
+   notify, messaging, the staff pages) can reach it; the AI's purposes are a fixed list with only
+   the payroll summary; the worker's update is the doc's template with payroll's typed note,
+   byte for byte.
+7. **Wiring and copy**: the WhatsApp pack entry `pay_query_update`, log types and words, the
+   queue, docs (screens, messaging-templates, api-and-jobs, data-model, architecture,
+   compliance).
+8. **Tests**: integration (sorting: roles, note rules, only the ids given, only waiting ones, two
+   payroll users at once, events, jobs; the notice: sent once, quiet hours, failure, fallback;
+   the worker's list; other firms), unit (copy, doc and pack, the AI boundary), e2e (payroll sorts
+   the group; the worker's pay page shows "Sorted" and the note; the message in the outbox).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Sort by the ids payroll saw, not the group key | A query could move group (regrouping) between loading and clicking; payroll sorts only what they read | Sort by key |
+| A note is required | A worker's pay question answered with no explanation isn't an answer; they need what payroll did | Optional, like approving a request |
+| The note goes in the WhatsApp/text message, as the doc's template says; the push stays generic | The doc's copy; a lock screen notification shouldn't show pay details | Leave the note out of the message (Dylan can change) |
+| One "sorted" status (no separate "declined") | Payroll's note says whether anything changed; the schema already has open / in_digest / resolved | A new "answered, no change" status |
+| No message when a query goes into a digest | It's still with payroll; one message when it's answered | Tell them at each step |
+| Sorting a single query in a bigger group: parked | The group is payroll's unit of work; the rare odd one out can wait | Per-query buttons now |
+
+**Built as planned.**
+
+**Test failures on the first full run (2), root causes before any change:**
+
+| Failure | Root cause | Fix |
+|---|---|---|
+| `tenancy.isolation` "covers every composite foreign key" | The new composite FK `pay_queries_resolved_by_fk` had no cross-firm case; the test insists every composite FK has one | Added the case to `FK_CASES` (a sorted query naming another firm's office user is refused) |
+| `office.firm-change` "out of date…" (expected `superseded, not_booked`, got the reverse; failed alone, passed in some full runs) | Its helper selected `id::text` and ordered `by id`: Postgres takes `id` in ORDER BY to mean the selected text column, so once event ids straddle a power of ten ("999998" vs "1000003") the order flips. The test database's event ids have grown to that size. A test-helper bug, not a product bug | `order by events.id` (the number), with a comment; the assertion is unchanged |
+
+**Guardrails review: FIX FIRST (1 item), fixed.** Everything else passed (tenant isolation,
+concurrency, at-most-once messaging, quiet hours, no note in any event, no personal data).
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the golden-rule-9 test left out the office side, where payroll types the note. The sort action and form reached AI code through `quick-actions.ts` and the digest's copy module, so an AI "draft note" could have been added there without failing it. Two docs said more than the test proved | The sort path now has its own modules: `office-context.ts` (the context, moved out of `quick-actions.ts`), `pay-sort.ts`, `pay-sort-copy.ts`, `sort-actions.ts`, `as-payroll.ts`. The test protects all of them plus the form, pins the exact files that import the two AI-using modules, refuses AI SDK imports outside `src/lib/ai/`, and checks the form takes only the query ids. The reviewer's breach (the sort path importing the grouped view) now fails 2 of its tests: tried, then reverted. `docs/compliance.md` and `docs/architecture.md` now say exactly what it proves |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| The action log's worker filter couldn't find sort events; the line didn't name the worker | `pay_query.resolved` carries `workerId`; the filter now also matches pay-query events by their query's worker; "Office Person sorted Ann Booker's pay query and wrote them a note."; tested |
+| Everyone in a group gets the same note | The hint says so: "don't name anyone or give one person's figures" |
+| A two-way check (sorted ⇒ who, when, note) | Parked: older test fixtures mark queries sorted directly; every sort sets all three |
+| `uuidArray` should refuse non-uuids | It throws on anything else; unit-tested |
+| A group over 1,000 queries would fail as "Something went wrong" | The limit is 2,000, the page's own cap, so a group on screen always fits |
+| e2e: restore the old quiet hours, not the seed's | `setFirmSetting` returns what was there and the test puts it back |
+| Wording: "read only" in screens.md, "done" in PLAN.md, awkward log lines | Fixed ("built"; "Couldn't tell Ann…: the message failed."; "Ann will be told … when quiet hours end.") |
+| Say when some were already sorted | "Marked as sorted: 3 queries. 1 was already sorted by someone else. …" |
+| A test with another firm's payroll user | Added (not allowed) |
+| Batch the notice jobs | Parked |
+
+Correction to the plan above: the box is labelled "Tell them what payroll did", not "Tell these
+workers…".

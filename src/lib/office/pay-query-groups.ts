@@ -4,6 +4,7 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
 import type { AiClient } from "../ai/client";
 import { codeSummary, summarisePayGroup, type PayGroupFacts } from "../ai/pay-summary";
+import { uuidArray } from "../db/arrays";
 import { firms, sites } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { parsePayGroupKey } from "../pay/grouping";
@@ -65,9 +66,8 @@ export async function loadPayQueryGroups(
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const timeZone = firm?.timezone ?? "Europe/London";
   if (only?.ids.length === 0) return { timeZone, groups: [], more: false };
-  // The digest's ids as one array parameter (our own ids).
   const which = only
-    ? sql`q.id = any(${`{${only.ids.join(",")}}`}::uuid[])`
+    ? sql`q.id = any(${uuidArray(only.ids)})`
     : sql`q.status in ('open', 'in_digest')`;
   const { rows } = await tx.execute<Row>(sql`
     select q.id, q.group_key, q.issue_type, q.work_date::text as work_date, q.details, q.status,

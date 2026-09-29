@@ -6,8 +6,13 @@
 // then `noAi` answers every request with "unavailable" and callers use their code fallback; tests
 // use a fake. The Bedrock client is added behind this same interface.
 
+// Everything the AI may be asked to do. Only payroll-facing summaries so far: nothing a worker
+// reads is ever written by AI, and no AI answers a pay dispute (golden rule 9;
+// tests/unit/ai.boundary.test.ts holds this list and who may import this module).
+export const AI_PURPOSES = ["pay_group_summary"] as const;
+
 export interface AiRequest {
-  purpose: "pay_group_summary"; // what the call is for (for logging and limits)
+  purpose: (typeof AI_PURPOSES)[number]; // what the call is for (for logging and limits)
   system: string;
   prompt: string;
   maxTokens: number;

@@ -4166,3 +4166,20 @@ Other suggestions:
 | 2,000 bound parameters for the ids | One array parameter |
 | e2e setting helper: no row check, no rollback | Both added |
 | quick-actions comment; the daily "nothing new" log line; provider ids | Comment fixed; the other two parked |
+
+**Verify:** `VERIFIED tree=c1e55edcd477155d e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2231 tests, 38 e2e).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. It found every claim proven (the
+schedule, the task's exact example line, the attached list, the grouping, once per key with the
+failure and crash cases, the office page and "Send the digest now" in the browser test, AI never
+deciding), no fakes, and nothing to reach DONE.
+
+**Ticked.** **Commit:** `c390763` "Phase 6: Digest to payroll by email at a set time: …", pushed
+to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Parked:** "Connect Amazon SES" (with steps) and "Payroll digest follow-ups" (Dylan to confirm
+the defaults and that the list may go by email; the settings screen; re-sending a digest that
+stopped part way; SES message ids; the daily "nothing new" log line).
+
+**Hours:** 0.8 h (13:56 to 14:46 UTC). Phase 6 so far 1.7 h of its 12–18 h estimate.

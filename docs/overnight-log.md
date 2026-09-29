@@ -2703,3 +2703,10 @@ To reach DONE: nothing — already DONE per the evidence above.
 Its note (not a defect): the cap's non-urgent branch is exercised only by the rule and candidate-list tests, because no non-urgent offer path exists yet. That matches the docs.
 
 **Ticked.** 0.4 h. Phase 4: 2.2 h of 27–37 h.
+
+**Commit:** `e985170` "Phase 4: Only eligible workers are ever notified; max 3 offers per worker per day unless urgent". Pushed to `origin/build/overnight` (ea9c5ed..e985170). CI: `gh` isn't installed, so it wasn't checked.
+**Parked (PLAN.md):**
+- the count-then-send race;
+- logging how many workers the cap left out;
+- whether a firm may change the 3;
+- **Dylan to confirm:** urgent offers count towards the 3.

@@ -2631,3 +2631,63 @@ Full list: `docs/overnight-log.md`, this task's entry.
    open shifts": you should see four steward shifts on Saturday with "Take shift".
 3. Log in as `07700 900125` (expired SIA licence) and open the urgent dropout's link. It says
    why you can't take it, with "Ask the office to review".
+
+## 2026-09-29: Phase 3, task 12: The whole worker journey in one browser test (0.1 h). Phase 3 complete
+
+### Time
+
+0.1 hours of Claude's working time (03:00 to 03:09 UTC), in the unattended overnight loop.
+**Phase 3 is complete:** 4.5 hours in total against its estimate of 35 to 45 hours.
+
+### Result
+
+- `scripts/verify.sh` printed `VERIFIED tree=bb6abf137a0bd7c6 e2e=true` on the first run. That
+  covers the type checks, lint, all 1545 tests, the 21 browser tests (up from 20) and the rule
+  checks.
+- The independent auditor gave `VERDICT: DONE` on the first round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+One browser test, `tests/e2e/flow.worker.spec.ts`, plays a worker on a phone-sized screen using
+the demo seed's Saturday. It:
+
+1. logs in with a link;
+2. takes the racecourse shift, getting "You're booked." with a reference;
+3. cancels it with "I'm unwell", getting the notice given and a reference;
+4. takes the late shopping-centre shift and asks for a change of times, then sees it in My
+   requests;
+5. opens the pay page with a 6-digit code.
+
+It times each step. Phase 3's "Done when" asks that logging in, taking and cancelling each take
+under 30 seconds. Here they took **2.1, 1.1 and 0.5 seconds**. That's on the development server,
+which builds pages as they're first opened, so a real phone should be faster still.
+
+`docs/testing.md` now has the staff part of the demo script as numbered steps you can follow on
+a call. The office part of the script ("resourcer sees it", "urgent wave fills it", "notice
+report shows both") needs screens from Phases 4 and 5. The action log already records every
+step the worker takes.
+
+### Decisions made and why
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The test uses a security officer (07700 900157) | Other tests count the open steward shifts; nothing counts the security ones, so this test can't upset another | A steward |
+| Time each step inside the test, limit 30 seconds | That's the "Done when"; the test fails if a step gets too slow | A separate speed-testing tool |
+
+### What the new test proves
+
+- `tests/e2e/flow.worker.spec.ts` (1 browser test): the whole worker journey works end to end on
+  a phone-sized screen, on seeded data. Logging in, taking and cancelling each take well under
+  30 seconds.
+
+### Parked, open, and things that need Dylan
+
+- The office half of the demo script comes with Phases 4 and 5.
+- Nothing needs Dylan for this task.
+
+### How to see it working
+
+Follow "Staff part" under "Fixtures and the demo seed" in `docs/testing.md`. Or stop `npm run
+dev` and run `npm run e2e -- tests/e2e/flow.worker.spec.ts`: you should see `1 passed` and a
+line with the timings.

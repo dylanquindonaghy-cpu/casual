@@ -9,7 +9,7 @@ without breaking a 6am cancellation.
 |---|---|---|---|
 | Unit | Vitest | Rules engine (table-driven), ranking, notice-hours maths, grouping keys, template rendering, zod schemas for AI outputs | every commit |
 | Integration | Vitest + real Postgres (Docker) | RLS isolation per table, scoped client, atomic assign race, idempotent webhook insert, job handlers with a fake clock, Sheets adapter against a mocked Sheets API | every commit |
-| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP; office: create shift → make urgent → wave → assign; firm cancel → notice report | on PR and before deploy |
+| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP (built: `tests/e2e/flow.worker.spec.ts`, timed); office: create shift → make urgent → wave → assign; firm cancel → notice report | on PR and before deploy |
 | Contract | Vitest | Twilio signature verification with real sample payloads; TwiML output; template variable coverage | every commit |
 | Security | scripts | `npm audit`, secrets scan, RLS "enabled on every table" check, log masking test | every commit |
 | Manual | checklist | Real phone, real Twilio number, iPhone home-screen push, poor-signal open of My shifts | before pilot |
@@ -98,6 +98,27 @@ The login link appears in the `npm run dev` terminal (console messaging).
 
 The demo script for calls walks Acme's Saturday: worker logs in → takes an open shift → cancels →
 resourcer sees it → urgent wave fills it → notice report shows both.
+
+**Staff part (works now; `tests/e2e/flow.worker.spec.ts` runs it on a phone-sized screen and
+checks log in, take and cancel each finish in under 30 seconds):**
+1. `npm run db:reset`, then `npm run dev`. Open `http://acme.localhost:3000/login` on a phone or
+   a narrow browser window.
+2. Log in as `07700 900157` (a security officer with nothing booked). The link appears in the
+   `npm run dev` terminal. You should see "Hello {name}" and "No shifts booked yet."
+3. "See open shifts" → "Take shift" on the racecourse shift → "You're booked." with a
+   reference, signed "Acme Events Shift Team".
+4. "See my shifts" → "Cancel this shift" → "I'm unwell" → "Confirm cancellation" → "We've
+   recorded your cancellation.", the notice given and a reference.
+5. Take the late shopping-centre shift, then "Ask for a change" → "Change the times" → "Send
+   request" → "Request sent."; My requests shows it "Waiting for the office".
+6. "See your pay" → "Send me a code" (the code appears in the terminal) → the last 8 weeks of
+   pay.
+7. Also worth showing: the urgent dropout's page (the seed prints its link) as `07700 900125`,
+   whose SIA licence has expired: why they can't take it, and "Ask the office to review".
+
+**Office part (Phase 4 and 5):** "resourcer sees it" (the office Today view), "urgent wave fills
+it" (offer waves) and "notice report shows both" (the notice report) aren't built yet. The
+action log already records every step above.
 
 ## Pre-pilot checklist
 

@@ -2028,3 +2028,36 @@ Note for context only (not this task): PLAN.md's Phase 3 "Done when" line also d
 **Ticked** in PLAN.md. **Hours:** 0.5 (02:29 to 02:57 UTC). Phase 3 so far: 4.4 h of its 35–45 h
 estimate.
 **Commit:** `9072efc`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+## 2026-09-29 02:59 UTC: Phase 3, "Playwright: login → take shift → cancel → request → pay OTP"
+
+**Plan.** One browser test on a phone-sized screen (`tests/e2e/flow.worker.spec.ts`), on the demo
+seed's Saturday, timing each step:
+1. **Log in** by link: from typing the mobile number to "Hello {name}".
+2. **Take a shift:** "See open shifts" → "Take shift" on the racecourse security officer shift →
+   "You're booked." with a reference.
+3. **Cancel it:** "See my shifts" → "Cancel this shift" → "I'm unwell" → "Confirm cancellation"
+   → "We've recorded your cancellation.", the notice given and a reference.
+4. **Ask for a change:** take the late shopping-centre shift, then "Ask for a change" → "Change
+   the times" 16:00 to 23:00 → "Request sent." → My requests shows it waiting.
+5. **Pay with a code:** "See your pay" → "Send me a code" → the code from the message → the
+   pay lines.
+
+Each of log in, take and cancel must finish in under 30 seconds (the Phase 3 "Done when"). The
+timings are recorded on the test.
+
+**Decisions:**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| The flow uses 07700 900157, a security officer the seed leaves unbooked, on the two open security officer shifts | Other tests count the Saturday's open steward shifts; nothing counts the security officer ones, so this test can't change what another test sees | A steward (would change the login test's count of 4) |
+| Time each step with the test's own clock, limit 30 seconds | The "Done when" asks for under 30 seconds each; the local e2e run uses the development server, which compiles pages on first visit, so real phones will be faster | A separate performance tool (not needed for a 30-second limit) |
+| docs/testing.md splits the demo script into the staff part (runs now, and this test runs it) and the office part ("resourcer sees it", "urgent wave fills it", "notice report"), which needs Phase 4 and 5 | Those screens don't exist yet; the phase's "Done when" can only be met for the staff part now | Build office screens now (out of phase) |
+
+**Built:** `tests/e2e/flow.worker.spec.ts`. It passed first time. Timings on the local
+development server: log in 2.5 s, take a shift 1.1 s, cancel 0.4 s, ask for a change 2.2 s, pay
+with a code 1.5 s. docs/testing.md now has the staff part of the demo script as numbered steps,
+and says which office steps wait for Phase 4 and 5.
+
+**Guardrails review: not run.** Only a test and docs changed: no schema, auth, tenancy,
+messaging, jobs or rules.

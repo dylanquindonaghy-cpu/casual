@@ -4412,3 +4412,20 @@ worker). Suggestions:
 | The test helper found a new query by time, not its reference | It finds it by the reference the worker is shown |
 | With the real client: abort on timeout, stop after the first failure, count fallbacks | Parked under "Connect Bedrock" |
 | A production change inside a "Tests" task | Said so in the plan (a gap found while planning) and in the commit message |
+
+**Verify:** `VERIFIED tree=d6fc474c3ea95332 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2285 tests, 39 e2e).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. It found both claims proven (stable
+keys: the 5 integration tests and the key code; AI failure: the 12-case digest matrix, the timeout
+code, the partial failure and the page), no fakes (no mocking of the code under test), and nothing
+to reach DONE.
+
+**Ticked.** **Commit:** `6ff6d62` "Phase 6: Tests: `pay.grouping` …", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Parked:** the Bedrock follow-ups (abort on timeout, stop after the first failure, count
+fallbacks) under "Connect Bedrock".
+
+**Hours:** 0.3 h (16:00 to 16:19 UTC). **Phase 6 done** except the blocked grouping task: 3.1 h of
+its 12–18 h estimate.

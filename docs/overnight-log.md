@@ -2061,3 +2061,39 @@ and says which office steps wait for Phase 4 and 5.
 
 **Guardrails review: not run.** Only a test and docs changed: no schema, auth, tenancy,
 messaging, jobs or rules.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=bb6abf137a0bd7c6 e2e=true` (1545 tests, 21 e2e; flow
+timings in ms: log in 2133, take a shift 1087, cancel it 474, ask for a change 2150, see pay with
+a code 1433).
+
+**Auditor (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Preliminary check: `.claude/state/verified.json` = `{"ok":true,"tree":"bb6abf137a0bd7c6","e2e":true,"at":"2026-09-29T03:05:50Z"}`; `./.claude/hooks/tree-hash.sh` on the current tree (including the untracked spec file) also prints `bb6abf137a0bd7c6`. Match confirmed, e2e was run (RUN_E2E=1) and passed.
+
+Claims:
+- Playwright spec exercises login → take shift → cancel → request → pay OTP in one flow — PROVEN. `/home/dylan/shiftdesk-starter/tests/e2e/flow.worker.spec.ts:16-100` implements all five steps with concrete DOM assertions (button/heading/text checks, reference IDs, signed message text). `.claude/state/e2e.log:5` — `✓ 1 [mobile-chrome] › tests/e2e/flow.worker.spec.ts:16:1 › a worker logs in, takes a shift, cancels it, asks for a change and sees their pay (7.9s)`.
+- Runs on a phone (mobile-first) — PROVEN. `/home/dylan/shiftdesk-starter/playwright.config.ts:34` defines the sole project `mobile-chrome` using `devices["Pixel 7"]`; all specs including this one run under it.
+- Login, take-shift and cancel each finish under 30s — PROVEN. `flow.worker.spec.ts:14,21-26` (`LIMIT_MS = 30_000`, `timed()` helper asserts `toBeLessThan(LIMIT_MS)`), and `.claude/state/e2e.log:4` shows real measured times: `"log in":2133,"take a shift":1087,"cancel it":474,"ask for a change":2150,"see pay with a code":1433` (ms) — well under the limit, and the assertion would fail the test if it weren't.
+- Test uses real seeded data, not stubs — PROVEN. `login link`/`code` are read from the live console-transport outbox via regex, not hardcoded (`/home/dylan/shiftdesk-starter/tests/e2e/outbox.ts:6-34`). Worker `07700 900157` = seed worker index 57 (`firstNumber=100 + i=57`, `src/lib/db/admin/seed-data.ts:149`), a `security_officer` left unbooked, matching the two open security-officer shifts (`race-security`, `centre-security-late`) and the £13.50/hr rate (`RATE_PENCE.security_officer = 1350`) in `/home/dylan/shiftdesk-starter/src/lib/db/admin/seed-saturday.ts:115-140,169-176,196-204`.
+- Demo script in docs updated to match — PROVEN. `docs/testing.md` diff adds a numbered staff script matching the spec's steps and references `tests/e2e/flow.worker.spec.ts` by name.
+- Full e2e run passing on current tree — PROVEN. `.claude/state/e2e.log:27` — `21 passed (1.2m)`, no failures/skips; invariants (`.claude/state/invariants.log`) separately confirm no `.only/.skip/.todo` in tests.
+
+Fakes found: none. No `.only`/`.skip`/`.fixme` in `tests/e2e/` (grep confirmed empty). No TODO/"not implemented" in the take-shift/cancel/pay action code paths checked (`src/lib/portal/take-shift.ts`, `src/app/shifts/open/actions.ts`, `src/app/shifts/actions.ts`, `src/lib/portal/pay.ts`, `src/app/pay/actions.ts`).
+
+Note (not a blocker to the DONE verdict but relevant to close-out): `tests/e2e/flow.worker.spec.ts` is currently untracked (`git status`), not yet committed. The tree-hash used by verify.sh does include untracked files, so the verified stamp is valid against the working tree as it stands — but the work is not yet committed to the branch.
+
+To reach DONE: nothing further needed for the audited claim itself. If closing the task, commit the new spec file (and the docs/testing.md changes) so the verified state is preserved in history, then tick the PLAN.md line via the normal `/close-task` flow (currently still `- [ ]`, correctly left unticked pending that step).
+```
+
+**Ticked** in PLAN.md. **Hours:** 0.1 (03:00 to 03:09 UTC).
+**Commit:** `beed1a9`, pushed to `origin/build/overnight`. CI: not checked (`gh` isn't installed).
+
+**Phase 3 complete:** 4.5 h of its 35–45 h estimate (well under, not over). Its "Done when": the
+phone timings are met (log in, take and cancel each under 3 seconds). The staff part of the demo
+script runs. The office part ("resourcer sees it", "urgent wave fills it", "notice report")
+needs Phase 4 and 5 screens. Gate B (a paid pilot commitment after the Phase 3 demo) doesn't stop
+the build (standing decision). Next: Phase 4.

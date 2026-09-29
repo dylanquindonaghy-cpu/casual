@@ -396,7 +396,15 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 
 - Lightsail instance: 2 vCPU, 4 GB, London, static IP (~$24/month).
 - Lightsail managed Postgres (~$15/month), automatic backups, not public.
-- Docker Compose: `web`, `worker`, `caddy`. Deploy via GitHub Actions (SSH, pull, up -d).
+  (Written in Phase 8, not run yet: `deploy/lightsail.sh` creates both with the AWS CLI, pinned to
+  eu-west-2: Ubuntu 24.04 on the active 4 GB bundle with `deploy/cloud-init.sh` (automatic security
+  updates, Docker from Docker's repository, a root-only `/opt/shiftdesk`), a static IP, a firewall
+  with only 80 and 443 open to the internet (SSH only from Lightsail's browser console), and
+  Postgres 16 not publicly accessible with nightly backups and an AWS-generated owner password.
+  Steps: docs/runbooks.md "Set up AWS (once)".)
+- Docker Compose: `web`, `worker`, `caddy`. Deploy via GitHub Actions (SSH, pull, up -d). (To
+  rethink with the deploy task: `deploy/lightsail.sh` closes SSH to the internet; PLAN.md Parking
+  lot, "Connect AWS".)
 - Secrets in a root-only `.env` on the server; move to AWS Secrets Manager later.
 - IAM user for the app with only: `bedrock:InvokeModel`, `ses:SendEmail` (+ S3 read in Stage 2).
 - Unattended security updates; snapshot before schema changes; test a restore monthly.

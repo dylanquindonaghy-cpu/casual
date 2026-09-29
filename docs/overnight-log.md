@@ -5278,3 +5278,77 @@ Other suggestions:
 
 **Commit:** `ecbd71e` "Phase 8: Custom domains: firm adds a CNAME; Caddy on-demand TLS with an ask
 endpoint", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-29 22:31 UTC: Phase 8, "AWS: Lightsail 4 GB instance + managed Postgres (London), static IP, ports 80/443 only"
+
+**Blocked (hard limit):** it creates real servers in a real AWS account, which costs money and
+needs Dylan's account. Everything short of it is built and checked; recorded as blocked, not ticked.
+
+**Plan:**
+
+1. **`deploy/lightsail.sh`** (written, never run tonight): one script Dylan runs once with the AWS
+   CLI, every call pinned to London (`eu-west-2`), safe to run again (it skips what exists):
+   - the instance: Ubuntu 24.04, the active 4 GB Linux bundle (looked up, not hard-coded), with
+     `deploy/cloud-init.sh` as its first-boot script;
+   - a static IP, attached to it;
+   - its firewall: **80 and 443 open to everyone, nothing else**; 22 (SSH) only from Lightsail's own
+     browser console (`lightsail-connect`), never the internet;
+   - managed Postgres 16 in London: the smallest standard (not high-availability) bundle, **not
+     publicly accessible** (only Lightsail machines in the region reach it), automatic backups in
+     a night window (02:00 to 02:30 UK summer time), master user `shiftdesk_owner` with a password
+     AWS generates (printed once to the terminal, never written to a file or the repo);
+   - at the end: the static IP, the database's address, and what to do next.
+2. **`deploy/cloud-init.sh`**: first boot of the server: security updates now and automatically
+   from then on, Docker and its compose plugin from Docker's own repository, and a root-only
+   `/opt/shiftdesk` for the compose file and `.env` (next task).
+3. **Tests** (`tests/unit/deploy.lightsail.test.ts`): both scripts pass `bash -n`; every AWS call has
+   `--region eu-west-2`; the only public ports are 80 and 443 (22 only to `lightsail-connect`); the
+   database isn't public and has backups; no password or key is in either file; the 4 GB and
+   Postgres 16 choices.
+4. **Docs**: runbooks "Set up AWS (once)" with beginner steps; architecture's Deployment section;
+   Parking lot "Connect AWS".
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | Needs a real AWS account and money | Tick with the script unrun |
+| A script (AWS CLI), not clicking through the console | Repeatable, reviewable, and the same every time | Console steps only (kept in the runbook as a fallback) |
+| SSH only from Lightsail's browser console | "Ports 80/443 only" to the internet; the owner can still get in | 22 open to all; no SSH at all (the deploy task decides how deploys reach the server) |
+| Bundle ids looked up, not hard-coded | Lightsail renames bundles; the lookup picks the active 4 GB one | A fixed id that may go stale |
+| AWS generates the database password | Nothing to keep in the repo or type in | A password chosen by hand |
+
+**Built as planned**, then changed by the review (below). The plan above said the database password
+is "printed once to the terminal": the script prints the command that shows it, not the password.
+
+**Guardrails review: FIX FIRST (3 items), all done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: `cloud-init.sh` used `set -euo pipefail`, but Lightsail runs launch scripts under `/bin/sh` (dash), which on Ubuntu 24.04 has no `pipefail`: the first boot would stop at line one, leaving no Docker and no automatic updates, silently | Plain POSIX sh (`#!/bin/sh`, `set -eu`, no pipes); the test runs `sh -n` (dash here) and refuses `pipefail`, `[[` and pipes; runbook step 8 checks `cloud-init status --long` and `docker --version` |
+| FIX FIRST: nothing read back what AWS applied (an alias-only SSH rule might be stored with open CIDRs; the database update waited for the maintenance window) | `get-instance-port-states` read back: stops if anything but 80/443 is open to 0.0.0.0/0 or ::/0; the database update `--apply-immediately`, then `publiclyAccessible` False and `backupRetentionEnabled` True checked, or it stops; tested |
+| FIX FIRST: the password command printed `createdAt` and the password on one line | `--query masterUserPassword`; the runbook explains percent-encoding in URLs and single quotes in `.env` |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| `AmazonLightsailFullAccess` may not exist; least privilege; root; the key after use | The runbook gives an explicit policy JSON (`lightsail:*`, `aws:RequestedRegion` = eu-west-2), an everyday admin login with MFA, CloudShell as a no-key option, and deactivating the key after |
+| No budget alert before money starts | Step 1: a £50 monthly budget with an email |
+| The CLI install would land in the repo | From `/tmp`, with `unzip`, cleaned up |
+| SSH-based deploy vs SSH closed; re-running wipes extra firewall rules | Parked under "Connect AWS" for the deploy task; the script's header says so; architecture notes it |
+| Prices never shown; arbitrary bundle choice | Cheapest active 2-CPU 4 GB and cheapest standard database plan (`sort_by … &price`); both prices shown and a typed `yes` required before any create; tested |
+| apt lock race on first boot | `-o DPkg::Lock::Timeout=600` on every apt call; tested |
+| Reboot 05:00 BST; maintenance Sunday 02:00 UTC | Reboot 02:30 UTC; maintenance Tuesday 02:00 UTC; the compose `restart` need is parked |
+| SSH open until the firewall step | The firewall right after `running`, before the static IP; tested |
+| `.gitattributes` for `.sh` | `*.sh text eol=lf` |
+| PLAN.md said "the Lightsail instance's role" | Corrected: keys in the server's environment (Lightsail has no instance roles) |
+| Lightsail auto-snapshots for the instance | Not done: noted for the backups task |
+
+**Verify:** `VERIFIED tree=ba39c0207f744985 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2516 tests, 47 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: a real AWS account and money). Everything short of it is
+written, checked and committed. No auditor round. Next step is Dylan's: "Connect AWS".
+
+**Hours:** 0.5 h (22:31 to 23:01 UTC). Phase 8 so far 2.0 h of its 18–28 h estimate.

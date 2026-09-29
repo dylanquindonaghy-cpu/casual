@@ -6088,3 +6088,114 @@ A firm can now have its staff portal on its own web address, like `shifts.acme.c
 ### How to see it working
 
 `npx playwright test tests/e2e/custom-domain.spec.ts` (stop `npm run dev` first).
+
+## 2026-09-29: Phase 8, task 3: The AWS servers, ready to create (0.5 h, BLOCKED)
+
+### Time
+
+0.5 hours of Claude's working time (22:31 to 23:01 UTC), in the unattended overnight loop.
+Phase 8 so far: 2.0 of its 18 to 28 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** Creating servers needs a real AWS account and costs money, which
+  tonight's rules don't allow. Everything short of it is written, checked and committed; "Connect
+  AWS" in the Parking lot and the runbook say how to do it.
+- `scripts/verify.sh` printed `VERIFIED tree=ba39c0207f744985 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2516 tests (up from 2503);
+  - the 47 browser tests;
+  - the rule checks.
+- The guardrails review found 3 things to fix first; all are done, with most of its suggestions
+  (below). No auditor round (a blocked task can't be ticked).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **`deploy/lightsail.sh`**, one script Dylan runs once to create everything ShiftDesk needs in
+  AWS Lightsail (Amazon's simple hosting), all in London:
+  - **The app server**: Ubuntu 24.04, the cheapest plan with 2 processors and 4 GB of memory. It
+    looks the plan up rather than trusting a fixed name, because Amazon renames them.
+  - **Its firewall** (the rules for which connections are allowed in):
+    - only ports 80 and 443 (web traffic) are open to the internet;
+    - SSH, the remote login, works only from Lightsail's own browser console.
+    It sets this the moment the server starts, then reads the rules back and stops if anything
+    else is open.
+  - **A static IP**: a fixed address for the domain's DNS records to point at.
+  - **The database**: managed Postgres 16, not reachable from the internet, backed up every night.
+    Its password is made by Amazon and never written into any file. The script also checks the
+    database really is private and backed up.
+  - **Before creating anything**, it shows the two monthly prices and waits for you to type `yes`.
+  - **Running it again is safe**: it skips what already exists.
+- **`deploy/cloud-init.sh`**, what the server does the first time it starts:
+  - installs security updates, and then keeps installing them automatically;
+  - restarts at 02:30 UTC when an update needs it;
+  - installs Docker (which runs the app) from Docker's own website;
+  - makes a folder only the administrator can read, for the app's settings and secrets.
+- **The runbook** has a new section, "Set up AWS (once)", with 9 numbered steps:
+  1. making the account safe (two-step login, a £50 spending alert, an everyday login that isn't
+     the main one);
+  2. a key that can only touch Lightsail in London;
+  3. installing and 4. logging in the AWS command-line tool;
+  5. running the script;
+  6. adding the DNS records;
+  7. keeping the database password safe;
+  8. getting onto the server and checking the first boot finished;
+  9. switching the key off afterwards.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | Needs a real AWS account and money | Tick with the script unrun |
+| A script, not clicking through Amazon's website | The same result every time, and it can be checked | Console steps only (kept as a fallback) |
+| SSH only from Lightsail's browser console | "Only 80 and 443 open" to the internet, while Dylan can still get in | SSH open to everyone |
+| Show prices and ask for yes first | It costs money the moment it runs | Create straight away |
+| The key only allows Lightsail in London | If it leaked, the damage is limited | Full admin rights |
+
+### What the review caught
+
+- **The first-boot script would have stopped at its first line.** Lightsail runs it with Ubuntu's
+  basic shell, which doesn't understand one setting it used (`pipefail`). The server would have
+  started without Docker or automatic updates, and nothing would have said so. The script is now
+  written for the basic shell, and a test checks it with that shell.
+- **Nothing checked what Amazon actually did.** The script now reads back the firewall and the
+  database's settings, and stops if they're not right. It also applies the database settings
+  straight away instead of at the next weekly maintenance.
+- **The password command showed two values** (a date and the password) side by side, easy to
+  copy wrongly. It now shows the password alone. The runbook also explains how to write a password
+  with symbols in it into a database address.
+- **Smaller fixes**:
+  - the runbook's safety steps above (spending alert, everyday login, a key limited to Lightsail in
+    London, switching it off afterwards);
+  - installing the AWS tool outside the project folder;
+  - waiting for the system's update lock on first boot instead of failing;
+  - weekly database maintenance on a Tuesday, not Saturday night;
+  - shell scripts always saved with Linux line endings.
+- **For the deploy task**: SSH is closed to the internet, so the plan's "GitHub Actions logs in by
+  SSH" won't work as written. This is noted in the Parking lot to decide there.
+
+### What the new tests prove
+
+13 new tests in `tests/unit/deploy.lightsail.test.ts`:
+- **Both scripts**: they are valid, including under the basic shell for the first-boot one.
+- **The main script**:
+  - every call is pinned to London;
+  - only 80 and 443 are open to the internet, and SSH only to the browser console;
+  - the firewall is set first and read back;
+  - the database is private and backed up, and checked;
+  - the plans and prices come before a typed yes;
+  - the password command shows the password alone.
+- **No secret** (key, password, private key) is in either file.
+
+### Parked, open, and things that need Dylan
+
+- **Connect AWS** (Parking lot): follow the runbook's 9 steps, check the prices the script shows,
+  then tick the task.
+- For the deploy task: how deploys reach the server with SSH closed; every service must restart on
+  its own after the nightly reboot.
+
+### How to see it working
+
+Nothing to see until it's run with a real account. `npx vitest run tests/unit/deploy.lightsail.test.ts`
+runs its checks.

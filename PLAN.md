@@ -553,6 +553,21 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
     phone number, and would make the event write throw after the message went. Exempt that key
     or store only a safe form, with a test using a Twilio-shaped id.
+- **Connect AWS** (the Phase 8 "AWS: Lightsail 4 GB instance + managed Postgres" task is blocked on
+  it: an AWS account and money). Everything is written: `deploy/lightsail.sh` and
+  `deploy/cloud-init.sh`, checked by `tests/unit/deploy.lightsail.test.ts` but never run. Follow
+  docs/runbooks.md "Set up AWS (once)" (8 numbered steps: account and MFA, a CLI login with
+  Lightsail access only, the AWS CLI, `aws configure`, `bash deploy/lightsail.sh`, the two DNS A
+  records, the database password into your password manager, the browser console). You should see
+  the static IP and the database's address at the end. Then tick the AWS task. **Dylan to
+  check:** the two monthly prices the script shows before it asks for `yes` (the doc says about
+  $24 + $15); it picks the cheapest 2-CPU 4 GB server and the cheapest standard database plan.
+  **For the deploy task:** SSH is closed to the internet (only Lightsail's browser console), so
+  "GitHub Actions SSHes in" (docs/architecture.md, runbooks "Deploy") can't work as written: pick a
+  way that fits (the server pulls new images itself, say). And re-running `deploy/lightsail.sh`
+  resets the firewall to its own rules, so a deploy must not depend on an extra rule. The server
+  reboots itself at 02:30 UTC when an update needs it: every compose service needs
+  `restart: unless-stopped`.
 - **Connect Twilio** (the Phase 4 "WhatsApp utility templates via Twilio…" task is blocked on it:
   an account, a UK number, approved templates and money):
   1. Create the Twilio account and a UK number; set up the WhatsApp sender (Meta business
@@ -877,7 +892,8 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   1. In the AWS console (London account, eu-west-2), open Amazon Bedrock → Model access, and ask
      for access to Claude Haiku (an EU cross-region inference profile, so data stays in the EU).
   2. Create an IAM role for the worker's server allowing only `bedrock:InvokeModel` on that
-     profile. No keys in the repo: the Lightsail instance's role, or keys in its environment.
+     profile. No keys in the repo: keys in the server's environment (Lightsail instances can't have
+     an IAM role).
   3. Write the Bedrock client behind `AiClient` (`src/lib/ai/client.ts`): a timeout (5 seconds),
      no retries in a request path, and log the call (purpose, model, tokens; never the prompt).
   4. Add `AI_TRANSPORT=bedrock|none` to the worker's environment (default `none`); the payroll
@@ -1148,3 +1164,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 7 | 0.5 | Phase 7 tests: `webhook.idempotent` (each webhook that stores, the same Twilio id twice and then ten copies at once → one row and one job, the reply job ten times at once → one reply; checked they catch a missing repeat guard and a missing row lock) and signature contract tests (a signer written from Twilio's published algorithm reproduces Twilio's documented example, then signs requests shaped as Twilio sends them, with every documented field and tricky encodings: accepted and stored exactly; wrongly signed ones refused); the full run showed a login race test failing again: root cause was the test not forcing the overlap it claims (the app was right), fixed by holding both logins until they meet, same strict check; 2451 tests + 43 e2e; verified and audited DONE. Phase 7: 4.2 h of the 15–20 h estimate, 2 tasks done, 5 blocked on Twilio (see docs/work-log.md) |
 | 2026-09-29 | 8 | 0.7 | Branding: every firm page (portal and office) opens with the firm's bar (its logo if set, its name, on its colour with black or white text worked out for contrast: at least 4.5:1 for any colour, checked across the colour cube); the tab title and the home-screen colour are the firm's; `npm run firm:brand` for the owner to set name, colour, logo and sign-off, every value checked and the change logged (field names only); the sign-off always ends "Shift Team" (golden rule 8, which the review caught could be broken) and empty values are refused; demo colours for Acme and Northline; 2469 tests + 45 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-29 | 8 | 0.8 | Custom domains: a firm's own address (shifts.firmname.co.uk) is served, with its bar, once verified: its CNAME must point to that firm's own subdomain (so it can't be verified for another firm); `npm run firm:domain` (owner) saves, checks (DNS before any lock) and clears it; Caddy's `/api/caddy/ask` approves only a firm's verified domain or an existing firm's subdomain (so no wildcard certificate is needed), and is blocked from outside; `deploy/Caddyfile` written and pinned by a test (not run: no Caddy here); the review caught My shifts not showing on a custom domain and a lock held during DNS (both fixed); 2503 tests + 47 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-29 | 8 | 0.5 | AWS, BLOCKED (not ticked: needs a real AWS account and money): `deploy/lightsail.sh` written (never run) to create the London server (Ubuntu 24.04, cheapest 2-CPU 4 GB plan, prices shown and a typed yes first), its firewall (only 80/443 to the internet, SSH only from Lightsail's browser console, read back and checked), a static IP and private Postgres 16 with nightly backups (checked after); `deploy/cloud-init.sh` for first boot (automatic security updates, Docker); a test pins it all; the review caught a first-boot script that would have stopped on Ubuntu's `sh`, no read-back of what AWS applied, and a password command showing two values (all fixed); runbook "Set up AWS (once)" in 9 beginner steps; 2516 tests + 47 e2e; verified (see docs/work-log.md) |

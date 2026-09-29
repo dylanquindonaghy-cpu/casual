@@ -2,6 +2,72 @@
 
 Short, do-this-now guides. Keep them current.
 
+## Set up AWS (once)
+
+Creates the app server and the database in London (`deploy/lightsail.sh`). It costs money from
+then on (about $24 + $15 a month at the time of writing). On your own computer (in WSL):
+
+1. **An AWS account, made safe first:** sign up at aws.amazon.com. Straight away:
+   - turn on MFA (a code from your phone) for the account's main ("root") login: AWS → your name
+     (top right) → Security credentials → Assign MFA device;
+   - a spending alert before anything costs money: search "Budgets" → Create budget → "Monthly
+     cost budget" → £50 → your email. You get an email if the month's bill heads past £50;
+   - an everyday admin login, so the root login stays in the drawer: IAM (search "IAM") → Users →
+     Create user (e.g. `dylan`) → "Provide user access to the AWS Management Console" → attach
+     `AdministratorAccess` → then open it → Security credentials → Assign MFA device. Log in as that
+     from now on.
+2. **A key for the command line, allowed only Lightsail in London:** IAM → Users → Create user
+   `dylan-cli` (no console access) → "Attach policies directly" → Create policy → the JSON tab →
+   paste this, name it `shiftdesk-lightsail-london`, and attach it:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "lightsail:*",
+         "Resource": "*",
+         "Condition": { "StringEquals": { "aws:RequestedRegion": "eu-west-2" } }
+       }
+     ]
+   }
+   ```
+
+   Then open `dylan-cli` → Security credentials → Create access key → "Command Line Interface" →
+   tick "I understand the above recommendation" → Next → Create. Keep both values in your password
+   manager: you can't see the second one again. (Or skip the key entirely: open AWS CloudShell, in
+   London, from the console's top bar, upload the two `deploy/` files, and run the script there.)
+3. **The AWS CLI** (outside the project folder, so nothing lands in the repo):
+   `sudo apt install -y unzip && cd /tmp && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip && unzip -q awscliv2.zip && sudo ./aws/install && rm -rf awscliv2.zip aws && cd -`
+   then `aws --version` should print "aws-cli/2…".
+4. **Log it in:** `aws configure`, paste the two values, region `eu-west-2`, output `json`. Then
+   `aws sts get-caller-identity` should print your account number.
+5. **Create everything:** from the project folder, `bash deploy/lightsail.sh`. It first shows the
+   two plans and their monthly prices and waits for you to type `yes`. Then it prints each step
+   ("== The app server …", "Created.", "Done, and checked.") and waits for the database, which
+   takes 10 to 20 minutes. At the end it prints the static IP, the database's address and what to
+   do next. Run it again any time: it skips what's already there (but it resets the firewall to
+   its own rules).
+6. **DNS:** at the company where you bought the domain, add two A records pointing to the static
+   IP: the domain itself, and `*` (every firm's subdomain).
+7. **The database password:** the script prints the command that shows it. Put it in your
+   password manager; it goes in the server's `.env` (the deploy steps). Never in the repo. AWS may
+   put characters like `#`, `?`, `%` or `$` in it: inside a database address (`postgres://…`) write
+   it percent-encoded (`#` is `%23`, `?` is `%3F`, `%` is `%25`), and in `.env` put the whole value
+   in single quotes.
+8. **Get onto the server:** Lightsail → Instances → `shiftdesk-app` → "Connect using SSH" (a
+   terminal in your browser). SSH from the internet is closed on purpose: only this browser console
+   gets in. Check the first boot finished: `sudo cloud-init status --long` says "done", and
+   `docker --version` prints a version. Then the deploy steps below.
+9. **Put the key away:** once the script has run, IAM → `dylan-cli` → Security credentials →
+   the access key → Deactivate (make it active again next time you need the script). Anyone with
+   that key could change the firewall.
+
+If you'd rather click: the same can be done in the Lightsail console (London, Ubuntu 24.04, the
+4 GB plan, a static IP, the Networking tab's firewall with only HTTP and HTTPS, and a Postgres 16
+database with public mode off), but the script is the checked version.
+
 ## Deploy
 
 1. CI green on `main`.

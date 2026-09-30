@@ -5658,3 +5658,22 @@ Suggestions:
   not attended." matches too. Whether it saw one element or two depended on whether the refresh
   landed before the check (it passed in every earlier run tonight). The locator now matches the
   confirmation exactly: the same assertion, precise.
+
+**Verify round 2:** `VERIFIED tree=53648885b0073fdf e2e=true` (typecheck, lint, test, e2e,
+invariants all ok; 2611 tests in 153 files, 48 e2e).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. All four claims PROVEN (worker
+export JSON + CSV, worker delete, firm export, retention purge job), no fakes found. Nothing listed
+as unverifiable.
+
+**Status: DONE, ticked.**
+
+**Hours:** 1.3 h (00:48 to 02:07 UTC). Phase 8 so far 4.9 h of its 18–28 h estimate.
+
+**Commit:** `3c39877` "Phase 8: GDPR: worker data export (JSON + CSV) and delete; firm data
+export; retention purge job", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not
+checked.
+
+**Parked:** PLAN.md "GDPR follow-ups" (the 12-month log purge for Dylan to decide; admins only,
+pay lines and licence records for Dylan to confirm; Twilio's copy of messages; two timing windows;
+skipped-notice logging for request and pay answers; streaming big exports; a firm-wide delete).

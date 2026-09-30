@@ -5802,3 +5802,11 @@ real" (after "Connect AWS" and "Connect the deploy", before Gate B).
 
 **Hours:** 0.2 h (02:45 to 03:00 UTC). **Phase 8 total: 5.6 h** of its 18–28 h estimate (well
 under: 6 of its 9 tasks are blocked on outside services, and their real work is still to come).
+
+**Commit:** `6bbfa6e` "Phase 8 (BLOCKED, not ticked): Runbooks in docs/runbooks.md tried once for
+real (deploy, rollback, restore)", pushed to `origin/build/overnight`. CI: `gh` isn't installed,
+so not checked.
+
+Phase 8 is now done or blocked: done: branding, custom domains, GDPR; blocked: AWS, Docker/deploy,
+backups and monitoring, Twilio fallback, alerts to your phone, runbooks tried for real. Next:
+Phase 9.

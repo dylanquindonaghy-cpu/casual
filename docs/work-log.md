@@ -6745,3 +6745,57 @@ Also done:
 
 `npm run -s ops:test-alert` prints the alert line the app writes:
 `{"level":"error","msg":"ops alert","alert":"test",…,"text":"ShiftDesk alert: a test alert. If you can read this, alerts reach you."}`
+
+## 2026-09-30: Phase 8, task 9: Trying the deploy, rollback and restore runbooks (0.2 h, BLOCKED)
+
+### Time
+
+0.2 hours of Claude's working time (02:45 to 03:00 UTC), in the unattended overnight loop.
+Phase 8 finished at 5.6 of its 18 to 28 hour estimate: 3 tasks done, 6 blocked on outside
+services.
+
+### Result
+
+- **Blocked, not ticked.** "Tried once for real" needs the real server, the database's snapshots
+  and GitHub's image registry, which tonight's rules don't allow.
+- `scripts/verify.sh` printed `VERIFIED tree=a8127bff4223303e e2e=true` (2638 tests, 48 browser
+  tests). Only documents changed.
+- No auditor round (blocked). The commit is recorded in `docs/overnight-log.md`.
+
+### What was done, in plain words
+
+A "runbook" is a step-by-step guide for a job you don't do often. These three (deploying a new
+version, going back to an older one, and restoring the database from a backup) had only ever been
+written, never run. So:
+
+- **An independent check.** A separate agent (the `doc-fact-checker`, which only reads) compared
+  every command and claim in them with the scripts they drive. It checked 19 claims and found two
+  mistakes a beginner would have hit:
+  - **Rollback** gave commands without becoming the server's administrator first ("root"), so
+    they would have failed with "Permission denied". It now starts with `sudo -i`.
+  - **Restore** said to "restart" the app after changing the database address. A restart keeps the
+    old settings, so the app would have quietly stayed on the old database. It now says
+    `docker compose up -d`, which reads the new ones, and explains which part of each address to
+    change.
+- **A trial plan.** A new runbook section, "Try the runbooks for real (once, before the pilot's
+  data)": the four tries in order, what "worked" looks like for each, and a table to fill in. It's
+  meant for before the pilot firm's real data arrives, when the database holds only demo firms, so
+  a restore that goes wrong costs nothing.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | It literally means running them on the real server | Ticking after a paper check |
+| Try them before the pilot's real data | A restore trial points the app at a restored copy; safest with nothing real in it | Trying them after go-live |
+
+### Parked, open, and things that need Dylan
+
+- **Try the runbooks for real** (PLAN.md Parking lot): after "Connect AWS" and "Connect the
+  deploy", follow the new section, fill in its table, tell Claude what went wrong, then tick.
+- On the first restore, check that Lightsail kept the database's user names and passwords (the
+  restore steps rely on it; it couldn't be checked from here).
+
+### How to see it
+
+`docs/runbooks.md`: "Rollback", "Restore the database", and the new "Try the runbooks for real".

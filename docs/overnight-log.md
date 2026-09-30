@@ -5751,3 +5751,54 @@ your phone" (after "Connect Twilio").
 **Commit:** `7af4c22` "Phase 8 (BLOCKED, not ticked): Alerts to your phone: job failures, health
 down, Twilio error spikes, sync errors", pushed to `origin/build/overnight`. CI: `gh` isn't
 installed, so not checked.
+
+## 2026-09-30 02:45 UTC — Phase 8: Runbooks in `docs/runbooks.md` tried once for real (deploy, rollback, restore)
+
+Task: "Runbooks in `docs/runbooks.md` tried once for real (deploy, rollback, restore)".
+**Blocked** by the hard limits: trying them for real needs the AWS server, the managed database's
+snapshots and GitHub's registry (no real accounts tonight). Nothing here can be ticked.
+
+**Plan (short of the real thing).**
+
+- An independent fact-check (the `doc-fact-checker` agent, read-only) of the Deploy, Rollback,
+  Restore the database and Restore drill runbooks against what they drive: `deploy/deploy.sh`,
+  `deploy/docker-compose.yml`, `deploy/env.example`, `deploy/restore-drill.sh`, the systemd units
+  and `.github/workflows/deploy.yml`. Fix what it finds, so the first real try isn't also the first
+  proofread.
+- A "Try the runbooks for real (once, before the pilot's data)" section: the order, what to check
+  at each step, what "worked" looks like, and a table to record each try. Before Gate B, while the
+  database holds only demo data, so a restore that goes wrong costs nothing.
+- Park "Try the runbooks for real" with beginner steps; record the task as blocked.
+
+**Decision:** the trial happens before the pilot firm's real data arrives (Gate B), on the real
+server with the demo seed. Why: a restore trial means pointing the app at a restored copy, which is
+safest with nothing real in it. Alternative: try them after go-live (riskier; a failed restore
+then affects real workers).
+
+**Fact-check (`doc-fact-checker`, read-only): 19 claims checked, 2 problems, both fixed.**
+
+| Finding | Fix |
+|---|---|
+| Rollback step 2 ran `nano /opt/shiftdesk/.env` and `deploy.sh` with no `sudo`: `/opt/shiftdesk` is root-only (`deploy/cloud-init.sh`), so a beginner gets "Permission denied" | `sudo -i`, `cd /opt/shiftdesk` first; how to save in nano; what it prints |
+| "Restore the database" step 2 said to *restart* web and worker after editing `.env`: `docker compose restart` doesn't re-read `.env`, so the app would silently stay on the old database | Edit the three addresses as root (which part to change, where to find the new endpoint), then `docker compose up -d` (and why not `restart`) |
+| Minor: the drill's psql only works from the server | "not your own computer: the database is only reachable from the server" |
+| Unverifiable here: a Lightsail restore keeping the database's user names and passwords | A check on the first restore (the new trial section, and the parking item) |
+
+Confirmed correct: the deploy flags and messages, the 05:30–09:00 window, `SHIFTDESK_TAG` in
+compose, the migrate step, the timer's 2 minutes and paths, the image workflow's trigger and tags,
+the drill script's name, deletion guard and messages, the role names, the step cross-references.
+
+Added: "Try the runbooks for real (once, before the pilot's data)" in `docs/runbooks.md` (the four
+tries in order, what "worked" looks like, a table to fill in, the tick condition), and the "Try
+the runbooks for real" parking item.
+
+**Guardrails review:** not run: only documents changed (no schema, auth, tenancy, messaging, jobs
+or rules).
+
+**Verify:** `VERIFIED tree=a8127bff4223303e e2e=true` (2638 tests, 48 e2e).
+
+**Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Try the runbooks for
+real" (after "Connect AWS" and "Connect the deploy", before Gate B).
+
+**Hours:** 0.2 h (02:45 to 03:00 UTC). **Phase 8 total: 5.6 h** of its 18–28 h estimate (well
+under: 6 of its 9 tasks are blocked on outside services, and their real work is still to come).

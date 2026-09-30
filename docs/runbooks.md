@@ -123,20 +123,27 @@ event is over).
 
 1. Find the last good version's commit SHA (GitHub → the repo → Actions → "Deploy image" runs, or
    `git log`).
-2. On the server: `nano /opt/shiftdesk/.env`, set `SHIFTDESK_TAG=<that SHA>`, then
-   `/opt/shiftdesk/deploy.sh --now --no-migrate`. `--no-migrate` because an older version's
+2. In the server's browser console, become root first (everything in `/opt/shiftdesk` is root's):
+   `sudo -i`, then `cd /opt/shiftdesk`. `nano .env`, set `SHIFTDESK_TAG=<that SHA>` (Ctrl+O, Enter,
+   Ctrl+X to save and leave), then `./deploy.sh --now --no-migrate`. It prints "Deploying …" then
+   "Deployed …" with that SHA. `--no-migrate` because an older version's
    migration step can't run against a database a newer version has changed (and doesn't need to:
    migrations only add). `--now` works on event mornings too. While pinned, merges to `main` aren't
    deployed.
-3. When the fix is out: set `SHIFTDESK_TAG=main` again (the next run deploys it, with its migration).
+3. When the fix is out: set `SHIFTDESK_TAG=main` again (as root, `nano /opt/shiftdesk/.env`); the
+   next run deploys it, with its migration.
 4. If a migration must be reverted, restore the database (below) rather than hand-editing.
 
 ## Restore the database
 
 1. Lightsail → Databases → snapshots → restore to a new instance. Give it a real name (e.g.
    `shiftdesk-db-2`), **never** a `…-db-drill` one: the drill script deletes drill databases.
-2. Point `DATABASE_URL`, `DATABASE_JOBS_URL` and `DATABASE_ADMIN_URL` at it; restart `web`
-   and `worker`.
+2. Point the app at it: in the server's browser console, `sudo -i`, `cd /opt/shiftdesk`,
+   `nano .env`, and in `DATABASE_URL`, `DATABASE_JOBS_URL` and `DATABASE_ADMIN_URL` replace the old
+   database's address (the part after `@`, before `:5432`) with the new one's (Lightsail →
+   Databases → the new one → "Endpoint"). The user names and passwords stay (a restore keeps them:
+   check this the first time, below). Then `docker compose up -d`: it recreates `web` and `worker`
+   with the new values (`docker compose restart` would **not**: it keeps the old ones).
 3. Check it's recent: the newest event (the recency check in "Restore drill (monthly)" step 2,
    run against the new database) should be from just before the problem. (Plain counts as the
    owner show nothing: RLS is forced.)
@@ -152,7 +159,8 @@ On your own computer, with the AWS CLI logged in (reactivate the key from "Set u
 
 1. `bash deploy/restore-drill.sh`. It restores the latest backup to a separate private database,
    `shiftdesk-db-drill`, waits (10 to 20 minutes) and prints its address.
-2. Check it's a recent copy: in the server's browser console,
+2. Check it's a recent copy: in the server's browser console (not your own computer: the database
+   is only reachable from the server),
    `sudo docker run --rm -it postgres:16-alpine psql "postgres://shiftdesk_owner@<drill address>:5432/shiftdesk"`
    (it asks for the real owner password: a restore keeps it), then paste:
 
@@ -168,6 +176,43 @@ On your own computer, with the AWS CLI logged in (reactivate the key from "Set u
    it "Deleting", then gone. Then `sudo docker image rm postgres:16-alpine` on the server to free the
    space.
 4. Note the date and "restore drill OK" in the Hours log.
+
+## Try the runbooks for real (once, before the pilot's data)
+
+Deploy, Rollback and Restore have only been checked against the scripts, never run. Try each once
+on the real server **before any real worker's data is imported** (Gate B): the database then holds
+only the demo firms, so a restore that goes wrong costs nothing. Allow about two hours on a weekday,
+outside 05:30–09:00 UK. Write each result in the table at the end, and tell Claude anything that
+was wrong or unclear so the runbook gets fixed.
+
+1. **Deploy.** After the first deploy ("Deploy", the first time), merge any small change to
+   `main` (ask Claude for a harmless one). Worked if, within a few minutes of CI passing:
+   `sudo journalctl -u shiftdesk-deploy --since "15 minutes ago"` shows "Deployed …" with the new
+   commit's SHA; `sudo docker compose -f /opt/shiftdesk/docker-compose.yml ps` shows web
+   "healthy"; `https://<a firm>.<our domain>/api/health` says `{"ok":true}`; the office Today page
+   opens on your phone.
+2. **Rollback.** Follow "Rollback" steps 1–2 with the SHA of the version *before* the one you just
+   deployed. Worked if "Deployed …" shows that older SHA, the site still works, and it's still on
+   it 5 minutes later (the timer leaves a pin alone). Then step 3 (`SHIFTDESK_TAG=main`): within a
+   few minutes "Deployed …" shows the newest SHA again.
+3. **Restore.** Follow "Restore the database" steps 1–3 with the latest snapshot, naming the new
+   database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the demo firm's Today page
+   opens, and the newest event is from just before the snapshot. Also note whether the passwords
+   really were kept (step 2 depends on it). Then point `.env` back at the original database,
+   `docker compose up -d` again, check the site, and delete `shiftdesk-db-2` in Lightsail (it costs
+   money while it exists).
+4. **Restore drill.** Run "Restore drill (monthly)" once, all four steps.
+
+| Runbook | Date | Worked? | What was wrong or unclear |
+|---|---|---|---|
+| Deploy (first time) | | | |
+| Deploy (a merge) | | | |
+| Rollback (pin and unpin) | | | |
+| Restore the database | | | |
+| Restore drill | | | |
+
+When every row says it worked (after any fixes), the Phase 8 task "Runbooks tried once for real"
+can be ticked.
 
 ## Monitoring and alerts (once)
 

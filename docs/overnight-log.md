@@ -6034,3 +6034,6 @@ docs/testing.md with evidence. No auditor round. Next steps are Dylan's: "Pre-pi
 server".
 
 **Hours:** 0.9 h (04:11 to 05:07 UTC). Phase 9 so far 2.0 h of its 10–15 h estimate.
+
+**Commit:** `8d78eb5` "Phase 9 (BLOCKED, not ticked): Pre-pilot checklist in docs/testing.md all
+ticked", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.

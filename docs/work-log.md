@@ -7074,7 +7074,7 @@ All fixed. The next check run then caught Next's development logging, which the 
 
 ### What the new tests prove
 
-16 new tests, including one browser test:
+10 new tests, plus one browser test:
 - **The load smoke**: 200 messages answered "received" quickly, and every reply stored within a
   minute.
 - **The log scan**: phone numbers written every way (spaces, dashes, brackets, in web addresses)

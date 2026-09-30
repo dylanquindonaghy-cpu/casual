@@ -6055,3 +6055,6 @@ with how to turn it into exactly the 8 figures the Pilot figures page takes
 **Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Record the baseline week".
 
 **Hours:** 0.1 h (05:10 to 05:19 UTC). Phase 9 so far 2.1 h of its 10–15 h estimate.
+
+**Commit:** `e420c67` "Phase 9 (BLOCKED, not ticked): Baseline week recorded (docs/pilot-playbook.md)", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.

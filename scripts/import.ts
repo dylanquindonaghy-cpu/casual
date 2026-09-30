@@ -5,6 +5,8 @@ import { ImportFileError } from "../src/lib/imports/errors";
 import { importFromFile, ImportSetupError } from "../src/lib/imports/from-file";
 import { errorCode } from "../src/lib/jobs/firm-job";
 import { FILE_ERROR_TEXT, summarise } from "../src/lib/imports/messages";
+import { appEnv } from "../src/lib/env";
+import { gateBCheck } from "./import-gate-b";
 
 // Imports workers, credentials or shifts for a firm from a .csv or .xlsx file, as one of its office
 // users, until the office import screen exists (Phase 5). A dry run unless --apply is given.
@@ -22,13 +24,31 @@ const { values, positionals } = parseArgs({
     kind: { type: "string" },
     as: { type: "string" },
     apply: { type: "boolean", default: false },
+    // On a live database, saving (--apply) needs the firm's slug repeated here: the agreement and
+    // DPA are signed for it (Gate B; scripts/import-gate-b.ts).
+    "agreement-signed": { type: "string" },
   },
 });
 
 const [path] = positionals;
 if (!values.firm || !values.kind || !values.as || !path || positionals.length !== 1) {
   console.error(
-    "Usage: npm run import -- --firm <slug> --kind workers|credentials|shifts|pay --as <office email> <file> [--apply]",
+    "Usage: npm run import -- --firm <slug> --kind workers|credentials|shifts|pay --as <office email> <file> [--apply [--agreement-signed <slug>]]",
+  );
+  process.exit(2);
+}
+
+const gate = gateBCheck({
+  apply: values.apply,
+  databaseUrl: appEnv().DATABASE_URL,
+  firm: values.firm,
+  agreementSigned: values["agreement-signed"],
+});
+if (!gate.ok) {
+  console.error(
+    gate.reason === "wrong_firm"
+      ? `--agreement-signed must repeat this firm's slug (${values.firm}). Nothing was saved.`
+      : `This is a live database: real data goes in only once ${values.firm}'s agreement and DPA are signed (Gate B). If they are, add --agreement-signed ${values.firm}. Nothing was saved.`,
   );
   process.exit(2);
 }

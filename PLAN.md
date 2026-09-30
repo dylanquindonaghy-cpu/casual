@@ -554,6 +554,19 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
     phone number, and would make the event write throw after the message went. Exempt that key
     or store only a safe form, with a test using a Twilio-shaped id.
+- **Import the pilot firm's real data** (the Phase 9 "Import real workers/credentials/shifts only
+  after Gate B paperwork is signed" task is blocked on it: no firm has signed yet). Only once the
+  agreement and DPA are signed:
+  1. Get the firm's spreadsheets (workers, credentials, shifts) by a route the firm trusts.
+  2. Follow `docs/runbooks.md` "Importing workers, credentials or shifts from a spreadsheet": a dry
+     run first, then `--apply --agreement-signed <slug>` (the import refuses to save to the live
+     database without it).
+  3. `firm:check` should then show the workers and credentials, and any role with no rule.
+  4. Then tick the task.
+  - Getting a file into the owner container on the server isn't worked out yet (a mounted folder,
+    or `docker compose cp`): decide it on the first real import, and delete the file afterwards.
+  - A record of when each firm's agreement was signed (`firms.agreement_signed_at`, set by an owner
+    command, shown on `firm:check`) would replace "confirm yourself".
 - **Try the runbooks for real** (the Phase 8 "Runbooks in `docs/runbooks.md` tried once for real
   (deploy, rollback, restore)" task is blocked on it: it needs the real server). After "Connect
   AWS" and "Connect the deploy", and **before any real worker's data is imported** (Gate B):
@@ -1319,3 +1332,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-30 | 8 | 0.5 | Alerts to your phone, BLOCKED (not ticked: a phone needs Twilio or another outside service): every check built: each 5 minutes the worker looks at the last hour for jobs that failed after their last retry, a firm's rota sheet sync failing for 30 minutes, more than 5% of a firm's WhatsApps and texts failing (of at least 20), and the web app's health from inside the server; the web counts bad Twilio signatures (20 in an hour); each problem alerts at most once in any hour, with no personal data; alerts are "ShiftDesk alert: …" log lines until "Connect alerts to your phone"; `npm run -s ops:test-alert`; the review caught a firm-list failure stopping every alert, a long alert being dropped, "once an hour" really being "once per clock hour", and a send rate diluted by senders that never log failures (all fixed and tested); 2638 tests + 48 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 8 | 0.2 | Runbooks tried for real, BLOCKED (not ticked: needs the real server, database snapshots and GitHub's registry): an independent fact-check of the Deploy, Rollback, Restore and Restore drill runbooks against the scripts (19 claims): Rollback would have hit "Permission denied" (no `sudo -i`) and Restore said "restart", which keeps the old database settings (now `docker compose up -d`): both fixed; a new "Try the runbooks for real (once, before the pilot's data)" section with the order, what "worked" looks like and a table to fill in; 2638 tests + 48 e2e; verified. Phase 8: 5.6 h of the 18–28 h estimate, 3 tasks done, 6 blocked on outside services (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.6 | Onboarding checklist: the app couldn't create a real firm (only the demo seed could), add office users or change a firm's settings, so four owner commands: `firm:create` (the firm, its sector's credential rules and first admin, logged; finishes a setup that stopped), `firm:office-user`, `firm:settings` (shows and sets the checklist's settings, each checked by reading it back through the app's own reader) and `firm:check` (the checklist from the firm's data: done, to do, confirm yourself; counts only); a one-off `owner` compose service to run them on the server without a password on the command line; a step-by-step "Onboarding a pilot firm" runbook; the review caught the firm's row committed without its log entry and that password on the command line (both fixed and tested); 2653 tests + 48 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-30 | 9 | 0.2 | Import real data after Gate B, BLOCKED (not ticked: no firm has signed, and no real personal data tonight): the import command now enforces Gate B: against any database that isn't on this machine, saving (`--apply`) needs `--agreement-signed <slug>` repeating the firm's slug (you saying the agreement and DPA are signed), or nothing is saved; dry runs and local databases unchanged; runbook step and parking item; 2655 tests + 48 e2e; verified (see docs/work-log.md) |

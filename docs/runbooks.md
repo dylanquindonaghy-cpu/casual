@@ -363,6 +363,12 @@ Gate B's paperwork is signed):
 2. Dry run: `npm run import -- --firm <slug> --kind workers --as <office email> <file>`. It prints
    what it would create, update and skip, and why each skipped row was skipped.
 3. Fix the rows it names in the spreadsheet if you like, then run the same command with `--apply`.
+   On the live server (any database not on this machine), `--apply` also needs
+   `--agreement-signed <slug>`, repeating the firm's slug: it's you saying the firm's agreement and
+   DPA are signed (Gate B). Without it, or with another slug, nothing is saved and it says why. On
+   the server it runs in the one-off owner service: `docker compose run --rm owner node --import
+   tsx scripts/import.ts --firm acme --kind workers --as <office email> <file> --apply
+   --agreement-signed acme` (the file must be inside the container: not yet tried for real).
 
 A row whose mobile matches an existing worker updates that worker (mobile is who they are). On a
 credential, a blank cell leaves that field as it is (a re-import never un-suspends a licence or

@@ -6903,3 +6903,51 @@ On your computer, after `npm run db:seed`:
 3. `npm run -s firm:create -- --slug trial --name "Trial Events" --sector security --admin-email
    trial.admin@example.com --admin-name "Trial Admin"` makes a test firm in your local database
    (`npm run db:reset` then `npm run db:seed` removes it again).
+
+## 2026-09-30: Phase 9, task 2: Importing real data only after Gate B (0.2 h, BLOCKED)
+
+### Time
+
+0.2 hours of Claude's working time (03:40 to 03:51 UTC), in the unattended overnight loop.
+Phase 9 so far: 0.8 of its 10 to 15 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** The task is to import a real firm's workers, licences and shifts,
+  which can only happen once a firm has signed its agreement and data protection agreement
+  ("Gate B"), and tonight's rules forbid real personal data.
+- `scripts/verify.sh` printed `VERIFIED tree=2a7f44229830d260 e2e=true` (2655 tests, 48 browser
+  tests).
+- No auditor round (blocked). The commit is recorded in `docs/overnight-log.md`.
+
+### What was built, in plain words
+
+The import command (`npm run import`) now enforces the rule itself. Against any database that
+isn't on your own computer (so, the live one), saving (`--apply`) is refused unless you add
+`--agreement-signed <slug>` and type the firm's short name again. That's you saying, on the
+record, that the agreement and data protection agreement are signed for that firm. A test run
+(without `--apply`), and anything on your own computer (fake data only), work as before.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | It needs a signed firm and real data | Importing fake data and ticking |
+| A typed confirmation, not a record in the database | The paperwork lives outside the app; a record would only be as true as whoever typed it, and it would need a database change | A "date the agreement was signed" field (parked) |
+
+### What the new tests prove
+
+2 new tests: a test run or your own computer's database is never asked; saving to a live database
+needs exactly the firm's short name (any capitals, spaces around ignored), and anything else
+(nothing, another firm's name, an empty value) is refused.
+
+### Parked, open, and things that need Dylan
+
+- **Import the pilot firm's real data** (PLAN.md Parking lot): only after the paperwork is signed;
+  a dry run first, then `--apply --agreement-signed <slug>`; then `firm:check` shows the result.
+- To decide on the first real import: how to get the spreadsheet onto the server, and deleting it
+  afterwards.
+
+### How to see it
+
+`docs/runbooks.md` "Importing workers, credentials or shifts from a spreadsheet", step 3.

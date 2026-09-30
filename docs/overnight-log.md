@@ -5888,3 +5888,30 @@ fakes found.
 pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
 
 **Parked:** PLAN.md "Onboarding follow-ups".
+
+## 2026-09-30 03:40 UTC — Phase 9: Import real workers/credentials/shifts **only after** Gate B paperwork is signed
+
+Task: "Import real workers/credentials/shifts **only after** Gate B paperwork is signed".
+**Blocked** by the hard limits (no real personal data; no pilot firm has signed). The import tool
+itself exists (`npm run import`, Phase 2/5).
+
+**Plan (short of the real import).** Make the tool enforce "only after Gate B": against any
+database that isn't on this machine, `--apply` is refused unless `--agreement-signed <slug>`
+repeats the firm's slug (the operator saying the agreement and DPA are signed for that firm). Dry
+runs, and anything local (dev, tests), are unchanged. A pure check in
+`scripts/import-gate-b.ts`, unit-tested; the runbook step; the parking item with beginner steps.
+
+**Decision:** a typed confirmation, not a database record of the agreement. Why: the paperwork
+lives outside the app, and a record in the app would only be as true as whoever typed it (the
+same as this flag), while adding a schema change. Alternative: a `firms.agreement_signed_at`
+column set by an owner command (parked: useful once the office can see it).
+
+**Guardrails review:** not run: no schema, auth, tenancy, messaging, jobs or rules change (a
+command-line refusal before any database work).
+
+**Verify:** `VERIFIED tree=2a7f44229830d260 e2e=true` (2655 tests, 48 e2e).
+
+**Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Import the pilot firm's
+real data" (after Gate B).
+
+**Hours:** 0.2 h (03:40 to 03:51 UTC). Phase 9 so far 0.8 h of its 10–15 h estimate.

@@ -98,6 +98,16 @@ without breaking a 6am cancellation.
   deletes each kind only past its age (a day either side), only in its own firm, logs every run and
   deletes nothing more the second time; the tick queues one a day per firm; the message function's
   90 days are pinned. The office page and downloads in a browser: `tests/e2e/gdpr.spec.ts`.
+- `load.smoke.spec.ts` (e2e) — the pre-pilot load smoke: 200 signed WhatsApps to the shifts line
+  in well under a minute through the real web app and worker; every webhook answered 200 quickly
+  (p95 under 2 s, after one warm-up), every message's reply stored within a minute of the last. It
+  failed (31 of 200 in a minute) before the worker fetched firm jobs in bursts.
+- `logs-scan.test.ts` and the e2e teardown (`tests/e2e/teardown.ts`) — no phone number or email in
+  the servers' output for the whole e2e run: numbers with spaces or dashes, +44 / 0044 / 0, in
+  brackets, after a slash, in URLs (%2B, a form's +), emails (%40 too); ids, ISO times, versions,
+  decimals, IP addresses, Unix times and already-masked values left alone; a firm's own shifts line
+  allowed, nothing else; the report never shows a value. `worker.firm-work.test.ts`: firm jobs
+  come 5 per fetch but run one after another in order, and one failing leaves the rest alone.
 - `onboarding.test.ts` — onboarding a pilot firm (Phase 9, on the real database): `firm:create`
   makes the firm, applies its sector's pack, adds its admin and logs all three; refuses bad values
   and a taken slug (any case); the firm's row is logged with it even when the rest stops; a setup
@@ -216,10 +226,26 @@ log has every step.
 
 ## Pre-pilot checklist
 
-- [ ] All must-have tests green in CI
-- [ ] Restore from backup tested on a fresh database
-- [ ] Twilio fallback forwards a real call to a real mobile
+- [ ] All must-have tests green in CI (locally: see the latest `VERIFIED` line from
+      `scripts/verify.sh`; on GitHub: the Actions tab's last "CI" run on `main`: `gh` isn't
+      installed here)
+- [ ] Restore from backup tested on a fresh database ("Try the runbooks for real", restore step)
+- [ ] Twilio fallback forwards a real call to a real mobile ("Connect Twilio" step 10)
 - [ ] WhatsApp templates approved; test send to 3 real phones (Android, iPhone, older phone via SMS)
-- [ ] Load smoke: 200 webhooks in a minute don't back up the queue
-- [ ] Log masking verified (no phone numbers in logs)
-- [ ] Budget alert and uptime check firing to your phone
+      ("Connect Twilio")
+- [x] Load smoke: 200 webhooks in a minute don't back up the queue. `tests/e2e/load.smoke.spec.ts`,
+      every e2e run: 200 signed WhatsApps in about 5 seconds, each webhook answered in well under a
+      second, every reply stored within a few seconds of the last (first run, 2026-09-30: only 31 of
+      200 handled in a minute: the worker waited its 2-second poll after every job; now it fetches
+      again at once while there's a backlog, `FIRM_WORK_OPTIONS` in `src/worker/jobs/index.ts`).
+      On this laptop: run it once against the server too (PLAN.md "Pre-pilot checks on the
+      server").
+- [x] Log masking verified (no phone numbers in logs). Every e2e run keeps the worker's and web
+      app's whole output (`.dev/e2e-worker.log`, `.dev/e2e-web.log`) and `tests/e2e/teardown.ts`
+      fails the run on any phone number or email it finds there (`scripts/logs-scan.ts`: its own
+      patterns, not the masker's, after undoing URL and form escapes; a firm's own shifts line
+      allowed). It found a mobile typed into the office's worker search printed in the web server's
+      request log; the search no longer goes in the address. On the server after the dry run:
+      docs/runbooks.md "Checking the logs for personal data".
+- [ ] Budget alert and uptime check firing to your phone ("Connect monitoring", "Connect alerts
+      to your phone")

@@ -1,4 +1,4 @@
-import { and, arrayContains, desc, eq, gt } from "drizzle-orm";
+import { and, arrayContains, desc, eq, gt, sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
@@ -247,6 +247,30 @@ export async function addWorker(
         .returning({ id: workers.id });
       if (!row) throw new Error("worker insert returned nothing");
       return row.id;
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// How many of these shifts-line messages (by Twilio's id) have been answered (a reply stored for
+// each), in the e2e database: the load smoke's check that the queue drains.
+export async function answeredMessages(slug: string, providerIds: string[]): Promise<number> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const { rows: counted } = await tx.execute<{ n: number }>(sql`
+        select count(*)::int as n from messages m
+         where m.provider_message_id in (${sql.join(
+           providerIds.map((id) => sql`${id}`),
+           sql`, `,
+         )})
+           and exists (select 1 from messages r where r.firm_id = m.firm_id and r.reply_to = m.id)
+      `);
+      return counted[0]?.n ?? 0;
     });
   } finally {
     await pool.end();

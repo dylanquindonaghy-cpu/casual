@@ -232,12 +232,34 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   );
 }
 
+// How the worker takes firm jobs. pg-boss's default is one job per fetch and then its polling
+// interval (2 seconds) after every fetch, even with a queue full of work: 200 WhatsApps took about
+// 400 seconds to answer, and a cancelled shift's 50 notices would take 100 (the pre-pilot load
+// smoke found it: tests/e2e/load.smoke.spec.ts). So up to 5 per fetch, and while a fetch comes back
+// full it fetches again at once; a short fetch means the queue has caught up and it goes back to
+// polling. The jobs of a batch still run one after another, in the order they were queued (as one
+// job per fetch did): a worker's STOP is handled before their next text, and an offer wave holds its
+// shift only while it's actually running. `runFirmJob`/`runFirmTask` never throw, so one job
+// failing leaves the rest of its batch alone.
+export const FIRM_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 5,
+  burstWhenBatchFull: true,
+} as const;
+
+// One after another, in the batch's order, one result per job.
+export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (const job of jobs) results.push(await run(job));
+  return results;
+}
+
 export async function registerFirmTask<P extends FirmJobEnvelope>(
   boss: PgBoss,
   task: FirmTask<P>,
 ): Promise<void> {
-  await boss.work(task.queue, { perJobResults: true }, (jobs) =>
-    Promise.all(jobs.map((j) => runFirmTask(task, j))),
+  await boss.work(task.queue, FIRM_WORK_OPTIONS, (jobs) =>
+    inOrder(jobs, (j) => runFirmTask(task, j)),
   );
 }
 
@@ -246,7 +268,5 @@ export async function registerFirmJob<P extends FirmJobEnvelope>(
   boss: PgBoss,
   job: FirmJob<P>,
 ): Promise<void> {
-  await boss.work(job.queue, { perJobResults: true }, (jobs) =>
-    Promise.all(jobs.map((j) => runFirmJob(job, j))),
-  );
+  await boss.work(job.queue, FIRM_WORK_OPTIONS, (jobs) => inOrder(jobs, (j) => runFirmJob(job, j)));
 }

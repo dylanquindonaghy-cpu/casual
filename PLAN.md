@@ -554,6 +554,22 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
     phone number, and would make the event write throw after the message went. Exempt that key
     or store only a safe form, with a test using a Twilio-shaped id.
+- **Pre-pilot checks on the server** (the Phase 9 "Pre-pilot checklist in `docs/testing.md` all
+  ticked" task is blocked on them: 5 of its 7 items need outside services). Two are ticked from
+  the local e2e run (the load smoke, log masking); the rest, in order, once each thing exists:
+  1. CI green: GitHub → the repo → Actions → the last "CI" run on `main` is green.
+  2. Restore tested: "Try the runbooks for real", the restore step.
+  3. The Twilio fallback with a real call: "Connect Twilio" step 10.
+  4. WhatsApp templates approved and a test to 3 real phones: "Connect Twilio".
+  5. Budget alert and uptime check reaching your phone: "Connect monitoring", "Connect alerts to
+     your phone".
+  6. Also once on the server: the load smoke against it (the spec's 200 signed webhooks, pointed at
+     the live address with the real auth token, a quiet day, a test firm), and the log scan after
+     the dry run (docs/runbooks.md "Checking the logs for personal data").
+  Then tick the remaining boxes in `docs/testing.md` and the task.
+  - The e2e log scan: truncate `.dev/e2e-*.log` only after the e2e lock is taken (a second run
+    started during a first one cuts the first's log short), and have CI upload `.dev/*.log` when
+    e2e fails (the servers' output no longer shows in Playwright's).
 - **Send the pilot firm its privacy notice wording** (the Phase 9 "Privacy notice line supplied to
   the firm" task is blocked on it: there's no firm yet). At onboarding step 10:
   1. Have a solicitor read `docs/privacy-notice.md` once, with the terms and DPA (before the first
@@ -1344,3 +1360,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-30 | 9 | 0.6 | Onboarding checklist: the app couldn't create a real firm (only the demo seed could), add office users or change a firm's settings, so four owner commands: `firm:create` (the firm, its sector's credential rules and first admin, logged; finishes a setup that stopped), `firm:office-user`, `firm:settings` (shows and sets the checklist's settings, each checked by reading it back through the app's own reader) and `firm:check` (the checklist from the firm's data: done, to do, confirm yourself; counts only); a one-off `owner` compose service to run them on the server without a password on the command line; a step-by-step "Onboarding a pilot firm" runbook; the review caught the firm's row committed without its log entry and that password on the command line (both fixed and tested); 2653 tests + 48 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.2 | Import real data after Gate B, BLOCKED (not ticked: no firm has signed, and no real personal data tonight): the import command now enforces Gate B: against any database that isn't on this machine, saving (`--apply`) needs `--agreement-signed <slug>` repeating the firm's slug (you saying the agreement and DPA are signed), or nothing is saved; dry runs and local databases unchanged; runbook step and parking item; 2655 tests + 48 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.3 | Privacy notice, BLOCKED (not ticked: "supplied to the firm" needs a firm): `docs/privacy-notice.md`, ready to send: the short line and a section for the firm's own notice (what's kept and why, the shifts line's 90 days, what the AI does and doesn't, the phone's offline copy, the logo, who else handles it, retention, rights and what a deletion keeps), with notes for you on the blanks; an independent fact-check of 36 claims against the code found 4 that said more than the app does (all fixed); compliance, the onboarding runbook and `firm:check` point to it; 2655 tests + 48 e2e; verified (see docs/work-log.md) |
+| 2026-09-30 | 9 | 0.9 | Pre-pilot checklist, BLOCKED (not ticked: 5 of its 7 items need CI on GitHub, a real restore, a real call, real phones or alerts to a phone); the 2 that can be done here, done for real and ticked in docs/testing.md: a load smoke (200 signed WhatsApps through the real app) found the worker answering only 31 of 200 in a minute (a 2-second wait after every job), fixed so all 200 are answered about a second after the last; and every e2e run now scans both servers' whole output for phone numbers and emails, which caught a mobile and a login token that Next's development logging printed (switched off) and a search that put a mobile in the address (now a form action); the review caught side-by-side jobs letting a text go out after STOP (batches now run in order); 2665 tests + 49 e2e; verified (see docs/work-log.md) |

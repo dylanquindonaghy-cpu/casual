@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 import { databaseName, withDatabase } from "./src/lib/db/admin/urls";
 
@@ -12,6 +12,12 @@ const PORT = 3100;
 export const OUTBOX = ".dev/e2e-outbox.jsonl";
 export const E2E_TWILIO_AUTH_TOKEN = "e2e-twilio-auth-token-not-real-0000";
 export const CUSTOM_DOMAIN = "shifts.acme-events.test";
+// Everything the worker and the web app print during the run (their logs), kept so the teardown can
+// check no phone number or email got past the log masker (tests/e2e/teardown.ts).
+// (.dev/ is gitignored: made here, before the servers' output is written into it. `tee` hides the
+// worker's own exit message, e.g. "another e2e run is in progress": it's in .dev/e2e-worker.log.)
+export const SERVER_LOGS = [".dev/e2e-worker.log", ".dev/e2e-web.log"] as const;
+mkdirSync(".dev", { recursive: true });
 const e2e = (url: string | undefined) => {
   if (!url) throw new Error("DATABASE_URL, DATABASE_JOBS_URL and DATABASE_ADMIN_URL must be set");
   return withDatabase(url, `${databaseName(url)}_e2e`);
@@ -40,6 +46,7 @@ export default defineConfig({
   retries: ci ? 1 : 0,
   workers: 1,
   reporter: ci ? "github" : "list",
+  globalTeardown: "./tests/e2e/teardown.ts",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   // Mobile first: workers use the portal from a phone. The browser (only) maps a made-up domain
   // (.test is reserved: it never resolves on the internet) to this machine, so a firm's own domain
@@ -57,13 +64,13 @@ export default defineConfig({
     {
       // Takes the e2e lock, rebuilds and seeds the *_e2e database, then runs the worker (it sends
       // the login links). If another e2e run holds the lock this one stops without touching it.
-      command: "node --import tsx tests/e2e/worker.ts",
+      command: `node --import tsx tests/e2e/worker.ts 2>&1 | tee ${SERVER_LOGS[0]}`,
       wait: { stdout: /\[worker\] started/ },
       env,
       timeout: 120_000,
     },
     {
-      command: ci ? `npm run build && npx next start -p ${PORT}` : `npx next dev -p ${PORT}`,
+      command: `(${ci ? `npm run build && npx next start -p ${PORT}` : `npx next dev -p ${PORT}`}) 2>&1 | tee ${SERVER_LOGS[1]}`,
       url: `http://localhost:${PORT}`,
       env,
       reuseExistingServer: false,

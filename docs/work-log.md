@@ -7013,3 +7013,83 @@ much, all fixed:
 ### How to see it
 
 `docs/privacy-notice.md`.
+
+## 2026-09-30: Phase 9, task 4: The pre-pilot checklist (0.9 h, BLOCKED)
+
+### Time
+
+0.9 hours of Claude's working time (04:11 to 05:07 UTC), in the unattended overnight loop.
+Phase 9 so far: 2.0 of its 10 to 15 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** Five of the checklist's seven items need outside services: the tests
+  green on GitHub's CI, a real backup restore, a real phone call, real phones and WhatsApp
+  approval, and alerts reaching your phone. The other two were done for real, and are ticked in
+  `docs/testing.md`.
+- `scripts/verify.sh` printed `VERIFIED tree=fc4c70157bbd8459 e2e=true`: 2665 tests, 49 browser
+  tests.
+- No auditor round (blocked). The commit is recorded in `docs/overnight-log.md`.
+
+### What was done, in plain words
+
+**1. The load smoke found a real problem, now fixed.** A new browser test sends 200 WhatsApps to
+the shifts line in about 5 seconds, signed as Twilio signs them, through the real app. Every one
+was answered "received" at once. But the worker (the background process that sends the replies)
+only got through 31 of them in the next minute. It was waiting 2 seconds after every single job,
+however much work was queued: 200 messages would have taken about 7 minutes, and a cancelled shift
+with 50 people booked would have taken over a minute and a half to tell them all. Now, while
+there's a queue, it takes 5 at a time and goes straight on to the next 5. All 200 replies were
+stored about a second after the last message arrived.
+
+**2. Checking the logs for phone numbers found two leaks, now fixed.** Every browser test run now
+keeps everything the app and the worker printed, and fails if it finds anything that looks like a
+phone number or an email address. The scan uses its own rules, not the ones the app uses to hide
+numbers, so it doesn't just agree with them. It found:
+- a mobile number typed into the office's "Find a worker" search, printed as part of the web
+  address. The search no longer puts what you type in the address (it's sent like a form);
+- Next's development mode printing every server action with what was passed to it, including that
+  mobile and a login link's secret token. Switched off.
+Both logs are now clean on every run.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked; the two local items ticked in the checklist | They were really checked, on the real app; the rest need outside services | Ticking nothing until the server exists |
+| Jobs 5 at a time, but each batch one after another in order | The wait was the problem, not doing one at a time; running them side by side (my first fix) could send a text after someone replied STOP | Side by side; a shorter wait (still too slow) |
+| A firm's own shifts line is allowed in the log | It's a business number, printed on purpose by the development message printer | Hiding it too |
+
+### What the review caught
+
+The `guardrails-reviewer` found 4 things to fix first:
+- my first fix ran up to 5 jobs side by side: a worker's text could be answered by SMS after
+  their STOP in the same batch, and offer waves could hold several shifts locked (making people
+  wait to take them);
+- the log check would have failed on GitHub's fresh copy (a folder that didn't exist yet);
+- the scan missed the search's mobile (written with a `+` for a space);
+- some comments and docs said things that weren't true.
+
+All fixed. The next check run then caught Next's development logging, which the review hadn't.
+
+### What the new tests prove
+
+16 new tests, including one browser test:
+- **The load smoke**: 200 messages answered "received" quickly, and every reply stored within a
+  minute.
+- **The log scan**: phone numbers written every way (spaces, dashes, brackets, in web addresses)
+  and emails are found; ids, times, versions, decimals and already-hidden values aren't; the
+  report never shows the value itself.
+- **The worker**: 5 jobs per fetch, run strictly one after another in order, one failure leaving
+  the rest alone.
+
+### Parked, open, and things that need Dylan
+
+**Pre-pilot checks on the server** (PLAN.md Parking lot): CI green on GitHub, the restore, the
+Twilio fallback call, WhatsApp on 3 real phones, alerts to your phone, and the load smoke and log
+check once on the real server. Tick the remaining boxes in `docs/testing.md` as each is done.
+
+### How to see it
+
+`npm run e2e -- tests/e2e/load.smoke.spec.ts` prints the timings; `docs/testing.md` "Pre-pilot
+checklist".

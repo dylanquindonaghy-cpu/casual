@@ -256,6 +256,14 @@ alert…" line (a text, once the phone sender is connected).
 | "the web app's health check is failing (…)" | The worker can't get an OK from the web app on the same server | `docker compose ps` and `docker compose logs web --since 15m`; the outside uptime check says whether the internet sees it too. "Event-morning outage" below |
 | "N Twilio webhook requests with a bad signature in the last hour" | Twilio's messages to us are being refused: `TWILIO_AUTH_TOKEN` in `.env` no longer matches the account (someone rotated it), the address set in Twilio differs from the one the app checks against (http instead of https, or a firm's own domain instead of `<slug>.<our domain>`), or someone is probing | Compare the token with Twilio's console (Account → API keys & tokens), and the webhook addresses with "Connect Twilio". If both match, it's probing: nothing to do unless it keeps up |
 
+### Checking the logs for personal data
+
+The app masks phone numbers and emails before anything is logged; every e2e run checks it. On the
+server (after the dry-run day, say): `sudo -i`, `cd /opt/shiftdesk`, then (not yet tried for real)
+`docker compose logs --no-color web worker | docker compose run --rm -T --no-deps web node --import
+tsx scripts/logs-scan.ts`. It prints "no phone numbers or email addresses", or the line numbers of
+each one it found (the value itself masked). Anything found: tell Claude which log line.
+
 ## Workers at one venue can't get login links
 
 Everyone on the same Wi-Fi (or mobile carrier NAT) shares one IP, and the login limit is 10 link

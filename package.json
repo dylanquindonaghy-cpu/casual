@@ -33,6 +33,7 @@
     "firm:settings": "node --env-file-if-exists=.env --import tsx scripts/firm-settings.ts",
     "firm:check": "node --env-file-if-exists=.env --import tsx scripts/firm-check.ts",
     "firm:office-user": "node --env-file-if-exists=.env --import tsx scripts/firm-office-user.ts",
+    "logs:scan": "node --import tsx scripts/logs-scan.ts",
     "ops:test-alert": "node --env-file-if-exists=.env --import tsx scripts/ops-test-alert.ts"
   },
   "dependencies": {

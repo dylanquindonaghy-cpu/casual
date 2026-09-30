@@ -190,6 +190,16 @@ an active admin; every firm table less login secrets, one JSON file; logged `fir
 | `ops-alert` | the tick | `{kind, key, text}` (no personal data) | Built: checks the payload again and sends it through `ALERTS_TRANSPORT` (`console`, also when unset: one `ops alert` error line in the log; `none`, refused in production). `npm run -s ops:test-alert` sends a test alert the same way. The phone sender comes with "Connect alerts to your phone" (PLAN.md Parking lot). | pg-boss default |
 | `domain-verify` | — | — | Not a job for now (Phase 8): the owner sets and checks a firm's domain with `npm run firm:domain` (`--domain`, `--check`, `--clear`; `scripts/firm-domain-owner.ts`), since the app role can't change firms. It looks up the CNAME (before locking anything): verified only if it points to that firm's own subdomain, `<slug>.<base>` (so a domain can't be verified for another firm); a domain whose CNAME has gone is unverified by `--check`. Logged `firm.domain_changed` {change, verified, domain, before (when replacing)}. An office action and a periodic re-check come with the settings screen (PLAN.md Parking lot). | — |
 
+**How the worker takes firm jobs** (`FIRM_WORK_OPTIONS`, `src/worker/jobs/index.ts`): up to 5 per
+fetch, run one after another in the order they were queued (so a worker's STOP is handled before
+their next text, and an offer wave holds its shift only while it runs), and while a fetch comes
+back full it fetches again at once; a short fetch goes back to pg-boss's 2-second poll. A batch
+shares one expiry (15 minutes by default): one job hanging past it fails the batch and pg-boss
+retries its jobs, which every job here tolerates (send-login-code sends a fresh code); give the
+Twilio client a request timeout when it's connected. pg-boss's default (one job, then a 2-second wait, every time)
+answered 200 WhatsApps in about 400 seconds; the pre-pilot load smoke (`tests/e2e/load.smoke.spec.ts`)
+now sees every reply stored within seconds of the last message arriving.
+
 **Idempotency keys:** `offer-wave` uses `${shift_id}:${wave}`; `notify` uses
 `${worker_id}:${template}:${entity_id}:${date}`; `sheets-sync` uses a firm-scoped singleton key
 (one per firm per 50 s) plus the sync's own lease on `roster_sources`, so two syncs of one firm

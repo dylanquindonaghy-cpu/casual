@@ -5969,3 +5969,68 @@ privacy notice wording".
 **Commit:** `02e440f` "Phase 9 (BLOCKED, not ticked): Privacy notice line supplied to the firm (see
 docs/compliance.md)", pushed to `origin/build/overnight` (the parking item and logs were written
 after the verify run: documents only). CI: `gh` isn't installed, so not checked.
+
+## 2026-09-30 04:11 UTC — Phase 9: Pre-pilot checklist in `docs/testing.md` all ticked
+
+Task: "Pre-pilot checklist in `docs/testing.md` all ticked". **Blocked:** 5 of its 7 items need
+outside services (CI on GitHub, a real restore, a real call, real phones and WhatsApp approval,
+alerts to a phone). Two can be done for real here, and were:
+
+- **Load smoke** (`tests/e2e/load.smoke.spec.ts`, every e2e run): 200 signed WhatsApps through the
+  real web app and worker. First run: all 200 answered at once, but **only 31 of 200 handled in the
+  following minute**. Root cause: firm jobs were registered with pg-boss's defaults, one job per
+  fetch and a 2-second polling wait after every fetch, however long the queue (about 400 s for
+  200; a cancelled shift's 50 notices would have taken 100 s). Fix: `FIRM_WORK_OPTIONS` (up to 5
+  jobs per fetch, run side by side; fetch again at once while a fetch comes back full). First tried
+  `burstWhenReadyExceeds`, which pg-boss requires to be at least 1 and which reads a queue count
+  cached for 60 s (too slow to start a burst). After: all 200 handled about 2 s after the last.
+- **Log masking** (`tests/e2e/teardown.ts` + `scripts/logs-scan.ts`, every e2e run): both servers'
+  whole output kept and scanned with patterns of its own (not the masker's). First run: 170 hits,
+  all Acme's shifts line, printed whole by the console transport on purpose (a business number;
+  pinned by `messaging.console.test.ts`): the seeded firms' lines are allowed, nothing else. After:
+  both logs clean.
+
+**Decision:** tick those two boxes in docs/testing.md (with how, and "run once on the server too"),
+leave the other five, and record the task as blocked. Why: they were really checked, on the real
+app stack. Alternative: leave all unticked until the server exists (loses the evidence).
+
+**Decision (after the guardrails review, below):** firm jobs 5 per fetch, fetched again at once
+while the queue has more, but each batch run one job after another in order. Why: the 2-second
+wait was the whole problem; running a batch side by side (my first fix) let a worker's text be
+answered by SMS after their STOP in the same batch, and made offer waves hold several shifts
+locked at once. Alternatives: side by side (above); a shorter poll (0.5 s still gives 100 s for
+200).
+
+**Guardrails review: FIX FIRST (4 items and the docs), all done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: CI's e2e would fail on a fresh checkout: `.dev/` (gitignored) didn't exist when `tee` opened its log, so the teardown found no log | `playwright.config.ts` makes `.dev/` first |
+| FIX FIRST: the log scan missed a mobile in today's e2e log: Next's dev request log printed `GET /office/data?q=07700+900871` (the worker search was a GET), and the scan's pattern broke on the form's `+`; it also missed `%2B…`, numbers after `/`, `(07700) 900123`, non-breaking spaces, `%40` emails | The scan undoes URL and form escapes, handles brackets and non-breaking spaces and numbers after `/` (and no longer treats dots as separators, so decimals and IPs stay clean; bare Unix times allowed); unit cases for each. The leak itself: the search is now a server action (`src/app/office/data/actions.ts`, `find-form.tsx`), so what's typed never goes in the address, the browser's history or any request log |
+| FIX FIRST: side-by-side batches let a text be answered by SMS after the worker's STOP in the same batch (both read "texts allowed" before STOP committed), and a YES after STOP be missed | Batches now run one job after another, in the order queued (`inOrder`), exactly as one-per-fetch did; the burst (no 2-second wait) stays. Tested: order kept, never two at once, one failure leaves the rest |
+| FIX FIRST: side-by-side offer waves each held their shift while queueing behind the others' sends, so workers taking those shifts waited | Same fix: one wave at a time again |
+| Docs: "each job is safe side by side" and "room in the pool" weren't true; the load smoke said "answered" but counted claims; two different server commands for the log scan | Comments and docs corrected; the load smoke counts stored replies (and sends one warm-up first); one command (the runbook's) |
+
+Suggestions: connections held during sends and a batch sharing one expiry are written down in
+docs/api-and-jobs.md (a Twilio request timeout when it's connected); the teardown now prints the
+servers' last error lines (their output goes to the files); the worker's "another e2e run" message
+is in `.dev/e2e-worker.log` (noted in the config). Parked: truncating the log only after the e2e lock
+(two runs at once already fail), uploading `.dev/*.log` from CI on failure.
+
+**Verify round 1 after the fixes: NOT VERIFIED** (2665 tests ok; 49 e2e passed, but the teardown's
+log scan failed the run). Root cause: Next 16's development terminal logs every server action
+call with its arguments: `findWorkersAction("07700 …")` (the search moved to a server action) and
+`consumeOfficeLinkAction("<login token>")` (a secret). Fix: `logging: { serverFunctions: false,
+incomingRequests: false }` in `next.config.ts` (development only, per Next's docs; the app's own
+masked request log already records every request). The scan did its job: it caught a leak the
+review hadn't.
+
+
+**Verify (after the fixes):** `VERIFIED tree=fc4c70157bbd8459 e2e=true` (2665 tests, 49 e2e; load
+smoke: 200 answered about a second after the last; both server logs clean).
+
+**Status: BLOCKED, not ticked** (5 of 7 items need outside services). Two checklist items ticked in
+docs/testing.md with evidence. No auditor round. Next steps are Dylan's: "Pre-pilot checks on the
+server".
+
+**Hours:** 0.9 h (04:11 to 05:07 UTC). Phase 9 so far 2.0 h of its 10–15 h estimate.

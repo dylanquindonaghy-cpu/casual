@@ -5519,3 +5519,7 @@ Other suggestions:
 it is written, checked and committed. No auditor round. Next step is Dylan's: "Connect monitoring".
 
 **Hours:** 0.5 h (23:44 to 00:15 UTC). Phase 8 so far 3.1 h of its 18–28 h estimate.
+
+**Commit:** `3eed699` "Phase 8 (BLOCKED, not ticked): Backups on, restore tested; AWS Budget alert at
+£50; uptime check; error alerts to you", pushed to `origin/build/overnight`. CI: `gh` isn't
+installed, so not checked.

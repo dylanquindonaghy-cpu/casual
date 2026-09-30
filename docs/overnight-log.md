@@ -6106,3 +6106,119 @@ review not needed.
 reviews and send the week-4 report".
 
 **Hours:** 0.2 h (05:32 to 05:41 UTC). **Phase 9 total: 2.5 h** of its 10–15 h estimate.
+
+**Commit:** `76e3e35` "Phase 9 (BLOCKED, not ticked): Week-by-week pilot metrics review and the week-4
+report", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+---
+
+## Morning summary (2026-09-30, written 05:45 UTC)
+
+### The short version
+
+Every task in `PLAN.md` is now either **done** (ticked only after `scripts/verify.sh` printed
+VERIFIED and the independent auditor said DONE) or **blocked** on something only you can do: an
+outside account (Twilio, AWS, Google, Bedrock, web push, email), a signed pilot firm, or real
+phones and people. Nothing that's blocked was ticked. So the loop has stopped: there's nothing left
+it can do without you.
+
+- **67 tasks done, 21 blocked** (Phase 4: 3, Phase 6: 1, Phase 7: 5, Phase 8: 6, Phase 9: 6). The
+  three Gates (A, B, C) are yours: they're about real firms, not code.
+- **The last check:** `VERIFIED tree=47ffad267d7b09a9 e2e=true`: 2665 tests and 49 browser tests,
+  all passing (the commits after it are these logs).
+- **Everything is on the branch `build/overnight`, pushed to GitHub.** Nothing was merged into
+  `main`, and nothing was force-pushed.
+
+### Hours per phase (from the Hours log in `PLAN.md`) against the estimates
+
+| Phase | Hours | Estimate | Tasks done / blocked |
+|---|---|---|---|
+| 0 Repo, tooling, guardrails | 1.0 | 10–15 | 8 / 0 |
+| 1 Tenancy, data model, login | 4.5 | 25–35 | 10 / 0 |
+| 2 Roster core, rules engine, Sheets plug | 5.0 | 30–40 | 11 / 0 |
+| 3 Staff portal | 4.5 | 35–45 | 12 / 0 |
+| 4 Urgent board, notifications, offer waves | 3.5 | 27–37 | 6 / 3 |
+| 5 Resourcer dashboard, action log, notice report | 5.5 | 23–33 | 9 / 0 |
+| 6 Payroll queries and digest | 3.1 | 12–18 | 5 / 1 |
+| 7 WhatsApp shifts line and call-to-text | 4.2 | 15–20 | 2 / 5 |
+| 8 Branding, custom domains, deploy | 5.6 | 18–28 | 3 / 6 |
+| 9 Pilot hardening and go live | 2.5 | 10–15 | 1 / 6 |
+
+No phase went over its estimate (the "more than 30% over" warning never applied). The blocked
+tasks' real work (connecting the services, running the pilot) is still to come, so the hours for
+Phases 4 and 6 to 9 will grow.
+
+### What happened tonight (the second half of Phase 8, and Phase 9)
+
+- **Done and audited:**
+  - GDPR: download a worker's data, delete a worker, download the firm's data, and a nightly
+    clean-up;
+  - the onboarding tools: `firm:create`, `firm:office-user`, `firm:settings`, `firm:check`, and a
+    step-by-step onboarding runbook.
+- **Built as far as possible, then blocked:**
+  - alerts to your phone (every check works; alerts are log lines until Twilio);
+  - the runbooks (fact-checked; two mistakes fixed);
+  - the Gate B guard on imports;
+  - the privacy notice wording (fact-checked against the code);
+  - the pre-pilot checklist (2 of 7 done for real);
+  - the baseline tally sheet, the dry-run script, and the pilot review and week-4 report guide.
+- **Two real problems found and fixed**, by checks added tonight:
+  - The worker answered only 31 of 200 WhatsApps in a minute: it waited 2 seconds after every job.
+    Now all 200 are answered about a second after the last.
+  - Phone numbers and a login token could reach the logs: Next's development logging, and a search
+    that put a mobile in the web address. Every browser test run now scans the logs.
+- **Every reviewer "fix first" finding was fixed.** The details are in each task's entry above.
+
+### What's blocked, and what unblocks it
+
+| What unblocks it | Blocked tasks | Steps in `PLAN.md` Parking lot |
+|---|---|---|
+| A Twilio account (and Meta approving the WhatsApp templates) | Phase 4: WhatsApp templates and SMS fallback, copy submitted to Meta. Phase 7: the shifts line number, inbound WhatsApp, unknown numbers, call-to-text, STOP by text. Phase 8: the call fallback; then alerts to your phone | "Connect Twilio", then "Connect alerts to your phone" |
+| Web push keys | Phase 4: web push | "Connect the real web push" |
+| Amazon Bedrock | Phase 6: grouping pay queries with an AI summary line | "Connect Bedrock" |
+| An AWS account | Phase 8: the server and database, Docker and the deploy, backups and monitoring; then the runbooks tried for real | "Connect AWS", "Connect the deploy", "Connect monitoring", then "Try the runbooks for real" |
+| A signed pilot firm (Gate B) | Phase 9: importing its real data, sending its privacy notice wording, the baseline week, the dry run, the weekly reviews and the week-4 report; the rest of the pre-pilot checklist | "Import the pilot firm's real data", "Send the pilot firm its privacy notice wording", "Record the baseline week", "Run the dry-run event day", "Run the pilot's weekly reviews…", "Pre-pilot checks on the server" |
+
+Office logins in production also need **Amazon SES** (emails): "Connect Amazon SES".
+
+### What needs you, in order
+
+1. **Read the work log for tonight.**
+   - Open `docs/work-log.md` and start at "Phase 8, task 7: GDPR". Each entry is in plain English:
+     what was built, the decisions, what the review caught, and what needs you.
+2. **Confirm or change the decisions I made for you.**
+   - Every one is in a "Decisions" table in this log.
+   - The ones waiting on you are marked in `PLAN.md`. To list them: in the terminal, in the project
+     folder, type `grep -n "Dylan to" PLAN.md` and press Enter. About 50 lines come up; each one
+     says what to decide.
+   - Tonight's most important:
+     - **The 12-month purge:** whether and when to delete action-log rows, requests and offers after
+       12 months (it means changing the log's append-only protection).
+     - **Deleting a worker:** that only admins can do it, that it keeps their pay lines, and whether
+       security firms must keep licence-check records (BS 7858, SIA rules) after someone leaves.
+     - **The privacy notice:** have a solicitor read `docs/privacy-notice.md` once, with the terms
+       and DPA.
+3. **Create the outside accounts, when you're ready.**
+   - The usual order is AWS first, then Twilio, then SES, then Bedrock and web push.
+   - Each "Connect …" item in the `PLAN.md` Parking lot has numbered steps: what to click, what to
+     type, and what you should see.
+   - Tell Claude when one is set up, and it will connect it and tick the task.
+4. **See it working on your computer.**
+   1. `npm run db:up` (starts the local database).
+   2. `npm run db:reset` then `npm run db:seed` (fresh demo data).
+   3. `npm run dev` (starts the app).
+   4. Open `http://acme.localhost:3000` (the staff portal) and `http://acme.localhost:3000/office`
+      (the office). To log in to the office, type `acme.admin@example.com` and press "Send me a
+      link". The link is printed in the terminal running `npm run dev` (messages are printed, not
+      sent, on your computer).
+   5. `npm run -s firm:check -- --firm acme` shows the onboarding checklist for the demo firm.
+5. **When you're happy with the branch, merge it yourself.**
+   1. On GitHub, open the repository.
+   2. It usually shows a yellow bar: "build/overnight had recent pushes". Press "Compare & pull
+      request".
+   3. Read the list of changes, and press "Create pull request".
+   4. Wait for the checks (CI) to go green, then press "Merge pull request".
+
+   Merging to `main` is what starts the deploy, once AWS is connected. I never merge.
+
+The loop is stopped. Start it again any time with `/loop /overnight`.

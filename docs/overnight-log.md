@@ -5915,3 +5915,7 @@ command-line refusal before any database work).
 real data" (after Gate B).
 
 **Hours:** 0.2 h (03:40 to 03:51 UTC). Phase 9 so far 0.8 h of its 10–15 h estimate.
+
+**Commit:** `9379493` "Phase 9 (BLOCKED, not ticked): Import real workers/credentials/shifts only
+after Gate B paperwork is signed", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so
+not checked.

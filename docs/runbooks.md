@@ -224,12 +224,18 @@ but never changes an existing password. Rotate by hand as the owner:
 
 ## Event-morning outage (the one that matters)
 
-1. Twilio fallback URL already forwards calls to the manager's mobile. Confirm it's set.
-2. Text the resourcer: "Portal down, calls forwarding to you, ETA X."
+1. Twilio's fallback already puts calls through to the manager's mobile when the app doesn't
+   answer (a TwiML Bin per firm from `npm run firm:call-fallback`; PLAN.md "Connect Twilio" step
+   10). Confirm it's set: Twilio → Phone Numbers → the number → "Primary handler fails" names the
+   firm's bin, and the bin has the current manager's number.
+2. Text the manager: "Portal down, calls to the shifts line are coming to you, ETA X." Text the
+   resourcers too: WhatsApps and texts to the line aren't being answered meanwhile.
 3. Check: health endpoint, Docker containers, disk space, database status page, Twilio status.
 4. Restart `web` and `worker`. If the database is the problem, restore.
 5. When back: queued jobs resume; check the urgent shifts didn't miss escalations; re-send any
-   offers marked failed.
+   offers marked failed. Enter every cancellation or change the manager took by phone during the
+   outage (Today → the shift → cancel or change, with the reason), so its notice is logged like any
+   other.
 6. Write a 5-line post-mortem in the Hours log.
 
 ## A bad service worker (My shifts offline copy)

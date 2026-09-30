@@ -6424,3 +6424,86 @@ Phase 8 so far: 3.1 of its 18 to 28 hour estimate.
 ### How to see it working
 
 `npx vitest run tests/unit/deploy.monitoring.test.ts`. The real thing needs AWS.
+
+## 2026-09-30: Phase 8, task 6: When the app doesn't answer, calls go to the manager (0.5 h, BLOCKED)
+
+### Time
+
+0.5 hours of Claude's working time (00:18 to 00:46 UTC), in the unattended overnight loop.
+Phase 8 so far: 3.6 of its 18 to 28 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** It's a setting on each number in Twilio's website, which tonight's rules
+  don't allow. Everything short of it is built, checked and committed; "Connect Twilio" step 10
+  explains setting and checking it.
+- `scripts/verify.sh` printed `VERIFIED tree=1857eab3f497508c e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2562 tests (up from 2557);
+  - the 47 browser tests;
+  - the rule checks.
+- The guardrails review found 2 things to fix first; both are done, with its suggestions (below).
+  No auditor round.
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+If our app is down or too slow when someone rings a firm's shifts line, Twilio can play a fallback
+by itself. We give it a small set of instructions (a "TwiML Bin") for each firm. The caller hears:
+
+1. "Sorry, our system isn't answering right now. Putting you through to Acme Events."
+2. The manager's phone rings, for up to 30 seconds. Their own voicemail usually answers first.
+3. When that call ends: "If nobody answered, please call again in a few minutes. Goodbye."
+
+A new command makes the instructions for a firm: `npm run -s firm:call-fallback -- --name "Acme
+Events" --phone "07700 900123"`. It prints one line to paste into Twilio. It checks the number, and
+warns if a UK number is the wrong length. The words are in the message doc and tests hold the code
+to them.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | It's a Twilio setting | Tick with nothing set |
+| Twilio plays it itself (a bin per firm) | It must work when our app doesn't, so it can't depend on the app | Anything served by our app |
+| The name is typed into the command | It runs on your computer; the live database is only reachable from the server | Reading the name from the database |
+| A closing line true however the call went | Twilio can't tell a finished call from an unanswered one here | "Nobody could take your call" |
+
+### What the review caught
+
+- **The closing line could be untrue.** It said "Sorry, nobody could take your call" even after the
+  manager had answered and hung up, or after their voicemail took a message, because Twilio plays
+  the next line whenever the call ends. It also said "or message us on this number", but messages
+  go to the same app that isn't answering. Now it says "If nobody answered, please call again in a
+  few minutes. Goodbye."
+- **A safer check.** Step 10 now says:
+  - do the check at a quiet time, and tell the manager first;
+  - ring from a phone that isn't the manager's;
+  - let it ring out once;
+  - expect a Twilio error notice during the test;
+  - put the setting back exactly afterwards, and check that too.
+- **During an outage**, the runbook now says to enter any cancellations the manager took by phone
+  once the app is back (so their notice is recorded), to re-make the instructions when the manager
+  changes, and to tell the resourcers that messages aren't being answered.
+- **Smaller fixes**:
+  - curly brackets in the name are refused (Twilio would fill them in);
+  - a warning for UK numbers of the wrong length;
+  - a tidier type.
+
+### What the new tests prove
+
+5 new tests:
+- **The instructions**: exactly what's played, safe with any firm name, and only a proper number
+  dialled.
+- **The command**: it prints them, and refuses a bad number, a missing value, an unknown option or
+  a name with curly brackets.
+- **The words**: they match the message doc.
+
+### Parked, open, and things that need Dylan
+
+- **Connect Twilio step 10**: set a fallback bin for each firm's number, check it as the step
+  describes, then tick the task.
+
+### How to see it working
+
+`npm run -s firm:call-fallback -- --name "Acme Events" --phone "07700 900123"` prints the line.

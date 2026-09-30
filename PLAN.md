@@ -643,10 +643,24 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   10. **Incoming calls (the Phase 7 "Call-to-text" task is blocked on this):** on each firm's
      number in Twilio (Phone Numbers → Manage → Active numbers → the number → Voice configuration),
      set "A call comes in" to Webhook, `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/voice`, HTTP
-     POST. For "Primary handler fails", make a TwiML Bin (TwiML Bins → Create) holding
-     `<Response><Dial>+44…the manager's mobile…</Dial></Response>` and choose it, so calls still
-     reach a person if the app is down (architecture.md, Call-to-text step 4). The same
-     `TWILIO_AUTH_TOKEN` as step 9. Voicemail transcription is Twilio's own: charged per minute on
+     POST, with the same `TWILIO_AUTH_TOKEN` as step 9.
+     **The fallback** (the Phase 8 "Twilio fallback" task is blocked on this): on your computer run
+     `npm run -s firm:call-fallback -- --name "Acme Events" --phone "<the manager's mobile>"`; it
+     prints one line starting `<?xml`: copy that whole line. In Twilio: TwiML Bins → Create new,
+     name it "acme-fallback", paste the line, save; then on the number choose "TwiML Bin" → that bin
+     for "Primary handler fails". If the app doesn't answer, the caller hears why and is put through
+     to the manager (architecture.md, Call-to-text step 4). One bin per firm; when a firm's manager
+     (or their number) changes, run the command again and update the bin. **To check it**, at a
+     quiet time and after telling the manager their phone will ring: set the number's "A call comes
+     in" webhook to `https://example.invalid/` (it can never answer), then ring the line from a
+     phone that isn't the manager's (theirs would be busy). You should hear "Sorry, our system isn't
+     answering right now. Putting you through to Acme Events." and the manager's phone rings; let it
+     ring out once too (their voicemail usually answers), then you hear "If nobody answered, please
+     call again in a few minutes. Goodbye." Twilio may log an error notice (11200) for the test:
+     expected. **Then set the webhook back** exactly: Webhook,
+     `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/voice`, HTTP POST; ring once more and you should
+     hear "Thanks for calling Acme Events…" (if not, every call is going to the manager). Then tick
+     the Twilio fallback task. Voicemail transcription is Twilio's own: charged per minute on
      top of the call (check the current price) and English only. Then ring the line from
      a worker's phone: you should hear "Thanks for calling {firm}. We've just sent a link…", get
      the login link by WhatsApp within seconds, and after the tone leave a message: within a minute
@@ -1190,3 +1204,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 8 | 0.5 | AWS, BLOCKED (not ticked: needs a real AWS account and money): `deploy/lightsail.sh` written (never run) to create the London server (Ubuntu 24.04, cheapest 2-CPU 4 GB plan, prices shown and a typed yes first), its firewall (only 80/443 to the internet, SSH only from Lightsail's browser console, read back and checked), a static IP and private Postgres 16 with nightly backups (checked after); `deploy/cloud-init.sh` for first boot (automatic security updates, Docker); a test pins it all; the review caught a first-boot script that would have stopped on Ubuntu's `sh`, no read-back of what AWS applied, and a password command showing two values (all fixed); runbook "Set up AWS (once)" in 9 beginner steps; 2516 tests + 47 e2e; verified (see docs/work-log.md) |
 | 2026-09-29 | 8 | 0.6 | Docker Compose and deploy, BLOCKED (not ticked: no server yet, and the deploy workflow only runs on `main`): the image (`Dockerfile`: one image for web, worker and migrate, non-root, code owned by root, no secrets), `deploy/docker-compose.yml` (only Caddy published; the owner's database login only to migrate; the worker off until Twilio exists, since production refuses printed messages), `GET /api/health`, deploys that pull (a GitHub workflow builds and pushes the image after CI passes on main; a timer on the server pulls it, migrates, starts it, never 05:30–09:00 UK); a CI job builds the image on every push; the review caught a fork's pull request being able to publish, an older build rolling the server back, failed deploys never retried, nothing deploying with the documented settings, and a rollback that couldn't work (all fixed); 2542 tests + 47 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 8 | 0.5 | Backups, restore drill, budget, uptime, alerts, BLOCKED (not ticked: all AWS or an outside uptime service): `deploy/alarms.sh` (Lightsail email alarms: the server down, CPU, burst capacity, the database's storage and CPU; resends the confirmation) and `deploy/restore-drill.sh` (the latest backup restored to a separate private database, reused only if restored in the last hours, deleted only by typing its name) written and pinned by tests that can never reach AWS; runbooks "Monitoring and alerts (once)" (with a plain HTTPS uptime check on `/api/health`) and "Restore drill (monthly)" (a recency check, not a count); backups were already on, the budget is setup step 1; the review caught an old drill copy being reused (and a way to delete production by mistake), errors looking like "not there", and a missing sudo (all fixed); 2557 tests + 47 e2e; verified (see docs/work-log.md) |
+| 2026-09-30 | 8 | 0.5 | Twilio call fallback, BLOCKED (not ticked: it's a setting in Twilio's console): `npm run firm:call-fallback` prints a firm's TwiML Bin (Twilio plays it itself when our app doesn't answer): why, then the manager's phone, then a closing line; the words are new doc copy, checked by tests; "Connect Twilio" step 10 explains setting and safely checking it; the review caught a closing line that played "nobody could take your call" even after a call that worked, and pointed callers to messaging, which is down too (both fixed), plus a safer check and logging calls taken by phone during an outage; 2562 tests + 47 e2e; verified (see docs/work-log.md) |

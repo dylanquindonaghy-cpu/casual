@@ -178,6 +178,14 @@ request for the office (a worker gets `voicemail_received` by the channel they c
 don't know is shown on Today and the office is alerted, with no message to them. Twilio's
 placeholder numbers for a hidden caller ID count as withheld.
 
+When our app doesn't answer a call (Phase 8: Twilio's own fallback, a TwiML Bin per firm made by
+`npm run firm:call-fallback`, `callFallbackTwiml()`), the caller hears "Sorry, our system isn't
+answering right now. Putting you through to {firm}." and is put through to the firm's manager (up
+to 30 seconds of ringing; the manager's own voicemail usually answers first). Whenever that call
+ends (answered, voicemail or no answer: the bin can't tell which), they hear "If nobody answered,
+please call again in a few minutes. Goodbye." It doesn't suggest messaging: WhatsApps and texts
+reach the same app, which isn't answering.
+
 ## Office notifications
 
 - Escalation (`shift_escalation`, built for email; push comes with web push): subject "Unfilled:

@@ -307,6 +307,16 @@ export function smsStartedMessage(firm: FirmVoice): string {
 export const CALL_GOODBYE = "Thank you. Goodbye.";
 export const CALL_NOT_IN_USE = "Sorry, this number isn't in use.";
 
+// Twilio's fallback when our app doesn't answer a call (Phase 8; docs/messaging-templates.md
+// "Call-to-text recording (voice)"): served by Twilio itself (a TwiML Bin), so the caller still
+// reaches a person. Why, then the manager's phone. The closing line plays whenever that call ends
+// (answered, voicemail or no answer: a TwiML Bin can't tell which), so it has to be true for all of
+// them; and it doesn't suggest messaging, which is down too while the app isn't answering.
+export function callFallbackGreeting(firm: { name: string }): string {
+  return `Sorry, our system isn't answering right now. Putting you through to ${firm.name}.`;
+}
+export const CALL_FALLBACK_END = "If nobody answered, please call again in a few minutes. Goodbye.";
+
 // shift_reminder_24h (WhatsApp or SMS, utility): the day before a booked shift. {day} is "tomorrow"
 // or "today" (the approved template's "tomorrow" can't be right for a reminder that went late).
 export function shiftReminder24hMessage(

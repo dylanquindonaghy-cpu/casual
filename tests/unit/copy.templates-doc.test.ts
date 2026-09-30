@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as templates from "@/lib/messaging/templates";
 import {
+  CALL_FALLBACK_END,
+  callFallbackGreeting,
   callGreeting,
   credentialExpiredMessage,
   credentialExpiringMessage,
@@ -229,6 +231,13 @@ describe("the code says what the doc says", () => {
     expect(smsStoppedMessage(docVoice)).toBe(quotes(stop, "`sms_stopped`:")[0]);
     expect(smsStartedMessage(docVoice)).toBe(quotes(stop, "`sms_started`:")[0]);
     expect(stop).toContain(`"${TEXTS_OFF}"`);
+  });
+
+  it("the call fallback (Twilio's, when our app doesn't answer), as the doc says it", () => {
+    const voice = section("Call-to-text recording (voice)");
+    const quoted = [...voice.matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? "");
+    expect(quoted).toContain(callFallbackGreeting(docVoice));
+    expect(quoted).toContain(CALL_FALLBACK_END);
   });
 
   it("voicemail_received", () => {
@@ -580,6 +589,7 @@ describe("every template function is checked here", () => {
       .sort();
     expect(functions).toEqual(
       [
+        "callFallbackGreeting",
         "callGreeting",
         "credentialExpiredMessage",
         "credentialExpiringMessage",

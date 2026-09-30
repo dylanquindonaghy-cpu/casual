@@ -6,7 +6,14 @@ import { withFirm, type WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { errorCode } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
-import { CALL_GOODBYE, CALL_NOT_IN_USE, callGreeting, type CallLink } from "../messaging/templates";
+import {
+  CALL_FALLBACK_END,
+  CALL_GOODBYE,
+  CALL_NOT_IN_USE,
+  callFallbackGreeting,
+  callGreeting,
+  type CallLink,
+} from "../messaging/templates";
 import { queueInboundMessage } from "./job";
 import { plainResponse, readTwilioRequest } from "./twilio-request";
 
@@ -86,6 +93,21 @@ export function callTwiml(
     `<Record maxLength="${VOICEMAIL_MAX_SECONDS}" playBeep="true" timeout="5" transcribe="true"` +
     ` transcribeCallback="${xml(opts.transcriptionUrl)}" action="${xml(opts.doneUrl)}"/>` +
     "<Hangup/>"
+  );
+}
+
+// Twilio's fallback for a firm's number (Phase 8): the TwiML to paste into a TwiML Bin, which
+// Twilio serves itself when our voice webhook doesn't answer (the app down or too slow): why, then
+// the manager's phone for up to 30 seconds (their own voicemail usually answers first), then the
+// closing line. `npm run firm:call-fallback` prints it.
+export function callFallbackTwiml(firm: { name: string }, managerE164: string): string {
+  if (!e164.test(managerE164)) throw new Error("the manager's phone must be an E.164 number");
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?><Response>` +
+    say(callFallbackGreeting(firm)) +
+    `<Dial timeout="30">${managerE164}</Dial>` +
+    say(CALL_FALLBACK_END) +
+    "<Hangup/></Response>"
   );
 }
 

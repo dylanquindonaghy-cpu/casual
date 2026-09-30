@@ -5523,3 +5523,62 @@ it is written, checked and committed. No auditor round. Next step is Dylan's: "C
 **Commit:** `3eed699` "Phase 8 (BLOCKED, not ticked): Backups on, restore tested; AWS Budget alert at
 £50; uptime check; error alerts to you", pushed to `origin/build/overnight`. CI: `gh` isn't
 installed, so not checked.
+
+## 2026-09-30 00:18 UTC: Phase 8, "Twilio fallback: if the app doesn't answer, calls forward to the manager's phone"
+
+**Blocked (hard limit):** it's set on each number in Twilio's console ("Primary handler fails"),
+which can't be used tonight. Built short of it; recorded as blocked, not ticked.
+
+**Plan:**
+
+1. **The words** (golden rule 11, copy is product): a caller hears "Sorry, our system isn't
+   answering right now. Putting you through to {firm}." then is put through to the manager's phone
+   (30 seconds of ringing); if nobody answers, "Sorry, nobody could take your call. Please try
+   again later, or message us on this number." New doc copy in docs/messaging-templates.md,
+   `callFallbackTwiml()` builds it (the firm's name escaped, British English, the number checked).
+2. **`npm run firm:call-fallback -- --firm acme --phone "07700 900123"`**: prints the TwiML to paste
+   into a Twilio TwiML Bin for that firm's number (the firm's name from the directory, the phone
+   read as a UK number and refused if it isn't one). No secret in it; nothing saved.
+3. **Tests**: the TwiML's words match the doc; valid, escaped; a phone that isn't a number is
+   refused; the script's output.
+4. **Docs**: "Connect Twilio" step 10 uses the command; runbooks "Event-morning outage" mentions it.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | It's a Twilio setting | Tick with nothing set |
+| A TwiML Bin per firm, made by our command | Twilio serves it itself when our app doesn't answer (it can't depend on the app); the command makes it right every time | Typing the XML by hand |
+| Say why before putting through, and what to do if nobody answers | Copy is product: every action ends with a clear next step | A silent forward |
+
+**Built as planned, with one change:** the command takes `--name "Acme Events"` rather than
+`--firm acme`: it runs on Dylan's computer, and the production database is only reachable from the
+server (so the name can't be read from the firm directory; a typo in it is caught by the check
+call).
+
+**Guardrails review: FIX FIRST (2 items), both done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the closing line ("Sorry, nobody could take your call…") played after any `<Dial>` ending, including an answered call the manager hung up, or their voicemail | `CALL_FALLBACK_END`: "If nobody answered, please call again in a few minutes. Goodbye." (true for every outcome; a bin can't branch on `DialCallStatus`); doc, tests |
+| FIX FIRST: "…or message us on this number" pointed callers at messaging, which reaches the same app that isn't answering (and Twilio doesn't retry failed inbound message webhooks) | Removed from the line; the doc says messages aren't covered by the fallback |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| The check procedure (whose phone, telling the manager, the no-answer path, the expected 11200 notice, restoring the webhook exactly, the split `TWILIO_AUTH_TOKEN` sentence) | Step 10 rewritten with all of these; the token sentence back with the webhook |
+| The docs promised "if nobody answers" | They say the manager's voicemail usually answers first |
+| Calls taken during an outage leave no record; the bin's fixed manager; "the resourcer" vs the manager | Runbook step 5: enter phone cancellations/changes when back; step 1: the bin has the current manager (re-make it when they change); step 2 texts the manager, and tells resourcers messages aren't answered |
+| The log said `--firm` | Recorded above |
+| "A line of TwiML" (npm's banner) | `npm run -s …`, "the line starting `<?xml`" |
+| Unused `signOff`; short UK numbers; `{{` in a name | The type narrowed to `{ name }`; a warning for +44 numbers not 10 digits after 44; braces refused (tested) |
+
+**Verify:** `VERIFIED tree=1857eab3f497508c e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2562 tests, 47 e2e). (An earlier verify run was stopped by me, not failed, so the review's fixes
+could go in first.)
+
+**Status: BLOCKED, not ticked** (hard limit: a Twilio setting). Everything short of it is built,
+checked and committed. No auditor round. Next step is Dylan's: "Connect Twilio" step 10.
+
+**Hours:** 0.5 h (00:18 to 00:46 UTC). Phase 8 so far 3.6 h of its 18–28 h estimate.

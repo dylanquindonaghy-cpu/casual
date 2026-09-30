@@ -323,7 +323,11 @@ only a worker's number gets one and the caller hears the same either way; a with
 told we can't send one. The voicemail's text goes through the `inbound-message` job: a worker's
 becomes a request for the office, answered by the channel they chose; a caller we don't know is
 on Today and the office is alerted, with no message to them.)
-4. Twilio fallback URL forwards calls to the manager's mobile if our app is down.
+4. Twilio fallback URL forwards calls to the manager's mobile if our app is down. (Made in Phase 8,
+   not set yet: `npm run firm:call-fallback` prints the TwiML for a firm's bin, `callFallbackTwiml()`:
+   why, then the manager's phone for up to 30 seconds (their voicemail usually answers first), then
+   a closing line true however that call went; Twilio serves it itself. Messages aren't covered:
+   WhatsApps and texts reach the same app.)
 
 ## Notifications
 

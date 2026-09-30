@@ -554,6 +554,12 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
     phone number, and would make the event write throw after the message went. Exempt that key
     or store only a safe form, with a test using a Twilio-shaped id.
+- **Run the pilot's weekly reviews and send the week-4 report** (the Phase 9 "Week-by-week pilot
+  metrics review and the week-4 report" task is blocked on it: it's a real four-week pilot).
+  1. Each Friday: `docs/pilot-report.md` "Every Friday" (the resourcer's tally first, then the
+     Pilot metrics page for that week, the table, the Friday update).
+  2. After week 4: "The week-4 report", then the Gate C check.
+  3. Tick the task (and Gate C in "Gates" if it's met).
 - **Run the dry-run event day** (the Phase 9 "Run a dry-run event day with the resourcer" task is
   blocked on it: it needs the pilot firm's resourcer, real phones, and Twilio connected). After
   onboarding steps 1 to 11 and before the staff briefing:
@@ -1377,3 +1383,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-30 | 9 | 0.9 | Pre-pilot checklist, BLOCKED (not ticked: 5 of its 7 items need CI on GitHub, a real restore, a real call, real phones or alerts to a phone); the 2 that can be done here, done for real and ticked in docs/testing.md: a load smoke (200 signed WhatsApps through the real app) found the worker answering only 31 of 200 in a minute (a 2-second wait after every job), fixed so all 200 are answered about a second after the last; and every e2e run now scans both servers' whole output for phone numbers and emails, which caught a mobile and a login token that Next's development logging printed (switched off) and a search that put a mobile in the address (now a form action); the review caught side-by-side jobs letting a text go out after STOP (batches now run in order); 2665 tests + 49 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.1 | Baseline week, BLOCKED (not ticked: a real firm's real week before go-live): `docs/baseline-tally.md`, the resourcer's day-by-day tally sheet (counts only) with how to turn it into exactly the 8 figures the office's Pilot figures page takes; linked from the playbook; parking item "Record the baseline week"; 2665 tests + 49 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.2 | Dry-run event day, BLOCKED (not ticked: needs the pilot firm's resourcer, volunteers' phones and Twilio): the playbook had no dry-run section though onboarding pointed to it; added "Dry-run event day": when, the set-up (three volunteers, a pretend event before go-live), 12 steps covering every flow a pilot relies on with who does each and what "worked" looks like, and a table to fill in; parking item; 2665 tests + 49 e2e; verified (see docs/work-log.md) |
+| 2026-09-30 | 9 | 0.2 | Weekly pilot reviews and the week-4 report, BLOCKED (not ticked: a real four-week pilot): `docs/pilot-report.md`: the Friday review (the tally first, the dates to choose on the Pilot metrics page), a weekly table with the page's own figure names and targets, the Friday update's wording, and the week-4 report with where each number comes from, then the Gate C check; linked from the playbook; parking item; 2665 tests + 49 e2e; verified. Phase 9: 2.5 h of the 10–15 h estimate, 1 task done, 6 blocked (see docs/work-log.md) |

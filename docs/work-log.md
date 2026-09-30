@@ -7174,3 +7174,37 @@ pilot's figures.
 ### How to see it
 
 `docs/pilot-playbook.md` "Dry-run event day".
+
+## 2026-09-30: Phase 9, task 7: The weekly pilot reviews and the week-4 report (0.2 h, BLOCKED)
+
+### Time
+
+0.2 hours of Claude's working time (05:32 to 05:41 UTC), in the unattended overnight loop.
+Phase 9 finished at 2.5 of its 10 to 15 hour estimate: 1 task done, 6 blocked (they all need a real
+pilot firm, real phones or outside services).
+
+### Result
+
+- **Blocked, not ticked.** The task is to review a real four-week pilot and send its report.
+- `scripts/verify.sh` printed `VERIFIED tree=47ffad267d7b09a9 e2e=true` (2665 tests, 49 browser
+  tests). Documents only.
+- No auditor round (blocked).
+
+### What was done, in plain words
+
+The office's Pilot metrics page already works out the numbers (with the baseline and each target).
+`docs/pilot-report.md` says what to do with them:
+- **every Friday**: the resourcer's tally first, then the page for that week, a table to fill in
+  week by week, and a short update email to the firm (the wording, with blanks);
+- **after week 4**: the report, section by section, with where each number comes from (including
+  how to work out "resourcer hours a week back"), attaching the notice report's download, taking
+  staff quotes only with their permission, and then the "Gate C" check (the pilot worked:
+  unanswered queries near 0%, time saved, at least half the staff using it).
+
+### Parked, open, and things that need Dylan
+
+- **Run the pilot's weekly reviews and send the week-4 report** (PLAN.md Parking lot).
+
+### How to see it
+
+`docs/pilot-report.md`.

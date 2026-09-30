@@ -95,7 +95,8 @@ confirmed, and the staff briefing can go out.
 - **Monday:** 15-minute call with the resourcer: what worked, what was confusing, what they still
   had to do by hand.
 - **Daily:** check escalations, unknown-number messages, failed jobs, sync errors.
-- **Friday:** send the firm a short update: numbers this week vs baseline, fixes shipped.
+- **Friday:** send the firm a short update: numbers this week vs baseline, fixes shipped (the
+  Friday review, its table and the update's wording: `docs/pilot-report.md`).
 
 ## Metrics (from `events` and `messages`)
 
@@ -111,6 +112,8 @@ confirmed, and the staff briefing can go out.
 | No-shows | Count | down vs baseline |
 
 ## Pilot report template (send at week 4)
+
+Where each number comes from, step by step: `docs/pilot-report.md` "The week-4 report".
 
 1. **Headline:** "X% of shift queries answered instantly, refill time from A to B, Y resourcer hours a week back."
 2. Baseline vs pilot table (above).

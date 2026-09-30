@@ -6086,3 +6086,23 @@ test the firm's own setup).
 
 **Commit:** `043d3d0` "Phase 9 (BLOCKED, not ticked): Run a dry-run event day with the resourcer", pushed to
 `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-30 05:32 UTC — Phase 9: Week-by-week pilot metrics review and the week-4 report
+
+Task: "Week-by-week pilot metrics review and the week-4 report". **Blocked:** it's a real four-week
+pilot. The numbers already come from the office's Pilot metrics page (Phase 5: the baseline, the
+weekly tally, the app's own nightly figures, each with its target).
+
+**Short of it:** `docs/pilot-report.md`: the Friday review (the tally first, the dates to choose,
+what else to look at), a weekly table using the page's own figure names and targets
+(`src/lib/office/pilot-copy.ts`), the Friday update's wording, and the week-4 report with where each
+number comes from (the headline's hours-back sum, the notice report and its CSV, quotes only with
+permission), then the Gate C check. Linked from the playbook; parking item. No code; guardrails
+review not needed.
+
+**Verify:** `VERIFIED tree=47ffad267d7b09a9 e2e=true` (2665 tests, 49 e2e).
+
+**Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Run the pilot's weekly
+reviews and send the week-4 report".
+
+**Hours:** 0.2 h (05:32 to 05:41 UTC). **Phase 9 total: 2.5 h** of its 10–15 h estimate.

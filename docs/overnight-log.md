@@ -6083,3 +6083,6 @@ test the firm's own setup).
 **Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Run the dry-run event day".
 
 **Hours:** 0.2 h (05:21 to 05:30 UTC). Phase 9 so far 2.3 h of its 10–15 h estimate.
+
+**Commit:** `043d3d0` "Phase 9 (BLOCKED, not ticked): Run a dry-run event day with the resourcer", pushed to
+`origin/build/overnight`. CI: `gh` isn't installed, so not checked.

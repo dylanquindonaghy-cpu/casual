@@ -6037,3 +6037,21 @@ server".
 
 **Commit:** `8d78eb5` "Phase 9 (BLOCKED, not ticked): Pre-pilot checklist in docs/testing.md all
 ticked", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-30 05:10 UTC — Phase 9: Baseline week recorded (`docs/pilot-playbook.md`)
+
+Task: "Baseline week recorded (`docs/pilot-playbook.md`)". **Blocked:** it's a real firm's real
+week of emails, calls and cancellations, before go-live (no firm yet: Gate B). The place to enter
+it already exists (`/office/reports/pilot`, "Baseline (week 0)", Phase 5) and `firm:check` shows
+whether it's done.
+
+**Short of it:** `docs/baseline-tally.md`, the resourcer's day-by-day tally sheet (counts only),
+with how to turn it into exactly the 8 figures the Pilot figures page takes
+(`BASELINE_METRICS` in `src/lib/metrics/definitions.ts`); linked from the playbook; parking item
+"Record the baseline week". No code; guardrails review not needed.
+
+**Verify:** `VERIFIED tree=7bbbaea2c12b0b86 e2e=true` (2665 tests, 49 e2e).
+
+**Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Record the baseline week".
+
+**Hours:** 0.1 h (05:10 to 05:19 UTC). Phase 9 so far 2.1 h of its 10–15 h estimate.

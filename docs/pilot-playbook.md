@@ -4,7 +4,8 @@ The pilot exists to produce numbers a second firm will believe.
 
 ## Before go-live: baseline (week 0)
 
-Collect for one normal week and, if possible, one busy week:
+Collect for one normal week and, if possible, one busy week (the resourcer's day-by-day tally
+sheet, and how to turn it into the figures: `docs/baseline-tally.md`):
 
 | Metric | How | Notes |
 |---|---|---|

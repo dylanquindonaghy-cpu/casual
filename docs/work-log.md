@@ -7093,3 +7093,37 @@ check once on the real server. Tick the remaining boxes in `docs/testing.md` as 
 
 `npm run e2e -- tests/e2e/load.smoke.spec.ts` prints the timings; `docs/testing.md` "Pre-pilot
 checklist".
+
+## 2026-09-30: Phase 9, task 5: The baseline week (0.1 h, BLOCKED)
+
+### Time
+
+0.1 hours of Claude's working time (05:10 to 05:19 UTC), in the unattended overnight loop.
+Phase 9 so far: 2.1 of its 10 to 15 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** The "baseline" is the pilot firm's own numbers for a normal week before
+  go-live (emails, calls, cancellations, time spent), so the pilot can be compared with it. It
+  needs a real firm.
+- `scripts/verify.sh` printed `VERIFIED tree=7bbbaea2c12b0b86 e2e=true` (2665 tests, 49 browser
+  tests). Documents only.
+- No auditor round (blocked).
+
+### What was done, in plain words
+
+The office already has a page to enter the baseline (Pilot figures, "Baseline (week 0)"). What was
+missing was an easy way for the resourcer to collect the numbers. `docs/baseline-tally.md` is a
+sheet to fill in each day (emails by kind, calls, WhatsApp messages, unanswered shift queries,
+no-shows, minutes on staff admin) and for each cancellation (when it came in, when it was covered,
+how much notice), then step-by-step how to turn it into the 8 figures the page asks for. Counts
+only, no names.
+
+### Parked, open, and things that need Dylan
+
+- **Record the baseline week** (PLAN.md Parking lot, 4 steps): after Gate B, send the sheet, the
+  resourcer fills it in, you enter the 8 figures, `firm:check` shows it done.
+
+### How to see it
+
+`docs/baseline-tally.md`.

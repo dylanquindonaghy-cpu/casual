@@ -435,7 +435,8 @@ In order (who does it, how, and what done looks like):
    refused and nothing changes; each change is in the office action log.
 9. **Shifts line** (you): after "Connect Twilio", the firm's number with `npm run firm:line`, and
    WhatsApp's approval of the display name (start early: it can take days).
-10. **Privacy notice line** (the firm): the suggested words are in `docs/compliance.md`.
+10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the
+    short line and the section for its privacy notice, with what to fill in.
 11. **Staff briefing** (the firm): a message to its staff with the portal link.
 12. **Dry-run event day** (you and the resourcer): `docs/pilot-playbook.md`.
 13. **Baseline numbers** (the resourcer): the office's Pilot figures page, Baseline week.

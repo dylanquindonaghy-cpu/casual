@@ -27,7 +27,8 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
 - Don't label every message "AI". Replies are signed **"[Firm] Shift Team"**.
 - **Never** sign automated replies with a made-up person's name.
 - The firm knows — it's the controller and signs a DPA that lists the AI provider.
-- Staff get one line in the firm's privacy notice. Suggested wording:
+- Staff get one line in the firm's privacy notice, and the firm's notice gets a section on the
+  portal and shifts line: both, ready to send, in `docs/privacy-notice.md`. The line:
   > "Shift messages, requests and enquiries may be handled by automated systems on our behalf.
   > You can ask for any decision about your shifts to be reviewed by a member of our team."
 - Anyone significantly affected by an automated decision (e.g. refused a shift) can ask for a
@@ -111,7 +112,7 @@ Safari and a home-screen app keep separate storage, so logging out in one doesn'
 other. It's off unless switched on (`OFFLINE_COPY`; on in production). The "don't show the home
 screen hint again" choice is a flag in the phone's browser storage, with no personal data. The
 privacy notice should say the copy is stored on the device (storage that's strictly necessary
-for the service the worker asked for): parked in PLAN.md.
+for the service the worker asked for): `docs/privacy-notice.md`, "On your phone".
 
 ## Credential checks
 

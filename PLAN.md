@@ -554,6 +554,16 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
     phone number, and would make the event write throw after the message went. Exempt that key
     or store only a safe form, with a test using a Twilio-shaped id.
+- **Send the pilot firm its privacy notice wording** (the Phase 9 "Privacy notice line supplied to
+  the firm" task is blocked on it: there's no firm yet). At onboarding step 10:
+  1. Have a solicitor read `docs/privacy-notice.md` once, with the terms and DPA (before the first
+     pilot).
+  2. Fill in the [brackets]: your business's legal name, the firm's name, its shifts line number,
+     its contact, and how long it keeps records after someone leaves. Keep the Google line only if
+     its rota is a Google Sheet, and the logo line only if it has a logo set.
+  3. Send the firm both parts (the short line and the section). They publish it, not us.
+  4. When they confirm it's in their notice, tick the task (and `firm:check`'s "[?] Privacy notice"
+     is confirmed).
 - **Import the pilot firm's real data** (the Phase 9 "Import real workers/credentials/shifts only
   after Gate B paperwork is signed" task is blocked on it: no firm has signed yet). Only once the
   agreement and DPA are signed:
@@ -993,9 +1003,9 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   4. (Built: the service worker re-saves a renewed subscription, `pushsubscriptionchange`.)
   5. Rate-limit `POST /api/push/subscribe` (each save writes an event) with the auth throttle.
   6. Test on a real Android phone and an iPhone (added to the home screen).
-  7. docs/compliance.md: add the browser push services as sub-processors, how long
-     `push_subscriptions` rows are kept, and what notifications show on a locked phone (the
-     Phase 8 privacy notice).
+  7. docs/compliance.md and docs/privacy-notice.md: add the browser push services as
+     sub-processors, how long `push_subscriptions` rows are kept, and what notifications show on a
+     locked phone.
   Also: push the office's escalation alert, and the push-first-then-WhatsApp order (the `notify`
   task).
 - **Connect Bedrock** (the Phase 6 "Group queries by likely cause … Haiku summarises" task is
@@ -1203,8 +1213,8 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - App icons for the home screen, in the firm's branding (with custom domains and branding).
   - An "Install" button on Android (Chrome's install prompt).
   - Web push (Phase 4) through the same service worker.
-  - Privacy notice (Phase 8): say the offline copy of My shifts is stored on the phone (strictly
-    necessary storage) and what deletes it.
+  - Privacy notice: say the offline copy of My shifts is stored on the phone (strictly necessary
+    storage) and what deletes it. (Done: docs/privacy-notice.md, "On your phone".)
   - The hint's wording "Open your browser's Share menu" is meant to fit Safari's and Chrome's
     layouts; check it on the real iPhone too.
 - Plain-language follow-ups (from the Phase 3 empty and error states task):
@@ -1333,3 +1343,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-30 | 8 | 0.2 | Runbooks tried for real, BLOCKED (not ticked: needs the real server, database snapshots and GitHub's registry): an independent fact-check of the Deploy, Rollback, Restore and Restore drill runbooks against the scripts (19 claims): Rollback would have hit "Permission denied" (no `sudo -i`) and Restore said "restart", which keeps the old database settings (now `docker compose up -d`): both fixed; a new "Try the runbooks for real (once, before the pilot's data)" section with the order, what "worked" looks like and a table to fill in; 2638 tests + 48 e2e; verified. Phase 8: 5.6 h of the 18–28 h estimate, 3 tasks done, 6 blocked on outside services (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.6 | Onboarding checklist: the app couldn't create a real firm (only the demo seed could), add office users or change a firm's settings, so four owner commands: `firm:create` (the firm, its sector's credential rules and first admin, logged; finishes a setup that stopped), `firm:office-user`, `firm:settings` (shows and sets the checklist's settings, each checked by reading it back through the app's own reader) and `firm:check` (the checklist from the firm's data: done, to do, confirm yourself; counts only); a one-off `owner` compose service to run them on the server without a password on the command line; a step-by-step "Onboarding a pilot firm" runbook; the review caught the firm's row committed without its log entry and that password on the command line (both fixed and tested); 2653 tests + 48 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.2 | Import real data after Gate B, BLOCKED (not ticked: no firm has signed, and no real personal data tonight): the import command now enforces Gate B: against any database that isn't on this machine, saving (`--apply`) needs `--agreement-signed <slug>` repeating the firm's slug (you saying the agreement and DPA are signed), or nothing is saved; dry runs and local databases unchanged; runbook step and parking item; 2655 tests + 48 e2e; verified (see docs/work-log.md) |
+| 2026-09-30 | 9 | 0.3 | Privacy notice, BLOCKED (not ticked: "supplied to the firm" needs a firm): `docs/privacy-notice.md`, ready to send: the short line and a section for the firm's own notice (what's kept and why, the shifts line's 90 days, what the AI does and doesn't, the phone's offline copy, the logo, who else handles it, retention, rights and what a deletion keeps), with notes for you on the blanks; an independent fact-check of 36 claims against the code found 4 that said more than the app does (all fixed); compliance, the onboarding runbook and `firm:check` point to it; 2655 tests + 48 e2e; verified (see docs/work-log.md) |

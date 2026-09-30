@@ -5919,3 +5919,49 @@ real data" (after Gate B).
 **Commit:** `9379493` "Phase 9 (BLOCKED, not ticked): Import real workers/credentials/shifts only
 after Gate B paperwork is signed", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so
 not checked.
+
+## 2026-09-30 03:53 UTC — Phase 9: Privacy notice line supplied to the firm (see docs/compliance.md)
+
+Task: "Privacy notice line supplied to the firm (see docs/compliance.md)". **Blocked** on the
+"supplied to the firm" part: there's no firm yet (Gate B), and sending anything to a real firm is
+an outside action. Short of it: the wording, ready to send.
+
+**Plan.** `docs/privacy-notice.md`: what to send the firm (a one-line version for its staff
+handbook or contract, and a fuller section to paste into its privacy notice, with [placeholders]),
+gathering every point compliance.md says the notice should cover: automation and the right to a
+human review; the shifts line (texts, WhatsApps, calls and voicemails, strangers' messages
+included, 90 days); what's kept and why; the phone's offline copy of My shifts; the logo fetched
+from the firm's own site; who processes it (us, and AWS, Twilio, Meta, Google if a sheet is used);
+the AI sorting a message's topic only; retention; rights (access, correction, erasure with the
+anonymous history kept, review); where it's stored. Then an independent fact-check of every claim
+against the code (`doc-fact-checker`), because a privacy notice that says something the app
+doesn't do is worse than none. compliance.md, the onboarding runbook and `firm:check` point to it;
+the two parked "privacy notice" items are closed.
+
+**Decision:** written as a suggestion for the firm (the controller) to adapt, marked not legal
+advice, to be reviewed by a solicitor with the terms and DPA (compliance.md says the same). Why:
+the notice is the firm's to publish. Alternative: a privacy page in the app (`/help` in
+screens.md: later).
+
+**Fact-check (`doc-fact-checker`, read-only): about 36 claims checked, 4 problems, all fixed.**
+
+| Finding | Fix |
+|---|---|
+| "anything written about you is deleted" was stronger than the code: the office's typed reason for placing someone despite a rule stays in the append-only log | Says exactly what's deleted, and that that one reason stays (checked to hold no phone number or email) |
+| Pay records also stay after a deletion (without a name), not only the shifts record | Said, with why (what we paid) |
+| "uses … the AI service" as present fact, but Bedrock isn't connected | "once it's switched on"; the automation paragraph already said "may be used" |
+| The pay summary's "facts only" list missed the rate paid | "the site and the rate paid" |
+
+Confirmed correct: every kind of worker data listed against the schema; the 90/7/30-day periods
+against `retention.ts` and the migration (calls and voicemails included); strangers' messages; the
+sign-off; the AI boundary; the offline copy; the logo; the sub-processors and locations; the
+one-month access; every "Notes for you" pointer.
+
+**Guardrails review:** not run: only documents and one line of `firm:check` wording changed.
+
+**Verify:** `VERIFIED tree=23a747cc4a87bd59 e2e=true` (2655 tests, 48 e2e).
+
+**Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Send the pilot firm its
+privacy notice wording".
+
+**Hours:** 0.3 h (03:53 to 04:09 UTC). Phase 9 so far 1.1 h of its 10–15 h estimate.

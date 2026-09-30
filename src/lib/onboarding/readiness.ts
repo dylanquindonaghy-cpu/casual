@@ -141,7 +141,7 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
     {
       item: "Privacy notice line added by the firm",
       state: "confirm",
-      detail: "Not recorded here: docs/compliance.md has the suggested words.",
+      detail: "Not recorded here: send the firm docs/privacy-notice.md (the words to use).",
     },
     {
       item: "Staff briefing message sent with the portal link",

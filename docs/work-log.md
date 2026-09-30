@@ -6951,3 +6951,65 @@ needs exactly the firm's short name (any capitals, spaces around ignored), and a
 ### How to see it
 
 `docs/runbooks.md` "Importing workers, credentials or shifts from a spreadsheet", step 3.
+
+## 2026-09-30: Phase 9, task 3: The privacy notice wording for the firm (0.3 h, BLOCKED)
+
+### Time
+
+0.3 hours of Claude's working time (03:53 to 04:09 UTC), in the unattended overnight loop.
+Phase 9 so far: 1.1 of its 10 to 15 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** The task says "supplied to the firm", and there's no firm yet. The
+  wording is written and checked, ready to send.
+- `scripts/verify.sh` printed `VERIFIED tree=23a747cc4a87bd59 e2e=true` (2655 tests, 48 browser
+  tests).
+- No auditor round (blocked). The commit is recorded in `docs/overnight-log.md`.
+
+### What was built, in plain words
+
+A "privacy notice" is what an employer publishes to tell staff how their information is used. The
+firm is responsible for its own (in data protection terms it's the "controller"; we're its
+"processor"). So `docs/privacy-notice.md` is what you send the firm to adapt:
+
+- **A short line** for its staff handbook or contract: messages may be handled by automated
+  systems, and anyone can ask for a person to review a decision about their shifts.
+- **A section for its privacy notice**, covering:
+  - what the app keeps about each worker, and why;
+  - that messages to the shifts line are kept 90 days (strangers' too);
+  - what the AI does (sorts a message's topic, and writes payroll a one-line summary) and doesn't
+    do (decide anything about shifts, licences or pay);
+  - the copy of My shifts kept on the phone;
+  - the firm's logo loading from its own website;
+  - who else handles the data, and where;
+  - how long things are kept;
+  - staff rights, including exactly what a deletion keeps.
+- **Notes for you** on each blank to fill in, and the lines to keep only if they apply.
+
+It says it's not legal advice: a solicitor should read it once with the terms and DPA.
+
+Because a privacy notice that promises more than the app does is worse than none, a separate
+agent (the `doc-fact-checker`) compared about 36 claims with the code. It found 4 that said too
+much, all fixed:
+- the deletion wording now names the one thing that stays in the permanent log (a reason the
+  office typed when placing someone despite a rule);
+- it says pay records stay (without the name);
+- the AI is described as "once it's switched on" (it isn't connected yet);
+- the payroll summary's list of facts includes the rate paid.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | "Supplied to the firm" needs a firm | Ticking once the text exists |
+| A suggestion for the firm to adapt, not a page in the app | The notice is the firm's to publish | A privacy page in the app (the `/help` page, later) |
+
+### Parked, open, and things that need Dylan
+
+- **Send the pilot firm its privacy notice wording** (PLAN.md Parking lot, 4 steps): a solicitor
+  reads it once, you fill in the blanks, send it, and tick when the firm has published it.
+
+### How to see it
+
+`docs/privacy-notice.md`.

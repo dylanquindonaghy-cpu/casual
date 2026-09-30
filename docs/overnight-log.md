@@ -5747,3 +5747,7 @@ it is built, checked and committed. No auditor round. Next step is Dylan's: "Con
 your phone" (after "Connect Twilio").
 
 **Hours:** 0.5 h (02:10 to 02:43 UTC). Phase 8 so far 5.4 h of its 18–28 h estimate.
+
+**Commit:** `7af4c22` "Phase 8 (BLOCKED, not ticked): Alerts to your phone: job failures, health
+down, Twilio error spikes, sync errors", pushed to `origin/build/overnight`. CI: `gh` isn't
+installed, so not checked.

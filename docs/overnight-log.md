@@ -5582,3 +5582,7 @@ could go in first.)
 checked and committed. No auditor round. Next step is Dylan's: "Connect Twilio" step 10.
 
 **Hours:** 0.5 h (00:18 to 00:46 UTC). Phase 8 so far 3.6 h of its 18–28 h estimate.
+
+**Commit:** `a1117e4` "Phase 8 (BLOCKED, not ticked): Twilio fallback: if the app doesn't answer,
+calls forward to the manager's phone", pushed to `origin/build/overnight`. CI: `gh` isn't
+installed, so not checked.

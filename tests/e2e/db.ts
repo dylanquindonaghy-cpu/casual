@@ -228,3 +228,27 @@ export async function addSwapRequest(
     await pool.end();
   }
 }
+
+// A worker of a spec's own (so deleting them can't change what the other specs see). Fake details
+// only: a drama-range number the seed doesn't use. Returns their id.
+export async function addWorker(
+  slug: string,
+  o: { firstName: string; lastName: string; mobileE164: string },
+): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [row] = await tx
+        .insert(workers)
+        .values({ firmId, ...o, roles: ["steward"] })
+        .returning({ id: workers.id });
+      if (!row) throw new Error("worker insert returned nothing");
+      return row.id;
+    });
+  } finally {
+    await pool.end();
+  }
+}

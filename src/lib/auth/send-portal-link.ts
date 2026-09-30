@@ -55,7 +55,8 @@ export async function sendPortalLink(
         .select({ to: workers.mobileE164 })
         .from(workers)
         .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")));
-  if (!recipient) return { sent: false, reason: "inactive" };
+  // An active worker always has a mobile (only an erased one has none, and erasure is inactive).
+  if (!recipient?.to) return { sent: false, reason: "inactive" };
   const [firm] = await tx
     .select({
       name: firms.name,

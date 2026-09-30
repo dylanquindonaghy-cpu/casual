@@ -81,6 +81,7 @@ export async function waveCandidates(
                and o.sent_at < ${today.to}) as offers_today
       from workers w
      where w.status = 'active' and w.offer_alerts and ${shift.role} = any (w.roles)
+       and w.mobile_e164 is not null -- only an erased worker has none (and is never active)
        and not exists (select 1 from assignments a
                         where a.shift_id = ${shift.id} and a.worker_id = w.id)
        and not exists (select 1 from offers o

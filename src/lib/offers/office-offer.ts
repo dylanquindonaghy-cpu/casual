@@ -25,6 +25,7 @@ import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { portalUrl } from "../tenancy/portal-url";
 import { localDateOf } from "../time/zoned";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
+import { lockReachableWorkers } from "./reachable";
 import { firmVoice, lockShift, timeOf, type OfferDeps } from "./waves";
 
 // The office offering a shift to one worker ("Offer to someone" on Today, docs/screens.md). The
@@ -283,6 +284,10 @@ export async function runOfficeOffer(
     return { status: "held", until: timing.until };
   }
 
+  // Erased or made inactive since the list was read: no offer.
+  if (!(await lockReachableWorkers(tx, [payload.workerId])).has(payload.workerId)) {
+    return notSent("not_candidate");
+  }
   const [offer] = await tx
     .insert(offers)
     .values({

@@ -58,12 +58,41 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
 
 | Data | Keep |
 |---|---|
-| Raw messages and transcripts | 90 days |
+| Raw messages and transcripts | 90 days (built: the nightly purge) |
+| The words typed into a request (a note, a colleague's name) | 90 days (built: removed, the request stays) |
 | Call audio | Not stored by default (30 days if enabled) |
-| Requests, events, notice report | 12 months (review once 2027 rules are final) |
+| Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |
+| Login links, codes, sessions, rate-limit counters | 1 to 30 days after they stop working (built; docs/data-model.md "Retention") |
 
-Nightly purge job. Firms can export their data any time.
+Nightly purge job (built, Phase 8: `retention-purge`, one `retention.purged` event per firm per
+run). Firms can export their data any time (built: an admin's "Download all your data" on
+`/office/data`).
+
+## GDPR requests (built, Phase 8)
+
+An admin handles them on `/office/data` (docs/runbooks.md "GDPR requests"):
+- **Access:** a worker's data as JSON or CSV: their details, licences and cards, days off,
+  bookings, offers, requests, reminders, pay lines and queries, shifts-line messages (with any from
+  their number before it was known), the action log's rows about them, the shifts those were
+  about, and when they logged in. Login secrets (hashes, a phone's push keys) are left out. Each
+  download is logged (`worker.data_exported`), which evidences the one-month deadline.
+- **Erasure:** the worker's personal details are deleted: name, mobile, email, staff id,
+  licences and cards, days off, messages, logins and phones, and the text anyone typed about them
+  on their requests (their note, a colleague they'd swap with, the office's answer), pay queries
+  (their details, payroll's note) and cancellations (a typed reason; "Something else: …" becomes
+  "Something else"). Their bookings, offers, cancellations (with notice hours and the app's fixed
+  reason words), reminders and pay lines stay, attached to an anonymous "Deleted worker" row, as the
+  firm's evidence (Employment Rights Act notice records, payroll). The log holds ids and fixed words,
+  never names, numbers or messages, with one exception erasure can't reach: the office's typed
+  reason for placing someone despite a rule (append-only, checked for phones and emails only).
+  Once Twilio is connected, Twilio keeps its own copy of messages (the log holds their ids):
+  deleting those there is a step still to write (PLAN.md Parking lot, "GDPR follow-ups"). Refused while they are booked on a shift that hasn't
+  ended (the office cancels it first, with a reason). Logged (`worker.erased`, counts only). The firm
+  must remove them from its own rota sheet or staff file too, or the next sync or import adds them
+  back.
+- **The firm's own data:** one JSON file of every firm table (less login secrets), logged
+  (`firm.data_exported`).
 
 ## Security baseline
 

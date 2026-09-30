@@ -361,14 +361,26 @@ Each change is in the office action log under "Firm settings".
 
 ## GDPR requests
 
-- **Worker asks for their data:** office → worker detail → export (JSON + CSV), send within 30 days.
-- **Worker asks for deletion:** office → delete (keeps the anonymised events needed for the
-  notice report if the firm requires it; otherwise full delete). Log it.
+The firm's admin does these on the office dashboard: **Data requests (download or delete)**
+(`/office/data`). Every download and deletion goes in the action log ("Data requests and
+deletion").
+
+- **Worker asks for their data:** find them by name or mobile, open them, and press
+  **Download (JSON)** or **Download (CSV, opens in Excel)**. Send the file to them within a month
+  of their request (by a route the firm trusts: it holds their personal details).
+- **Worker asks for deletion:** find them, open them, tick **I understand this can't be undone**,
+  press **Delete {name}'s personal details**. It's refused while they're booked on a shift that
+  hasn't ended: cancel those on the shift's page first (with a reason). Their shift history stays,
+  without a name, as the firm's records. Then remove them from the firm's rota sheet or staff file,
+  or the next sync or import adds them back as a new worker. Messages they send afterwards arrive as
+  from a number we don't know.
 - **Breach:** contain, note the timeline, tell the firm (controller) immediately; the firm decides
   on ICO notification within 72 hours.
 
 ## Offboarding a firm
 
-1. Export their data (workers, shifts, events, reports) and hand it over.
+1. The firm's admin downloads their data: **Download all your data** on `/office/data` (one JSON
+   file of every table, less login secrets). Hand it over if they ask us instead.
 2. Release the Twilio number after 30 days.
-3. Delete data per retention/agreement; write the final event.
+3. Delete data per retention/agreement; write the final event. (Deleting a whole firm has no
+   script yet: PLAN.md Parking lot.)

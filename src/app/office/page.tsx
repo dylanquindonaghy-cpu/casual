@@ -66,6 +66,11 @@ export default async function OfficeHome() {
             Office team
           </Link>
         )}
+        {canAccess(officeUser.role, "data") && (
+          <Link href="/office/data" className="underline">
+            Data requests (download or delete)
+          </Link>
+        )}
       </nav>
       {today ? (
         <TodayContent view={today} />

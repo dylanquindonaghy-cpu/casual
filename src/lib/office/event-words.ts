@@ -153,6 +153,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ? `Telling ${worker} waits for quiet hours to end, after the start: phone them.`
         : `Telling ${worker} waits for quiet hours to end.`;
     case "shift.change_notice_skipped":
+      if (d.reason === "erased") return "A deleted worker wasn't told about a change (no number).";
       return d.reason === "unchanged"
         ? `${worker} wasn't told: the shift is back to what they knew.`
         : `${worker} wasn't told about an older change (there's a newer one, or they're not booked).`;
@@ -294,6 +295,17 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         default:
           return "The firm's own web address was removed.";
       }
+    case "worker.data_exported":
+      return `${officeName} downloaded ${worker}'s data (${d.format === "csv" ? "CSV" : "JSON"}).`;
+    case "worker.erased":
+      return `${officeName} deleted a worker's personal details. Their shift history stays, without a name.`;
+    case "firm.data_exported":
+      return `${officeName} downloaded all the firm's data (${Number(d.rows ?? 0)} rows).`;
+    case "retention.purged": {
+      const n = (key: string) => Number(d[key] ?? 0);
+      const logins = n("throttle") + n("loginLinks") + n("sessions") + n("codes");
+      return `Old data was deleted on schedule: ${n("messages")} messages and ${n("requestNotes")} request notes over 90 days old, ${logins} old login records.`;
+    }
     case "credential_pack.applied":
       return "The credential rules for the firm's sector were set up.";
 

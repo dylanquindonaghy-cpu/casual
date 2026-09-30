@@ -179,8 +179,10 @@ async function warnAndExpire(
     const action = expiryAction(c, today);
     const expiresOn = c.expiresOn ?? "";
     const name = c.typeName ?? displayCode(c.type);
-    // No messages to people who've left, or about a credential they've already replaced.
-    const tell = c.workerStatus === "active" && !c.superseded;
+    // No messages to people who've left, or about a credential they've already replaced. (An
+    // active worker always has a mobile: only an erased one has none.)
+    const mobile = c.workerStatus === "active" && !c.superseded ? c.mobile : null;
+    const tell = mobile !== null;
 
     if (action.kind === "warn") {
       // Unmarked, so a worker who comes back is warned then.
@@ -191,7 +193,7 @@ async function warnAndExpire(
         .where(and(eq(credentials.id, c.id), eq(credentials.expiresOn, expiresOn)));
       const sent = await transport.send({
         channel: "whatsapp",
-        to: c.mobile,
+        to: mobile,
         ...(voice.line ? { from: voice.line } : {}),
         body: credentialExpiringMessage(voice, name, shortDate(expiresOn, year)),
       });
@@ -221,10 +223,10 @@ async function warnAndExpire(
             eq(credentials.expiresOn, expiresOn),
           ),
         );
-      const sent = tell
+      const sent = mobile
         ? await transport.send({
             channel: "whatsapp",
-            to: c.mobile,
+            to: mobile,
             ...(voice.line ? { from: voice.line } : {}),
             body: credentialExpiredMessage(voice, name, shortDate(expiresOn, year)),
           })

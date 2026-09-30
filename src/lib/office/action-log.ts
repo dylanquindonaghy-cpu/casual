@@ -120,6 +120,35 @@ function range(query: LogQuery, today: string, timeZone: string) {
   return { from, to, start: midnight(from), end: midnight(addDays(to, 1)), clamped };
 }
 
+// The action log's rows about one worker (the table aliased `e`): theirs, ones naming them, and ones
+// about their bookings, requests, credentials, pay lines and queries, login links and codes. The
+// Worker filter here and their data export (src/lib/gdpr/worker-export.ts) both use it.
+export function eventsAboutWorker(w: string): SQL {
+  return sql`(
+      e.data ->> 'workerId' = ${w}
+      or (e.actor_type = 'worker' and e.actor_id = ${w}::uuid)
+      or (e.entity_type = 'worker' and e.entity_id = ${w}::uuid)
+      or (e.entity_type = 'assignment' and e.entity_id in (
+          select a.id from assignments a where a.firm_id = e.firm_id and a.worker_id = ${w}::uuid))
+      or (e.entity_type = 'request' and e.entity_id in (
+          select r.id from requests r where r.firm_id = e.firm_id and r.worker_id = ${w}::uuid))
+      or (e.entity_type = 'credential' and e.entity_id in (
+          select c.id from credentials c where c.firm_id = e.firm_id and c.worker_id = ${w}::uuid))
+      or (e.entity_type = 'pay_record' and e.entity_id in (
+          select p.id from pay_records p where p.firm_id = e.firm_id and p.worker_id = ${w}::uuid))
+      or (e.entity_type = 'pay_query' and e.entity_id in (
+          select q.id from pay_queries q where q.firm_id = e.firm_id and q.worker_id = ${w}::uuid))
+      or (e.entity_type = 'magic_link' and e.entity_id in (
+          select m.id from magic_links m where m.firm_id = e.firm_id and m.worker_id = ${w}::uuid))
+      or (e.entity_type = 'login_request' and e.entity_id in (
+          select m.request_id from magic_links m
+           where m.firm_id = e.firm_id and m.worker_id = ${w}::uuid))
+      or (e.entity_type = 'otp_code' and e.entity_id in (
+          select o.id from otp_codes o
+            join sessions ss on ss.firm_id = o.firm_id and ss.id = o.session_id
+           where o.firm_id = e.firm_id and ss.worker_id = ${w}::uuid)))`;
+}
+
 export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Promise<ActionLog> {
   const [firm] = await tx
     .select({ timezone: firms.timezone })
@@ -144,32 +173,7 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
       )})`,
     );
   }
-  if (query.worker) {
-    const w = query.worker;
-    where.push(sql`(
-      e.data ->> 'workerId' = ${w}
-      or (e.actor_type = 'worker' and e.actor_id = ${w}::uuid)
-      or (e.entity_type = 'worker' and e.entity_id = ${w}::uuid)
-      or (e.entity_type = 'assignment' and e.entity_id in (
-          select a.id from assignments a where a.firm_id = e.firm_id and a.worker_id = ${w}::uuid))
-      or (e.entity_type = 'request' and e.entity_id in (
-          select r.id from requests r where r.firm_id = e.firm_id and r.worker_id = ${w}::uuid))
-      or (e.entity_type = 'credential' and e.entity_id in (
-          select c.id from credentials c where c.firm_id = e.firm_id and c.worker_id = ${w}::uuid))
-      or (e.entity_type = 'pay_record' and e.entity_id in (
-          select p.id from pay_records p where p.firm_id = e.firm_id and p.worker_id = ${w}::uuid))
-      or (e.entity_type = 'pay_query' and e.entity_id in (
-          select q.id from pay_queries q where q.firm_id = e.firm_id and q.worker_id = ${w}::uuid))
-      or (e.entity_type = 'magic_link' and e.entity_id in (
-          select m.id from magic_links m where m.firm_id = e.firm_id and m.worker_id = ${w}::uuid))
-      or (e.entity_type = 'login_request' and e.entity_id in (
-          select m.request_id from magic_links m
-           where m.firm_id = e.firm_id and m.worker_id = ${w}::uuid))
-      or (e.entity_type = 'otp_code' and e.entity_id in (
-          select o.id from otp_codes o
-            join sessions ss on ss.firm_id = o.firm_id and ss.id = o.session_id
-           where o.firm_id = e.firm_id and ss.worker_id = ${w}::uuid)))`);
-  }
+  if (query.worker) where.push(eventsAboutWorker(query.worker));
   if (query.shift) {
     const s = query.shift;
     where.push(sql`(

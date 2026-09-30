@@ -84,7 +84,7 @@ export type NoticeResult =
   | { status: "failed" }
   | { status: "held"; until: Date }
   | { status: "already" }
-  | { status: "skipped"; reason: "superseded" | "not_booked" | "unchanged" } // out of date: logged
+  | { status: "skipped"; reason: "superseded" | "not_booked" | "unchanged" | "erased" } // logged
   | { status: "gone" }; // no such change for this booking
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -170,7 +170,7 @@ async function claimNotice(
   if (!row) return { status: "gone" };
   const tz = row.timezone;
 
-  const skip = async (reason: "superseded" | "not_booked" | "unchanged") => {
+  const skip = async (reason: "superseded" | "not_booked" | "unchanged" | "erased") => {
     await recordEvent(tx, {
       actorType: "system",
       action: "shift.change_notice_skipped",
@@ -180,6 +180,8 @@ async function claimNotice(
     });
     return { status: "skipped" as const, reason };
   };
+  // Erased since the change (GDPR): no number to tell, and the log says why.
+  if (row.mobile === null) return skip("erased");
   const { rows: later } = await tx.execute(sql`
     select 1 from events
      where entity_id = ${payload.assignmentId} and id > ${payload.eventId}

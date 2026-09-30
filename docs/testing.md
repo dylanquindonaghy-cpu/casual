@@ -82,6 +82,22 @@ without breaking a 6am cancellation.
   with no AI, word for word; a failure for some groups leaves just those without a line. The key
   rules and the summary's check are also unit-tested (`tests/unit/pay.group-keys.test.ts`,
   `tests/unit/ai.pay-summary.test.ts`).
+- `gdpr.worker.test.ts`, `gdpr.firm-export.test.ts`, `gdpr.retention.test.ts` — GDPR (Phase 8,
+  on the real database). A worker's export holds a row from every table that can be about them
+  (messages from their number before it was known, and every action-log row the log's Worker filter
+  finds, those not naming them included) and nothing of a colleague's, another firm's
+  or any login secret, as JSON and as CSV (formulas inert); admins only; logged. Erasure is refused
+  while they're booked on a shift that hasn't ended; otherwise their details, credentials, logins,
+  phones, days off and messages go, the typed text on requests (a note, a colleague's name), pay
+  queries and cancellations is cleared (the app's fixed reason words stay), and bookings, offers,
+  reminders, pay lines and events stay on the anonymous row; a second go says
+  already; a notice queued before it never goes; the database refuses a half-erased row; the
+  owner-run half (`app_erase_worker`, which takes only a worker) refuses no firm, another firm's
+  worker and a second go. The firm export holds every row of every firm table but the listed login
+  tables (a new table must be exported or listed), no other firm's ids and no secrets. The purge
+  deletes each kind only past its age (a day either side), only in its own firm, logs every run and
+  deletes nothing more the second time; the tick queues one a day per firm; the message function's
+  90 days are pinned. The office page and downloads in a browser: `tests/e2e/gdpr.spec.ts`.
 - `sheets.sync.test.ts` — a seeded (fake) Google Sheet syncs both ways: staff, sites, shifts and
   who holds each come in (one read per sync, columns by header); bookings made here go back in one
   batch write; the three-way merge (office and portal changes at once), sheet names through the

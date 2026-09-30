@@ -110,12 +110,13 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
           status: workers.status,
         })
         .from(workers)
+        .where(isNotNull(workers.mobileE164)) // not the erased (anonymous rows, no one to list)
         .orderBy(asc(workers.lastName), asc(workers.firstName), asc(workers.id));
-      return rows.map(({ id, externalRef, ...person }) => ({
-        ref: refOf(id, externalRef),
-        ...person,
-        roles: [...person.roles],
-      }));
+      return rows.flatMap(({ id, externalRef, mobileE164, ...person }) =>
+        mobileE164 === null
+          ? []
+          : [{ ref: refOf(id, externalRef), ...person, mobileE164, roles: [...person.roles] }],
+      );
     },
 
     async getShifts(from: Date, to: Date): Promise<RosterShift[]> {

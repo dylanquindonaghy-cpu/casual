@@ -112,7 +112,10 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
     .leftJoin(shifts, and(eq(shifts.firmId, requests.firmId), eq(shifts.id, requests.shiftId)))
     .innerJoin(firms, eq(firms.id, requests.firmId))
     .where(eq(requests.id, payload.requestId));
-  if (!row || (row.status !== "approved" && row.status !== "declined")) return { status: "gone" };
+  // An erased worker has no mobile: nobody to tell.
+  if (!row || (row.status !== "approved" && row.status !== "declined") || row.mobile === null) {
+    return { status: "gone" };
+  }
 
   // A reply about a shift starting soon (or under way) goes at night if the firm lets urgent
   // messages through; anything else waits for the morning.

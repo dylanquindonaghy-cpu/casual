@@ -10,6 +10,13 @@ import {
   runCredentialScanTick,
 } from "../../lib/credentials/scan";
 import { listFirmIds } from "../../lib/db/directory";
+import {
+  RETENTION_PURGE_CRON,
+  RETENTION_PURGE_TICK_QUEUE,
+  RETENTION_PURGE_TZ,
+  retentionPurgeFirmTask,
+  runRetentionPurgeTick,
+} from "../../lib/gdpr/retention";
 import { withFirm } from "../../lib/db/scoped";
 import {
   runFirmJob,
@@ -120,6 +127,15 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   });
   await boss.schedule(METRICS_ROLLUP_TICK_QUEUE, METRICS_ROLLUP_CRON, null, {
     tz: METRICS_ROLLUP_TZ,
+  });
+
+  // Retention (docs/compliance.md): each firm's old messages and login leftovers, every night.
+  await registerFirmTask(boss, retentionPurgeFirmTask);
+  await boss.work(RETENTION_PURGE_TICK_QUEUE, async () => {
+    await runRetentionPurgeTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+  });
+  await boss.schedule(RETENTION_PURGE_TICK_QUEUE, RETENTION_PURGE_CRON, null, {
+    tz: RETENTION_PURGE_TZ,
   });
 
   // The payroll digest: each firm's new pay queries at its digest time (the tick checks every 5

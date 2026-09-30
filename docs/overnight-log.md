@@ -5586,3 +5586,75 @@ checked and committed. No auditor round. Next step is Dylan's: "Connect Twilio" 
 **Commit:** `a1117e4` "Phase 8 (BLOCKED, not ticked): Twilio fallback: if the app doesn't answer,
 calls forward to the manager's phone", pushed to `origin/build/overnight`. CI: `gh` isn't
 installed, so not checked.
+
+## 2026-09-30 00:48 UTC — Phase 8: GDPR: worker data export (JSON + CSV) and delete; firm data export; retention purge job
+
+Task: "GDPR: worker data export (JSON + CSV) and delete; firm data export; retention purge job".
+Needs no outside service, so it can be audited and ticked.
+
+**Plan.**
+
+- Schema (migration 0026): `workers.erased_at`; `workers.mobile_e164` may be empty, but only for an
+  erased worker (a check makes an erased row exactly "Deleted worker", no mobile, email or staff
+  id, inactive). Two owner-run database functions the app may call (the app role's table rights
+  don't change): `app_erase_worker(worker)` (after the guardrails review; first drafted as
+  `app_erase_worker_messages(worker, mobile)`) and `app_purge_old_messages()`.
+- `src/lib/gdpr/`: `worker-export.ts` (every row about one worker, JSON and CSV),
+  `worker-erase.ts`, `firm-export.ts` (every firm table, JSON), `retention.ts` (the purge).
+- Office (admins only, a new `data` area): `/office/data` (firm download, find a worker),
+  `/office/data/workers/[id]` (their JSON/CSV downloads, delete their personal details), two
+  download routes.
+- Worker job: `retention-purge-tick` (a cron at 03:30 London) queues one `retention-purge` per
+  firm; one `retention.purged` event per firm per run.
+- Events: `worker.data_exported`, `worker.erased`, `firm.data_exported`, `retention.purged`.
+- Tests: export, erase, firm export, retention, job tick; the pinned function list; one e2e.
+- Docs: compliance (retention table as built), runbooks (GDPR requests, offboarding), screens,
+  data-model, api-and-jobs, messaging (none: no new staff copy).
+
+**Decisions (Dylan would normally approve these).**
+
+| Decision | Why | Alternatives |
+|---|---|---|
+| "Delete" a worker = erase their personal details and keep an anonymous row ("Deleted worker": no mobile, email or staff id) | Offers, bookings, cancellations and pay lines point at the worker, and they are the notice report's evidence (the report already reads names from the worker row, and events never hold names, phones or emails). The runbook asked for "keep anonymised events if the firm requires it; otherwise full delete" | A full delete: rota rows block it on purpose (no ON DELETE), and events are append-only. A shared "Deleted worker" placeholder row: loses which anonymous person did what |
+| Erasure deletes: credentials, login links, sessions (and their codes), push subscriptions, days off, their shifts-line messages (and replies, and messages from their number before it was known). Clears: request notes and the office's note back, pay query details and payroll's note. Keeps: bookings, offers, reminders, pay lines, events | Free text and contact details go; dated facts with ids (evidence, pay) stay | Delete pay lines too: they are the firm's payroll evidence and hold no name |
+| Erasure is refused while the worker has an upcoming booking | Someone has to cancel those (with notice logged: golden rule 12) before the person disappears | Cancel them automatically: a firm-initiated change needs a reason chosen by a person |
+| `workers.mobile_e164` nullable (only when erased), not a placeholder number | A placeholder could be sent to; with null, the type checker made every sender handle "no number" (9 places) | A reserved fake number |
+| Messages are deleted through two owner-run functions, not a DELETE grant | The app role keeps no DELETE on messages; each function does one fixed thing inside the current firm: `app_erase_worker` erases one worker and deletes their messages by the number their row held; `app_purge_old_messages` only messages over 90 days old | Grant DELETE on messages to the app role; a function taking the number from its caller (the review's FIX FIRST 2) |
+| The retention job purges: messages after 90 days, typed request text (note, swapWith) after 90 days, login counters a day after their window started, login links and codes 7 days after expiry, sessions 30 days after expiry or revocation | docs/compliance.md's table, docs/data-model.md "Retention" (I first picked shorter login periods, then followed the documented ones) and the parking notes | — |
+| The 12-month purge of events, requests and offers is **not** built; parked with a date | Events are append-only: no policy lets anyone delete them, and a pinned test says so. Deleting evidence needs that design changed on purpose, which is Dylan's call, and the retention period is to be reviewed once the 2027 rules are final. No data can be 12 months old until a year after the pilot starts | An owner-only DELETE policy on events limited to rows over 12 months old (changes a pinned security test) |
+| Firm export is one JSON file, all firm tables except login secrets (link, session and code hashes, rate-limit counters, push keys) | JSON keeps every column and type; admins download it themselves ("Firms can export their data any time") | CSV per table in a zip (needs a zip library) |
+| Exports are logged (`worker.data_exported`, `firm.data_exported`) | Personal data leaving the system; the 30-day GDPR clock needs evidence it was sent | Not logging (golden rule 5 covers state changes only) |
+| Admins only (a new `data` area) | Deleting people and downloading everything is the firm owner's call | Admins and resourcers |
+
+**Guardrails review: FIX FIRST (3 items), all done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: typed text about the worker survived erasure: a "Something else: <their note>" or office-typed cancellation reason on `assignments.cancel_reason`, and a colleague's name in `requests.payload.swapWith`; the docs said nothing typed survived | `src/lib/gdpr/free-text.ts`: erasure turns "Something else: …" into "Something else" and any other non-fixed reason into "Reason deleted with the worker's details" (the app's fixed wording stays); `swapWith` is stripped with `note` by erasure and by the 90-day purge; `cancelReasons` counted in `worker.erased`; fixtures and not-contain assertions. Docs corrected: compliance, ADR-020, and the one thing erasure can't reach (the office's typed override reason in the append-only log) |
+| FIX FIRST: `app_erase_worker_messages(worker, mobile)` trusted a caller-supplied number: with any erased worker id, a buggy caller could delete any unknown number's messages | Replaced (0026 is uncommitted, so edited; dev database reset and re-seeded) by `app_erase_worker(worker)`: reads the number from the row it locks, makes the row "Deleted worker", deletes the messages, once per worker. Pinned function list and the refusal test updated |
+| FIX FIRST: the worker export missed action-log rows about the worker that don't name them (the office answering their request, a credential warning) | The action log's Worker filter moved to `eventsAboutWorker()` in `src/lib/office/action-log.ts`; the export and the log both use it; a test with both kinds of row |
+
+Suggestions:
+
+| Suggestion | Done |
+|---|---|
+| A: an offer wave or office offer could message a worker erased after the list was read | `lockReachableWorkers()` (key share, status and mobile re-checked) before writing offers, in both; tested. The inbound-reply and portal-insert windows are parked |
+| B: two raw-SQL readers typed the mobile as a string | `w.mobile_e164 is not null` added to both (candidates, reminders); ADR-020 no longer claims the type checker covers them |
+| C: notices for an erased worker ended silently | The office's change notices log `shift.change_notice_skipped` {reason: erased} (tested); request and pay-query answers parked (they have no skipped event yet) |
+| D, E, I, J, K: Twilio's copy of messages; `shifts.synced_holders`; licence records a security firm may have to keep; resourcers seeing the data log group; other typed text past 90 days | Parked in "GDPR follow-ups" (I and the licence question as "Dylan to confirm") |
+| F: "until you delete them" was wrong for bookings, requests, pay and the log | Page and screens.md reworded ("kept as your records") |
+| G: the error said "Nothing was deleted" even when the browser's request failed after the server finished | "Something went wrong. Reload the page to see if it was deleted." |
+| H: this log's decisions table had the wrong login retention periods | Corrected above |
+| L: schema and tenancy decisions made without approval | The standing decisions (2026-09-27) give full autonomy with decisions written down: all are in the table above for Dylan to confirm in the morning |
+
+**Verify round 1: NOT VERIFIED** (2611 tests, 1 failed; e2e 47 passed, 1 failed). Root causes:
+- `tests/unit/offers.boundary.test.ts` pins "workers come from one query" in `candidates.ts` (the
+  candidate list's single source). My re-check (`lockReachableWorkers`) added a second
+  `from workers` there. It only ever drops workers already chosen, so it isn't a source: moved to
+  its own module, `src/lib/offers/reachable.ts`, which says so. The pinned test is unchanged.
+- `tests/e2e/office.attendance.spec.ts` (not touched by this task): "Marked {name} as not
+  attended." is matched as a case-insensitive substring, and after marking the page refreshes
+  (`router.refresh()` in `attendance-forms.tsx`) and the shift's history line "… marked {name} as
+  not attended." matches too. Whether it saw one element or two depended on whether the refresh
+  landed before the check (it passed in every earlier run tonight). The locator now matches the
+  confirmation exactly: the same assertion, precise.

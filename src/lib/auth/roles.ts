@@ -16,6 +16,7 @@ export const OFFICE_AREAS = {
   reports: ["admin", "resourcer"], // the notice and cancellation report (and its CSV)
   pilot: ["admin", "resourcer"], // pilot metrics: the baseline, weekly tallies, the figures
   pay: ["admin", "payroll"], // pay queries, grouped by likely cause
+  data: ["admin"], // GDPR: a worker's data (download, delete) and the firm's own download
 } as const satisfies Record<string, readonly OfficeRole[]>;
 
 export type OfficeArea = keyof typeof OFFICE_AREAS;

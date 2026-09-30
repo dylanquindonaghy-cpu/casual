@@ -295,8 +295,9 @@ describe("the rest of the public schema", () => {
 
   // A new function the app role may run must be added here on purpose (app_firm_by_line: the firm
   // for an incoming message's number, Phase 7, ADR-018; app_resolve_firm_by_domain: the firm for
-  // its own verified domain, Phase 8).
-  it("the app role can execute exactly five functions: app_current_firm_id, app_firm_by_line, app_firm_ids, app_resolve_firm and app_resolve_firm_by_domain", async () => {
+  // its own verified domain, Phase 8; app_erase_worker and app_purge_old_messages: the only ways
+  // messages are deleted, by erasing their worker or once over 90 days old, Phase 8 GDPR).
+  it("the app role can execute exactly seven functions: app_current_firm_id, app_erase_worker, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_resolve_firm and app_resolve_firm_by_domain", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
@@ -305,8 +306,10 @@ describe("the rest of the public schema", () => {
     );
     expect(rows.map((r) => r.fn)).toEqual([
       "app_current_firm_id",
+      "app_erase_worker",
       "app_firm_by_line",
       "app_firm_ids",
+      "app_purge_old_messages",
       "app_resolve_firm",
       "app_resolve_firm_by_domain",
     ]);

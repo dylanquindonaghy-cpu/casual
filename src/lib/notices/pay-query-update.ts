@@ -107,7 +107,10 @@ async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Pro
     )
     .innerJoin(firms, eq(firms.id, payQueries.firmId))
     .where(eq(payQueries.id, payload.payQueryId));
-  if (!row || row.status !== "resolved" || !row.note) return { status: "gone" };
+  // An erased worker has no mobile: nobody to tell.
+  if (!row || row.status !== "resolved" || !row.note || row.mobile === null) {
+    return { status: "gone" };
+  }
 
   // Never urgent: an answer about pay waits for the morning.
   const timing = mayMessageNow({

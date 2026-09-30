@@ -33,6 +33,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
+import { lockReachableWorkers } from "./reachable";
 
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
 // docs/architecture.md, "Offer waves"). Two firm jobs:
@@ -324,7 +325,13 @@ export async function runOfferWave(
     tx,
     chosen.map((c) => c.workerId),
   );
+  // Anyone erased or made inactive since the list was read gets no offer.
+  const reachable = await lockReachableWorkers(
+    tx,
+    chosen.map((c) => c.workerId),
+  );
   for (const c of chosen) {
+    if (!reachable.has(c.workerId)) continue;
     const [offer] = await tx
       .insert(offers)
       .values({

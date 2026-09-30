@@ -145,6 +145,10 @@ export const LOG_TYPES = {
     label: "Pilot metrics",
     actions: ["metrics.baseline_saved", "metrics.tally_saved"],
   },
+  data: {
+    label: "Data requests and deletion",
+    actions: ["worker.data_exported", "worker.erased", "firm.data_exported", "retention.purged"],
+  },
   firm: {
     label: "Firm settings",
     actions: ["firm.branding_changed", "firm.domain_changed"],

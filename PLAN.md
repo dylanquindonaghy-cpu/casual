@@ -218,7 +218,7 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - [ ] Docker Compose (web, worker, caddy); GitHub Actions deploy
 - [ ] Backups on, restore tested; AWS Budget alert at £50; uptime check; error alerts to you
 - [ ] Twilio fallback: if the app doesn't answer, calls forward to the manager's phone
-- [ ] GDPR: worker data export (JSON + CSV) and delete; firm data export; retention purge job
+- [x] GDPR: worker data export (JSON + CSV) and delete; firm data export; retention purge job
 - [ ] Alerts to your phone: job failures, health down, Twilio error spikes, sync errors
 - [ ] Runbooks in `docs/runbooks.md` tried once for real (deploy, rollback, restore)
 
@@ -333,9 +333,12 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - Phase 2: eligibility must compute expiry from `credentials.expires_on`, not trust `status`.
 - Phase 8 GDPR worker delete: rota rows (assignments, requests, offers) block a plain `delete from
   workers` (their foreign keys have no ON DELETE action, on purpose). Design anonymise-or-purge
-  that keeps the notice report's evidence for its retention period.
+  that keeps the notice report's evidence for its retention period. (Done in the Phase 8 GDPR task:
+  erase to an anonymous row, ADR-020.)
 - Phase 8 retention purge: the app role has no DELETE on shifts, assignments, requests or offers,
   so the purge job needs its own narrow path (a purge function or role) and writes an event per run.
+  (Messages and login leftovers done in the Phase 8 GDPR task; the 12-month evidence purge is parked
+  in "GDPR follow-ups".)
 - Phase 5 shift edits: lowering a shift's headcount, or cancelling a shift, leaves open slot rows
   the app can't delete or cancel (a cancelled row needs a worker). Taking one is blocked while the
   shift isn't `open` (the documented first-yes-wins statement checks it), but decide then how to
@@ -1007,7 +1010,8 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
   - The key-freeze question above still stands: a query in a digest can still move group when
     regrouped; the digest's list shows the group it was sent in.
 - Shifts line replies follow-ups (Phase 7 "Inbound WhatsApp" task, blocked on Bedrock):
-  - Delete messages after 90 days with the retention job (Phase 8; docs/compliance.md).
+  - Delete messages after 90 days with the retention job (Phase 8; docs/compliance.md). (Done:
+    `retention-purge`.)
   - When the office answers a WhatsApp's `general` request, the worker's notice says "Your request
     (question, ref …) is approved.": for a question, "answered" would read better (the
     request-update wording).
@@ -1028,7 +1032,7 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     open one.
   - Tell the office when a reply couldn't be sent (today it's only in the log).
   - Retention: the worker's words are also in the office request's note (`requests.payload.note`),
-    not only in `messages`: delete both after 90 days.
+    not only in `messages`: delete both after 90 days. (Done: `retention-purge`.)
   - A webhook address override for a dev tunnel (ngrok) when testing with a real phone; and if
     firms ever get their own Twilio subaccounts, one auth token per subaccount.
   - **Before connecting Twilio (every sender):** a real Twilio id (SM… with a long run of digits)
@@ -1138,6 +1142,53 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     `tests/unit/copy.plain-language.test.ts` (with office words allowed, e.g. "credential").
   - After a session runs out, the login page could say "Your login has run out. Log in again."
     (today it shows the normal login page).
+- GDPR follow-ups (Phase 8 "GDPR: worker data export (JSON + CSV) and delete; firm data export;
+  retention purge job" task):
+  - **Dylan to decide (before the pilot's data is a year old):** the 12-month purge of the action
+    log, requests and offers (docs/compliance.md). Events are append-only: nothing, not even the
+    owner, can delete them, and `tests/integration/rls.every-table.test.ts` pins "no UPDATE or
+    DELETE policy on events". Deleting year-old evidence needs that changed on purpose (an
+    owner-only DELETE policy limited to rows over the retention age, run by the purge), or a longer
+    period once the 2027 rules say how long notice records must be kept.
+  - **Dylan to confirm:** a deletion keeps the worker's pay lines (hours, rates, dates, on the
+    anonymous row) as payroll's evidence; their pay queries stay with the free text cleared.
+  - **Dylan to confirm:** deletions are admins only (not resourcers), and are refused while the
+    worker is booked on a shift that hasn't ended.
+  - The firm export is built in memory: fine at pilot size; stream it table by table (or build it
+    in a job and email a link) before a firm has millions of rows.
+  - The worker CSV is one value per line (Section, Record, Field, Value): complete but long. A
+    friendlier "one sheet per kind" file needs a zip or .xlsx library.
+  - A firm-wide delete (the offboarding runbook's "delete data per agreement") has no script: an
+    owner script that deletes a firm's rows in foreign-key order, with a dry run.
+  - Login rate-limit rows are HMACs of numbers: erasure doesn't find the worker's (they go within a
+    day anyway).
+  - The worker detail page (docs/screens.md `/office/workers/[id]`) should link to the worker's
+    data page once it exists.
+  - After an erasure, the firm's rota sheet or staff file can add the person back as a new worker.
+    The runbook says to remove them there too; nothing in the app can spot it (the number is gone).
+  - **Dylan to confirm:** erasure deletes the worker's licence and card records. Security firms may
+    have to keep screening and licence-check records after someone leaves (BS 7858, SIA approved
+    contractor rules; UK GDPR allows keeping them). If so, keep the credential rows (type, number,
+    expiry, who checked) on the anonymous row instead.
+  - Race windows left (small): a shifts-line message arriving while an erasure commits can still be
+    linked to the erased worker and answered (`src/lib/inbound/reply.ts` reads the worker outside
+    the claim), and a portal request or pay query already in flight can land on the erased row.
+    A shared `lockLiveWorker(tx, id)` (key share, status and mobile re-checked) before each insert
+    that attaches to a worker would close them. Offers already re-check (`lockReachableWorkers`).
+  - A request answer or pay-query answer queued for a worker who is then erased ends as "gone"
+    without an event, so the office's Requests page keeps saying "… will be told." Add
+    `request.update_skipped` / `pay_query.update_skipped` {reason: erased} (the office's shift
+    change notices already log `shift.change_notice_skipped` {reason: erased}).
+  - Before connecting Twilio: erasure can't reach Twilio's own message logs (the events hold
+    `providerMessageId`s). Add a runbook step to delete a worker's messages at Twilio on erasure.
+  - `shifts.synced_holders` keeps an erased worker's sheet staff id on the sheet shifts they held
+    (the firm's own id for them; the sync rewrites it only for rows still in the sheet). Remove it
+    on erasure with `array_remove` if it matters.
+  - Resourcers see the "Data requests and deletion" group in the action log (who asked for their
+    data, who was deleted), though only admins can use the data page. Hide it from them if the firm
+    minds.
+  - Other typed text about a worker is kept past 90 days: pay query details and "Something else:
+    …" cancellation notes (erasure clears both). Decide whether the 90-day purge should too.
 
 ## Hours log
 
@@ -1205,3 +1256,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-29 | 8 | 0.6 | Docker Compose and deploy, BLOCKED (not ticked: no server yet, and the deploy workflow only runs on `main`): the image (`Dockerfile`: one image for web, worker and migrate, non-root, code owned by root, no secrets), `deploy/docker-compose.yml` (only Caddy published; the owner's database login only to migrate; the worker off until Twilio exists, since production refuses printed messages), `GET /api/health`, deploys that pull (a GitHub workflow builds and pushes the image after CI passes on main; a timer on the server pulls it, migrates, starts it, never 05:30–09:00 UK); a CI job builds the image on every push; the review caught a fork's pull request being able to publish, an older build rolling the server back, failed deploys never retried, nothing deploying with the documented settings, and a rollback that couldn't work (all fixed); 2542 tests + 47 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 8 | 0.5 | Backups, restore drill, budget, uptime, alerts, BLOCKED (not ticked: all AWS or an outside uptime service): `deploy/alarms.sh` (Lightsail email alarms: the server down, CPU, burst capacity, the database's storage and CPU; resends the confirmation) and `deploy/restore-drill.sh` (the latest backup restored to a separate private database, reused only if restored in the last hours, deleted only by typing its name) written and pinned by tests that can never reach AWS; runbooks "Monitoring and alerts (once)" (with a plain HTTPS uptime check on `/api/health`) and "Restore drill (monthly)" (a recency check, not a count); backups were already on, the budget is setup step 1; the review caught an old drill copy being reused (and a way to delete production by mistake), errors looking like "not there", and a missing sudo (all fixed); 2557 tests + 47 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 8 | 0.5 | Twilio call fallback, BLOCKED (not ticked: it's a setting in Twilio's console): `npm run firm:call-fallback` prints a firm's TwiML Bin (Twilio plays it itself when our app doesn't answer): why, then the manager's phone, then a closing line; the words are new doc copy, checked by tests; "Connect Twilio" step 10 explains setting and safely checking it; the review caught a closing line that played "nobody could take your call" even after a call that worked, and pointed callers to messaging, which is down too (both fixed), plus a safer check and logging calls taken by phone during an outage; 2562 tests + 47 e2e; verified (see docs/work-log.md) |
+| 2026-09-30 | 8 | 1.3 | GDPR: an admin-only "Data requests" page: find a worker, download everything about them (JSON, or CSV for Excel), or delete their personal details (refused while they're booked on a shift that hasn't ended; their shift history stays under an anonymous "Deleted worker" row as the notice report's evidence; typed notes and reasons cleared); "Download all your data" for the firm (every table, no login secrets); a nightly purge (messages and typed request text after 90 days, old login leftovers), logged every run; messages only deleted through two narrow database functions; the review caught typed text surviving a delete, a function trusting a caller's phone number, and an export missing log rows (all fixed and tested); the 12-month purge of the log is parked for Dylan (it would need the append-only log changed); 2611 tests + 48 e2e; verified and audited DONE (see docs/work-log.md) |

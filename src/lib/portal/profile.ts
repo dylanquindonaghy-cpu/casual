@@ -87,7 +87,7 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       })
       .from(workers)
       .where(eq(workers.id, workerId));
-    if (!me) return null;
+    if (!me || me.mobile === null) return null; // erased (their sessions went with them)
     const held = await tx
       .select({
         type: credentials.type,
@@ -137,6 +137,7 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
     const { smsOptedOutAt, ...contact } = me;
     return {
       ...contact,
+      mobile: me.mobile,
       textsOff: smsOptedOutAt !== null,
       credentials: shown.filter((c) => !(c.expired && covered.has(c.type))),
       unavailable: days.map(({ day }) => ({ day, booked: booked.has(day) })),

@@ -132,7 +132,7 @@ create table workers (
   firm_id uuid not null references firms(id),
   first_name text not null,
   last_name text not null,
-  mobile_e164 text not null,
+  mobile_e164 text,                      -- empty only once erased (below)
   email text,
   status text not null default 'active', -- active | inactive | blocked
   roles text[] not null default '{}',
@@ -141,10 +141,18 @@ create table workers (
   offer_alerts boolean not null default true,      -- tell me about open shifts (profile page)
   sms_opted_out_at timestamptz,          -- they replied STOP to a text (Phase 7): no texts from any
                                          -- sender until START (src/lib/notify/send.ts)
+  erased_at timestamptz,                 -- GDPR deletion (Phase 8, src/lib/gdpr/worker-erase.ts)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, mobile_e164),
-  unique (firm_id, external_ref)
+  unique (firm_id, external_ref),
+  -- A worker has a mobile until erased. An erased row stays (offers, bookings, cancellations and
+  -- pay lines point at it: the notice report's evidence) and is exactly "Deleted worker": no
+  -- mobile, email or staff id, no roles, inactive, texts not marked off.
+  check ((erased_at is null and mobile_e164 is not null)
+      or (erased_at is not null and mobile_e164 is null and email is null and external_ref is null
+          and first_name = 'Deleted' and last_name = 'worker' and status = 'inactive'
+          and roles = '{}' and sms_opted_out_at is null))
 );
 
 -- Phase 4 (src/lib/db/schema/people.ts). A phone's web push address for a worker (the profile's
@@ -558,15 +566,26 @@ policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 
 ## Retention (defaults, per firm)
 
-| Data | Keep |
-|---|---|
-| Raw messages and transcripts | 90 days |
-| Call audio | Don't store by default (30 days if enabled) |
-| Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) |
-| Workers and credentials | Until the firm deletes them |
-| Magic links and OTP codes | 7 days after expiry |
-| Sessions | 30 days after expiry or revocation |
-| Rate-limit counters (auth_throttle) | 1 day |
-| Finished pg-boss jobs | 1 day (ids-only payloads) |
+| Data | Keep | Built (Phase 8) |
+|---|---|---|
+| Raw messages and transcripts | 90 days | Yes: `messages` over 90 days old (and replies to them), by `app_purge_old_messages()` |
+| The words typed into a request (`requests.payload.note`, `.swapWith`) | 90 days | Yes: removed, the request stays |
+| Call audio | Don't store by default (30 days if enabled) | Not stored |
+| Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) | **Not yet**: events are append-only and no policy lets anyone delete them (PLAN.md Parking lot) |
+| Workers and credentials | Until the firm deletes them | An admin erases a worker (`/office/data`) |
+| Magic links and OTP codes | 7 days after expiry | Yes |
+| Sessions | 30 days after expiry or revocation | Yes (their codes go with them) |
+| Rate-limit counters (auth_throttle) | 1 day | Yes (a day after the window started; the longest window is a day) |
+| Finished pg-boss jobs | 1 day (ids-only payloads) | Yes (queue option) |
 
-A nightly job purges expired data and writes an event for each purge run.
+The nightly `retention-purge` job (`src/lib/gdpr/retention.ts`, 03:30 London, one per firm)
+purges what is built above and writes one `retention.purged` event per firm per run, with how
+many of each.
+
+**Deleting messages.** The app role has no DELETE on `messages`. Two owner-run functions (SECURITY
+DEFINER, pinned search_path, bound to the current firm by forced RLS) are the only ways:
+`app_purge_old_messages()` (over 90 days old; the age is fixed in the function) and
+`app_erase_worker(worker)` (for one worker of this firm not yet erased: it reads their number
+from the row, makes the row "Deleted worker" and deletes their messages, the replies to them, and
+messages from or to that number with no worker set; the caller can't name a number, and it runs
+once per worker).

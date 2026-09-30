@@ -183,6 +183,13 @@
       "when": 1790718224086,
       "tag": "0025_custom_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790729881547,
+      "tag": "0026_gdpr",
+      "breakpoints": true
     }
   ]
 }

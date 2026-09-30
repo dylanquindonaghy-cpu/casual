@@ -60,7 +60,8 @@ export const workers = pgTable(
       .references(() => firms.id),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
-    mobileE164: text("mobile_e164").notNull(),
+    // Empty only once the worker is erased (below).
+    mobileE164: text("mobile_e164"),
     email: text("email"),
     status: text("status", { enum: WORKER_STATUSES }).notNull().default("active"),
     roles: text("roles")
@@ -76,6 +77,10 @@ export const workers = pgTable(
     // When they replied STOP to a text (Phase 7): no texts until they reply START (null: texts are
     // fine). Every sender reads it with the channel (src/lib/notify/send.ts).
     smsOptedOutAt: timestamptz("sms_opted_out_at"),
+    // When the office erased their personal details (a GDPR deletion, Phase 8,
+    // src/lib/gdpr/worker-erase.ts). The row stays, anonymous, because offers, bookings,
+    // cancellations and pay lines point at it (the notice report's evidence).
+    erasedAt: timestamptz("erased_at"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -87,6 +92,14 @@ export const workers = pgTable(
       sql`${t.externalRef} = btrim(${t.externalRef}) and length(${t.externalRef}) between 1 and 200`,
     ),
     check("workers_mobile_e164_check", sql`${t.mobileE164} ~ '^[+][1-9][0-9]{6,14}$'`),
+    // A worker has a mobile until erased; an erased row is exactly this and nothing more.
+    check(
+      "workers_erased",
+      sql`(${t.erasedAt} is null and ${t.mobileE164} is not null)
+        or (${t.erasedAt} is not null and ${t.mobileE164} is null and ${t.email} is null
+          and ${t.externalRef} is null and ${t.firstName} = 'Deleted' and ${t.lastName} = 'worker'
+          and ${t.status} = 'inactive' and ${t.roles} = '{}' and ${t.smsOptedOutAt} is null)`,
+    ),
     check("workers_status_check", sql`${t.status} in ('active', 'inactive', 'blocked')`),
     check("workers_notify_channel_check", sql`${t.notifyChannel} in ('whatsapp', 'sms')`),
     firmIsolation(t.firmId),

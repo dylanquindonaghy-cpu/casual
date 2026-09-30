@@ -57,7 +57,8 @@ export async function sendLoginCode(
         eq(workers.status, "active"),
       ),
     );
-  if (!target) return { sent: false, reason: "no_session" };
+  // An active worker always has a mobile (only an erased one has none, and erasure is inactive).
+  if (!target?.mobile) return { sent: false, reason: "no_session" };
   const [firm] = await tx
     .select({
       name: firms.name,

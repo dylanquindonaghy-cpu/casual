@@ -332,3 +332,34 @@ there); a domain whose CNAME goes away keeps being served until someone runs `--
 re-check is parked). Links in messages still use `<slug>.<base>`. **Revisit when:** firms set their
 own domains in the office, or links should use the firm's domain.
 
+## ADR-020: A GDPR deletion erases the person and keeps the anonymous evidence; messages go only through two owner-run functions
+
+**Context:** Phase 8, "GDPR: worker data export (JSON + CSV) and delete; firm data export;
+retention purge job". Offers, bookings, cancellations, reminders and pay lines point at the worker
+with foreign keys that have no ON DELETE action (on purpose: the notice report's history can't be
+erased by accident), the app role can't delete them, and events are append-only. The runbook said
+"keep the anonymised events if the firm requires it; otherwise full delete".
+**Decision:** a deletion erases: the worker row stays as "Deleted worker" (no mobile, email or
+staff id; a CHECK holds an erased row to exactly that, so `mobile_e164` is nullable only for it),
+and everything personal about them is deleted or cleared (credentials, logins, phones, days off,
+messages, the free text on requests and pay queries). The rows that are evidence stay on the
+anonymous row, with any typed text on them cleared (a worker's "Something else: …" cancellation
+note becomes "Something else"; the app's fixed wording stays). The app role still has no DELETE on
+messages: `app_erase_worker()` (the row made anonymous and its messages deleted in one call, by the
+number the row held, once per worker) and `app_purge_old_messages()` (only over 90 days old, the age
+fixed in the function) run as the owner, bound to the current firm by forced RLS. Admins only (a new `data`
+area). Retention purges messages, request notes and login leftovers nightly; the 12-month purge of
+the log, requests and offers is not built.
+**Options:** a full delete (would need ON DELETE on evidence and deleting events); one shared
+"Deleted worker" row (loses which anonymous person did what); a DELETE grant on messages for the
+app role (any bug could delete them); a message function taking a number from its caller (a bug
+could delete anyone's unknown-number messages); a placeholder mobile instead of null (could be sent
+to; with null the type checker flagged the Drizzle readers, and the raw-SQL readers filter it out).
+**Consequences:** the notice report keeps its rows, showing "Deleted worker"; a firm's rota sheet
+or staff file can add the person back (the runbook says to remove them there too); unknown-number
+messages from their old number are deleted with them. Not reachable: the office's typed reason for
+placing someone despite a rule, which is in the append-only log (checked for phones and emails
+only), and Twilio's own copy of messages (by the ids in events), once Twilio is connected. **Revisit when:** the 2027 rules set how long
+notice records are kept (then decide the log's purge: it needs a delete policy on events, which a
+pinned test forbids today).
+

@@ -46,7 +46,8 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
   // One didn't attend.
   await expect(page.getByText("Mark who worked it and who didn't attend.")).toBeVisible();
   await page.getByRole("button", { name: `Mark as not attended: ${second}` }).click();
-  await expect(page.getByText(`Marked ${second} as not attended.`)).toBeVisible();
+  // Exact: once the page refreshes, the shift's history says "… marked {name} as not attended." too.
+  await expect(page.getByText(`Marked ${second} as not attended.`, { exact: true })).toBeVisible();
 
   // The rest worked, in one go, after a "Yes".
   const rest = page.getByText("Mark the 2 people not marked yet as worked", { exact: true });

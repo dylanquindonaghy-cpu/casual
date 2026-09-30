@@ -127,6 +127,7 @@ export async function dueReminders(
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
       left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
      where a.status = 'confirmed' and a.worker_id is not null
+       and w.mobile_e164 is not null -- only an erased worker has none (erasure needs no bookings ahead)
        and s.status in ('open', 'filled')
        and s.starts_at > ${now} and s.starts_at <= ${until}
      order by s.starts_at, a.id

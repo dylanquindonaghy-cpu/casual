@@ -415,6 +415,10 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - Secrets in a root-only `.env` on the server; move to AWS Secrets Manager later.
 - IAM user for the app with only: `bedrock:InvokeModel`, `ses:SendEmail` (+ S3 read in Stage 2).
 - Unattended security updates; snapshot before schema changes; test a restore monthly.
+  (Written in Phase 8, not run: `deploy/restore-drill.sh` restores the latest backup to a separate
+  private database and deletes only that; `deploy/alarms.sh` sets Lightsail's email alarms for the
+  server being down, CPU and database storage; plus a free outside uptime check on `/api/health`.
+  docs/runbooks.md "Restore drill (monthly)", "Monitoring and alerts (once)".)
 - AWS Budget alert at £50.
 
 ## Reliability

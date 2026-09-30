@@ -6325,3 +6325,102 @@ Phase 8 so far: 2.6 of its 18 to 28 hour estimate.
 
 `npx vitest run tests/unit/deploy.compose.test.ts` runs the checks. The real thing happens after
 "Connect AWS" and "Connect the deploy".
+
+## 2026-09-30: Phase 8, task 5: Backups, alarms and the restore drill (0.5 h, BLOCKED)
+
+### Time
+
+0.5 hours of Claude's working time (23:44 to 00:15 UTC), in the unattended overnight loop.
+Phase 8 so far: 3.1 of its 18 to 28 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** Backups, restores, budgets, alarms and uptime checks all live in AWS or
+  an outside service, which tonight's rules don't allow. Everything short of them is written,
+  checked and committed; "Connect monitoring" in the Parking lot says what to do.
+- `scripts/verify.sh` printed `VERIFIED tree=04d69b486eb67773 e2e=true`. That covers:
+  - the type checks and lint;
+  - all 2557 tests (up from 2542);
+  - the 47 browser tests;
+  - the rule checks.
+- The guardrails review found 3 things to fix first; all are done, with its suggestions (below).
+  No auditor round (a blocked task can't be ticked).
+- Committed on `build/overnight`. The push result is in `docs/overnight-log.md`.
+
+### What was built
+
+- **Backups** were already switched on by the AWS script (every night), which also checks they are.
+  The £50 spending alert is already step 1 of "Set up AWS (once)".
+- **`deploy/alarms.sh`**: Amazon's own alarms for the server and database. They email you when
+  something is wrong, and again when it's fixed:
+  - the server stops responding for 10 minutes;
+  - the server's processor is over 90% busy for 15 minutes;
+  - the server has used up its "burst" allowance. Cheaper plans run fast in short bursts, then
+    slow down, so this is the one that catches a server crawling on a busy night;
+  - the database has less than 8 GB of space left;
+  - the database's processor is over 90% busy.
+  Because they watch from outside, "the server is down" still gets through. If you miss the
+  confirmation email, running it again resends it.
+- **`deploy/restore-drill.sh`**: the monthly check that the backups actually work:
+  - it restores the latest backup into a separate practice database (`shiftdesk-db-drill`) without
+    touching the real one;
+  - you check it's recent (the runbook gives the exact check: the newest logged event should be
+    minutes old), then delete it;
+  - deleting asks you to type its name, and it will only ever delete the practice database.
+- **An uptime check**: the runbook explains setting up a free outside service that visits
+  `/api/health` every 5 minutes and alerts your phone if the app stops answering.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | All of it is AWS or an outside service | Tick with scripts unrun |
+| Amazon's alarms for "down" and resources | They watch from outside the server, and email for free | Something on the server itself (it can't alert when the server is down) |
+| An outside uptime check as well | It checks the app itself answers, from the internet, with a phone app | Only Amazon's alarms (they see the machine, not the app) |
+| The drill restores to a separate database | Tests the backup without touching the real one | Restoring over the real database (never) |
+
+### What the review caught
+
+- **An old practice copy could be reused.** If last month's practice database hadn't been deleted,
+  the script would have "used" it: checking an old copy (and paying for it all month). Worse, if
+  someone ever restored a real emergency under the practice name, a later run could have deleted
+  production. Now:
+  - it only reuses a copy made in the last 3 hours;
+  - deleting needs the name typed;
+  - the runbook says never to use the practice name for a real restore.
+- **Every error looked like "not there".** With the command-line key switched off (as the runbook
+  recommends between uses), "delete the practice database" would have said "there's nothing to
+  delete" while it kept costing money. Now both scripts check they're logged in first, and only
+  Amazon's "not found" counts as not there; anything else stops with the real error.
+- **A runbook command needed `sudo`** to work on the server.
+- **Smaller fixes**:
+  - the restore check looks at how recent the data is, not a count that rarely changes;
+  - the burst-capacity alarm was added;
+  - the storage warning comes earlier (8 GB);
+  - the confirmation email is resent until it's clicked;
+  - a plain HTTPS uptime monitor (simpler than a keyword one);
+  - the test puts a fake `aws` command in place, so it can never reach Amazon even on your laptop.
+
+### What the new tests prove
+
+15 new tests in `tests/unit/deploy.monitoring.test.ts`:
+- both scripts are valid, work only in London, and check the login;
+- only "not found" counts as not there;
+- the alarms and their thresholds;
+- the drill restores to a private separate database, reuses only a fresh one, and deletes only the
+  practice database after its name is typed;
+- no secrets in either file;
+- running the scripts in the test never reaches the real `aws` command.
+
+### Parked, open, and things that need Dylan
+
+- **Connect monitoring** (Parking lot), after "Connect AWS":
+  1. run `deploy/alarms.sh` and click the confirmation email;
+  2. set up the uptime check;
+  3. do a first restore drill;
+  4. then tick the task.
+- The app's own error alerts (jobs that keep failing, and similar) come with the next "alerts" task.
+
+### How to see it working
+
+`npx vitest run tests/unit/deploy.monitoring.test.ts`. The real thing needs AWS.

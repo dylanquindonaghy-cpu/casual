@@ -133,13 +133,65 @@ event is over).
 
 ## Restore the database
 
-1. Lightsail → Databases → snapshots → restore to a new instance.
+1. Lightsail → Databases → snapshots → restore to a new instance. Give it a real name (e.g.
+   `shiftdesk-db-2`), **never** a `…-db-drill` one: the drill script deletes drill databases.
 2. Point `DATABASE_URL`, `DATABASE_JOBS_URL` and `DATABASE_ADMIN_URL` at it; restart `web`
    and `worker`.
-3. Check counts: firms, workers, shifts, events for today.
-4. Test a restore once a month even when nothing is wrong.
+3. Check it's recent: the newest event (the recency check in "Restore drill (monthly)" step 2,
+   run against the new database) should be from just before the problem. (Plain counts as the
+   owner show nothing: RLS is forced.)
+4. Test a restore once a month even when nothing is wrong ("Restore drill (monthly)", below).
 5. Use snapshots, not `pg_dump`: RLS is forced on every table, so `pg_dump` as the owner fails
    (or dumps no firm rows with `--enable-row-security`). Firm data exports go through the app.
+
+## Restore drill (monthly)
+
+Proves the backups can be restored, without touching the real database (`deploy/restore-drill.sh`).
+On your own computer, with the AWS CLI logged in (reactivate the key from "Set up AWS (once)" step
+9, then deactivate it again after):
+
+1. `bash deploy/restore-drill.sh`. It restores the latest backup to a separate private database,
+   `shiftdesk-db-drill`, waits (10 to 20 minutes) and prints its address.
+2. Check it's a recent copy: in the server's browser console,
+   `sudo docker run --rm -it postgres:16-alpine psql "postgres://shiftdesk_owner@<drill address>:5432/shiftdesk"`
+   (it asks for the real owner password: a restore keeps it), then paste:
+
+   ```sql
+   select set_config('app.current_firm_id', (select id::text from firms order by created_at limit 1), false);
+   select max(created_at) from events;
+   ```
+
+   The time shown should be minutes before the restore (a backup that's days old shows an old
+   time). `\q` leaves psql. Never point the app at the drill database.
+3. Delete it today: `bash deploy/restore-drill.sh --delete` (it shows when it was made and asks you
+   to type its name; it only ever deletes the drill database). Check Lightsail → Databases shows
+   it "Deleting", then gone. Then `sudo docker image rm postgres:16-alpine` on the server to free the
+   space.
+4. Note the date and "restore drill OK" in the Hours log.
+
+## Monitoring and alerts (once)
+
+Three things tell you when something's wrong, without you watching. First reactivate the CLI key
+("Set up AWS (once)" step 9: IAM → `dylan-cli` → the key → Activate), and deactivate it after.
+
+1. **The £50 AWS budget** (from "Set up AWS (once)" step 1): an email if the month's bill heads
+   past £50.
+2. **Lightsail's alarms**, which watch from outside the server:
+   `bash deploy/alarms.sh you@example.com` (your own address). AWS emails you a confirmation
+   first: click its link (run the script again if the email doesn't come: it resends it). Then you
+   get an email when the server is down for 10 minutes, its CPU is above 90% or its burst capacity
+   under 20% for 15 minutes (the plan slows the server once that runs out), the database has
+   under 8 GB free or its CPU is above 90%, and again when each is back to normal.
+3. **An uptime check that the app itself answers**, from the internet, with a phone app: sign up
+   for an uptime service (UptimeRobot, Better Stack and others have free plans: check the plan's
+   terms allow business use), add a plain **HTTPS** monitor (not a keyword one) for
+   `https://<a firm>.<our domain>/api/health` every 5 minutes, alerting to your email and its phone
+   app. `/api/health` answers with an error when the app can't reach its database, so "anything
+   but OK" means down. You should get a "down" alert within minutes if the app stops answering,
+   and an "up" when it's back.
+
+The app's own error alerts (a job that keeps failing, a sync that errors) come with the alerts
+task (PLAN.md, Phase 8).
 
 ## Workers at one venue can't get login links
 

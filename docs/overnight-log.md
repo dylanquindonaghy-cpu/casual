@@ -5453,3 +5453,69 @@ Everything short of it is written, checked and committed. No auditor round. Next
 **Commit:** `3385156` "Phase 8 (BLOCKED, not ticked): Docker Compose (web, worker, caddy); GitHub
 Actions deploy", pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked (the
 new "docker" job's result is Dylan's first check).
+
+## 2026-09-29 23:44 UTC: Phase 8, "Backups on, restore tested; AWS Budget alert at £50; uptime check; error alerts to you"
+
+**Blocked (hard limit):** backups, a restore, a budget, alarms and an uptime monitor all live in AWS
+(and a free outside uptime service); none can be used tonight. Built short of it; recorded as
+blocked, not ticked.
+
+**Where things stand:** backups are switched on by `deploy/lightsail.sh` (nightly, checked after);
+the £50 budget is step 1 of "Set up AWS (once)"; `/api/health` exists for an uptime check.
+
+**Plan:**
+
+1. **`deploy/alarms.sh`** (written, not run): an email contact for Lightsail's alerts, then alarms
+   that email Dylan: the server failing its status check (down or unreachable), the server's CPU
+   above 90% for 15 minutes, the database's free storage under 2 GB, and its CPU above 90%. Each
+   also emails when it's back to normal. London only; the address from the command line, never in
+   the file.
+2. **`deploy/restore-drill.sh`** (written, not run): restores the latest backup to a separate,
+   private drill database (`<name>-db-drill`), prints how to check it, and `--delete` removes it
+   (only that name: it refuses anything else). The runbook's monthly drill uses it.
+3. **Tests**: both scripts valid; London only; the drill database private and never the real one;
+   the alarms cover down, CPU and storage; no address or secret in either file.
+4. **Runbooks**: "Monitoring and alerts (once)" (the alarms, a free uptime check on `/api/health`
+   with the phone app, the budget already in step 1) and "Restore drill (monthly)". Parking lot:
+   "Connect monitoring". App-level error alerts (job failures and so on) are the next task's.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | All of it is AWS or an outside service | Tick with scripts unrun |
+| Lightsail's own alarms for "down" and resources | They watch from outside the server, need no extra service, and email for free | An agent on the server (can't alert when the server is down) |
+| An outside uptime check too (free UptimeRobot or similar) | It checks the app itself answers (`/api/health`), from the internet, with a phone app | Only Lightsail's alarms (they see the machine, not the app) |
+| The restore drill restores to a separate database | Checks the backup is usable without touching the real one | Restoring over the real database (never) |
+
+**Built as planned**, then changed by the review (below).
+
+**Guardrails review: FIX FIRST (3 items), all done.**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the drill reused any existing `*-db-drill` (checking a month-old copy; and after a real incident restored under that name, a later `--delete` would drop production with `--skip-final-snapshot`); its suffix guard could never fail | Reused only if restored in the last 3 hours (`createdAt`), else it stops naming the date; `--delete` shows when it was made and requires typing the name; the runbook says never restore under a drill name nor point the app at one; the tautology guard removed |
+| FIX FIRST: `>/dev/null 2>&1 \|\|` turned every AWS error (a deactivated key) into "not there", so `--delete` could say "nothing to delete" while it kept billing | Both scripts check `sts get-caller-identity` first; existence checks treat only `NotFoundException` as absent and stop on anything else; tested |
+| FIX FIRST: the runbook's `docker run … psql` fails as `ubuntu` (not in the docker group) | `sudo docker run --rm -it postgres:16-alpine psql …`, and removing the image after |
+
+Other suggestions:
+
+| Suggestion | Done |
+|---|---|
+| The psql check proved little | A recency check: set a firm, `max(created_at)` from events, minutes before the restore; "Restore the database" step 3 uses it too (plain counts show nothing under forced RLS) |
+| An unconfirmed contact got no second link | `send-contact-method-verification` when the status isn't `Valid` |
+| CPU can't reach 90% once a burstable plan is throttled | A `BurstCapacityPercentage` < 20 alarm |
+| Only the instance checked up front | The database too |
+| 2 GB free is too late | 8 GB |
+| Keyword monitor trap; free-plan terms | A plain HTTPS monitor; "check the plan's terms allow business use" |
+| Reactivate the key first | Said in "Monitoring and alerts (once)" |
+| The test ran the real script with the developer's environment | A stand-in `aws` first on the PATH (records and fails), credentials blanked; asserts the real one is never reached |
+| Confirm the delete; the psql image left on the server | Both in the runbook |
+
+**Verify:** `VERIFIED tree=04d69b486eb67773 e2e=true` (typecheck, lint, test, e2e, invariants all ok;
+2557 tests, 47 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: AWS and an outside uptime service). Everything short of
+it is written, checked and committed. No auditor round. Next step is Dylan's: "Connect monitoring".
+
+**Hours:** 0.5 h (23:44 to 00:15 UTC). Phase 8 so far 3.1 h of its 18–28 h estimate.

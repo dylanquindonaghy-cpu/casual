@@ -7127,3 +7127,50 @@ only, no names.
 ### How to see it
 
 `docs/baseline-tally.md`.
+
+## 2026-09-30: Phase 9, task 6: The dry-run event day (0.2 h, BLOCKED)
+
+### Time
+
+0.2 hours of Claude's working time (05:21 to 05:30 UTC), in the unattended overnight loop.
+Phase 9 so far: 2.3 of its 10 to 15 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** A dry run needs the pilot firm's resourcer, volunteers with real phones,
+  and Twilio connected so the messages really arrive.
+- `scripts/verify.sh` printed `VERIFIED tree=4b6f3f565e21607c e2e=true` (2665 tests, 49 browser
+  tests). Documents only.
+- No auditor round (blocked).
+
+### What was done, in plain words
+
+The onboarding runbook said "dry-run event day: see the pilot playbook", but the playbook didn't
+say how. It now has a "Dry-run event day" section: a rehearsal of a real event day on the firm's
+own setup, with a pretend event and three volunteers (the resourcer, you, and a friendly worker, on
+their own phones), before the staff are told about it. Twelve steps, each saying who does it and
+what "worked" looks like:
+1. logging in;
+2. taking a shift;
+3. two people tapping the same shift at once;
+4. a shift the rules refuse;
+5. a cancellation starting an urgent offer;
+6. the office moving and cancelling;
+7. a request;
+8. pay;
+9. messages to the shifts line;
+10. reminders;
+11. the notice report and action log;
+12. tidying up.
+
+Then a table to fill in. The pretend event is dated before go-live, so it never counts in the
+pilot's figures.
+
+### Parked, open, and things that need Dylan
+
+- **Run the dry-run event day** (PLAN.md Parking lot): after onboarding steps 1 to 11 and Connect
+  Twilio, with the resourcer, about two hours.
+
+### How to see it
+
+`docs/pilot-playbook.md` "Dry-run event day".

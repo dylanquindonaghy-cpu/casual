@@ -6058,3 +6058,28 @@ with how to turn it into exactly the 8 figures the Pilot figures page takes
 
 **Commit:** `e420c67` "Phase 9 (BLOCKED, not ticked): Baseline week recorded (docs/pilot-playbook.md)", pushed to
 `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-09-30 05:21 UTC — Phase 9: Run a dry-run event day with the resourcer
+
+Task: "Run a dry-run event day with the resourcer". **Blocked:** it needs the pilot firm's
+resourcer, volunteers' real phones, and Twilio connected.
+
+**Short of it:** onboarding step 12 pointed at `docs/pilot-playbook.md` for the dry run, but the
+playbook had no such section. Added "Dry-run event day": when (after Connect Twilio and onboarding
+steps 1 to 11, before the staff briefing), the set-up (three volunteers with their own phones, a
+"Dry run" site, a pretend event dated before go-live so it never counts in the pilot's weeks), 12
+steps covering every flow a pilot relies on (login, taking a shift, first yes wins, a refused shift,
+cancel and the urgent wave, office changes, requests, pay, the shifts line, reminders, the evidence,
+wrap up), each with who does it and what "worked" looks like, and a table to fill in. Parking item
+"Run the dry-run event day". No code; guardrails review not needed.
+
+**Decision:** the dry run on the firm's real setup with volunteers, not on the demo firm. Why: it
+rehearses the firm's own branding, settings, rules and line; volunteers agree to it; dated before
+go-live, it stays out of the pilot's numbers. Alternative: the demo seed's Acme Saturday (doesn't
+test the firm's own setup).
+
+**Verify:** `VERIFIED tree=4b6f3f565e21607c e2e=true` (2665 tests, 49 e2e).
+
+**Status: BLOCKED, not ticked.** No auditor round. Next step is Dylan's: "Run the dry-run event day".
+
+**Hours:** 0.2 h (05:21 to 05:30 UTC). Phase 9 so far 2.3 h of its 10–15 h estimate.

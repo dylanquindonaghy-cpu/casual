@@ -23,6 +23,73 @@ During the pilot, enter the emails, calls, WhatsApp messages and resourcer hours
 "This week's tally" (the app can't see the office inbox or phone); everything else is counted by
 the app each night (and on "Update the figures now").
 
+## Dry-run event day (before go-live, with the resourcer)
+
+A rehearsal of a real event day on the firm's own setup, with a pretend event and three volunteers,
+so the resourcer has done everything once before staff rely on it, and anything confusing is fixed
+first. After "Connect Twilio" (the volunteers' phones must get real messages), after onboarding
+steps 1 to 11 (`docs/runbooks.md` "Onboarding a pilot firm"), before the staff briefing goes out.
+About two hours on a quiet weekday.
+
+**Set up (you):**
+- Three volunteers with their own phones and agreement: the resourcer, you, and one friendly
+  worker, each a worker of the firm (`npm run import`, or already imported), with the licences the
+  pretend roles need, except one missing licence for step 4.
+- A site called "Dry run" and a pretend event: 4 shifts at it two weeks ahead, and 2 tomorrow
+  (inside the urgent window), in the office (Shifts → New shift). Dry-run events are dated before
+  go-live, so they never count in the pilot's weeks.
+- `npm run -s firm:check -- --firm <slug>`: everything `[x]` or confirmed, except the dry run itself.
+
+**The steps** (who does it; what "worked" looks like):
+
+1. **Log in** (each volunteer): text "shifts" to the shifts line, or open the portal's login page and
+   give the mobile. A link arrives by WhatsApp within a minute; it opens My shifts, in the firm's
+   colours, signed "[Firm] Shift Team".
+2. **Take a shift** (volunteer): Open shifts → a "Dry run" shift → Take. It says so at once; the
+   office sees it on the shift's page and in the action log.
+3. **First yes wins** (two volunteers): both tap Take on the same one-place shift at the same moment.
+   One gets it; the other is told it's just been filled.
+4. **A shift the rules refuse** (the volunteer missing a licence): the shift explains why, in plain
+   words, with "Ask the office to review". The office sees the review request.
+5. **Cancel and the urgent wave** (volunteer): cancel tomorrow's shift with a reason. The office's
+   Today shows the cancellation with the notice given; the shift reopens as urgent; the other
+   volunteers get the urgent offer; the first to take it gets it.
+6. **The office changes and cancels** (resourcer): move a booked shift's time (choosing a reason),
+   and cancel another booking. Each volunteer affected gets a message saying exactly what changed.
+7. **A request** (volunteer, then resourcer): ask for a time change on a booked shift; the resourcer
+   answers it on Requests; the volunteer is told the answer.
+8. **Pay** (volunteer): open Pay (a code arrives by WhatsApp first), see hours, rates and pay dates
+   (if the firm's pay file is imported), and raise a pay question; payroll sees it grouped, and the
+   next digest lists it.
+9. **The shifts line** (volunteer, then someone who isn't a worker): text "I can't make tomorrow":
+   the reply points to cancelling or reaches the office as a request. From a number that isn't a
+   worker's: the polite reply, and the office is emailed and sees it on Today.
+10. **Reminders** (wait, or next morning): the volunteer booked on tomorrow's shift gets the 24-hour
+    reminder, then the 2-hour one.
+11. **The evidence** (resourcer): the notice and cancellation report lists every offer, booking,
+    move and cancellation with who started it and the notice given; the action log shows each step;
+    the CSV download opens in Excel.
+12. **Wrap up** (resourcer): cancel the remaining "Dry run" shifts as the firm ("Another reason"),
+    and write down anything that was confusing, slow or wrong.
+
+| Step | Worked? | What was confusing, slow or wrong |
+|---|---|---|
+| 1 Log in | | |
+| 2 Take a shift | | |
+| 3 First yes wins | | |
+| 4 Refused shift | | |
+| 5 Cancel and urgent wave | | |
+| 6 Office changes | | |
+| 7 Request | | |
+| 8 Pay | | |
+| 9 Shifts line | | |
+| 10 Reminders | | |
+| 11 Evidence | | |
+| 12 Wrap up | | |
+
+Anything wrong: tell Claude before go-live. Then `firm:check`'s "[?] Dry-run event day" is
+confirmed, and the staff briefing can go out.
+
 ## Weekly rhythm (4 weeks)
 
 - **Monday:** 15-minute call with the resourcer: what worked, what was confusing, what they still

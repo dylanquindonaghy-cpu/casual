@@ -153,6 +153,32 @@ describe("deploy/docker-compose.yml", () => {
     expect(services.caddy?.volumes?.find((v) => v.target === "/data")?.type).toBe("volume");
   });
 
+  it("the one-off owner service: only with its profile, the owner's login plus what app code needs, nothing published", () => {
+    const withOwner = JSON.parse(
+      composeRun(["--profile", "owner", "config", "--format", "json"], ENV),
+    ) as { services: Record<string, ComposeService> };
+    const owner = withOwner.services.owner;
+    expect(owner?.profiles).toEqual(["owner"]);
+    expect(owner?.image).toBe("ghcr.io/example/shiftdesk:0123abc");
+    expect(owner?.restart).toBeUndefined();
+    expect(owner?.ports ?? []).toEqual([]);
+    expect(Object.keys(owner?.environment ?? {}).sort()).toEqual(
+      [
+        "APP_BASE_DOMAIN",
+        "DATABASE_ADMIN_URL",
+        "DATABASE_JOBS_URL",
+        "DATABASE_URL",
+        "NODE_ENV",
+        "SESSION_SECRET",
+      ].sort(),
+    );
+    // Not among what `up` starts, whatever the worker's profile.
+    const running = composeRun(["config", "--services"], `${ENV}\nCOMPOSE_PROFILES=worker`)
+      .trim()
+      .split("\n");
+    expect(running).not.toContain("owner");
+  });
+
   it("refuses to start without the values it needs (no silent empty secrets)", () => {
     const without = ENV.split("\n")
       .filter((line) => !line.startsWith("SESSION_SECRET="))

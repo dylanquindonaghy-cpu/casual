@@ -372,6 +372,70 @@ office shift editor (Phase 5). Shifts that have started can't be imported or cha
 file without Shift IDs matches shifts by site, role and times, so changing a time in such a file
 adds a new shift and leaves the old one (and anyone booked on it) as it was.
 
+## Onboarding a pilot firm
+
+The checklist is in `docs/go-to-market.md` ("Pilot onboarding checklist"). At any point,
+`npm run -s firm:check -- --firm <slug>` prints it for that firm from its data: `[x]` done, `[ ]`
+to do, `[?]` confirm yourself (things the app can't see, such as the paperwork). Counts and
+settings only, never a person's details.
+
+**Running an owner command on the server.** The live database is only reachable from the server,
+so `firm:create`, `firm:office-user`, `firm:settings`, `firm:check`, `firm:brand`, `firm:line` and
+`firm:domain` run there, in a one-off copy of the app: the `owner` service in
+`docker-compose.yml`, which reads `.env` itself (so no password goes on the command line). In the
+server's browser console: `sudo -i`, `cd /opt/shiftdesk`, then (not yet tried for real: part of
+"Try the runbooks for real"):
+
+```
+docker compose run --rm owner node --import tsx scripts/firm-check.ts --firm acme
+```
+
+Swap `scripts/firm-check.ts --firm acme` for the command's own file and options (the file is the
+command's name: `firm:create` is `scripts/firm-create.ts`). `firm:check` and `firm:office-user`
+don't need the owner's login: `docker compose run --rm --no-deps web node --import tsx
+scripts/firm-check.ts --firm acme` works too. On your own computer the same commands run against
+your local database as `npm run -s …`.
+
+In order (who does it, how, and what done looks like):
+
+1. **Agreement and DPA signed** (you and the firm). Nothing real goes in before this (Gate B).
+2. **Create the firm** (you): `npm run -s firm:create -- --slug acme --name "Acme Events"
+   --sector security --admin-email jo@acme-events.example --admin-name "Jo Bloggs"`. The slug
+   becomes `acme.<our domain>`; the sector (security, rail, construction or cleaning) brings its
+   credential types and default rules. It says "Created … and its admin." (and "Next: …
+   firm:check"). A slug that's taken, or a value it can't use, is refused with the reason. If it
+   stops half-way, run the same command again: it finishes the setup (and says when the firm was
+   first created).
+3. **Branding and sign-off** (you, with the firm's logo address and colour): "Setting a firm's
+   brand" below. Its own domain, if it wants one: "A firm's own domain" below.
+4. **Office users** (you): the admin from step 2 can log in at `acme.<our domain>/office` once the
+   worker is running and emails go out ("Connect Twilio", "Connect Amazon SES"). Resourcers and
+   payroll: `npm run -s firm:office-user -- --firm acme --role resourcer --email
+   sam@acme-events.example --name "Sam Rota"` (roles: admin, resourcer, payroll). It says "Added: they can
+   now log in to acme's office as resourcer." An email that already has a login is left as it is (it says its role and whether it's active).
+5. **Rota source** (you and the resourcer): a Google Sheet ("Connect the real Google Sheets" in
+   PLAN.md), or none: shifts made in the office or imported from CSV.
+6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
+   workers, credentials or shifts from a spreadsheet" below. `firm:check` then shows how many
+   active workers have no credential on file.
+7. **Credential rules for every role** (you and the firm): the pack gives the sector's usual roles.
+   `firm:check` names any role in use with no rule: the rules refuse that role's shifts to everyone
+   until it has one.
+8. **Settings agreed** (the firm decides; you set them): `npm run -s firm:settings -- --firm acme`
+   shows who gets open shifts (first come first served, or fair rotation with its wave size and
+   minutes), the urgent window, when the office is emailed about an unfilled shift, the
+   short-notice threshold and quiet hours, as the app reads them. Change any with `--set`, e.g.
+   `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
+   refused and nothing changes; each change is in the office action log.
+9. **Shifts line** (you): after "Connect Twilio", the firm's number with `npm run firm:line`, and
+   WhatsApp's approval of the display name (start early: it can take days).
+10. **Privacy notice line** (the firm): the suggested words are in `docs/compliance.md`.
+11. **Staff briefing** (the firm): a message to its staff with the portal link.
+12. **Dry-run event day** (you and the resourcer): `docs/pilot-playbook.md`.
+13. **Baseline numbers** (the resourcer): the office's Pilot figures page, Baseline week.
+
+When `firm:check` shows no `[ ]` and you've confirmed every `[?]`, the firm is ready to go live.
+
 ## Setting a firm's brand (name, colour, logo, sign-off)
 
 Owner-only (it uses `DATABASE_ADMIN_URL`), like `npm run firm:line`. Give only what changes:

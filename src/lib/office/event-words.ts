@@ -282,6 +282,20 @@ export function eventWords(e: LoggedEvent, names: Names): string {
           : (fields[0] ?? "brand");
       return `The firm's ${list} changed.`;
     }
+    case "firm.created":
+      return "The firm was set up on ShiftDesk.";
+    case "office_user.added": {
+      const ROLE: Record<string, string> = {
+        admin: "an admin",
+        resourcer: "a resourcer",
+        payroll: "a payroll user",
+      };
+      return `Office access was given to ${ROLE[String(d.role)] ?? "someone"}.`;
+    }
+    case "firm.settings_changed": {
+      const n = Array.isArray(d.keys) ? d.keys.length : 0;
+      return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
+    }
     case "firm.domain_changed":
       switch (d.change) {
         case "set":

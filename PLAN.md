@@ -224,7 +224,7 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 
 ## Phase 9 — Pilot hardening and go live (10–15 h)
 
-- [ ] Onboarding checklist for the pilot firm (see docs/go-to-market.md)
+- [x] Onboarding checklist for the pilot firm (see docs/go-to-market.md)
 - [ ] Import real workers/credentials/shifts **only after** Gate B paperwork is signed
 - [ ] Privacy notice line supplied to the firm (see docs/compliance.md)
 - [ ] Pre-pilot checklist in `docs/testing.md` all ticked
@@ -584,6 +584,21 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
      starting "ShiftDesk alert: a test alert" within a minute. If not: `docker compose logs worker
      --since 5m | grep "ops alert"`.
   6. Then tick the task. The worker must be running (it's off until "Connect Twilio" anyway).
+- Onboarding follow-ups (Phase 9 onboarding checklist task):
+  - Owner commands on the server need a long `docker compose run … web node --import tsx scripts/…`
+    line (docs/runbooks.md "Onboarding a pilot firm"): not tried yet. A small wrapper script on the
+    server (`/opt/shiftdesk/owner <command> …`), or an `owner` compose service with exactly the
+    variables owner commands need, would make it one short line.
+  - Office screens for what the owner commands do today: office users (add, disable, change role),
+    the firm's settings (the office settings screen, with the same read-back checks).
+  - `firm:settings` covers the checklist's settings only; add the rest of `firms.settings`
+    (credential allowance, rest hours, weekly cap, pay digest times) when a firm asks.
+  - The agreement, privacy notice, staff briefing and dry run aren't recorded anywhere: `firm:check`
+    says "confirm yourself". A firm-level checklist table would let the office tick them.
+  - `firm:settings` could explain more: wave size and minutes are unused under first come first
+    served; `urgent_window_hours=0` means no shift is ever urgent (no offer waves); quiet hours with
+    start equal to end means none. And two already-broken fair-rotation values can't be fixed in one
+    run (each step must leave the set readable).
 - Ops alerts follow-ups (Phase 8 alerts task):
   - Count Twilio's delivery receipts (undelivered, failed) in the send failure rate once the
     delivery-status webhook exists (today only sends Twilio refused count).
@@ -1303,3 +1318,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-30 | 8 | 1.3 | GDPR: an admin-only "Data requests" page: find a worker, download everything about them (JSON, or CSV for Excel), or delete their personal details (refused while they're booked on a shift that hasn't ended; their shift history stays under an anonymous "Deleted worker" row as the notice report's evidence; typed notes and reasons cleared); "Download all your data" for the firm (every table, no login secrets); a nightly purge (messages and typed request text after 90 days, old login leftovers), logged every run; messages only deleted through two narrow database functions; the review caught typed text surviving a delete, a function trusting a caller's phone number, and an export missing log rows (all fixed and tested); the 12-month purge of the log is parked for Dylan (it would need the append-only log changed); 2611 tests + 48 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-09-30 | 8 | 0.5 | Alerts to your phone, BLOCKED (not ticked: a phone needs Twilio or another outside service): every check built: each 5 minutes the worker looks at the last hour for jobs that failed after their last retry, a firm's rota sheet sync failing for 30 minutes, more than 5% of a firm's WhatsApps and texts failing (of at least 20), and the web app's health from inside the server; the web counts bad Twilio signatures (20 in an hour); each problem alerts at most once in any hour, with no personal data; alerts are "ShiftDesk alert: …" log lines until "Connect alerts to your phone"; `npm run -s ops:test-alert`; the review caught a firm-list failure stopping every alert, a long alert being dropped, "once an hour" really being "once per clock hour", and a send rate diluted by senders that never log failures (all fixed and tested); 2638 tests + 48 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 8 | 0.2 | Runbooks tried for real, BLOCKED (not ticked: needs the real server, database snapshots and GitHub's registry): an independent fact-check of the Deploy, Rollback, Restore and Restore drill runbooks against the scripts (19 claims): Rollback would have hit "Permission denied" (no `sudo -i`) and Restore said "restart", which keeps the old database settings (now `docker compose up -d`): both fixed; a new "Try the runbooks for real (once, before the pilot's data)" section with the order, what "worked" looks like and a table to fill in; 2638 tests + 48 e2e; verified. Phase 8: 5.6 h of the 18–28 h estimate, 3 tasks done, 6 blocked on outside services (see docs/work-log.md) |
+| 2026-09-30 | 9 | 0.6 | Onboarding checklist: the app couldn't create a real firm (only the demo seed could), add office users or change a firm's settings, so four owner commands: `firm:create` (the firm, its sector's credential rules and first admin, logged; finishes a setup that stopped), `firm:office-user`, `firm:settings` (shows and sets the checklist's settings, each checked by reading it back through the app's own reader) and `firm:check` (the checklist from the firm's data: done, to do, confirm yourself; counts only); a one-off `owner` compose service to run them on the server without a password on the command line; a step-by-step "Onboarding a pilot firm" runbook; the review caught the firm's row committed without its log entry and that password on the command line (both fixed and tested); 2653 tests + 48 e2e; verified and audited DONE (see docs/work-log.md) |

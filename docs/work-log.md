@@ -6799,3 +6799,107 @@ written, never run. So:
 ### How to see it
 
 `docs/runbooks.md`: "Rollback", "Restore the database", and the new "Try the runbooks for real".
+
+## 2026-09-30: Phase 9, task 1: The pilot onboarding checklist, made usable (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (03:02 to 03:37 UTC), in the unattended overnight loop.
+Phase 9 so far: 0.6 of its 10 to 15 hour estimate.
+
+### Result
+
+- **Ticked.** The independent auditor said `VERDICT: DONE`.
+- `scripts/verify.sh` printed `VERIFIED tree=beacf347bff0b106 e2e=true`: 2653 tests (156 files),
+  48 browser tests, all passing.
+- The commit is recorded in `docs/overnight-log.md`.
+
+### What was built, in plain words
+
+The onboarding checklist (the steps to get a pilot firm going) was just a list. Nothing in the app
+could actually create a real firm (only the demo data could), add office staff, or change a firm's
+settings. Now four commands do, for you (the "owner" of the platform):
+
+- **`npm run firm:create`** sets up a new firm: its web address name (`acme` becomes
+  `acme.<our domain>`), its name, its sector (security, rail, construction or cleaning, which
+  brings the usual licence rules), and its first admin. If it stops half-way, running it again
+  finishes the job.
+- **`npm run firm:office-user`** gives someone office access: a resourcer, payroll, or another
+  admin.
+- **`npm run firm:settings`** shows the settings the firm agrees during onboarding (who gets open
+  shifts first, how soon a shift counts as urgent, when the office is emailed about a gap, what
+  counts as short notice, quiet hours) and changes them. A value is only accepted if the app would
+  really use it; anything else is refused and nothing changes.
+- **`npm run firm:check`** prints the checklist for a firm from its own data: `[x]` done, `[ ]` to
+  do, `[?]` confirm yourself (things the app can't see, like the signed agreement). It warns when a
+  role has no licence rule, because then nobody can take those shifts. It only shows counts and
+  settings, never anyone's name, number or email.
+
+And:
+- A new runbook section, "Onboarding a pilot firm", goes through all 13 steps in order: who does
+  each, the exact command or page, and what "done" looks like.
+- A one-off "owner" service in the server's setup (Docker Compose), so these commands can run on
+  the live server without typing the database password on a command line.
+- Every change they make is in the office's action log.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Commands for you, not office pages | Creating firms is the platform owner's job, and the app's own database login can't change firms (by design) | A sign-up page (much later: "self-serve onboarding") |
+| Settings checked by reading them back through the app's own code | Each part of the app has its own limits and quietly uses a default if a value is wrong; reading back is the only sure check | A separate list of limits (could drift) |
+| Only the settings the checklist names | Keep to onboarding | Every setting |
+| The check prints counts only | Terminal output gets pasted anywhere | Listing workers by name |
+
+### What the review caught
+
+The `guardrails-reviewer` found 2 things to fix first:
+- **The firm was saved without its log entry.** The "firm created" line was written in a later
+  step; if that step failed and nobody re-ran it, a live firm had no log at all. Now they're saved
+  together.
+- **The server command put the database password on the command line**, where other programs on
+  the server could see it while it ran, and it broke if the settings file used quotes. Now the
+  one-off "owner" service reads the settings file itself.
+
+Also done:
+- two setups finishing the same half-made firm at once give only one admin;
+- the settings log keeps the old and new values (to settle a dispute about what applied on a given
+  day);
+- slugs are lowercased everywhere;
+- the two database logins are checked to be the same database;
+- old or cancelled shifts no longer make a role look "in use";
+- no emails are echoed;
+- a test that could fail by chance (2 in 1,000) was fixed.
+
+### What the new tests prove
+
+15 new tests:
+- **Creating a firm**: what's created and logged, every bad input, a taken name, finishing a
+  stopped setup, and two at once.
+- **Office users**: adding them, logging, an existing email left alone.
+- **Settings**: what the app reads, good values saved with old and new values logged, and every
+  kind of bad value refused with nothing saved.
+- **The check**: a brand-new firm, a firm with real-looking data (including a role with no rule),
+  another firm's data never counted, and no personal details printed.
+- **The server setup**: the owner service only runs when asked, has only the logins it needs, and
+  opens no ports.
+
+### Parked, open, and things that need Dylan
+
+In PLAN.md, "Onboarding follow-ups":
+- a shorter way to run owner commands on the server;
+- office screens for users and settings;
+- the rest of the settings;
+- a place to tick the agreement and dry run;
+- more explanation in `firm:settings`.
+
+The runbook's server command hasn't been tried yet: it's part of "Try the runbooks for real".
+
+### How to see it working
+
+On your computer, after `npm run db:seed`:
+1. `npm run -s firm:check -- --firm acme` prints Acme's checklist.
+2. `npm run -s firm:settings -- --firm acme` shows its settings.
+3. `npm run -s firm:create -- --slug trial --name "Trial Events" --sector security --admin-email
+   trial.admin@example.com --admin-name "Trial Admin"` makes a test firm in your local database
+   (`npm run db:reset` then `npm run db:seed` removes it again).

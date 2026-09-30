@@ -5810,3 +5810,76 @@ so not checked.
 Phase 8 is now done or blocked: done: branding, custom domains, GDPR; blocked: AWS, Docker/deploy,
 backups and monitoring, Twilio fallback, alerts to your phone, runbooks tried for real. Next:
 Phase 9.
+
+## 2026-09-30 03:02 UTC — Phase 9: Onboarding checklist for the pilot firm (see docs/go-to-market.md)
+
+Task: "Onboarding checklist for the pilot firm (see docs/go-to-market.md)". The checklist exists as
+a bare list; nothing in the app can create a real firm (only the demo seed does) or change its
+settings (the app role can't write `firms`, by design). Needs no outside service, so it can be
+audited and ticked; the real onboarding happens after Gate B.
+
+**Plan.**
+
+- `npm run firm:create` (owner, `scripts/firm-create*.ts`): a new firm (slug, name, sector), its
+  sector's credential pack, and its first admin office user; logged (`firm.created`,
+  `office_user.added`, and the pack's own `credential_pack.applied`).
+- `npm run firm:settings` (owner): show the settings the checklist names as the app reads them
+  (with defaults marked), and set them. Each value is checked by reading it back through the
+  app's own reader (`parseAllocationSettings`, `urgentWindowHours`, `escalateHours`,
+  `quietHours`, `shortNoticeThreshold`): refused unless the app would read exactly what was set.
+  Logged `firm.settings_changed` {keys}.
+- `npm run firm:check` (read-only, app role inside the firm): the checklist, item by item, from the
+  firm's data where it can be seen (branding, rota source, workers and credentials, rules for every
+  role in use, the shifts line, office users, baseline figures), and "confirm yourself" for what
+  can't (the agreement and DPA, the privacy notice, the staff briefing, the dry run). Counts and
+  role names only.
+- `docs/runbooks.md` "Onboarding a pilot firm": every checklist item in order: who, how (the
+  command or page), what "done" looks like, and which are waiting on "Connect …" items.
+  `docs/go-to-market.md` points to it.
+- Tests: integration for the three commands; the log's words for the new events.
+
+**Decisions.**
+
+| Decision | Why | Alternatives |
+|---|---|---|
+| Owner scripts, not office pages | Creating firms is the platform owner's job; the app role can't write `firms`; the office settings screen is later (parked) | A signup page (Stage 2 self-serve) |
+| Settings checked by reading them back through the app's own readers | Each reader has its own limits and silently falls back to a default when a value is wrong: reading back is the only way to be sure the app will use what was set | A separate schema (could drift from the readers) |
+| Only the settings the checklist names | Keep it to onboarding | Every key in `firms.settings` |
+| The readiness check prints counts and role names only | It runs in a terminal and may be pasted anywhere | Listing workers missing credentials by name |
+
+**First verify (before the review's fixes):** `VERIFIED tree=f31ba88fa62c3723 e2e=true`.
+
+**Guardrails review: FIX FIRST (2 items), both done.** Tenant isolation, the settings read-back
+and the office-user login path held up.
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the firm's row was committed without its event (`firm.created` was written in step 2, another transaction): if step 2 failed and nobody re-ran it, a live firm had no log at all (golden rule 5) | `firm.created {sector}` is written in the owner's transaction with the row; step 2 logs the pack and the admin; tested (a stopped setup still has its `firm.created`) |
+| FIX FIRST: the runbook's server command put the owner's database password on the command line (`-e …="$(sed …)"`, readable in the process list) and broke on quoted `.env` values | A one-off `owner` service in `deploy/docker-compose.yml` (its own profile, never started by `up`, nothing published, the owner's login plus what app code needs): compose reads `.env` itself; `docker compose run --rm owner node --import tsx scripts/…`; `firm:check` and `firm:office-user` work with plain `web`; pinned by a compose test |
+
+Suggestions:
+
+| Suggestion | Done |
+|---|---|
+| Two runs finishing a half-made firm at once could both add an admin | Step 2 takes a per-firm advisory lock and re-checks there's no office user; tested with two at once (one admin, the other "taken"); a resume says when the firm was first created |
+| The test's random shifts line could equal a worker's number (2 in 1,000) | Drawn from 900400–900999, away from the workers' numbers |
+| "a different name is refused" wasn't tested | Tested |
+| The settings event had no values (a disputed short-notice day couldn't be reconstructed) | `{keys, from, to}` (settings aren't personal) |
+| "already" was wrong for a disabled user | Says the existing role and whether it's active |
+| `--firm Acme` didn't find `acme` | Every command lowercases the slug |
+| The two logins could point at different databases (the create would fail for ever) | `firm:create` refuses if DATABASE_ADMIN_URL and DATABASE_URL name different databases |
+| Roles on cancelled or past shifts stayed "to do" for ever; no cross-firm test | Only shifts not cancelled that haven't ended; tested, with another firm's workers and office users never counted |
+| The commands echoed the email typed | They say the role only |
+| firm:settings explanations (wave settings unused under first come first served, a zero urgent window, equal quiet hours) | Parked with the onboarding follow-ups |
+
+**Verify (after the fixes):** `VERIFIED tree=beacf347bff0b106 e2e=true` (2653 tests in 156 files,
+48 e2e).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. All claims PROVEN (the checklist
+pointing at a runnable tool and the runbook, firm:create, firm:office-user, firm:settings,
+firm:check, the owner compose service, the new events in the action log, the testing doc); no
+fakes found.
+
+**Status: DONE, ticked.**
+
+**Hours:** 0.6 h (03:02 to 03:37 UTC). Phase 9 so far 0.6 h of its 10–15 h estimate.

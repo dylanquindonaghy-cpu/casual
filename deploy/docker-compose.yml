@@ -78,6 +78,28 @@ services:
       DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
     logging: *logging
 
+  # One-off, for the owner's commands (docs/runbooks.md "Onboarding a pilot firm"):
+  # `docker compose run --rm owner node --import tsx scripts/firm-create.ts …`. Never started by
+  # `up` (its profile). Compose reads .env itself, so no secret goes on a command line. The owner's
+  # login (to change firms) plus what the app code needs; nothing published.
+  owner:
+    image: *app-image
+    profiles: ["owner"]
+    command:
+      [
+        "node",
+        "-e",
+        "console.log('Give it an owner command, e.g. node --import tsx scripts/firm-check.ts --firm acme')",
+      ]
+    environment:
+      NODE_ENV: production
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:?}
+      DATABASE_URL: ${DATABASE_URL:?}
+      DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?}
+      SESSION_SECRET: ${SESSION_SECRET:?}
+    logging: *logging
+
   caddy:
     image: caddy:2.10
     restart: unless-stopped

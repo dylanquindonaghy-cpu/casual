@@ -98,6 +98,19 @@ without breaking a 6am cancellation.
   deletes each kind only past its age (a day either side), only in its own firm, logs every run and
   deletes nothing more the second time; the tick queues one a day per firm; the message function's
   90 days are pinned. The office page and downloads in a browser: `tests/e2e/gdpr.spec.ts`.
+- `onboarding.test.ts` — onboarding a pilot firm (Phase 9, on the real database): `firm:create`
+  makes the firm, applies its sector's pack, adds its admin and logs all three; refuses bad values
+  and a taken slug (any case); the firm's row is logged with it even when the rest stops; a setup
+  that stopped after the firm's row is finished by running it again (a different name or sector is
+  refused), and two runs finishing it at once give one admin. `firm:office-user` adds a resourcer or payroll
+  user (logged), leaves an existing email alone (saying its role), refuses bad values.
+  `firm:settings` shows what the app reads (defaults marked), saves values the app would use and
+  logs the keys with the old and new values, and refuses
+  every value the app would ignore or fall back from (nothing saved, even with good ones beside
+  it). `firm:check` from a new firm and from real-looking data: branding, office users, workers
+  and credentials, a role in use with no rule (not a cancelled or past shift's), the line, a
+  baseline; never another firm's data; never a person's name, number or email.
+  `deploy.compose.test.ts`: the one-off `owner` service for these commands on the server.
 - `ops.alerts.test.ts` (unit and integration) — alerts to the founder (Phase 8). The thresholds
   (failed jobs, a failing sheet sync, more than 5% of at least 20 WhatsApps and texts failing, the
   health check, 20 bad signatures), the words (and that an alert holding a phone number or email is

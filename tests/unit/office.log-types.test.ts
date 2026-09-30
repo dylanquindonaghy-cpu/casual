@@ -34,6 +34,10 @@ const NOT_EVENTS = new Set<string>([
   "r.created_at",
   "o.responded_at",
   "s.starts_at",
+  // Firm setting keys (a path into firms.settings) in src/lib/onboarding/settings.ts.
+  "quiet_hours.start",
+  "quiet_hours.end",
+  "quiet_hours.urgent_override",
 ]);
 const recorded = new Set(
   [...sourceFiles(ROOT), ...sourceFiles(join(process.cwd(), "scripts"))]

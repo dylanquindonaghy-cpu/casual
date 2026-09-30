@@ -5965,3 +5965,7 @@ one-month access; every "Notes for you" pointer.
 privacy notice wording".
 
 **Hours:** 0.3 h (03:53 to 04:09 UTC). Phase 9 so far 1.1 h of its 10–15 h estimate.
+
+**Commit:** `02e440f` "Phase 9 (BLOCKED, not ticked): Privacy notice line supplied to the firm (see
+docs/compliance.md)", pushed to `origin/build/overnight` (the parking item and logs were written
+after the verify run: documents only). CI: `gh` isn't installed, so not checked.

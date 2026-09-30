@@ -28,7 +28,8 @@
     "firm:line": "node --env-file-if-exists=.env --import tsx scripts/firm-line.ts",
     "firm:brand": "node --env-file-if-exists=.env --import tsx scripts/firm-brand.ts",
     "firm:domain": "node --env-file-if-exists=.env --import tsx scripts/firm-domain.ts",
-    "firm:call-fallback": "node --import tsx scripts/firm-call-fallback.ts"
+    "firm:call-fallback": "node --import tsx scripts/firm-call-fallback.ts",
+    "ops:test-alert": "node --env-file-if-exists=.env --import tsx scripts/ops-test-alert.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.3",

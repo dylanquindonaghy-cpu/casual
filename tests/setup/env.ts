@@ -9,3 +9,5 @@ process.env.DATABASE_ADMIN_URL = urls.admin;
 // Fixed, so tests don't depend on each developer's .env.
 process.env.APP_BASE_DOMAIN = "localhost:3000";
 process.env.SESSION_SECRET = "test-only-secret-not-for-any-real-use-0123";
+// Alerts to the founder go nowhere in tests (tests that check them pass their own transport).
+process.env.ALERTS_TRANSPORT = "none";

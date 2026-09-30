@@ -54,6 +54,11 @@ const appFields = {
       .regex(/^[A-Za-z0-9_-]{80,100}$/, { message: "must be a base64url VAPID public key" })
       .optional(),
   ),
+  // Alerts to the founder (src/lib/ops/, Phase 8): "console" (also when unset) writes each as one
+  // error line in the log; "none" drops them (tests). The phone sender is added when it's connected
+  // (PLAN.md Parking lot, "Connect alerts to your phone"). The web (bad webhook signatures) and the
+  // worker both use it.
+  ALERTS_TRANSPORT: z.enum(["console", "none"]).optional(),
   // Twilio signs every webhook with the account's auth token (X-Twilio-Signature): the webhooks
   // check it. Unset (as .env.example ships it): the webhooks answer 503 and store nothing (PLAN.md
   // Parking lot, "Connect Twilio"). A secret: never in the repo.
@@ -70,7 +75,18 @@ const realSecretMessage = {
   message: "the .env.example value must never be used in production",
 };
 
-export const appEnvSchema = z.object(appFields).refine(realSecret, realSecretMessage);
+// Alerts can't be switched off in production (they'd stop without anyone noticing).
+const alertsOn = (e: { NODE_ENV: string; ALERTS_TRANSPORT?: string }) =>
+  e.NODE_ENV !== "production" || e.ALERTS_TRANSPORT !== "none";
+const alertsOnMessage = {
+  path: ["ALERTS_TRANSPORT"],
+  message: "alerts can't be turned off (none) when NODE_ENV=production",
+};
+
+export const appEnvSchema = z
+  .object(appFields)
+  .refine(realSecret, realSecretMessage)
+  .refine(alertsOn, alertsOnMessage);
 
 export const workerEnvSchema = z
   .object({
@@ -92,8 +108,12 @@ export const workerEnvSchema = z
     // nothing. The real sender ("webpush", with VAPID keys) is added when it's connected (PLAN.md
     // Parking lot); until then production must use "none".
     PUSH_TRANSPORT: z.enum(["console", "none"]).default("console"),
+    // The web app's health check as the worker reaches it inside the server
+    // (http://web:3000/api/health in deploy/docker-compose.yml). Unset: the ops alerts don't check it.
+    HEALTH_CHECK_URL: z.url({ protocol: /^https?$/ }).optional(),
   })
   .refine(realSecret, realSecretMessage)
+  .refine(alertsOn, alertsOnMessage)
   .refine((e) => e.NODE_ENV !== "production" || e.PUSH_TRANSPORT !== "console", {
     path: ["PUSH_TRANSPORT"],
     message: "console push is not allowed when NODE_ENV=production",

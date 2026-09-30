@@ -93,6 +93,7 @@ describe("deploy/docker-compose.yml", () => {
     const keys = (name: string) => Object.keys(services[name]?.environment ?? {}).sort();
     expect(keys("web")).toEqual(
       [
+        "ALERTS_TRANSPORT", // where the founder's alerts go (not a secret): bad webhook signatures
         "APP_BASE_DOMAIN",
         "DATABASE_URL",
         "NODE_ENV",

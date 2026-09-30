@@ -98,6 +98,18 @@ without breaking a 6am cancellation.
   deletes each kind only past its age (a day either side), only in its own firm, logs every run and
   deletes nothing more the second time; the tick queues one a day per firm; the message function's
   90 days are pinned. The office page and downloads in a browser: `tests/e2e/gdpr.spec.ts`.
+- `ops.alerts.test.ts` (unit and integration) — alerts to the founder (Phase 8). The thresholds
+  (failed jobs, a failing sheet sync, more than 5% of at least 20 WhatsApps and texts failing, the
+  health check, 20 bad signatures), the words (and that an alert holding a phone number or email is
+  refused; every queue failing still fits, the 5 biggest named; a slug that looks like a phone
+  number is replaced by the firm id's start), the web's bad-signature counter (the 20th in an hour alerts, then not again for an
+  hour; counts over an hour old are forgotten; a failing sender is logged, not thrown), the health
+  check (three tries, the reason, a 200 that isn't `{ok: true}`), on the real database: a firm's
+  send counts over the last hour, WhatsApp and text only, only senders that log failures, not a
+  worker's texts-off, never another firm's; a sheet not synced for 30 minutes, still being tried,
+  enabled, never another firm's; failed jobs by queue, not the alerts' own; a repeat within a
+  rolling hour not queued, even across the clock hour; one part failing (listing firms included)
+  doesn't stop the others; the schedule. `env.test.ts`: alerts can't be turned off in production.
 - `sheets.sync.test.ts` — a seeded (fake) Google Sheet syncs both ways: staff, sites, shifts and
   who holds each come in (one read per sync, columns by header); bookings made here go back in one
   batch write; the three-way merge (office and portal changes at once), sheet names through the

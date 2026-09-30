@@ -1,5 +1,6 @@
 import type { Logger } from "../log";
 import { isValidTwilioSignature } from "./twilio-signature";
+import { badSignatures } from "../ops/signature-spike";
 
 // The checks every Twilio webhook makes before reading anything from it (docs/api-and-jobs.md;
 // golden rule 3). Nothing from the request is logged.
@@ -46,6 +47,9 @@ export async function readTwilioRequest(
   const signature = request.headers.get("x-twilio-signature");
   if (!isValidTwilioSignature(opts.authToken, opts.webhookUrl, fields, signature)) {
     opts.logger.warn("twilio webhook: bad signature");
+    // Counted for the founder's alert (a spike means a wrong auth token, or someone probing).
+    // Not awaited: a slow alert sender must never hold up the answer (note() catches its own errors).
+    void badSignatures.note();
     return refuse(403, "Forbidden");
   }
   return { ok: true, fields: { ...fields } };

@@ -554,6 +554,39 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
     phone number, and would make the event write throw after the message went. Exempt that key
     or store only a safe form, with a test using a Twilio-shaped id.
+- **Connect alerts to your phone** (the Phase 8 "Alerts to your phone: job failures, health down,
+  Twilio error spikes, sync errors" task is blocked on it: every check is built and tested, but an
+  alert today is a line in the server's log, `ops alert`). Until then, the outside uptime check's
+  phone app ("Monitoring and alerts (once)" step 3) covers the server being down.
+  1. Finish "Connect Twilio" first (the alerts will come as texts from Twilio).
+  2. Ask Claude to build the text sender for alerts: `ALERTS_TRANSPORT=sms`, sending each alert as a
+     text from a number of the platform's own (never a firm's shifts line) to `ALERTS_TO_E164`.
+     (Not built tonight: it would call Twilio. The test command, `npm run -s ops:test-alert`, is
+     built and prints the alert today.)
+     The web would then need the sender's secrets too (for the bad-signature alert): better, have
+     the web hand that alert to the worker so only the worker holds them.
+  3. Buy one more UK number in Twilio for the platform (Phone Numbers → Buy a number, with SMS).
+  4. On the server, add to `.env` (Claude will give the exact names): `ALERTS_TRANSPORT=sms`, your
+     own mobile as `ALERTS_TO_E164=+447...`, and the new number. Then `sudo systemctl start
+     shiftdesk-deploy` to restart with them.
+  5. On the server: `docker compose exec worker npm run -s ops:test-alert`. You should get a text
+     starting "ShiftDesk alert: a test alert" within a minute. If not: `docker compose logs worker
+     --since 5m | grep "ops alert"`.
+  6. Then tick the task. The worker must be running (it's off until "Connect Twilio" anyway).
+- Ops alerts follow-ups (Phase 8 alerts task):
+  - Count Twilio's delivery receipts (undelivered, failed) in the send failure rate once the
+    delivery-status webhook exists (today only sends Twilio refused count).
+  - Bad webhook signatures are counted per web process in memory: fine with one web container; with
+    several, each counts its own (a spike split across them alerts later).
+  - The weekly digest of job stats (docs/api-and-jobs.md "Errors and observability") isn't built.
+  - A job that failed isn't re-run by itself: a small owner command to list and retry failed jobs
+    would help (today: the logs, then fix and re-trigger by hand).
+  - The worker itself down or stuck: four of the five checks run in it, and nothing checks it. Let
+    `/api/health` (or a second path for the uptime monitor) say how long since the last
+    `ops-alerts-tick` finished (the web can't read pgboss today: a narrow owner-run function).
+  - A queue backlog (jobs waiting long past their start time) isn't alerted.
+  - Send failure codes are the app's (`errorCode()` keeps string codes only); Twilio's are numbers,
+    so today they'd read as the exception's name. Keep Twilio's number when the sender is built.
 - **Connect monitoring** (the Phase 8 "Backups on, restore tested; AWS Budget alert at £50; uptime
   check; error alerts to you" task is blocked on it: AWS and an uptime service). Written:
   `deploy/alarms.sh` and `deploy/restore-drill.sh` (checked by `tests/unit/deploy.monitoring.test.ts`,
@@ -1257,3 +1290,4 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 | 2026-09-30 | 8 | 0.5 | Backups, restore drill, budget, uptime, alerts, BLOCKED (not ticked: all AWS or an outside uptime service): `deploy/alarms.sh` (Lightsail email alarms: the server down, CPU, burst capacity, the database's storage and CPU; resends the confirmation) and `deploy/restore-drill.sh` (the latest backup restored to a separate private database, reused only if restored in the last hours, deleted only by typing its name) written and pinned by tests that can never reach AWS; runbooks "Monitoring and alerts (once)" (with a plain HTTPS uptime check on `/api/health`) and "Restore drill (monthly)" (a recency check, not a count); backups were already on, the budget is setup step 1; the review caught an old drill copy being reused (and a way to delete production by mistake), errors looking like "not there", and a missing sudo (all fixed); 2557 tests + 47 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 8 | 0.5 | Twilio call fallback, BLOCKED (not ticked: it's a setting in Twilio's console): `npm run firm:call-fallback` prints a firm's TwiML Bin (Twilio plays it itself when our app doesn't answer): why, then the manager's phone, then a closing line; the words are new doc copy, checked by tests; "Connect Twilio" step 10 explains setting and safely checking it; the review caught a closing line that played "nobody could take your call" even after a call that worked, and pointed callers to messaging, which is down too (both fixed), plus a safer check and logging calls taken by phone during an outage; 2562 tests + 47 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 8 | 1.3 | GDPR: an admin-only "Data requests" page: find a worker, download everything about them (JSON, or CSV for Excel), or delete their personal details (refused while they're booked on a shift that hasn't ended; their shift history stays under an anonymous "Deleted worker" row as the notice report's evidence; typed notes and reasons cleared); "Download all your data" for the firm (every table, no login secrets); a nightly purge (messages and typed request text after 90 days, old login leftovers), logged every run; messages only deleted through two narrow database functions; the review caught typed text surviving a delete, a function trusting a caller's phone number, and an export missing log rows (all fixed and tested); the 12-month purge of the log is parked for Dylan (it would need the append-only log changed); 2611 tests + 48 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-09-30 | 8 | 0.5 | Alerts to your phone, BLOCKED (not ticked: a phone needs Twilio or another outside service): every check built: each 5 minutes the worker looks at the last hour for jobs that failed after their last retry, a firm's rota sheet sync failing for 30 minutes, more than 5% of a firm's WhatsApps and texts failing (of at least 20), and the web app's health from inside the server; the web counts bad Twilio signatures (20 in an hour); each problem alerts at most once in any hour, with no personal data; alerts are "ShiftDesk alert: …" log lines until "Connect alerts to your phone"; `npm run -s ops:test-alert`; the review caught a firm-list failure stopping every alert, a long alert being dropped, "once an hour" really being "once per clock hour", and a send rate diluted by senders that never log failures (all fixed and tested); 2638 tests + 48 e2e; verified (see docs/work-log.md) |

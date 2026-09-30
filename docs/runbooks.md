@@ -190,8 +190,26 @@ Three things tell you when something's wrong, without you watching. First reacti
    but OK" means down. You should get a "down" alert within minutes if the app stops answering,
    and an "up" when it's back.
 
-The app's own error alerts (a job that keeps failing, a sync that errors) come with the alerts
-task (PLAN.md, Phase 8).
+The app's own alerts are below ("Alerts from the app").
+
+## Alerts from the app
+
+The app watches itself and sends you a short "ShiftDesk alert: …" (no names, numbers or messages
+in it). Until the phone sender is connected (PLAN.md Parking lot, "Connect alerts to your phone"),
+each one is a line in the log: `docker compose logs web worker | grep "ops alert"`. The same
+problem alerts at most once an hour. The worker checks every 5 minutes. Until "Connect Twilio"
+nothing fires in production (the worker is off, and the webhooks don't check signatures until
+Twilio's token is set). To check alerts reach you: `docker compose exec worker npm run -s
+ops:test-alert` (or on your computer, `npm run -s ops:test-alert`): a "ShiftDesk alert: a test
+alert…" line (a text, once the phone sender is connected).
+
+| Alert says | What it means | What to do |
+|---|---|---|
+| "N jobs failed after the last retry in the last hour (queue n, …)" | A background job (an offer wave, a reminder, a notice…) gave up | `docker compose logs worker --since 1h`, look for that queue's errors (codes only, no personal data). Fix the cause; a failed offer wave or notice isn't re-run by itself: tell the firm's office if a worker wasn't told something |
+| "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees the same on Today |
+| "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
+| "the web app's health check is failing (…)" | The worker can't get an OK from the web app on the same server | `docker compose ps` and `docker compose logs web --since 15m`; the outside uptime check says whether the internet sees it too. "Event-morning outage" below |
+| "N Twilio webhook requests with a bad signature in the last hour" | Twilio's messages to us are being refused: `TWILIO_AUTH_TOKEN` in `.env` no longer matches the account (someone rotated it), the address set in Twilio differs from the one the app checks against (http instead of https, or a firm's own domain instead of `<slug>.<our domain>`), or someone is probing | Compare the token with Twilio's console (Account → API keys & tokens), and the webhook addresses with "Connect Twilio". If both match, it's probing: nothing to do unless it keeps up |
 
 ## Workers at one venue can't get login links
 

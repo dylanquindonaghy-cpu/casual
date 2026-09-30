@@ -17,6 +17,7 @@ import {
   SHEETS_TICK_QUEUE,
 } from "../../lib/roster/sheets/jobs";
 import { RETENTION_PURGE_QUEUE, RETENTION_PURGE_TICK_QUEUE } from "../../lib/gdpr/retention";
+import { OPS_ALERT_QUEUE, OPS_ALERTS_TICK_QUEUE } from "../../lib/ops/tick";
 import { HELLO_QUEUE } from "./hello";
 
 // Every queue the app uses. db:migrate creates them (so the web can enqueue before the worker
@@ -77,6 +78,16 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   {
     name: RETENTION_PURGE_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  {
+    name: OPS_ALERTS_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  // Alerts to the founder (no firm): each alert's key is a singleton for the hour, so an ongoing
+  // problem is sent at most once an hour. The payload is counts, slugs and codes only.
+  {
+    name: OPS_ALERT_QUEUE,
     options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
   },
   ...FIRM_QUEUE_NAMES.map(firmQueue),

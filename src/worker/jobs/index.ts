@@ -10,6 +10,7 @@ import {
   runCredentialScanTick,
 } from "../../lib/credentials/scan";
 import { listFirmIds } from "../../lib/db/directory";
+import { appEnv } from "../../lib/env";
 import {
   RETENTION_PURGE_CRON,
   RETENTION_PURGE_TICK_QUEUE,
@@ -65,6 +66,16 @@ import {
   SHEETS_TICK_QUEUE,
   sheetsSyncTask,
 } from "../../lib/roster/sheets/jobs";
+import { alertTransport, type AlertTransport, type OpsAlert } from "../../lib/ops/alerts";
+import { checkWebHealth } from "../../lib/ops/health-check";
+import {
+  OPS_ALERT_QUEUE,
+  OPS_ALERT_REPEAT_SECONDS,
+  OPS_ALERTS_CRON,
+  OPS_ALERTS_TICK_QUEUE,
+  runOpsAlertsTick,
+  sendOpsAlert,
+} from "../../lib/ops/tick";
 import { HELLO_QUEUE, handleHello } from "./hello";
 import { QUEUES } from "./queues";
 
@@ -84,6 +95,41 @@ export interface JobDeps {
   payDigest?: FirmTask<PayDigestPayload>;
   payQueryUpdates?: FirmTask<PayQueryUpdatePayload>;
   inboundMessages?: FirmTask<InboundMessagePayload>;
+  // Alerts to the founder: where they go (default: the console), and the web app's health check as
+  // seen inside the server (unset: not checked).
+  alerts?: AlertTransport;
+  healthCheckUrl?: string;
+}
+
+// One alert, unless one with the same key was queued in the last hour (pg-boss's singleton alone
+// is per clock hour: a problem at 10:50 would alert again at 11:00). The singleton still stops two
+// ticks at once from both queueing it. True when queued.
+export async function queueOpsAlert(boss: PgBoss, alert: OpsAlert): Promise<boolean> {
+  const { rows } = await boss.getDb().executeSql(
+    `select 1 from pgboss.job
+      where name = $1 and singleton_key = $2 and created_on > now() - interval '1 hour'
+      limit 1`,
+    [OPS_ALERT_QUEUE, alert.key],
+  );
+  if (rows.length > 0) return false;
+  const id = await boss.send(OPS_ALERT_QUEUE, alert, {
+    singletonKey: alert.key,
+    singletonSeconds: OPS_ALERT_REPEAT_SECONDS,
+  });
+  return id !== null;
+}
+
+// Jobs that failed after their last retry in the last hour, by queue (not the alerts' own queue:
+// an alert that can't be sent can't report itself). Read through the worker's pg-boss connection
+// (the jobs role owns pgboss).
+export async function failedJobCounts(boss: PgBoss): Promise<{ queue: string; count: number }[]> {
+  const { rows } = await boss.getDb().executeSql(
+    `select name as queue, count(*)::int as count from pgboss.job
+      where state = 'failed' and completed_on > now() - interval '1 hour' and name <> $1
+      group by name order by name`,
+    [OPS_ALERT_QUEUE],
+  );
+  return rows as { queue: string; count: number }[];
 }
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
@@ -145,6 +191,26 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
     await runPayDigestTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
   });
   await boss.schedule(PAY_DIGEST_TICK_QUEUE, PAY_DIGEST_TICK_CRON);
+
+  // Alerts to the founder (src/lib/ops/): the tick every 5 minutes; each alert a job of its own.
+  const alerts = deps.alerts ?? alertTransport(appEnv().ALERTS_TRANSPORT);
+  await boss.work(OPS_ALERT_QUEUE, async ([job]) => {
+    if (job) await sendOpsAlert(job.data, alerts);
+  });
+  await boss.work(OPS_ALERTS_TICK_QUEUE, async () => {
+    const url = deps.healthCheckUrl;
+    await runOpsAlertsTick({
+      listFirmIds,
+      run: withFirm,
+      clock: deps.clock ?? systemClock,
+      failedJobs: () => failedJobCounts(boss),
+      ...(url ? { health: () => checkWebHealth(url) } : {}),
+      queue: async (alert) => {
+        await queueOpsAlert(boss, alert);
+      },
+    });
+  });
+  await boss.schedule(OPS_ALERTS_TICK_QUEUE, OPS_ALERTS_CRON);
 
   if (deps.sheets) {
     const clock = deps.clock ?? systemClock;

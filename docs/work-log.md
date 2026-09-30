@@ -6641,3 +6641,107 @@ In PLAN.md, "GDPR follow-ups":
 5. Try **Download (JSON)** and **Download (CSV, opens in Excel)**.
 6. Deleting a seeded worker changes your local demo data: `npm run db:reset` then
    `npm run db:seed` puts it back.
+
+## 2026-09-30: Phase 8, task 8: Alerts to your phone (0.5 h, BLOCKED)
+
+### Time
+
+0.5 hours of Claude's working time (02:10 to 02:43 UTC), in the unattended overnight loop.
+Phase 8 so far: 5.4 of its 18 to 28 hour estimate.
+
+### Result
+
+- **Blocked, not ticked.** Getting a message to your phone needs an outside service (a text
+  through Twilio, or a phone app), which tonight's rules don't allow. Every check is built and
+  tested; today each alert is a line in the server's log.
+- `scripts/verify.sh` printed `VERIFIED tree=c4b97c61a8d49bfe e2e=true`: typecheck, lint, 2638
+  tests (155 files), 48 browser tests and the invariants all passed.
+- No auditor round (blocked tasks aren't audited). The commit is recorded in
+  `docs/overnight-log.md`.
+
+### What was built, in plain words
+
+The app now watches itself and writes "ShiftDesk alert: …" when something needs you. It never puts
+a name, phone number or message in an alert: only counts, queue names, a firm's short name and error
+codes.
+
+- **Every 5 minutes, the worker** (the background process) looks back over the last hour for:
+  - **jobs that failed** after their last retry (a "job" is a background task: sending an offer,
+    a reminder, a notice…). Example: "3 jobs failed after the last retry in the last hour
+    (offer-wave 2, shift-reminders 1)."
+  - **a firm's rota sheet sync failing** for over 30 minutes (one hiccup doesn't count).
+  - **a firm's WhatsApps and texts failing to send**: more than 5% of at least 20 in the hour.
+  - **the web app's health check** failing, asked from inside the server (three tries, 5 seconds
+    apart).
+- **The web app counts bad Twilio signatures** (a "signature" proves a request really came from
+  Twilio). 20 in an hour means the Twilio key changed, or someone is probing.
+- **Each problem alerts at most once in any hour**, so an ongoing problem doesn't flood you.
+- **`npm run -s ops:test-alert`** sends a test alert, to check alerts reach you.
+- The runbook has a new table, "Alerts from the app": what each alert means and what to do.
+
+Key facts:
+- New code: `src/lib/ops/` (the checks, the words, where alerts go, the bad-signature counter),
+  and two background queues, `ops-alerts-tick` and `ops-alert`.
+- New settings: `ALERTS_TRANSPORT` (`console`, the default; `none` in tests, refused in
+  production) and `HEALTH_CHECK_URL` for the worker (set in `deploy/docker-compose.yml`).
+- The server being down altogether can't be reported by the server itself: that's the outside
+  uptime check's job (the "Monitoring and alerts (once)" runbook).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Blocked, not ticked | A phone alert needs an outside service | Tick with log lines |
+| No personal data in alerts | They'll leave the system as texts | Showing which worker was affected |
+| No new database table; "once an hour" via the job queue | Every table must belong to a firm, and alerts are about the whole platform | A new table |
+| Bad signatures counted in the web app's memory | The web can only queue jobs for a firm, and a database row per bad request would let anyone fill the database | Writing each one down |
+| "Twilio errors" means sends Twilio refused | That's what's recorded until Twilio's delivery receipts are connected | Waiting for receipts |
+
+### What the review caught
+
+The `guardrails-reviewer` found 4 things to fix first:
+- **One failure stopped every alert.** If the app couldn't list the firms (a database problem),
+  the whole check stopped, every 5 minutes, so nothing was ever reported. Now the other checks
+  still run.
+- **A long alert was dropped.** With many queues failing, the text was too long and the alert
+  wasn't sent. Now it names the 5 worst and says how many more.
+- **"Once an hour" was really "once per clock hour".** A problem at 10:50 alerted again at 11:00.
+  Now it checks the last 60 minutes.
+- **The failure rate was diluted.** Login codes counted as sends, but their failures are never
+  recorded as failures, so hundreds of them could hide real problems. Now only senders that record
+  their failures count.
+
+Also done:
+- one sync hiccup no longer alerts;
+- production can't switch alerts off;
+- the web doesn't wait for an alert to go;
+- a firm name that looks like a phone number doesn't block its alerts;
+- a worker who turned texts off doesn't count as a Twilio failure;
+- the test-alert command;
+- runbook corrections.
+
+### What the new tests prove
+
+27 new tests:
+- **The rules**: each threshold exactly at its edge (5% of 20 isn't an alert; 10% is), the
+  words, and that an alert containing a phone number or email is refused.
+- **The bad-signature counter**: the 20th in an hour alerts, then not again for an hour; old
+  counts are forgotten; a broken sender is logged, not crashed.
+- **The health check**: three tries, the reason given, a wrong answer counts as failing.
+- **On the real database**: a firm's counts only ever include its own messages, and only the
+  right kinds; the sync rule; failed jobs by queue; no repeat within an hour, even across the
+  clock hour; one part failing never stops the rest.
+- **Settings**: alerts can't be switched off in production.
+
+### Parked, open, and things that need Dylan
+
+- **Connect alerts to your phone** (PLAN.md Parking lot, 6 steps): after "Connect Twilio", a small
+  text sender, one more Twilio number for the platform, two settings, then the test command.
+- Ops alerts follow-ups: checking the worker itself is alive, a queue backlog alert, Twilio's
+  delivery receipts and numbered error codes, a command to retry failed jobs, and the weekly job
+  summary.
+
+### How to see it working
+
+`npm run -s ops:test-alert` prints the alert line the app writes:
+`{"level":"error","msg":"ops alert","alert":"test",…,"text":"ShiftDesk alert: a test alert. If you can read this, alerts reach you."}`

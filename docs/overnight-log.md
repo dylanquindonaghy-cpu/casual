@@ -5677,3 +5677,73 @@ checked.
 **Parked:** PLAN.md "GDPR follow-ups" (the 12-month log purge for Dylan to decide; admins only,
 pay lines and licence records for Dylan to confirm; Twilio's copy of messages; two timing windows;
 skipped-notice logging for request and pay answers; streaming big exports; a firm-wide delete).
+
+## 2026-09-30 02:10 UTC — Phase 8: Alerts to your phone: job failures, health down, Twilio error spikes, sync errors
+
+Task: "Alerts to your phone: job failures, health down, Twilio error spikes, sync errors".
+**Blocked** by the hard limits: reaching a phone needs an outside service (Twilio SMS, or a push
+app). Everything short of it is built and verified; "Connect alerts to your phone" is parked.
+
+**Plan.**
+
+- `src/lib/ops/`: the alerts (kinds, plain words with no personal data), an `AlertTransport`
+  (`console` prints one error line; `none`), the checks (pure functions with thresholds), and the
+  bad-signature counter.
+- Worker job `ops-alerts-tick` (cron every 5 minutes, no firm): failed jobs in the last hour
+  (pg-boss `failed` = after the final retry; read through the worker's own pg-boss connection),
+  each firm's failing rota sheet sync, each firm's WhatsApp/SMS send failure rate over the last
+  hour (> 5% of at least 20 sends), and the web app's `/api/health` from inside the server
+  (`HEALTH_CHECK_URL`, three tries). Each firing alert is queued as an `ops-alert` job with a
+  pg-boss singleton key per alert for an hour, so the same problem alerts at most hourly; the
+  `ops-alert` job sends it.
+- Web: bad Twilio signatures are counted in memory (a sliding hour); 20 or more send one alert
+  (at most hourly per web process).
+- Env: `ALERTS_TRANSPORT` (console | none), `HEALTH_CHECK_URL` (worker; set in compose).
+- Docs: api-and-jobs (the jobs, thresholds), runbooks (what each alert means and what to do),
+  testing, PLAN parking ("Connect alerts to your phone").
+
+**Decisions.**
+
+| Decision | Why | Alternatives |
+|---|---|---|
+| Blocked, not ticked | A phone alert needs an outside service | Tick with console output |
+| Alerts are platform-level (to Dylan), no personal data in them: queue names, firm slugs, counts, error codes | They leave the system (SMS/push) and Dylan is the processor, not the firm | Per-firm alerts to firm admins (not asked for) |
+| Dedupe with pg-boss (the review showed its singleton is per clock hour, so `queueOpsAlert()` also looks for the same key in the last hour), no new table | Every table must have firm_id; alert state is platform-level; pg-boss is already the durable store | A platform table (breaks golden rule 2); in-memory (lost on restart) |
+| Bad signatures counted in the web's memory | The web can only queue firm jobs (by design), and writing a row per bad request would let anyone fill the database | Recording them as firm jobs by the unverified "To" number |
+| "Twilio error spike" = send failures (the provider refusing) over the last hour, > 5% of at least 20 | That's what's recorded today; Twilio's delivery receipts need the status webhook, which comes with the Twilio sender (parked) | Counting undelivered too (no data yet) |
+| Health from inside the server (the worker asks the web) | Catches the web app dead while the worker lives; the server being down is the outside uptime check's job (monitoring runbook) | Only the outside check |
+
+**First verify (before the review's fixes):** `VERIFIED tree=305ad0d4c61c393d e2e=true`.
+
+**Guardrails review: FIX FIRST (4 items), all done.** No golden rule broken, no personal data.
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: listing firms wasn't guarded: an app-role problem would stop the tick every time, so no alert at all (not even the failed jobs or the health check) | Guarded and logged; the rest still runs; queueing one alert failing doesn't stop the next either; tested with a `listFirmIds` that throws |
+| FIX FIRST: with many queues failing, the job-failures text went past the 320-character limit and the alert was dropped (logged under the wrong message) | The 5 queues with the most, then "and N other queues"; a test with every real queue |
+| FIX FIRST: pg-boss's singleton is per clock hour, not a rolling hour, so a problem at 10:50 alerted again at 11:00 | `queueOpsAlert()` also looks for the same key in the last hour (the singleton still covers two ticks at once); a test moves the first job into the previous clock hour |
+| FIX FIRST: the send rate counted login links, login codes and credential messages, whose failures fail their job instead of logging an event: 300 login codes could hide half the offers failing | Only senders that log their failures count; those three are covered by the failed-jobs alert; docs updated |
+
+Suggestions:
+
+| Suggestion | Done |
+|---|---|
+| A sheet sync alerted on one hiccup, and an old error with the sync switched off alerted for ever | Only when it hasn't synced for 30 minutes and was tried in the last hour; tested, with another firm's failing sync never reported |
+| `registerJobs` defaulted to the console, so real-boss tests weren't silent | Defaults to `ALERTS_TRANSPORT` from the environment |
+| Production could turn alerts off (`none`) unnoticed | Refused in production, web and worker; tested |
+| The webhook awaited the alert (a future network sender would slow the 20th bad request) | Not awaited (`note()` catches its own errors); parked: have the web hand the alert to the worker so only the worker holds the phone sender's secrets |
+| A test-alert command is buildable now | `npm run -s ops:test-alert` (console today) |
+| A slug with a long run of digits would block that firm's alerts for ever | Named by the start of the firm id instead; tested |
+| A worker's texts-off (`sms_opted_out`) counted as a Twilio failure | Not counted |
+| Runbook: the bad-signature alert can't fire without the token either; another common cause (the address Twilio calls vs the one checked); Twilio's numbered codes | Reworded; cause added; numbered codes parked for the Twilio sender |
+| Worker liveness and queue backlog checks | Parked ("Ops alerts follow-ups") |
+| The log's plan said architecture.md changed | Corrected |
+
+**Verify (after the fixes):** `VERIFIED tree=c4b97c61a8d49bfe e2e=true` (typecheck, lint, test,
+e2e, invariants all ok; 2638 tests in 155 files, 48 e2e).
+
+**Status: BLOCKED, not ticked** (hard limit: a phone needs an outside service). Everything short of
+it is built, checked and committed. No auditor round. Next step is Dylan's: "Connect alerts to
+your phone" (after "Connect Twilio").
+
+**Hours:** 0.5 h (02:10 to 02:43 UTC). Phase 8 so far 5.4 h of its 18–28 h estimate.

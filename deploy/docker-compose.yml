@@ -25,6 +25,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      ALERTS_TRANSPORT: ${ALERTS_TRANSPORT:-console}
     healthcheck:
       test:
         - CMD
@@ -59,6 +60,9 @@ services:
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      ALERTS_TRANSPORT: ${ALERTS_TRANSPORT:-console}
+      # The ops alerts check the web app from inside the server (docs/runbooks.md "Alerts from the app").
+      HEALTH_CHECK_URL: http://web:3000/api/health
     logging: *logging
 
   # One-off: `docker compose run --rm migrate` (deploy.sh does it before every start). Never

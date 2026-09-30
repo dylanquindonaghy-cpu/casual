@@ -94,6 +94,35 @@ describe("environment", () => {
     );
   });
 
+  it("alerts to the founder: console when unset; can't be turned off in production", () => {
+    expect(parseAppEnv(app).ALERTS_TRANSPORT).toBeUndefined();
+    expect(parseAppEnv({ ...app, ALERTS_TRANSPORT: "none" }).ALERTS_TRANSPORT).toBe("none");
+    expect(() => parseAppEnv({ ...app, ALERTS_TRANSPORT: "email" })).toThrow(/ALERTS_TRANSPORT/);
+    const prod = {
+      NODE_ENV: "production",
+      SESSION_SECRET: "a-real-production-secret-0123456789abc",
+    };
+    expect(() => parseAppEnv({ ...app, ...prod, ALERTS_TRANSPORT: "none" })).toThrow(
+      /ALERTS_TRANSPORT/,
+    );
+    expect(parseAppEnv({ ...app, ...prod, ALERTS_TRANSPORT: "console" }).ALERTS_TRANSPORT).toBe(
+      "console",
+    );
+    expect(() =>
+      parseWorkerEnv({ ...worker, ...prod, PUSH_TRANSPORT: "none", ALERTS_TRANSPORT: "none" }),
+    ).toThrow(/ALERTS_TRANSPORT/);
+  });
+
+  it("the worker's health check address: http(s) only", () => {
+    expect(
+      parseWorkerEnv({ ...worker, HEALTH_CHECK_URL: "http://web:3000/api/health" })
+        .HEALTH_CHECK_URL,
+    ).toBe("http://web:3000/api/health");
+    expect(() => parseWorkerEnv({ ...worker, HEALTH_CHECK_URL: "file:///etc/passwd" })).toThrow(
+      /HEALTH_CHECK_URL/,
+    );
+  });
+
   it("the app environment never needs the jobs or owner credentials", () => {
     expect(parseAppEnv(app).DATABASE_URL).toBe(app.DATABASE_URL);
     expect(Object.keys(parseAppEnv(admin)).sort()).toEqual([

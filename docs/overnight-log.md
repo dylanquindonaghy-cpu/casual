@@ -5883,3 +5883,8 @@ fakes found.
 **Status: DONE, ticked.**
 
 **Hours:** 0.6 h (03:02 to 03:37 UTC). Phase 9 so far 0.6 h of its 10–15 h estimate.
+
+**Commit:** `8c2499a` "Phase 9: Onboarding checklist for the pilot firm (see docs/go-to-market.md)",
+pushed to `origin/build/overnight`. CI: `gh` isn't installed, so not checked.
+
+**Parked:** PLAN.md "Onboarding follow-ups".

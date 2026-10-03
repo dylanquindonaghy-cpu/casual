@@ -1,7 +1,7 @@
 import { Client } from "pg";
 import { PgBoss } from "pg-boss";
 import { APP_DB_ROLE } from "../../env";
-import { QUEUES } from "../../../worker/jobs/queues";
+import { ensureQueues } from "../../../worker/jobs/queues";
 
 // Installs or upgrades pg-boss as the jobs role (which owns the pgboss tables), creates every
 // queue, then limits the app role (the web) to enqueueing jobs for its own firm.
@@ -21,7 +21,7 @@ export async function installJobs(jobsUrl: string): Promise<void> {
   });
   await boss.start();
   try {
-    for (const queue of QUEUES) await boss.createQueue(queue.name, queue.options);
+    await ensureQueues(boss);
   } finally {
     await boss.stop({ graceful: false });
   }

@@ -6164,7 +6164,10 @@ Phases 4 and 6 to 9 will grow.
   - the baseline tally sheet, the dry-run script, and the pilot review and week-4 report guide.
 - **Two real problems found and fixed**, by checks added tonight:
   - The worker answered only 31 of 200 WhatsApps in a minute: it waited 2 seconds after every job.
-    Now all 200 are answered about a second after the last.
+    Now all 200 are answered about a second after the last. *(Corrected in Phase 10: that was one
+    run with no network delay, and the test then only promised a minute. With a real provider's
+    ~300 ms per message, the shifts line now answers 200 workers within a tested 20 seconds:
+    `tests/integration/inbound.load.test.ts`.)*
   - Phone numbers and a login token could reach the logs: Next's development logging, and a search
     that put a mobile in the web address. Every browser test run now scans the logs.
 - **Every reviewer "fix first" finding was fixed.** The details are in each task's entry above.
@@ -6625,3 +6628,82 @@ matched the stamp.
 
 **Commit:** `90b2a3c`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
 **Hours:** 0.5 (Phase 10: 2.9 of 30–45 h).
+
+## 2026-10-03 19:20 UTC — Phase 10, task 5: speed at pilot size
+
+**Task:** Speed at pilot size: inbound replies keep a written bound when each send takes ~300 ms
+(load smoke with a slow fake transport; per-worker order kept); a worker crash strands no batch
+for 15 minutes; Open shifts and the urgent board make a bounded number of queries; missing indexes
+added; the "about a second" claim corrected in the docs (M14, L42, L51, L55, L63, L73, L74, L75,
+L76)
+
+**Plan:**
+1. **Indexes** (L74, L76): `credentials (firm_id, worker_id)`, `push_subscriptions (firm_id,
+   worker_id)`, `messages (firm_id, from_e164)`. One drizzle migration.
+2. **Crashes** (L55): every firm queue gets `heartbeatSeconds: 30`. The worker heartbeats every
+   job of a fetched batch, so a killed worker's jobs are retried within about half a minute, not
+   pg-boss's 15-minute expiry. `db:migrate` and the worker also `updateQueue` existing queues, so
+   current databases get it. Test: a child worker process killed with SIGKILL mid-batch; its jobs
+   go back to be retried in well under a minute.
+3. **Inbound concurrency** (M14): the inbound-message queue gets several worker loops
+   (`localConcurrency`) and one job per *group* at a time (pg-boss `groupConcurrency: 1`). Each
+   inbound job's group is its sender's worker id (`w:<id>`), or the message id for an unknown
+   number: ids only, never a phone number. Different workers' messages are answered side by side;
+   one worker's are still answered one after another, in order (a STOP before their next text).
+   The load test runs the real worker registration with a 300 ms fake transport: 200 senders, plus
+   one sender's run of messages in order, within a written bound.
+4. **Bounded queries** (L73, L75):
+   - **The loader:** `loadEligibilityInputs`, a batched rules-input loader (many shifts × one
+     worker, or one shift × many workers) with a fixed number of queries. The day's counts are
+     skipped when the firm's applied allowance is 0 (they can't change a verdict then). The single
+     loader that bookings use stays as it is, and a parity test holds the batched verdicts to it,
+     pair for pair.
+   - **Fair rotation:** `loadAllocationGates` batches the fair-rotation gate for Open shifts, also
+     held to the single gate by a parity test.
+   - **Where it's used:** Open shifts, the urgent board and `waveCandidates` (waves and the
+     office's offer).
+   - **Proof:** query-count tests with 5 and 40 shifts, and 5 and 60 workers, give the same count.
+5. **Docs** (L42, L51, L63): the "about a second" claim corrected, the e2e load smoke given a
+   tighter bound, and `docs/testing.md` states the written bounds.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Inbound replies run on 8 loops at once, one job per sender at a time (pg-boss `localGroupConcurrency: 1`, the group being the worker's id) | Different workers are answered side by side, so a 300 ms send no longer queues 200 people behind each other; one worker's messages can't overtake each other | One loop (too slow at pilot size); many loops with no grouping (a STOP could be overtaken by the text after it) |
+| Each job first answers any older unanswered message from the same number (at most 50), best effort | pg-boss can hand two loops one sender's jobs at the same moment; answering older ones first keeps the order whatever the timing. A failing older message is logged and left to its own retries, so one bad message never stops a worker getting answers | Failing the whole job when an older one fails (a "poison" message would block that worker for good); relying on grouping alone (a race the load test hit) |
+| Firm queues get a 30-second heartbeat, and the supervisor looks every 15 seconds (`createBoss`) | A crashed worker's jobs come back within about a minute instead of 15 minutes; a pass is a few small indexed queries | pg-boss's default once-a-minute look (up to about two minutes); a shorter expiry (would cut off slow but healthy jobs) |
+| Batched rules input for many shifts or many workers, held to the single version by parity tests | A fixed number of queries per page, however many shifts or workers; the rules themselves (pure functions) are unchanged | Caching the single loader (still one query set per pair); rewriting the rules for sets (would fork the rules) |
+| Three indexes: credentials and push subscriptions by worker, messages by sender | The lookups above and the older-message query read by these columns | None needed beyond these |
+
+**Guardrails and adversarial review:** one guardrails review and an adversarial review of the
+changes. Findings and fixes:
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: two older tests gave the job registration a fake pg-boss with no `updateQueue`, so they would throw | `updateQueue` added to the fake in `office.requests.test.ts` and `pay.digest.test.ts` |
+| The crash test's supervisor checked every 2 seconds, but production's checked every 60: the "about half a minute" bound wasn't production's | `createBoss` now sets the supervise and monitor intervals to 15 s (`SUPERVISE_SECONDS`); the test's supervisor is built by `createBoss` itself, and the bound (about a minute) is written from those numbers. Docs corrected |
+| The opt-out "superseded" branch (a late STOP/START that changes nothing because a later word was handled) lost its test when older-first ordering arrived | A new test reaches it the way it can now happen: an earlier START fails while the later STOP's job answers it, the STOP still goes through, and the START's retry is logged `superseded` and changes nothing |
+| An older message that always failed would block every later message from that worker | Older messages are answered best effort: logged and left to their own job's retries. Tested by the same new test; a mutation (re-throwing) makes it fail |
+| The stranger race test no longer exercised the advisory lock (older-first ordering serialised it first) | The second job's look for older messages finds none, as when the first message's webhook hadn't committed yet; now only the lock keeps the claims apart. Removing the lock makes it fail |
+| The load test didn't prove one number never gets two sends at once, or that group ids hold no phone number | Both asserted: each send to a number starts after the one before it finished; every group id is `<firm id>:w:<worker id>` |
+| The fair-rotation parity fixture booked its hours in the previous week, its "reopened" shift's cancellation was older than the shift, and its cutoff never varied | Hours booked in the shifts' own week, the cancellation set to an hour ago, a zero-hours worker on one shift so its cutoff differs; the test also asserts the expected answers. Mutations (no reopen, holders counted) both fail it |
+| No parity check in summer time | A BST firm around local midnight: parity for every pair, plus the London day (not UTC) deciding "unavailable" |
+| No test that an existing queue gets the heartbeat | `ensureQueues` test: a queue made without a heartbeat gets it (and today's retention) |
+| Nits: api-and-jobs Retry cell, a wrong test file name in `open-shifts.ts`, the e2e smoke's "within a minute" title, query counts with the allowance off, test queues left behind, the 50-message limit undocumented | All fixed (query-count tests now run with the allowance at 15; `deleteQueue` in both test files' cleanup; `OLDER_LIMIT` named and documented). The inbound bound stays at 20 s: runs take about 11 s |
+
+**Verify, first run:** NOT VERIFIED: 1 of 2,735 tests failed (`tests/unit/offers.boundary.test.ts`,
+"the candidate list asks the booking rules … about every worker"). **Root cause:** the test reads
+`src/lib/offers/candidates.ts` and looked for a call to `previewBooking(`; the list now asks the
+batched `previewBookings(` (the regex's `\b…\(` doesn't match the plural), held to `previewBooking`
+pair for pair by `tests/integration/eligibility.batch.test.ts`. **Fix:** the test now requires the
+batched call over every capped worker *and* the loop that keeps only workers whose verdict is ok
+(stricter than before: deleting that filter fails it, checked).
+
+**Verify, second run:** `VERIFIED tree=0d9c30fce4166352 e2e=true` (2,735 tests, 49 browser tests).
+
+**Auditor (round 1):** `VERDICT: DONE`. Every finding (M14, L42, L51, L55, L63, L73, L74, L75, L76)
+PROVEN, with the bound, order, crash, parity, query-count and index tests cited. "Fakes found:
+none." Ticked after this.
+
+**Hours:** 1.3 (Phase 10: 4.2 of 30–45 h).

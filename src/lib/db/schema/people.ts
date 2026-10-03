@@ -4,6 +4,7 @@ import {
   check,
   date,
   foreignKey,
+  index,
   pgTable,
   smallint,
   text,
@@ -152,6 +153,8 @@ export const credentials = pgTable(
       "credentials_status_check",
       sql`${t.status} in ('valid', 'expired', 'applied', 'suspended')`,
     ),
+    // A worker's credentials, read for every rules check (Phase 10: audit L74).
+    index("credentials_firm_id_worker_id_idx").on(t.firmId, t.workerId),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();
@@ -202,6 +205,8 @@ export const pushSubscriptions = pgTable(
   (t) => [
     unique("push_subscriptions_firm_id_id_key").on(t.firmId, t.id),
     unique("push_subscriptions_firm_id_endpoint_key").on(t.firmId, t.endpoint),
+    // A worker's phones, read for every push (Phase 10: audit L76).
+    index("push_subscriptions_firm_id_worker_id_idx").on(t.firmId, t.workerId),
     foreignKey({
       name: "push_subscriptions_worker_fk",
       columns: [t.firmId, t.workerId],

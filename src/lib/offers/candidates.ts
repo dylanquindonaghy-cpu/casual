@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
 import type { FirmTx } from "../db/scoped";
 import { weeklyHours } from "../roster/allocation-input";
-import { previewBooking } from "../roster/book";
+import { previewBookings } from "../roster/book";
+import { pairKey } from "../roster/eligibility-input";
 import type { RotationCandidate } from "../rules/allocation";
 import { weekOf } from "../rules/eligibility";
 import { localDayOf, mayOfferToday } from "../rules/offer-cap";
@@ -11,7 +12,7 @@ import { localDateOf } from "../time/zoned";
 // the shift's role who want open-shift messages (their profile setting), have never held a place
 // on the shift (on it now, or cancelled off it: a cancellation is a "no"), haven't been offered it
 // before (an offer that failed to send doesn't count), who are under the daily offer cap unless the
-// shift is urgent (src/lib/rules/offer-cap.ts), and whom the rules allow (previewBooking: the same
+// shift is urgent (src/lib/rules/offer-cap.ts), and whom the rules allow (previewBookings: the same
 // check as the boards). Each comes with what the fair-rotation order needs: confirmed hours in the
 // shift's week and when they were last offered any shift. Reads only; the wave job decides.
 //
@@ -39,10 +40,12 @@ export async function lockOfferCounts(tx: FirmTx, workerIds: string[]): Promise<
   }
 }
 
+// `only`: just these workers (the office's offer to one person), the same rules for each.
 export async function waveCandidates(
   tx: FirmTx,
   shiftId: string,
   now: Date,
+  opts: { only?: string[] } = {},
 ): Promise<WaveCandidate[]> {
   const { rows: found } = await tx.execute<{
     role: string;
@@ -87,6 +90,18 @@ export async function waveCandidates(
        and not exists (select 1 from offers o
                         where o.shift_id = ${shift.id} and o.worker_id = w.id
                           and o.response is distinct from 'failed')
+       ${
+         opts.only
+           ? sql`and w.id in (${
+               opts.only.length
+                 ? sql.join(
+                     opts.only.map((id) => sql`${id}::uuid`),
+                     sql`, `,
+                   )
+                 : sql`null`
+             })`
+           : sql``
+       }
      order by w.id
   `);
   if (rows.length === 0) return [];
@@ -96,11 +111,19 @@ export async function waveCandidates(
     week: weekOf(localDateOf(shift.startsAt, shift.timeZone), shift.timeZone),
     workerId: rows[0]?.worker_id ?? "",
   });
+  // The rules for everyone at once: a fixed number of queries however many workers have the role
+  // (previewBookings), the same verdicts as booking would give.
+  const capped = rows.filter((r) =>
+    mayOfferToday({ offersToday: r.offers_today, urgent: shift.urgent }),
+  );
+  const verdicts = await previewBookings(tx, {
+    shiftIds: [shift.id],
+    workerIds: capped.map((r) => r.worker_id),
+    now,
+  });
   const kept: WaveCandidate[] = [];
-  for (const r of rows) {
-    if (!mayOfferToday({ offersToday: r.offers_today, urgent: shift.urgent })) continue;
-    const verdict = await previewBooking(tx, { shiftId: shift.id, workerId: r.worker_id, now });
-    if (!verdict?.ok) continue;
+  for (const r of capped) {
+    if (!verdicts.get(pairKey(shift.id, r.worker_id))?.ok) continue;
     kept.push({
       workerId: r.worker_id,
       mobile: r.mobile,

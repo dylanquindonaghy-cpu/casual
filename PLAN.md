@@ -259,7 +259,7 @@ every step works.
       record. A test fails each job after its send and checks the retry sends nothing. (M10, L33)
 - [x] A Twilio-shaped message id (`SM` + 32 hex characters) never makes the action log refuse an
       event after a message has gone: every sender is tested with Twilio-shaped ids (M12, L46)
-- [ ] Speed at pilot size: inbound replies keep a written bound when each send takes ~300 ms (load
+- [x] Speed at pilot size: inbound replies keep a written bound when each send takes ~300 ms (load
       smoke with a slow fake transport; per-worker order kept); a worker crash strands no batch for
       15 minutes; Open shifts and the urgent board make a bounded number of queries; missing indexes
       added; the "about a second" claim corrected in the docs (M14, L42, L51, L55, L63, L73, L74,
@@ -1515,3 +1515,4 @@ every step works.
 | 2026-10-03 | 10 | 0.6 | Waiting offers close the moment a shift fills, by any route and in every mode (`src/lib/offers/close.ts`, `offer.closed`): the taker accepted (also after a reopen, and when the office places them or the sheet names them), the rest filled elsewhere; the "urgent shifts filled from offers" metric counts only workers who took it themselves; 2693 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 1.0 | No message sent twice when a job retries: login links and codes, the office's offer and the credential scan (and its Monday list) now claim, send, then record; a send whose record step failed is logged on the next run as unconfirmed, so the notice report keeps it; new `otp_codes.request_id` (migration 0027); 2713 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.5 | Twilio message ids no longer mistaken for phone numbers by the log masker, so the action log never refuses an event after a real message has gone (about 1 send in 12 would have); every sender that logs a provider id tested with Twilio-shaped ids; 2723 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-03 | 10 | 1.3 | Speed at pilot size: the shifts line answers 8 messages at once (one per worker at a time, older ones first), so 200 workers are answered within 20 s even with a 300 ms send; a crashed worker's jobs come back within about a minute (heartbeat), not 15; Open shifts, the urgent board and the offer list make the same number of queries however many shifts or workers; three indexes; the "about a second" claim corrected; 2735 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |

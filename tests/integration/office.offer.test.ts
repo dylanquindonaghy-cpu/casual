@@ -530,6 +530,7 @@ describe("wiring", () => {
     const worked: string[] = [];
     const boss = {
       createQueue: async () => undefined,
+      updateQueue: async () => undefined,
       work: async (name: string) => {
         worked.push(name);
         return "id";

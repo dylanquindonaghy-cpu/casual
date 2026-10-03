@@ -403,6 +403,7 @@ describe("telling the worker (the pay-query-update job)", () => {
     const calls: string[] = [];
     const boss = {
       createQueue: async () => undefined,
+      updateQueue: async () => undefined,
       work: async (name: string) => {
         calls.push(name);
         return "worker-id";

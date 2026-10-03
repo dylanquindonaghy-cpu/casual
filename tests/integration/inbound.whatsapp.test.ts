@@ -544,7 +544,9 @@ describe("replying (the inbound-message job)", () => {
     const { transport, sent } = captureTransport();
     // The first run's claim holds its transaction open for a moment after deciding (as a slow
     // commit would); the second starts inside that moment. Without the per-number lock the second
-    // wouldn't see the first's claim and would answer too.
+    // wouldn't see the first's claim and would answer too. The second's look for older messages
+    // finds none: the first message's webhook hadn't committed when it looked (two webhooks at
+    // once commit in either order), so nothing but the lock puts the two claims in turn.
     let claimed = () => {};
     const firstClaimed = new Promise<void>((resolve) => (claimed = resolve));
     let calls = 0;
@@ -552,7 +554,8 @@ describe("replying (the inbound-message job)", () => {
       withFirm(firmId, async (tx) => {
         const result = await fn(tx);
         calls += 1;
-        if (calls === 2) {
+        // The 3rd: (1) a sender's older unanswered messages, (2) the read, (3) the claim.
+        if (calls === 3) {
           claimed();
           await new Promise((r) => setTimeout(r, 300));
         }
@@ -564,7 +567,17 @@ describe("replying (the inbound-message job)", () => {
       replyDeps(transport),
     );
     await firstClaimed;
-    const second = run(two, transport);
+    let secondCalls = 0;
+    const olderNotYetCommitted: WithFirm = (firmId, fn) => {
+      secondCalls += 1;
+      if (secondCalls === 1) return Promise.resolve([] as never);
+      return withFirm(firmId, fn);
+    };
+    const second = runInboundMessage(
+      two as Parameters<typeof runInboundMessage>[0],
+      olderNotYetCommitted,
+      replyDeps(transport),
+    );
     const results = await Promise.all([first, second]);
     expect(results.map((r) => ("reply" in r ? r.reply : r.status))).toEqual(["sent", "none"]);
     expect(sent.map((m) => m.channel).sort()).toEqual(["email", "whatsapp"]);

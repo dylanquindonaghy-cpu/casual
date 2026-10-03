@@ -7040,7 +7040,9 @@ only got through 31 of them in the next minute. It was waiting 2 seconds after e
 however much work was queued: 200 messages would have taken about 7 minutes, and a cancelled shift
 with 50 people booked would have taken over a minute and a half to tell them all. Now, while
 there's a queue, it takes 5 at a time and goes straight on to the next 5. All 200 replies were
-stored about a second after the last message arrived.
+stored about a second after the last message arrived. *(Corrected in Phase 10: one run, with no
+network delay; the test then only promised a minute. With a real provider's delay the tested bound
+is 20 seconds for 200 workers; see "Phase 10, task 5".)*
 
 **2. Checking the logs for phone numbers found two leaks, now fixed.** Every browser test run now
 keeps everything the app and the worker printed, and fails if it finds anything that looks like a
@@ -7530,3 +7532,99 @@ not quite that shape is still masked.
 ### How to see it working
 
 Nothing to see on screen: it matters once Twilio is connected.
+
+## 2026-10-03: Phase 10, task 5: speed at pilot size (1.3 h)
+
+### Time
+
+1.3 hours of Claude's working time (19:20 to 20:37 UTC). Phase 10 so far: 4.2 of its 30 to 45
+hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=0d9c30fce4166352 e2e=true`
+  (2,735 tests, 49 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M14, L42, L51, L55, L63, L73, L74, L75, L76.
+
+### What was built, in plain words
+
+**Answering the shifts line when sends are slow.** Each WhatsApp answer waits for the provider
+(Twilio) to accept the message. Without a network, a send takes almost nothing. With a real one,
+it takes about 300 milliseconds. The worker used to answer one message at a time, so 200 messages
+took a minute or more. It now runs 8 answers at once.
+
+A **group** (pg-boss's way of keeping some jobs one after another) stops it running two of one
+worker's messages at the same time. Before answering a message, a job first answers any older
+unanswered one from the same number. So a STOP is always handled before the text that came after
+it. If an older message fails, it is logged and retried on its own, and the newer one is still
+answered.
+
+**A crashed worker.** The worker takes up to 5 jobs at a time. If it was killed mid-batch (out of
+memory, a reboot), the jobs it held used to wait 15 minutes before anyone retried them. Now the
+worker sends a **heartbeat** (a regular "still working on it" note) for each job it holds. Every 15
+seconds, pg-boss's **supervisor** (its housekeeping pass) puts back any job whose heartbeat has
+stopped for 30 seconds. So nothing waits more than about a minute.
+
+**Open shifts and the urgent board.** These pages checked the booking rules one shift at a time,
+and each check ran several database queries: hundreds of queries for one page. Now one batched
+read loads what the rules need for all the shifts at once. The rules themselves are unchanged.
+The offer list does the same for many workers.
+
+**Indexes** (lookup tables that make a database search fast) were added for a worker's licences,
+a worker's phones and messages from a number.
+
+**Docs.** They said the queue drains "in about a second". That is only true with no network.
+They now give the tested numbers.
+
+Key numbers:
+- 200 workers' messages, with a fake provider taking 300 ms a send, are all answered within the
+  written bound of 20 seconds of the last one arriving.
+- A worker killed mid-batch has its jobs back within about a minute (45 seconds in the test).
+- Open shifts makes the same number of queries for 5 shifts as for 40. The offer list makes the
+  same number for 5 workers as for 60.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| 8 answers at once, one per worker at a time | Different workers are answered side by side; one worker's messages stay in order | One at a time (too slow); many at once with no grouping (a STOP could be overtaken) |
+| Answer a worker's older unanswered messages first, best effort | Keeps the order even when two jobs start at the same moment; one bad message never blocks a worker | Failing the whole job (one bad message would block that worker for good) |
+| 30-second heartbeat; supervisor every 15 seconds | Back within about a minute, at the cost of a few small queries | pg-boss's default once a minute (up to about two minutes) |
+| Batched rules reads, checked against the one-at-a-time version | A fixed number of queries; the rules aren't touched | Caching (still one query set per pair) |
+
+### What the new tests prove
+
+- **`tests/integration/inbound.load.test.ts`:** the real job, set up as the worker sets it up,
+  answers 207 messages through a 300 ms fake provider within 20 seconds of the last one.
+  - One worker's burst of messages is answered in the order sent.
+  - A STOP is handled before the text after it.
+  - No number ever gets two sends at the same time.
+  - Job groups hold only ids, never a phone number.
+- **`tests/integration/jobs.crash.test.ts`:**
+  - A real worker process is killed mid-batch, and its jobs are back within about a minute, with
+    production's own settings.
+  - A queue made before heartbeats existed gets one when the worker starts.
+- **`tests/integration/eligibility.batch.test.ts`:**
+  - The batched reads give exactly the same answers as the one-at-a-time ones for every shift and
+    worker of a deliberately mixed firm, with the allowance off, and in summer time around
+    midnight.
+  - The fair-rotation hold gives the same answers too.
+  - The query counts stay the same as the page grows.
+  - The three indexes exist.
+- **`tests/integration/inbound.sms.test.ts`, `inbound.whatsapp.test.ts`:**
+  - An older message that fails doesn't stop a newer one.
+  - A late START after a STOP changes nothing.
+  - Two messages at once from an unknown number get one reply and one alert email.
+- **The tests catch the bugs:** each new test was checked by deliberately breaking the code it
+  guards (the lock, the best-effort catch, the fair-rotation reopen and holders, the offer
+  filter). Each broken version failed.
+
+### Parked, open, and things that need Dylan
+
+- Nothing parked. The 20-second bound is on this laptop. Run the load smoke once on the server
+  too (already in PLAN.md "Pre-pilot checks on the server").
+
+### How to see it working
+
+Nothing new on screen. The pages are the same, just with far fewer database queries behind them.

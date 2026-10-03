@@ -535,6 +535,7 @@ describe("wiring", () => {
     const handlers = new Map<string, WorkHandler<unknown>>();
     const boss = {
       createQueue: async () => undefined,
+      updateQueue: async () => undefined,
       work: async (name: string, _options: unknown, handler: WorkHandler<unknown>) => {
         handlers.set(name, handler);
         return `worker-${name}`;

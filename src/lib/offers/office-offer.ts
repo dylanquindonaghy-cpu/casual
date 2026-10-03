@@ -165,7 +165,9 @@ export async function queueOfficeOffer(
     if (await offeredBefore(tx, request.shiftId, request.workerId)) {
       return { status: "already_offered" };
     }
-    const candidates = await waveCandidates(tx, request.shiftId, now);
+    const candidates = await waveCandidates(tx, request.shiftId, now, {
+      only: [request.workerId],
+    });
     if (!candidates.some((c) => c.workerId === request.workerId)) {
       return { status: "not_candidate" };
     }
@@ -267,7 +269,7 @@ async function claimOfficeOffer(
   // Counted under the worker's offer-count lock, so an offer sent at the same moment (the
   // office's, or a wave's) is counted too: the daily cap holds (candidates.ts).
   await lockOfferCounts(tx, [payload.workerId]);
-  const candidate = (await waveCandidates(tx, shift.id, now)).find(
+  const candidate = (await waveCandidates(tx, shift.id, now, { only: [payload.workerId] })).find(
     (c) => c.workerId === payload.workerId,
   );
   if (!candidate) return notSent("not_candidate");

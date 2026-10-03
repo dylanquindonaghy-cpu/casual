@@ -17,7 +17,7 @@ import {
 } from "../rules/eligibility";
 import { localDateOf } from "../time/zoned";
 import { loadAllocationGate } from "./allocation-input";
-import { loadEligibilityInput } from "./eligibility-input";
+import { loadEligibilityInput, loadEligibilityInputs } from "./eligibility-input";
 import { nativeRosterPlug, sheetsRosterPlug } from "./native";
 import { noticeHours } from "./notice";
 import type { AssignResult, RosterPlug, RosterSource } from "./plug";
@@ -150,6 +150,27 @@ export async function previewBooking(
   if (!input) return null;
   const { ok, reasons, codes } = checkEligibility(input);
   return { ok, reasons, codes };
+}
+
+// The same verdicts for many pairs at once (Open shifts, the urgent board, the offer candidate
+// list), keyed by pairKey(shiftId, workerId), with a fixed number of queries
+// (loadEligibilityInputs). A pair missing from the map has a shift or worker that isn't there.
+export async function previewBookings(
+  tx: FirmTx,
+  request: { shiftIds: string[]; workerIds: string[]; now: Date },
+): Promise<Map<string, { ok: boolean; reasons: string[]; codes: RuleCode[] }>> {
+  const valid = (ids: string[]) => ids.filter((id) => uuid.safeParse(id).success);
+  const inputs = await loadEligibilityInputs(tx, {
+    shiftIds: valid(request.shiftIds),
+    workerIds: valid(request.workerIds),
+    now: request.now,
+  });
+  const verdicts = new Map<string, { ok: boolean; reasons: string[]; codes: RuleCode[] }>();
+  for (const [key, input] of inputs) {
+    const { ok, reasons, codes } = checkEligibility(input);
+    verdicts.set(key, { ok, reasons, codes });
+  }
+  return verdicts;
 }
 
 // Whether the rules may count one of the worker's applications in progress for this shift: a

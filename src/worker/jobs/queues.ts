@@ -1,4 +1,4 @@
-import type { Queue } from "pg-boss";
+import type { PgBoss, Queue } from "pg-boss";
 import { SEND_LOGIN_CODE_QUEUE } from "../../lib/auth/send-login-code";
 import { SEND_PORTAL_LINK_QUEUE } from "../../lib/auth/send-portal-link";
 import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/credentials/scan";
@@ -21,7 +21,8 @@ import { OPS_ALERT_QUEUE, OPS_ALERTS_TICK_QUEUE } from "../../lib/ops/tick";
 import { HELLO_QUEUE } from "./hello";
 
 // Every queue the app uses. db:migrate creates them (so the web can enqueue before the worker
-// has ever started) and the worker re-creates them on boot (a no-op when they exist).
+// has ever started) and the worker does again on boot (ensureQueues: created when missing, and
+// brought up to these options when they exist, so a setting added later reaches every database).
 
 export interface QueueSpec {
   name: string;
@@ -32,8 +33,26 @@ export interface QueueSpec {
 // so one firm's job could silently stop another firm's. They must not be partitioned either (the
 // web's enqueue policy lives on pgboss.job_common). Payloads and outputs are ids only, but pgboss
 // has no RLS, so finished jobs are kept for a day, not pg-boss's default week.
+//
+// Heartbeats: the worker fetches up to 5 jobs at a time (src/worker/jobs/index.ts) and marks them
+// all active. If the process is killed mid-batch (out of memory, a host reboot), the ones it hadn't
+// started would wait for pg-boss's 15-minute expiry before anyone retried them: a worker's
+// "instant" WhatsApp answered 15 minutes late. With a heartbeat the worker refreshes every job it
+// holds every 15 seconds, and pg-boss's supervisor (every SUPERVISE_SECONDS, src/worker/boss.ts)
+// retries any whose heartbeat stops for 30: back within about a minute of the crash
+// (tests/integration/jobs.crash.test.ts). Every firm job is safe to run again (claim → send →
+// record), so a retry sends nothing twice.
+export const FIRM_HEARTBEAT_SECONDS = 30;
+
 export function firmQueue(name: string): QueueSpec {
-  return { name, options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 } };
+  return {
+    name,
+    options: {
+      policy: "standard",
+      deleteAfterSeconds: 24 * 60 * 60,
+      heartbeatSeconds: FIRM_HEARTBEAT_SECONDS,
+    },
+  };
 }
 
 // Firm job queues are added here as their jobs are built.
@@ -96,3 +115,19 @@ export const QUEUES: readonly QueueSpec[] = [
     options: { ...sheetsSync.options, expireInSeconds: SHEETS_SYNC_EXPIRE_SECONDS },
   },
 ];
+
+// Creates every queue, and updates any that exist to the options above (createQueue alone leaves an
+// existing queue as it was). A queue's policy can't change once made, so it isn't passed again.
+export async function ensureQueues(
+  boss: Pick<PgBoss, "createQueue" | "updateQueue">,
+  queues: readonly QueueSpec[] = QUEUES,
+): Promise<void> {
+  for (const queue of queues) {
+    await boss.createQueue(queue.name, queue.options);
+    if (queue.options) {
+      const { policy, ...rest } = queue.options;
+      void policy; // fixed at creation
+      if (Object.keys(rest).length > 0) await boss.updateQueue(queue.name, rest);
+    }
+  }
+}

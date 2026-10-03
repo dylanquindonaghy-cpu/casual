@@ -168,3 +168,135 @@ export async function weeklyHours(
   `);
   return new Map(rows.map((r) => [r.worker_id, Number(r.hours)]));
 }
+
+// The same gate for one worker and many shifts at once (Open shifts and the urgent board), with a
+// bounded number of queries: the shifts' facts together, then one week's hours per role and week
+// the held shifts touch (at most the window's weeks times the worker's roles), and everyone on
+// those shifts together. Held to loadAllocationGate, shift for shift, by
+// tests/integration/eligibility.batch.test.ts.
+export async function loadAllocationGates(
+  tx: FirmTx,
+  request: { shiftIds: string[]; workerId: string; now: Date },
+  settings: AllocationSettings,
+): Promise<Map<string, AllocationGate>> {
+  const out = new Map<string, AllocationGate>();
+  const shiftIds = [...new Set(request.shiftIds)];
+  for (const id of shiftIds) out.set(id, { ok: true });
+  if (settings.mode === "first_come_first_served" || shiftIds.length === 0) return out;
+
+  const ids = sql.join(
+    shiftIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  const { rows: facts } = await tx.execute<{
+    id: string;
+    firm_id: string;
+    role: string;
+    status: string;
+    starts_at: string | Date;
+    created_at: string | Date;
+    is_urgent: boolean;
+    last_cancel: string | Date | null;
+    mine: boolean;
+  }>(sql`
+    select s.id::text as id, s.firm_id::text as firm_id, s.role, s.status, s.starts_at,
+           s.created_at, s.is_urgent,
+           (select max(a.cancelled_at) from assignments a
+             where a.shift_id = s.id and a.cancelled_at is not null) as last_cancel,
+           exists (select 1 from assignments a
+                    where a.shift_id = s.id and a.worker_id = ${request.workerId}
+                      and a.status not in (${CANCELLED})) as mine
+      from shifts s
+     where s.id in (${ids})
+  `);
+  const firstFirm = facts[0]?.firm_id;
+  if (!firstFirm) return out;
+  const [firm] = await tx
+    .select({ timezone: firms.timezone })
+    .from(firms)
+    .where(eq(firms.id, firstFirm));
+  if (!firm) throw new Error("firm not visible inside its own transaction");
+
+  // The shifts still inside their priority window: they need the week's hours.
+  const waiting: {
+    id: string;
+    role: string;
+    week: { from: number; to: number };
+    openedAt: Date;
+    startsAt: Date;
+  }[] = [];
+  for (const f of facts) {
+    if (f.status !== "open" || f.is_urgent || f.mine) continue;
+    const startsAt = new Date(f.starts_at);
+    const createdAt = new Date(f.created_at);
+    const lastCancel = f.last_cancel ? new Date(f.last_cancel) : null;
+    const openedAt =
+      lastCancel && lastCancel.getTime() > createdAt.getTime() ? lastCancel : createdAt;
+    const windowEnds = openedAt.getTime() + settings.priorityMinutes * 60_000;
+    if (
+      request.now.getTime() >= windowEnds ||
+      startsAt.getTime() - request.now.getTime() <= settings.urgentWindowHours * 3_600_000 ||
+      windowEnds >= startsAt.getTime()
+    ) {
+      continue;
+    }
+    waiting.push({
+      id: f.id,
+      role: f.role,
+      week: weekOf(localDateOf(startsAt, firm.timezone), firm.timezone),
+      openedAt,
+      startsAt,
+    });
+  }
+  if (waiting.length === 0) return out;
+
+  // Everyone already on each waiting shift (they don't count towards its cutoff).
+  const { rows: holders } = await tx.execute<{ shift_id: string; worker_id: string }>(sql`
+    select a.shift_id::text as shift_id, a.worker_id::text as worker_id
+      from assignments a
+     where a.shift_id in (${sql.join(
+       waiting.map((w) => sql`${w.id}::uuid`),
+       sql`, `,
+     )})
+       and a.worker_id is not null and a.status not in (${CANCELLED})
+  `);
+  // One week's hours per role and week, for every active worker with the role and this worker.
+  const hoursFor = new Map<string, Map<string, number>>();
+  for (const w of waiting) {
+    const key = `${w.role}|${w.week.from}`;
+    if (hoursFor.has(key)) continue;
+    const { rows } = await tx.execute<{ worker_id: string; hours: string | number }>(sql`
+      select w.id::text as worker_id, coalesce(booked.hours, 0) as hours
+        from workers w
+        left join (
+          select a.worker_id, sum(extract(epoch from (s2.ends_at - s2.starts_at)) / 3600) as hours
+            from assignments a
+            join shifts s2 on s2.firm_id = a.firm_id and s2.id = a.shift_id
+           where a.status in (${BOOKED}) and s2.status <> 'cancelled'
+             and s2.starts_at >= ${new Date(w.week.from)} and s2.starts_at < ${new Date(w.week.to)}
+           group by a.worker_id
+        ) booked on booked.worker_id = w.id
+       where w.id = ${request.workerId} or (w.status = 'active' and ${w.role} = any (w.roles))
+    `);
+    hoursFor.set(key, new Map(rows.map((r) => [r.worker_id, Number(r.hours)])));
+  }
+  for (const w of waiting) {
+    const all = hoursFor.get(`${w.role}|${w.week.from}`) ?? new Map<string, number>();
+    const on = new Set(holders.filter((h) => h.shift_id === w.id).map((h) => h.worker_id));
+    // As weeklyHours: this worker, and every other active worker with the role not on the shift.
+    const hours = new Map<string, number>();
+    for (const [id, h] of all) if (id === request.workerId || !on.has(id)) hours.set(id, h);
+    out.set(
+      w.id,
+      allocationGate({
+        mode: settings.mode,
+        now: request.now,
+        openedAt: w.openedAt,
+        priorityMinutes: settings.priorityMinutes,
+        workerHours: hours.get(request.workerId) ?? 0,
+        cutoffHours: fairRotationCutoff([...hours.values()], settings.groupSize),
+      }),
+    );
+  }
+  return out;
+}

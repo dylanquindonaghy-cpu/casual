@@ -5,8 +5,23 @@ import { redact } from "../lib/log/mask";
 // The worker's pg-boss, connected as the jobs role (DATABASE_JOBS_URL). The schema is installed
 // and upgraded only by `npm run db:migrate` (migrate: false here), so a worker started against a
 // database that hasn't been migrated fails fast instead of changing it.
+//
+// The supervisor (one pass across all the workers, whichever claims it) is what retries a job whose
+// heartbeat stopped: a worker killed mid-batch. pg-boss looks once a minute by default, so a killed
+// worker's jobs could wait the 30-second heartbeat plus up to two minutes. Every 15 seconds instead,
+// they're back within about a minute (tests/integration/jobs.crash.test.ts). Each pass is a few
+// small indexed queries on a job table that keeps one day of finished jobs.
+export const SUPERVISE_SECONDS = 15;
+
 export function createBoss(connectionString: string, logger: Logger = rootLog): PgBoss {
-  const boss = new PgBoss({ connectionString, createSchema: false, migrate: false, max: 5 });
+  const boss = new PgBoss({
+    connectionString,
+    createSchema: false,
+    migrate: false,
+    max: 5,
+    superviseIntervalSeconds: SUPERVISE_SECONDS,
+    monitorIntervalSeconds: SUPERVISE_SECONDS,
+  });
   boss.on("error", createPgBossErrorLogger(logger));
   // A warning's data can include SQL and parameter values: log the message only.
   boss.on("warning", (warning) => logger.warn("pg-boss warning", { message: warning.message }));

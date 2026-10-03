@@ -6,8 +6,9 @@ import { describe, expect, it } from "vitest";
 // to someone"). A shift offer reaches a worker only through the offer-wave job
 // (src/lib/offers/waves.ts) or the office-offer job (src/lib/offers/office-offer.ts). Both send
 // only to workers the candidate list returns (src/lib/offers/candidates.ts), and that list keeps
-// only the workers the booking rules allow (previewBooking) and the daily offer cap lets through
-// (mayOfferToday). This test is a tripwire: a new file writing an offer or building an offer
+// only the workers the booking rules allow (previewBookings: the booking rules for many workers at
+// once, held to booking's own previewBooking pair for pair by
+// tests/integration/eligibility.batch.test.ts) and the daily offer cap lets through (mayOfferToday). This test is a tripwire: a new file writing an offer or building an offer
 // message must be added here on purpose, and go through the candidate list. The proof that
 // workers left out never get one is behaviour, in tests/integration/offers.candidates.test.ts,
 // offers.waves.test.ts, office.offer.test.ts and notify.policy.test.ts. Tests are exempt.
@@ -81,7 +82,13 @@ describe("the offer boundary", () => {
 
   it("the candidate list asks the booking rules and the daily cap about every worker", () => {
     const candidates = text(CANDIDATES);
-    expect(candidates).toMatch(/\bpreviewBooking\(/);
+    // Every worker the cap lets through is asked about, and only those the rules allow are kept.
+    expect(candidates).toMatch(
+      /\bpreviewBookings\(tx, \{[^}]*workerIds: capped\.map\(\(r\) => r\.worker_id\)/,
+    );
+    expect(candidates).toMatch(
+      /for \(const r of capped\) \{\s*if \(!verdicts\.get\(pairKey\(shift\.id, r\.worker_id\)\)\?\.ok\) continue;/,
+    );
     expect(candidates).toMatch(/\bmayOfferToday\(/);
     // Workers come from one query in the file, and the rules then check each one.
     expect(candidates.match(/\bfrom workers\b/g)).toHaveLength(1);

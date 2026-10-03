@@ -378,17 +378,55 @@ describe("STOP and START (the inbound-message job)", () => {
     ).toEqual(["office"]);
   });
 
-  it("the latest word counts: a START handled after a later STOP (a retried job) changes nothing", async () => {
+  it("the latest word counts: a STOP whose job runs before an earlier START's answers the START first", async () => {
     const t = await lineFirm();
     const { transport, sent } = captureTransport();
     const start = await t.text("START");
-    // The STOP arrives after it, and its job runs first.
+    // The STOP arrives after it, and its job runs first: it answers the earlier START first (one
+    // sender's messages in the order they came: src/lib/inbound/reply.ts), then itself.
     await su.query(
       "update messages set created_at = created_at - interval '1 minute' where id = $1",
       [start.messageId],
     );
     await run(await t.text("STOP"), transport);
     expect(await t.optedOut()).toBe(true);
+    // The START's own job finds it answered.
+    expect(await run(start, transport)).toEqual({ status: "already" });
+    expect(await t.optedOut()).toBe(true);
+    expect(sent).toHaveLength(1); // the STOP's confirmation only (texts weren't off at the START)
+    expect((await t.eventsOf("message.received")).map((e) => e.data)).toEqual([
+      expect.objectContaining({ optOut: "start", changed: false }),
+      expect.objectContaining({ optOut: "stop", changed: true }),
+    ]);
+  });
+
+  it("an earlier START that fails doesn't hold up the later STOP; its retry then changes nothing", async () => {
+    const t = await lineFirm();
+    const { transport, sent } = captureTransport();
+    const start = await t.text("START");
+    await su.query(
+      "update messages set created_at = created_at - interval '1 minute' where id = $1",
+      [start.messageId],
+    );
+    const stop = await t.text("STOP");
+    // The STOP's job: (1) finds the older START, (2) reads it, which fails this once (a dropped
+    // connection). The STOP is still answered.
+    let calls = 0;
+    const flaky: WithFirm = (firmId, fn) => {
+      calls += 1;
+      if (calls === 2) return Promise.reject(new Error("connection terminated"));
+      return withFirm(firmId, fn);
+    };
+    expect(
+      await runInboundMessage(stop as Parameters<typeof runInboundMessage>[0], flaky, {
+        transport,
+        ai: noAi,
+        baseDomain: "shiftdesk.test",
+        aiTimeoutMs: 30,
+      }),
+    ).toEqual({ status: "opt_out", optOut: "stop", changed: true, confirmation: "sent" });
+    expect(await t.optedOut()).toBe(true);
+    // The START's own job, retried: a later STOP is handled, so the latest word counts.
     expect(await run(start, transport)).toEqual({
       status: "opt_out",
       optOut: "start",

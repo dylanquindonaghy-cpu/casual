@@ -7,7 +7,7 @@ import { expect, test } from "./fixtures";
 // Pre-pilot load smoke (docs/testing.md "Pre-pilot checklist"): 200 WhatsApps to Acme's shifts line
 // in under a minute, signed as Twilio signs them, through the real web app and the real worker.
 // Every webhook is answered at once (store, queue, 200: golden rule 3), and the queue doesn't back
-// up: every message has its reply within a minute of the last one arriving. Seeded Acme workers no
+// up: every message has its reply within 15 seconds of the last one arriving. Seeded Acme workers no
 // other spec uses (07700 900128-900137 and 900140-900156), each asking for shifts. One webhook first,
 // not counted, so a first compile (next dev) doesn't count against the timings.
 
@@ -20,7 +20,7 @@ const workers = [
 const TOTAL = 200;
 const AT_ONCE = 10;
 
-test("200 WhatsApps in under a minute: each webhook answered at once, every reply within a minute after", async ({
+test("200 WhatsApps in under a minute: each webhook answered at once, every reply within 15 seconds after", async ({
   request,
 }) => {
   test.setTimeout(180_000);
@@ -63,10 +63,11 @@ test("200 WhatsApps in under a minute: each webhook answered at once, every repl
   expect(sentIn).toBeLessThan(60_000);
   expect(p95).toBeLessThan(2_000);
 
-  // The queue drains: every message answered within a minute of the last one arriving.
+  // The queue drains: every message answered within 15 seconds of the last one arriving (no network
+  // delay here: about a second; with a real provider's delay, tests/integration/inbound.load.test.ts).
   const drainStarted = Date.now();
   let answered = 0;
-  while (Date.now() - drainStarted < 60_000) {
+  while (Date.now() - drainStarted < 15_000) {
     answered = await answeredMessages("acme", ids);
     if (answered === TOTAL) break;
     await new Promise((resolve) => setTimeout(resolve, 1_000));

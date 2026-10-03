@@ -764,6 +764,7 @@ describe("telling the worker (the firm-change-notice job)", () => {
     const worked: string[] = [];
     const boss = {
       createQueue: async () => undefined,
+      updateQueue: async () => undefined,
       work: async (name: string) => {
         worked.push(name);
         return "id";

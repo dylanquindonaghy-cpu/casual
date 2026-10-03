@@ -77,7 +77,7 @@ import {
   sendOpsAlert,
 } from "../../lib/ops/tick";
 import { HELLO_QUEUE, handleHello } from "./hello";
-import { QUEUES } from "./queues";
+import { ensureQueues } from "./queues";
 
 export interface JobDeps {
   // Absent (SHEETS_TRANSPORT=none): no sheet is ever synced, and the tick is unscheduled.
@@ -134,7 +134,7 @@ export async function failedJobCounts(boss: PgBoss): Promise<{ queue: string; co
 
 // Used by the worker process and by the integration tests, so both run the same wiring.
 export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<void> {
-  for (const queue of QUEUES) await boss.createQueue(queue.name, queue.options);
+  await ensureQueues(boss);
   await registerFirmTask(boss, sendPortalLinkTask);
   await registerFirmTask(boss, sendLoginCodeTask);
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
@@ -148,7 +148,11 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // Telling a worker payroll has sorted their pay query.
   await registerFirmTask(boss, deps.payQueryUpdates ?? payQueryUpdateTask);
   // Answering WhatsApps on the shifts line (stored by the Twilio webhook).
-  await registerFirmTask(boss, deps.inboundMessages ?? inboundMessageFirmTask);
+  await registerFirmTask(
+    boss,
+    deps.inboundMessages ?? inboundMessageFirmTask,
+    INBOUND_WORK_OPTIONS,
+  );
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
   await registerFirmTask(boss, deps.reminders ?? shiftRemindersTask);
@@ -247,6 +251,21 @@ export const FIRM_WORK_OPTIONS = {
   burstWhenBatchFull: true,
 } as const;
 
+// The shifts line (inbound-message): answering a WhatsApp waits on the provider (a few hundred ms
+// for Twilio, more for an AI label), so one loop answering one at a time would leave 200 messages
+// a minute behind at the busiest moment. Here INBOUND_LOOPS loops each take a batch, and a sender's
+// jobs (one group: src/lib/inbound/job.ts) never run two at once on this worker. The handler also
+// answers a sender's older messages first (src/lib/inbound/reply.ts), so a STOP still comes before
+// the text after it. tests/integration/inbound.load.test.ts holds the bound: 200 workers' messages
+// answered within INBOUND_DRAIN_BOUND_MS of the last one arriving when each send takes 300 ms.
+export const INBOUND_LOOPS = 8;
+export const INBOUND_DRAIN_BOUND_MS = 20_000;
+export const INBOUND_WORK_OPTIONS = {
+  ...FIRM_WORK_OPTIONS,
+  localConcurrency: INBOUND_LOOPS,
+  localGroupConcurrency: 1,
+} as const;
+
 // One after another, in the batch's order, one result per job.
 export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
@@ -257,10 +276,9 @@ export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Pro
 export async function registerFirmTask<P extends FirmJobEnvelope>(
   boss: PgBoss,
   task: FirmTask<P>,
+  options: typeof FIRM_WORK_OPTIONS | typeof INBOUND_WORK_OPTIONS = FIRM_WORK_OPTIONS,
 ): Promise<void> {
-  await boss.work(task.queue, FIRM_WORK_OPTIONS, (jobs) =>
-    inOrder(jobs, (j) => runFirmTask(task, j)),
-  );
+  await boss.work(task.queue, options, (jobs) => inOrder(jobs, (j) => runFirmTask(task, j)));
 }
 
 // Each job in a batch gets its own result, and each handler runs inside withFirm(firmId).

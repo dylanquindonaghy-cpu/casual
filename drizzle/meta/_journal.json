@@ -197,6 +197,13 @@
       "when": 1791049529187,
       "tag": "0027_otp_request_id",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791055434714,
+      "tag": "0028_pilot_size_indexes",
+      "breakpoints": true
     }
   ]
 }

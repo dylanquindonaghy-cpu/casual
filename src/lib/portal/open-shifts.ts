@@ -2,15 +2,17 @@ import { and, asc, eq, gt, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { DAY, systemClock } from "../auth/clock";
 import { CANCELLED_ASSIGNMENT_STATUSES, firms, shifts, sites, workers } from "../db/schema";
 import { withFirm } from "../db/scoped";
-import { loadAllocationGate, parseAllocationSettings } from "../roster/allocation-input";
-import { previewBooking } from "../roster/book";
+import { loadAllocationGates, parseAllocationSettings } from "../roster/allocation-input";
+import { previewBookings } from "../roster/book";
+import { pairKey } from "../roster/eligibility-input";
 import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
 import type { MyShift, PortalContext } from "./my-shifts";
 
 // The staff portal's Open shifts list (docs/screens.md, `/shifts/open`): only shifts this worker
 // could take right now. Open shifts starting in the next 28 days, in one of the worker's roles,
 // with a place left and not already theirs, each kept only if the rules say yes on the current
-// rows (previewBooking: no locks, no pass; taking one re-checks everything in bookShift).
+// rows (previewBookings: no locks, no pass, every shift at once; taking one re-checks everything
+// in bookShift).
 //
 // Filters (a day, a site, a role, urgent only) go into the query, so they reach shifts beyond the
 // first ones. The urgent board (`/urgent`) is this list with `urgent`: the same checks exactly.
@@ -151,15 +153,16 @@ export async function openShiftsFor(
       .orderBy(asc(shifts.startsAt), asc(shifts.id))
       .limit(MAX_CANDIDATES + 1);
 
+    // The rules and (fair rotation) the gate for every shift at once: a bounded number of queries
+    // however many shifts there are (tests/integration/eligibility.batch.test.ts).
+    const free = candidates.slice(0, MAX_CANDIDATES).filter((c) => c.held < c.headcount);
+    const shiftIds = free.map((c) => c.shiftId);
+    const verdicts = await previewBookings(tx, { shiftIds, workerIds: [workerId], now });
+    const gates = await loadAllocationGates(tx, { shiftIds, workerId, now }, allocation);
     const kept: OpenShift[] = [];
-    for (const c of candidates.slice(0, MAX_CANDIDATES)) {
-      if (c.held >= c.headcount) continue;
-      const verdict = await previewBooking(tx, { shiftId: c.shiftId, workerId, now });
-      if (!verdict?.ok) continue;
-      const gate =
-        allocation.mode === "fair_rotation"
-          ? await loadAllocationGate(tx, { shiftId: c.shiftId, workerId, now }, allocation)
-          : ({ ok: true } as const);
+    for (const c of free) {
+      if (!verdicts.get(pairKey(c.shiftId, workerId))?.ok) continue;
+      const gate = gates.get(c.shiftId) ?? ({ ok: true } as const);
       kept.push({
         shiftId: c.shiftId,
         role: c.role,

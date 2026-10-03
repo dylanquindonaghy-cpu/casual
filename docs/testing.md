@@ -251,9 +251,17 @@ log has every step.
       ("Connect Twilio")
 - [x] Load smoke: 200 webhooks in a minute don't back up the queue. `tests/e2e/load.smoke.spec.ts`,
       every e2e run: 200 signed WhatsApps in about 5 seconds, each webhook answered in well under a
-      second, every reply stored within a few seconds of the last (first run, 2026-09-30: only 31 of
-      200 handled in a minute: the worker waited its 2-second poll after every job; now it fetches
-      again at once while there's a backlog, `FIRM_WORK_OPTIONS` in `src/worker/jobs/index.ts`).
+      second, every reply stored within 15 seconds of the last (the asserted bound; with no network
+      delay a run takes about a second). First run, 2026-09-30: only 31 of 200 handled in a minute:
+      the worker waited its 2-second poll after every job; now it fetches again at once while
+      there's a backlog (`FIRM_WORK_OPTIONS` in `src/worker/jobs/index.ts`).
+      With a real send's delay: `tests/integration/inbound.load.test.ts` (Phase 10) answers 200
+      workers' messages through a fake provider taking 300 ms a message within 20 seconds of the
+      last (`INBOUND_DRAIN_BOUND_MS`; about 11 seconds here), 8 loops at once, one worker's
+      messages still in order, never two sends to one number at once. A worker killed mid-batch
+      leaves nothing stuck for more than about a minute: the 30-second heartbeat, then the
+      supervisor's next look (every 15 seconds; `tests/integration/jobs.crash.test.ts`, with
+      production's settings).
       On this laptop: run it once against the server too (PLAN.md "Pre-pilot checks on the
       server").
 - [x] Log masking verified (no phone numbers in logs). Every e2e run keeps the worker's and web

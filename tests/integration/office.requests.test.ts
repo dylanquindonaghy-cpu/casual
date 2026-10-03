@@ -483,6 +483,7 @@ describe("telling the worker (the request-update job)", () => {
     const worked: string[] = [];
     const boss = {
       createQueue: async () => undefined,
+      updateQueue: async () => undefined,
       work: async (name: string) => {
         worked.push(name);
         return "id";

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { FirmTx } from "../db/scoped";
 import { firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
@@ -16,9 +17,30 @@ export type InboundMessagePayload = z.infer<typeof inboundMessagePayload>;
 
 export const inboundMessageJob = { queue: INBOUND_MESSAGE_QUEUE, schema: inboundMessagePayload };
 
+// Each job's group is its sender: their worker id, or (a number that isn't a worker's) the message
+// itself. Ids only, never the number. The worker runs one job per group at a time
+// (src/worker/jobs/index.ts), so one person's messages don't race each other; the handler also
+// answers a sender's older messages first (src/lib/inbound/reply.ts), so order holds regardless.
+export async function inboundJobOptions(
+  tx: FirmTx,
+  messageId: string,
+): Promise<{ group: { id: string } }> {
+  const { rows } = await tx.execute<{ worker_id: string | null }>(sql`
+    select w.id::text as worker_id
+      from messages m
+      left join workers w on w.firm_id = m.firm_id and w.mobile_e164 = m.from_e164
+     where m.id = ${messageId}
+     limit 1
+  `);
+  const workerId = rows[0]?.worker_id;
+  return { group: { id: workerId ? `w:${workerId}` : `m:${messageId}` } };
+}
+
 export async function queueInboundMessage(tx: FirmTx, messageId: string): Promise<void> {
-  await sendFirmJob(tx, inboundMessageJob, {
-    idempotencyKey: `inbound-message:${messageId}`,
-    messageId,
-  });
+  await sendFirmJob(
+    tx,
+    inboundMessageJob,
+    { idempotencyKey: `inbound-message:${messageId}`, messageId },
+    await inboundJobOptions(tx, messageId),
+  );
 }

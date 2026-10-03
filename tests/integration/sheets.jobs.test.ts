@@ -214,6 +214,7 @@ describe("worker wiring", () => {
     const calls: string[] = [];
     const boss = {
       createQueue: async () => undefined,
+      updateQueue: async () => undefined,
       work: async (name: string) => {
         calls.push(`work ${name}`);
         return "worker-id";

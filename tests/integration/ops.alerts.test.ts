@@ -291,6 +291,7 @@ describe("the tick", () => {
     const scheduled: unknown[][] = [];
     const fake = {
       createQueue: async () => undefined,
+      updateQueue: async () => undefined,
       work: async (name: string) => {
         worked.push(name);
         return "id";

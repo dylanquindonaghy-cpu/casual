@@ -7,6 +7,7 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { errorCode, type FirmTask } from "../jobs/firm-job";
+import { log } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
 import { sendToWorker, smsAllowedFor } from "../notify/send";
 import {
@@ -198,7 +199,59 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
 // Where an office request came from, in its payload and event.
 const via = (channel: Channel) => (channel === "voice" ? "voicemail" : channel);
 
+// One sender's messages are answered in the order they arrived, whatever order their jobs run in
+// (several run at once: src/worker/jobs/index.ts). So before this message, any older one from the
+// same number that nobody has answered yet is answered first, by this job: a STOP is always handled
+// before the text that came after it. If another job is answering one of them, this waits for its
+// claim (the message row's lock) and then finds it handled. Best effort: an older message that
+// fails here is logged and left to its own job's retries, so one bad message never stops a worker
+// getting answers (if it was a STOP or START, the later word counts when it's retried:
+// src/lib/inbound/opt-out.ts). At most OLDER_LIMIT at a time, so one job stays short.
 export async function runInboundMessage(
+  payload: InboundMessagePayload,
+  run: WithFirm,
+  deps: InboundReplyDeps,
+): Promise<InboundResult> {
+  const older = await run(payload.firmId, (tx) => olderUnhandled(tx, payload.messageId));
+  for (const messageId of older) {
+    try {
+      await answerMessage(
+        { ...payload, messageId, idempotencyKey: `inbound-message:${messageId}` },
+        run,
+        deps,
+      );
+    } catch (err) {
+      log.warn("inbound: an older message from the same number failed; its own job retries it", {
+        firmId: payload.firmId,
+        messageId,
+        code: errorCode(err),
+      });
+    }
+  }
+  return answerMessage(payload, run, deps);
+}
+
+// The most older messages one job answers first. Anything beyond is still answered by its own job,
+// just not ahead of this one: only a sender with 50 unanswered messages queued would notice.
+export const OLDER_LIMIT = 50;
+
+// The same number's earlier inbound messages to the same line, not yet handled, oldest first.
+async function olderUnhandled(tx: FirmTx, messageId: string): Promise<string[]> {
+  const { rows } = await tx.execute<{ id: string }>(sql`
+    select o.id::text as id
+      from messages m
+      join messages o
+        on o.firm_id = m.firm_id and o.from_e164 = m.from_e164 and o.to_e164 = m.to_e164
+       and o.direction = 'in' and o.handled_at is null
+       and (o.created_at, o.id) < (m.created_at, m.id)
+     where m.id = ${messageId} and m.direction = 'in' and m.from_e164 is not null
+     order by o.created_at, o.id
+     limit ${OLDER_LIMIT}
+  `);
+  return rows.map((r) => r.id);
+}
+
+async function answerMessage(
   payload: InboundMessagePayload,
   run: WithFirm,
   deps: InboundReplyDeps,

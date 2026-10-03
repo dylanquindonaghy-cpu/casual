@@ -70,6 +70,8 @@ export const messages = pgTable(
     }),
     index("messages_firm_id_created_at_idx").on(t.firmId, t.createdAt),
     index("messages_firm_id_worker_id_idx").on(t.firmId, t.workerId),
+    // Messages from a number: STOP, an unknown number's repeats, a worker's data export (L76).
+    index("messages_firm_id_from_e164_idx").on(t.firmId, t.fromE164),
     check("messages_direction_check", sql`${t.direction} in ('in', 'out')`),
     check("messages_channel_check", sql`${t.channel} in ('whatsapp', 'sms', 'voice')`),
     check(

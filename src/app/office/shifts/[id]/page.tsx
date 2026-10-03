@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeShiftDetail } from "@/lib/office/shift-pages";
-import { PLACE_STATUS_WORDS, SHIFT_STATUS_WORDS } from "@/lib/office/shifts-copy";
+import { PLACE_FLAG_WORDS, PLACE_STATUS_WORDS, SHIFT_STATUS_WORDS } from "@/lib/office/shifts-copy";
 import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import type { OverridableCode } from "@/lib/rules/eligibility";
@@ -144,6 +144,9 @@ export default async function OfficeShiftPage({
               {live.map((p) => (
                 <li key={p.assignmentId}>
                   {p.worker}: {PLACE_STATUS_WORDS[p.status] ?? p.status}
+                  {p.flag && p.status === "confirmed" && (
+                    <span className="font-semibold"> · {PLACE_FLAG_WORDS[p.flag]}</span>
+                  )}
                   {page.edit.editable && p.status === "confirmed" && p.workerId && (
                     <CancelBookingForm
                       shiftId={shift.shiftId}

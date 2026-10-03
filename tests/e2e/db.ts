@@ -2,7 +2,14 @@ import { and, arrayContains, desc, eq, gt, sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
-import { assignments, officeUsers, requests, shifts, workers } from "../../src/lib/db/schema";
+import {
+  assignments,
+  officeUsers,
+  requests,
+  shifts,
+  sites,
+  workers,
+} from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
@@ -247,6 +254,54 @@ export async function addWorker(
         .returning({ id: workers.id });
       if (!row) throw new Error("worker insert returned nothing");
       return row.id;
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A shift `daysAhead` days from now at a site of its own (a made-up name), with `workerId` booked
+// on it (confirmed): for the office's worker pages. Returns the shift's and the site's ids.
+export async function addBookedShift(
+  slug: string,
+  o: { workerId: string; daysAhead: number; site: string },
+): Promise<{ shiftId: string; siteId: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    const startsAt = new Date(Date.now() + o.daysAhead * 86_400_000);
+    startsAt.setUTCMinutes(0, 0, 0);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [site] = await tx
+        .insert(sites)
+        .values({ firmId, name: o.site })
+        .returning({ id: sites.id });
+      if (!site) throw new Error("site insert returned nothing");
+      const [shift] = await tx
+        .insert(shifts)
+        .values({
+          firmId,
+          role: "steward",
+          siteId: site.id,
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + 8 * 3_600_000),
+          headcount: 1,
+          status: "filled",
+          source: "native",
+        })
+        .returning({ id: shifts.id });
+      if (!shift) throw new Error("shift insert returned nothing");
+      await tx.insert(assignments).values({
+        firmId,
+        shiftId: shift.id,
+        slot: 1,
+        workerId: o.workerId,
+        status: "confirmed",
+        confirmedAt: new Date(),
+      });
+      return { shiftId: shift.id, siteId: site.id };
     });
   } finally {
     await pool.end();

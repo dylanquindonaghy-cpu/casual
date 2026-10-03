@@ -238,6 +238,7 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
     ]),
   );
   const shiftIds = ids([...page.map((r) => r.subject_shift), query.shift]);
+  const siteIds = ids(page.map((r) => (typeof r.data.siteId === "string" ? r.data.siteId : null)));
   const codes = [
     ...new Set(page.map((r) => r.data.type).filter((t): t is string => typeof t === "string")),
   ];
@@ -275,6 +276,15 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
           )
         ).rows.map((c) => [c.code, c.name]),
   );
+  const siteNames = new Map(
+    siteIds.length === 0
+      ? []
+      : (
+          await tx.execute<{ id: string; name: string }>(
+            sql`select id::text, name from sites where id = any(${uuids(siteIds)})`,
+          )
+        ).rows.map((s) => [s.id, s.name]),
+  );
   type ShiftRow = { id: string; role: string; starts_at: string | Date; site_name: string | null };
   const shiftRows =
     shiftIds.length === 0
@@ -297,6 +307,7 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
     office: (id: unknown) => officeNames.get(String(id)) ?? "The office",
     credential: (code: unknown) =>
       credentialNames.get(String(code)) ?? String(code ?? "credential").replace(/_/g, " "),
+    site: (id: unknown) => siteNames.get(String(id)) ?? "a site",
   };
 
   const entries: LogEntry[] = page.map((r) => {

@@ -2,6 +2,7 @@ import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { dayLabel } from "../rules/reasons";
+import { REASON_WORDS } from "./worker-reasons";
 
 // The action log in plain words for the office (docs/screens.md: short sentences, plain words): a
 // shift's history on its page, and the action log (`/office/log`). Pure: the caller passes the
@@ -19,6 +20,7 @@ export interface Names {
   worker: (id: unknown) => string;
   office: (id: unknown) => string;
   credential?: (code: unknown) => string; // a credential type's name ("SIA door supervisor licence")
+  site?: (id: unknown) => string; // a site's name ("Riverside Arena")
 }
 
 const LINK_REFUSED: Record<string, string> = {
@@ -405,6 +407,53 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker} marked a day off${day(d.day)}.`;
     case "worker.unavailable_removed":
       return `${worker} removed a day off${day(d.day)}.`;
+
+    // A worker's access, changed by the office (src/lib/office/worker-access.ts).
+    case "worker.deactivated":
+    case "worker.reactivated":
+    case "worker.unblocked":
+    case "worker.site_blocked":
+    case "worker.site_unblocked": {
+      const kind = {
+        "worker.deactivated": "deactivate",
+        "worker.reactivated": "reactivate",
+        "worker.unblocked": "unblock",
+        "worker.site_blocked": "site_block",
+        "worker.site_unblocked": "site_unblock",
+      }[e.action] as keyof typeof REASON_WORDS;
+      const list: Record<string, string> = REASON_WORDS[kind];
+      const reason = ` Reason: ${list[String(d.reason)] ?? "another reason"}.`;
+      const site = names.site?.(d.siteId) ?? "a site";
+      const ahead = Number(d.futureBookings ?? 0);
+      const toCheck =
+        ahead > 0 ? ` ${ahead === 1 ? "1 booking" : `${ahead} bookings`} ahead to check.` : "";
+      switch (e.action) {
+        case "worker.deactivated":
+          return `${officeName} made ${worker} inactive.${reason}${toCheck}`;
+        case "worker.reactivated":
+          return `${officeName} made ${worker} active again.${reason}`;
+        case "worker.unblocked":
+          return d.stillInactive
+            ? `${officeName} unblocked ${worker}.${reason} They stay inactive: the office had made them inactive.`
+            : `${officeName} unblocked ${worker}.${reason}`;
+        case "worker.site_blocked":
+          return `${officeName} blocked ${worker} from ${site}.${reason}${toCheck}`;
+        default:
+          return `${officeName} unblocked ${worker} from ${site}.${reason}`;
+      }
+    }
+    case "worker.signed_out":
+      return Number(d.sessionsEnded ?? 0) + Number(d.linksSpent ?? 0) > 0
+        ? `${officeName} logged ${worker} out on every device.`
+        : `${officeName} turned off notifications on ${worker}'s phones.`;
+    case "booking.kept": {
+      const why: Record<string, string> = {
+        inactive: "they're not active",
+        blocked: "they're blocked",
+        site_blocked: "they're blocked from the site",
+      };
+      return `${officeName} kept ${worker}'s booking, though ${why[String(d.cause)] ?? "it was flagged"}.`;
+    }
     case "push.subscribed":
       return `${worker} switched on notifications on a phone.`;
     case "push.unsubscribed":

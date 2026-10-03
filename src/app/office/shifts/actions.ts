@@ -29,7 +29,7 @@ import {
 import type { BookingResult } from "@/lib/roster/book";
 import type { CancelBookingResult, CancelShiftResult } from "@/lib/roster/cancel";
 import type { MoveShiftResult } from "@/lib/roster/firm-change";
-import { FIRM_CHANGE_REASON_CODES } from "@/lib/roster/firm-reasons";
+import { FIRM_CHANGE_REASON_CODES, SHIFT_CHANGE_REASON_CODES } from "@/lib/roster/firm-reasons";
 import { OVERRIDABLE_CODES } from "@/lib/rules/eligibility";
 import { requestLog } from "@/lib/request";
 
@@ -101,7 +101,9 @@ export async function assignAction(raw: unknown): Promise<BookingResult | Common
   return asOffice("assign", (ctx) => assignWorker(ctx, shiftId, workerId, override));
 }
 
-const reasonSchema = z.enum(FIRM_CHANGE_REASON_CODES);
+// A whole shift's reasons (cancel, move); one booking's own list is wider.
+const reasonSchema = z.enum(SHIFT_CHANGE_REASON_CODES);
+const bookingReasonSchema = z.enum(FIRM_CHANGE_REASON_CODES);
 
 const moveSchema = z.strictObject({
   date: z.string().max(20),
@@ -140,7 +142,7 @@ export async function cancelBookingAction(
   if (!z.uuid().safeParse(shiftId).success || !z.uuid().safeParse(workerId).success) {
     return { status: "not_found" };
   }
-  const r = reasonSchema.safeParse(reason);
+  const r = bookingReasonSchema.safeParse(reason);
   if (!r.success) return { status: "no_reason" };
   return asOffice("cancel booking", (ctx) => cancelBookingByOffice(ctx, shiftId, workerId, r.data));
 }

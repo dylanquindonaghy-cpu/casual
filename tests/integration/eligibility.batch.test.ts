@@ -74,6 +74,7 @@ async function mixedFirm() {
       roles: both,
       credentials: [{ type: "SIA_DS", expiresOn: "2026-11-03" }],
     }),
+    barred: await f.worker({ first: "Barred", roles: both }),
   };
   const s = {
     door: await f.shift({ role: "door_supervisor", startsAt: hoursFromNow(30) }), // Tue 15:00
@@ -96,6 +97,19 @@ async function mixedFirm() {
   await su.query(
     "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-11-03')",
     [f.firmId, w.dayOff],
+  );
+  // Two shifts at one site, and Barred blocked from it (rules check 9).
+  const { rows: site } = await su.query<{ id: string }>(
+    "insert into sites (firm_id, name) values ($1, 'Riverside Arena') returning id::text",
+    [f.firmId],
+  );
+  await su.query("update shifts set site_id = $2 where id = any($1::uuid[])", [
+    [s.door, s.steward],
+    site[0]?.id,
+  ]);
+  await su.query(
+    "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'incident')",
+    [f.firmId, w.barred, site[0]?.id],
   );
   return { f, w, s };
 }
@@ -160,9 +174,13 @@ describe("the batched rules give the single rules' answers", () => {
       "not_active",
       "overlap",
       "unavailable",
+      "blocked_site",
     ]) {
       expect([...codes]).toContain(code);
     }
+    // Blocked at the site's shifts only.
+    expect(verdicts.get(pairKey(t.s.door, t.w.barred))?.codes).toEqual(["blocked_site"]);
+    expect(verdicts.get(pairKey(t.s.doorLate, t.w.barred))?.ok).toBe(true);
   });
 
   it("with the applied allowance off, the same verdicts (the day's counts can't matter)", async () => {

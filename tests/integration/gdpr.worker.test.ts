@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { eraseWorker, workerDataSummary } from "@/lib/gdpr/worker-erase";
-import { exportWorkerData, findWorkersForData } from "@/lib/gdpr/worker-export";
+import { exportWorkerData, findWorkers } from "@/lib/gdpr/worker-export";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import type { OutboundMessage } from "@/lib/messaging/transport";
 import {
@@ -189,6 +189,14 @@ async function everything() {
     worker,
     "2026-12-25",
   ]);
+  // A site the office kept them off (Phase 10).
+  const barredFrom = await one("insert into sites (firm_id, name) values ($1, 'Riverside Arena')", [
+    b.firmId,
+  ]);
+  await one(
+    "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'incident')",
+    [b.firmId, worker, barredFrom],
+  );
   const events = {
     added: await one(
       `insert into events (firm_id, actor_type, action, entity_type, entity_id)
@@ -294,6 +302,9 @@ describe("a worker's data export", () => {
     expect(s.credentials?.map((c) => c.number)).toContain("1234-5678-9012");
     expect(s.credentials).toHaveLength(2);
     expect(s.daysUnavailable?.map((d) => d.day)).toEqual(["2026-12-25"]);
+    expect(s.siteBlocks).toEqual([
+      { site: "Riverside Arena", reason: "incident", createdAt: expect.any(String) },
+    ]);
     expect(idsIn(s.bookings).sort()).toEqual(
       [t.ids.booking, t.ids.cancelled, t.ids.firmCancelled].sort(),
     );
@@ -400,7 +411,7 @@ describe("a worker's data export", () => {
 describe("finding the worker a request is about", () => {
   it("by part of a name, or a mobile written any UK way; admins only", async () => {
     const t = await everything();
-    const find = (q: string, who = t.admin) => findWorkersForData(ctx(t.b, who), q);
+    const find = (q: string, who = t.admin) => findWorkers(ctx(t.b, who), q);
     expect((await find("ann"))?.map((m) => m.id)).toEqual([t.worker]);
     expect((await find("booker"))?.map((m) => m.id).sort()).toEqual([t.worker, t.colleague].sort());
     const national = `0${t.mobile.slice(3)}`;
@@ -442,6 +453,7 @@ describe("erasing a worker", () => {
       sessions: 1,
       devices: 1,
       daysUnavailable: 1,
+      siteBlocks: 1,
       messages: 4,
       requests: 3,
       payQueries: 1,
@@ -471,6 +483,7 @@ describe("erasing a worker", () => {
       "sessions",
       "push_subscriptions",
       "worker_unavailable_days",
+      "worker_site_blocks",
     ]) {
       expect(await count(table, "worker_id = $1", [t.worker]), table).toBe(0);
     }

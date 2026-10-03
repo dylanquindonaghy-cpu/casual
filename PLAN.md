@@ -267,7 +267,7 @@ every step works.
 - [x] Office access can be taken away: an admin can disable, re-enable and change the role of an
       office user (Team screen and `firm:office-user`). Disabling ends their sessions and login links
       at once, re-enabling doesn't revive old sessions, and every change is logged. (M21, L80)
-- [ ] Worker leavers and blocks: the office can deactivate, reactivate and unblock a worker
+- [x] Worker leavers and blocks: the office can deactivate, reactivate and unblock a worker
       (reason required, logged) and block a worker from a site (the inert rule 9 store). A worker
       made inactive or blocked by any path gets no reminders. Their future bookings are flagged on
       Today for the office to cancel (golden rule 12) or keep. A mobile change ends old links and
@@ -476,8 +476,8 @@ every step works.
 - A shift row the office deletes from its sheet stays in our copy and stays bookable (the sync
   ignores vanished rows). Decide what a vanished row means (a firm cancellation with notice, or a
   flag for the office) before any Sheets firm goes live.
-- Booking: availability (Phase 3 `/profile`) and blocked sites (Phase 5) have no store yet, so
-  `loadEligibilityInput()` passes empty lists; fill them when the stores exist.
+- Booking: availability (Phase 3 `/profile`, `worker_unavailable_days`) and blocked sites (Phase
+  10 task 7, `worker_site_blocks`, set on the office's worker page) both feed the rules now.
 - **Dylan to confirm:** the office's override reason is free text in `events.data`. `bookShift()`
   refuses one holding a phone number or email address, but a name could still get in, and it
   shows in the shift's History. The Phase 5 manual-assign screen (built) keeps free text for now.
@@ -765,9 +765,24 @@ every step works.
     and on, changing roles and logging out on every device are on the office team page since
     Phase 10), the firm's settings (the office settings screen, with the same read-back checks).
   - Access, left from Phase 10 task 6 (audit L80 and its reviews):
-    - **A worker's lost phone:** "Log out on every device" for a worker, from the office. There's
-      no office page for one worker yet; build it with Phase 10 task 7's worker controls
-      (deactivate, reactivate, unblock). Today a changed mobile or status signs them out.
+    - ~~A worker's lost phone~~: built in Phase 10 task 7 ("Log out on every device" on the
+      office's worker page, which also turns off the phone's notifications).
+    - **Left from Phase 10 task 7's reviews** (each narrow, or needing an outside step):
+      - A firm-change notice (a cancelled or moved shift) to a worker who isn't active still has
+        the portal link in it. A version without the link is a new WhatsApp template, which Meta
+        must approve: add it when the templates are submitted ("Connect Twilio").
+      - Offers still waiting when a worker is made inactive or blocked from the site stay open
+        until their wave times out (taking one is refused by the rules); expire them then.
+      - The shift page's "Check" and a refused move show the rules' worker-facing words ("This
+        site isn't available to you. Contact the office.") to the office.
+      - Nothing escalates a "Bookings to check" item nobody answers as the shift gets close (it
+        still counts as filled): mark it urgent inside the urgent window, or email the office.
+      - An offer or a reminder already being sent in the milliseconds the office makes someone
+        inactive may still go (those claims don't wait on the office's lock). Today shows the
+        booking either way.
+    - **The office blocking a whole worker** (not just from a site): today only a rota sheet or
+      file sets "blocked"; the office can unblock, make inactive, or block from a site. Add
+      "Block" to the worker's page if a firm asks (Phase 10 task 7 built the rest).
     - **An admin's own other devices:** an admin can't log themselves out elsewhere (only another
       admin, or you with `firm:office-user --sign-out`). Add "Log out my other devices".
     - **An office action already under way when access is turned off** can finish just after it
@@ -1532,3 +1547,4 @@ every step works.
 | 2026-10-03 | 10 | 0.5 | Twilio message ids no longer mistaken for phone numbers by the log masker, so the action log never refuses an event after a real message has gone (about 1 send in 12 would have); every sender that logs a provider id tested with Twilio-shaped ids; 2723 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 1.3 | Speed at pilot size: the shifts line answers 8 messages at once (one per worker at a time, older ones first), so 200 workers are answered within 20 s even with a 300 ms send; a crashed worker's jobs come back within about a minute (heartbeat), not 15; Open shifts, the urgent board and the offer list make the same number of queries however many shifts or workers; three indexes; the "about a second" claim corrected; 2735 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.8 | Office access can be taken away: on the office team page an admin can turn someone's access off (logged out everywhere at once, unused login links spent), back on (nothing old comes back), change their role (making an admin asks "Yes" first) or log them out on every device; the same from `firm:office-user`; the firm always keeps an admin; every change logged; a worker's status change from an import or the sheet also logs them out everywhere; two reviews found a deadlock with a login at the same moment and a missed session (both fixed and tested); 2759 tests + 50 e2e; verified and audited DONE on round 2 (see docs/work-log.md) |
+| 2026-10-03 | 10 | 1.1 | Worker leavers and blocks: a new Workers page where admins and resourcers make a worker inactive (logged out everywhere, no reminders, sticks against the rota sheet), active again, unblock them, block them from a site (rules check 9 made live, in both rules loaders) or log them out on every device, each with a reason from a list and logged; their bookings ahead show on Today as "Bookings to check" to cancel (with the new "They've left, or can't work here" reason and notice hours) or keep; a mobile change ends links and forgets phones; two reviews found a sheet sync race, vanishing confirmations and more (all fixed and tested, a few narrow items parked); 2816 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |

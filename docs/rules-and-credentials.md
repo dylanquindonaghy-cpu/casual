@@ -69,7 +69,7 @@ type EligibilityResult = {
 | 6 | Rest gap ≥ `minRestHours` from the previous and the next assignment | "This is too close to your previous shift (11 hours' rest needed)." / "...your next shift..." |
 | 7 | Weekly hours (confirmed + this shift) ≤ cap. The week is Monday 00:00 to Monday 00:00 local, the one the shift starts in; every booking counts only its hours inside that week, in real elapsed time | "This would take you over your weekly hours limit." |
 | 8 | Not marked unavailable for any calendar day the shift touches (a night shift touches two) | "You've marked yourself unavailable that day. Change it in your profile to take this shift." |
-| 9 | Site not in worker's blocked list | "This site isn't available to you. Contact the office." |
+| 9 | Site not in worker's blocked list (`worker_site_blocks`, set by the office on the worker's page: Phase 10) | "This site isn't available to you. Contact the office." |
 
 Office users can **override** checks 6–8, and check 0 (booking a late replacement onto a shift
 that has started), with a logged reason (`overrides`; the result lists what was overridden).

@@ -116,6 +116,8 @@ describe("the page", async () => {
     gaps: [],
     gapsMore: false,
     cancellations: [],
+    toCheck: [],
+    toCheckMore: false,
     toMark: [],
     toMarkMore: false,
     requests: { total: 0, byType: {} },

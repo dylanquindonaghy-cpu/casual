@@ -19,6 +19,7 @@ import {
   shiftReminders,
   shifts,
   sites,
+  workerSiteBlocks,
   workerUnavailableDays,
   workers,
 } from "../db/schema";
@@ -103,6 +104,20 @@ export async function collectWorkerData(
     .from(workerUnavailableDays)
     .where(eq(workerUnavailableDays.workerId, workerId))
     .orderBy(asc(workerUnavailableDays.day));
+  // Sites the office has kept them off, with the site's name (Phase 10).
+  const siteBlocks = await tx
+    .select({
+      site: sites.name,
+      reason: workerSiteBlocks.reason,
+      createdAt: workerSiteBlocks.createdAt,
+    })
+    .from(workerSiteBlocks)
+    .innerJoin(
+      sites,
+      and(eq(sites.firmId, workerSiteBlocks.firmId), eq(sites.id, workerSiteBlocks.siteId)),
+    )
+    .where(eq(workerSiteBlocks.workerId, workerId))
+    .orderBy(asc(sites.name));
   const bookings = await tx
     .select(columnsOf(assignments))
     .from(assignments)
@@ -219,6 +234,7 @@ export async function collectWorkerData(
     sections: {
       credentials: credentialRows,
       daysUnavailable: daysOff,
+      siteBlocks,
       bookings,
       offers: offerRows,
       requests: requestRows,
@@ -334,16 +350,17 @@ export const MAX_WORKER_MATCHES = 20;
 
 // Finding the worker a request is about: by a mobile number (any UK way of writing it) or a part
 // of their name. At most 20, erased ones included (so the office can see a deletion was done).
-export async function findWorkersForData(
+export async function findWorkers(
   ctx: OfficeContext,
   rawQuery: string,
+  area: "data" | "workers" = "data", // the office worker pages search the same way (Phase 10)
 ): Promise<WorkerMatch[] | null> {
   const query = rawQuery.trim().slice(0, 100);
   if (!query) return [];
   const mobile = normaliseMobile(query);
   const { run } = parts(ctx);
   return run(ctx.firm.id, async (tx) => {
-    if (!(await officeUserMay(tx, ctx.officeUserId, "data"))) return null;
+    if (!(await officeUserMay(tx, ctx.officeUserId, area))) return null;
     const pattern = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const rows = await tx
       .select({

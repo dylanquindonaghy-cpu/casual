@@ -482,9 +482,30 @@ says so. A firm always keeps one admin who can log in: "Sam Rota is the only adm
 else an admin first." Add the new admin first (step 4 of "Onboarding a pilot firm"), then turn the
 old one off. These are logged as done by the system.
 
-A worker who leaves or loses their phone: not on an office screen yet (PLAN.md Phase 10, the
-worker leavers task, and the Parking lot). A changed mobile or status from the rota sheet or an
-import already logs them out everywhere.
+## A worker leaves, comes back, is barred from a site, or loses their phone
+
+The office does this on the worker's page: "Workers" on the dashboard, find them by name or mobile.
+Admins and resourcers can. Each change needs a reason from a list, and goes in the action log
+("Workers").
+
+- **They've left:** "Make inactive", then "Yes". They're logged out at once, can't log in or
+  take shifts, get no reminders, and notifications stop on their phones. Any bookings they have
+  ahead show on Today under "Bookings to check": cancel each one (they're told; the reason
+  "They've left, or can't work here" and the notice go in the notice report) or keep it (then
+  tell them yourself: they get no reminders). A kept booking doesn't stop you moving the shift's
+  time; moving it to another site asks you to cancel it first. Your rota sheet or a staff file
+  can't make them active again: only the office can.
+- **They're back:** "Make active again". They log in with a new link. If your rota sheet or staff
+  file says they're inactive, change it there too.
+- **Blocked by your rota sheet or a staff file by mistake:** "Unblock". Change the sheet or file
+  too, or its next sync or import blocks them again.
+- **A client doesn't want them at a site:** "Block from a site". They can't book or be offered
+  shifts there (they're told "This site isn't available to you. Contact the office."), and any
+  bookings they have there show on Today to cancel or keep; until you keep one, no reminder goes
+  for it. "Unblock from {site}" lifts it.
+- **A lost phone:** "Log out on every device". Their logins and unused links end, and
+  notifications stop on their phones. If someone else now has their number, change their mobile
+  in your rota sheet or staff file: that logs them out too.
 
 ## Setting a firm's brand (name, colour, logo, sign-off)
 

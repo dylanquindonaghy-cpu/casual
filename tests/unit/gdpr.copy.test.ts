@@ -68,6 +68,7 @@ describe("what a deletion says", () => {
         sessions: 0,
         devices: 0,
         daysUnavailable: 0,
+        siteBlocks: 0,
         messages: 0,
         requests: 0,
         payQueries: 0,

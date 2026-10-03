@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireOfficeArea } from "@/lib/auth/current-office";
-import { FindForm } from "./find-form";
+import { FindWorkerForm } from "../find-worker-form";
+import { findWorkersAction } from "./actions";
 
 const section = "mt-8";
 const heading = "text-2xl font-bold";
@@ -8,7 +9,7 @@ const button = "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover
 
 // Data requests (docs/screens.md `/office/data`): find the worker a GDPR request is about, and
 // download all the firm's data. Admins only (checked here and in every function it calls). The
-// search is a server action (find-form.tsx): what's typed never goes in the address.
+// search is a server action (../find-worker-form.tsx): what's typed never goes in the address.
 export default async function OfficeDataPage() {
   const { firm } = await requireOfficeArea("data");
   return (
@@ -22,7 +23,11 @@ export default async function OfficeDataPage() {
 
       <section className={section}>
         <h2 className={heading}>Find a worker</h2>
-        <FindForm />
+        <FindWorkerForm
+          find={findWorkersAction}
+          hrefBase="/office/data/workers"
+          notAllowed="Only an admin can look up a worker's data."
+        />
       </section>
 
       <section className={section}>

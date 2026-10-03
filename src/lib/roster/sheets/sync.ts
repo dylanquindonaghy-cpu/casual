@@ -430,6 +430,14 @@ async function mirror(
           if (sheetStatus !== "cancelled") await logTimeChange(tx, shiftId, existing, row, now);
         }
         await tx.update(shifts).set(fields).where(eq(shifts.id, shiftId));
+        // A new site: a booking the office kept (Phase 10, Today's "Bookings to check") is looked
+        // at again, in case its worker is blocked from the new site.
+        if (changed.includes("siteId")) {
+          await tx
+            .update(assignments)
+            .set({ officeKeptAt: null })
+            .where(eq(assignments.shiftId, shiftId));
+        }
         await recordEvent(tx, system("shift.changed", "shift", shiftId, { fields: changed }));
       }
     }

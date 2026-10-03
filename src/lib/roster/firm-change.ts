@@ -8,7 +8,7 @@ import { recordEvent } from "../events/record";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { OVERRIDABLE_CODES, type RuleCode } from "../rules/eligibility";
 import { officeCanPlace, previewBooking, rosterId } from "./book";
-import { FIRM_CHANGE_REASON_CODES, FIRM_CHANGE_REASONS } from "./firm-reasons";
+import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES } from "./firm-reasons";
 import { noticeHours } from "./notice";
 import { isoDate, timesOn } from "./shift-times";
 
@@ -39,7 +39,7 @@ export const moveShiftRequestSchema = z.strictObject({
   start: z.string().max(10),
   end: z.string().max(10),
   siteId: z.string().max(100), // "" for no site
-  reason: z.enum(FIRM_CHANGE_REASON_CODES),
+  reason: z.enum(SHIFT_CHANGE_REASON_CODES),
   by: z.strictObject({ type: z.literal("office"), id: rosterId }),
 });
 export type MoveShiftRequest = z.input<typeof moveShiftRequestSchema>;
@@ -132,6 +132,7 @@ export async function moveShiftByFirm(
             workerId: assignments.workerId,
             first: workers.firstName,
             last: workers.lastName,
+            kept: assignments.officeKeptAt,
           })
           .from(assignments)
           .innerJoin(
@@ -164,9 +165,19 @@ export async function moveShiftByFirm(
         const overridable = (codes: RuleCode[]) =>
           codes.length > 0 &&
           codes.every((c) => (OVERRIDABLE_CODES as readonly string[]).includes(c));
+        // A booking the office chose to keep (Today's "Bookings to check", Phase 10) though its
+        // worker isn't active, or is blocked from the site: those two don't stop a move of the
+        // time. A move to another site asks again (below), so a block there is never kept unseen.
+        const accepted = (codes: RuleCode[], kept: boolean) =>
+          kept && !siteChanged
+            ? codes.filter((c) => c !== "not_active" && c !== "blocked_site")
+            : codes;
         const blocked = holders.filter((h) => {
           const c = h.workerId ? checks.get(h.workerId) : undefined;
-          return c && !c.ok && !overridable(c.codes);
+          if (!c || c.ok) return false;
+          if (c.codes.length === 0) return true; // their record couldn't be checked: never let through
+          const left = accepted(c.codes, h.kept !== null);
+          return left.length > 0 && !overridable(left);
         });
         if (blocked.length > 0) {
           throw new MoveBlocked(

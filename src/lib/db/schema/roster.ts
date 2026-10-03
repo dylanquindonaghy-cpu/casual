@@ -214,6 +214,10 @@ export const assignments = pgTable(
     cancelReason: text("cancel_reason"),
     // Shift start minus cancelled_at, in hours. Negative when cancelled after the start.
     noticeHours: numeric("notice_hours", { precision: 8, scale: 2 }),
+    // When the office chose to keep this booking though its worker stopped being active, or was
+    // blocked from the shift's site (Today's "Bookings to check", Phase 10). Cleared when that
+    // happens again, so the booking is flagged again.
+    officeKeptAt: timestamptz("office_kept_at"),
     createdAt: createdAt(),
   },
   (t) => [

@@ -11,6 +11,7 @@ import {
   openAgain,
   type OfficeContext,
 } from "@/lib/office/quick-actions";
+import { keepFlaggedBooking, type KeepResult } from "@/lib/office/worker-access";
 import type { CloseShiftResult } from "@/lib/roster/close";
 import type { SetUrgentResult } from "@/lib/roster/urgent";
 import { requestLog } from "@/lib/request";
@@ -64,4 +65,16 @@ export async function offerShiftAction(
     return { status: "not_found" };
   }
   return asOffice("office offer", (ctx) => offerTo(ctx, shiftId, workerId));
+}
+
+// "Keep the booking" on Today's "Bookings to check": the booking stays, and isn't shown again
+// unless the worker's status or a site block changes again.
+export async function keepBookingAction(
+  shiftId: string,
+  workerId: string,
+): Promise<KeepResult | Common> {
+  if (!id.safeParse(shiftId).success || !id.safeParse(workerId).success) {
+    return { status: "not_found" };
+  }
+  return asOffice("keep booking", (ctx) => keepFlaggedBooking(ctx, shiftId, workerId));
 }

@@ -4,6 +4,7 @@ import {
   placesText,
   requestsText,
   stoppedText,
+  toCheckText,
   toMarkText,
   waveText,
 } from "@/lib/office/today-copy";
@@ -11,6 +12,7 @@ import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { dayLabel } from "@/lib/rules/reasons";
 import { lineWords } from "@/lib/tenancy/shifts-line";
+import { BookingToCheckActions } from "./keep-booking";
 import { ShiftActions } from "./shift-actions";
 
 // The office's Today view (docs/screens.md `/office/today`). Pure: the page loads the data.
@@ -76,6 +78,37 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
         )}
         {view.gapsMore && <p className="mt-2">Showing the first 50.</p>}
       </section>
+
+      {view.toCheck.length > 0 && (
+        <section className={section} aria-labelledby="to-check">
+          <h2 id="to-check" className={heading}>
+            Bookings to check
+          </h2>
+          <p className="mt-2">
+            These people are booked, but can&apos;t work these shifts as things stand. Cancel the
+            booking (they&apos;re told), or keep it.
+          </p>
+          <ul>
+            {view.toCheck.map((b) => (
+              <li key={`${b.shiftId}-${b.workerId}`} className={card}>
+                <p className="font-semibold">{toCheckText(b)}</p>
+                <p>
+                  <Link href={`/office/shifts/${b.shiftId}`} className="underline">
+                    {roleLabel(b.role)}
+                    {b.site ? ` at ${b.site}` : ""}
+                  </Link>
+                  , {shiftWhen(b.startsAt, b.endsAt, tz)}
+                </p>
+                <Link href={`/office/workers/${b.workerId}`} className="underline">
+                  {b.worker}&apos;s page
+                </Link>
+                <BookingToCheckActions shiftId={b.shiftId} workerId={b.workerId} name={b.worker} />
+              </li>
+            ))}
+          </ul>
+          {view.toCheckMore && <p className="mt-2">Showing the first 50.</p>}
+        </section>
+      )}
 
       <section className={section} aria-labelledby="cancelled">
         <h2 id="cancelled" className={heading}>

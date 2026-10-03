@@ -6806,3 +6806,125 @@ moment, so the files matched the verify stamp exactly when the box was ticked; i
 **Hours:** 0.8 (Phase 10: 5.0 of 30–45 h).
 
 **Commit:** `5964a26`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+
+## 2026-10-03 21:26 UTC — Phase 10, task 7: worker leavers and blocks
+
+**Task:** Worker leavers and blocks: the office can deactivate, reactivate and unblock a worker
+(reason required, logged) and block a worker from a site (the inert rule 9 store). A worker made
+inactive or blocked by any path gets no reminders. Their future bookings are flagged on Today for
+the office to cancel (golden rule 12) or keep. A mobile change ends old links and push
+subscriptions. (M22, M23, L24, L81)
+
+**Plan:**
+1. **Schema** (one migration):
+   - `worker_site_blocks`: a worker barred from a site, with a reason code and who did it;
+     `firm_id`, RLS, composite foreign keys, `TABLE_ACCESS`, isolation fixtures.
+   - `workers.office_deactivated_at`: set when the office makes someone inactive.
+   - `assignments.office_kept_at`: set when the office keeps a flagged booking.
+2. **Rule 9 made live:** both rules-input loaders (single and batched) read the worker's blocked
+   sites. Parity tests cover a blocked site; waves and booking then refuse it with the rule's
+   existing reason.
+3. **The office's worker controls** (`src/lib/office/worker-access.ts`, a new "workers" area for
+   admins and resourcers):
+   - make inactive, make active again, unblock, each with a reason from a fixed list (logged by
+     code: no free text in the log);
+   - block from a site and unblock from a site, each with a reason;
+   - log out on every device (the item parked from task 6), which also forgets the worker's phone
+     notifications.
+   Each runs in one transaction with the person locked FOR NO KEY UPDATE (as in task 6).
+   Making inactive also ends sessions and links. An erased worker can't be changed.
+4. **Office decisions stick:**
+   - A worker the office made inactive stays inactive whatever the sheet or a file says (a
+     blank sheet status reads as "active"), until the office makes them active again, as
+     "blocked" already does.
+   - The office unblocking someone whose sheet cell still says "blocked" is blocked again by the
+     next sync. The confirmation says to change it there too, as erasure's does.
+5. **Any path:**
+   - reminders go only to active workers;
+   - a status change away from active (import, sheet or office) clears "kept" on that worker's
+     future bookings, so they're flagged again;
+   - a site block clears "kept" on bookings at that site;
+   - a mobile change also forgets push subscriptions (L81; links were already spent: now tested).
+6. **Today, "Bookings to check":** future confirmed bookings of a worker who isn't active, or who
+   is blocked from the shift's site, not kept. Each shows "Cancel {name}'s booking" (the office's
+   firm-initiated cancellation: a reason and notice hours, golden rule 12; a new reason "They've
+   left, or can't work here") or "Keep the booking" (logged `booking.kept`).
+7. **Pages:**
+   - `/office/workers`: find a worker, as the data page does (a server action, so a typed
+     number never goes in the address);
+   - `/office/workers/[id]`: their status and the controls;
+   - linked from the dashboard and from each flagged booking.
+8. **Docs:** screens, data model, rules (rule 9's store), api-and-jobs, the runbook's worker
+   section; the parking item from task 6 removed (built here).
+9. **Tests:**
+   - integration for each control and its guards;
+   - stickiness against the sheet and a file;
+   - reminders skipped;
+   - the Today flag, keep and cancel;
+   - rule 9 in booking, waves and parity;
+   - the mobile change spending links and forgetting phones;
+   - isolation fixtures for the new table;
+   - unit tests for the copy;
+   - e2e: the office makes a booked worker inactive, sees the booking on Today and cancels it,
+     and blocks another from a site.
+
+**Not in scope (parked):** the office blocking a whole worker (only imports and the sheet do that
+today; the task asks for unblock).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The office's "make inactive" sticks against the rota sheet and files (`office_deactivated_at`); a source can still block or make inactive | A sheet with no status column reads every row as "active": without this the next sync undid every leaver. Fail closed: taking access away wins | Make a blank sheet status mean "leave as it is" (an explicit "active" would still undo it); the sheet always wins (the office couldn't deactivate a sheet firm's worker at all) |
+| Reasons are fixed lists per change, logged by code | The action log never holds free text; the words stay readable | A free-text note (needs a store off the log, as requests have) |
+| Today's "Bookings to check" is worked out each time (not stored); "kept" is one column on the booking, cleared whenever the worker's status changes, a site block is added, or the shift moves site | No flag to go stale, and a booking kept for one reason is looked at again for the next | A stored flag table; keeping the cause (more to compare, same effect) |
+| No reminders for an inactive or blocked worker, nor for a booking at a site they're blocked from until kept, checked again at the claim | They can't act on "Cancel in the app"; a barred worker shouldn't be told to turn up | Keep reminding until the office decides |
+| A kept booking's "not active"/"blocked site" doesn't stop a change of the shift's time; a change of site still asks | The office already chose to keep that person; a new site is a new question | Refuse all moves until it's cancelled (the office can't keep and move) |
+| Made inactive (by any path) also forgets their phones' notifications | A cancellation notice's push mustn't reach a leaver's phone; on return they turn it on again | Keep them (pushes to an inactive worker) |
+| Whole-shift changes refuse the new "They've left, or can't work here" reason on the server | It only makes sense for one person's booking | Form-only filtering (a crafted request could use it) |
+
+**Guardrails review:**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: Today's "Keep" and "Cancel" confirmations vanished (the refresh removed the booking, and its message), and the e2e checked a message only briefly on screen | One component per booking holds both; whichever is done keeps its confirmation in place of both, no refresh; the e2e reloads afterwards to check both left the list |
+| A sheet sync at the same moment could write "active" over the office's "make inactive", unlogged | `upsertWorker` reads a row that changes again with it held (FOR NO KEY UPDATE) and decides from that (see the adversarial review's #1 for the footprint). Barrier test: the office holding the row while a sync sends "active" leaves them inactive; removing the hold fails it |
+| "Make active again" didn't say a sheet can undo it; no note when a sheet made them inactive | Both added (copy, page, screens.md, unit test) |
+| "Unblock" undid the office's own "make inactive" | Unblocking someone the office made inactive leaves them inactive (`stillInactive`); copy, page note, log words; tested |
+| The worker's data download left out site blocks | Added (with the site's name); erasure deletes them too (`siteBlocks` count); GDPR tests updated |
+| Cross-firm tests only for two actions | All six actions from another firm: not found (and another firm's site: "isn't there"), payroll refused "keep", an erased worker refused a site block |
+| Whole-shift actions accepted the booking-only reason on the server | `SHIFT_CHANGE_REASON_CODES` in the move and cancel schemas and the actions; tested |
+| Reminders for bookings at a blocked site | Skipped until kept (both reads); tested |
+| A made-up worker page address gave a server error | Not found |
+| Stale status form after a change | The form starts its choices afresh when the status changes, keeping its confirmation |
+| Nits: only-notifications wording; keep's lock strength; "kept" for an inactive worker should say to tell them; the fudged erasure in a test; a long comment; the search's name | All fixed (`findWorkers`; the real `eraseWorker` in the test) |
+| Shift page didn't show a flagged booking | " · Not active" / " · Blocked" / " · Can't work at this site" next to "Booked" |
+
+**Adversarial review:**
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: the sync's new lock held every staff row for the whole sync (bookings would wait or deadlock on event days) | Only a row that changes is read again with the hold; unchanged rows are only read, as before |
+| FIX FIRST: keying the status form by status threw its confirmation away | No key; it resets its own choices when the status changes |
+| "Unblock from {site}" and "Block from this site" lost their confirmations; the block form kept a site that had left the list | One `SiteBlocks` component holds the list, both forms and one message; the chosen site resets when it leaves the list |
+| Keeping for one reason hid another later | "Kept" cleared on any status change by any path, on a new site block, and when the sheet moves the shift to another site; tested (inactive + blocked site, kept, made active: back for the block) |
+| A kept booking made the shift impossible to move | See decisions; tested both ways |
+| Notices to inactive workers carry the portal link; pushes to their phones | Phones forgotten when made inactive; the no-link variant parked (a new WhatsApp template needs Meta's approval) |
+| Duplicate ids on Today; no deadlock retry on the office's changes; "can work this shift now" overclaimed | Ids per booking; `retryAborted` around each change; "doesn't need checking any more" |
+| Open offers not expired; worker-facing rule words shown to the office; no escalation of unanswered items; millisecond claim races | Parked with reasons |
+| Not tested: a block clearing an earlier keep; `bookShift`/office overrides refusing `blocked_site`; the sync race | All three tested (office assign with and without overrides refused) |
+
+Each new guard was checked by breaking it: the sync's hold, the reflag on any status change, the
+kept-booking move rule, the whole-shift reason rule and the reminder site filter each make a test
+fail.
+
+**Verify:** `VERIFIED tree=f07a756cb31e4ba1 e2e=true` (2,816 tests, 51 browser tests).
+
+**Auditor (round 1):** `VERDICT: DONE`. Every claim PROVEN (office controls, rule 9 live in both
+loaders, reminders by any path, the sheet can't undo the office, Today's cancel or keep, the
+mobile change), the review fixes tested, leftovers "explicitly deferred to the Parking lot with
+reasons". "Fakes found: none." It noted two old placeholder rows in `docs/screens.md` for
+`/office/workers` (a planned, bigger design) that now sit under the built ones: relabelled as
+planned in the follow-up commit (doc only). Ticked after this.
+
+**Hours:** 1.1 (Phase 10: 6.1 of 30–45 h).

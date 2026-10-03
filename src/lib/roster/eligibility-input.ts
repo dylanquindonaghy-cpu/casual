@@ -9,6 +9,7 @@ import {
   firms,
   shifts,
   workers,
+  workerSiteBlocks,
   workerUnavailableDays,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -28,8 +29,9 @@ import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
 // - The firm's rules settings, with the doc's defaults; a value that makes no sense throws (a
 //   misconfigured firm must never loosen a rule by accident).
 // - The days the worker marked unavailable (the profile page), from the day before the shift's
-//   local start date to the day after its end (the rules check the days it touches). No
-//   blocked-site store exists yet (Phase 5 office): an empty list until then.
+//   local start date to the day after its end (the rules check the days it touches).
+// - Whether the office has blocked the worker from the shift's site (worker_site_blocks, Phase
+//   10): the site's id in blockedSites if so, else none (rules check 9).
 
 export const BOOKED_STATUSES = ["confirmed", "completed"] as const;
 const NEARBY_MS = 8 * DAY;
@@ -142,6 +144,16 @@ export async function loadEligibilityInput(
     timeZone: firm.timezone,
   });
 
+  const blocked =
+    shift.siteId === null
+      ? []
+      : await tx
+          .select({ siteId: workerSiteBlocks.siteId })
+          .from(workerSiteBlocks)
+          .where(
+            and(eq(workerSiteBlocks.workerId, workerId), eq(workerSiteBlocks.siteId, shift.siteId)),
+          );
+
   return {
     now,
     timeZone: firm.timezone,
@@ -165,7 +177,7 @@ export async function loadEligibilityInput(
       appliedAllowedTypes: types.filter((t) => t.appliedAllowed).map((t) => t.code),
       appliedInUseCount: counts.applied,
       deployedCount: counts.deployed,
-      blockedSites: [],
+      blockedSites: blocked.map((b) => b.siteId),
     },
     names: Object.fromEntries(types.map((t) => [t.code, t.name])),
     ...(request.overrides?.length ? { overrides: request.overrides } : {}),
@@ -333,6 +345,22 @@ export async function loadEligibilityInputs(
       ),
     );
 
+  // The batch's workers blocked from the batch's sites.
+  const siteIds = [...new Set(shiftRows.flatMap((s) => (s.siteId === null ? [] : [s.siteId])))];
+  const blocks =
+    siteIds.length === 0
+      ? []
+      : await tx
+          .select({ workerId: workerSiteBlocks.workerId, siteId: workerSiteBlocks.siteId })
+          .from(workerSiteBlocks)
+          .where(
+            and(
+              inArray(workerSiteBlocks.workerId, presentWorkers),
+              inArray(workerSiteBlocks.siteId, siteIds),
+            ),
+          );
+  const blockedAt = new Set(blocks.map((b) => `${b.workerId}|${b.siteId}`));
+
   // Who is booked each local day a batch shift starts on, and whether each is there on an
   // application in progress: only needed when "applied" can count at this firm.
   const booked = new Map<string, { all: Set<string>; applied: Set<string> }>();
@@ -396,7 +424,10 @@ export async function loadEligibilityInputs(
           appliedAllowedTypes,
           appliedInUseCount: without(day?.applied),
           deployedCount: without(day?.all),
-          blockedSites: [],
+          blockedSites:
+            shift.siteId !== null && blockedAt.has(`${worker.id}|${shift.siteId}`)
+              ? [shift.siteId]
+              : [],
         },
         names,
       });

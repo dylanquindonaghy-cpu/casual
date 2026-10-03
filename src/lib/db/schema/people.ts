@@ -12,7 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
-import { firms } from "./tenancy";
+import { firms, sites } from "./tenancy";
 
 // Links between firm tables use composite foreign keys (firm_id, x_id) -> parent (firm_id, id).
 // Postgres checks foreign keys without RLS, so a plain FK would let one firm point a row at
@@ -78,6 +78,10 @@ export const workers = pgTable(
     // When they replied STOP to a text (Phase 7): no texts until they reply START (null: texts are
     // fine). Every sender reads it with the channel (src/lib/notify/send.ts).
     smsOptedOutAt: timestamptz("sms_opted_out_at"),
+    // When the office made them inactive (Phase 10, src/lib/office/worker-access.ts). While set,
+    // no rota sheet or file makes them active again (a blank sheet status reads as "active"):
+    // only the office does, which clears it. Null: their status came from elsewhere.
+    officeDeactivatedAt: timestamptz("office_deactivated_at"),
     // When the office erased their personal details (a GDPR deletion, Phase 8,
     // src/lib/gdpr/worker-erase.ts). The row stays, anonymous, because offers, bookings,
     // cancellations and pay lines point at it (the notice report's evidence).
@@ -181,6 +185,53 @@ export const workerUnavailableDays = pgTable(
       columns: [t.firmId, t.workerId],
       foreignColumns: [workers.firmId, workers.id],
     }).onDelete("cascade"),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// Why a worker is kept off a site (Phase 10): a code from a fixed list, so the action log never
+// holds free text (the words: src/lib/office/worker-copy.ts).
+export const SITE_BLOCK_REASONS = ["client_asked", "incident", "other"] as const;
+
+// A site a worker may not work at (rules check 9, "blocked site": src/lib/rules/eligibility.ts).
+// Added and removed by the office on the worker's page, each logged with its reason
+// (`worker.site_blocked` / `worker.site_unblocked`); removing one deletes the row (the action log
+// keeps the history).
+export const workerSiteBlocks = pgTable(
+  "worker_site_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    siteId: uuid("site_id").notNull(),
+    reason: text("reason", { enum: SITE_BLOCK_REASONS }).notNull(),
+    blockedBy: uuid("blocked_by"), // the office user who did it
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("worker_site_blocks_firm_id_id_key").on(t.firmId, t.id),
+    unique("worker_site_blocks_firm_id_worker_site_key").on(t.firmId, t.workerId, t.siteId),
+    foreignKey({
+      name: "worker_site_blocks_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "worker_site_blocks_site_fk",
+      columns: [t.firmId, t.siteId],
+      foreignColumns: [sites.firmId, sites.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "worker_site_blocks_blocked_by_fk",
+      columns: [t.firmId, t.blockedBy],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
+    check(
+      "worker_site_blocks_reason_check",
+      sql`${t.reason} in ('client_asked', 'incident', 'other')`,
+    ),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

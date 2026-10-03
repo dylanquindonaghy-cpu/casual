@@ -10,6 +10,7 @@ import {
   requests,
   sessions,
   shifts,
+  workerSiteBlocks,
   workerUnavailableDays,
   workers,
 } from "../db/schema";
@@ -46,6 +47,7 @@ export interface ErasedCounts {
   sessions: number;
   devices: number; // phones' push addresses
   daysUnavailable: number;
+  siteBlocks: number; // sites the office kept them off (Phase 10)
   messages: number;
   requests: number;
   payQueries: number;
@@ -101,6 +103,12 @@ async function eraseLocked(tx: FirmTx, id: string): Promise<ErasedCounts> {
         .delete(workerUnavailableDays)
         .where(eq(workerUnavailableDays.workerId, id))
         .returning({ id: workerUnavailableDays.id }),
+    ),
+    siteBlocks: await deleted(
+      tx
+        .delete(workerSiteBlocks)
+        .where(eq(workerSiteBlocks.workerId, id))
+        .returning({ id: workerSiteBlocks.id }),
     ),
     messages: Number(erased.rows[0]?.n ?? 0),
     requests: await deleted(

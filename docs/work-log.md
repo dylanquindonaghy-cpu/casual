@@ -7732,3 +7732,97 @@ Parked in PLAN.md's Parking lot, with reasons:
    "… access is off. They've been logged out everywhere …".
 4. Press "Turn access back on", or pick a role and press "Change role".
 5. Then open the "Action log" to see each change.
+
+## 2026-10-03: Phase 10, task 7: worker leavers and blocks (1.1 h)
+
+### Time
+
+1.1 hours of Claude's working time (21:26 to 22:34 UTC). Phase 10 so far: 6.1 of its 30 to 45
+hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=f07a756cb31e4ba1 e2e=true`
+  (2,816 tests, 51 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M22, M23, L24, L81.
+
+### What was built, in plain words
+
+Before this, the office had no way to deal with a worker who left. Only you could change a
+worker's status, by running an import. Someone who left could still log in and book shifts, and
+kept getting reminders they couldn't act on.
+
+There's now a **Workers** page in the office, for admins and resourcers. Find someone by name or
+mobile, then on their page:
+
+- **Make inactive** (they've left): a reason, then "Yes". They're logged out at once, can't log
+  in or take shifts, get no reminders, and notifications stop on their phones.
+  - Your rota sheet can't undo this. A sheet with no status column reads every row as "active",
+    which would otherwise have made them active again at the next sync. Only the office can.
+- **Make active again**, and **Unblock** (for someone a sheet or file blocked), each with a reason.
+- **Block from a site**: for a client who doesn't want someone at their venue. The rules already
+  had a check for this (rule 9), but nothing fed it. Now the person can't book or be offered
+  shifts at that site, and is told "This site isn't available to you. Contact the office."
+- **Log out on every device**: for a lost phone.
+
+Every change needs a reason from a short list. The **action log** (the office's record of
+everything that happened) shows who did what and why.
+
+**Today** has a new list, **"Bookings to check"**. It shows any booking ahead whose worker is no
+longer active, or is blocked from that site, whoever made the change: the office, the rota sheet
+or a file. For each one the office can:
+- **Cancel it.** The worker is told. The reason ("They've left, or can't work here") and the
+  notice they had go in the notice report, as golden rule 12 requires.
+- **Keep it.** It stays off the list until something changes again.
+
+A new mobile from the sheet or a file now also turns off the old phone's notifications.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The office's "make inactive" beats the rota sheet | Otherwise every sheet sync would undo it | Letting the sheet always win |
+| Reasons from fixed lists | The log never holds free text | A typed note |
+| "Bookings to check" worked out fresh each time | Nothing can go stale | Storing a flag |
+| No reminders for an inactive or blocked worker, or at a site they're blocked from until kept | They can't act on a reminder, or shouldn't turn up | Reminding until the office decides |
+| A kept booking doesn't stop moving the shift's time | The office already chose to keep that person | Refusing every move |
+
+### What the new tests prove
+
+- **`tests/integration/office.workers.test.ts`** (22 tests):
+  - Each change, with its reason and log entry.
+  - Each refusal (the wrong status, another firm, payroll, a deleted worker).
+  - The sheet not undoing the office.
+  - Reminders stopping by any path, including in the instant between the list and the send.
+  - Today's cancel and keep, and kept bookings coming back when something changes.
+  - The site block refusing booking, offers and the office's own assign.
+  - A login, or a sheet sync, happening at the same instant as a change.
+  - The mobile change.
+- **`tests/integration/eligibility.batch.test.ts`:** the batched rules give the same answers as
+  the single ones with a blocked site.
+- **`tests/unit/office.worker-copy.test.ts`:** every message, word for word.
+- **`tests/e2e/office.workers.spec.ts`:** in a real browser, a resourcer:
+  1. makes a booked worker inactive;
+  2. blocks another from a site;
+  3. cancels one booking and keeps the other on Today;
+  4. sees both changes in the action log.
+- **The tests catch the bugs:** each new guard was deliberately broken in turn, and its test
+  failed.
+
+### Parked, open, and things that need Dylan
+
+Parked in PLAN.md's Parking lot:
+- A cancellation notice to someone who has left still includes the portal link. A version without
+  it needs a new WhatsApp template, which Meta has to approve.
+- Offers waiting when someone leaves stay open until they time out. Taking one is refused anyway.
+- Nothing chases a "Bookings to check" item nobody answers.
+- The office blocking a whole worker (only the sheet or a file can today).
+
+### How to see it working
+
+1. `npm run dev`, then log in at `http://acme.localhost:3000/office` as
+   `acme.resourcer@example.com`. The login link prints in the terminal.
+2. Click "Workers" and find one of the seeded workers.
+3. Choose a reason and press "Make inactive", then "Yes".
+4. If they had a booking ahead, it's now on Today under "Bookings to check".

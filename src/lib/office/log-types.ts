@@ -10,6 +10,7 @@ export const LOG_TYPES = {
       "shift.booking_held",
       "shift.booking_refused",
       "roster.sheet_booking_refused",
+      "booking.kept",
     ],
   },
   cancellations: {
@@ -108,6 +109,12 @@ export const LOG_TYPES = {
       "worker.sms_opted_in",
       "worker.unavailable_added",
       "worker.unavailable_removed",
+      "worker.deactivated",
+      "worker.reactivated",
+      "worker.unblocked",
+      "worker.signed_out",
+      "worker.site_blocked",
+      "worker.site_unblocked",
     ],
   },
   logins: {

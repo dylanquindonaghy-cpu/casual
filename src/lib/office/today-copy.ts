@@ -1,7 +1,8 @@
 import type { QueueOfficeOfferResult } from "../offers/office-offer";
 import type { CloseShiftResult } from "../roster/close";
 import type { SetUrgentResult } from "../roster/urgent";
-import type { TodayView, UrgentShift } from "./today";
+import type { KeepResult } from "./worker-access";
+import type { TodayBookingToCheck, TodayView, UrgentShift } from "./today";
 
 // The Today view's words (docs/screens.md `/office/today`): short sentences, plain words.
 
@@ -121,5 +122,39 @@ export function offerResultText(result: QueueOfficeOfferResult | Common, name: s
       return "We can't find that shift or person.";
     default:
       return COMMON[result.status];
+  }
+}
+
+// "Bookings to check": why this booking is on the list.
+export function toCheckText(b: TodayBookingToCheck): string {
+  switch (b.cause) {
+    case "inactive":
+      return `${b.worker} is booked, but is no longer active.`;
+    case "blocked":
+      return `${b.worker} is booked, but is blocked.`;
+    case "site_blocked":
+      return `${b.worker} is booked, but is blocked from ${b.site ?? "this site"}.`;
+  }
+}
+
+type KeepCommon = { status: "logged_out" } | { status: "error" };
+export function keepResultText(result: KeepResult | KeepCommon, name: string): string {
+  switch (result.status) {
+    case "kept":
+      return result.cause === "inactive" || result.cause === "blocked"
+        ? `Kept. ${result.name}'s booking stays, and it won't show here again unless something changes. They can't log in and get no reminders: tell them yourself.`
+        : `Kept. ${result.name}'s booking stays, and it won't show here again unless something changes.`;
+    case "already":
+      return `${result.name}'s booking was already kept.`;
+    case "not_flagged":
+      return `${result.name}'s booking doesn't need checking any more.`;
+    case "not_found":
+      return `${name}'s booking isn't there any more (cancelled, or the shift has started).`;
+    case "not_allowed":
+      return "You can't change bookings.";
+    case "logged_out":
+      return "Your session has ended. Log in again.";
+    case "error":
+      return "Something went wrong. Reload the page to see if it was kept.";
   }
 }

@@ -30,6 +30,7 @@ architecture.md, Tenancy).
 | office_users | Resourcers, payroll, admins (email, role, status) | 1 |
 | workers | Casual staff: name, mobile, email, status, roles, how we reach them (WhatsApp or text) and whether they want open-shift alerts | 1 |
 | worker_unavailable_days | Days a worker marked as "can't work" on their profile (one row per firm-local day) | 3 |
+| worker_site_blocks | Sites a worker may not work at (rules check 9), set by the office with a reason | 10 |
 | credentials | Licences/cards per worker: type, number, expiry, status | 1 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
@@ -141,6 +142,8 @@ create table workers (
   offer_alerts boolean not null default true,      -- tell me about open shifts (profile page)
   sms_opted_out_at timestamptz,          -- they replied STOP to a text (Phase 7): no texts from any
                                          -- sender until START (src/lib/notify/send.ts)
+  office_deactivated_at timestamptz,     -- the office made them inactive (Phase 10): no sheet or
+                                         -- file makes them active again, only the office (clears it)
   erased_at timestamptz,                 -- GDPR deletion (Phase 8, src/lib/gdpr/worker-erase.ts)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
@@ -183,6 +186,22 @@ create table worker_unavailable_days (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, worker_id, day)
+);
+
+-- A site a worker may not work at (Phase 10; rules check 9, "blocked site"). Added and removed by
+-- the office on the worker's page (src/lib/office/worker-access.ts), each with a reason from a
+-- fixed list; removing one deletes the row. Events: worker.site_blocked {workerId, siteId, reason,
+-- futureBookings} and worker.site_unblocked {workerId, siteId, reason}.
+create table worker_site_blocks (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers, on delete cascade
+  site_id uuid not null,                 -- (firm_id, site_id) -> sites, on delete cascade
+  reason text not null,                  -- client_asked | incident | other
+  blocked_by uuid,                       -- (firm_id, blocked_by) -> office_users
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, worker_id, site_id)
 );
 
 create table credentials (
@@ -267,6 +286,9 @@ create table assignments (
   cancelled_at timestamptz,              -- cancelled_*: cancelled_at, a non-blank cancel_reason
   cancel_reason text,                    --   and notice_hours are all required (golden rule 12)
   notice_hours numeric(8,2),             -- starts_at - cancelled_at, in hours; negative if after the start
+  office_kept_at timestamptz,            -- Phase 10: the office kept it though its worker stopped being
+                                         -- active or was blocked from the site (Today's "Bookings to
+                                         -- check"); cleared when that happens again
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   check ((status = 'open') = (worker_id is null))

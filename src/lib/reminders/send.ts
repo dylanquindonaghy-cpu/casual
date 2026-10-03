@@ -29,8 +29,10 @@ import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
 
 // Shift reminders (docs/api-and-jobs.md, `shift-reminders`; copy in docs/messaging-templates.md;
-// ADR-017): 24 hours and 2 hours before the start, to every worker with a confirmed booking on an
-// open or filled shift. The rules for when (and quiet hours) are src/lib/rules/reminders.ts.
+// ADR-017): 24 hours and 2 hours before the start, to every active worker with a confirmed
+// booking on an open or filled shift (one made inactive or blocked gets none: audit M22; nor one
+// booked at a site they're blocked from, unless the office kept the booking). The rules for when
+// (and quiet hours) are src/lib/rules/reminders.ts.
 //
 // - shift-reminder-tick: a cron every 5 minutes. For each firm with a reminder due, it queues one
 //   shift-reminders job (a firm-scoped singleton per slot).
@@ -128,6 +130,14 @@ export async function dueReminders(
       left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
      where a.status = 'confirmed' and a.worker_id is not null
        and w.mobile_e164 is not null -- only an erased worker has none (erasure needs no bookings ahead)
+       -- Only active workers: one made inactive or blocked can't log in to cancel, as a reminder
+       -- asks (audit M22); their bookings are on the office's Today to cancel or keep. Nor a
+       -- booking at a site they're blocked from, until the office keeps it.
+       and w.status = 'active'
+       and (a.office_kept_at is not null
+            or not exists (select 1 from worker_site_blocks b
+                            where b.firm_id = a.firm_id and b.worker_id = a.worker_id
+                              and b.site_id = s.site_id))
        and s.status in ('open', 'filled')
        and s.starts_at > ${now} and s.starts_at <= ${until}
      order by s.starts_at, a.id
@@ -186,6 +196,14 @@ async function claim(
      where a.id = ${b.assignmentId} and a.worker_id = ${b.workerId} and a.status = 'confirmed'
        and s.status in ('open', 'filled')
        and date_trunc('milliseconds', s.starts_at) = ${b.startsAt}
+       -- Still active now, and not blocked from the site unless kept (changed since the list
+       -- was read: nothing goes).
+       and exists (select 1 from workers w
+                    where w.firm_id = a.firm_id and w.id = a.worker_id and w.status = 'active')
+       and (a.office_kept_at is not null
+            or not exists (select 1 from worker_site_blocks b
+                            where b.firm_id = a.firm_id and b.worker_id = a.worker_id
+                              and b.site_id = s.site_id))
     on conflict do nothing
     returning id::text as id
   `);

@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useHydrated } from "@/app/use-hydrated";
 import type { WorkerMatch } from "@/lib/gdpr/worker-export";
-import { findWorkersAction, type FindWorkersResult } from "./actions";
+
+// What the server's search answers (the data page's and the workers page's actions).
+export type FindWorkersResult =
+  | { status: "found"; matches: WorkerMatch[] }
+  | { status: "logged_out" }
+  | { status: "not_allowed" }
+  | { status: "error" };
 
 const button = "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100";
 const failed = { status: "error" as const };
@@ -15,15 +21,23 @@ const STATUS_WORDS: Record<string, string> = {
   blocked: "Blocked",
 };
 
-const MESSAGES: Record<Exclude<FindWorkersResult["status"], "found">, string> = {
-  logged_out: "Log in again, then try again.",
-  not_allowed: "Only an admin can look up a worker's data.",
-  error: "Something went wrong. Try again.",
-};
-
-// "Name or mobile number", "Find", then the matches (up to 20), each a link to their data page.
-// Sent to the server as a form action, never put in the address.
-export function FindForm() {
+// "Name or mobile number", "Find", then the matches (up to 20), each a link to their page under
+// `hrefBase` (the data page's, or the workers page's). Sent to the server as a form action, never
+// put in the address.
+export function FindWorkerForm({
+  find: search,
+  hrefBase,
+  notAllowed,
+}: {
+  find: (query: string) => Promise<FindWorkersResult>;
+  hrefBase: string;
+  notAllowed: string;
+}) {
+  const MESSAGES: Record<Exclude<FindWorkersResult["status"], "found">, string> = {
+    logged_out: "Log in again, then try again.",
+    not_allowed: notAllowed,
+    error: "Something went wrong. Try again.",
+  };
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState<string | null>(null);
   const [matches, setMatches] = useState<WorkerMatch[]>([]);
@@ -34,7 +48,7 @@ export function FindForm() {
     startTransition(async () => {
       const q = query.trim();
       if (!q) return;
-      const result = await findWorkersAction(q).catch(() => failed);
+      const result = await search(q).catch(() => failed);
       setSearched(q);
       if (result.status === "found") {
         setMatches(result.matches);
@@ -80,7 +94,7 @@ export function FindForm() {
         <ul className="mt-4 flex flex-col gap-2">
           {matches.map((m) => (
             <li key={m.id} className="rounded-lg border border-slate-300 p-3">
-              <Link href={`/office/data/workers/${m.id}`} className="font-semibold underline">
+              <Link href={`${hrefBase}/${m.id}`} className="font-semibold underline">
                 {m.name}
               </Link>
               <span className="ml-2 text-slate-700">

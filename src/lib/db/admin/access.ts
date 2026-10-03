@@ -52,6 +52,8 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   messages: NO_DELETE,
   // A phone's push address: saved, moved to a new login on the same phone, removed.
   push_subscriptions: CRUD,
+  // A site a worker may not work at: added and removed by the office (both logged), never edited.
+  worker_site_blocks: ["SELECT", "INSERT", "DELETE"],
 };
 
 export function schemaTableNames(): string[] {

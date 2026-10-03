@@ -165,6 +165,8 @@ export interface ShiftDetail {
     cancelledAt: Date | null;
     noticeHours: number | null;
     reason: string | null;
+    // Why this person can't work it as things stand (Phase 10): their status, or a site block.
+    flag: "inactive" | "blocked" | "site_blocked" | null;
   }[];
   offers: {
     worker: string;
@@ -224,9 +226,14 @@ export async function officeShiftDetail(
       cancelled_at: string | Date | null;
       notice_hours: string | number | null;
       cancel_reason: string | null;
+      worker_status: "active" | "inactive" | "blocked" | null;
+      site_blocked: boolean;
     }>(sql`
       select a.id, a.slot, a.worker_id, w.first_name, w.last_name, a.status, a.cancelled_at,
-             a.notice_hours, a.cancel_reason
+             a.notice_hours, a.cancel_reason, w.status as worker_status,
+             exists (select 1 from worker_site_blocks b
+                      where b.firm_id = a.firm_id and b.worker_id = a.worker_id
+                        and b.site_id = ${s.siteId}) as site_blocked
         from assignments a
         left join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
        where a.shift_id = ${shiftId} and a.worker_id is not null
@@ -368,6 +375,12 @@ export async function officeShiftDetail(
         cancelledAt: p.cancelled_at ? new Date(p.cancelled_at) : null,
         noticeHours: p.notice_hours === null ? null : Number(p.notice_hours),
         reason: p.cancel_reason,
+        flag:
+          p.worker_status === "inactive" || p.worker_status === "blocked"
+            ? p.worker_status
+            : p.site_blocked
+              ? "site_blocked"
+              : null,
       })),
       offers: offerRows.map((o) => ({
         worker: `${o.first_name} ${o.last_name}`,

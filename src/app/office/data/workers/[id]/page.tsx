@@ -32,9 +32,9 @@ export default async function OfficeWorkerDataPage({
       <section className={section}>
         <h2 className={heading}>Download their data</h2>
         <p className="mt-2">
-          Everything we hold about {worker.name}: their details, licences and cards, days off,
-          shifts, offers, requests, pay records and queries, messages, and the action log. Send it
-          to them within a month of their request.
+          Everything we hold about {worker.name}: their details, licences and cards, days off, sites
+          they can&apos;t work at, shifts, offers, requests, pay records and queries, messages, and
+          the action log. Send it to them within a month of their request.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <a href={`/office/data/workers/${worker.id}/export?format=json`} className={button}>

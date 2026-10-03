@@ -29,6 +29,7 @@ export const EXPECTED_TABLES = [
   "shift_reminders",
   "shifts",
   "sites",
+  "worker_site_blocks",
   "worker_unavailable_days",
   "workers",
 ] as const;
@@ -186,6 +187,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-12-25')",
     [firmId, workerId],
   );
+  // No blocked_by: the isolation tests delete this firm's office user (its link is checked by
+  // worker_site_blocks_blocked_by_fk below).
+  const siteBlockId = await one(
+    su,
+    `insert into worker_site_blocks (firm_id, worker_id, site_id, reason)
+     values ($1, $2, $3, 'client_asked')`,
+    [firmId, workerId, siteId],
+  );
   const pushSubscriptionId = await one(
     su,
     `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -258,6 +267,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       roster_sources: rosterSourceId,
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
+      worker_site_blocks: siteBlockId,
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
       metrics_daily: metricsId,
@@ -353,6 +363,10 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   push_subscriptions: (firmId, p) => ({
     text: "insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",
     values: [firmId, p.workerId, `https://push.example.test/extra-${next()}`],
+  }),
+  worker_site_blocks: (firmId, p) => ({
+    text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
+    values: [firmId, p.workerId, p.rosterSiteId],
   }),
   pay_records: (firmId, p) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
@@ -460,6 +474,19 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   worker_unavailable_days_worker_fk: (firmId, _own, other) => ({
     text: "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2027-02-01')",
     values: [firmId, other.workerId],
+  }),
+  worker_site_blocks_worker_fk: (firmId, own, other) => ({
+    text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
+    values: [firmId, other.workerId, own.rosterSiteId],
+  }),
+  worker_site_blocks_site_fk: (firmId, own, other) => ({
+    text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
+    values: [firmId, own.workerId, other.rosterSiteId],
+  }),
+  worker_site_blocks_blocked_by_fk: (firmId, own, other) => ({
+    text: `insert into worker_site_blocks (firm_id, worker_id, site_id, reason, blocked_by)
+           values ($1, $2, $3, 'incident', $4)`,
+    values: [firmId, own.rosterWorkerId, own.rosterSiteId, other.officeUserId],
   }),
   push_subscriptions_worker_fk: (firmId, _own, other) => ({
     text: "insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",

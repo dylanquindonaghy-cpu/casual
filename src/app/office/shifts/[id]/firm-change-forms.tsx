@@ -7,7 +7,11 @@ import {
   cancelShiftResultText,
   moveResultLines,
 } from "@/lib/office/shifts-copy";
-import { FIRM_CHANGE_REASONS } from "@/lib/roster/firm-reasons";
+import {
+  BOOKING_ONLY_REASONS,
+  FIRM_CHANGE_REASONS,
+  type FirmChangeReason,
+} from "@/lib/roster/firm-reasons";
 import { useHydrated } from "@/app/use-hydrated";
 import { cancelBookingAction, cancelShiftAction, moveShiftAction } from "../actions";
 
@@ -21,10 +25,12 @@ function ReasonSelect({
   value,
   onChange,
   id,
+  forBooking = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   id: string;
+  forBooking?: boolean; // one person's booking: its own reasons too
 }) {
   return (
     <label className="flex flex-col" htmlFor={id}>
@@ -33,11 +39,15 @@ function ReasonSelect({
         <option value="" disabled>
           Choose a reason
         </option>
-        {Object.entries(FIRM_CHANGE_REASONS).map(([code, words]) => (
-          <option key={code} value={code}>
-            {words}
-          </option>
-        ))}
+        {Object.entries(FIRM_CHANGE_REASONS)
+          .filter(
+            ([code]) => forBooking || !BOOKING_ONLY_REASONS.includes(code as FirmChangeReason),
+          )
+          .map(([code, words]) => (
+            <option key={code} value={code}>
+              {words}
+            </option>
+          ))}
       </select>
     </label>
   );
@@ -181,19 +191,27 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
   );
 }
 
-// "Cancel {name}'s booking", with a reason: they're told, with the notice they had logged.
+// "Cancel {name}'s booking", with a reason: they're told, with the notice they had logged. On the
+// shift's page the page refreshes to show it; on Today (refreshOnDone false) a refresh would take
+// the booking, and this confirmation with it, off the list, so the confirmation stays in place of
+// the button and the list updates on the next visit.
 export function CancelBookingForm({
   shiftId,
   workerId,
   name,
+  refreshOnDone = true,
+  onDone,
 }: {
   shiftId: string;
   workerId: string;
   name: string;
+  refreshOnDone?: boolean;
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   const [pending, startTransition] = useTransition();
   const ready = useHydrated();
   const cancel = () =>
@@ -201,16 +219,29 @@ export function CancelBookingForm({
       if (!reason) return setMessage("Choose a reason.");
       const result = await cancelBookingAction(shiftId, workerId, reason).catch(() => failed);
       setMessage(cancelBookingResultText(result, name));
-      if (result.status === "cancelled") router.refresh();
+      if (result.status === "cancelled") {
+        setDone(true);
+        onDone?.();
+        if (refreshOnDone) router.refresh();
+      }
     });
   return (
-    <details className="ml-2 inline-block">
+    <details className="ml-2 inline-block" open={done || undefined}>
       <summary className="cursor-pointer underline">Cancel {name}&apos;s booking</summary>
       <div className="mt-2 flex flex-col gap-2">
-        <ReasonSelect id={`cancel-${workerId}`} value={reason} onChange={setReason} />
-        <button type="button" className={button} disabled={pending || !ready} onClick={cancel}>
-          Yes, cancel {name}&apos;s booking
-        </button>
+        {!done && (
+          <>
+            <ReasonSelect
+              id={`cancel-${shiftId}-${workerId}`}
+              value={reason}
+              onChange={setReason}
+              forBooking
+            />
+            <button type="button" className={button} disabled={pending || !ready} onClick={cancel}>
+              Yes, cancel {name}&apos;s booking
+            </button>
+          </>
+        )}
         {message && (
           <p role="status" className="font-semibold">
             {message}

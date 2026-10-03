@@ -9,7 +9,7 @@ import { officeCanPlace, plugFor, rosterId } from "./book";
 import type { CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { markUrgentAfterDropout } from "./urgent";
-import { FIRM_CHANGE_REASON_CODES, FIRM_CHANGE_REASONS, firmReasonWords } from "./firm-reasons";
+import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES, firmReasonWords } from "./firm-reasons";
 
 // Cancelling a booking: the one path for a worker cancelling their own shift, or the office
 // cancelling someone's (golden rules 5 and 12; docs/architecture.md, "Cancel"). In its own
@@ -126,7 +126,7 @@ async function cancelInTransaction(
 
 export const cancelShiftRequestSchema = z.strictObject({
   shiftId: rosterId,
-  reason: z.enum(FIRM_CHANGE_REASON_CODES),
+  reason: z.enum(SHIFT_CHANGE_REASON_CODES),
   by: z.strictObject({ type: z.literal("office"), id: rosterId }),
 });
 export type CancelShiftRequest = z.input<typeof cancelShiftRequestSchema>;

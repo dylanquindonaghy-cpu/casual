@@ -95,6 +95,20 @@ export interface TodayUnknownMessage {
   formerWorkerActive: boolean; // they've been made active again since
 }
 
+// A future booking whose worker can't work it as things stand (Phase 10, audit M22): made
+// inactive or blocked (by any path), or blocked from the shift's site. Shown until the office
+// cancels it or keeps it (`office_kept_at`).
+export interface TodayBookingToCheck {
+  shiftId: string;
+  workerId: string;
+  worker: string;
+  role: string;
+  site: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  cause: "inactive" | "blocked" | "site_blocked";
+}
+
 export interface TodayView {
   officeUser: { id: string; name: string; role: OfficeRole };
   timeZone: string;
@@ -102,6 +116,8 @@ export interface TodayView {
   gaps: TodayShift[];
   gapsMore: boolean;
   cancellations: TodayCancellation[];
+  toCheck: TodayBookingToCheck[];
+  toCheckMore: boolean; // more than the list shows
   toMark: TodayToMark[]; // shifts that ended in the last 7 days
   toMarkMore: boolean; // more than the list shows
   requests: { total: number; byType: Partial<Record<(typeof REQUEST_TYPES)[number], number>> };
@@ -241,6 +257,33 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
      limit ${LIST_MAX}
   `);
 
+  const { rows: toCheck } = await tx.execute<{
+    shift_id: string;
+    worker_id: string;
+    first_name: string;
+    last_name: string;
+    worker_status: "active" | "inactive" | "blocked";
+    role: string;
+    starts_at: string | Date;
+    ends_at: string | Date;
+    site_name: string | null;
+  }>(sql`
+    select a.shift_id, a.worker_id, w.first_name, w.last_name, w.status as worker_status,
+           s.role, s.starts_at, s.ends_at, si.name as site_name
+      from assignments a
+      join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
+      join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
+      left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+     where a.status = 'confirmed' and a.office_kept_at is null
+       and s.starts_at > ${now} and s.status in ('open', 'filled')
+       and (w.status <> 'active'
+            or exists (select 1 from worker_site_blocks b
+                        where b.firm_id = a.firm_id and b.worker_id = a.worker_id
+                          and b.site_id = s.site_id))
+     order by s.starts_at, w.last_name, w.first_name, a.id
+     limit ${LIST_MAX + 1}
+  `);
+
   const { rows: toMark } = await tx.execute<{
     id: string;
     role: string;
@@ -334,6 +377,17 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
       noticeHours: Number(c.notice_hours ?? 0),
       byFirm: c.status === "cancelled_firm",
       reason: c.cancel_reason,
+    })),
+    toCheckMore: toCheck.length > LIST_MAX,
+    toCheck: toCheck.slice(0, LIST_MAX).map((b) => ({
+      shiftId: b.shift_id,
+      workerId: b.worker_id,
+      worker: `${b.first_name} ${b.last_name}`,
+      role: b.role,
+      site: b.site_name,
+      startsAt: new Date(b.starts_at),
+      endsAt: new Date(b.ends_at),
+      cause: b.worker_status === "active" ? "site_blocked" : b.worker_status,
     })),
     toMarkMore: toMark.length > LIST_MAX,
     toMark: toMark.slice(0, LIST_MAX).map((t) => ({

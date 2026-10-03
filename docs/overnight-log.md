@@ -6416,3 +6416,18 @@ fine at pilot size.
 **Mutation check:** I undid each fix in turn and its test failed: the booking-path close, the
 `refreshShiftStatus` close, the own-offer accept on a reopened shift, the sync's accept, the
 failed send overwriting the close, and the metric counting office placements.
+
+**Verify:** `VERIFIED tree=22abcaa93c318078 e2e=true` (2693 tests, 49 browser tests).
+
+**Auditor verdict (verbatim, first lines):**
+```
+VERDICT: DONE
+Pre-check: `.claude/state/verified.json` = `{"ok":true,"tree":"22abcaa93c318078","e2e":true,"at":"2026-10-03T17:38:42Z"}`; `./.claude/hooks/tree-hash.sh` → `22abcaa93c318078`. Matches.
+Claims: core close logic, first come first served, after the last fair-rotation wave, office placement, Mark as filled, headcount cut, Sheets sync, edge cases — all PROVEN.
+Fakes found: none.
+To reach DONE: nothing — tick this task in PLAN.md (per CLAUDE.md, only after this audit, which has now run).
+```
+
+**Commit:** `c40aa31`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+**Hours:** 0.6 (Phase 10: 1.4 of 30–45 h). **Parked:** sheet whole-shift cancellations leave
+waiting offers (expire them as the office's cancellation does).

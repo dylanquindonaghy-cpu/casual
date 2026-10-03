@@ -6319,3 +6319,19 @@ shift mid-wave" bound: 2.6 s with only 60 workers.
 |---|---|---|
 | `previewBooking` runs again inside each claim, under the shift lock | Golden rule 6, and "only eligible workers are ever notified": a licence can be suspended mid-wave. It costs about 9 reads per worker. The lock is held for that one claim (milliseconds), so Take shift still waits for one claim at most. | Trust the list read at the start: minutes old by the time the last worker is claimed. |
 | Restart the wave when the shift's role, times or site change mid-wave | The message would be wrong, and the list was built for the old role. A fresh run rebuilds both and skips everyone already offered. | Rebuild only the message: workers who fit only the new role would be missed. |
+
+**Verify:** `VERIFIED tree=ee25ef9016a1bbff e2e=true` (2678 tests in 160 files, 49 browser tests).
+
+**Auditor verdict (verbatim, first lines):**
+```
+VERDICT: DONE
+Verification gate: `.claude/state/verified.json` → `{"ok":true,"tree":"ee25ef9016a1bbff","e2e":true}`; `./.claude/hooks/tree-hash.sh` → `ee25ef9016a1bbff` — matches. Proceeding.
+Claims: claim → send → record — PROVEN; Take shift / Assign within 2 s mid 300-worker wave — PROVEN;
+Parking lot note corrected — PROVEN; M18, M19, M20, L17, L19, L72, L77 — PROVEN.
+Fakes found: none.
+To reach DONE: nothing — this task's claims are all PROVEN with passing, non-fake tests on the current (verified) tree.
+```
+
+**Commit:** `198941f`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+**Hours:** 0.8 (Phase 10: 0.8 of 30–45 h). **Parked:** an email-failure alert (with "Connect
+Amazon SES"); pushes outside the record transaction (with the real web push).

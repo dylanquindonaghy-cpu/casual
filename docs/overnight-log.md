@@ -6335,3 +6335,84 @@ To reach DONE: nothing — this task's claims are all PROVEN with passing, non-f
 **Commit:** `198941f`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
 **Hours:** 0.8 (Phase 10: 0.8 of 30–45 h). **Parked:** an email-failure alert (with "Connect
 Amazon SES"); pushes outside the record transaction (with the real web push).
+
+## 2026-10-03 17:07 UTC — Phase 10, task 2: close every other open offer when a shift fills
+
+**Task:** When a shift fills, every other open offer on it is closed, in every mode (first come
+first served, after the last fair-rotation wave, office placement): the taker's offer `accepted`,
+the rest `filled_elsewhere`, logged, with a test per mode (M5)
+
+**Plan:** one shared `src/lib/offers/close.ts`:
+- `closeOpenOffers`: holders' waiting offers `accepted`, the rest `filled_elsewhere`, logged
+  `offer.closed` {reason: "filled", accepted, filledElsewhere} when any changed.
+- `closeOffersIfFilled`: the same, only when the shift is full now.
+
+Called from every path that can fill a shift:
+- `bookShift`, after the assignment, for a worker or the office. The booked worker's own offer
+  is now `accepted` for an office placement too, not only for a worker.
+- `refreshShiftStatus`, which now takes `now`. It covers office edits, CSV imports, the sheet
+  sync and "Open it again".
+- `closeShift` ("Mark as filled"), replacing its own copy of the same code.
+- The wave's `stop('filled')`, also replacing its copy.
+
+Tests: a new `tests/integration/offers.close.test.ts`, one case per mode:
+- first come, first served;
+- after the last fair-rotation wave;
+- the office placing an offered worker, and one who wasn't offered;
+- "Mark as filled";
+- a headcount cut that fills the shift;
+- a 2-place shift whose first booking closes nothing.
+
+Each case checks the responses and the `offer.closed` event.
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| An office placement marks that worker's own offer `accepted` at once, in every mode | The finding's inconsistency: under fair rotation a later wave already did this, under first come, first served nothing did. The pilot metric "urgent shifts filled from offers" now counts it the same way in both modes. | Leave office placements as "waiting" until the shift fills, then accepted. |
+| One `offer.closed` event per fill (counts), not one per offer | The office log stays readable. Each offer row keeps its own response and time. | An event per offer: hundreds of lines for one first-come wave. |
+| A whole-shift cancellation still leaves offers "waiting" | Not this task (M5 is about a fill). Parked: mark them `expired` on a firm cancellation. | Fold it in now. |
+
+**Guardrails review (with two adversarial reviewers; each finding checked by two refuters):**
+
+FIX FIRST, both fixed:
+- **A retaken shift kept the wrong answer.** A worker whose offer was closed `filled_elsewhere`
+  and who takes the shift after a dropout reopened it kept "filled by someone else". This was a
+  regression in first come, first served. Fixed: `acceptOwnOffer` accepts the booked worker's
+  offer when it's waiting *or* closed `filled_elsewhere`, and so do the holders in
+  `closeOpenOffers`. Tested both ways: with a 1-place shift (the fill closes it) and with 2 places
+  and only one retaken (the worker's own answer alone). The first test alone didn't catch the
+  mutant, so I added the second.
+- **The pilot metric would have overcounted.** "Urgent shifts filled from offers" would count an
+  office placement of an offered worker now that it's `accepted`. Fixed: both
+  `src/lib/metrics/rollup.ts` and `src/lib/office/pilot-report.ts` count only wave offers the
+  worker took themselves (a `shift.assigned` with `by: "worker"`), matching the metric's
+  definition ("urgent shifts a worker took from an offer wave", `src/lib/metrics/definitions.ts`).
+  - The metrics test fixtures gained the matching booking events, and a placed-by-the-office case
+    that isn't counted.
+  - Two expected portal-action counts went up by one (3 → 4 and 2 → 3), because each fixture now
+    contains the worker's own take (a real portal action). This is not a weakening; each is
+    commented.
+
+Should-fix, all fixed:
+- **The sheet sync now accepts the named worker's offer** (`acceptOwnOffer` after a successful
+  `plug.assign`), with a sync test: 1 of 2 places, then full, then a no-op re-sync logging no
+  second close.
+- **A send that fails while the shift fills is recorded `failed`**, overwriting a fill-closure,
+  because that message never arrived. Tested.
+- **New tests:**
+  - an `accepted > 0` close;
+  - fair rotation over two waves;
+  - a booking between waves (the next wave stops and logs no second close);
+  - `responded_at` asserted.
+
+Nits fixed:
+- **`offer.closed` wording** is now neutral, with counts.
+- **The Parking-lot line** now says *sheet* cancellations, because the office's whole-shift
+  cancellation already expires waiting offers.
+- **The comment no longer calls an import a "fill"**; it says a re-check after an import.
+
+Not done: the sync calls the close check for every shift on each run (an extra select). That's
+fine at pilot size.
+
+**Mutation check:** I undid each fix in turn and its test failed: the booking-path close, the
+`refreshShiftStatus` close, the own-offer accept on a reopened shift, the sync's accept, the
+failed send overwriting the close, and the metric counting office placements.

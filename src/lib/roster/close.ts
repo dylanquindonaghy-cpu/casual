@@ -1,9 +1,10 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
-import { CANCELLED_ASSIGNMENT_STATUSES, offers, shifts } from "../db/schema";
+import { CANCELLED_ASSIGNMENT_STATUSES, shifts } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { closeOpenOffers } from "../offers/close";
 import { startOfferWaves } from "../offers/waves";
 import { officeCanPlace } from "./book";
 import { refreshShiftStatus } from "./native";
@@ -81,24 +82,8 @@ export async function closeShift(
     }
     await tx.update(shifts).set({ status: "filled" }).where(eq(shifts.id, request.shiftId));
     // Offered workers who hold a place (the office placed them) took it; the rest were filled by
-    // someone else.
-    const holders = sql`(select a.worker_id from assignments a
-      where a.shift_id = ${request.shiftId} and a.worker_id is not null
-        and a.status not in (${CANCELLED}))`;
-    await tx
-      .update(offers)
-      .set({ response: "accepted", respondedAt: now })
-      .where(
-        and(
-          eq(offers.shiftId, request.shiftId),
-          isNull(offers.response),
-          sql`${offers.workerId} in ${holders}`,
-        ),
-      );
-    await tx
-      .update(offers)
-      .set({ response: "filled_elsewhere", respondedAt: now })
-      .where(and(eq(offers.shiftId, request.shiftId), isNull(offers.response)));
+    // someone else (src/lib/offers/close.ts).
+    await closeOpenOffers(tx, request.shiftId, now);
     await recordEvent(tx, {
       actorType: "office",
       actorId: request.by.id,
@@ -132,7 +117,7 @@ export async function reopenShift(
     if (shift.status !== "filled" || shift.startsAt.getTime() <= now.getTime()) {
       return { status: "not_open" };
     }
-    await refreshShiftStatus(tx, request.shiftId);
+    await refreshShiftStatus(tx, request.shiftId, now);
     // An urgent shift's offers start again (a wave now, the escalation for later).
     if (shift.isUrgent) await startOfferWaves(tx, { shiftId: request.shiftId, now });
     await recordEvent(tx, {

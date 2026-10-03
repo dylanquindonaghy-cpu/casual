@@ -3,6 +3,7 @@ import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { assignments, CANCELLED_ASSIGNMENT_STATUSES, shifts, sites, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { closeOffersIfFilled } from "../offers/close";
 import { consumeEligibilityPass, type EligibilityPass } from "../rules/eligibility";
 import { noticeHours } from "./notice";
 import {
@@ -277,7 +278,7 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
 // Keeps an open or filled shift's status true to its slots after its headcount changed (a sheet
 // sync, an import): filled when every place within the headcount is held, else open. Draft and
 // cancelled shifts are left alone. Inside the caller's withFirm transaction.
-export async function refreshShiftStatus(tx: FirmTx, shiftId: string): Promise<void> {
+export async function refreshShiftStatus(tx: FirmTx, shiftId: string, now: Date): Promise<void> {
   await tx.execute(sql`
     update shifts s set status = case
         when (select count(*) from assignments a
@@ -287,4 +288,6 @@ export async function refreshShiftStatus(tx: FirmTx, shiftId: string): Promise<v
         then 'filled' else 'open' end
      where s.id = ${shiftId} and s.status in ('open', 'filled')
   `);
+  // Full now: offers still waiting are closed (src/lib/offers/close.ts).
+  await closeOffersIfFilled(tx, shiftId, now);
 }

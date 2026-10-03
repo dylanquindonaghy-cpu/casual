@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import {
@@ -34,6 +34,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
+import { closeOpenOffers } from "./close";
 import { lockLiveContact, type LiveContact } from "./reachable";
 
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
@@ -240,9 +241,8 @@ function notOfferable(shift: LockedShift, now: Date): Exclude<StopReason, "no_ca
   return null;
 }
 
-// Ends the chain. A filled shift's open offers are closed: offered workers who ended up with a place
-// (the office placed them, or the sheet named them) took it; everyone else's offer was filled by
-// someone else.
+// Ends the chain. A filled shift's offers still waiting are closed (usually already, by whatever
+// filled it: src/lib/offers/close.ts).
 async function stopWaves(
   tx: FirmTx,
   shiftId: string,
@@ -250,24 +250,7 @@ async function stopWaves(
   reason: StopReason,
   now: Date,
 ): Promise<void> {
-  if (reason === "filled") {
-    const holders = sql`(select a.worker_id from assignments a
-      where a.shift_id = ${shiftId} and a.worker_id is not null and a.status not in (${CANCELLED}))`;
-    await tx
-      .update(offers)
-      .set({ response: "accepted", respondedAt: now })
-      .where(
-        and(
-          eq(offers.shiftId, shiftId),
-          isNull(offers.response),
-          sql`${offers.workerId} in ${holders}`,
-        ),
-      );
-    await tx
-      .update(offers)
-      .set({ response: "filled_elsewhere", respondedAt: now })
-      .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
-  }
+  if (reason === "filled") await closeOpenOffers(tx, shiftId, now);
   await recordEvent(tx, {
     actorType: "system",
     action: "offer.waves_stopped",
@@ -517,12 +500,19 @@ export async function runOfferWave(
     // rest still go, and the worker can be offered it again in a later wave.
     await inFirm(async (tx) => {
       if (!result.ok) {
-        // Kept as evidence of the attempt (offers are never deleted), marked failed, unless the
-        // worker answered it while it was going out (it may have arrived after all).
+        // Kept as evidence of the attempt (offers are never deleted), marked failed: unless the
+        // worker answered it while it was going out (it may have arrived after all). A close
+        // because the shift filled meanwhile is overwritten: this message never arrived, so the
+        // worker can be offered it again if the shift reopens.
         await tx
           .update(offers)
           .set({ channel: result.channel, response: "failed", respondedAt: now })
-          .where(and(eq(offers.id, claim.offerId), isNull(offers.response)));
+          .where(
+            and(
+              eq(offers.id, claim.offerId),
+              or(isNull(offers.response), eq(offers.response, "filled_elsewhere")),
+            ),
+          );
         await recordEvent(tx, {
           actorType: "system",
           action: "offer.send_failed",

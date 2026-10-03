@@ -1,11 +1,12 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { MINUTE, systemClock, type Clock } from "../auth/clock";
-import { officeUsers, offers, rosterSources, shifts, workers } from "../db/schema";
+import { officeUsers, rosterSources, shifts, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { retryAborted } from "../db/retry";
 import { maskText } from "../log/mask";
+import { acceptOwnOffer, closeOffersIfFilled } from "../offers/close";
 import {
   checkEligibility,
   OVERRIDABLE_CODES,
@@ -256,16 +257,10 @@ async function bookInTransaction(
       ...(reason ? { reason } : {}),
     },
   });
-  // A worker taking a shift they were offered: the offer is answered (offer waves stop offering
-  // it once it's full).
-  if (by.type === "worker") {
-    await tx
-      .update(offers)
-      .set({ response: "accepted", respondedAt: now })
-      .where(
-        and(eq(offers.shiftId, shiftId), eq(offers.workerId, workerId), isNull(offers.response)),
-      );
-  }
+  // A worker booked onto a shift they were offered (they took it, or the office placed them) has
+  // answered that offer. Full now: every other offer still waiting is closed (src/lib/offers/close.ts).
+  await acceptOwnOffer(tx, shiftId, workerId, now);
+  await closeOffersIfFilled(tx, shiftId, now);
   return {
     status: "booked",
     assignmentId: assigned.assignmentId,

@@ -250,7 +250,7 @@ every step works.
       reminders do). "Take shift" and the office's "Assign" on the same shift finish within 2 s
       while a 300-worker wave sends through a slow fake transport (test). Correct the Parking lot's
       "fine at pilot size" note. (M18, M19, M20, L17, L19, L72, L77)
-- [ ] When a shift fills, every other open offer on it is closed, in every mode (first come first
+- [x] When a shift fills, every other open offer on it is closed, in every mode (first come first
       served, after the last fair-rotation wave, office placement): the taker's offer `accepted`,
       the rest `filled_elsewhere`, logged, with a test per mode (M5)
 - [ ] No message is sent twice when a job retries: office offers, escalation (per recipient, so
@@ -649,6 +649,8 @@ every step works.
     in the short record transaction, which holds no shift, worker or offer lock).
   - Office view of reminders (Phase 5 Today / no-show screens): show an old `sending` row as "may
     have gone" next to the booking.
+  - Offers still waiting when the *sheet* cancels a whole shift stay "waiting": mark them `expired`
+    then, as the office's whole-shift cancellation already does (`src/lib/roster/cancel.ts`).
   - Offer waves and escalation now use the reminders' claim → send → record pattern (Phase 10,
     2026-10-03). The office's single offer, login links and codes, the credential scan, firm-change
     notices and request updates are Phase 10 task 3.
@@ -1509,3 +1511,4 @@ every step works.
 | 2026-09-30 | 9 | 0.2 | Dry-run event day, BLOCKED (not ticked: needs the pilot firm's resourcer, volunteers' phones and Twilio): the playbook had no dry-run section though onboarding pointed to it; added "Dry-run event day": when, the set-up (three volunteers, a pretend event before go-live), 12 steps covering every flow a pilot relies on with who does each and what "worked" looks like, and a table to fill in; parking item; 2665 tests + 49 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.2 | Weekly pilot reviews and the week-4 report, BLOCKED (not ticked: a real four-week pilot): `docs/pilot-report.md`: the Friday review (the tally first, the dates to choose on the Pilot metrics page), a weekly table with the page's own figure names and targets, the Friday update's wording, and the week-4 report with where each number comes from, then the Gate C check; linked from the playbook; parking item; 2665 tests + 49 e2e; verified. Phase 9: 2.5 h of the 10–15 h estimate, 1 task done, 6 blocked (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.8 | Offer waves never hold the shift lock while sending: claim → send → record per worker (each claim re-checks the shift and the worker under the lock; an edit mid-wave restarts it), escalation per office user, quiet hours on retries; Take shift and Assign under 2 s mid-way through a 300-worker wave (was 2.6 s with 60); 2678 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-03 | 10 | 0.6 | Waiting offers close the moment a shift fills, by any route and in every mode (`src/lib/offers/close.ts`, `offer.closed`): the taker accepted (also after a reopen, and when the office places them or the sheet names them), the rest filled elsewhere; the "urgent shifts filled from offers" metric counts only workers who took it themselves; 2693 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |

@@ -188,6 +188,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return "Offers waiting for quiet hours to end.";
     case "offer.waves_stopped":
       return "Offers stopped.";
+    case "offer.closed":
+      return `Offers still waiting were closed: ${String(d.filledElsewhere ?? 0)} filled by someone else${
+        Number(d.accepted ?? 0) > 0 ? `, ${String(d.accepted)} taken by the people placed` : ""
+      }.`;
     case "shift.reminder_sent":
       return `Reminder sent to ${worker}.`;
     case "shift.reminder_failed":

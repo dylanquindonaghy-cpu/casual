@@ -115,7 +115,12 @@ export async function countDay(
         where e.action = 'shift.marked_urgent' and ${inDay("e.created_at")})
         as urgent_shifts,
       (select count(distinct o.shift_id)::int from offers o
-        where o.wave is not null and o.response = 'accepted' and ${inDay("o.responded_at")})
+        where o.wave is not null and o.response = 'accepted' and ${inDay("o.responded_at")}
+          -- taken by the worker (Take shift), not placed by the office or named on the sheet
+          and exists (select 1 from events b
+                       where b.action = 'shift.assigned' and b.data ->> 'by' = 'worker'
+                         and b.data ->> 'shiftId' = o.shift_id::text
+                         and b.data ->> 'workerId' = o.worker_id::text))
         as urgent_filled_by_wave,
       (select count(*)::int from assignments a
          join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id

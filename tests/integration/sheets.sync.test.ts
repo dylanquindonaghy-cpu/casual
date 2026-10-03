@@ -1029,3 +1029,52 @@ describe("sheets.sync: failures in the booking step", () => {
     expect(await eventsOf(f.firmId, "roster.sync_failed")).toEqual([]);
   });
 });
+
+describe("offers on a sheet shift (src/lib/offers/close.ts)", () => {
+  it("a name the sheet adds takes their offer; the sheet filling the shift closes the rest, once", async () => {
+    const f = await sheetFirm([ADA, BEN, CAL].map(staffRow), [shiftRow({ ...P1, assigned: "" })]);
+    expect(await sync(f)).toMatchObject({ status: "synced" });
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    const [ada, ben, cal] = (await Promise.all(
+      ["N001", "N002", "N003"].map((ref) => idOf("workers", f.firmId, ref)),
+    )) as [string, string, string];
+    // An urgent wave offered it to all three.
+    for (const w of [ada, ben, cal]) {
+      await su.query(
+        `insert into offers (firm_id, shift_id, worker_id, wave, channel, sent_at)
+         values ($1, $2, $3, 1, 'whatsapp', $4)`,
+        [f.firmId, shiftId, w, NOW],
+      );
+    }
+    const responses = async () =>
+      Object.fromEntries(
+        (
+          await su.query<{ worker_id: string; response: string | null }>(
+            "select worker_id::text, response from offers where shift_id = $1",
+            [shiftId],
+          )
+        ).rows.map((r) => [r.worker_id, r.response]),
+      );
+
+    // The office writes Ada's name in: 1 of 2 places, her offer taken, the others still waiting.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001");
+    expect(await sync(f)).toMatchObject({ status: "synced" });
+    expect(await responses()).toEqual({ [ada]: "accepted", [ben]: null, [cal]: null });
+    expect(await eventsOf(f.firmId, "offer.closed")).toEqual([]);
+
+    // Then Ben's: full. Ben's taken, Cal's filled by someone else.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002");
+    expect(await sync(f)).toMatchObject({ status: "synced" });
+    expect(await responses()).toEqual({
+      [ada]: "accepted",
+      [ben]: "accepted",
+      [cal]: "filled_elsewhere",
+    });
+    expect((await eventsOf(f.firmId, "offer.closed")).map((e) => e.data)).toEqual([
+      { reason: "filled", accepted: 0, filledElsewhere: 1 },
+    ]);
+    // Another sync with nothing changed closes nothing more.
+    expect(await sync(f)).toMatchObject({ status: "synced" });
+    expect(await eventsOf(f.firmId, "offer.closed")).toHaveLength(1);
+  });
+});

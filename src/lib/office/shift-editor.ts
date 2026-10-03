@@ -277,7 +277,7 @@ export async function editShift(
     // The status follows the places only when the places changed, and never for a shift the office
     // marked as filled with places still free (close.ts): that stays closed until "Open it again".
     const closedByOffice = shift.status === "filled" && booked < shift.headcount;
-    if (fields.includes("headcount") && !closedByOffice) await refreshShiftStatus(tx, shiftId);
+    if (fields.includes("headcount") && !closedByOffice) await refreshShiftStatus(tx, shiftId, now);
     // Moved with nobody booked: offers still out describe the old shift, so they've expired.
     if (moved) {
       await tx

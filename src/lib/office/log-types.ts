@@ -48,6 +48,7 @@ export const LOG_TYPES = {
       "offer.office_held",
       "offer.wave_held",
       "offer.waves_stopped",
+      "offer.closed",
     ],
   },
   messages: {

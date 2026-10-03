@@ -11,6 +11,7 @@ import {
 } from "../../db/schema";
 import type { FirmTx, WithFirm } from "../../db/scoped";
 import { recordEvent } from "../../events/record";
+import { acceptOwnOffer } from "../../offers/close";
 import { retryAborted } from "../../db/retry";
 import { checkBooking } from "../book";
 import { RulesSettingsError } from "../eligibility-input";
@@ -488,7 +489,7 @@ async function mirror(
     }
 
     // The sheet may have changed the headcount: keep open / filled true to the slots.
-    await refreshShiftStatus(tx, shiftId);
+    await refreshShiftStatus(tx, shiftId, now);
   }
 
   return { writes, booked, cancelled, notBooked, problems };
@@ -591,6 +592,8 @@ async function mergeShift(
     const result = await plug.assign(shiftId, workerId, check.result.pass);
     if (result.status === "assigned") {
       booked += 1;
+      // Named on the sheet after being offered it: they took it (src/lib/offers/close.ts).
+      await acceptOwnOffer(tx, shiftId, workerId, now);
       await recordEvent(
         tx,
         system("shift.assigned", "assignment", result.assignmentId, {

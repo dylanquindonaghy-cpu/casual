@@ -206,6 +206,11 @@ export async function loadPilotReport(
            count(*) filter (where exists (
              select 1 from offers o
               where o.shift_id = m.shift_id and o.wave is not null and o.response = 'accepted'
+                -- taken by the worker themselves (not placed by the office or the sheet)
+                and exists (select 1 from events b
+                             where b.action = 'shift.assigned' and b.data ->> 'by' = 'worker'
+                               and b.data ->> 'shiftId' = o.shift_id::text
+                               and b.data ->> 'workerId' = o.worker_id::text)
            ))::int as filled
       from marked m`);
   const { rows: thisWeekRows } = await tx.execute<{ metric: string; value: string }>(sql`

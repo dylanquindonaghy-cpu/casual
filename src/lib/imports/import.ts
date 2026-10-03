@@ -578,7 +578,7 @@ function rowImporter(
       throw new Problem("shift_has_bookings");
     }
     await tx.update(shifts).set(fields).where(eq(shifts.id, existing.id));
-    await refreshShiftStatus(tx, existing.id);
+    await refreshShiftStatus(tx, existing.id, opts.now);
     await event(tx, "shift.changed", "shift", existing.id, { fields: changed });
     return "updated";
   };

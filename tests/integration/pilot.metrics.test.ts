@@ -178,11 +178,35 @@ describe("the daily counts", () => {
        values ($1, $2, $3, 1, 'whatsapp', 'accepted', '2026-11-02T06:10:00Z')`,
       [t.f.firmId, s1, t.ben],
     );
+    // Ben took it himself (Take shift).
+    await t.event({
+      action: "shift.assigned",
+      when: at("2026-11-02T06:10:00Z"),
+      actorType: "worker",
+      actorId: t.ben,
+      entityType: "assignment",
+      data: { by: "worker", shiftId: s1, workerId: t.ben },
+    });
     await su.query(
       `insert into offers (firm_id, shift_id, worker_id, offered_by, channel, response, responded_at)
        values ($1, $2, $3, $4, 'sms', 'accepted', '2026-11-02T07:10:00Z')`,
       [t.f.firmId, s2, t.ann, t.resourcer],
     );
+    // s2's wave offer to Ann is accepted only because the office placed her (Assign): the office
+    // filled it, not the wave.
+    await su.query(
+      `insert into offers (firm_id, shift_id, worker_id, wave, channel, response, responded_at)
+       values ($1, $2, $3, 1, 'whatsapp', 'accepted', '2026-11-02T07:20:00Z')`,
+      [t.f.firmId, s2, t.ann],
+    );
+    await t.event({
+      action: "shift.assigned",
+      when: at("2026-11-02T07:20:00Z"),
+      actorType: "office",
+      actorId: t.resourcer,
+      entityType: "assignment",
+      data: { by: "firm", shiftId: s2, workerId: t.ann },
+    });
     // No-shows: on Monday's shift (counted), on Tuesday's (not Monday's).
     await t.f.booking(t.ann, s1, "no_show", 1);
     await t.f.booking(t.ben, s2, "no_show", 1);
@@ -196,8 +220,9 @@ describe("the daily counts", () => {
     );
     expect(counts).toEqual({
       worker_logins: 2,
-      // Ann's take, her pay page and her own cancellation below (Ben's request is for the office).
-      portal_actions: 3,
+      // Ann's take, her pay page and her own cancellation below, and Ben taking s1 from the wave
+      // (Ben's request is for the office).
+      portal_actions: 4,
       requests_created: 4,
       requests_due: 3, // all but the one made at 23:00, only 14 hours old
       requests_slow: 2,
@@ -488,6 +513,35 @@ describe("the page's figures", () => {
        values ($1, $2, $3, 1, 'whatsapp', 'accepted', '2026-10-30T06:00:00Z')`,
       [t.f.firmId, s, t.ann],
     );
+    await t.event({
+      action: "shift.assigned",
+      when: at("2026-10-30T06:00:00Z"),
+      actorType: "worker",
+      actorId: t.ann,
+      entityType: "assignment",
+      data: { by: "worker", shiftId: s, workerId: t.ann },
+    });
+    // A second urgent shift whose wave offer is accepted only because the office placed the worker:
+    // urgent, but not filled from an offer.
+    const placed = await t.f.shift({ startsAt: at("2026-11-05T08:00:00Z") });
+    await t.event({
+      action: "shift.marked_urgent",
+      when: at("2026-10-29T07:00:00Z"),
+      entityType: "shift",
+      entityId: placed,
+    });
+    await su.query(
+      `insert into offers (firm_id, shift_id, worker_id, wave, channel, response, responded_at)
+       values ($1, $2, $3, 1, 'whatsapp', 'accepted', '2026-10-30T07:00:00Z')`,
+      [t.f.firmId, placed, t.ben],
+    );
+    await t.event({
+      action: "shift.assigned",
+      when: at("2026-10-30T07:00:00Z"),
+      actorType: "office",
+      entityType: "assignment",
+      data: { by: "firm", shiftId: placed, workerId: t.ben },
+    });
     await withFirm(t.f.firmId, (tx) => rollupFirm(tx, "2026-11-02", NOW));
 
     // The default is the 7 complete days to yesterday; these dates include Monday (today).
@@ -509,14 +563,16 @@ describe("the page's figures", () => {
       weeks: 1,
       thisWeek: "2026-11-02",
     });
-    expect(r.daily.sums).toMatchObject({ worker_cancellations: 1, portal_actions: 2 });
+    // Portal actions: the cancellation and the retake on Monday, and Ann taking the urgent shift
+    // from its wave offer on the 30th.
+    expect(r.daily.sums).toMatchObject({ worker_cancellations: 1, portal_actions: 3 });
     expect(r.daily.daysCounted).toBe(7);
     expect(r.live).toEqual({
       refillMedianMinutes: 90,
       refills: 1,
       activeWorkers: 2,
       activeLoggedIn: 1,
-      urgentShifts: 1,
+      urgentShifts: 2, // one taken from the wave, one placed by the office
       urgentFilledByWave: 1,
     });
   });

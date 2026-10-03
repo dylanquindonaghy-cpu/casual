@@ -7304,3 +7304,87 @@ Each new check was also tried in reverse. With it removed, its test fails.
 
 Nothing new on screen. Run `npx vitest run tests/integration/offers.waves.lock.test.ts` to see the
 11 checks pass.
+
+## 2026-10-03: Phase 10, task 2: offers close the moment a shift fills (0.6 h)
+
+### Time
+
+0.6 hours of Claude's working time (17:07 to 17:40 UTC). Phase 10 so far: 1.4 of its 30 to 45
+hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=22abcaa93c318078 e2e=true`
+  (2693 tests, 49 browser tests).
+- The independent auditor said `VERDICT: DONE`: every mode PROVEN, no fakes found.
+- Audit finding fixed: M5.
+
+### What was built, in plain words
+
+When an urgent shift is offered to several workers, each offer is recorded with an answer: still
+waiting, accepted, or "filled by someone else". The office sees these on the shift's page. They
+are also part of the firm's evidence of every offer it made.
+
+Before, the "waiting" offers were only closed when a later offer wave happened to notice the shift
+was full. Under "first come, first served" (the default) there is no later wave, so they said
+"waiting" for ever, even after the shift was filled.
+
+Now they close at the moment the shift fills, whatever fills it:
+- a worker tapping Take shift;
+- the office pressing Assign or "Mark as filled";
+- the office cutting the number of places;
+- the rota sheet naming people.
+
+The person who took it has their offer marked **accepted**, and everyone else's **filled by someone
+else**. One line goes in the action log: "Offers still waiting were closed: 3 filled by someone
+else."
+
+Two follow-on fixes came out of the review:
+- **A shift that reopens:** if someone drops out and a worker who was told "filled by someone else"
+  takes it after all, their offer now becomes "accepted".
+- **The pilot figure "urgent shifts filled from offers"** now counts only shifts a worker took
+  themselves after being offered them. The office placing someone, or the rota sheet naming them,
+  doesn't count. That matches what the figure is meant to show.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One shared piece of code, called from every route that can fill a shift | One place to get right; a new route only has to call it. | Fixing each route separately (that's how the gap happened). |
+| An offered worker the office places is marked "accepted" | The audit asked for it, and fair rotation already did this. | Leave it "waiting". |
+| The pilot figure counts only workers who took it themselves | Otherwise office placements would inflate "filled from offers". | Count every accepted offer. |
+| One log line per fill, with counts | The action log stays readable; each offer keeps its own answer and time. | A line per offer: hundreds for one big wave. |
+
+### What the new tests prove
+
+`tests/integration/offers.close.test.ts` (13 checks) and one new check in
+`tests/integration/sheets.sync.test.ts`:
+- Each way a shift can fill closes the waiting offers at once, with the right answers:
+  - first come, first served;
+  - after the last fair-rotation wave (and over two waves);
+  - the office placing an offered worker, or someone else;
+  - "Mark as filled";
+  - fewer places;
+  - the rota sheet.
+- A first booking on a 2-place shift closes nothing yet.
+- A reopened shift retaken by an earlier offeree: "accepted", with the shift full again or with a
+  place still free.
+- A message that fails while the shift fills is recorded as failed, not "filled by someone else"
+  (it never arrived).
+- A later wave finding the shift full adds no second log line.
+- Updated `tests/integration/pilot.metrics.test.ts`: an office placement doesn't count as "filled
+  from offers".
+
+Each fix was also tried in reverse (removed). Its test then failed.
+
+### Parked, open, and things that need Dylan
+
+- When the *rota sheet* cancels a whole shift, its waiting offers still say "waiting" (the office's
+  own cancellation already marks them expired). Parked in `PLAN.md`.
+
+### How to see it working
+
+On your computer (`npm run dev`):
+1. As the office, mark a shift urgent.
+2. As a worker, take it.
+3. Open the shift's page in the office: the other offers now say "filled by someone else".

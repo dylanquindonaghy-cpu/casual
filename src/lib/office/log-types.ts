@@ -159,10 +159,14 @@ export const LOG_TYPES = {
     actions: ["worker.data_exported", "worker.erased", "firm.data_exported", "retention.purged"],
   },
   firm: {
-    label: "Firm settings",
+    label: "Firm settings and office team",
     actions: [
       "firm.created",
       "office_user.added",
+      "office_user.disabled",
+      "office_user.enabled",
+      "office_user.role_changed",
+      "office_user.signed_out",
       "firm.settings_changed",
       "firm.branding_changed",
       "firm.domain_changed",

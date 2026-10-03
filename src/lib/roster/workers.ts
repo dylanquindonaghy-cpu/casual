@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { magicLinks, sessions, workers, WORKER_STATUSES } from "../db/schema";
+import { endEverySession } from "../auth/sessions";
+import { workers, WORKER_STATUSES } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent, type ActorType } from "../events/record";
 
@@ -12,7 +13,8 @@ import { recordEvent, type ActorType } from "../events/record";
 // - a field the source doesn't have (undefined) is left as it is;
 // - a worker the office blocked here stays blocked, whatever the source says;
 // - a changed mobile signs the worker out everywhere (sessions revoked, unused login links spent),
-//   because login goes by mobile number;
+//   because login goes by mobile number; so does a changed status, so a worker made inactive and
+//   then active again doesn't get their old sessions back (audit L80);
 // - every change is logged by field name, never by value (golden rule 5).
 //
 // A mobile that belongs to another worker throws Postgres's unique violation (23505): the caller
@@ -121,22 +123,14 @@ export async function upsertWorker(
     .update(workers)
     .set(linking ? { ...next, externalRef: person.ref } : next)
     .where(eq(workers.id, existing.id));
-  let signedOut = 0;
-  if (changed.includes("mobileE164")) {
-    const revoked = await tx
-      .update(sessions)
-      .set({ revokedAt: from.now })
-      .where(and(eq(sessions.workerId, existing.id), isNull(sessions.revokedAt)))
-      .returning({ id: sessions.id });
-    await tx
-      .update(magicLinks)
-      .set({ usedAt: from.now })
-      .where(and(eq(magicLinks.workerId, existing.id), isNull(magicLinks.usedAt)));
-    signedOut = revoked.length;
+  let ended = { sessions: 0, links: 0 };
+  if (changed.includes("mobileE164") || changed.includes("status")) {
+    ended = await endEverySession(tx, { kind: "worker", subjectId: existing.id, now: from.now });
   }
   await event(linking ? "worker.linked" : "worker.updated", existing.id, {
     fields: changed,
-    ...(signedOut > 0 ? { sessionsRevoked: signedOut } : {}),
+    ...(ended.sessions > 0 ? { sessionsRevoked: ended.sessions } : {}),
+    ...(ended.links > 0 ? { linksSpent: ended.links } : {}),
   });
   return { id: existing.id, outcome: linking ? "linked" : "updated" };
 }

@@ -823,7 +823,8 @@ describe("sheets.sync: every change is logged, and the sheet can't unblock or hi
     await su.query(
       `insert into sessions (firm_id, kind, worker_id, token_hash, expires_at, rotated_at)
        values ($1, 'worker', $2, $3, $4, now())`,
-      [f.firmId, ada, randomBytes(32), new Date(Date.now() + 86_400_000)],
+      // Live at the sync's own clock (NOW): an expired session is dead already, so not counted.
+      [f.firmId, ada, randomBytes(32), new Date(NOW.getTime() + 86_400_000)],
     );
     f.fake.setCell(f.sheetId, "Staff", 2, "Mobile", "07700 900388");
     await sync(f);

@@ -113,8 +113,12 @@ email → the same answer whether or not it's known → `send-portal-link` email
 cookie (a worker and an office session can exist side by side; neither works as the other).
 Limits: 3 links per address and 10 per IP every 15 minutes. Each office area lists the roles
 that may use it (`src/lib/auth/roles.ts`); pages check with `requireOfficeArea()` and a role
-without access gets the not-found page. Disabling an office user ends their sessions at their
-next request.
+without access gets the not-found page. An admin can turn someone's office access off or back on,
+change their role, or log them out on every device (the office team page, or `firm:office-user`;
+`src/lib/office/team.ts`): turning access off ends their sessions and unused login links at once,
+turning it back on revives nothing (they log in afresh), and a role is read again at their next
+request. A worker whose mobile or status changes is likewise logged out everywhere. Every change is
+logged, and the firm always keeps an active admin.
 
 ## Roster plugs
 
@@ -194,7 +198,8 @@ becomes the new base. A failed or skipped write loses nothing: the next sync pus
 bookings and still sees any newer office edit. Draft rows' names are left alone. Bad rows are
 skipped and reported by row number and a code, never their contents. Staff changes are logged by
 field name; a worker blocked here stays blocked whatever the sheet says, and a changed mobile
-revokes the worker's sessions and unused login links (login goes by mobile). The sync's lease on
+or status revokes the worker's sessions and unused login links (login goes by mobile; made active
+again, nothing old comes back). The sync's lease on
 `roster_sources` fences every later write, so an overrunning sync can't clobber the next one.
 A name the office puts in its sheet is booked through `checkBooking()` with the office's overrides
 (rest, weekly hours, availability; started shifts are never booked by a sync), logged with the

@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { activeFirmId, type FirmTx } from "../db/scoped";
-import { sessions } from "../db/schema";
+import { magicLinks, sessions } from "../db/schema";
 import { recordEvent } from "../events/record";
 import { addMs, DAY, HOUR } from "./clock";
 import { hashToken, newToken } from "./tokens";
@@ -114,7 +114,13 @@ export async function rotateSession(
       tokenHash: hashToken(token),
       rotatedAt: opts.now,
     })
-    .where(and(eq(sessions.id, opts.session.id), eq(sessions.rotatedAt, opts.session.rotatedAt)))
+    .where(
+      and(
+        eq(sessions.id, opts.session.id),
+        eq(sessions.rotatedAt, opts.session.rotatedAt),
+        isNull(sessions.revokedAt), // ended meanwhile (logged out, access turned off): stays ended
+      ),
+    )
     .returning({ id: sessions.id });
   if (updated.length === 0) return null;
   await recordEvent(tx, {
@@ -161,4 +167,52 @@ export async function endSession(
     entityId: ended.id,
   });
   return true;
+}
+
+// Signs someone out everywhere: every session they have ends and every login link they haven't
+// used yet is spent, at once. For an office user turned off or back on, or signed out on every
+// device (src/lib/office/team.ts), and a worker whose mobile or status changes
+// (src/lib/roster/workers.ts). Inside the caller's transaction; the caller logs it.
+//
+// Links first: a login using one of their links at this moment holds that link's row, so this
+// waits for it to finish, and the sessions statement after it (a fresh look, under READ COMMITTED)
+// then sees the session it made and ends that too. Only live ones are counted (and ended): an
+// expired session or link is dead already, and "logged out on every device" must mean something.
+export async function endEverySession(
+  tx: FirmTx,
+  opts: { kind: SubjectKind; subjectId: string; now: Date },
+): Promise<{ sessions: number; links: number }> {
+  const sessionOf =
+    opts.kind === "worker"
+      ? eq(sessions.workerId, opts.subjectId)
+      : eq(sessions.officeUserId, opts.subjectId);
+  const linkOf =
+    opts.kind === "worker"
+      ? eq(magicLinks.workerId, opts.subjectId)
+      : eq(magicLinks.officeUserId, opts.subjectId);
+  const spent = await tx
+    .update(magicLinks)
+    .set({ usedAt: opts.now })
+    .where(
+      and(
+        eq(magicLinks.kind, opts.kind),
+        linkOf,
+        isNull(magicLinks.usedAt),
+        gt(magicLinks.expiresAt, opts.now),
+      ),
+    )
+    .returning({ id: magicLinks.id });
+  const ended = await tx
+    .update(sessions)
+    .set({ revokedAt: opts.now })
+    .where(
+      and(
+        eq(sessions.kind, opts.kind),
+        sessionOf,
+        isNull(sessions.revokedAt),
+        gt(sessions.expiresAt, opts.now),
+      ),
+    )
+    .returning({ id: sessions.id });
+  return { sessions: ended.length, links: spent.length };
 }

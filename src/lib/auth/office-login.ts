@@ -105,6 +105,7 @@ export async function currentOfficeUser(
 }
 
 export interface TeamMember {
+  id: string;
   name: string;
   email: string;
   role: OfficeRole;
@@ -120,6 +121,7 @@ export async function officeTeam(ctx: AuthContext, token: string): Promise<TeamM
   return run(ctx.firm.id, (tx) =>
     tx
       .select({
+        id: officeUsers.id,
         name: officeUsers.name,
         email: officeUsers.email,
         role: officeUsers.role,

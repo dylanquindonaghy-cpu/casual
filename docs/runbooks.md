@@ -451,6 +451,41 @@ In order (who does it, how, and what done looks like):
 
 When `firm:check` shows no `[ ]` and you've confirmed every `[?]`, the firm is ready to go live.
 
+## Someone leaves the office, or loses a laptop
+
+The firm's admins do this themselves on the office team page (`/office/team`): "Turn off access"
+(then "Yes, turn off access"), "Turn access back on", "Change role", or "Log out on every device".
+Each change is logged in the action log ("Firm settings and office team"). Turning access off logs
+them out everywhere at once and spends any login link they haven't used. Turning it back on
+doesn't bring back an old session: they ask for a new login link.
+
+A lost laptop or phone: "Log out on every device" ends every session on it. But if their email is
+open on that device too, whoever has it can ask for a new link. So turn their access off as well,
+until their email password is changed, then turn it back on.
+
+If the firm asks you to do it (their only admin is away, say): first check it's really them. Call
+the firm's owner or an admin you already know, on a number you already have, before you act,
+above all before `--enable` or `--set-role admin`. Then, on the server ("Running an owner command
+on the server" above; this command doesn't need the owner's login):
+
+```
+docker compose run --rm --no-deps web node --import tsx scripts/firm-office-user.ts --firm acme --email sam@acme-events.example --disable
+```
+
+Swap `--disable` for `--enable`, `--set-role payroll` (or `resourcer`, `admin`) or `--sign-out`.
+On your own computer, against your local database: `npm run -s firm:office-user -- --firm acme
+--email sam@acme-events.example --disable`.
+
+Each prints what happened, for example "Sam Rota's access is off. They've been logged out
+everywhere and can't log in until it's turned back on." Nothing changed (already off, say) also
+says so. A firm always keeps one admin who can log in: "Sam Rota is the only admin. Make someone
+else an admin first." Add the new admin first (step 4 of "Onboarding a pilot firm"), then turn the
+old one off. These are logged as done by the system.
+
+A worker who leaves or loses their phone: not on an office screen yet (PLAN.md Phase 10, the
+worker leavers task, and the Parking lot). A changed mobile or status from the rota sheet or an
+import already logs them out everywhere.
+
 ## Setting a firm's brand (name, colour, logo, sign-off)
 
 Owner-only (it uses `DATABASE_ADMIN_URL`), like `npm run firm:line`. Give only what changes:
@@ -468,7 +503,7 @@ Owner-only (it uses `DATABASE_ADMIN_URL`), like `npm run firm:line`. Give only w
    signed with the new name.
 
 A value it can't use is refused with the reason, and nothing changes. Each change is in the office
-action log ("The firm's colour changed."), under "Firm settings".
+action log ("The firm's colour changed."), under "Firm settings and office team".
 
 ## A firm's own domain (shifts.firmname.co.uk)
 
@@ -490,7 +525,7 @@ Setting one up (owner-only, like `npm run firm:line`):
    certificate; then it's the firm's portal with its bar.
 4. To change it: `--domain <new> --replace`. To remove it: `--clear`.
 
-Each change is in the office action log under "Firm settings".
+Each change is in the office action log under "Firm settings and office team".
 
 ## Custom domain not working
 

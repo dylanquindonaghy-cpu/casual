@@ -264,7 +264,7 @@ every step works.
       15 minutes; Open shifts and the urgent board make a bounded number of queries; missing indexes
       added; the "about a second" claim corrected in the docs (M14, L42, L51, L55, L63, L73, L74,
       L75, L76)
-- [ ] Office access can be taken away: an admin can disable, re-enable and change the role of an
+- [x] Office access can be taken away: an admin can disable, re-enable and change the role of an
       office user (Team screen and `firm:office-user`). Disabling ends their sessions and login links
       at once, re-enabling doesn't revive old sessions, and every change is logged. (M21, L80)
 - [ ] Worker leavers and blocks: the office can deactivate, reactivate and unblock a worker
@@ -761,8 +761,23 @@ every step works.
     line (docs/runbooks.md "Onboarding a pilot firm"): not tried yet. A small wrapper script on the
     server (`/opt/shiftdesk/owner <command> …`), or an `owner` compose service with exactly the
     variables owner commands need, would make it one short line.
-  - Office screens for what the owner commands do today: office users (add, disable, change role),
-    the firm's settings (the office settings screen, with the same read-back checks).
+  - Office screens for what the owner commands do today: adding office users (turning access off
+    and on, changing roles and logging out on every device are on the office team page since
+    Phase 10), the firm's settings (the office settings screen, with the same read-back checks).
+  - Access, left from Phase 10 task 6 (audit L80 and its reviews):
+    - **A worker's lost phone:** "Log out on every device" for a worker, from the office. There's
+      no office page for one worker yet; build it with Phase 10 task 7's worker controls
+      (deactivate, reactivate, unblock). Today a changed mobile or status signs them out.
+    - **An admin's own other devices:** an admin can't log themselves out elsewhere (only another
+      admin, or you with `firm:office-user --sign-out`). Add "Log out my other devices".
+    - **An office action already under way when access is turned off** can finish just after it
+      (its check of the person is a plain read, milliseconds before). Holding the person's row
+      (FOR SHARE) in `officeUserMay` and `officeCanPlace` would make them take turns.
+    - **A worker's mobile changing at the moment they use a login link** can deadlock (the mobile
+      change locks the worker row, the login holds its link). Postgres stops one, nothing is
+      half-done, and the sheet sync tries again next time; the command-line import reports the
+      row. Changing the order would let a link sent to the old mobile live on, so it's left as it
+      is.
   - `firm:settings` covers the checklist's settings only; add the rest of `firms.settings`
     (credential allowance, rest hours, weekly cap, pay digest times) when a firm asks.
   - The agreement, privacy notice, staff briefing and dry run aren't recorded anywhere: `firm:check`
@@ -1516,3 +1531,4 @@ every step works.
 | 2026-10-03 | 10 | 1.0 | No message sent twice when a job retries: login links and codes, the office's offer and the credential scan (and its Monday list) now claim, send, then record; a send whose record step failed is logged on the next run as unconfirmed, so the notice report keeps it; new `otp_codes.request_id` (migration 0027); 2713 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.5 | Twilio message ids no longer mistaken for phone numbers by the log masker, so the action log never refuses an event after a real message has gone (about 1 send in 12 would have); every sender that logs a provider id tested with Twilio-shaped ids; 2723 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 1.3 | Speed at pilot size: the shifts line answers 8 messages at once (one per worker at a time, older ones first), so 200 workers are answered within 20 s even with a 300 ms send; a crashed worker's jobs come back within about a minute (heartbeat), not 15; Open shifts, the urgent board and the offer list make the same number of queries however many shifts or workers; three indexes; the "about a second" claim corrected; 2735 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-03 | 10 | 0.8 | Office access can be taken away: on the office team page an admin can turn someone's access off (logged out everywhere at once, unused login links spent), back on (nothing old comes back), change their role (making an admin asks "Yes" first) or log them out on every device; the same from `firm:office-user`; the firm always keeps an admin; every change logged; a worker's status change from an import or the sheet also logs them out everywhere; two reviews found a deadlock with a login at the same moment and a missed session (both fixed and tested); 2759 tests + 50 e2e; verified and audited DONE on round 2 (see docs/work-log.md) |

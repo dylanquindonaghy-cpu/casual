@@ -49,16 +49,21 @@ async function claimLink(
   now: Date,
 ): Promise<LinkClaim> {
   const office = payload.purpose === "office_login";
-  // Workers get their link by WhatsApp; office users by email. Only while still active.
+  // Workers get their link by WhatsApp; office users by email. Only while still active. The row is
+  // held (FOR SHARE) until the link is stored, so access being turned off or a mobile changing at
+  // this moment takes turns with it: either this sees the change, or the change sees this link and
+  // spends it (src/lib/auth/sessions.ts endEverySession).
   const [recipient] = office
     ? await tx
         .select({ to: officeUsers.email })
         .from(officeUsers)
         .where(and(eq(officeUsers.id, payload.subjectId), eq(officeUsers.status, "active")))
+        .for("share")
     : await tx
         .select({ to: workers.mobileE164 })
         .from(workers)
-        .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")));
+        .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")))
+        .for("share");
   // An active worker always has a mobile (only an erased one has none, and erasure is inactive).
   if (!recipient?.to) return { done: "inactive" };
   const [firm] = await tx

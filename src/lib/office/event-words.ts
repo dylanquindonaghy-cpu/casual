@@ -318,6 +318,45 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       };
       return `Office access was given to ${ROLE[String(d.role)] ?? "someone"}.`;
     }
+    // Office access (src/lib/office/team.ts): by an admin on the team page, or by ShiftDesk from the
+    // command line (the system), in the passive.
+    case "office_user.disabled":
+    case "office_user.enabled":
+    case "office_user.role_changed":
+    case "office_user.signed_out": {
+      const person = names.office(d.officeUserId);
+      const ROLE: Record<string, string> = {
+        admin: "Admin",
+        resourcer: "Resourcer",
+        payroll: "Payroll",
+      };
+      const admin = e.actorType === "office" ? names.office(e.actorId) : null;
+      switch (e.action) {
+        case "office_user.disabled": {
+          const out =
+            Number(d.sessionsEnded) > 0 || Number(d.linksSpent) > 0
+              ? " They were logged out everywhere."
+              : "";
+          return admin
+            ? `${admin} turned off ${person}'s office access.${out}`
+            : `${person}'s office access was turned off.${out}`;
+        }
+        case "office_user.enabled":
+          return admin
+            ? `${admin} turned ${person}'s office access back on.`
+            : `${person}'s office access was turned back on.`;
+        case "office_user.role_changed": {
+          const change = `from ${ROLE[String(d.from)] ?? "one role"} to ${ROLE[String(d.to)] ?? "another"}`;
+          return admin
+            ? `${admin} changed ${person}'s office role ${change}.`
+            : `${person}'s office role was changed ${change}.`;
+        }
+        default:
+          return admin
+            ? `${admin} logged ${person} out of the office on every device.`
+            : `${person} was logged out of the office on every device.`;
+      }
+    }
     case "firm.settings_changed": {
       const n = Array.isArray(d.keys) ? d.keys.length : 0;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;

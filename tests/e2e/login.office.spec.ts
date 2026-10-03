@@ -42,7 +42,7 @@ test("an admin logs in by email link, sees their role and the office team, and l
   await page.goto(`${acme}/office`);
   await page.getByRole("link", { name: "Office team" }).click();
   await expect(page.getByRole("heading", { name: "Office team" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "acme.payroll@example.com" })).toBeVisible();
+  await expect(page.getByText("acme.payroll@example.com")).toBeVisible();
 
   await page.goto(`${acme}/office`);
   await page.getByRole("button", { name: "Log out" }).click();

@@ -7629,3 +7629,105 @@ Key numbers:
 ### How to see it working
 
 Nothing new on screen. The pages are the same, just with far fewer database queries behind them.
+
+## 2026-10-03: Phase 10, task 6: office access can be taken away (0.8 h)
+
+### Time
+
+0.8 hours of Claude's working time (20:39 to 21:24 UTC). Phase 10 so far: 5.0 of its 30 to 45
+hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=bcb5f653d2fe553c e2e=true`
+  (2,759 tests, 50 browser tests).
+- The independent auditor said `VERDICT: DONE` on its second round. The first round proved
+  every claim but answered "NOT DONE" only because the box wasn't ticked yet, which happens
+  after the audit.
+- Audit findings fixed: M21, L80 (with a few leftovers parked, below).
+
+### What was built, in plain words
+
+Before this, nobody could take office access away. If a resourcer left, they kept a 30-day
+**session** (the "stay logged in" the browser remembers) and could keep asking for new login
+links. The only fix was you typing database commands on the live server.
+
+Now the firm's admins do it themselves on the **office team page** (`/office/team`). For each
+person there are four buttons:
+
+- **Turn off access:** it asks "Yes?" first. They're logged out on every device at once. Any login
+  link they haven't used stops working.
+- **Turn access back on:** they log in afresh with a new link. Nothing old comes back.
+- **Change role** (Admin, Resourcer, Payroll): this applies from their next page. Making someone
+  an admin asks "Yes?" first.
+- **Log out on every device:** for a lost laptop, without taking access away.
+
+You can do the same from the terminal with `firm:office-user` (`--disable`, `--enable`,
+`--set-role`, `--sign-out`). This is in the runbook's new section "Someone leaves the office, or
+loses a laptop".
+
+Every change goes in the action log, for example "Ann Admin turned off Sam Rota's office access."
+The log holds ids and counts only, never a name or an email. Two guards apply:
+- A firm can never be left without an admin who can log in.
+- Nobody can change their own access on the page; another admin does.
+
+**Workers too:** if a worker is made inactive by an import or the rota sheet, they're now logged
+out everywhere. Before, making them active again brought their old sessions back.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Turning access off ends every session and link at once | The leaver is out the moment the admin presses the button | Checking at their next page only: making them active again brought old sessions back |
+| Turning access back on also ends anything left over | Nothing old can come back, however the access was turned off | Trusting nothing was left: one rare timing left a session |
+| The firm's admins take turns (a **lock**: the database makes two changes wait for each other) | Two admins turning each other off at the same moment can't leave the firm with no admin | No lock: the test showed both could win |
+| No changing your own access; "Yes?" before making someone an admin | No accidental lock-out; admin can see and delete workers' data | Allowing it |
+
+### What the new tests prove
+
+- **`tests/integration/office.team.test.ts`** (14 tests):
+  - Off: every session and unused link ends at once. Back on: the old ones stay dead, and a new
+    link works.
+  - A role change shows at the next page.
+  - "Log out on every device" works, and someone not logged in anywhere is told so.
+  - Nothing changed means nothing logged.
+  - Only an active admin of the same firm can make changes. Another firm's person is "not found".
+  - The last admin can't be turned off or demoted.
+  - Two admins turning each other off at the same moment: one wins, and the firm keeps an admin.
+  - A login finishing at the same instant as a turn-off or log-out: no **deadlock** (two database
+    jobs each waiting for the other forever), and its session is ended too.
+  - A session renewed a moment before is ended too, including the old token's 60 seconds.
+  - A worker made inactive, then active, gets nothing old back.
+- **`tests/unit/office.team-copy.test.ts`:** every message on the page and in the action log,
+  word for word as in `docs/screens.md`.
+- **`tests/e2e/office.team.spec.ts`:** in a real browser, an admin turns a resourcer off while
+  the resourcer is logged in on another phone. The resourcer is out. Access goes back on, and the
+  old session stays out. Their role is changed and shows when they log in again.
+- **The tests catch the bugs:** each guard was deliberately broken in turn:
+  - the session ending;
+  - the admin lock;
+  - the last-admin check;
+  - the lock's strength;
+  - the order links and sessions are ended in;
+  - counting expired sessions;
+  - renewing an ended session;
+  - the worker status change.
+  The matching test failed every time.
+
+### Parked, open, and things that need Dylan
+
+Parked in PLAN.md's Parking lot, with reasons:
+- A worker's lost phone: "Log out on every device" for one worker needs an office page for a
+  worker, which task 7 builds.
+- An admin logging out their own other devices.
+- Two rare timing cases that are milliseconds wide and fail safely.
+
+### How to see it working
+
+1. `npm run dev`, then log in at `http://acme.localhost:3000/office` as `acme.admin@example.com`.
+   The login link prints in the terminal.
+2. Click "Office team".
+3. Next to Acme's resourcer, press "Turn off access", then "Yes, turn off access". You should see
+   "… access is off. They've been logged out everywhere …".
+4. Press "Turn access back on", or pick a role and press "Change role".
+5. Then open the "Action log" to see each change.

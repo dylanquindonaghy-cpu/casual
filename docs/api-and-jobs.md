@@ -158,7 +158,16 @@ office's answer), pay queries and cancellations (fixed wording kept: `src/lib/gd
 logged `worker.erased` {workerId, licences, loginLinks, sessions, devices, daysUnavailable,
 messages, requests, payQueries, cancelReasons}), `exportFirmData` (built: `src/lib/gdpr/firm-export.ts`, `GET /office/data/export`:
 an active admin; every firm table less login secrets, one JSON file; logged `firm.data_exported`
-{tables, rows}).
+{tables, rows}), `changeOfficeAccess` (built, Phase 10: `src/lib/office/team.ts`,
+`changeOfficeAccessAction` on `/office/team`, and `npm run firm:office-user -- … --disable |
+--enable | --set-role <role> | --sign-out` as the system: an active admin, never on their own
+access; the firm's active admins locked first, then the person; turn off (status `disabled`, every
+session and unused login link ended at once: `endEverySession()`), turn back on (anything left
+ended too, so no old session revives), change role (read again at their next request), or log out
+on every device; the firm always keeps an active admin; logged `office_user.disabled` /
+`office_user.enabled` {officeUserId, role, sessionsEnded, linksSpent}, `office_user.role_changed`
+{officeUserId, from, to}, `office_user.signed_out` {officeUserId, sessionsEnded, linksSpent}; a
+change that changes nothing logs nothing).
 
 ## Job catalogue (pg-boss)
 

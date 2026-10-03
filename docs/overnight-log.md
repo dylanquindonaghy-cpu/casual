@@ -6709,3 +6709,98 @@ none." Ticked after this.
 **Hours:** 1.3 (Phase 10: 4.2 of 30–45 h).
 
 **Commit:** `0429ef0`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+
+## 2026-10-03 20:39 UTC — Phase 10, task 6: office access can be taken away
+
+**Task:** Office access can be taken away: an admin can disable, re-enable and change the role of
+an office user (Team screen and `firm:office-user`). Disabling ends their sessions and login links
+at once, re-enabling doesn't revive old sessions, and every change is logged. (M21, L80)
+
+**Plan:**
+1. **One shared "end everything" step** (`endEverySession()` in `src/lib/auth/sessions.ts`): revokes
+   a person's sessions and spends their unused login links, for workers and office users alike.
+   The worker mobile change (`upsertWorker`) uses it too.
+2. **The change itself** (`src/lib/office/team.ts`, `changeOfficeAccess()`), in one transaction:
+   - the acting admin checked again (`officeUserMay(…, "team")`);
+   - the person locked;
+   - turn off (status disabled, every session and unused link ended), turn back on (status active;
+     anything left from before is ended too, so nothing old comes back), change role, or sign out
+     on every device (a lost laptop, without turning access off);
+   - logged `office_user.disabled` / `enabled` / `role_changed` / `signed_out`, with the person's id
+     and counts, by the admin (or "system" from the command line). No change: nothing logged.
+3. **Guards:**
+   - the firm always keeps an active admin (the active admins are locked first, so two admins
+     turning each other off at once can't both win);
+   - an admin can't change their own access on the screen;
+   - another firm's person is "not found" (RLS and the firm's own transaction).
+4. **Team screen** (`/office/team`): per person, "Turn off access" (with a confirm step), "Turn
+   access back on", "Change role", "Sign out on every device", each ending in a confirmation.
+   The copy goes into `docs/screens.md` first.
+5. **`firm:office-user`:** `--disable`, `--enable`, `--set-role <role>`, `--sign-out` for an
+   existing email, through the same function (actor: system).
+6. **L80 for workers:** a worker's status change by import or sheet sync also ends their
+   sessions and links, so making them active again revives nothing.
+7. **Action log:** words and the "Firm settings" filter group for the new events.
+8. **Docs:**
+   - the runbook gets "Someone leaves the office, or loses a laptop";
+   - `docs/architecture.md` is corrected;
+   - the parking note is updated (adding people on the screen stays parked).
+9. **Tests:**
+   - integration: each change, the sessions and links ended, re-enable not reviving, role read at
+     the next request, the guards, the race, other firms, the CLI path, the worker status change;
+   - unit: the copy;
+   - e2e: an admin turns a resourcer off, back on and changes their role, with the resourcer
+     logged in alongside.
+
+No schema change: `office_users.status` already exists.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Turning access off ends every session and unused link at once (not "at their next request") | A leaver's laptop is out the moment the admin presses the button, and turning access back on can't bring an old session back | Rely on the status check at each request (old sessions revive on re-enable: audit L80) |
+| Turning access back on also ends anything left from before | Covers access turned off another way (raw SQL before this existed) and a login that finished at the same moment as the turn-off | Trust that nothing is left (one race leaves a session) |
+| The firm's active admins are locked (FOR NO KEY UPDATE, in id order) before any team change | Two admins turning each other off at once can't both win; the firm always keeps an admin; no deadlock with a login finishing at the same moment | FOR UPDATE (deadlocks with a login: the review reproduced it) |
+| Nobody changes their own access on the screen; making someone an admin asks "Yes" first | No accidental self-lockout; admin brings the team page and workers' data | Allowing it with the last-admin guard only |
+| A worker's status change (import, sheet) also signs them out everywhere | L80 for workers: made inactive and active again, their old sessions came back | Only on a mobile change (as before) |
+| "Log out on every device" for an office user | L80's lost laptop, without taking access away | Only turn off and on again (two steps, and the log reads as a leaver) |
+
+**Guardrails review:** no FIX FIRST. SHOULD FIX and NITs, all fixed unless noted:
+
+| Finding | Fix |
+|---|---|
+| FOR UPDATE on the person deadlocks with their own login link finishing at the same moment | FOR NO KEY UPDATE; a barrier test reproduces the deadlock with the old lock and passes with the new |
+| Spending links on re-enable untested | Test: a link from before is spent when access is turned back on |
+| The 60-second previous token after a renewal untested | Test: ended with the session |
+| The e2e can't pass on a retry (fixed emails) | Fresh emails per retry |
+| L80's worker "lost phone" not covered | Parked with a reason (no office page for one worker yet; with task 7's worker controls) |
+| Bad input read as "not found"; a data-changing fallback in the CLI; stale role picker; no "Yes" before making an admin; "logged out everywhere" said with nothing ended; worker event without links spent; worker test could go vacuous | All fixed |
+| An admin can't log out their own other devices | Parked |
+
+**Adversarial review:** no FIX FIRST. Fixed:
+
+| Finding | Fix |
+|---|---|
+| "Log out on every device" could miss a login finishing at the same moment (sessions ended before links) | `endEverySession` spends links first, then ends sessions (a fresh look sees the login's session). The barrier test now runs for turn-off and log-out, and fails with the old order |
+| Expired sessions and links counted as "logged out" (log counts are evidence) | Only live ones are ended and counted. Test with only expired ones: "wasn't logged in anywhere". A sheet test's session that had expired by its own clock now expires after it |
+| A renewal at the same moment could renew an ended session | `rotateSession` never touches an ended session. Tested |
+| The login-link job read the person without a lock | It holds the row (FOR SHARE) until the link is stored, so a turn-off or mobile change takes turns with it |
+| The page said "Nothing was changed" when only the browser's request failed; no refresh after "already so" | "Something went wrong. Reload the page to see if it changed."; refresh on both |
+| Runbook: the wrong command form for the server, no check of who's asking, a lost laptop with email open | All three fixed in the runbook (and the page's own words for the laptop) |
+| Stale "Firm settings" in the runbook; architecture's sheet paragraph | Fixed |
+| An office action under way when access is turned off; a worker mobile change racing a login (older code) | Parked with reasons (milliseconds wide; Postgres stops one and the sync retries) |
+| The CLI script itself untested | Its own task (Phase 10 task 19, L82); the integration test's name no longer claims it |
+
+**Verify:** `VERIFIED tree=bcb5f653d2fe553c e2e=true` (2,759 tests, 50 browser tests).
+
+**Auditor, round 1:** `VERDICT: NOT DONE (task is implemented and fully evidenced, but not yet
+marked complete in PLAN.md — correctly left unchecked)`. Every claim PROVEN, "Fakes found: none";
+the only reason given was the unticked box, which is ticked only after the auditor's DONE. Not
+ticked on that verdict: round 2 asked to judge the work, with L80's parked part named.
+
+**Auditor, round 2:** `VERDICT: DONE`. Every claim PROVEN, L80's three parts PROVEN for office
+users and workers, its leftover sub-items "correctly PARKED, not silently dropped". "Fakes found:
+none." Ticked after this. (Between the rounds the round-1 note was taken out of this log for a
+moment, so the files matched the verify stamp exactly when the box was ticked; it's back above.)
+
+**Hours:** 0.8 (Phase 10: 5.0 of 30–45 h).

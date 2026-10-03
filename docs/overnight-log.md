@@ -7004,3 +7004,5 @@ and the Sheets sync, the worker lock PROVEN by a blocking test (and the day lock
 decided; "No fakes found". Ticked after this.
 
 **Hours:** 0.5 (Phase 10: 6.6 of 30–45 h).
+
+**Commit:** `9e1d7f9`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).

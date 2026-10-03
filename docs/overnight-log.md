@@ -6607,3 +6607,21 @@ refuters):**
   tests.
 - **Older leak, not caused by this change:** a date with a time-zone offset can swallow the start
   of a phone number in the masker. Parked for Phase 10 task 16 (logs are safe and checked).
+
+**Verify:** `VERIFIED tree=2457f1e0e727e45a e2e=true` (2723 tests, 49 browser tests).
+
+**Auditor verdict (verbatim, first lines):**
+```
+VERDICT: DONE
+Setup check: `.claude/state/verified.json` = `{"ok":true,"tree":"2457f1e0e727e45a","e2e":true}`; `./.claude/hooks/tree-hash.sh` → `2457f1e0e727e45a`. Match.
+Claims: Twilio-shaped id never makes recordEvent refuse an event — PROVEN; every sender tested with Twilio-shaped ids — PROVEN; masker behaviour tested — PROVEN; not a fake/tautological test — PROVEN.
+Fakes found: none.
+To reach DONE: nothing — this task's "Done when" (M12/L46 fixed with a test that would have caught it) is met.
+```
+**Note for Dylan:** to prove its point, the auditor stashed `src/lib/log/mask.ts`, re-ran the tests
+and put the file back. It is read-only only by its instructions (audit L6, parked for your OK).
+Before ticking I checked that no stash was left, the fix was in place and the tree hash still
+matched the stamp.
+
+**Commit:** `90b2a3c`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+**Hours:** 0.5 (Phase 10: 2.9 of 30–45 h).

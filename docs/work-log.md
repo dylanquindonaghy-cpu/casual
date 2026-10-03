@@ -7476,7 +7476,7 @@ hour estimate.
 ### Result
 
 - **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=2457f1e0e727e45a e2e=true`
-  (49 browser tests).
+  (2723 tests, 49 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M12, L46.
 

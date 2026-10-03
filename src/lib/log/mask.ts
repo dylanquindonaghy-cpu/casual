@@ -11,10 +11,14 @@ export function maskPhone(e164: string): string {
 
 const WITHHELD = "[withheld]";
 
-// UUIDs and ISO dates/times are cut out before phone matching so their digits aren't mistaken
-// for a phone number, and so a date next to a phone number can't shield it.
+// UUIDs, ISO dates/times and Twilio ids are cut out before phone matching so their digits aren't
+// mistaken for a phone number, and so a date next to a phone number can't shield it. A Twilio id
+// (a message SM…, a call CA…, a recording RE…) is two capital letters then exactly 32 lowercase hex
+// characters, standing alone: about 1 in 12 has a run of 10 or more digits, which would otherwise
+// be masked as a phone number (and the action log would refuse an event holding one: audit finding
+// M12). Matched case-sensitively, so a person's typed number can't pass for one.
 const PROTECTED =
-  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)?/gi;
+  /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}(?::?\d{2})?)?)?|(?<![A-Za-z0-9])[A-Z]{2}[0-9a-f]{32}(?![A-Za-z0-9])/g;
 // Anything that looks like a phone number as people type it: an optional + or 00, then 10 or
 // more digits with up to 3 spaces, dots, hyphens or brackets between each (07700 900123,
 // +44 (0)7700 900123, 0044-7700-900123), even when glued to letters (Mob07700900123). No upper

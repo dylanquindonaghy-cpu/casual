@@ -328,8 +328,7 @@ export async function runInboundMessage(
         intent,
         ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
         workerId: c.workerId,
-        // The provider's id is on the stored reply (replyId), not here: a Twilio id with a long
-        // run of digits looks like a phone number to the log's masker.
+        // The provider's id is on the stored reply (replyId).
         replyId: out?.id ?? null,
       },
     });

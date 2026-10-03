@@ -257,7 +257,7 @@ every step works.
       one bad address doesn't stop the rest and `shift.escalated` is still recorded), the credential
       scan, login links and codes, firm-change notices and request updates use claim → send →
       record. A test fails each job after its send and checks the retry sends nothing. (M10, L33)
-- [ ] A Twilio-shaped message id (`SM` + 32 hex characters) never makes the action log refuse an
+- [x] A Twilio-shaped message id (`SM` + 32 hex characters) never makes the action log refuse an
       event after a message has gone: every sender is tested with Twilio-shaped ids (M12, L46)
 - [ ] Speed at pilot size: inbound replies keep a written bound when each send takes ~300 ms (load
       smoke with a slow fake transport; per-worker order kept); a worker crash strands no batch for
@@ -660,11 +660,13 @@ every step works.
   - A reminder still goes when a credential the shift needs has expired or been suspended since
     booking. Decide whether that should hold the reminder and alert the office (Phase 5 Today
     view).
-  - **Before connecting Twilio (found in the reminders review, affects every sender):** events log
-    `providerMessageId`, and `recordEvent` refuses values the log masker would change. A real
-    Twilio id (`SM` + 32 hex characters) contains a 10-digit run about 8% of the time, looks like a
-    phone number, and would make the event write throw after the message went. Exempt that key
-    or store only a safe form, with a test using a Twilio-shaped id.
+  - For Phase 10 task 16 (found in the task 4 review, older than it): a date followed by a time-zone
+    offset can swallow the start of a phone number in the log masker
+    (`2026-11-02T09:00:00+447700900123` keeps 8 digits unmasked). Limit the offset to real values
+    (`[+-](?:0\d|1[0-4])(?::?[0-5]\d)?`) and require no digit after the date.
+  - Fixed in Phase 10 task 4: the log masker leaves Twilio ids alone (two capitals + 32 lowercase
+    hex, standing alone), so an event logging `providerMessageId` is never refused; every sender
+    is tested with Twilio-shaped ids (`tests/integration/events.twilio-ids.test.ts`).
 - **Run the pilot's weekly reviews and send the week-4 report** (the Phase 9 "Week-by-week pilot
   metrics review and the week-4 report" task is blocked on it: it's a real four-week pilot).
   1. Each Friday: `docs/pilot-report.md` "Every Friday" (the resourcer's tally first, then the
@@ -1264,11 +1266,8 @@ every step works.
     not only in `messages`: delete both after 90 days. (Done: `retention-purge`.)
   - A webhook address override for a dev tunnel (ngrok) when testing with a real phone; and if
     firms ever get their own Twilio subaccounts, one auth token per subaccount.
-  - **Before connecting Twilio (every sender):** a real Twilio id (SM… with a long run of digits)
-    can look like a phone number to the log's masker, and `recordEvent` then refuses the event
-    after the message has gone. The new `message.replied` keeps it out of the event; the other
-    senders log `providerMessageId`: stop the masker treating SID shapes as phone numbers, or keep
-    ids out of events.
+  - (Fixed in Phase 10 task 4: Twilio ids are no longer mistaken for phone numbers by the log
+    masker; see `src/lib/log/mask.ts`.)
 - Shifts line follow-ups (Phase 7 "One business WhatsApp number per firm" task, blocked):
   - Show the line to workers (the home page, and `/help` when it's built: "Message the shifts line:
     {number} (WhatsApp or text)" with a WhatsApp link) once incoming messages are answered (the
@@ -1515,3 +1514,4 @@ every step works.
 | 2026-10-03 | 10 | 0.8 | Offer waves never hold the shift lock while sending: claim → send → record per worker (each claim re-checks the shift and the worker under the lock; an edit mid-wave restarts it), escalation per office user, quiet hours on retries; Take shift and Assign under 2 s mid-way through a 300-worker wave (was 2.6 s with 60); 2678 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.6 | Waiting offers close the moment a shift fills, by any route and in every mode (`src/lib/offers/close.ts`, `offer.closed`): the taker accepted (also after a reopen, and when the office places them or the sheet names them), the rest filled elsewhere; the "urgent shifts filled from offers" metric counts only workers who took it themselves; 2693 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 1.0 | No message sent twice when a job retries: login links and codes, the office's offer and the credential scan (and its Monday list) now claim, send, then record; a send whose record step failed is logged on the next run as unconfirmed, so the notice report keeps it; new `otp_codes.request_id` (migration 0027); 2713 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-03 | 10 | 0.5 | Twilio message ids no longer mistaken for phone numbers by the log masker, so the action log never refuses an event after a real message has gone (about 1 send in 12 would have); every sender that logs a provider id tested with Twilio-shaped ids; 2723 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |

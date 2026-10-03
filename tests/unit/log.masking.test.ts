@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { DatabaseError } from "pg";
 import { describe, expect, it } from "vitest";
 import { createLogger, type Level } from "@/lib/log";
@@ -245,6 +246,40 @@ describe("the logger", () => {
 
   it("masks a phone number stored as a number", () => {
     expect(JSON.stringify(redact({ n: 447700900123 }))).not.toContain("7700900");
+  });
+
+  it("leaves Twilio ids alone (2 capitals + 32 lowercase hex), even with a 10+ digit run inside", () => {
+    // 1,000 ids spread evenly over the hex digits (a sha256 of the index): about 1 in 12 holds a
+    // run of 10 or more digits, which the phone pattern would otherwise mask, and the action log
+    // would then refuse (audit finding M12).
+    const ids = Array.from(
+      { length: 1000 },
+      (_, i) =>
+        ["SM", "MM", "CA", "RE"][i % 4] +
+        createHash("sha256").update(String(i)).digest("hex").slice(0, 32),
+    );
+    const withRun = ids.filter((id) => /\d{10}/.test(id));
+    expect(withRun.length).toBeGreaterThan(40);
+    expect(withRun.length).toBeLessThan(140);
+    expect(withRun.filter((id) => /[c-f]/.test(id)).length).toBe(withRun.length);
+    // And real-looking ones with every hex letter next to a long run.
+    ids.push("SM1234567890cdef0123456789abcdef01", "MMfedcba98765432100123456789abcdef");
+    for (const id of ids) {
+      expect(maskText(id)).toBe(id);
+      expect(redact({ providerMessageId: id })).toEqual({ providerMessageId: id });
+    }
+    // A phone number next to one is still masked.
+    const id = "SM1234567890cdef0123456789abcdef01";
+    expect(maskText(`${id} to +447700900123`)).toBe(`${id} to +*********123`);
+    // Only that exact shape: not uppercase hex, not glued to other letters or digits, not 31 or 33.
+    for (const near of [
+      "SM1234567890CDEF0123456789ABCDEF01",
+      "xSM1234567890cdef0123456789abcdef01",
+      "SM1234567890cdef0123456789abcdef011",
+      "SM1234567890cdef0123456789abcdef0",
+    ]) {
+      expect(maskText(near)).not.toBe(near);
+    }
   });
 
   it("the console transport's maskPhone keeps the country code and last 3 digits", () => {

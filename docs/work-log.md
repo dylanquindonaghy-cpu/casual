@@ -7465,3 +7465,68 @@ Each fix was also tried in reverse (removed). Its test then failed.
 ### How to see it working
 
 Nothing new on screen. Run `npx vitest run tests/integration/jobs.no-resend.test.ts`.
+
+## 2026-10-03: Phase 10, task 4: Twilio message ids never make the action log refuse an event (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (18:47 to 19:17 UTC). Phase 10 so far: 2.9 of its 30 to 45
+hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=2457f1e0e727e45a e2e=true`
+  (49 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M12, L46.
+
+### What was built, in plain words
+
+The app hides personal data in its logs: a **masker** (code that blanks out phone numbers, emails
+and the like) runs on everything it writes. The action log is stricter still. It refuses any
+entry the masker would change, so a phone number can never get into it by mistake.
+
+The masker treats any run of 10 or more digits as a phone number. When Twilio sends a message, it
+returns an id like `SM1234567890cdef0123456789abcdef01`: two capital letters and 32 hex
+characters (0–9 and a–f). About one id in twelve has 10 digits in a row. Once Twilio was
+connected, the action log would have refused to record about one message in twelve, after the
+message had already gone.
+
+Now the masker recognises a Twilio id by its exact shape and leaves it alone, the same way it
+already left dates and other ids alone. A phone number next to one is still hidden, and anything
+not quite that shape is still masked.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Teach the masker the exact Twilio id shape | One place fixes every event and every log line, and keeps the ids readable for matching against Twilio's records. | Skip the check for that one field: log lines would still mangle the ids. |
+
+### What the new tests prove
+
+- **`tests/integration/events.twilio-ids.test.ts`:** each of the nine senders that records a
+  message id was run with Twilio-shaped ids containing 10 digits in a row, and each id is
+  recorded exactly:
+  - offer waves and the office's offer;
+  - login links and pay-page codes;
+  - licence warnings and expiry notices;
+  - shift reminders;
+  - change notices, request answers and pay-query answers.
+- **`tests/unit/log.masking.test.ts`:**
+  - 1,000 evenly spread ids pass unchanged (about 1 in 12 with a long digit run, as the audit
+    worked out);
+  - a phone number next to an id is still masked;
+  - near-misses are still masked.
+- **The tests catch both versions of the bug:** with the old masker, every one of the new tests
+  fails. A deliberately half-fixed masker fails too. That second check came from the review,
+  which found my first test's random ids were nearly all zeros.
+
+### Parked, open, and things that need Dylan
+
+- **An older gap in the masker**, found in the review and not caused by this change: a date with
+  a time-zone offset written right next to a phone number can hide part of the number. Parked
+  for Phase 10 task 16 (logs are safe and checked).
+
+### How to see it working
+
+Nothing to see on screen: it matters once Twilio is connected.

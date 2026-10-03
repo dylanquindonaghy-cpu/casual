@@ -6565,3 +6565,45 @@ after the tick, in the commit with the logs. It's a documentation-only change.
 **Hours:** 1.0 (Phase 10: 2.4 of 30–45 h). **Needs Dylan:** confirm migration 0027 and
 at-most-once sending for login links and codes. **Parked:** an office email-failure alert
 (with "Connect Amazon SES").
+
+## 2026-10-03 18:47 UTC — Phase 10, task 4: Twilio-shaped message ids never make the action log refuse an event
+
+**Task:** A Twilio-shaped message id (`SM` + 32 hex characters) never makes the action log refuse an
+event after a message has gone: every sender is tested with Twilio-shaped ids (M12, L46)
+
+**Root cause:** `recordEvent` refuses event data the log masker would change, and the masker's
+phone pattern matches any run of 10 or more digits. About 1 in 12 Twilio ids has such a run.
+
+**Plan and what was done:**
+- **`src/lib/log/mask.ts`:** Twilio ids (two capital letters, then exactly 32 lowercase hex
+  characters, standing alone) are cut out before phone matching, as UUIDs and dates already were.
+  The protected pattern is now case-sensitive (the UUID and date parts spell out both cases), so
+  only Twilio's exact shape is spared. Uppercase hex, a token glued to other letters or digits,
+  or a wrong length is still masked.
+- **Every sender that logs `providerMessageId` in an event** (9 of them) is run with a transport
+  returning Twilio-shaped ids holding a 30-digit run, in
+  `tests/integration/events.twilio-ids.test.ts`: waves, the office's offer, login links, login
+  codes, the credential warning and expiry notice, reminders, firm-change notices, request
+  answers and pay-query answers. Inbound replies and the STOP confirmation store the id on the
+  `messages` row, not in an event.
+- **`tests/unit/log.masking.test.ts`:** 1,000 ids spread evenly over the hex digits (a sha256 of
+  the index) pass unchanged; between 40 and 140 of them have a 10-digit run, and all of those
+  contain the hex letters c–f. Two hand-written ids with every hex letter next to a long run pass
+  unchanged too. A phone number next to an id is still masked, and near-misses aren't spared.
+- **Mutation check:** with the old masker, all 10 new tests fail.
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| Teach the masker the Twilio id shape (one place) | It covers every event, and every log line too: support can match a log line to Twilio's console. | Exempt the `providerMessageId` key in `recordEvent` only: log lines would still mask ids. Or keep ids out of events: we'd lose them for the erasure runbook (deleting a worker's messages at Twilio). |
+
+**Review (guardrails-reviewer and an adversarial privacy reviewer; each finding checked by two
+refuters):**
+- **No privacy regression.** 300,000 random ids all passed unchanged, nothing that was masked
+  before is spared now, and phones next to an id are still masked.
+- **Should-fix, fixed:** my first unit test's id generator lost precision in JavaScript
+  arithmetic. Its ids were mostly zeros with no c–f, so a masker that wrongly spared only
+  `[0-9ab]` would have passed. It now uses sha256 ids, checks their spread, and adds real-looking
+  ids. The integration ids now include c–f too. A deliberately narrowed masker now fails all 10
+  tests.
+- **Older leak, not caused by this change:** a date with a time-zone offset can swallow the start
+  of a phone number in the masker. Parked for Phase 10 task 16 (logs are safe and checked).

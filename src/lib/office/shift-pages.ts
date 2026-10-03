@@ -272,6 +272,7 @@ export async function officeShiftDetail(
     for (const e of eventRows) {
       if (typeof e.data.workerId === "string") workerIds.add(e.data.workerId);
       if (typeof e.data.offeredBy === "string") officeIds.add(e.data.offeredBy);
+      if (typeof e.data.officeUserId === "string") officeIds.add(e.data.officeUserId);
       if (e.actor_type === "office" && e.actor_id) officeIds.add(e.actor_id);
     }
     const ids = (set: Set<string>) => [...set].filter((id) => z.uuid().safeParse(id).success);

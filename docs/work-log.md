@@ -7208,3 +7208,99 @@ The office's Pilot metrics page already works out the numbers (with the baseline
 ### How to see it
 
 `docs/pilot-report.md`.
+
+## 2026-10-03: Phase 10, task 1: offer waves never hold the shift while sending (0.8 h)
+
+### Time
+
+0.8 hours of Claude's working time (16:20 to 17:05 UTC), in the overnight loop Dylan restarted
+after the audit. Phase 10 so far: 0.8 of its 30 to 45 hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=ee25ef9016a1bbff e2e=true`
+  (2678 tests, 49 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M18, M19, M20, L17, L19, L72, L77 (`docs/audit-2026-09-30.md`).
+
+### What was built, in plain words
+
+When a shift becomes urgent (someone drops out), the app sends an **offer wave**: a WhatsApp or text
+to the workers allowed to do it, saying "tap to take it".
+
+Before, the whole wave ran inside **one database transaction** (a bundle of changes that all happen
+together or not at all). That transaction **locked** the shift (a lock makes everyone else wanting
+that shift wait their turn) until the very last message had gone. With a real provider each message
+takes a few hundred milliseconds. So with 300 workers, the first person to tap "Take shift" would
+have been stuck waiting for minutes. A test proved it: with just 60 workers, "Take shift" waited
+2.6 seconds.
+
+Now a wave works like the shift reminders already did: **claim, then send, then record**.
+- **Claim**: for one worker at a time, a tiny transaction locks the shift for a few milliseconds and
+  checks that it's still open, still urgent, still has a place and is still the same shift. It
+  checks the worker too: still active and wanting offers, not offered or booked it since the wave
+  started, and still allowed by the rules (their licence, for example). Then it writes their offer
+  and lets go.
+- **Send**: the message goes out with nothing locked.
+- **Record**: a second tiny transaction saves "sent" (or "couldn't send") in the action log.
+
+So a worker who taps "Take shift", or the office pressing "Assign", waits for one claim at most.
+If the shift fills part-way through, the rest of the workers aren't messaged. If the office changes
+the shift's time, role or site part-way through, the wave starts again with the new details.
+
+If the worker process crashes (stops unexpectedly) just after a claim, that message may or may not
+have gone. Like a reminder, it's never sent again: nobody gets the same offer twice. The retry
+carries on with whoever is left.
+
+The "still unfilled" email to the office (**escalation**) works the same way, one office user at a
+time. One email address that fails no longer stops the others.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One claim per worker, no new database column | The existing rule "one offer per worker per wave" already makes a claim happen only once. No schema change, and nothing else that reads offers has to change. | A new "sending" status on offers: about 20 places in the code would need to learn it. |
+| Check the rules again for each worker when they're claimed | A licence can be suspended part-way through a wave. "Only eligible workers are ever notified." | Trust the list read at the start, which can be minutes old by the end. |
+| Start the wave again if the office edits the shift mid-wave | The message would carry the old time or place. | Rebuild just the message: workers who fit only the new role would be missed. |
+| A wave stops sending once the shift fills | Telling more people about a full shift is noise. | Keep going with the list. |
+
+### What the review caught (all fixed)
+
+The safety reviewer and two other reviewers found one serious problem in the first version. Because
+the worker list is read once at the start, a worker the office offered the shift to by hand, or who
+booked it, *while the wave was going out* could still get the wave's message. The fix is the
+worker check in the claim (above). They also found that a retried wave ignored quiet hours (now
+honoured), that the escalation could lose emails after a crash (now one claim per office user), and
+that the action log said "The office" instead of the person's name (fixed).
+
+### What the new tests prove
+
+`tests/integration/offers.waves.lock.test.ts`, on the real database, with a slow pretend provider:
+- With 300 workers, "Take shift" and the office's "Assign" each finish within 2 seconds mid-wave,
+  and the wave then stops without messaging the rest.
+- A worker replying STOP (or being deleted) isn't held up by a wave.
+- A crash just after a claim never messages that worker twice, and the retry finishes the rest.
+- Two copies of the same wave still send to exactly its 2 workers, and start one next wave.
+- An office offer, a booking, a suspended licence and offers turned off, all mid-wave, each keep
+  that worker out of the rest of the wave.
+- Moving the shift mid-wave restarts it: the rest hear the new time.
+- A retry during quiet hours waits until they end.
+- Escalation: emails go with the shift unlocked, one failed address doesn't stop the rest, and a
+  crash after one email emails the rest on retry and nobody twice.
+- The worker process runs the real wave and escalation jobs (before, no test would notice if they
+  were unplugged).
+
+Each new check was also tried in reverse. With it removed, its test fails.
+
+### Parked, open, and things that need Dylan
+
+- The office's single "Offer to someone", login links and the other senders still send inside their
+  transaction: that's Phase 10 task 3.
+- An alert when office emails fail: parked with "Connect Amazon SES".
+- Pushes to phones happen in the short record step: moving them out is parked for when the real web
+  push is connected.
+
+### How to see it working
+
+Nothing new on screen. Run `npx vitest run tests/integration/offers.waves.lock.test.ts` to see the
+11 checks pass.

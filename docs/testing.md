@@ -52,6 +52,12 @@ without breaking a 6am cancellation.
   first served; quiet hours hold a wave until 07:00; stop on fill (a worker or the office takes it
   between waves: the next wave stops, the other offers become "filled elsewhere", no escalation);
   the start ends the chain.
+- `offers.waves.lock.test.ts` (built, Phase 10) — a wave never holds what others wait for: a
+  300-worker first-come wave through a slow transport, where a worker's Take shift and the office's
+  Assign each finish within 2 seconds mid-wave and the wave then stops without messaging the rest;
+  a recipient's STOP or erasure lock isn't held up; a crash just after a claim never messages that
+  worker twice; two copies of a wave share it and queue one next wave; escalation emails with the
+  shift unlocked, one failed address not stopping the rest; the worker runs the real tasks.
 - `notify.policy.test.ts` (built) — the policy for every sender (offer waves and shift reminders,
   each through its real job): the worker's channel first (WhatsApp, or text by their choice), a
   text only after a refused WhatsApp, never both, the push after the message has gone and never

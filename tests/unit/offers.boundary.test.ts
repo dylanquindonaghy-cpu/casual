@@ -90,7 +90,8 @@ describe("the offer boundary", () => {
 
   it("the wave job offers to the candidate list's workers and reads no workers of its own", () => {
     const waves = text(WAVES);
-    expect(waves).toMatch(/=\s*await waveCandidates\(/);
+    // (Read in its own short transaction since Phase 10: `await inFirm((tx) => waveCandidates(`.)
+    expect(waves).toMatch(/=\s*await (?:inFirm\(\(tx\) =>\s*)?waveCandidates\(/);
     expect(waves).toMatch(/=\s*pickWave\(\s*candidates\b/);
     expect(waves).not.toMatch(/\bfrom workers\b|\.from\(\s*workers\s*\)/);
   });

@@ -42,11 +42,11 @@ describe("worker (real pg-boss on the test database, as the jobs role)", () => {
         task: async () => null,
       },
       offers: {
-        wave: { queue: OFFER_WAVE_QUEUE, schema: offerWavePayload, handler: async () => null },
+        wave: { queue: OFFER_WAVE_QUEUE, schema: offerWavePayload, task: async () => null },
         escalate: {
           queue: ESCALATE_SHIFT_QUEUE,
           schema: escalateShiftPayload,
-          handler: async () => null,
+          task: async () => null,
         },
       },
     });

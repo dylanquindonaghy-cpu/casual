@@ -276,6 +276,9 @@ docs/api-and-jobs.md, `offer-wave` and `escalate-shift`)
 3. Schedule `offer-wave` job for +15 min. If still open, next wave.
 4. Schedule `escalate` at start minus X hours: alert resourcer if unfilled.
 5. When filled, cancel remaining jobs and tell open offers "now filled".
+Each wave claims one worker at a time (the shift locked for milliseconds), then sends with no
+transaction open, then records: a booking never waits for a wave's messages, and a retry never
+messages anyone twice (the reminders' claim → send → record).
 
 **Pay query**
 1. Worker (after OTP) fills a structured form.

@@ -21,3 +21,30 @@ export async function lockReachableWorkers(tx: FirmTx, workerIds: string[]): Pro
   `);
   return new Set(rows.map((r) => r.id));
 }
+
+export interface LiveContact {
+  mobile: string;
+  channel: "whatsapp" | "sms";
+  smsAllowed: boolean; // false: they replied STOP to a text
+}
+
+// One worker as they are now, their row locked (key share) until the transaction ends: null unless
+// still active, with a mobile, and wanting open-shift messages. An offer wave claims each worker
+// with this just before writing their offer, so a STOP, a changed channel or offers turned off
+// while the wave was going out are honoured (src/lib/offers/waves.ts).
+export async function lockLiveContact(tx: FirmTx, workerId: string): Promise<LiveContact | null> {
+  const { rows } = await tx.execute<{
+    mobile: string;
+    channel: "whatsapp" | "sms";
+    sms_allowed: boolean;
+  }>(sql`
+    select w.mobile_e164 as mobile, w.notify_channel as channel,
+           w.sms_opted_out_at is null as sms_allowed
+      from workers w
+     where w.id = ${workerId}::uuid
+       and w.status = 'active' and w.mobile_e164 is not null and w.offer_alerts
+       for key share
+  `);
+  const row = rows[0];
+  return row ? { mobile: row.mobile, channel: row.channel, smsAllowed: row.sms_allowed } : null;
+}

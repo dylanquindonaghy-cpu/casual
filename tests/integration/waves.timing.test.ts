@@ -2,11 +2,11 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HOUR, MINUTE } from "@/lib/auth/clock";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { runFirmJob } from "@/lib/jobs/firm-job";
+import { runFirmTask } from "@/lib/jobs/firm-job";
 import type { OutboundMessage } from "@/lib/messaging/transport";
 import {
-  createEscalateShiftJob,
-  createOfferWaveJob,
+  createEscalateShiftTask,
+  createOfferWaveTask,
   ESCALATE_SHIFT_QUEUE,
   OFFER_WAVE_QUEUE,
   type OfferDeps,
@@ -103,11 +103,11 @@ async function chain(
   const worker = fakeWorker(su, f.firmId, {
     [OFFER_WAVE_QUEUE]: (job, when) => {
       now = when;
-      return runFirmJob(createOfferWaveJob(deps), job, withFirm);
+      return runFirmTask(createOfferWaveTask(deps), job, withFirm);
     },
     [ESCALATE_SHIFT_QUEUE]: (job, when) => {
       now = when;
-      return runFirmJob(createEscalateShiftJob(deps), job, withFirm);
+      return runFirmTask(createEscalateShiftTask(deps), job, withFirm);
     },
   });
   await cancelBooking(
@@ -171,8 +171,8 @@ describe("waves on the clock", () => {
   it("the office is emailed once, even if the escalation job runs again", async () => {
     const t = await chain({ allocation_mode: "first_come_first_served" });
     await t.worker.runUntil(hoursFromNow(12), NOW);
-    const again = await runFirmJob(
-      createEscalateShiftJob(() => ({
+    const again = await runFirmTask(
+      createEscalateShiftTask(() => ({
         transport: {
           name: "x",
           async send() {

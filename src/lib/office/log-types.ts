@@ -30,6 +30,8 @@ export const LOG_TYPES = {
       "shift.marked_urgent",
       "shift.urgent_cleared",
       "shift.escalated",
+      "shift.escalation_emailed",
+      "shift.escalation_failed",
     ],
   },
   attendance: {

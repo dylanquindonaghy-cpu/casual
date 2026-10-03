@@ -117,17 +117,13 @@ async function waveFirm(settings: Record<string, unknown> = {}, startsInHours = 
     await su.query<{ slug: string }>("select slug from firms where id = $1", [f.firmId])
   ).rows[0]?.slug;
   const wave = (n: number, when = NOW) =>
-    withFirm(f.firmId, (tx) =>
-      runOfferWave(
-        { firmId: f.firmId, idempotencyKey: `t:${n}`, shiftId, wave: n },
-        tx,
-        deps(when),
-      ),
+    runOfferWave(
+      { firmId: f.firmId, idempotencyKey: `t:${n}`, shiftId, wave: n },
+      withFirm,
+      deps(when),
     );
   const escalate = (when: Date) =>
-    withFirm(f.firmId, (tx) =>
-      runEscalation({ firmId: f.firmId, idempotencyKey: "t:e", shiftId }, tx, deps(when)),
-    );
+    runEscalation({ firmId: f.firmId, idempotencyKey: "t:e", shiftId }, withFirm, deps(when));
   return {
     f,
     shiftId,

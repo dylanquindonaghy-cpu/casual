@@ -245,7 +245,7 @@ Done when: every M and every assigned L is fixed with a test that would have cau
 parked with a reason Dylan can see; Dylan can follow `docs/walkthrough.md` on his own machine and
 every step works.
 
-- [ ] Offer waves never hold the shift lock while sending: pick and record the offers in one
+- [x] Offer waves never hold the shift lock while sending: pick and record the offers in one
       short transaction, then send outside it, then record each send (claim → send → record, as the
       reminders do). "Take shift" and the office's "Assign" on the same shift finish within 2 s
       while a 300-worker wave sends through a slow fake transport (test). Correct the Parking lot's
@@ -616,9 +616,12 @@ every step works.
   The office's "Offer to someone" (Phase 5) is the first non-urgent offer. It picks its workers
   with `waveCandidates()` and counts under a per-worker lock that waves also take before writing
   offers (`lockOfferCounts()`), so two offers at the same moment can't pass the cap (tested).
-  Still open: decide whether a firm may change the 3 (fixed policy today). Scale: under first
-  come, first served a wave takes one lock per eligible worker and holds them while it sends; fine
-  at pilot size, but for firms with hundreds of casuals chunk the waves or use one firm-wide lock.
+  Still open: decide whether a firm may change the 3 (fixed policy today). Scale (fixed in Phase
+  10, 2026-10-03): a wave now claims one worker at a time, holding the shift's lock, that worker's
+  count lock and their row for milliseconds and never across a message, so Take shift, Assign, a
+  STOP and an erasure don't wait for it (`tests/integration/offers.waves.lock.test.ts`, 300
+  workers). The office's single offer (`office-offer.ts`) still sends inside its transaction:
+  Phase 10 task 3.
 - **Dylan to confirm:** urgent offers count towards a worker's 3 a day (they still land on their
   phone), so after 3 urgent offers that day they get no non-urgent ones; failed sends don't count.
 - Shift reminders (Phase 4) follow-ups:
@@ -642,11 +645,13 @@ every step works.
   - Reminder job resilience: if recording one reminder's outcome fails, the row stays `sending`
     (never resent) with no event, and the rest of that run waits for pg-boss's retry. Consider
     catching per reminder, logging the code and carrying on. Also push after the outcome commits
-    (not inside it) when the real web push sender is connected.
+    (not inside it) when the real web push sender is connected (offer waves too: their push runs
+    in the short record transaction, which holds no shift, worker or offer lock).
   - Office view of reminders (Phase 5 Today / no-show screens): show an old `sending` row as "may
     have gone" next to the booking.
-  - Offer waves still send inside one transaction (a failure after a message rolls back its offer
-    row). Move them to the reminders' claim → send → record pattern in a later task.
+  - Offer waves and escalation now use the reminders' claim → send → record pattern (Phase 10,
+    2026-10-03). The office's single offer, login links and codes, the credential scan, firm-change
+    notices and request updates are Phase 10 task 3.
 
   - A reminder still goes when a credential the shift needs has expired or been suspended since
     booking. Decide whether that should hold the reminder and alert the office (Phase 5 Today
@@ -1421,6 +1426,8 @@ every step works.
   - L9, L57: CI on GitHub hasn't been checked since Phase 0. Open the repo's Actions tab and check
     the latest `build/overnight` run has a green tick, or install `gh` so Claude can check.
   - L14: try the iPhone home-screen login on a real iPhone.
+  - With "Connect Amazon SES": alert Dylan when office emails fail (an escalation email that
+    fails is logged `shift.escalation_failed`, but no alert counts it yet).
   - With the accounts: L26 (payroll digest email) with "Connect Amazon SES", L27 (real Twilio
     sample payloads) and L34 (call-to-text by SMS) with "Connect Twilio", L35 with "Connect the real
     web push".
@@ -1501,3 +1508,4 @@ every step works.
 | 2026-09-30 | 9 | 0.1 | Baseline week, BLOCKED (not ticked: a real firm's real week before go-live): `docs/baseline-tally.md`, the resourcer's day-by-day tally sheet (counts only) with how to turn it into exactly the 8 figures the office's Pilot figures page takes; linked from the playbook; parking item "Record the baseline week"; 2665 tests + 49 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.2 | Dry-run event day, BLOCKED (not ticked: needs the pilot firm's resourcer, volunteers' phones and Twilio): the playbook had no dry-run section though onboarding pointed to it; added "Dry-run event day": when, the set-up (three volunteers, a pretend event before go-live), 12 steps covering every flow a pilot relies on with who does each and what "worked" looks like, and a table to fill in; parking item; 2665 tests + 49 e2e; verified (see docs/work-log.md) |
 | 2026-09-30 | 9 | 0.2 | Weekly pilot reviews and the week-4 report, BLOCKED (not ticked: a real four-week pilot): `docs/pilot-report.md`: the Friday review (the tally first, the dates to choose on the Pilot metrics page), a weekly table with the page's own figure names and targets, the Friday update's wording, and the week-4 report with where each number comes from, then the Gate C check; linked from the playbook; parking item; 2665 tests + 49 e2e; verified. Phase 9: 2.5 h of the 10–15 h estimate, 1 task done, 6 blocked (see docs/work-log.md) |
+| 2026-10-03 | 10 | 0.8 | Offer waves never hold the shift lock while sending: claim → send → record per worker (each claim re-checks the shift and the worker under the lock; an edit mid-wave restarts it), escalation per office user, quiet hours on retries; Take shift and Assign under 2 s mid-way through a 300-worker wave (was 2.6 s with 60); 2678 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |

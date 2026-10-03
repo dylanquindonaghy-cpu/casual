@@ -6238,3 +6238,84 @@ The loop is stopped. Start it again any time with `/loop /overnight`.
 - **For the loop:** Phases 4 and 6–9 still hold only blocked tasks (see their entries above), so
   the next task is Phase 10's first. Finish Phase 10 with the walkthrough pack, so Dylan can try
   everything locally before creating accounts. Then write a new morning summary.
+
+## 2026-10-03 16:20 UTC — Phase 10, task 1: offer waves never hold the shift lock while sending
+
+**Task:** Offer waves never hold the shift lock while sending: pick and record the offers in one
+short transaction, then send outside it, then record each send (claim → send → record, as the
+reminders do). "Take shift" and the office's "Assign" on the same shift finish within 2 s while a
+300-worker wave sends through a slow fake transport (test). Correct the Parking lot's "fine at
+pilot size" note. (M18, M19, M20, L17, L19, L72, L77)
+
+**Plan:**
+- `src/lib/offers/waves.ts`: `offer-wave` and `escalate-shift` become firm *tasks* (several short
+  transactions, like `shift-reminders`) instead of one transaction per job.
+  - Wave: (1) a short check, under the shift lock: stop, hold for quiet hours, or go on; (2) the
+    candidates, read with no locks; (3) per chosen worker, a claim transaction: re-lock the shift,
+    re-check it's still open, urgent, unfilled and the wave not full, take that worker's
+    offer-count lock and key share, write their `offers` row, commit; then the message with no
+    transaction open; then a record transaction: the push, `offer.sent` or `offer.send_failed`;
+    (4) the next fair-rotation wave queued once, deduplicated by a pg-boss singleton key.
+  - Escalation: the check and `shift.escalated` committed first (the claim), then each email
+    outside any transaction; a failed address doesn't stop the rest and is logged.
+- `src/worker/jobs/index.ts`: register both with `registerFirmTask`.
+- Tests: update the callers (`offers.waves`, `waves.timing`, `notify.policy`, `office.offer`,
+  `office.quick-actions`, `worker.hello`). New `tests/integration/offers.waves.lock.test.ts`: a
+  300-worker first-come wave through a slow fake transport; a worker's Take shift and the
+  office's Assign on the same 2-place shift each finish within 2 s mid-wave; the wave then stops
+  (shift filled) without messaging the rest; a STOP from a recipient isn't held up; a crash after
+  a claim never re-sends to that worker on retry. A wiring test runs the handler the worker
+  actually registered for each queue.
+- `PLAN.md`: correct the "fine at pilot size" and "Offer waves still send inside one transaction"
+  Parking-lot notes.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| One claim transaction per worker, no new column on `offers` | The unique key (firm, shift, worker, wave) already makes a claim once-only; a row written before the send means "may have gone", like a `sending` reminder, so a retry never re-sends. No schema change, no change to the ~20 readers of `offers`. | A `send_status` column (queued/sending/sent): a schema change every reader of `offers` would need to understand. |
+| The wave stops mid-way once the shift fills | Under the new design a worker can book while the wave is still going; telling the rest about a full shift is noise. `offer.waves_stopped {filled}` closes the open offers as before. | Keep sending the planned list: messages about a shift that's gone. |
+| A retried or second copy of a wave goes on with whoever is left (up to the wave size) instead of "already sent, nothing" | A crash mid-wave would otherwise leave half the wave never offered. Already-offered workers are excluded by the candidate rules, so nobody hears twice. | Treat any offer in the wave as "done": loses the rest of the wave after a crash. |
+
+**Guardrails review (with two adversarial reviewers; each finding checked by two refuters):**
+FIX FIRST, raised separately by all three reviewers and confirmed: the first version's per-worker
+claim re-checked only the shift. So a worker the office offered the shift to, or who booked it,
+*while the wave was going out* could still get the wave's urgent message too, because the
+candidate list is read once at the start. The old single transaction ruled that out by holding
+the shift lock throughout. Fixed:
+- **Under the shift lock, each claim now re-checks the worker:** no offer of this shift to them
+  since the list was read (any wave, or the office's), no place on it now or before, and the rules
+  still allow them (`previewBooking`). It also re-reads their contact (`lockLiveContact`), so a
+  STOP, a changed channel or offers turned off mid-wave are honoured.
+- **An office edit mid-wave (role, times or site) restarts the wave** from the shift as it is now
+  (`offer-wave:<shift>:<wave>:changed`, result `restarted`), so nobody gets the old details.
+
+Should-fix items, all fixed:
+- **Quiet hours:** a retried wave now honours them, even after part of it went.
+- **Escalation:** each office user is claimed separately (`shift.escalation_emailed`) before
+  their email, so a crash part-way emails the rest on retry and nobody twice.
+- **Action log names:** `shift.escalation_failed` and `shift.escalation_emailed` now name the
+  office user (`officeUserId` added to the name look-ups in `action-log.ts` and
+  `shift-pages.ts`).
+- **Two-copies test made deterministic:** with the "wave full" check removed, it now fails.
+- **A failed send keeps the worker's answer:** it no longer overwrites a response given while
+  the message was in flight.
+
+Not done, and why:
+- **Failing the escalation job when no email could be sent:** the failed-jobs alert counts only
+  jobs whose last retry failed, and the retry finds everyone claimed and completes, so it would
+  alert no one. Each failure is logged as its own event instead. An email-failure alert is added
+  to "Connect Amazon SES" in the Parking lot.
+- **Pushes still happen inside the short record transaction:** that transaction holds no shift,
+  worker or offer lock while pushing. Moving pushes out is parked with the reminders' existing
+  note, for when the real web push sender is connected.
+- **Closing open offers when a re-run finds the shift filled** is Phase 10 task 2 (M5).
+
+**Mutation check:** I removed each new guard in turn (the worker re-check, "wave full", "shift
+changed") and the matching test failed each time. The old one-transaction wave fails the "Take
+shift mid-wave" bound: 2.6 s with only 60 workers.
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| `previewBooking` runs again inside each claim, under the shift lock | Golden rule 6, and "only eligible workers are ever notified": a licence can be suspended mid-wave. It costs about 9 reads per worker. The lock is held for that one claim (milliseconds), so Take shift still waits for one claim at most. | Trust the list read at the start: minutes old by the time the last worker is claimed. |
+| Restart the wave when the shift's role, times or site change mid-wave | The message would be wrong, and the list was built for the old role. A fresh run rebuilds both and skips everyone already offered. | Rebuild only the message: workers who fit only the new role would be missed. |

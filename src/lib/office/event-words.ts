@@ -169,6 +169,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} opened it again.`;
     case "shift.escalated":
       return "Still unfilled: the office was emailed.";
+    case "shift.escalation_emailed":
+      return `Emailed ${names.office(d.officeUserId)} that it's still unfilled.`;
+    case "shift.escalation_failed":
+      return `The "still unfilled" email to ${names.office(d.officeUserId)} couldn't be sent.`;
     case "offer.sent":
       return d.offeredBy
         ? `${names.office(d.offeredBy)} offered it to ${worker}.`

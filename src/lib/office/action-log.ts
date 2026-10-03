@@ -234,6 +234,7 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
     page.flatMap((r) => [
       r.actor_type === "office" ? r.actor_id : null,
       typeof r.data.offeredBy === "string" ? r.data.offeredBy : null,
+      typeof r.data.officeUserId === "string" ? r.data.officeUserId : null,
     ]),
   );
   const shiftIds = ids([...page.map((r) => r.subject_shift), query.shift]);

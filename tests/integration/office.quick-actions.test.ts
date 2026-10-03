@@ -112,20 +112,17 @@ describe("Mark as filled", () => {
       clock: { now: () => NOW },
     };
     expect(
-      await withFirm(t.f.firmId, (tx) =>
-        runOfferWave(
-          { firmId: t.f.firmId, idempotencyKey: "k:2", shiftId: t.shiftId, wave: 2 },
-          tx,
-          deps,
-        ),
+      await runOfferWave(
+        { firmId: t.f.firmId, idempotencyKey: "k:2", shiftId: t.shiftId, wave: 2 },
+        withFirm,
+        deps,
       ),
     ).toEqual({ status: "stopped", reason: "filled" });
     expect(
-      await withFirm(t.f.firmId, (tx) =>
-        runEscalation({ firmId: t.f.firmId, idempotencyKey: "k:e", shiftId: t.shiftId }, tx, {
-          ...deps,
-          clock: { now: () => hoursFromNow(7) },
-        }),
+      await runEscalation(
+        { firmId: t.f.firmId, idempotencyKey: "k:e", shiftId: t.shiftId },
+        withFirm,
+        { ...deps, clock: { now: () => hoursFromNow(7) } },
       ),
     ).toEqual({ status: "not_needed" });
     expect(sent as OutboundMessage[]).toEqual([]);

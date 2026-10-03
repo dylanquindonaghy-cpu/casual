@@ -10,11 +10,11 @@ import {
   shifts,
   sites,
 } from "../db/schema";
-import type { FirmTx } from "../db/scoped";
+import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { noticeHours } from "../roster/notice";
 import { recordEvent } from "../events/record";
-import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
+import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
 import {
   shiftEscalationEmail,
@@ -23,9 +23,10 @@ import {
   urgentPush,
 } from "../messaging/templates";
 import { dayWords, shiftWhen } from "../portal/format";
-import { notifyWorker, type NotifyDeps } from "../notify/send";
+import { pushToWorker, sendToWorker, type NotifyDeps } from "../notify/send";
 import { getPushTransport } from "../push/transport";
 import { parseAllocationSettings } from "../roster/allocation-input";
+import { previewBooking } from "../roster/book";
 import { rankForFairRotation } from "../rules/allocation";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { hoursToStart } from "../rules/urgent";
@@ -33,7 +34,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
-import { lockReachableWorkers } from "./reachable";
+import { lockLiveContact, type LiveContact } from "./reachable";
 
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
 // docs/architecture.md, "Offer waves"). Two firm jobs:
@@ -56,6 +57,26 @@ import { lockReachableWorkers } from "./reachable";
 // sender is connected). Quiet hours hold a wave unless the firm lets urgent override them; a
 // WhatsApp that won't send goes by SMS. Workers come only from waveCandidates() (the rules, and the
 // daily cap, which never holds back an urgent offer).
+//
+// Both are firm tasks: several short transactions, never one held across a message (the shift
+// reminders' claim → send → record, src/lib/reminders/send.ts). A worker who taps "Take shift" while
+// a wave is going out, or the office pressing "Assign", waits for one worker's claim at most
+// (milliseconds), never for the messages (tests/integration/offers.waves.lock.test.ts). A wave:
+//   1. checks the shift under its lock: stop, hold for quiet hours, or go on;
+//   2. reads the candidates, with no locks held;
+//   3. per worker, claims: re-locks the shift and re-checks it's still open, urgent, has a place,
+//      is the same shift (role, times, site: if the office changed them, the wave starts again
+//      from the shift as it is now) and (fair rotation) the wave isn't full; then the worker as
+//      they are now: still reachable and wanting offers, not offered or booked it since the list
+//      was read, and allowed by the rules; then writes their `offers` row and commits. Only then
+//      the message (to their contact as read in the claim), outside any transaction, then the push
+//      and `offer.sent` (or `offer.send_failed`) in a short one. A row claimed but never recorded
+//      (a crash just after the claim) means the message may have gone: like a `sending` reminder,
+//      it's never sent again. If the shift fills while the wave is going out, the rest aren't
+//      messaged;
+//   4. queues the next fair-rotation wave (once: a pg-boss singleton key).
+// A retried or doubled wave carries on with whoever the rules still allow and nobody has offered
+// it to yet, up to the wave's size; everyone already offered is left out by the candidate rules.
 
 export const OFFER_WAVE_QUEUE = "offer-wave";
 export const ESCALATE_SHIFT_QUEUE = "escalate-shift";
@@ -197,108 +218,197 @@ export const timeOf = (d: Date, tz: string) => {
   return `${pad(w.hour)}:${pad(w.minute)}`;
 };
 
+export type StopReason = "filled" | "started" | "not_open" | "not_urgent" | "no_candidates";
+
 export type WaveResult =
   | { status: "sent"; sent: number; next: number | null }
   | { status: "held"; until: Date } // quiet hours
   | { status: "already_sent" }
-  | {
-      status: "stopped";
-      reason: "filled" | "started" | "not_open" | "not_urgent" | "no_candidates" | "gone";
-    };
+  // `sent`: offers this run sent before the shift filled, started or closed (absent when none).
+  | { status: "stopped"; reason: StopReason | "gone"; sent?: number }
+  // The shift's role, times or site changed mid-wave: queued again from the shift as it is now.
+  | { status: "restarted"; sent: number };
+
+// Why the shift can't be offered now (null: it can).
+function notOfferable(shift: LockedShift, now: Date): Exclude<StopReason, "no_candidates"> | null {
+  if (shift.startsAt.getTime() <= now.getTime()) return "started";
+  if (shift.status !== "open" && shift.status !== "filled") return "not_open";
+  // No place free, or the office marked it filled (it found someone another way: closeShift()).
+  if (shift.freePlaces === 0 || shift.status === "filled") return "filled";
+  // The office cleared the urgent mark: no more urgent offers.
+  if (!shift.isUrgent) return "not_urgent";
+  return null;
+}
+
+// Ends the chain. A filled shift's open offers are closed: offered workers who ended up with a place
+// (the office placed them, or the sheet named them) took it; everyone else's offer was filled by
+// someone else.
+async function stopWaves(
+  tx: FirmTx,
+  shiftId: string,
+  wave: number,
+  reason: StopReason,
+  now: Date,
+): Promise<void> {
+  if (reason === "filled") {
+    const holders = sql`(select a.worker_id from assignments a
+      where a.shift_id = ${shiftId} and a.worker_id is not null and a.status not in (${CANCELLED}))`;
+    await tx
+      .update(offers)
+      .set({ response: "accepted", respondedAt: now })
+      .where(
+        and(
+          eq(offers.shiftId, shiftId),
+          isNull(offers.response),
+          sql`${offers.workerId} in ${holders}`,
+        ),
+      );
+    await tx
+      .update(offers)
+      .set({ response: "filled_elsewhere", respondedAt: now })
+      .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
+  }
+  await recordEvent(tx, {
+    actorType: "system",
+    action: "offer.waves_stopped",
+    entityType: "shift",
+    entityId: shiftId,
+    data: { reason, wave },
+  });
+}
+
+// How many workers this wave has been offered to so far (a failed send counts: it was this wave's).
+async function offersInWave(tx: FirmTx, shiftId: string, wave: number): Promise<number> {
+  const { rows } = await tx.execute<{ n: number }>(
+    sql`select count(*)::int as n from offers where shift_id = ${shiftId} and wave = ${wave}`,
+  );
+  return rows[0]?.n ?? 0;
+}
+
+type Claim =
+  | { kind: "claimed"; offerId: string; contact: LiveContact }
+  | { kind: "skip" } // offered or booked since the list was read, unreachable, or the rules say no
+  | { kind: "full" } // fair rotation: the wave has its workers
+  | { kind: "restart" } // the shift changed: this wave queued again from the shift as it is now
+  | { kind: "stop"; reason: StopReason | "gone" };
+
+// Whether the role, times or site differ from what this run read (the message would be wrong).
+function changedSince(read: LockedShift, now: LockedShift): boolean {
+  return (
+    read.role !== now.role ||
+    read.startsAt.getTime() !== now.startsAt.getTime() ||
+    read.endsAt.getTime() !== now.endsAt.getTime() ||
+    read.siteName !== now.siteName
+  );
+}
+
+// The candidate list's per-worker exclusions (candidates.ts), checked again under the shift lock:
+// a place on the shift now or before (a cancellation is a "no"), or an offer of it that didn't fail.
+async function offeredOrHeld(tx: FirmTx, shiftId: string, workerId: string): Promise<boolean> {
+  const { rows } = await tx.execute(sql`
+    select 1 from assignments where shift_id = ${shiftId} and worker_id = ${workerId}
+    union all
+    select 1 from offers where shift_id = ${shiftId} and worker_id = ${workerId}
+                           and response is distinct from 'failed'
+    limit 1
+  `);
+  return rows.length > 0;
+}
 
 export async function runOfferWave(
   payload: OfferWavePayload,
-  tx: FirmTx,
+  run: WithFirm,
   deps: OfferDeps,
 ): Promise<WaveResult> {
   const now = deps.clock.now();
-  const shift = await lockShift(tx, payload.shiftId);
-  if (!shift) return { status: "stopped", reason: "gone" };
-  const [sent] = await tx
-    .select({ id: offers.id })
-    .from(offers)
-    .where(and(eq(offers.shiftId, shift.id), eq(offers.wave, payload.wave)))
-    .limit(1);
-  if (sent) return { status: "already_sent" };
+  const inFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => run(payload.firmId, fn);
 
-  const stop = async (
-    reason: "filled" | "started" | "not_open" | "not_urgent" | "no_candidates",
-  ) => {
-    if (reason === "filled") {
-      // Offered workers who ended up with a place (the office placed them, or the sheet named
-      // them) took it; everyone else's offer was filled by someone else.
-      const holders = sql`(select a.worker_id from assignments a
-        where a.shift_id = ${shift.id} and a.worker_id is not null and a.status not in (${CANCELLED}))`;
-      await tx
-        .update(offers)
-        .set({ response: "accepted", respondedAt: now })
-        .where(
-          and(
-            eq(offers.shiftId, shift.id),
-            isNull(offers.response),
-            sql`${offers.workerId} in ${holders}`,
-          ),
-        );
-      await tx
-        .update(offers)
-        .set({ response: "filled_elsewhere", respondedAt: now })
-        .where(and(eq(offers.shiftId, shift.id), isNull(offers.response)));
+  // 1. The check, under the shift lock (held only for this short transaction).
+  const checked = await inFirm(async (tx) => {
+    const shift = await lockShift(tx, payload.shiftId);
+    if (!shift) return { done: { status: "stopped", reason: "gone" } as WaveResult };
+    const already = await offersInWave(tx, shift.id, payload.wave);
+    const blocked = notOfferable(shift, now);
+    // A wave already sent that the shift has since outgrown: nothing more, and nothing to record.
+    if (blocked && already > 0) return { done: { status: "already_sent" } as WaveResult };
+    if (blocked) {
+      await stopWaves(tx, shift.id, payload.wave, blocked, now);
+      return { done: { status: "stopped", reason: blocked } as WaveResult };
     }
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "offer.waves_stopped",
-      entityType: "shift",
-      entityId: shift.id,
-      data: { reason, wave: payload.wave },
+    const firm = await firmVoice(tx, shift.firmId);
+    // Quiet hours: an urgent wave goes now if the firm lets urgent override them; otherwise it's
+    // held until they end, and queued for then (nothing is written or sent before that). A wave
+    // retried after it had begun is held too: the rest go when quiet hours end.
+    const timing = mayMessageNow({
+      now,
+      timeZone: firm.timezone,
+      quiet: quietHours(firm.settings),
+      urgent: true,
     });
-    return { status: "stopped" as const, reason };
-  };
-  if (shift.startsAt.getTime() <= now.getTime()) return stop("started");
-  if (shift.status !== "open" && shift.status !== "filled") return stop("not_open");
-  // No place free, or the office marked it filled (it found someone another way: closeShift()).
-  if (shift.freePlaces === 0 || shift.status === "filled") return stop("filled");
-  // The office cleared the urgent mark: no more urgent offers.
-  if (!shift.isUrgent) return stop("not_urgent");
-
-  const firm = await firmVoice(tx, shift.firmId);
-  const settings = parseAllocationSettings(firm.settings);
-  // Waves only run for urgent shifts (checked above), so the daily cap doesn't hold them back.
-  const candidates = await waveCandidates(tx, shift.id, now);
-  const chosen = pickWave(
-    candidates,
-    settings.mode,
-    settings.mode === "fair_rotation" ? settings.groupSize : candidates.length,
-  );
-  if (chosen.length === 0) return stop("no_candidates");
-
-  // Quiet hours: an urgent wave goes now if the firm lets urgent override them; otherwise it's
-  // held until they end, and queued for then (nothing is written or sent before that).
-  const timing = mayMessageNow({
-    now,
-    timeZone: firm.timezone,
-    quiet: quietHours(firm.settings),
-    urgent: true,
+    // (Within a minute of the end, it just goes: the job queue's clock and ours can differ a little.)
+    if (!timing.ok && timing.until.getTime() - now.getTime() > 60_000) {
+      await sendFirmJob(
+        tx,
+        jobs.wave,
+        {
+          idempotencyKey: `offer-wave:${shift.id}:${payload.wave}:after-quiet`,
+          shiftId: shift.id,
+          wave: payload.wave,
+        },
+        { startAfter: timing.until },
+      );
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "offer.wave_held",
+        entityType: "shift",
+        entityId: shift.id,
+        data: { wave: payload.wave, until: timing.until.toISOString(), reason: "quiet_hours" },
+      });
+      return { done: { status: "held", until: timing.until } as WaveResult };
+    }
+    return { shift, firm, already };
   });
-  // (Within a minute of the end, it just goes: the job queue's clock and ours can differ a little.)
-  if (!timing.ok && timing.until.getTime() - now.getTime() > 60_000) {
-    await sendFirmJob(
-      tx,
-      jobs.wave,
-      {
-        idempotencyKey: `offer-wave:${shift.id}:${payload.wave}:after-quiet`,
-        shiftId: shift.id,
-        wave: payload.wave,
-      },
-      { startAfter: timing.until },
+  if (checked.done) return checked.done;
+  const { shift, firm, already } = checked;
+  const settings = parseAllocationSettings(firm.settings);
+
+  // 2. Who it goes to: read with no locks held (the rules for every active worker with the role can
+  // take a while). Waves only run for urgent shifts (checked above), so the daily cap doesn't hold
+  // them back. Workers already offered this shift (this wave included) aren't candidates.
+  const candidates = await inFirm((tx) => waveCandidates(tx, shift.id, now));
+  const room =
+    settings.mode === "fair_rotation"
+      ? Math.max(0, settings.groupSize - already)
+      : candidates.length;
+  const chosen = pickWave(candidates, settings.mode, room);
+  // Fair rotation: the next wave after the firm's minutes, if anyone is left after this one. Queued
+  // once whichever copy of this wave gets here (a pg-boss singleton key on the shift and wave, in
+  // pg-boss's day-long slot), so a retried or doubled wave doesn't start a second chain; a duplicate
+  // across the slot's edge would only find the next wave already sent.
+  const queueNext = async (): Promise<number | null> => {
+    if (settings.mode !== "fair_rotation" || candidates.length <= chosen.length) return null;
+    const next = payload.wave + 1;
+    await inFirm((tx) =>
+      sendFirmJob(
+        tx,
+        jobs.wave,
+        { idempotencyKey: `offer-wave:${shift.id}:${next}`, shiftId: shift.id, wave: next },
+        {
+          startAfter: new Date(now.getTime() + settings.priorityMinutes * 60_000),
+          singletonKey: `offer-wave-next:${shift.id}:${next}`,
+          singletonSeconds: 86_400,
+        },
+      ),
     );
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "offer.wave_held",
-      entityType: "shift",
-      entityId: shift.id,
-      data: { wave: payload.wave, until: timing.until.toISOString(), reason: "quiet_hours" },
-    });
-    return { status: "held", until: timing.until };
+    return next;
+  };
+  if (chosen.length === 0) {
+    if (already > 0) {
+      await queueNext();
+      return { status: "already_sent" };
+    }
+    await inFirm((tx) => stopWaves(tx, shift.id, payload.wave, "no_candidates", now));
+    return { status: "stopped", reason: "no_candidates" };
   }
 
   const link = `${portalUrl(firm.slug, deps.baseDomain)}/shifts/${shift.id}`;
@@ -316,181 +426,283 @@ export async function runOfferWave(
     }),
     sms: shiftUrgentSms(firm.voice, { role: shift.role, site: shift.siteName, day, start, link }),
   };
-  // Every offer row first, then the messages: if the transaction is going to fail (a lock
-  // conflict, say), it fails before anyone has been messaged.
-  const recorded: { offerId: string; candidate: WaveCandidate }[] = [];
-  // Urgent, so the cap doesn't limit this wave; the lock makes an office offer being counted at
-  // the same moment wait for these offers (candidates.ts).
-  await lockOfferCounts(
-    tx,
-    chosen.map((c) => c.workerId),
-  );
-  // Anyone erased or made inactive since the list was read gets no offer.
-  const reachable = await lockReachableWorkers(
-    tx,
-    chosen.map((c) => c.workerId),
-  );
+  const pushed = {
+    ...urgentPush({ role: shift.role, site: shift.siteName, day, start }),
+    url: `/shifts/${shift.id}`,
+  };
+
+  // 3. One worker at a time: claim, send, record.
+  let sent = 0;
   for (const c of chosen) {
-    if (!reachable.has(c.workerId)) continue;
-    const [offer] = await tx
-      .insert(offers)
-      .values({
-        firmId: shift.firmId,
+    const claim = await inFirm(async (tx): Promise<Claim> => {
+      // The same shift-first lock order as booking and the office's offer, held for this claim only:
+      // every writer of offers and assignments for this shift waits for it, so the checks below
+      // can't race them.
+      const current = await lockShift(tx, shift.id);
+      if (!current) return { kind: "stop", reason: "gone" };
+      const at = deps.clock.now();
+      const blocked = notOfferable(current, at);
+      if (blocked) {
+        await stopWaves(tx, shift.id, payload.wave, blocked, now);
+        return { kind: "stop", reason: blocked };
+      }
+      // The office changed what the shift is (its role, times or site) since this run read it: the
+      // message and the candidate list are out of date. This wave starts again at once from the
+      // shift as it is now; everyone already offered it is left out.
+      if (changedSince(shift, current)) {
+        await sendFirmJob(tx, jobs.wave, {
+          idempotencyKey: `offer-wave:${shift.id}:${payload.wave}:changed`,
+          shiftId: shift.id,
+          wave: payload.wave,
+        });
+        return { kind: "restart" };
+      }
+      if (
+        settings.mode === "fair_rotation" &&
+        (await offersInWave(tx, shift.id, payload.wave)) >= settings.groupSize
+      ) {
+        return { kind: "full" };
+      }
+      // Urgent, so the cap doesn't limit this offer; the lock makes an office offer being counted
+      // at the same moment wait for it (candidates.ts).
+      await lockOfferCounts(tx, [c.workerId]);
+      // The worker as they are now: anyone erased, made inactive or who turned offers off since the
+      // list was read gets none, and a STOP or a changed channel is honoured.
+      const contact = await lockLiveContact(tx, c.workerId);
+      if (!contact) return { kind: "skip" };
+      // The candidate rules again, for this worker, now: not offered this shift since the list was
+      // read (by the office, or another copy of a wave), never on it (a booking or a cancellation
+      // since), and the rules still allow them (a licence suspended mid-wave, say).
+      if (await offeredOrHeld(tx, shift.id, c.workerId)) return { kind: "skip" };
+      const verdict = await previewBooking(tx, {
         shiftId: shift.id,
         workerId: c.workerId,
-        wave: payload.wave,
-        channel: c.channel,
-        sentAt: now,
-      })
-      .onConflictDoNothing()
-      .returning({ id: offers.id });
-    if (offer) recorded.push({ offerId: offer.id, candidate: c });
-  }
-  const pushed = urgentPush({ role: shift.role, site: shift.siteName, day, start });
-  let count = 0;
-  for (const { offerId, candidate: c } of recorded) {
-    // By their channel, with the push as well (src/lib/notify/send.ts). A failure doesn't stop the
-    // wave: that offer is marked failed and logged, the rest still go, and the worker can be
-    // offered it again in a later wave.
-    const sent = await notifyWorker(tx, deps, {
-      workerId: c.workerId,
-      mobile: c.mobile,
-      channel: c.channel,
-      smsAllowed: c.smsAllowed,
+        now: at,
+      });
+      if (!verdict?.ok) return { kind: "skip" };
+      const [offer] = await tx
+        .insert(offers)
+        .values({
+          firmId: shift.firmId,
+          shiftId: shift.id,
+          workerId: c.workerId,
+          wave: payload.wave,
+          channel: contact.channel,
+          sentAt: now,
+        })
+        .onConflictDoNothing()
+        .returning({ id: offers.id });
+      return offer ? { kind: "claimed", offerId: offer.id, contact } : { kind: "skip" };
+    });
+    if (claim.kind === "stop") {
+      return sent > 0
+        ? { status: "stopped", reason: claim.reason, sent }
+        : { status: "stopped", reason: claim.reason };
+    }
+    if (claim.kind === "restart") return { status: "restarted", sent };
+    if (claim.kind === "full") break;
+    if (claim.kind === "skip") continue;
+
+    // The message, outside any transaction: by their channel (src/lib/notify/send.ts).
+    const contact = claim.contact;
+    const result = await sendToWorker(deps, {
+      mobile: contact.mobile,
+      channel: contact.channel,
+      smsAllowed: contact.smsAllowed,
       body,
-      push: { ...pushed, url: `/shifts/${shift.id}` },
       from: firm.line,
     });
-    if (!sent.ok) {
-      // Kept as evidence of the attempt (offers are never deleted), marked failed.
-      await tx
-        .update(offers)
-        .set({ channel: sent.channel, response: "failed", respondedAt: now })
-        .where(eq(offers.id, offerId));
+
+    // The outcome. A failure doesn't stop the wave: that offer is marked failed and logged, the
+    // rest still go, and the worker can be offered it again in a later wave.
+    await inFirm(async (tx) => {
+      if (!result.ok) {
+        // Kept as evidence of the attempt (offers are never deleted), marked failed, unless the
+        // worker answered it while it was going out (it may have arrived after all).
+        await tx
+          .update(offers)
+          .set({ channel: result.channel, response: "failed", respondedAt: now })
+          .where(and(eq(offers.id, claim.offerId), isNull(offers.response)));
+        await recordEvent(tx, {
+          actorType: "system",
+          action: "offer.send_failed",
+          entityType: "shift",
+          entityId: shift.id,
+          data: {
+            workerId: c.workerId,
+            wave: payload.wave,
+            channel: result.channel,
+            code: result.code,
+          },
+        });
+        return;
+      }
+      // The push once the message has gone.
+      const pushes = await pushToWorker(tx, deps, c.workerId, pushed);
+      if (result.fellBackFrom) {
+        await tx
+          .update(offers)
+          .set({ channel: result.channel })
+          .where(eq(offers.id, claim.offerId));
+      }
       await recordEvent(tx, {
         actorType: "system",
-        action: "offer.send_failed",
-        entityType: "shift",
-        entityId: shift.id,
-        data: { workerId: c.workerId, wave: payload.wave, channel: sent.channel, code: sent.code },
+        action: "offer.sent",
+        entityType: "offer",
+        entityId: claim.offerId,
+        data: {
+          shiftId: shift.id,
+          workerId: c.workerId,
+          wave: payload.wave,
+          // The notice they had of the shift (the notice report counts from this, not a later start).
+          noticeHours: noticeHours(shift.startsAt, now),
+          channel: result.channel,
+          providerMessageId: result.providerMessageId,
+          pushes,
+          ...(result.fellBackFrom ? { fellBackFrom: result.fellBackFrom } : {}),
+        },
       });
-      continue;
-    }
-    if (sent.fellBackFrom) {
-      await tx.update(offers).set({ channel: sent.channel }).where(eq(offers.id, offerId));
-    }
-    count += 1;
-    await recordEvent(tx, {
-      actorType: "system",
-      action: "offer.sent",
-      entityType: "offer",
-      entityId: offerId,
-      data: {
-        shiftId: shift.id,
-        workerId: c.workerId,
-        wave: payload.wave,
-        // The notice they had of the shift (the notice report counts from this, not a later start).
-        noticeHours: noticeHours(shift.startsAt, now),
-        channel: sent.channel,
-        providerMessageId: sent.providerMessageId,
-        pushes: sent.pushes,
-        ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
-      },
     });
+    if (result.ok) sent += 1;
   }
 
-  // Fair rotation: the next wave after the firm's minutes. First come, first served: everyone
-  // eligible has it already.
-  let next: number | null = null;
-  if (settings.mode === "fair_rotation" && candidates.length > chosen.length) {
-    next = payload.wave + 1;
-    await sendFirmJob(
-      tx,
-      jobs.wave,
-      { idempotencyKey: `offer-wave:${shift.id}:${next}`, shiftId: shift.id, wave: next },
-      { startAfter: new Date(now.getTime() + settings.priorityMinutes * 60_000) },
-    );
-  }
-  return { status: "sent", sent: count, next };
+  // 4. The next wave.
+  return { status: "sent", sent, next: await queueNext() };
 }
 
 export type EscalateResult =
   { status: "escalated"; notified: number } | { status: "not_needed" } | { status: "already" };
 
+// Escalation, the reminders' way: (1) checked, and `shift.escalated` recorded once (the Today view's
+// "needs attention"; `notified` is how many office users it goes to); (2) per office user, a claim
+// (`shift.escalation_emailed` {officeUserId}, committed) and only then the email, with no
+// transaction open. A retry or a second copy emails only the office users not yet claimed, so
+// nobody is emailed twice; an email that fails is logged (`shift.escalation_failed`) and not tried
+// again (it may have arrived), and the rest still go.
 export async function runEscalation(
   payload: EscalateShiftPayload,
-  tx: FirmTx,
+  run: WithFirm,
   deps: OfferDeps,
 ): Promise<EscalateResult> {
   const now = deps.clock.now();
-  const shift = await lockShift(tx, payload.shiftId);
-  if (
-    !shift ||
-    !shift.isUrgent ||
-    shift.freePlaces === 0 ||
-    shift.status !== "open" || // filled (by bookings or by the office), cancelled or draft
-    shift.startsAt.getTime() <= now.getTime()
-  ) {
-    return { status: "not_needed" };
-  }
-  const [done] = await tx
-    .select({ id: events.id })
-    .from(events)
-    .where(and(eq(events.action, "shift.escalated"), eq(events.entityId, shift.id)))
-    .limit(1);
-  if (done) return { status: "already" };
-
-  const firm = await firmVoice(tx, shift.firmId);
-  const recipients = await tx
-    .select({ email: officeUsers.email })
-    .from(officeUsers)
-    .where(
-      and(eq(officeUsers.status, "active"), inArray(officeUsers.role, ["admin", "resourcer"])),
+  const inFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => run(payload.firmId, fn);
+  const checked = await inFirm(async (tx) => {
+    const shift = await lockShift(tx, payload.shiftId);
+    if (
+      !shift ||
+      !shift.isUrgent ||
+      shift.freePlaces === 0 ||
+      shift.status !== "open" || // filled (by bookings or by the office), cancelled or draft
+      shift.startsAt.getTime() <= now.getTime()
+    ) {
+      return { done: { status: "not_needed" } as EscalateResult };
+    }
+    const [escalated] = await tx
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.action, "shift.escalated"), eq(events.entityId, shift.id)))
+      .limit(1);
+    const firm = await firmVoice(tx, shift.firmId);
+    const recipients = await tx
+      .select({ id: officeUsers.id, email: officeUsers.email })
+      .from(officeUsers)
+      .where(
+        and(eq(officeUsers.status, "active"), inArray(officeUsers.role, ["admin", "resourcer"])),
+      );
+    const { rows } = await tx.execute<{ n: number }>(
+      sql`select count(*)::int as n from offers where shift_id = ${shift.id}`,
     );
-  const { rows } = await tx.execute<{ n: number }>(
-    sql`select count(*)::int as n from offers where shift_id = ${shift.id}`,
-  );
-  const offersSent = rows[0]?.n ?? 0;
-  const email = shiftEscalationEmail(firm.voice, {
-    role: shift.role,
-    site: shift.siteName,
-    when: shiftWhen(shift.startsAt, shift.endsAt, firm.timezone),
-    freePlaces: shift.freePlaces,
-    offersSent,
-    link: `${portalUrl(firm.slug, deps.baseDomain)}/office`,
-  });
-  for (const r of recipients) {
-    await deps.transport.send({ channel: "email", to: r.email, ...email });
-  }
-  await recordEvent(tx, {
-    actorType: "system",
-    action: "shift.escalated",
-    entityType: "shift",
-    entityId: shift.id,
-    data: {
+    const offersSent = rows[0]?.n ?? 0;
+    const email = shiftEscalationEmail(firm.voice, {
+      role: shift.role,
+      site: shift.siteName,
+      when: shiftWhen(shift.startsAt, shift.endsAt, firm.timezone),
       freePlaces: shift.freePlaces,
       offersSent,
-      notified: recipients.length, // office users told ("email" keys are refused in events)
-      hoursToStart: hoursToStart(shift.startsAt, now),
-    },
+      link: `${portalUrl(firm.slug, deps.baseDomain)}/office`,
+    });
+    if (!escalated) {
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "shift.escalated",
+        entityType: "shift",
+        entityId: shift.id,
+        data: {
+          freePlaces: shift.freePlaces,
+          offersSent,
+          notified: recipients.length, // office users it goes to ("email" keys are refused in events)
+          hoursToStart: hoursToStart(shift.startsAt, now),
+        },
+      });
+    }
+    return { shiftId: shift.id, recipients, email, resumed: !!escalated };
   });
-  return { status: "escalated", notified: recipients.length };
+  if (checked.done) return checked.done;
+  const { shiftId, recipients, email, resumed } = checked;
+
+  let claimed = 0;
+  let notified = 0;
+  for (const r of recipients) {
+    const mine = await inFirm(async (tx) => {
+      // Two copies take turns on the shift's lock, so each office user is claimed once.
+      await lockShift(tx, shiftId);
+      const [done] = await tx
+        .select({ id: events.id })
+        .from(events)
+        .where(
+          and(
+            eq(events.action, "shift.escalation_emailed"),
+            eq(events.entityId, shiftId),
+            sql`${events.data} ->> 'officeUserId' = ${r.id}`,
+          ),
+        )
+        .limit(1);
+      if (done) return false;
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "shift.escalation_emailed",
+        entityType: "shift",
+        entityId: shiftId,
+        data: { officeUserId: r.id },
+      });
+      return true;
+    });
+    if (!mine) continue;
+    claimed += 1;
+    try {
+      await deps.transport.send({ channel: "email", to: r.email, ...email });
+      notified += 1;
+    } catch (err) {
+      await inFirm((tx) =>
+        recordEvent(tx, {
+          actorType: "system",
+          action: "shift.escalation_failed",
+          entityType: "shift",
+          entityId: shiftId,
+          data: { officeUserId: r.id, code: errorCode(err) },
+        }),
+      );
+    }
+  }
+  // Already done by an earlier run (or another copy): nothing left to email.
+  if (resumed && claimed === 0) return { status: "already" };
+  return { status: "escalated", notified };
 }
 
-export function createOfferWaveJob(deps: () => OfferDeps) {
-  return defineFirmJob({
+export function createOfferWaveTask(deps: () => OfferDeps): FirmTask<OfferWavePayload> {
+  return {
     queue: OFFER_WAVE_QUEUE,
     schema: offerWavePayload,
-    handler: (payload, tx) => runOfferWave(payload, tx, deps()),
-  });
+    task: (payload, run) => runOfferWave(payload, run, deps()),
+  };
 }
 
-export function createEscalateShiftJob(deps: () => OfferDeps) {
-  return defineFirmJob({
+export function createEscalateShiftTask(deps: () => OfferDeps): FirmTask<EscalateShiftPayload> {
+  return {
     queue: ESCALATE_SHIFT_QUEUE,
     schema: escalateShiftPayload,
-    handler: (payload, tx) => runEscalation(payload, tx, deps()),
-  });
+    task: (payload, run) => runEscalation(payload, run, deps()),
+  };
 }
 
 // The worker's wiring. Deps are read when a job runs, so the web (which only queues) never needs
@@ -505,5 +717,5 @@ const workerDeps = (): OfferDeps => {
     clock: systemClock,
   };
 };
-export const offerWaveJob = createOfferWaveJob(workerDeps);
-export const escalateShiftJob = createEscalateShiftJob(workerDeps);
+export const offerWaveTask = createOfferWaveTask(workerDeps);
+export const escalateShiftTask = createEscalateShiftTask(workerDeps);

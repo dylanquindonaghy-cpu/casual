@@ -2,12 +2,12 @@ import type { Pool } from "pg";
 import type { JobResult } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { runFirmJob, runFirmTask } from "@/lib/jobs/firm-job";
+import { runFirmTask } from "@/lib/jobs/firm-job";
 import { ChannelRefusedError, type MessagingTransport } from "@/lib/messaging/transport";
 import { waveCandidates } from "@/lib/offers/candidates";
 import {
-  createEscalateShiftJob,
-  createOfferWaveJob,
+  createEscalateShiftTask,
+  createOfferWaveTask,
   ESCALATE_SHIFT_QUEUE,
   OFFER_WAVE_QUEUE,
   type OfferDeps,
@@ -119,8 +119,8 @@ const offerSender: Sender = {
     await su.query("update shifts set is_urgent = true where id = $1", [shiftId]);
     const rec = recorder();
     const run = (when = NOW) =>
-      runFirmJob(
-        createOfferWaveJob((): OfferDeps => ({
+      runFirmTask(
+        createOfferWaveTask((): OfferDeps => ({
           transport: rec.transport,
           push: rec.push,
           baseDomain: "localhost:3000",
@@ -406,9 +406,9 @@ describe("no notifications to ineligible workers", () => {
       clock: { now: () => now },
     });
     const worker = fakeWorker(su, f.firmId, {
-      [OFFER_WAVE_QUEUE]: (job, now) => runFirmJob(createOfferWaveJob(deps(now)), job, withFirm),
+      [OFFER_WAVE_QUEUE]: (job, now) => runFirmTask(createOfferWaveTask(deps(now)), job, withFirm),
       [ESCALATE_SHIFT_QUEUE]: (job, now) =>
-        runFirmJob(createEscalateShiftJob(deps(now)), job, withFirm),
+        runFirmTask(createEscalateShiftTask(deps(now)), job, withFirm),
     });
     await worker.runUntil(startsAt, NOW);
 

@@ -47,8 +47,8 @@ import {
   type PayDigestPayload,
 } from "../../lib/pay/digest";
 import {
-  escalateShiftJob,
-  offerWaveJob,
+  escalateShiftTask,
+  offerWaveTask,
   type EscalateShiftPayload,
   type OfferWavePayload,
 } from "../../lib/offers/waves";
@@ -85,8 +85,8 @@ export interface JobDeps {
   clock?: Clock;
   // Tests replace the offer jobs' transport and clock; the worker uses its configuration.
   offers?: {
-    wave: FirmJob<OfferWavePayload>;
-    escalate: FirmJob<EscalateShiftPayload>;
+    wave: FirmTask<OfferWavePayload>;
+    escalate: FirmTask<EscalateShiftPayload>;
     office?: FirmJob<OfficeOfferPayload>;
   };
   reminders?: FirmTask<ShiftRemindersPayload>;
@@ -138,8 +138,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmJob(boss, sendPortalLinkJob);
   await registerFirmJob(boss, sendLoginCodeJob);
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
-  await registerFirmJob(boss, deps.offers?.wave ?? offerWaveJob);
-  await registerFirmJob(boss, deps.offers?.escalate ?? escalateShiftJob);
+  await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask);
+  await registerFirmTask(boss, deps.offers?.escalate ?? escalateShiftTask);
   // An offer the office sends to one worker (Today's "Offer to someone").
   await registerFirmJob(boss, deps.offers?.office ?? officeOfferJob);
   // Telling workers the office changed or cancelled their booked shift (golden rule 12).
@@ -238,9 +238,9 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
 // smoke found it: tests/e2e/load.smoke.spec.ts). So up to 5 per fetch, and while a fetch comes back
 // full it fetches again at once; a short fetch means the queue has caught up and it goes back to
 // polling. The jobs of a batch still run one after another, in the order they were queued (as one
-// job per fetch did): a worker's STOP is handled before their next text, and an offer wave holds its
-// shift only while it's actually running. `runFirmJob`/`runFirmTask` never throw, so one job
-// failing leaves the rest of its batch alone.
+// job per fetch did): a worker's STOP is handled before their next text, and an offer wave locks its
+// shift only for each worker's claim, never across a message (src/lib/offers/waves.ts).
+// `runFirmJob`/`runFirmTask` never throw, so one job failing leaves the rest of its batch alone.
 export const FIRM_WORK_OPTIONS = {
   perJobResults: true,
   batchSize: 5,

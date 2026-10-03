@@ -345,17 +345,15 @@ describe("the office-offer job", () => {
       [t.shiftId],
     );
     expect(rows.map((r) => r.data.wave)).toEqual([1]);
-    const wave = await withFirm(t.f.firmId, (tx) =>
-      runOfferWave(
-        {
-          firmId: t.f.firmId,
-          idempotencyKey: `offer-wave:${t.shiftId}:1`,
-          shiftId: t.shiftId,
-          wave: 1,
-        },
-        tx,
-        t.deps(),
-      ),
+    const wave = await runOfferWave(
+      {
+        firmId: t.f.firmId,
+        idempotencyKey: `offer-wave:${t.shiftId}:1`,
+        shiftId: t.shiftId,
+        wave: 1,
+      },
+      withFirm,
+      t.deps(),
     );
     expect(wave).toMatchObject({ status: "sent", sent: 1 });
     // Both sent at NOW: compared without order.

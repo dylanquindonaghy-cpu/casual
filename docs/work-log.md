@@ -7746,6 +7746,7 @@ hour estimate.
   (2,816 tests, 51 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M22, M23, L24, L81.
+- Commit `0b5bad8`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

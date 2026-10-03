@@ -6928,3 +6928,7 @@ reasons". "Fakes found: none." It noted two old placeholder rows in `docs/screen
 planned in the follow-up commit (doc only). Ticked after this.
 
 **Hours:** 1.1 (Phase 10: 6.1 of 30–45 h).
+
+**Commit:** `0b5bad8`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+The follow-up commit also relabels the two old `/office/workers` rows in `docs/screens.md` as
+planned (doc only; the next task's verify covers it).

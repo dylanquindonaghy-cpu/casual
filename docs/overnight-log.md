@@ -6707,3 +6707,5 @@ PROVEN, with the bound, order, crash, parity, query-count and index tests cited.
 none." Ticked after this.
 
 **Hours:** 1.3 (Phase 10: 4.2 of 30–45 h).
+
+**Commit:** `0429ef0`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).

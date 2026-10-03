@@ -7546,6 +7546,7 @@ hour estimate.
   (2,735 tests, 49 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M14, L42, L51, L55, L63, L73, L74, L75, L76.
+- Commit `0429ef0`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

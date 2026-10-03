@@ -6546,3 +6546,22 @@ the link's catch-up.
   never logged. The fixture helper `addCredential` now writes the earlier scan's event whenever
   it sets the warning columns. The test checks this scan's licence warning appears once and that
   nothing was caught up as unconfirmed, which is stronger than before.
+
+**Verify:** `VERIFIED tree=3ebf558d79588104 e2e=true` (2713 tests, 49 browser tests).
+
+**Auditor verdict (verbatim, first lines):**
+```
+VERDICT: DONE
+Step 1 check: `.claude/state/verified.json` = {"ok":true,"tree":"3ebf558d79588104",...}; `./.claude/hooks/tree-hash.sh` = 3ebf558d79588104 — matches.
+Claims: office offers, escalation (per recipient; shift.escalated still recorded), credential scan, login links and codes, firm-change notices, request updates — PROVEN; "a test fails each job after its send and checks the retry sends nothing" — PROVEN for all six.
+Fakes found: none.
+To reach DONE: nothing — all claims in this task text are PROVEN by code and passing tests on the currently verified tree.
+```
+The auditor noted that `docs/testing.md` grouped firm-change notices and request answers with
+the senders that log an "unconfirmed" catch-up (they rely on their claim event instead). Fixed
+after the tick, in the commit with the logs. It's a documentation-only change.
+
+**Commit:** `bbd3340`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+**Hours:** 1.0 (Phase 10: 2.4 of 30–45 h). **Needs Dylan:** confirm migration 0027 and
+at-most-once sending for login links and codes. **Parked:** an office email-failure alert
+(with "Connect Amazon SES").

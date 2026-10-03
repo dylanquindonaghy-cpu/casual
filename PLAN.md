@@ -232,6 +232,108 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
 - [ ] Run a dry-run event day with the resourcer
 - [ ] Week-by-week pilot metrics review and the week-4 report
 
+## Phase 10 — Audit fixes and local walkthrough (30–45 h)
+
+Added 2026-10-03 at Dylan's request. An independent audit of `build/overnight` (2026-09-30) found
+no high-severity problems, but 27 medium and 93 low ones. Fix them, then make the app ready for
+Dylan to walk through on his own computer before he creates the AWS and other accounts. Each task
+names its findings (M = medium, L = low). The evidence, with file:line references, is in
+`docs/audit-2026-09-30.md`. Re-read the cited code before fixing, because lines may have moved.
+No outside accounts are needed for any task here.
+Docs: `docs/audit-2026-09-30.md`, plus the docs each finding cites.
+Done when: every M and every assigned L is fixed with a test that would have caught it, or is
+parked with a reason Dylan can see; Dylan can follow `docs/walkthrough.md` on his own machine and
+every step works.
+
+- [ ] Offer waves never hold the shift lock while sending: pick and record the offers in one
+      short transaction, then send outside it, then record each send (claim → send → record, as the
+      reminders do). "Take shift" and the office's "Assign" on the same shift finish within 2 s
+      while a 300-worker wave sends through a slow fake transport (test). Correct the Parking lot's
+      "fine at pilot size" note. (M18, M19, M20, L17, L19, L72, L77)
+- [ ] When a shift fills, every other open offer on it is closed, in every mode (first come first
+      served, after the last fair-rotation wave, office placement): the taker's offer `accepted`,
+      the rest `filled_elsewhere`, logged, with a test per mode (M5)
+- [ ] No message is sent twice when a job retries: office offers, escalation (per recipient, so
+      one bad address doesn't stop the rest and `shift.escalated` is still recorded), the credential
+      scan, login links and codes, firm-change notices and request updates use claim → send →
+      record. A test fails each job after its send and checks the retry sends nothing. (M10, L33)
+- [ ] A Twilio-shaped message id (`SM` + 32 hex characters) never makes the action log refuse an
+      event after a message has gone: every sender is tested with Twilio-shaped ids (M12, L46)
+- [ ] Speed at pilot size: inbound replies keep a written bound when each send takes ~300 ms (load
+      smoke with a slow fake transport; per-worker order kept); a worker crash strands no batch for
+      15 minutes; Open shifts and the urgent board make a bounded number of queries; missing indexes
+      added; the "about a second" claim corrected in the docs (M14, L42, L51, L55, L63, L73, L74,
+      L75, L76)
+- [ ] Office access can be taken away: an admin can disable, re-enable and change the role of an
+      office user (Team screen and `firm:office-user`). Disabling ends their sessions and login links
+      at once, re-enabling doesn't revive old sessions, and every change is logged. (M21, L80)
+- [ ] Worker leavers and blocks: the office can deactivate, reactivate and unblock a worker
+      (reason required, logged) and block a worker from a site (the inert rule 9 store). A worker
+      made inactive or blocked by any path gets no reminders. Their future bookings are flagged on
+      Today for the office to cancel (golden rule 12) or keep. A mobile change ends old links and
+      push subscriptions. (M22, M23, L24, L81)
+- [ ] Notice hours for a move or curtailment count from the earlier of the old and new start
+      (office editor and Sheets sync), so the notice report's short-notice flag never hides short
+      notice. The move re-check takes the worker lock. Tests in `notice.report`. Update the
+      "Dylan to confirm" note. (M6, M25, L21)
+- [ ] Sheets sync follows the office editor's rules: a role, time or site change to a booked shift
+      re-checks the people booked (refused → not applied, flagged for the office); a started shift
+      is never re-timed or cancelled by a sync (ADR-013); refused names aren't silently erased from
+      the firm's sheet. Tests for each. (M1, M2, L12)
+- [ ] Sheets, said honestly: Google is in the accounts-to-create list and the blocked table; the
+      env and worker comments are corrected; the "Connect the real Google Sheets" steps match the
+      code; sheet dates are read as serial numbers, or a non-UK sheet locale is refused with a plain
+      message; a sheet is bound to its firm. (M3, M17, L45)
+- [ ] Imports read what the file says: an Excel date with a time near midnight keeps its day; a
+      pay amount with a space inside ("12 50") is refused, not read as £1,250; re-importing never
+      reopens a shift the office marked filled (`shift.reopened` logged when it legitimately
+      reopens); a Windows Excel CSV (Windows-1252) imports or gets a plain message; a row without a
+      Staff ID never renames or re-attaches a different worker; dates, times and mobiles are checked
+      the same way on every import path; the office imports respect the Gate B guard. (M11, M15,
+      M16, L39, L67, L68, L69, L70, L71, L78)
+- [ ] The offline My shifts copy is gone after logout: logging out or in while a page is still
+      loading leaves no copy on the phone; a slow but working connection shows the fresh page; a
+      kept copy from an older build can still log out; logging out with no signal says what happened.
+      Service-worker tests with a slow network. (M27, L90, L91, L92, L93)
+- [ ] The retention purge and privacy wording match the spec: per-firm retention settings with the
+      spec's defaults and a hold for disputes; open or escalated requests keep their words until
+      closed; replies newer than the cut-off are kept; the office's override reason is not typed
+      into the append-only log; `docs/compliance.md`, `docs/privacy-notice.md` and the data page
+      say exactly what a deletion removes and keeps. New choices marked "Dylan to confirm".
+      (M24, L23, L30, L41, L85, L86, L87)
+- [ ] "Try again" on the error screens really retries (Next 16 `retry()`), proven by a browser test
+      that fails a page once and recovers (M4)
+- [ ] A firm's own domain holds a login: a worker or office user who starts on the firm's domain is
+      sent a link back to it and stays logged in there; an e2e test logs in on a custom host
+      (M7, L84)
+- [ ] Logs are safe and checked: request paths and log strings are capped before masking, and
+      every masking pattern runs in linear time (timing tests); the e2e log scan also catches
+      numbers before a full stop and login tokens; regression tests for the search and token
+      fixes; the "destination stream closed early" error seen on every e2e run is explained and
+      fixed, and unexpected server errors fail the run (M13, L11, L52, L53, L54, L64)
+- [ ] Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly
+      enabled worker; the runbook trial is moved to after SES and Twilio, with a test-firm step, so
+      its checks can pass; the Caddyfile is checked by Caddy itself; HSTS is sent; database TLS is
+      on in the production settings; runbook steps match the scripts (M8, M9, L29, L38, L43, L50)
+- [ ] Every decision waiting for Dylan is in one place: a "Decisions waiting for Dylan" section in
+      `PLAN.md` lists each open decision once (from `PLAN.md`, the decision tables in
+      `docs/overnight-log.md`, `docs/compliance.md` and `docs/privacy-notice.md`), grouped, with the
+      safe default now in force. The Parking lot steps say who does each step (Dylan, or Claude
+      after Dylan), and stale references are fixed. (M26, L13, L36, L37, L59, L60, L89)
+- [ ] Walkthrough polish: the low findings a walkthrough would hit (L7, L8, L10, L15, L18, L20,
+      L22, L28, L31, L32, L40, L44, L47, L49, L79, L82, L83). This includes: an office-placed worker
+      is told they're booked; login links aren't followed by a full stop; an office cancellation
+      for "the client needs fewer staff" doesn't re-offer the place; `npm run build` logs no brand
+      errors; the action log shows per-firm numbers
+- [ ] Local walkthrough pack: `docs/walkthrough.md` gives Dylan numbered steps on Windows + WSL
+      (Docker Desktop, the folder, `db:up`, `db:reset`, `dev`, which browser, the production-mode
+      run with `npm run build`) to try every screen as a worker and as admin, resourcer and payroll.
+      A dev-only fake phone (`npm run sim:*`) sends signed WhatsApp, SMS and call webhooks to the
+      local server, and outbound messages show in the terminal. The demo seed covers every screen
+      and state the walkthrough visits. It includes a "found a bug" template. A browser test,
+      `walkthrough.spec.ts`, runs every step, with the office at desktop size. (L16, L25, L58, L66,
+      L88)
+
 ---
 
 ## Stage 2 (after 3 paying firms) — not now
@@ -1307,6 +1409,21 @@ Docs: `docs/architecture.md` (Deployment, Custom domains).
     minds.
   - Other typed text about a worker is kept past 90 days: pay query details and "Something else:
     …" cancellation notes (erasure clears both). Decide whether the 90-day purge should too.
+- **Dylan to decide: audit findings the overnight loop may not fix** (from
+  `docs/audit-2026-09-30.md`, 2026-10-03). The loop is forbidden to edit `.claude/`,
+  `scripts/verify.sh` and `scripts/invariants.sh`, so these wait for your OK:
+  - L1–L6: loopholes in the safety net. The tick guard doesn't watch shell edits, a moved tick or
+    an uppercase `[X]` gets through, the Stop hook only catches a few phrasings, the stamp is taken
+    after the run, a tick doesn't need the browser tests, and the reviewers are read-only by
+    instruction only. All 67 ticks so far were checked and none used these gaps.
+  - L4, L16, L61, L62, L65, L88: make `verify.sh` also run `npm run build`, require the browser
+    tests for a tick, and widen `invariants.sh` (Playwright skips, `scripts/` in the withFirm check).
+  - L9, L57: CI on GitHub hasn't been checked since Phase 0. Open the repo's Actions tab and check
+    the latest `build/overnight` run has a green tick, or install `gh` so Claude can check.
+  - L14: try the iPhone home-screen login on a real iPhone.
+  - With the accounts: L26 (payroll digest email) with "Connect Amazon SES", L27 (real Twilio
+    sample payloads) and L34 (call-to-text by SMS) with "Connect Twilio", L35 with "Connect the real
+    web push".
 
 ## Hours log
 

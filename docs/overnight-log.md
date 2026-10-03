@@ -6222,3 +6222,19 @@ Office logins in production also need **Amazon SES** (emails): "Connect Amazon S
    Merging to `main` is what starts the deploy, once AWS is connected. I never merge.
 
 The loop is stopped. Start it again any time with `/loop /overnight`.
+
+## 2026-10-03: Phase 10 added, loop restarted
+
+- **What Dylan asked:** "add them to the plan … complete the plan to the point where I can
+  personally walk through it, look for any bugs etc. on a local server, then I will start creating
+  the AWS accounts and the rest of it."
+- **What changed:** an independent audit of `dd88569` (2026-09-30) re-ran
+  `RUN_E2E=1 ./scripts/verify.sh` (`VERIFIED tree=8fe87b4e6a1d8cfb e2e=true`) and `npm run build`
+  (succeeded). It found 0 high, 27 medium and 93 low findings, all in
+  `docs/audit-2026-09-30.md`. They are now the 20 tasks of **Phase 10 — Audit fixes and local
+  walkthrough** in `PLAN.md`. Findings the loop may not touch (`.claude/`, `verify.sh`,
+  `invariants.sh`), or that need an account, a real iPhone or GitHub access, are in the Parking lot
+  under "Dylan to decide: audit findings the overnight loop may not fix".
+- **For the loop:** Phases 4 and 6–9 still hold only blocked tasks (see their entries above), so
+  the next task is Phase 10's first. Finish Phase 10 with the walkthrough pack, so Dylan can try
+  everything locally before creating accounts. Then write a new morning summary.

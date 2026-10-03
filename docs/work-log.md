@@ -7645,6 +7645,7 @@ hour estimate.
   every claim but answered "NOT DONE" only because the box wasn't ticked yet, which happens
   after the audit.
 - Audit findings fixed: M21, L80 (with a few leftovers parked, below).
+- Commit `5964a26`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

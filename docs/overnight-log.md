@@ -6804,3 +6804,5 @@ none." Ticked after this. (Between the rounds the round-1 note was taken out of 
 moment, so the files matched the verify stamp exactly when the box was ticked; it's back above.)
 
 **Hours:** 0.8 (Phase 10: 5.0 of 30–45 h).
+
+**Commit:** `5964a26`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).

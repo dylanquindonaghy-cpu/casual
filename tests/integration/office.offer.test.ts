@@ -3,10 +3,10 @@ import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { runFirmJob } from "@/lib/jobs/firm-job";
+import { runFirmTask } from "@/lib/jobs/firm-job";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import {
-  createOfficeOfferJob,
+  createOfficeOfferTask,
   OFFICE_OFFER_QUEUE,
   officeOfferCandidates,
 } from "@/lib/offers/office-offer";
@@ -92,8 +92,8 @@ async function offerFirm(settings: Record<string, unknown> = {}) {
       )
     ).rows;
   const runJob = (data: Record<string, unknown>, when = NOW) =>
-    runFirmJob(
-      createOfficeOfferJob(() => deps(when)),
+    runFirmTask(
+      createOfficeOfferTask(() => deps(when)),
       { id: "job", data },
       withFirm,
     );
@@ -393,7 +393,13 @@ describe("from the guardrails review", () => {
     expect(rows).toEqual([
       {
         action: "offer.send_failed",
-        data: { workerId: t.ann, offeredBy: t.resourcer, channel: "whatsapp", code: "Error" },
+        data: {
+          offerId: expect.any(String),
+          workerId: t.ann,
+          offeredBy: t.resourcer,
+          channel: "whatsapp",
+          code: "Error",
+        },
       },
       { action: "offer.office_not_sent", data: { workerId: t.ann, reason: "failed_before" } },
     ]);

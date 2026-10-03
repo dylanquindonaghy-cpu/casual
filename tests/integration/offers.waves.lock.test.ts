@@ -256,6 +256,14 @@ describe("claims: nobody hears twice, and nobody hears what's no longer true", (
       status: "already_sent",
     });
     expect(slow.sent).toHaveLength(3);
+    // Every offer is in the log once: the 3 sent, and the one that may have gone, as unconfirmed
+    // (src/lib/offers/unconfirmed.ts), so the notice report still has it.
+    const { rows: logged } = await su.query<{ data: { workerId: string; unconfirmed?: boolean } }>(
+      "select data from events where action = 'offer.sent' and data ->> 'shiftId' = $1",
+      [t.shiftId],
+    );
+    expect(logged).toHaveLength(4);
+    expect(logged.filter((e) => e.data.unconfirmed).map((e) => e.data.workerId)).toEqual([unsure]);
   });
 
   it("fair rotation: a crash mid-wave never overfills it, and the next wave is queued once", async () => {
@@ -326,18 +334,16 @@ describe("claims: nobody hears twice, and nobody hears what's no longer true", (
     // The office offers it to one of them ("Offer to someone"), through its own job.
     const office = slowTransport(0);
     expect(
-      await withFirm(t.f.firmId, (tx) =>
-        runOfficeOffer(
-          {
-            firmId: t.f.firmId,
-            idempotencyKey: `office-offer:${t.shiftId}:${offered}`,
-            shiftId: t.shiftId,
-            workerId: offered,
-            officeUserId: t.officeId,
-          },
-          tx,
-          depsFor(office.transport),
-        ),
+      await runOfficeOffer(
+        {
+          firmId: t.f.firmId,
+          idempotencyKey: `office-offer:${t.shiftId}:${offered}`,
+          shiftId: t.shiftId,
+          workerId: offered,
+          officeUserId: t.officeId,
+        },
+        withFirm,
+        depsFor(office.transport),
       ),
     ).toMatchObject({ status: "sent" });
     // Another takes a place from the board.

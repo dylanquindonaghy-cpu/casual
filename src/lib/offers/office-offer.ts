@@ -6,7 +6,7 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { noticeHours } from "../roster/notice";
 import { recordEvent } from "../events/record";
-import { defineFirmJob, firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
+import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport } from "../messaging";
 import {
   offerPush,
@@ -16,7 +16,7 @@ import {
   shiftUrgentSms,
   urgentPush,
 } from "../messaging/templates";
-import { notifyWorker } from "../notify/send";
+import { pushToWorker, sendToWorker } from "../notify/send";
 import { dayWords } from "../portal/format";
 import { getPushTransport } from "../push/transport";
 import { officeCanPlace } from "../roster/book";
@@ -26,6 +26,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { localDateOf } from "../time/zoned";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
 import { lockReachableWorkers } from "./reachable";
+import { lockOfferOutcome, logUnconfirmedOffers } from "./unconfirmed";
 import { firmVoice, lockShift, timeOf, type OfferDeps } from "./waves";
 
 // The office offering a shift to one worker ("Offer to someone" on Today, docs/screens.md). The
@@ -196,12 +197,26 @@ export type OfficeOfferResult =
       reason: "gone" | "started" | "not_open" | "filled" | "not_candidate" | "not_allowed";
     };
 
-export async function runOfficeOffer(
+type OfficeClaim =
+  | { done: OfficeOfferResult }
+  | {
+      offerId: string;
+      shiftId: string;
+      startsAt: Date;
+      candidate: OfficeCandidate | WaveCandidate;
+      line: string | null;
+      body: { whatsapp: string; sms: string };
+      push: { title: string; body: string };
+    };
+
+// (1) The claim, under the shift's lock: every check, then the offer row, committed before the
+// message goes.
+async function claimOfficeOffer(
   payload: OfficeOfferPayload,
   tx: FirmTx,
   deps: OfferDeps,
-): Promise<OfficeOfferResult> {
-  const now = deps.clock.now();
+  now: Date,
+): Promise<OfficeClaim> {
   const shift = await lockShift(tx, payload.shiftId);
   const notSent = async (
     reason: "gone" | "started" | "not_open" | "filled" | "not_candidate" | "not_allowed",
@@ -215,7 +230,7 @@ export async function runOfficeOffer(
         data: { workerId: payload.workerId, reason },
       });
     }
-    return { status: "not_sent" as const, reason };
+    return { done: { status: "not_sent" as const, reason } };
   };
   if (!shift) return notSent("gone");
   const [existing] = await tx
@@ -226,6 +241,11 @@ export async function runOfficeOffer(
     )
     .limit(1);
   if (existing) {
+    // Claimed by an earlier run that stopped before logging what happened: it may have gone, so
+    // it's logged now as sent, unconfirmed (src/lib/offers/unconfirmed.ts), never sent again.
+    if (await logUnconfirmedOffers(tx, shift, { offerId: existing.id })) {
+      return { done: { status: "already" } };
+    }
     await recordEvent(tx, {
       actorType: "system",
       action: "offer.office_not_sent",
@@ -238,7 +258,7 @@ export async function runOfficeOffer(
         reason: existing.response === "failed" ? "failed_before" : "duplicate",
       },
     });
-    return { status: "already" };
+    return { done: { status: "already" } };
   }
   if (!(await officeCanPlace(tx, payload.officeUserId))) return notSent("not_allowed");
   if (shift.startsAt.getTime() <= now.getTime()) return notSent("started");
@@ -281,7 +301,7 @@ export async function runOfficeOffer(
         reason: "quiet_hours",
       },
     });
-    return { status: "held", until: timing.until };
+    return { done: { status: "held", until: timing.until } };
   }
 
   // Erased or made inactive since the list was read: no offer.
@@ -300,7 +320,7 @@ export async function runOfficeOffer(
     })
     .onConflictDoNothing()
     .returning({ id: offers.id });
-  if (!offer) return { status: "already" };
+  if (!offer) return { done: { status: "already" } };
 
   const link = `${portalUrl(firm.slug, deps.baseDomain)}/shifts/${shift.id}`;
   const start = timeOf(shift.startsAt, firm.timezone);
@@ -323,63 +343,108 @@ export async function runOfficeOffer(
     };
     push = offerPush({ site, date, start });
   }
-  const sent = await notifyWorker(tx, deps, {
-    workerId: payload.workerId,
+  return {
+    offerId: offer.id,
+    shiftId: shift.id,
+    startsAt: shift.startsAt,
+    candidate,
+    line: firm.line,
+    body,
+    push,
+  };
+}
+
+// At most once, like the waves (a firm task, never a transaction held across a message): (1) the
+// claim above; (2) the message by the worker's channel, outside any transaction; (3) a short
+// transaction records it: the push, then offer.sent, or the offer marked failed and
+// offer.send_failed. A retried job finds the offer and sends nothing (offer.office_not_sent
+// {duplicate}).
+export async function runOfficeOffer(
+  payload: OfficeOfferPayload,
+  run: WithFirm,
+  deps: OfferDeps,
+): Promise<OfficeOfferResult> {
+  const now = deps.clock.now();
+  const inFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => run(payload.firmId, fn);
+  const claim = await inFirm((tx) => claimOfficeOffer(payload, tx, deps, now));
+  if ("done" in claim) return claim.done;
+
+  // (2) The message, outside any transaction.
+  const candidate = claim.candidate;
+  const sent = await sendToWorker(deps, {
     mobile: candidate.mobile,
     channel: candidate.channel,
     smsAllowed: candidate.smsAllowed,
-    body,
-    push: { ...push, url: `/shifts/${shift.id}` },
-    from: firm.line,
+    body: claim.body,
+    from: claim.line,
   });
-  if (!sent.ok) {
-    await tx
-      .update(offers)
-      .set({ channel: sent.channel, response: "failed", respondedAt: now })
-      .where(eq(offers.id, offer.id));
+
+  // (3) The outcome.
+  return inFirm(async (tx): Promise<OfficeOfferResult> => {
+    if (!sent.ok) {
+      // Marked failed, unless the worker answered it while it was going out; a close because the
+      // shift filled meanwhile is overwritten (this message never arrived).
+      await tx
+        .update(offers)
+        .set({ channel: sent.channel, response: "failed", respondedAt: now })
+        .where(
+          and(
+            eq(offers.id, claim.offerId),
+            or(isNull(offers.response), eq(offers.response, "filled_elsewhere")),
+          ),
+        );
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "offer.send_failed",
+        entityType: "shift",
+        entityId: claim.shiftId,
+        data: {
+          offerId: claim.offerId,
+          workerId: payload.workerId,
+          offeredBy: payload.officeUserId,
+          channel: sent.channel,
+          code: sent.code,
+        },
+      });
+      return { status: "failed" };
+    }
+    // The push once the message has gone.
+    const pushes = await pushToWorker(tx, deps, payload.workerId, {
+      ...claim.push,
+      url: `/shifts/${claim.shiftId}`,
+    });
+    if (sent.fellBackFrom) {
+      await tx.update(offers).set({ channel: sent.channel }).where(eq(offers.id, claim.offerId));
+    }
+    // Logged once: a rerun may have caught it up already, as unconfirmed.
+    if (await lockOfferOutcome(tx, claim.offerId)) return { status: "sent", channel: sent.channel };
     await recordEvent(tx, {
       actorType: "system",
-      action: "offer.send_failed",
-      entityType: "shift",
-      entityId: shift.id,
+      action: "offer.sent",
+      entityType: "offer",
+      entityId: claim.offerId,
       data: {
+        shiftId: claim.shiftId,
         workerId: payload.workerId,
         offeredBy: payload.officeUserId,
+        // The notice they had of the shift (the notice report counts from this, not a later start).
+        noticeHours: noticeHours(claim.startsAt, now),
         channel: sent.channel,
-        code: sent.code,
+        providerMessageId: sent.providerMessageId,
+        pushes,
+        ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
       },
     });
-    return { status: "failed" };
-  }
-  if (sent.fellBackFrom) {
-    await tx.update(offers).set({ channel: sent.channel }).where(eq(offers.id, offer.id));
-  }
-  await recordEvent(tx, {
-    actorType: "system",
-    action: "offer.sent",
-    entityType: "offer",
-    entityId: offer.id,
-    data: {
-      shiftId: shift.id,
-      workerId: payload.workerId,
-      offeredBy: payload.officeUserId,
-      // The notice they had of the shift (the notice report counts from this, not a later start).
-      noticeHours: noticeHours(shift.startsAt, now),
-      channel: sent.channel,
-      providerMessageId: sent.providerMessageId,
-      pushes: sent.pushes,
-      ...(sent.fellBackFrom ? { fellBackFrom: sent.fellBackFrom } : {}),
-    },
+    return { status: "sent", channel: sent.channel };
   });
-  return { status: "sent", channel: sent.channel };
 }
 
-export function createOfficeOfferJob(deps: () => OfferDeps) {
-  return defineFirmJob({
+export function createOfficeOfferTask(deps: () => OfferDeps): FirmTask<OfficeOfferPayload> {
+  return {
     queue: OFFICE_OFFER_QUEUE,
     schema: officeOfferPayload,
-    handler: (payload, tx) => runOfficeOffer(payload, tx, deps()),
-  });
+    task: (payload, run) => runOfficeOffer(payload, run, deps()),
+  };
 }
 
 // The worker's wiring (deps read when a job runs).
@@ -392,4 +457,4 @@ const workerDeps = (): OfferDeps => {
     clock: systemClock,
   };
 };
-export const officeOfferJob = createOfficeOfferJob(workerDeps);
+export const officeOfferTask = createOfficeOfferTask(workerDeps);

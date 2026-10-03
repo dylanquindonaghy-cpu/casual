@@ -7388,3 +7388,80 @@ On your computer (`npm run dev`):
 1. As the office, mark a shift urgent.
 2. As a worker, take it.
 3. Open the shift's page in the office: the other offers now say "filled by someone else".
+
+## 2026-10-03: Phase 10, task 3: no message is sent twice when a job retries (1.0 h)
+
+### Time
+
+1.0 hour of Claude's working time (17:43 to 18:45 UTC). Phase 10 so far: 2.4 of its 30 to 45
+hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=3ebf558d79588104 e2e=true`
+  (2713 tests, 49 browser tests).
+- The independent auditor said `VERDICT: DONE`: every sender PROVEN, no fakes found.
+- Audit findings fixed: M10, L33.
+
+### What was built, in plain words
+
+The app's background jobs send messages: login links, pay-page codes, offers, licence reminders.
+If a job fails, the job queue (pg-boss) runs it again. That's good, unless the message had
+already gone before the failure. Then the worker got it twice, or, worse, got a login link that
+no longer worked. Before this task, several jobs did all their work in one database transaction
+(an all-or-nothing bundle of changes) with the message sent in the middle. A failure after the
+message rolled back the record that it had gone.
+
+Now every job that sends works in three steps, like the shift reminders already did:
+1. **claim**: save "this message is going out" and commit it;
+2. **send** the message, with nothing locked;
+3. **record** what happened.
+
+If the job fails after the message has gone and runs again, it finds the claim and sends
+nothing. Changed this way:
+- **login links** (a link marked sent before it goes, so the link the worker got always works);
+- **pay-page codes**;
+- **the office's "Offer to someone"**;
+- **the daily licence scan**, including the Monday list to the office.
+
+There's one more fix from the review. If a job stopped between sending and recording, its next
+run now logs the message as sent, marked "not confirmed: it may not have arrived". That way the
+action log, and the notice report the firm uses as evidence, never lose an offer that went.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A new column, `otp_codes.request_id` | So a re-run of the pay-page code job can find the code it already made. Old rows are unaffected. | No column: the job couldn't tell its code had gone. |
+| A failed send is logged and not tried again | It may have arrived; a second copy is worse, and the worker can just ask again. | Retry: double messages, or a dead link. |
+| Login and licence messages count in the "too many failures" alert | Their failures are now logged, not failed jobs, so the alert would otherwise miss them. | Leave them out: a broken provider would go unnoticed. |
+| "Not confirmed" sends are logged on the next run | The notice report counts sent offers; one that may have gone must still be there. | Leave the gap. |
+
+### What the new tests prove
+
+`tests/integration/jobs.no-resend.test.ts` (14 checks):
+- **Every sender, failed during or right after its message and run again, never sends twice.**
+  The ones that log a catch-up (offers, licence messages, login links and codes) log the send
+  exactly once, marked "not confirmed". The login link and code that went still work.
+- **Escalation and the Monday list**, which record before they send, run twice and send once.
+- **Two copies of the pay-code job at once** send one code, and it works.
+- **Every sender's failed send** is logged and not tried again.
+
+Also:
+- updated `credential.scan.test.ts` (a licence renewal no longer waits for a message to go
+  out; a failed list email is logged rather than failing the whole scan);
+- updated `ops.alerts.test.ts` (login codes count in the failure alert);
+- updated `offers.waves.lock.test.ts` (a wave's "may have gone" offer is in the log).
+
+Each fix was also tried in reverse (removed). Its test then failed.
+
+### Parked, open, and things that need Dylan
+
+- **Confirm** the new database column and the "send at most once" choice for login links and
+  codes (in the decision table in `docs/overnight-log.md`).
+- **An alert for office emails that fail** (escalation, the Monday list, office login links):
+  parked with "Connect Amazon SES".
+
+### How to see it working
+
+Nothing new on screen. Run `npx vitest run tests/integration/jobs.no-resend.test.ts`.

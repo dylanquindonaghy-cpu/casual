@@ -228,13 +228,15 @@ describe("pay-page code events", () => {
 
   async function sendCode(T: Tenant, sessionId: string, code: string) {
     const { transport } = captureTransport();
-    const result = await withFirm(T.firmId, (tx) =>
-      sendLoginCode({ firmId: T.firmId, idempotencyKey: randomUUID(), sessionId }, tx, {
+    const result = await sendLoginCode(
+      { firmId: T.firmId, idempotencyKey: randomUUID(), sessionId },
+      withFirm,
+      {
         transport,
         clock: at(),
         secret: appEnv().SESSION_SECRET, // what verifyStepUpCode checks against by default
         newCode: () => code,
-      }),
+      },
     );
     return result.sent ? result.otpCodeId : null;
   }

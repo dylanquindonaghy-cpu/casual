@@ -110,17 +110,15 @@ describe("per IP", () => {
     const ip = freshIp();
     for (let i = 0; i < 25; i++) {
       const { transport, sent } = captureTransport();
-      await withFirm(T.firmId, (tx) =>
-        sendPortalLink(
-          {
-            firmId: T.firmId,
-            idempotencyKey: randomUUID(),
-            purpose: "worker_login",
-            subjectId: T.workerId,
-          },
-          tx,
-          { transport, clock: at(0), baseDomain: "localhost:3000" },
-        ),
+      await sendPortalLink(
+        {
+          firmId: T.firmId,
+          idempotencyKey: randomUUID(),
+          purpose: "worker_login",
+          subjectId: T.workerId,
+        },
+        withFirm,
+        { transport, clock: at(0), baseDomain: "localhost:3000" },
       );
       const result = await consumeWorkerLoginLink(
         { firm: { id: T.firmId }, clientIp: ip, clock: at(0) },

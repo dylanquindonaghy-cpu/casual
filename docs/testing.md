@@ -52,6 +52,13 @@ without breaking a 6am cancellation.
   first served; quiet hours hold a wave until 07:00; stop on fill (a worker or the office takes it
   between waves: the next wave stops, the other offers become "filled elsewhere", no escalation);
   the start ends the chain.
+- `jobs.no-resend.test.ts` (built, Phase 10) — senders failed during or just after their message and
+  run again: the retry sends nothing (the office's offer, the credential warning and expiry notice,
+  and login links and codes, which still work, log the send once, as unconfirmed; firm-change notices
+  and request answers are already logged by their claim event); escalation and the Monday list,
+  claimed before they send, run twice; two
+  login-code copies at once; and every sender's failed send logged and never retried. Escalation
+  and waves crashing between recipients: `offers.waves.lock.test.ts`.
 - `offers.close.test.ts` (built, Phase 10) — a shift that fills closes its waiting offers at once:
   first come, first served; after the last fair-rotation wave; the office placing an offered worker
   or someone else; two places (the first booking closes nothing); "Mark as filled"; a headcount cut.

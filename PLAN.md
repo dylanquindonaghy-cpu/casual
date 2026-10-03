@@ -253,7 +253,7 @@ every step works.
 - [x] When a shift fills, every other open offer on it is closed, in every mode (first come first
       served, after the last fair-rotation wave, office placement): the taker's offer `accepted`,
       the rest `filled_elsewhere`, logged, with a test per mode (M5)
-- [ ] No message is sent twice when a job retries: office offers, escalation (per recipient, so
+- [x] No message is sent twice when a job retries: office offers, escalation (per recipient, so
       one bad address doesn't stop the rest and `shift.escalated` is still recorded), the credential
       scan, login links and codes, firm-change notices and request updates use claim → send →
       record. A test fails each job after its send and checks the retry sends nothing. (M10, L33)
@@ -620,8 +620,7 @@ every step works.
   10, 2026-10-03): a wave now claims one worker at a time, holding the shift's lock, that worker's
   count lock and their row for milliseconds and never across a message, so Take shift, Assign, a
   STOP and an erasure don't wait for it (`tests/integration/offers.waves.lock.test.ts`, 300
-  workers). The office's single offer (`office-offer.ts`) still sends inside its transaction:
-  Phase 10 task 3.
+  workers). The office's single offer claims, sends, then records too (Phase 10 task 3).
 - **Dylan to confirm:** urgent offers count towards a worker's 3 a day (they still land on their
   phone), so after 3 urgent offers that day they get no non-urgent ones; failed sends don't count.
 - Shift reminders (Phase 4) follow-ups:
@@ -651,9 +650,12 @@ every step works.
     have gone" next to the booking.
   - Offers still waiting when the *sheet* cancels a whole shift stay "waiting": mark them `expired`
     then, as the office's whole-shift cancellation already does (`src/lib/roster/cancel.ts`).
-  - Offer waves and escalation now use the reminders' claim → send → record pattern (Phase 10,
-    2026-10-03). The office's single offer, login links and codes, the credential scan, firm-change
-    notices and request updates are Phase 10 task 3.
+  - Every sender now claims, sends, then records (Phase 10 tasks 1 and 3): offer waves,
+    escalation, the office's single offer, login links and codes, the credential scan and its
+    weekly list, firm-change notices, request updates, reminders and the pay-query notices. A job
+    that fails after its message is retried and sends nothing, and logs a send it couldn't confirm
+    as `unconfirmed` (`tests/integration/jobs.no-resend.test.ts`; escalation and waves also in
+    `offers.waves.lock.test.ts`; reminders and pay-query notices in their own tests).
 
   - A reminder still goes when a credential the shift needs has expired or been suspended since
     booking. Decide whether that should hold the reminder and alert the office (Phase 5 Today
@@ -1512,3 +1514,4 @@ every step works.
 | 2026-09-30 | 9 | 0.2 | Weekly pilot reviews and the week-4 report, BLOCKED (not ticked: a real four-week pilot): `docs/pilot-report.md`: the Friday review (the tally first, the dates to choose on the Pilot metrics page), a weekly table with the page's own figure names and targets, the Friday update's wording, and the week-4 report with where each number comes from, then the Gate C check; linked from the playbook; parking item; 2665 tests + 49 e2e; verified. Phase 9: 2.5 h of the 10–15 h estimate, 1 task done, 6 blocked (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.8 | Offer waves never hold the shift lock while sending: claim → send → record per worker (each claim re-checks the shift and the worker under the lock; an edit mid-wave restarts it), escalation per office user, quiet hours on retries; Take shift and Assign under 2 s mid-way through a 300-worker wave (was 2.6 s with 60); 2678 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.6 | Waiting offers close the moment a shift fills, by any route and in every mode (`src/lib/offers/close.ts`, `offer.closed`): the taker accepted (also after a reopen, and when the office places them or the sheet names them), the rest filled elsewhere; the "urgent shifts filled from offers" metric counts only workers who took it themselves; 2693 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-03 | 10 | 1.0 | No message sent twice when a job retries: login links and codes, the office's offer and the credential scan (and its Monday list) now claim, send, then record; a send whose record step failed is logged on the next run as unconfirmed, so the notice report keeps it; new `otp_codes.request_id` (migration 0027); 2713 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |

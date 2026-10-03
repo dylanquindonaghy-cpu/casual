@@ -114,7 +114,27 @@ async function addCredential(
       c.warnedDays ?? null,
     ],
   );
-  return rows[0]?.id ?? "";
+  const id = rows[0]?.id ?? "";
+  // Warned already: by an earlier scan, which logged it (the scan sets these columns only with its
+  // event; a warning with none is one a stopped run claimed, and is caught up as unconfirmed).
+  if (c.warnedFor && c.warnedDays !== undefined) {
+    await su.query(
+      `insert into events (firm_id, actor_type, action, entity_type, entity_id, data, created_at)
+       values ($1, 'system', 'credential.expiry_warning', 'credential', $2, $3, '2026-09-01T08:00:00Z')`,
+      [
+        firmId,
+        id,
+        JSON.stringify({
+          type: c.type,
+          expiresOn: c.warnedFor,
+          days: c.warnedDays,
+          channel: "whatsapp",
+          providerMessageId: "earlier",
+        }),
+      ],
+    );
+  }
+  return id;
 }
 
 async function addOfficeUser(
@@ -188,6 +208,7 @@ describe("credential-scan: warnings", () => {
       date: TUESDAY_DATE,
       warned: 2,
       expired: 0,
+      failed: 0,
       weeklyList: "not_today",
     });
     const signOff = `${f.name} Shift Team`;
@@ -363,27 +384,27 @@ describe("credential-scan: expiry (block on expiry)", () => {
       expect.arrayContaining([
         {
           entity_id: yesterday,
-          data: {
-            type: "SIA_DS",
-            expiresOn: "2026-10-05",
-            notified: true,
-            channel: "whatsapp",
-            providerMessageId: "capture-1",
-          },
+          data: { type: "SIA_DS", expiresOn: "2026-10-05", notified: true },
         },
         {
           entity_id: leaversExpired,
-          data: {
-            type: "SIA_DS",
-            expiresOn: "2026-09-01",
-            notified: false,
-            channel: null,
-            providerMessageId: null,
-          },
+          data: { type: "SIA_DS", expiresOn: "2026-09-01", notified: false },
         },
       ]),
     );
     expect(logged).toHaveLength(2);
+    // The message's outcome is its own event (claim → send → record): only for the one told.
+    expect(await eventsOf(f.firmId, "credential.expiry_notice_sent")).toEqual([
+      {
+        entity_id: yesterday,
+        data: {
+          type: "SIA_DS",
+          expiresOn: "2026-10-05",
+          channel: "whatsapp",
+          providerMessageId: "capture-1",
+        },
+      },
+    ]);
 
     // After it: still blocked, now by the status too, with no date needed.
     const after = eligible(TUESDAY, await credsOf(sam.id), "2026-10-08");
@@ -412,9 +433,14 @@ describe("credential-scan: expiry (block on expiry)", () => {
       a.scan(f.firmId, TUESDAY_DATE),
       b.scan(f.firmId, TUESDAY_DATE),
     ]);
-    expect(results.map((r) => r.warned + r.expired).sort()).toEqual([0, 2]);
+    // Each credential is claimed by one scan or the other (they may share the work).
+    expect(results.reduce((n, r) => n + r.warned + r.expired, 0)).toBe(2);
     expect(a.sent.length + b.sent.length).toBe(2);
-    expect(await eventsOf(f.firmId, "credential.expiry_warning")).toHaveLength(1);
+    const warnings = await eventsOf(f.firmId, "credential.expiry_warning");
+    // This scan's licence warning once (the first aid one is an earlier scan's), and nothing
+    // caught up as unconfirmed.
+    expect(warnings.filter((e) => e.data.type === "SIA_DS")).toHaveLength(1);
+    expect(warnings.filter((e) => e.data.unconfirmed)).toEqual([]);
     expect(await eventsOf(f.firmId, "credential.expired")).toHaveLength(1);
   });
 });
@@ -458,6 +484,7 @@ describe("credential-scan: the office's Monday list", () => {
       date: "2026-10-05",
       warned: 0,
       expired: 0,
+      failed: 0,
       weeklyList: "sent",
     });
     const emails = monday.sent.filter((m) => m.channel === "email");
@@ -602,7 +629,7 @@ describe("credential-scan-tick and the job", () => {
     expect(ok).toEqual({
       id: "job-1",
       status: "completed",
-      output: { date: TUESDAY_DATE, warned: 1, expired: 0, weeklyList: "not_today" },
+      output: { date: TUESDAY_DATE, warned: 1, expired: 0, failed: 0, weeklyList: "not_today" },
     });
     expect(sent).toHaveLength(1);
     const bad = await runFirmTask(
@@ -663,7 +690,8 @@ describe("credential-scan: failures and races", () => {
       warnedFor: "2026-10-05",
       warnedDays: 7,
     });
-    // A transport that holds the scan inside its transaction (row marked expired, not committed).
+    // A transport that holds the scan's message (the row already claimed: marked expired and
+    // committed, with no lock held while the message goes).
     let release = () => {};
     const gate = new Promise<void>((resolve) => (release = resolve));
     let entered = () => {};
@@ -694,27 +722,19 @@ describe("credential-scan: failures and races", () => {
         now: TUESDAY,
       }),
     );
-    // Wait until the import is blocked on the scan's row lock, then let the scan finish.
-    const deadline = Date.now() + 5000;
-    for (;;) {
-      const { rows } = await su.query<{ n: number }>(
-        `select count(*)::int as n from pg_stat_activity
-          where datname = current_database() and wait_event_type = 'Lock'`,
-      );
-      if ((rows[0]?.n ?? 0) > 0) break;
-      if (Date.now() > deadline) throw new Error("the import never waited for the scan");
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    // The renewal finishes while the scan's message is still going out: the scan holds no lock
+    // across a message (before Phase 10 the import waited for it).
+    const timeout = new Promise<"blocked">((resolve) => setTimeout(() => resolve("blocked"), 5000));
+    expect(await Promise.race([renewal, timeout])).toMatchObject({ updated: 1 });
     release();
     expect(await scan).toMatchObject({ expired: 1 });
-    expect(await renewal).toMatchObject({ updated: 1 });
     expect(await credentialRow(licence)).toMatchObject({
       status: "valid",
       expiresOn: "2029-10-05",
     });
   });
 
-  it("a list that can't be sent never undoes or repeats the workers' messages", async () => {
+  it("a list that can't be sent never undoes or repeats the workers' messages, and is logged", async () => {
     const f = await newFirm();
     await addOfficeUser(f.firmId, "admin@example.com", "admin");
     const sam = await addWorker(f.firmId);
@@ -732,22 +752,29 @@ describe("credential-scan: failures and races", () => {
       },
     };
     const payload = { firmId: f.firmId, idempotencyKey: "credential-scan:2026-10-05" };
-    await expect(scanCredentials(payload, withFirm, { transport: emailDown })).rejects.toThrow(
-      "email is down",
-    );
-    // The worker's warning stands (marked and logged), and the list isn't marked sent.
+    // The list's email fails: logged for that office user, and the scan still completes.
+    expect(await scanCredentials(payload, withFirm, { transport: emailDown })).toMatchObject({
+      warned: 1,
+      failed: 0,
+      weeklyList: "sent",
+    });
+    // The worker's warning stands (marked and logged).
     expect(whatsappSent).toHaveLength(1);
     expect(await credentialRow(licence)).toMatchObject({ warnedDays: 7 });
     expect(await eventsOf(f.firmId, "credential.expiry_warning")).toHaveLength(1);
-    expect(await eventsOf(f.firmId, "credential.weekly_list_sent")).toEqual([]);
+    // The list was claimed before its email (it may have gone): logged as sent, and the failure.
+    expect(await eventsOf(f.firmId, "credential.weekly_list_sent")).toHaveLength(1);
+    expect(
+      (await eventsOf(f.firmId, "credential.weekly_list_failed")).map((e) => e.data.code),
+    ).toEqual(["Error"]);
 
-    // The retry sends only the list.
+    // A retry sends nothing: neither the warning nor the list again.
     const retry = scanner();
     expect(await retry.scan(f.firmId, "2026-10-05")).toMatchObject({
       warned: 0,
-      weeklyList: "sent",
+      weeklyList: "already_sent",
     });
-    expect(retry.sent.map((m) => m.channel)).toEqual(["email"]);
+    expect(retry.sent).toEqual([]);
   });
 
   it("skips an office address the email can't go to, and still sends everyone else the list", async () => {
@@ -824,6 +851,7 @@ describe("credential-scan: failures and races", () => {
       date: "2026-10-05",
       warned: 0,
       expired: 1,
+      failed: 0,
       weeklyList: "nothing_to_list",
     });
     expect(sent).toEqual([]);
@@ -837,8 +865,6 @@ describe("credential-scan: failures and races", () => {
           expiresOn: "2026-10-04",
           notified: false,
           superseded: true,
-          channel: null,
-          providerMessageId: null,
         },
       },
     ]);

@@ -520,6 +520,7 @@ create table otp_codes (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   session_id uuid not null,              -- (firm_id, session_id) -> sessions, cascade
+  request_id uuid,                       -- the send-login-code job's key: a retry sends nothing (Phase 10)
   code_hash bytea not null,              -- HMAC-SHA256 with SESSION_SECRET
   expires_at timestamptz not null,       -- 10 minutes
   attempts int not null default 0,       -- 0..5
@@ -528,6 +529,8 @@ create table otp_codes (
 );
 -- one live code per session:
 create unique index otp_codes_one_live_per_session on otp_codes (firm_id, session_id) where consumed_at is null;
+-- one code per send-login-code job:
+create unique index otp_codes_request_key on otp_codes (firm_id, request_id);
 
 create table auth_throttle (
   id uuid primary key default gen_random_uuid(),

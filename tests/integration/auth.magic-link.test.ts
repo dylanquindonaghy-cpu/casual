@@ -32,17 +32,15 @@ afterAll(async () => {
 // Sends a fresh link to the tenant's worker at time `at` and returns its token.
 async function linkAt(T: Tenant, at: Date): Promise<string> {
   const { transport, sent } = captureTransport();
-  const result = await withFirm(T.firmId, (tx) =>
-    sendPortalLink(
-      {
-        firmId: T.firmId,
-        idempotencyKey: randomUUID(),
-        purpose: "worker_login",
-        subjectId: T.workerId,
-      },
-      tx,
-      { transport, clock: { now: () => at }, baseDomain: "localhost:3000" },
-    ),
+  const result = await sendPortalLink(
+    {
+      firmId: T.firmId,
+      idempotencyKey: randomUUID(),
+      purpose: "worker_login",
+      subjectId: T.workerId,
+    },
+    withFirm,
+    { transport, clock: { now: () => at }, baseDomain: "localhost:3000" },
   );
   expect(result.sent).toBe(true);
   return tokenFrom(sent[0]);
@@ -314,8 +312,8 @@ describe("retrying the send job", () => {
     };
     const { transport, sent } = captureTransport();
     const deps = { transport, clock: movableClock().clock, baseDomain: "localhost:3000" };
-    expect((await withFirm(T.firmId, (tx) => sendPortalLink(payload, tx, deps))).sent).toBe(true);
-    expect(await withFirm(T.firmId, (tx) => sendPortalLink(payload, tx, deps))).toEqual({
+    expect((await sendPortalLink(payload, withFirm, deps)).sent).toBe(true);
+    expect(await sendPortalLink(payload, withFirm, deps)).toEqual({
       sent: false,
       reason: "already_sent",
     });
@@ -330,17 +328,15 @@ describe("retrying the send job", () => {
       issueMagicLink(tx, { kind: "worker", subjectId: T.workerId, requestId, now }),
     );
     const { transport, sent } = captureTransport();
-    await withFirm(T.firmId, (tx) =>
-      sendPortalLink(
-        {
-          firmId: T.firmId,
-          idempotencyKey: requestId,
-          purpose: "worker_login",
-          subjectId: T.workerId,
-        },
-        tx,
-        { transport, clock: { now: () => now }, baseDomain: "localhost:3000" },
-      ),
+    await sendPortalLink(
+      {
+        firmId: T.firmId,
+        idempotencyKey: requestId,
+        purpose: "worker_login",
+        subjectId: T.workerId,
+      },
+      withFirm,
+      { transport, clock: { now: () => now }, baseDomain: "localhost:3000" },
     );
     expect(sent).toHaveLength(1);
     expect(await consumeAt(T, lost?.token ?? "", now)).toEqual({ status: "rejected" });

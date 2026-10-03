@@ -123,12 +123,10 @@ describe("messages go from the firm's shifts line", () => {
         createSession(tx, { kind: "worker", subjectId: worker, now: NOW }),
       );
       const { transport, sent } = captureTransport();
-      await withFirm(t.f.firmId, (tx) =>
-        sendLoginCode(
-          { firmId: t.f.firmId, idempotencyKey: randomUUID(), sessionId: session.id },
-          tx,
-          { transport, clock: { now: () => NOW }, secret: "x".repeat(32), newCode: () => "123456" },
-        ),
+      await sendLoginCode(
+        { firmId: t.f.firmId, idempotencyKey: randomUUID(), sessionId: session.id },
+        withFirm,
+        { transport, clock: { now: () => NOW }, secret: "x".repeat(32), newCode: () => "123456" },
       );
       expect(sent).toHaveLength(1);
       if (line) expect(sent[0]).toMatchObject({ channel: "whatsapp", from: line });

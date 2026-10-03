@@ -15,7 +15,7 @@ import {
   type RateLimited,
 } from "./link-login";
 import { normaliseMobile } from "./mobile";
-import { sendPortalLinkJob } from "./send-portal-link";
+import { sendPortalLinkTask } from "./send-portal-link";
 import { findSession, type ActiveSession } from "./sessions";
 import { LIMITS, throttle } from "./throttle";
 import { looksLikeToken } from "./tokens";
@@ -62,7 +62,7 @@ export async function requestWorkerLoginLink(
       entityId: requestId,
       data: { kind: "worker", matched: Boolean(worker) },
     });
-    await sendFirmJob(tx, sendPortalLinkJob, {
+    await sendFirmJob(tx, sendPortalLinkTask, {
       idempotencyKey: requestId,
       purpose: "worker_login",
       subjectId: worker?.id ?? null,

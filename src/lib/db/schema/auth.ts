@@ -117,6 +117,9 @@ export const otpCodes = pgTable(
       .notNull()
       .references(() => firms.id),
     sessionId: uuid("session_id").notNull(),
+    // The send-login-code job that made it (its idempotency key): a retried job finds its code and
+    // sends nothing (src/lib/auth/send-login-code.ts). Null on codes made before Phase 10.
+    requestId: uuid("request_id"),
     codeHash: bytea("code_hash").notNull(),
     expiresAt: timestamptz("expires_at").notNull(),
     attempts: integer("attempts").notNull().default(0),
@@ -134,6 +137,8 @@ export const otpCodes = pgTable(
     uniqueIndex("otp_codes_one_live_per_session")
       .on(t.firmId, t.sessionId)
       .where(sql`consumed_at is null`),
+    // One code per send-login-code job (firm first, like the others).
+    uniqueIndex("otp_codes_request_key").on(t.firmId, t.requestId),
     check("otp_codes_attempts_range", sql`${t.attempts} between 0 and 5`),
     firmIsolation(t.firmId),
   ],

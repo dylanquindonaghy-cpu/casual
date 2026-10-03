@@ -34,11 +34,15 @@ export const OPS_ALERT_REPEAT_SECONDS = 60 * 60;
 const HOUR_MS = 60 * 60 * 1000;
 
 // WhatsApp and text sends, and the failures, as the senders log them (each carries its channel).
-// Only senders that log their failures too, so the rate compares like with like: a login link,
-// a login code or a credential message that fails to send fails its job instead (retried, then
-// the failed-jobs alert).
+// Only senders that log their failures too, so the rate compares like with like. Since Phase 10
+// every sender claims, sends, then records (a failed send is logged, never retried), so the login
+// links and codes and the credential messages are counted here too.
 export const SEND_ACTIONS = [
   "offer.sent",
+  "auth.link_sent",
+  "auth.otp_sent",
+  "credential.expiry_warning",
+  "credential.expiry_notice_sent",
   "shift.reminder_sent",
   "shift.change_notice_sent",
   "request.update_sent",
@@ -47,6 +51,10 @@ export const SEND_ACTIONS = [
 ] as const;
 export const SEND_FAILED_ACTIONS = [
   "offer.send_failed",
+  "auth.link_send_failed",
+  "auth.otp_send_failed",
+  "credential.expiry_warning_failed",
+  "credential.expiry_notice_failed",
   "shift.reminder_failed",
   "shift.change_notice_failed",
   "request.update_failed",

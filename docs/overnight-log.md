@@ -6431,3 +6431,118 @@ To reach DONE: nothing — tick this task in PLAN.md (per CLAUDE.md, only after 
 **Commit:** `c40aa31`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
 **Hours:** 0.6 (Phase 10: 1.4 of 30–45 h). **Parked:** sheet whole-shift cancellations leave
 waiting offers (expire them as the office's cancellation does).
+
+## 2026-10-03 17:43 UTC — Phase 10, task 3: no message is sent twice when a job retries
+
+**Task:** No message is sent twice when a job retries: office offers, escalation (per recipient,
+so one bad address doesn't stop the rest and `shift.escalated` is still recorded), the credential
+scan, login links and codes, firm-change notices and request updates use claim → send → record. A
+test fails each job after its send and checks the retry sends nothing. (M10, L33)
+
+**Plan and what was done:**
+- **Already right:**
+  - escalation, done in task 1 (claimed per office user before each email);
+  - firm-change notices and request updates (already claim → send → record).
+
+  These only needed the new test.
+- **Changed into firm tasks** (several short transactions, never one held across a message):
+  - **login links** (`src/lib/auth/send-portal-link.ts`): the link is created *and marked sent*
+    in the claim, so a retry never replaces its token or sends a second link. Logged
+    `auth.link_sent` or `auth.link_send_failed`.
+  - **login codes** (`src/lib/auth/send-login-code.ts`): the code row is keyed by the job's
+    idempotency key in a new `otp_codes.request_id` column, so a retry finds it. Logged
+    `auth.otp_sent` or `auth.otp_send_failed`.
+  - **the office's single offer** (`src/lib/offers/office-offer.ts`): every check and the offer
+    row under the shift lock, then the message, then the push and `offer.sent`, or the offer
+    marked failed and `offer.send_failed`.
+  - **the credential scan** (`src/lib/credentials/scan.ts`): per credential, a claim re-reads and
+    locks the row and marks it (warning columns, or `expired` plus `credential.expired`), then
+    the WhatsApp, then `credential.expiry_warning` / `credential.expiry_notice_sent` or the
+    `_failed` events. The Monday list's `credential.weekly_list_sent` is the claim, written
+    first; then one email per office user, with each failure logged
+    (`credential.weekly_list_failed`).
+- `notifyWorker` (the send-inside-a-transaction helper) is removed: nothing uses it.
+- **Ops alert:** login links and codes and the credential messages now count in the "send
+  failures" alert (`src/lib/ops/tick.ts`), since their failures are logged events, not failed
+  jobs.
+- **New test:** `tests/integration/jobs.no-resend.test.ts`. Each sender's record step is failed
+  just after its message, then the job is run again: one message in total.
+
+**Decisions (would normally wait for Dylan's OK):**
+
+| Decision | Why | Alternative considered |
+|---|---|---|
+| New nullable column `otp_codes.request_id` with a unique index (firm_id, request_id), migration `0027_otp_request_id.sql` | A retried login-code job needs to find the code it made. No other column identifies the job. Nullable, so old rows are fine; firm first, like every other key. | An event as the claim marker (no column); but then the Twilio message id couldn't be logged with the send. |
+| At most once for login links and codes: a send that fails is logged, not retried | Before this, a failure *after* the send rolled the link back, so the worker held a link that didn't work, and the retry sent a second one. Now the link they got always works. If nothing arrived, they just ask again (rate limits apply). | At least once (retry the send): risks two messages, or a dead link. |
+| Login and credential messages count in the founder's "send failures" alert | Their failures are now logged events; before, a failed job raised the failed-jobs alert. Without this, a Twilio outage on login codes would go unnoticed. | Leave them out: the outage would be silent. |
+| A Monday list email that fails no longer fails the scan | It's logged per office user and the rest still go. The list is claimed first, so a retry doesn't email the others again. | Fail the job and retry: the earlier addresses get the list twice. |
+| New events: `auth.link_send_failed`, `auth.otp_send_failed`, `credential.expiry_warning_failed`, `credential.expiry_notice_sent`, `credential.expiry_notice_failed`, `credential.weekly_list_failed`. The expiry's message details move from `credential.expired` to `credential.expiry_notice_sent` | The expiry (a state change) is logged with the claim, before the message; the message's outcome is its own event. `auth.otp_failed` already meant "a wrong code typed", so the send failure got a different name. | Put the provider id on `credential.expired` (can't: it's written before the send). |
+
+**Tests changed (not weakened):**
+- **`credential.scan.test.ts`:**
+  - each result gains `failed: 0`;
+  - the expiry event no longer carries the message fields, and a new assertion checks
+    `credential.expiry_notice_sent`;
+  - "two scans at once" now checks the total (the two scans may share the work);
+  - **the renewal race** now proves the import finishes *while* the expiry message is still
+    held, which is stronger than "the import waited";
+  - **a failed list** now completes, logs the failure, and a retry sends nothing.
+- **`ops.alerts.test.ts`:** login codes now count (4 of 24, not 3 of 21).
+- **`office.log-types.test.ts`:** the expiry line reads "they're being told", because the
+  message's outcome is now a separate line.
+
+**Guardrails review (with two adversarial reviewers; each finding checked by two refuters):**
+
+FIX FIRST, raised by all three reviewers and fixed: **a send whose record step failed lost its
+log.** If the record step failed after the message had gone (a crash, a failed commit), the
+action log had no `offer.sent`. That event is what the notice report counts, so the offer dropped
+out of the Employment Rights Act evidence. For the office's offer, the retry even logged "wasn't
+sent".
+
+Fixed with a catch-up when the job runs again:
+- **Offers**, waves and the office's (`src/lib/offers/unconfirmed.ts`): offers claimed but never
+  logged are logged as `offer.sent` {…, noticeHours from when they were claimed,
+  unconfirmed: true}.
+- **Login links and codes:** the same, as `auth.link_sent` / `auth.otp_sent` {unconfirmed}.
+- **Credential warnings and expiry notices:** the same, for each credential claimed but never
+  logged. Expiry events from before Phase 10 carry their message's details and are left alone.
+
+The record step and the catch-up both lock the row and look before they write, so each send is
+logged once. In the action log it reads "(not confirmed: it may not have arrived)".
+`offer.send_failed` now carries the `offerId`.
+
+Should-fix items, fixed:
+- **Two login-code copies could retire the code the first had sent.** Fixed: the claim takes a
+  per-session advisory lock, so copies take turns. Tested with two at once.
+- **The harness now also fails a transaction a message was sent *during*.** A sender that slipped
+  back to sending inside its claim would fail the test.
+- **New tests:**
+  - a failed send for each sender (the `_failed` events, and no retry);
+  - the expiry notice and the Monday list;
+  - the link and code still working after a retry;
+  - the wave's catch-up.
+- **Older expiry events** read "they were told" again.
+
+Not done, and why:
+- **Fail the weekly list or alert on email failures** (refuted): email failure alerts are parked
+  with "Connect Amazon SES".
+- **Make the escalation case in `jobs.no-resend` fail something** (refuted): escalation does no
+  work after a successful email. The crash between two office users is in
+  `offers.waves.lock.test.ts`.
+- **"Get Dylan's OK for the schema change"** (refuted): the overnight standing decision allows it.
+  It's recorded in the decision table above for Dylan to confirm.
+
+**Mutation check:** I undid each change in turn and its test failed: the link marked sent in its
+claim, the code's request key, the warning marked in its claim, the office offer's catch-up and
+the link's catch-up.
+
+**First verify after the review fixes: NOT VERIFIED (3 failures). Root causes and fixes:**
+- **`offers.waves.test.ts` and `office.offer.test.ts`:** they compare `offer.send_failed` data
+  exactly, and it now carries the `offerId` (needed to match a failure to its offer). The
+  expectations add `offerId: expect.any(String)`.
+- **`credential.scan.test.ts`, "two scans at once" (2 warnings, not 1):** the fixture set a
+  credential's warning columns with no event. Real data never has that: only the scan sets them,
+  always with its event. The new catch-up therefore, correctly, read it as a warning claimed but
+  never logged. The fixture helper `addCredential` now writes the earlier scan's event whenever
+  it sets the warning columns. The test checks this scan's licence warning appears once and that
+  nothing was caught up as unconfirmed, which is stronger than before.

@@ -68,6 +68,11 @@ const IMPORT_KIND_WORDS: Record<string, string> = {
 
 const queryCount = (n: unknown) => (Number(n ?? 0) === 1 ? "1 query" : `${Number(n ?? 0)} queries`);
 
+// A send logged after the job stopped before it heard back (claim → send → record): it may have
+// gone, and it's never sent again.
+const unconfirmed = (d: Record<string, unknown>) =>
+  d.unconfirmed === true ? " (not confirmed: it may not have arrived)." : ".";
+
 export function eventWords(e: LoggedEvent, names: Names): string {
   const d = e.data;
   const byOffice = d.by === "firm" || e.actorType === "office";
@@ -174,9 +179,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "shift.escalation_failed":
       return `The "still unfilled" email to ${names.office(d.officeUserId)} couldn't be sent.`;
     case "offer.sent":
-      return d.offeredBy
-        ? `${names.office(d.offeredBy)} offered it to ${worker}.`
-        : `Offered to ${worker}${d.wave ? ` (wave ${String(d.wave)})` : ""}.`;
+      return (
+        (d.offeredBy
+          ? `${names.office(d.offeredBy)} offered it to ${worker}`
+          : `Offered to ${worker}${d.wave ? ` (wave ${String(d.wave)})` : ""}`) + unconfirmed(d)
+      );
     case "offer.send_failed":
       return `The offer to ${worker} couldn't be sent.`;
     case "offer.office_queued":
@@ -269,11 +276,22 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "credential.updated":
       return `${worker}'s ${credential(d.type)} was updated.`;
     case "credential.expired":
-      return `${worker}'s ${credential(d.type)} has expired${d.notified ? ": they were told" : ""}.`;
+      // Before Phase 10 the message went first and its details are on this event.
+      return `${worker}'s ${credential(d.type)} has expired${
+        d.notified ? (d.providerMessageId ? ": they were told" : ": they're being told") : ""
+      }.`;
     case "credential.expiry_warning":
-      return `${worker} was told their ${credential(d.type)} expires soon.`;
+      return `${worker} was told their ${credential(d.type)} expires soon${unconfirmed(d)}`;
+    case "credential.expiry_warning_failed":
+      return `The message telling ${worker} their ${credential(d.type)} expires soon couldn't be sent.`;
+    case "credential.expiry_notice_sent":
+      return `${worker} was told their ${credential(d.type)} has expired${unconfirmed(d)}`;
+    case "credential.expiry_notice_failed":
+      return `The message telling ${worker} their ${credential(d.type)} has expired couldn't be sent.`;
     case "credential.weekly_list_sent":
       return "The weekly list of expiring credentials was emailed to the office.";
+    case "credential.weekly_list_failed":
+      return `The weekly list of expiring credentials couldn't be emailed to ${names.office(d.officeUserId)}.`;
     case "firm.branding_changed": {
       const FIELD_WORDS: Record<string, string> = {
         name: "name",
@@ -363,8 +381,15 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       if (!d.matched) return "A login link was asked for (a number we don't know).";
       return d.workerId ? `${worker} asked for a login link.` : "A worker asked for a login link.";
     case "auth.link_sent":
-      if (d.purpose === "office_login") return "Login link sent to an office user.";
-      return d.workerId ? `Login link sent to ${worker}.` : "Login link sent to a worker.";
+      if (d.purpose === "office_login") return `Login link sent to an office user${unconfirmed(d)}`;
+      return d.workerId
+        ? `Login link sent to ${worker}${unconfirmed(d)}`
+        : `Login link sent to a worker${unconfirmed(d)}`;
+    case "auth.link_send_failed":
+      if (d.purpose === "office_login") return "A login link to an office user couldn't be sent.";
+      return d.workerId
+        ? `A login link to ${worker} couldn't be sent.`
+        : "A login link to a worker couldn't be sent.";
     case "auth.link_rejected":
       return `A login link was refused: ${LINK_REFUSED[String(d.reason)] ?? "it wasn't valid"}.`;
     case "auth.login":
@@ -376,7 +401,13 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "auth.otp_requested":
       return `${who} asked for a code to see their pay.`;
     case "auth.otp_sent":
-      return d.workerId ? `A pay-page code was sent to ${worker}.` : "A pay-page code was sent.";
+      return d.workerId
+        ? `A pay-page code was sent to ${worker}${unconfirmed(d)}`
+        : `A pay-page code was sent${unconfirmed(d)}`;
+    case "auth.otp_send_failed":
+      return d.workerId
+        ? `A pay-page code to ${worker} couldn't be sent.`
+        : "A pay-page code couldn't be sent.";
     case "auth.otp_verified":
       return `${who} opened their pay page.`;
     case "auth.otp_failed":

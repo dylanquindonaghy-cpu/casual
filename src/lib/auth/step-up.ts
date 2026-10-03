@@ -7,7 +7,7 @@ import { recordEvent } from "../events/record";
 import { sendFirmJob } from "../jobs/firm-job";
 import { addMs, MINUTE, systemClock, type Clock } from "./clock";
 import { codeHash, sameHash } from "./codes";
-import { sendLoginCodeJob } from "./send-login-code";
+import { sendLoginCodeTask } from "./send-login-code";
 import { findSession, type ActiveSession } from "./sessions";
 import { LIMITS, throttle } from "./throttle";
 import { looksLikeToken } from "./tokens";
@@ -83,7 +83,7 @@ export async function requestStepUpCode(
       entityType: "session",
       entityId: session.id,
     });
-    await sendFirmJob(tx, sendLoginCodeJob, {
+    await sendFirmJob(tx, sendLoginCodeTask, {
       idempotencyKey: randomUUID(),
       sessionId: session.id,
     });

@@ -21,7 +21,9 @@ import type { PushPayload, PushTransport } from "../push/transport";
 // - once the message has gone, a push to each phone the worker turned notifications on for
 //   (free). A phone the push service says is gone is forgotten and logged.
 //
-// The caller writes its own record (offer, reminder) before calling, and its own event after.
+// The caller claims its own record (offer, reminder, notice) in a committed transaction before
+// calling, sends with no transaction open, then pushes and logs its event in a short one (claim →
+// send → record): a retried job never sends twice.
 
 export interface NotifyDeps {
   transport: MessagingTransport;
@@ -39,16 +41,6 @@ export interface MessageText {
   whatsapp: string;
   sms: string;
 }
-
-export type NotifyResult =
-  | {
-      ok: true;
-      channel: WorkerChannel; // how it went (after any fallback)
-      providerMessageId: string;
-      pushes: number;
-      fellBackFrom?: WorkerChannel;
-    }
-  | { ok: false; channel: WorkerChannel; code: string };
 
 // The message only, by the worker's channel with the WhatsApp-to-text fallback. Holds no
 // transaction, so a caller can send between its own (the reminder job records each reminder before
@@ -126,24 +118,4 @@ export async function pushToWorker(
     } else if (sent.status === "sent") pushes += 1;
   }
   return pushes;
-}
-
-// Both, for a caller that sends inside its transaction (offer waves): the message, then the push
-// once it has gone.
-export async function notifyWorker(
-  tx: FirmTx,
-  deps: NotifyDeps,
-  input: {
-    workerId: string;
-    mobile: string;
-    channel: WorkerChannel;
-    smsAllowed: boolean; // false: they replied STOP (never a text)
-    body: MessageText;
-    push: PushPayload;
-    from: string | null; // the firm's shifts line
-  },
-): Promise<NotifyResult> {
-  const sent = await sendToWorker(deps, input);
-  if (!sent.ok) return sent;
-  return { ...sent, pushes: await pushToWorker(tx, deps, input.workerId, input.push) };
 }

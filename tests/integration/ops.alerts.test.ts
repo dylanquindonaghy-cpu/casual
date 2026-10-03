@@ -67,20 +67,21 @@ describe("a firm's signals", () => {
     await events(t, "shift.reminder_sent", 6);
     await events(t, "offer.send_failed", 2, { code: "twilio_21610" });
     await events(t, "message.reply_failed", 1, { code: "timeout" });
+    // Login codes count too: since Phase 10 every sender logs its failures (none fails its job).
+    await events(t, "auth.otp_sent", 2);
+    await events(t, "auth.otp_send_failed", 1, { code: "twilio_21610" });
     // Not counted: over an hour ago, an office email, a worker who turned texts off (their choice,
-    // not Twilio's), senders whose failures fail their job instead (login codes), and another
-    // firm's failures.
+    // not Twilio's), and another firm's failures.
     await events(t, "offer.send_failed", 40, { minutesAgo: 70, code: "old" });
     await events(t, "auth.link_sent", 50, { channel: "email" });
     await events(t, "request.update_failed", 5, { code: "sms_opted_out" });
-    await events(t, "auth.otp_sent", 300);
     await events(other, "offer.send_failed", 100, { code: "theirs" });
     const alerts = await alertsFor(t);
     expect(alerts).toEqual([
       {
         kind: "send_failures",
         key: `send:${t.firmId}`,
-        text: `ShiftDesk alert: ${t.slug}: 3 of 21 WhatsApps and texts failed to send in the last hour (14%), mostly twilio_21610.`,
+        text: `ShiftDesk alert: ${t.slug}: 4 of 24 WhatsApps and texts failed to send in the last hour (17%), mostly twilio_21610.`,
       },
     ]);
   });

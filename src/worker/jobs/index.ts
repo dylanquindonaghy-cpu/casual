@@ -1,7 +1,7 @@
 import type { PgBoss } from "pg-boss";
 import { systemClock, type Clock } from "../../lib/auth/clock";
-import { sendLoginCodeJob } from "../../lib/auth/send-login-code";
-import { sendPortalLinkJob } from "../../lib/auth/send-portal-link";
+import { sendLoginCodeTask } from "../../lib/auth/send-login-code";
+import { sendPortalLinkTask } from "../../lib/auth/send-portal-link";
 import {
   credentialScanFirmTask,
   CREDENTIAL_SCAN_CRON,
@@ -38,7 +38,7 @@ import { inboundMessageFirmTask } from "../../lib/inbound/reply";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
-import { officeOfferJob, type OfficeOfferPayload } from "../../lib/offers/office-offer";
+import { officeOfferTask, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import {
   PAY_DIGEST_TICK_CRON,
   PAY_DIGEST_TICK_QUEUE,
@@ -87,7 +87,7 @@ export interface JobDeps {
   offers?: {
     wave: FirmTask<OfferWavePayload>;
     escalate: FirmTask<EscalateShiftPayload>;
-    office?: FirmJob<OfficeOfferPayload>;
+    office?: FirmTask<OfficeOfferPayload>;
   };
   reminders?: FirmTask<ShiftRemindersPayload>;
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
@@ -135,13 +135,13 @@ export async function failedJobCounts(boss: PgBoss): Promise<{ queue: string; co
 // Used by the worker process and by the integration tests, so both run the same wiring.
 export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<void> {
   for (const queue of QUEUES) await boss.createQueue(queue.name, queue.options);
-  await registerFirmJob(boss, sendPortalLinkJob);
-  await registerFirmJob(boss, sendLoginCodeJob);
+  await registerFirmTask(boss, sendPortalLinkTask);
+  await registerFirmTask(boss, sendLoginCodeTask);
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
   await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask);
   await registerFirmTask(boss, deps.offers?.escalate ?? escalateShiftTask);
   // An offer the office sends to one worker (Today's "Offer to someone").
-  await registerFirmJob(boss, deps.offers?.office ?? officeOfferJob);
+  await registerFirmTask(boss, deps.offers?.office ?? officeOfferTask);
   // Telling workers the office changed or cancelled their booked shift (golden rule 12).
   await registerFirmTask(boss, deps.firmChangeNotices ?? firmChangeNoticeTask);
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);

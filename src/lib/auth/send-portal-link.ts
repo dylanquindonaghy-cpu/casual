@@ -1,11 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import type { FirmTx } from "../db/scoped";
-import { firms, officeUsers, workers } from "../db/schema";
+import type { FirmTx, WithFirm } from "../db/scoped";
+import { events, firms, magicLinks, officeUsers, workers } from "../db/schema";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
-import { defineFirmJob, firmJobEnvelope } from "../jobs/firm-job";
+import { errorCode, firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
+import type { OutboundMessage } from "../messaging/transport";
 import { loginLinkMessage, officeLoginLinkEmail } from "../messaging/templates";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
@@ -35,15 +36,18 @@ export interface SendPortalLinkDeps {
 
 export type SendResult =
   | { sent: true; magicLinkId: string }
-  | { sent: false; reason: "no_subject" | "inactive" | "already_sent" };
+  | { sent: false; reason: "no_subject" | "inactive" | "already_sent" | "failed" };
 
-export async function sendPortalLink(
-  payload: SendPortalLinkPayload,
+type LinkClaim =
+  { done: "inactive" | "already_sent" } | { magicLinkId: string; message: OutboundMessage };
+
+// (1) The claim: the link for this login request, marked sent and committed before the message goes.
+async function claimLink(
   tx: FirmTx,
+  payload: SendPortalLinkPayload & { subjectId: string },
   deps: SendPortalLinkDeps,
-): Promise<SendResult> {
-  if (!payload.subjectId) return { sent: false, reason: "no_subject" };
-  const now = deps.clock.now();
+  now: Date,
+): Promise<LinkClaim> {
   const office = payload.purpose === "office_login";
   // Workers get their link by WhatsApp; office users by email. Only while still active.
   const [recipient] = office
@@ -56,7 +60,7 @@ export async function sendPortalLink(
         .from(workers)
         .where(and(eq(workers.id, payload.subjectId), eq(workers.status, "active")));
   // An active worker always has a mobile (only an erased one has none, and erasure is inactive).
-  if (!recipient?.to) return { sent: false, reason: "inactive" };
+  if (!recipient?.to) return { done: "inactive" };
   const [firm] = await tx
     .select({
       name: firms.name,
@@ -74,50 +78,132 @@ export async function sendPortalLink(
     requestId: payload.idempotencyKey,
     now,
   });
-  if (!link) return { sent: false, reason: "already_sent" };
+  if (!link) {
+    // Sent by an earlier run of this job. If that run stopped before logging it, it's logged now
+    // as sent, unconfirmed (it may have arrived), and never sent again.
+    const [earlier] = await tx
+      .select({ id: magicLinks.id })
+      .from(magicLinks)
+      .where(eq(magicLinks.requestId, payload.idempotencyKey))
+      .for("update");
+    if (earlier && !(await linkOutcomeLogged(tx, earlier.id))) {
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "auth.link_sent",
+        entityType: "magic_link",
+        entityId: earlier.id,
+        data: {
+          purpose: payload.purpose,
+          channel: office ? "email" : "whatsapp",
+          unconfirmed: true,
+        },
+      });
+    }
+    return { done: "already_sent" };
+  }
+  // Marked sent now, before the message goes: a retry then never replaces this token (it may have
+  // arrived) and never sends a second link.
+  await markLinkSent(tx, link.id, now);
 
   const portal = portalUrl(firm.slug, deps.baseDomain);
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
-  // Console transport in Phase 1; SMS fallback (Phase 4/7) and SES email (later) come after.
-  const message = office
-    ? {
-        channel: "email" as const,
-        to: recipient.to,
-        ...officeLoginLinkEmail(voice, `${portal}/office/l#${link.token}`),
-      }
-    : {
-        channel: "whatsapp" as const,
-        to: recipient.to,
-        ...(firm.line ? { from: firm.line } : {}),
-        body: loginLinkMessage(voice, `${portal}/l#${link.token}`),
-      };
-  const result = await deps.transport.send(message);
-  await markLinkSent(tx, link.id, now);
-  await recordEvent(tx, {
-    actorType: "system",
-    action: "auth.link_sent",
-    entityType: "magic_link",
-    entityId: link.id,
-    data: {
-      purpose: payload.purpose,
-      channel: message.channel,
-      providerMessageId: result.providerMessageId,
-    },
-  });
-  return { sent: true, magicLinkId: link.id };
+  // SMS fallback and SES email come with Twilio and SES.
+  return {
+    magicLinkId: link.id,
+    message: office
+      ? {
+          channel: "email",
+          to: recipient.to,
+          ...officeLoginLinkEmail(voice, `${portal}/office/l#${link.token}`),
+        }
+      : {
+          channel: "whatsapp",
+          to: recipient.to,
+          ...(firm.line ? { from: firm.line } : {}),
+          body: loginLinkMessage(voice, `${portal}/l#${link.token}`),
+        },
+  };
 }
 
-export function createSendPortalLinkJob(deps: () => SendPortalLinkDeps) {
-  return defineFirmJob({
+// Whether the link's send is logged already (sent, unconfirmed, or failed).
+async function linkOutcomeLogged(tx: FirmTx, linkId: string): Promise<boolean> {
+  const [logged] = await tx
+    .select({ id: events.id })
+    .from(events)
+    .where(
+      and(
+        inArray(events.action, ["auth.link_sent", "auth.link_send_failed"]),
+        eq(events.entityId, linkId),
+      ),
+    )
+    .limit(1);
+  return logged !== undefined;
+}
+
+// At most once, like the notices (a firm task, never a transaction held across a message): (1) the
+// claim above; (2) the message, outside any transaction; (3) a second short transaction logs
+// auth.link_sent, or auth.link_send_failed. A retried job finds the link already sent and sends nothing:
+// the link it may already have sent still works, and someone who got nothing asks for another.
+export async function sendPortalLink(
+  payload: SendPortalLinkPayload,
+  run: WithFirm,
+  deps: SendPortalLinkDeps,
+): Promise<SendResult> {
+  const subjectId = payload.subjectId;
+  if (!subjectId) return { sent: false, reason: "no_subject" };
+  const now = deps.clock.now();
+  const inFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => run(payload.firmId, fn);
+  const claim = await inFirm((tx) => claimLink(tx, { ...payload, subjectId }, deps, now));
+  if ("done" in claim) return { sent: false, reason: claim.done };
+
+  // (2) The link, outside any transaction.
+  let sent: { providerMessageId: string } | { code: string };
+  try {
+    sent = await deps.transport.send(claim.message);
+  } catch (err) {
+    sent = { code: errorCode(err) };
+  }
+
+  // (3) The outcome, logged once (a rerun may have caught it up already, as unconfirmed).
+  await inFirm(async (tx) => {
+    await tx
+      .select({ id: magicLinks.id })
+      .from(magicLinks)
+      .where(eq(magicLinks.id, claim.magicLinkId))
+      .for("update");
+    if (await linkOutcomeLogged(tx, claim.magicLinkId)) return;
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "providerMessageId" in sent ? "auth.link_sent" : "auth.link_send_failed",
+      entityType: "magic_link",
+      entityId: claim.magicLinkId,
+      data: {
+        purpose: payload.purpose,
+        channel: claim.message.channel,
+        ...("providerMessageId" in sent
+          ? { providerMessageId: sent.providerMessageId }
+          : { code: sent.code }),
+      },
+    });
+  });
+  return "providerMessageId" in sent
+    ? { sent: true, magicLinkId: claim.magicLinkId }
+    : { sent: false, reason: "failed" };
+}
+
+export function createSendPortalLinkTask(
+  deps: () => SendPortalLinkDeps,
+): FirmTask<SendPortalLinkPayload> {
+  return {
     queue: SEND_PORTAL_LINK_QUEUE,
     schema: sendPortalLinkPayload,
-    handler: (payload, tx) => sendPortalLink(payload, tx, deps()),
-  });
+    task: (payload, run) => sendPortalLink(payload, run, deps()),
+  };
 }
 
 // The worker's wiring. Deps are read when the job runs, so the web (which only queues the job)
 // never needs the worker's configuration.
-export const sendPortalLinkJob = createSendPortalLinkJob(() => {
+export const sendPortalLinkTask = createSendPortalLinkTask(() => {
   const env = workerEnv();
   return { transport: getTransport(env), baseDomain: env.APP_BASE_DOMAIN, clock: systemClock };
 });

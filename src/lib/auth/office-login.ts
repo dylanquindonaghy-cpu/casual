@@ -13,7 +13,7 @@ import {
   type RateLimited,
 } from "./link-login";
 import { canAccess, type OfficeRole } from "./roles";
-import { sendPortalLinkJob } from "./send-portal-link";
+import { sendPortalLinkTask } from "./send-portal-link";
 import { findSession, type ActiveSession } from "./sessions";
 import { LIMITS, throttle } from "./throttle";
 import { looksLikeToken } from "./tokens";
@@ -60,7 +60,7 @@ export async function requestOfficeLoginLink(
       entityId: requestId,
       data: { kind: "office", matched: Boolean(user) },
     });
-    await sendFirmJob(tx, sendPortalLinkJob, {
+    await sendFirmJob(tx, sendPortalLinkTask, {
       idempotencyKey: requestId,
       purpose: "office_login",
       subjectId: user?.id ?? null,

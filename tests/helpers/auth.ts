@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import type { Clock } from "@/lib/auth/clock";
-import { createSendPortalLinkJob } from "@/lib/auth/send-portal-link";
-import { runFirmJob } from "@/lib/jobs/firm-job";
+import { createSendPortalLinkTask } from "@/lib/auth/send-portal-link";
+import { runFirmTask } from "@/lib/jobs/firm-job";
 import { createLogger } from "@/lib/log";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging";
 
@@ -47,17 +47,17 @@ export async function latestLinkJob(su: Pool, firmId: string) {
   return rows[0];
 }
 
-// Runs a queued job exactly as the worker does (runFirmJob -> withFirm -> handler).
+// Runs a queued job exactly as the worker does (runFirmTask -> withFirm -> handler).
 export async function runLinkJob(
   job: { id: string; data: unknown },
   deps: { transport: MessagingTransport; clock: Clock; baseDomain?: string },
 ) {
-  const def = createSendPortalLinkJob(() => ({
+  const def = createSendPortalLinkTask(() => ({
     transport: deps.transport,
     clock: deps.clock,
     baseDomain: deps.baseDomain ?? "localhost:3000",
   }));
-  return runFirmJob(def, job, undefined, quietLogger);
+  return runFirmTask(def, job, undefined, quietLogger);
 }
 
 // The token from a login message: http://<slug>.localhost:3000/l#<token>

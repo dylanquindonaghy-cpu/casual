@@ -6,9 +6,10 @@ import { credentials, credentialTypes, events, firms, officeUsers, workers } fro
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
-import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
+import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { log, type Logger } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
+import type { OutboundMessage } from "../messaging/transport";
 import {
   credentialExpiredMessage,
   credentialExpiringMessage,
@@ -24,18 +25,23 @@ import { expiryAction, isWeeklyListDay, WARNING_DAYS } from "./expiry";
 // warnings"):
 // - credential-scan-tick: a cron at 08:00 London time (no firm). Queues one credential-scan per
 //   firm for the firm's local date.
-// - credential-scan: one firm's scan for the date in its payload. First, in one transaction, it
-//   warns active workers by WhatsApp at 30, 14 and 7 days (expiry.ts decides) and marks
-//   credentials expired the day after their expiry date, telling the worker. Then, on Mondays and
-//   in a second transaction, it emails active admins and resourcers the week's list, so a problem
-//   with the list can never undo (and on retry repeat) the workers' messages. Every change writes
-//   an event. Safe to run twice: the warning columns, the status and the list's event all say what
-//   was already done, and an advisory lock keeps two scans of a firm from overlapping.
+// - credential-scan: one firm's scan for the date in its payload. It warns active workers by
+//   WhatsApp at 30, 14 and 7 days (expiry.ts decides) and marks credentials expired the day after
+//   their expiry date, telling the worker. Then, on Mondays, it emails active admins and resourcers
+//   the week's list. Every change writes an event.
+//
+// At most once, like the notices (claim → send → record; never a transaction held across a
+// message). Per credential: (1) a short transaction re-reads and locks the row, decides again, and
+// claims it (the warning columns set, or the status set to expired with `credential.expired`
+// logged), committed before anything is sent; (2) the WhatsApp, outside any transaction; (3) a
+// short transaction logs credential.expiry_warning / credential.expiry_notice_sent, or
+// credential.expiry_warning_failed / credential.expiry_notice_failed. The list: its event is the
+// claim, written first; then one email per office user, a failure logged and the rest still sent.
+// Safe to run twice: the warning columns, the status and the list's event all say what was already
+// done, and a retry sends nothing for them (a message that may have gone is never sent again).
 //
 // Blocking never waits for this job: the rules engine refuses a credential whose date has passed
 // whatever its status says. The scan makes the status match, so the office and the worker see it.
-// Messages go out inside the transaction, after the rows are marked, so a failed step retries and
-// may repeat a message but never loses one (the queue-then-send outbox comes with Twilio).
 
 export const CREDENTIAL_SCAN_QUEUE = "credential-scan";
 export const CREDENTIAL_SCAN_TICK_QUEUE = "credential-scan-tick";
@@ -72,6 +78,7 @@ export interface ScanResult {
   date: string;
   warned: number;
   expired: number;
+  failed: number; // warnings or expiry messages that couldn't be sent (logged, not tried again)
   weeklyList: "sent" | "already_sent" | "nothing_to_list" | "no_recipients" | "not_today";
 }
 
@@ -83,13 +90,16 @@ export async function scanCredentials(
   deps: CredentialScanDeps,
 ): Promise<ScanResult> {
   const today = payload.idempotencyKey.slice(KEY_PREFIX.length);
-  const { warned, expired } = await run(payload.firmId, (tx) =>
-    warnAndExpire(tx, payload.firmId, today, deps.transport),
+  const { warned, expired, failed } = await warnAndExpire(
+    run,
+    payload.firmId,
+    today,
+    deps.transport,
   );
   const weeklyList = isWeeklyListDay(today)
-    ? await run(payload.firmId, (tx) => sendWeeklyList(tx, payload.firmId, today, deps.transport))
+    ? await sendWeeklyList(run, payload.firmId, today, deps.transport)
     : "not_today";
-  return { date: today, warned, expired, weeklyList };
+  return { date: today, warned, expired, failed, weeklyList };
 }
 
 // One scan per firm at a time (a retry overlapping a slow run, say): the second waits here, then
@@ -126,19 +136,18 @@ const superseded: SQL<boolean> = sql<boolean>`exists (
      and ${newer.status} = 'valid'
      and (${newer.expiresOn} is null or ${newer.expiresOn} > ${credentials.expiresOn}))`;
 
-async function warnAndExpire(
-  tx: FirmTx,
-  firmId: string,
-  today: string,
-  transport: MessagingTransport,
-): Promise<{ warned: number; expired: number }> {
-  await lockFirmScan(tx);
-  const voice = await firmVoice(tx, firmId);
-  const year = Number(today.slice(0, 4));
+type CredentialClaim =
+  | null // nothing to do (already done, or nothing due)
+  | {
+      kind: "warn" | "expire";
+      // The message, or null: an expiry with nobody to tell.
+      message: OutboundMessage | null;
+      data: Record<string, unknown>;
+    };
 
-  // Every credential the planner could act on today. Locked, so a renewal (an import) racing the
-  // scan waits for it, or the scan waits and re-reads the renewed row.
-  const due = await tx
+// The row as it is now, locked: the scan decides from this, never from the list read earlier.
+async function lockDue(tx: FirmTx, id: string) {
+  const [row] = await tx
     .select({
       id: credentials.id,
       type: credentials.type,
@@ -163,104 +172,274 @@ async function warnAndExpire(
         eq(credentialTypes.code, credentials.type),
       ),
     )
-    .where(
-      and(
-        eq(credentials.status, "valid"),
-        isNotNull(credentials.expiresOn),
-        lte(credentials.expiresOn, addDays(today, Math.max(...WARNING_DAYS))),
-      ),
-    )
-    .orderBy(asc(credentials.expiresOn), asc(credentials.id))
+    .where(eq(credentials.id, id))
     .for("update", { of: credentials });
+  return row ?? null;
+}
+
+const WARNING_OUTCOMES = ["credential.expiry_warning", "credential.expiry_warning_failed"];
+const NOTICE_OUTCOMES = ["credential.expiry_notice_sent", "credential.expiry_notice_failed"];
+
+// Whether a credential's message is logged already: the warning for this date and threshold, or
+// the expiry notice.
+async function outcomeLogged(
+  tx: FirmTx,
+  id: string,
+  outcome: { warning: { expiresOn: string; days: number } } | { notice: true },
+): Promise<boolean> {
+  const { rows } = await tx.execute(sql`
+    select 1 from events
+     where entity_id = ${id}
+       and ${
+         "warning" in outcome
+           ? sql`action in (${sql.join(
+               WARNING_OUTCOMES.map((a) => sql`${a}`),
+               sql`, `,
+             )})
+                 and data ->> 'expiresOn' = ${outcome.warning.expiresOn}
+                 and data ->> 'days' = ${String(outcome.warning.days)}`
+           : sql`action in (${sql.join(
+               NOTICE_OUTCOMES.map((a) => sql`${a}`),
+               sql`, `,
+             )})`
+       }
+     limit 1
+  `);
+  return rows.length > 0;
+}
+
+// A run that stopped between a claim and its record step (a crash, a failed commit) leaves a
+// message that may have gone with no event. The next run logs it as sent, unconfirmed, so the log
+// still has it; it's never sent again. (Expiry events from before Phase 10 carry their message's
+// details themselves and are left alone.)
+async function catchUpExpiryNotices(run: WithFirm, firmId: string): Promise<void> {
+  const { rows } = await run(firmId, (tx) =>
+    tx.execute<{ entity_id: string; data: { type?: string; expiresOn?: string } }>(sql`
+      select e.entity_id::text, e.data from events e
+       where e.action = 'credential.expired' and e.data ->> 'notified' = 'true'
+         and not (e.data ? 'providerMessageId')
+         and e.created_at > now() - interval '30 days'
+         and not exists (select 1 from events n
+                          where n.entity_id = e.entity_id
+                            and n.action in (${sql.join(
+                              NOTICE_OUTCOMES.map((a) => sql`${a}`),
+                              sql`, `,
+                            )}))
+    `),
+  );
+  for (const r of rows) {
+    await run(firmId, async (tx) => {
+      await tx.execute(sql`select 1 from credentials where id = ${r.entity_id} for update`);
+      if (await outcomeLogged(tx, r.entity_id, { notice: true })) return;
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "credential.expiry_notice_sent",
+        entityType: "credential",
+        entityId: r.entity_id,
+        data: {
+          type: r.data.type ?? null,
+          expiresOn: r.data.expiresOn ?? null,
+          channel: "whatsapp",
+          unconfirmed: true,
+        },
+      });
+    });
+  }
+}
+
+// (1) One credential's claim: decided again on the locked row, marked, and (for an expiry) logged.
+async function claimCredential(
+  tx: FirmTx,
+  id: string,
+  today: string,
+  voice: FirmVoice & { line: string | null },
+): Promise<CredentialClaim> {
+  const c = await lockDue(tx, id);
+  if (!c || c.status !== "valid" || !c.expiresOn) return null;
+  // A warning an earlier run claimed but never logged (it stopped after the claim): logged now as
+  // sent, unconfirmed, and never sent again.
+  if (
+    c.warnedFor === c.expiresOn &&
+    c.warnedDays !== null &&
+    !(await outcomeLogged(tx, c.id, { warning: { expiresOn: c.expiresOn, days: c.warnedDays } }))
+  ) {
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "credential.expiry_warning",
+      entityType: "credential",
+      entityId: c.id,
+      data: {
+        type: c.type,
+        expiresOn: c.expiresOn,
+        days: c.warnedDays,
+        channel: "whatsapp",
+        unconfirmed: true,
+      },
+    });
+  }
+  const action = expiryAction(c, today);
+  const expiresOn = c.expiresOn;
+  const year = Number(today.slice(0, 4));
+  const name = c.typeName ?? displayCode(c.type);
+  // No messages to people who've left, or about a credential they've already replaced. (An active
+  // worker always has a mobile: only an erased one has none.)
+  const mobile = c.workerStatus === "active" && !c.superseded ? c.mobile : null;
+  const from = voice.line ? { from: voice.line } : {};
+
+  if (action.kind === "warn") {
+    // Unmarked, so a worker who comes back is warned then.
+    if (!mobile) return null;
+    await tx
+      .update(credentials)
+      .set({ expiryWarnedFor: expiresOn, expiryWarnedDays: action.days })
+      .where(and(eq(credentials.id, c.id), eq(credentials.expiresOn, expiresOn)));
+    return {
+      kind: "warn",
+      message: {
+        channel: "whatsapp",
+        to: mobile,
+        ...from,
+        body: credentialExpiringMessage(voice, name, shortDate(expiresOn, year)),
+      },
+      data: { type: c.type, expiresOn, days: action.days, daysLeft: action.daysLeft },
+    };
+  }
+  if (action.kind === "expire") {
+    await tx
+      .update(credentials)
+      .set({ status: "expired" })
+      .where(
+        and(
+          eq(credentials.id, c.id),
+          eq(credentials.status, "valid"),
+          eq(credentials.expiresOn, expiresOn),
+        ),
+      );
+    // The status change is logged with the claim (golden rule 5), whatever the message does.
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "credential.expired",
+      entityType: "credential",
+      entityId: c.id,
+      data: {
+        type: c.type,
+        expiresOn,
+        notified: mobile !== null, // the worker is being told (the outcome is logged after)
+        ...(c.superseded ? { superseded: true } : {}),
+      },
+    });
+    return {
+      kind: "expire",
+      message: mobile
+        ? {
+            channel: "whatsapp",
+            to: mobile,
+            ...from,
+            body: credentialExpiredMessage(voice, name, shortDate(expiresOn, year)),
+          }
+        : null,
+      data: { type: c.type, expiresOn },
+    };
+  }
+  return null;
+}
+
+async function warnAndExpire(
+  run: WithFirm,
+  firmId: string,
+  today: string,
+  transport: MessagingTransport,
+): Promise<{ warned: number; expired: number; failed: number }> {
+  const inFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => run(firmId, fn);
+  // Every credential the planner could act on today (read only: each is locked when claimed).
+  const { voice, due } = await inFirm(async (tx) => ({
+    voice: await firmVoice(tx, firmId),
+    due: await tx
+      .select({ id: credentials.id })
+      .from(credentials)
+      .where(
+        and(
+          eq(credentials.status, "valid"),
+          isNotNull(credentials.expiresOn),
+          lte(credentials.expiresOn, addDays(today, Math.max(...WARNING_DAYS))),
+        ),
+      )
+      .orderBy(asc(credentials.expiresOn), asc(credentials.id)),
+  }));
+
+  await catchUpExpiryNotices(run, firmId);
 
   let warned = 0;
   let expired = 0;
-  for (const c of due) {
-    const action = expiryAction(c, today);
-    const expiresOn = c.expiresOn ?? "";
-    const name = c.typeName ?? displayCode(c.type);
-    // No messages to people who've left, or about a credential they've already replaced. (An
-    // active worker always has a mobile: only an erased one has none.)
-    const mobile = c.workerStatus === "active" && !c.superseded ? c.mobile : null;
-    const tell = mobile !== null;
+  let failed = 0;
+  for (const { id } of due) {
+    const claim = await inFirm((tx) => claimCredential(tx, id, today, voice));
+    if (!claim) continue;
+    if (claim.kind === "expire") expired += 1;
+    if (!claim.message) continue;
 
-    if (action.kind === "warn") {
-      // Unmarked, so a worker who comes back is warned then.
-      if (!tell) continue;
-      await tx
-        .update(credentials)
-        .set({ expiryWarnedFor: expiresOn, expiryWarnedDays: action.days })
-        .where(and(eq(credentials.id, c.id), eq(credentials.expiresOn, expiresOn)));
-      const sent = await transport.send({
-        channel: "whatsapp",
-        to: mobile,
-        ...(voice.line ? { from: voice.line } : {}),
-        body: credentialExpiringMessage(voice, name, shortDate(expiresOn, year)),
-      });
-      await recordEvent(tx, {
-        actorType: "system",
-        action: "credential.expiry_warning",
-        entityType: "credential",
-        entityId: c.id,
-        data: {
-          type: c.type,
-          expiresOn,
-          days: action.days,
-          daysLeft: action.daysLeft,
-          channel: "whatsapp",
-          providerMessageId: sent.providerMessageId,
-        },
-      });
-      warned += 1;
-    } else if (action.kind === "expire") {
-      await tx
-        .update(credentials)
-        .set({ status: "expired" })
-        .where(
-          and(
-            eq(credentials.id, c.id),
-            eq(credentials.status, "valid"),
-            eq(credentials.expiresOn, expiresOn),
-          ),
-        );
-      const sent = mobile
-        ? await transport.send({
-            channel: "whatsapp",
-            to: mobile,
-            ...(voice.line ? { from: voice.line } : {}),
-            body: credentialExpiredMessage(voice, name, shortDate(expiresOn, year)),
-          })
-        : null;
-      await recordEvent(tx, {
-        actorType: "system",
-        action: "credential.expired",
-        entityType: "credential",
-        entityId: c.id,
-        data: {
-          type: c.type,
-          expiresOn,
-          notified: sent !== null,
-          ...(c.superseded ? { superseded: true } : {}),
-          channel: sent ? "whatsapp" : null,
-          providerMessageId: sent?.providerMessageId ?? null,
-        },
-      });
-      expired += 1;
+    // (2) The message, outside any transaction.
+    let sent: { providerMessageId: string } | { code: string };
+    try {
+      sent = await transport.send(claim.message);
+    } catch (err) {
+      sent = { code: errorCode(err) };
     }
+
+    // (3) The outcome, logged once (a rerun may have caught it up already, as unconfirmed).
+    const ok = "providerMessageId" in sent;
+    await inFirm(async (tx) => {
+      await tx.execute(sql`select 1 from credentials where id = ${id} for update`);
+      const logged = await outcomeLogged(
+        tx,
+        id,
+        claim.kind === "warn"
+          ? { warning: { expiresOn: String(claim.data.expiresOn), days: Number(claim.data.days) } }
+          : { notice: true },
+      );
+      if (logged) return;
+      await recordEvent(tx, {
+        actorType: "system",
+        action:
+          claim.kind === "warn"
+            ? ok
+              ? "credential.expiry_warning"
+              : "credential.expiry_warning_failed"
+            : ok
+              ? "credential.expiry_notice_sent"
+              : "credential.expiry_notice_failed",
+        entityType: "credential",
+        entityId: id,
+        data: {
+          ...claim.data,
+          channel: "whatsapp",
+          ...("providerMessageId" in sent
+            ? { providerMessageId: sent.providerMessageId }
+            : { code: sent.code }),
+        },
+      });
+    });
+    if (!ok) failed += 1;
+    else if (claim.kind === "warn") warned += 1;
   }
-  return { warned, expired };
+  return { warned, expired, failed };
 }
 
 // The office's Monday list: active workers' credentials expiring in the next 30 days, and those
 // that expired in the last week. Once a day at most (its event marks it sent), and only when
 // there is something to list. An office address the email can't go to is skipped and counted,
 // never allowed to fail the list for everyone else.
-async function sendWeeklyList(
+async function claimWeeklyList(
   tx: FirmTx,
   firmId: string,
   today: string,
-  transport: MessagingTransport,
-): Promise<ScanResult["weeklyList"]> {
+): Promise<
+  | Exclude<ScanResult["weeklyList"], "sent">
+  | {
+      recipients: { id: string; email: string }[];
+      email: ReturnType<typeof credentialWeeklyListEmail>;
+    }
+> {
   await lockFirmScan(tx);
   const [already] = await tx
     .select({ id: events.id })
@@ -314,7 +493,7 @@ async function sendWeeklyList(
   if (expiring.length + expired.length === 0) return "nothing_to_list";
 
   const office = await tx
-    .select({ email: officeUsers.email })
+    .select({ id: officeUsers.id, email: officeUsers.email })
     .from(officeUsers)
     .where(and(eq(officeUsers.status, "active"), inArray(officeUsers.role, ["admin", "resourcer"])))
     .orderBy(asc(officeUsers.email));
@@ -324,9 +503,7 @@ async function sendWeeklyList(
   if (recipients.length === 0) return "no_recipients";
 
   const email = credentialWeeklyListEmail(await firmVoice(tx, firmId), expiring, expired);
-  for (const r of recipients) {
-    await transport.send({ channel: "email", to: r.email, ...email });
-  }
+  // The list's event is the claim, written before any email goes.
   await recordEvent(tx, {
     actorType: "system",
     action: WEEKLY_LIST_ACTION,
@@ -339,6 +516,32 @@ async function sendWeeklyList(
       expired: expired.length,
     },
   });
+  return { recipients, email };
+}
+
+async function sendWeeklyList(
+  run: WithFirm,
+  firmId: string,
+  today: string,
+  transport: MessagingTransport,
+): Promise<ScanResult["weeklyList"]> {
+  const claim = await run(firmId, (tx) => claimWeeklyList(tx, firmId, today));
+  if (typeof claim === "string") return claim;
+  // One email per office user, no transaction open; one that fails is logged and the rest still go.
+  for (const r of claim.recipients) {
+    try {
+      await transport.send({ channel: "email", to: r.email, ...claim.email });
+    } catch (err) {
+      await run(firmId, (tx) =>
+        recordEvent(tx, {
+          actorType: "system",
+          action: "credential.weekly_list_failed",
+          entityType: "firm",
+          data: { date: today, officeUserId: r.id, code: errorCode(err) },
+        }),
+      );
+    }
+  }
   return "sent";
 }
 

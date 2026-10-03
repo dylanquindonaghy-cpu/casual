@@ -90,7 +90,8 @@ describe("the action log's types and words", () => {
       "Ann Booker sent a request (swap).",
     );
     expect(say("credential.expired", { type: "SIA_DS", notified: true })).toBe(
-      "Ann Booker's SIA door supervisor licence has expired: they were told.",
+      // The message's outcome is its own line since Phase 10 (credential.expiry_notice_sent/_failed).
+      "Ann Booker's SIA door supervisor licence has expired: they're being told.",
     );
     expect(say("credential.expired", { type: "SIA_DS", notified: false })).toBe(
       "Ann Booker's SIA door supervisor licence has expired.",

@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MINUTE } from "@/lib/auth/clock";
-import { createSendLoginCodeJob, sendLoginCode } from "@/lib/auth/send-login-code";
+import { createSendLoginCodeTask, sendLoginCode } from "@/lib/auth/send-login-code";
 import { createSession, findSession } from "@/lib/auth/sessions";
 import {
   checkCode,
@@ -14,7 +14,7 @@ import {
 } from "@/lib/auth/step-up";
 import { OTP_MAX_ATTEMPTS } from "@/lib/db/schema";
 import { withFirm } from "@/lib/db/scoped";
-import { runFirmJob } from "@/lib/jobs/firm-job";
+import { runFirmTask } from "@/lib/jobs/firm-job";
 import { captureTransport, eventMark, eventsFor, mobileOf, quietLogger } from "../helpers/auth";
 import { superuserPool } from "../helpers/db";
 import { fulfilled, race } from "../helpers/race";
@@ -43,13 +43,15 @@ async function loggedIn(T: Tenant) {
 // Sends a code at `ms` (as the worker's job does) and returns it.
 async function codeAt(T: Tenant, sessionId: string, ms: number, code = "123456") {
   const { transport, sent } = captureTransport();
-  const result = await withFirm(T.firmId, (tx) =>
-    sendLoginCode({ firmId: T.firmId, idempotencyKey: randomUUID(), sessionId }, tx, {
+  const result = await sendLoginCode(
+    { firmId: T.firmId, idempotencyKey: randomUUID(), sessionId },
+    withFirm,
+    {
       transport,
       clock: at(ms),
       secret: SECRET,
       newCode: () => code,
-    }),
+    },
   );
   expect(result.sent).toBe(true);
   return { code, message: sent[0] };
@@ -63,8 +65,8 @@ describe("the code", () => {
     const T = await createTenant(su);
     const s = await loggedIn(T);
     const { transport, sent } = captureTransport();
-    const job = createSendLoginCodeJob(() => ({ transport, clock: at(0), secret: SECRET }));
-    const result = await runFirmJob(
+    const job = createSendLoginCodeTask(() => ({ transport, clock: at(0), secret: SECRET }));
+    const result = await runFirmTask(
       job,
       { id: "j", data: { firmId: T.firmId, idempotencyKey: randomUUID(), sessionId: s.id } },
       undefined,
@@ -320,12 +322,14 @@ describe("the send job", () => {
     const s = await loggedIn(T);
     await su.query(change, [s.id]);
     const { transport, sent } = captureTransport();
-    const result = await withFirm(T.firmId, (tx) =>
-      sendLoginCode({ firmId: T.firmId, idempotencyKey: randomUUID(), sessionId: s.id }, tx, {
+    const result = await sendLoginCode(
+      { firmId: T.firmId, idempotencyKey: randomUUID(), sessionId: s.id },
+      withFirm,
+      {
         transport,
         clock: at(0),
         secret: SECRET,
-      }),
+      },
     );
     expect(result).toEqual({ sent: false, reason: "no_session" });
     expect(sent).toHaveLength(0);

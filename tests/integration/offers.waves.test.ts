@@ -484,7 +484,15 @@ describe("a wave", () => {
       [t.f.firmId],
     );
     expect(rows).toEqual([
-      { data: { workerId: t.ann.id, wave: 1, channel: "whatsapp", code: "Error" } },
+      {
+        data: {
+          offerId: expect.any(String),
+          workerId: t.ann.id,
+          wave: 1,
+          channel: "whatsapp",
+          code: "Error",
+        },
+      },
     ]);
   });
 

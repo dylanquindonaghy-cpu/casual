@@ -9,14 +9,14 @@ import {
   officeTeam,
   requestOfficeLoginLink,
 } from "@/lib/auth/office-login";
-import { createSendPortalLinkJob, sendPortalLink } from "@/lib/auth/send-portal-link";
+import { createSendPortalLinkTask, sendPortalLink } from "@/lib/auth/send-portal-link";
 import { MINUTE } from "@/lib/auth/clock";
 import { createSession } from "@/lib/auth/sessions";
 import { hashToken } from "@/lib/auth/tokens";
 import { consumeWorkerLoginLink, currentWorker } from "@/lib/auth/worker-login";
 import { magicLinks } from "@/lib/db/schema";
 import { withFirm } from "@/lib/db/scoped";
-import { runFirmJob } from "@/lib/jobs/firm-job";
+import { runFirmTask } from "@/lib/jobs/firm-job";
 import type { OutboundMessage } from "@/lib/messaging";
 import {
   captureTransport,
@@ -66,17 +66,15 @@ const at = (when: Date) => ({ now: () => when });
 // Sends an office link to an office user and returns the email and its token.
 async function officeLinkFor(T: Tenant, officeUserId = T.officeUserId, when = NOW) {
   const { transport, sent } = captureTransport();
-  await withFirm(T.firmId, (tx) =>
-    sendPortalLink(
-      {
-        firmId: T.firmId,
-        idempotencyKey: randomUUID(),
-        purpose: "office_login",
-        subjectId: officeUserId,
-      },
-      tx,
-      { transport, clock: at(when), baseDomain: "localhost:3000" },
-    ),
+  await sendPortalLink(
+    {
+      firmId: T.firmId,
+      idempotencyKey: randomUUID(),
+      purpose: "office_login",
+      subjectId: officeUserId,
+    },
+    withFirm,
+    { transport, clock: at(when), baseDomain: "localhost:3000" },
   );
   const email = sent[0] as Extract<OutboundMessage, { channel: "email" }> | undefined;
   const token = /\/office\/l#([A-Za-z0-9_-]{43})\b/.exec(email?.body ?? "")?.[1] ?? "";
@@ -104,12 +102,12 @@ describe("office login, start to finish", () => {
     expect(JSON.stringify(job?.data)).not.toContain(address);
 
     const { transport, sent } = captureTransport();
-    const def = createSendPortalLinkJob(() => ({
+    const def = createSendPortalLinkTask(() => ({
       transport,
       clock: at(NOW),
       baseDomain: "localhost:3000",
     }));
-    const result = await runFirmJob(def, job ?? { id: "", data: {} }, undefined, quietLogger);
+    const result = await runFirmTask(def, job ?? { id: "", data: {} }, undefined, quietLogger);
     expect(result.status).toBe("completed");
     const email = sent[0] as Extract<OutboundMessage, { channel: "email" }>;
     expect(email).toMatchObject({ channel: "email", to: address });
@@ -249,17 +247,15 @@ describe("workers and office users are kept apart", () => {
     expect((await consumeOfficeLoginLink(ctx(T), office.token)).status).toBe("ok");
 
     const { transport, sent } = captureTransport();
-    await withFirm(T.firmId, (tx) =>
-      sendPortalLink(
-        {
-          firmId: T.firmId,
-          idempotencyKey: randomUUID(),
-          purpose: "worker_login",
-          subjectId: T.workerId,
-        },
-        tx,
-        { transport, clock: at(NOW), baseDomain: "localhost:3000" },
-      ),
+    await sendPortalLink(
+      {
+        firmId: T.firmId,
+        idempotencyKey: randomUUID(),
+        purpose: "worker_login",
+        subjectId: T.workerId,
+      },
+      withFirm,
+      { transport, clock: at(NOW), baseDomain: "localhost:3000" },
     );
     const workerToken = /\/l#([A-Za-z0-9_-]{43})/.exec(sent[0]?.body ?? "")?.[1] ?? "";
     expect(await consumeOfficeLoginLink(ctx(T), workerToken)).toEqual({ status: "rejected" });

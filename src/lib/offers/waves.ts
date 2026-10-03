@@ -35,6 +35,7 @@ import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
 import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidates";
 import { closeOpenOffers } from "./close";
+import { lockOfferOutcome, logUnconfirmedOffers } from "./unconfirmed";
 import { lockLiveContact, type LiveContact } from "./reachable";
 
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
@@ -311,6 +312,9 @@ export async function runOfferWave(
     const shift = await lockShift(tx, payload.shiftId);
     if (!shift) return { done: { status: "stopped", reason: "gone" } as WaveResult };
     const already = await offersInWave(tx, shift.id, payload.wave);
+    // Run again after it stopped part-way: offers it claimed but never logged are logged now, as
+    // sent and unconfirmed (src/lib/offers/unconfirmed.ts).
+    if (already > 0) await logUnconfirmedOffers(tx, shift, { wave: payload.wave });
     const blocked = notOfferable(shift, now);
     // A wave already sent that the shift has since outgrown: nothing more, and nothing to record.
     if (blocked && already > 0) return { done: { status: "already_sent" } as WaveResult };
@@ -519,6 +523,7 @@ export async function runOfferWave(
           entityType: "shift",
           entityId: shift.id,
           data: {
+            offerId: claim.offerId,
             workerId: c.workerId,
             wave: payload.wave,
             channel: result.channel,
@@ -535,6 +540,8 @@ export async function runOfferWave(
           .set({ channel: result.channel })
           .where(eq(offers.id, claim.offerId));
       }
+      // Logged once: another copy of this wave may have caught it up already, as unconfirmed.
+      if (await lockOfferOutcome(tx, claim.offerId)) return;
       await recordEvent(tx, {
         actorType: "system",
         action: "offer.sent",

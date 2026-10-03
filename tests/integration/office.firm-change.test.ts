@@ -776,3 +776,100 @@ describe("telling the worker (the firm-change-notice job)", () => {
     expect(worked).toContain(FIRM_CHANGE_NOTICE_QUEUE);
   });
 });
+
+describe("a move while one of the booked workers books another shift (audit L21)", () => {
+  it("the move waits for that booking and sees it: refused for the overlap, never double-booked", async () => {
+    const t = await changeFirm();
+    // Ann takes Saturday's 14:00 to 22:00 at the stadium: her booking holds her row ...
+    const other = await t.f.shift({ startsAt: new Date("2026-11-07T14:00:00Z") });
+    const booking = await su.connect();
+    let moving: ReturnType<typeof moveShift> | null = null;
+    try {
+      const { rows: me } = await booking.query<{ pid: number }>("select pg_backend_pid() as pid");
+      await booking.query("begin");
+      await booking.query("select id from workers where id = $1 for no key update", [t.ann]);
+      await booking.query(
+        `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+         values ($1, $2, 1, $3, 'confirmed', now())`,
+        [t.f.firmId, other, t.ann],
+      );
+      // ... while the office moves her 08:00 shift to 14:00: the move waits for Ann's row.
+      moving = moveShift(t.ctx(), t.shiftId, {
+        date: "2026-11-07",
+        start: "14:00",
+        end: "22:00",
+        siteId: t.arena,
+        reason: "event_changed",
+      });
+      // Something is waiting for the booking's own connection: the move, at Ann's row.
+      for (let i = 0; ; i += 1) {
+        const { rows } = await su.query(
+          "select 1 from pg_stat_activity where $1 = any(pg_blocking_pids(pid))",
+          [me[0]?.pid],
+        );
+        if (rows.length > 0) break;
+        if (i > 100) throw new Error("the move never waited for Ann's row");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await booking.query("commit");
+    } finally {
+      await booking.query("rollback").catch(() => undefined);
+      booking.release();
+      await moving?.catch(() => undefined);
+    }
+    // The move saw the new booking: Ann would overlap, which the office can't override.
+    expect(await moving).toMatchObject({
+      status: "blocked",
+      workers: [expect.objectContaining({ workerId: t.ann })],
+    });
+    const refused = await eventsOf(t.f.firmId, "shift.move_refused");
+    expect(refused.at(-1)?.data).toMatchObject({
+      workers: [{ workerId: t.ann, codes: expect.arrayContaining(["overlap"]) }],
+    });
+    const { rows } = await su.query<{ starts_at: Date }>(
+      "select starts_at from shifts where id = $1",
+      [t.shiftId],
+    );
+    expect(rows[0]?.starts_at).toEqual(new Date("2026-11-07T08:00:00Z"));
+  });
+});
+
+describe("a move onto a day while someone books that day on an application in progress", () => {
+  it("the move takes the day's 'applied' lock after the workers', as a booking does, and waits its turn", async () => {
+    const t = await changeFirm();
+    // A booking relying on the "applied" allowance for Saturday 7 November holds the day's lock ...
+    const booking = await su.connect();
+    let moving: ReturnType<typeof moveShift> | null = null;
+    try {
+      const { rows: me } = await booking.query<{ pid: number }>("select pg_backend_pid() as pid");
+      await booking.query("begin");
+      await booking.query(
+        "select pg_advisory_xact_lock(hashtextextended('applied-day:' || $1::text || ':' || $2, 0))",
+        [t.f.firmId, "2026-11-07"],
+      );
+      // ... while the office moves the shift to later that day: the move waits for it.
+      moving = moveShift(t.ctx(), t.shiftId, {
+        date: "2026-11-07",
+        start: "09:00",
+        end: "17:00",
+        siteId: t.arena,
+        reason: "event_changed",
+      });
+      for (let i = 0; ; i += 1) {
+        const { rows } = await su.query(
+          "select 1 from pg_stat_activity where $1 = any(pg_blocking_pids(pid))",
+          [me[0]?.pid],
+        );
+        if (rows.length > 0) break;
+        if (i > 100) throw new Error("the move never waited for the day's lock");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await booking.query("commit");
+    } finally {
+      await booking.query("rollback").catch(() => undefined);
+      booking.release();
+      await moving?.catch(() => undefined);
+    }
+    expect(await moving).toMatchObject({ status: "moved" });
+  });
+});

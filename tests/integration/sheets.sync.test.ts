@@ -482,7 +482,10 @@ describe("sheets.sync: from the sheet into our tables", () => {
     ]);
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Start", "21:00"); // starts earlier: a move
     await sync(f);
-    expect(await eventsOf(f.firmId, "shift.moved")).toHaveLength(1);
+    const moved = await eventsOf(f.firmId, "shift.moved");
+    expect(moved).toHaveLength(1);
+    // Notice from the earlier (new) start, 21:00: 36 hours, not 37 from the old 22:00 (audit M6).
+    expect(moved[0]?.data).toMatchObject({ noticeHours: 36 });
   });
 
   it("a shift the office marks cancelled cancels each booking as the firm's, and can't be taken", async () => {

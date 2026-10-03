@@ -17,7 +17,7 @@ import { checkBooking } from "../book";
 import { RulesSettingsError } from "../eligibility-input";
 import { refreshShiftStatus, sheetsRosterPlug } from "../native";
 import { upsertWorker } from "../workers";
-import { noticeHours } from "../notice";
+import { changeNoticeHours, noticeHours } from "../notice";
 import { cellRange, columnRange, tabRange } from "./a1";
 import { SheetsError, type SheetsClient } from "./client";
 import { sheetMappingSchema } from "./mapping";
@@ -665,7 +665,8 @@ async function logCancel(
 }
 
 // Golden rule 12: a move or curtailment by the office is logged per booked worker, with the old
-// and new times and the notice given (counted from the old start).
+// and new times and the notice given (counted from the earlier of the old and new start, as the
+// office editor counts it: changeNoticeHours).
 async function logTimeChange(
   tx: FirmTx,
   shiftId: string,
@@ -689,7 +690,7 @@ async function logTimeChange(
         oldEndsAt: before.endsAt.toISOString(),
         newStartsAt: after.startsAt.toISOString(),
         newEndsAt: after.endsAt.toISOString(),
-        noticeHours: noticeHours(before.startsAt, now),
+        noticeHours: changeNoticeHours(before.startsAt, after.startsAt, now),
       }),
     );
   }

@@ -52,7 +52,9 @@ import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 // other. The Sheets sync can still deadlock with a portal booking (in one long transaction it
 // takes worker locks, from its staff updates and earlier bookings, before later shift locks):
 // Postgres then aborts one side, nothing is double-booked, and both retry (bookShift here, the
-// sync's mirror transaction there).
+// sync's mirror transaction there). The office's move (src/lib/roster/firm-change.ts) takes the
+// shift, then each booked worker in id order; it too can deadlock with the Sheets sync or a staff
+// import (which take workers in sheet or file order): one side is aborted and retried.
 
 export const SHEET_COPY_FRESH_MS = 20 * MINUTE;
 export const OFFICE_ROLES_THAT_PLACE = ["admin", "resourcer"] as const;
@@ -119,10 +121,7 @@ export async function checkBooking(
   if (reliesOnApplied(input)) {
     // Queue behind anyone else booking that day on an application in progress, then count again:
     // the day's applied and deployed counts now include whoever got there first.
-    const day = localDateOf(shift.startsAt, input.timeZone);
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended('applied-day:' || app_current_firm_id()::text || ':' || ${day}, 0))`,
-    );
+    await lockAppliedDay(tx, localDateOf(shift.startsAt, input.timeZone));
     input = await loadEligibilityInput(tx, request);
     if (!input) return { status: "not_found" };
   }
@@ -132,6 +131,15 @@ export async function checkBooking(
     startsAt: shift.startsAt,
     result: checkEligibility(input),
   };
+}
+
+// The firm's day lock for the "applied" allowance (one firm-local day): taken after the shift and
+// the worker, by a booking that relies on an application in progress and by the office's move
+// (src/lib/roster/firm-change.ts), so two of them on one day count in turn.
+export async function lockAppliedDay(tx: FirmTx, day: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended('applied-day:' || app_current_firm_id()::text || ':' || ${day}, 0))`,
+  );
 }
 
 // The rules' answer for one worker and shift, on the current rows, for showing (the open shifts

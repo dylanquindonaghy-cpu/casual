@@ -7827,3 +7827,73 @@ Parked in PLAN.md's Parking lot:
 2. Click "Workers" and find one of the seeded workers.
 3. Choose a reason and press "Make inactive", then "Yes".
 4. If they had a booking ahead, it's now on Today under "Bookings to check".
+
+## 2026-10-03: Phase 10, task 8: notice for a moved shift counts from the earlier start (0.5 h)
+
+### Time
+
+0.5 hours of Claude's working time (22:36 to 23:05 UTC). Phase 10 so far: 6.6 of its 30 to 45
+hour estimate.
+
+### Result
+
+- **Done and ticked.** `scripts/verify.sh` printed `VERIFIED tree=a1ddf286acdd2877 e2e=true`
+  (2,822 tests, 51 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M6, M25, L21.
+
+### What was built, in plain words
+
+The **notice report** lists every cancellation and change, with how much warning the worker had.
+It flags anything under the firm's threshold (48 hours by default) as **short notice**. It's the
+firm's evidence under the Employment Rights Act.
+
+When the office moved a shift, the warning was counted from the shift's **old** start. Move a
+Saturday shift to Tuesday on Monday morning, and the report said "4 days' notice, not short",
+when the worker really had 23 hours.
+
+Now a move or shortening counts from whichever start is **earlier**, the old or the new. That
+example now reads 23 hours, flagged short. The rota sheet's moves count the same way.
+
+A move or shortening that keeps the start, or moves it later, still counts from the old start, as
+before.
+
+Two timing gaps in moving a shift are closed too:
+- **The worker:** the move now holds each booked worker's record before re-checking them. So if
+  that worker is booking another shift at that exact moment, the move sees it and won't
+  double-book them.
+- **The "applied" allowance:** a firm can let a small share of staff work while their licence
+  application is in progress. The move now also takes that day's lock for this allowance, so a
+  move and a booking can't both take the last place.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Earlier of the old and new start | The worker's real warning; a move later doesn't read as more notice than the shift they planned around | The new start only; the old start (hid short notice) |
+| Old log entries left as they are | The action log is never rewritten; both starts are recorded | Rewriting history |
+
+### What the new tests prove
+
+- **`tests/integration/notice.report.test.ts`:** the audit's own example records 23 hours. It is
+  flagged short, found by the "short notice only" filter, and the CSV says `23.00,Yes`. The rota
+  sheet's move an hour earlier records the hour less. Later moves and shortenings are unchanged.
+- **`tests/unit/roster.change-notice.test.ts`:** the rule on its own.
+- **`tests/integration/office.firm-change.test.ts`:**
+  - A booking that holds the worker while the office moves their other shift onto it: the move
+    waits, sees it and is refused for the overlap.
+  - A booking holding the day's "applied" lock: the move waits its turn.
+- **The tests catch the bugs:** each fix was deliberately broken in turn, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+Parked for task 9 (making the rota sheet follow the office's rules):
+- A site change made on the sheet isn't logged per worker.
+- A sheet re-timing a shift that has already started isn't logged.
+
+### How to see it working
+
+1. Log in to the office.
+2. Open a booked shift a few days ahead, and choose "Move, shorten or cancel".
+3. Move it to tomorrow. The confirmation now says the real notice.
+4. The Notice report shows the change as short notice.

@@ -301,8 +301,12 @@ Built in Phase 5, on the office's shift page ("Move, shorten or cancel"; each bo
   reasons: cancel those bookings first), and the refusal is logged in a short transaction of its
   own: `shift.move_refused` {by, reason, workers: [{workerId, codes}]}.
   Per confirmed worker: `shift.curtailed` / `shift.moved` {by, shiftId, workerId, reason,
-  oldStartsAt, oldEndsAt, newStartsAt, newEndsAt, oldSiteId, newSiteId, noticeHours (from the old
-  start), rulesOk, codes?}. Plus `shift.changed` for the shift (from/to times and site), and offers
+  oldStartsAt, oldEndsAt, newStartsAt, newEndsAt, oldSiteId, newSiteId, noticeHours (from the
+  earlier of the old and new start, Phase 10: a move earlier records the warning the worker had of
+  the new time, so the notice report flags it; the Sheets sync counts the same way), rulesOk,
+  codes?}. Each booked worker's row is held (after the shift's, in id order) before the rules run
+  for them, so a booking of theirs at that moment finishes first and is seen. Plus
+  `shift.changed` for the shift (from/to times and site), and offers
   still out expire. Workers with only overridable problems (rest, hours, a day off) stay booked and
   are listed for the office.
 - **Telling each worker**: every one of those events queues `firm-change-notice` (below).

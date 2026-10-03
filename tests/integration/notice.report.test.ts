@@ -153,7 +153,7 @@ describe("the firm's changes, from the office's screens", () => {
     ]);
   });
 
-  it("moving and shortening: notice from the old start, the times before and after, the reason", async () => {
+  it("moving later and shortening: notice from the old start (the earlier one), the times before and after, the reason", async () => {
     const t = await nativeFirm();
     await t.f.booking(t.ann, t.shiftId, "confirmed", 1);
     await su.query("update shifts set headcount = 1 where id = $1", [t.shiftId]);
@@ -198,6 +198,33 @@ describe("the firm's changes, from the office's screens", () => {
     expect(csv[2]).toContain(
       ",Moved,The office,Ann Booker,Door supervisor,2026-11-07 10:00,2026-11-07 08:00 to 2026-11-07 16:00,2026-11-07 10:00 to 2026-11-07 18:00,72.00,No,The event's times or place changed,",
     );
+  });
+
+  it("moved earlier: notice from the new start, so the short notice is flagged (audit M6)", async () => {
+    const t = await nativeFirm();
+    await t.f.booking(t.ann, t.shiftId, "confirmed", 1);
+    await su.query("update shifts set headcount = 1 where id = $1", [t.shiftId]);
+    // Monday 09:00: Saturday 08:00's shift moved to Tuesday 08:00 (23 hours away; Saturday was 119).
+    expect(
+      await moveShift(t.office(new Date("2026-11-02T09:00:00Z")), t.shiftId, {
+        date: "2026-11-03",
+        start: "08:00",
+        end: "16:00",
+        siteId: "",
+        reason: "event_changed",
+      }),
+    ).toMatchObject({ status: "moved", noticeHours: 23 });
+    const r = await t.report({ kind: "changes" });
+    expect(rowsOf(r.rows)).toEqual([
+      ["moved", "office", "Ann Booker", 23, true, "The event's times or place changed"],
+    ]);
+    const csv = noticeReportCsv(r).slice(1).trimEnd().split("\r\n");
+    expect(csv[1]).toContain(
+      ",2026-11-07 08:00 to 2026-11-07 16:00,2026-11-03 08:00 to 2026-11-03 16:00,23.00,Yes,",
+    );
+    // The short-notice filter finds it.
+    const short = await t.report({ kind: "changes", short: "1" });
+    expect(short.total).toBe(1);
   });
 
   it("the flag follows the firm's own threshold", async () => {
@@ -287,14 +314,15 @@ describe("the firm's changes, from its Google Sheet", () => {
     return { firmId, sheetId, fake, sync, report };
   }
 
-  it("booked, shortened, moved and removed on the sheet: started by the rota sheet, notice from the old start", async () => {
+  it("booked, shortened, moved earlier and removed on the sheet: started by the rota sheet, a move counted from the earlier start", async () => {
     const s = await sheetFirm();
     // Friday 09:00: the first sync books Ada (37 hours ahead).
     expect(await s.sync(new Date("2026-11-06T09:00:00Z"))).toMatchObject({ status: "synced" });
     // Friday 10:00: cut to end at 04:00 (36 hours' notice).
     s.fake.setCell(s.sheetId, "Shifts", 2, "End", "04:00");
     await s.sync(new Date("2026-11-06T10:00:00Z"));
-    // Friday 12:00: starts at 21:00 instead (34 hours' notice).
+    // Friday 12:00: starts at 21:00 instead: an hour earlier, so 33 hours' notice of the new start
+    // (from the old 22:00 it would read 34: audit M6).
     s.fake.setCell(s.sheetId, "Shifts", 2, "Start", "21:00");
     await s.sync(new Date("2026-11-06T12:00:00Z"));
     // Saturday 09:00: Ada taken off the sheet (12 hours' notice).
@@ -304,7 +332,7 @@ describe("the firm's changes, from its Google Sheet", () => {
     expect(rowsOf(r.rows)).toEqual([
       ["booked", "rota_sheet", "Ada Example", 37, true, ADDED_ON_SHEET],
       ["shortened", "rota_sheet", "Ada Example", 36, true, CHANGED_ON_SHEET],
-      ["moved", "rota_sheet", "Ada Example", 34, true, CHANGED_ON_SHEET],
+      ["moved", "rota_sheet", "Ada Example", 33, true, CHANGED_ON_SHEET],
       ["cancelled", "rota_sheet", "Ada Example", 12, true, REMOVED_ON_SHEET],
     ]);
     // Every row names the shift, and the moves carry their times.

@@ -272,7 +272,7 @@ every step works.
       made inactive or blocked by any path gets no reminders. Their future bookings are flagged on
       Today for the office to cancel (golden rule 12) or keep. A mobile change ends old links and
       push subscriptions. (M22, M23, L24, L81)
-- [ ] Notice hours for a move or curtailment count from the earlier of the old and new start
+- [x] Notice hours for a move or curtailment count from the earlier of the old and new start
       (office editor and Sheets sync), so the notice report's short-notice flag never hides short
       notice. The move re-check takes the worker lock. Tests in `notice.report`. Update the
       "Dylan to confirm" note. (M6, M25, L21)
@@ -780,6 +780,11 @@ every step works.
       - An offer or a reminder already being sent in the milliseconds the office makes someone
         inactive may still go (those claims don't wait on the office's lock). Today shows the
         booking either way.
+    - **For Phase 10 task 9 (Sheets follows the office's rules), from task 8's review:** a site
+      change made on the sheet updates the shift but writes no per-worker `shift.moved` with
+      notice (the office editor does: golden rule 12); and a sheet re-timing a booked shift to a
+      start already passed updates it with no event (task 9's "never re-timed once started"
+      covers that one).
     - **The office blocking a whole worker** (not just from a site): today only a rota sheet or
       file sets "blocked"; the office can unblock, make inactive, or block from a site. Add
       "Block" to the worker's page if a firm asks (Phase 10 task 7 built the rest).
@@ -1018,9 +1023,11 @@ every step works.
   - Compensation for short-notice changes: Stage 2 (docs/compliance.md), from these events.
   - **Dylan to confirm:** "The client needs fewer staff" on one booking still reopens the place
     (and, close to the start, offer waves start for it). Lower the places instead for that reason?
-  - **Dylan to confirm:** notice hours for a move count from the old start, so a move to an earlier
-    time overstates the notice the worker had (the new start and the change time are both logged,
-    so it can be worked out later).
+  - Decided in Phase 10 task 8 (audit M6, M25): notice hours for a move or shortening count from
+    the earlier of the old and new start, office editor and Sheets sync alike, so a move to an
+    earlier time records the warning the worker really had and the notice report flags it. Events
+    from before then counted from the old start (their old and new starts are logged, so the
+    report could be recomputed if a firm needs it).
   - A move doesn't re-schedule the office's escalation email (still due at the old start minus X
     hours) or re-check urgency; workers whose offers expired aren't offered it again by later
     waves; open time-change or swap requests on a cancelled or moved shift stay open; a notice
@@ -1548,3 +1555,4 @@ every step works.
 | 2026-10-03 | 10 | 1.3 | Speed at pilot size: the shifts line answers 8 messages at once (one per worker at a time, older ones first), so 200 workers are answered within 20 s even with a 300 ms send; a crashed worker's jobs come back within about a minute (heartbeat), not 15; Open shifts, the urgent board and the offer list make the same number of queries however many shifts or workers; three indexes; the "about a second" claim corrected; 2735 tests + 49 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.8 | Office access can be taken away: on the office team page an admin can turn someone's access off (logged out everywhere at once, unused login links spent), back on (nothing old comes back), change their role (making an admin asks "Yes" first) or log them out on every device; the same from `firm:office-user`; the firm always keeps an admin; every change logged; a worker's status change from an import or the sheet also logs them out everywhere; two reviews found a deadlock with a login at the same moment and a missed session (both fixed and tested); 2759 tests + 50 e2e; verified and audited DONE on round 2 (see docs/work-log.md) |
 | 2026-10-03 | 10 | 1.1 | Worker leavers and blocks: a new Workers page where admins and resourcers make a worker inactive (logged out everywhere, no reminders, sticks against the rota sheet), active again, unblock them, block them from a site (rules check 9 made live, in both rules loaders) or log them out on every device, each with a reason from a list and logged; their bookings ahead show on Today as "Bookings to check" to cancel (with the new "They've left, or can't work here" reason and notice hours) or keep; a mobile change ends links and forgets phones; two reviews found a sheet sync race, vanishing confirmations and more (all fixed and tested, a few narrow items parked); 2816 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-03 | 10 | 0.5 | Notice for a moved or shortened shift counts from the earlier of the old and new start (office editor and rota sheet), so a shift moved earlier is flagged as short notice in the report (the firm's Employment Rights Act evidence); the move now holds each booked worker's row and the day's "applied" lock before re-checking them, so a booking at the same moment is seen (two race tests); "Dylan to confirm" note decided; 2822 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |

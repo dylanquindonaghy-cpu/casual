@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
@@ -7,9 +7,10 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { OVERRIDABLE_CODES, type RuleCode } from "../rules/eligibility";
-import { officeCanPlace, previewBooking, rosterId } from "./book";
+import { lockAppliedDay, officeCanPlace, previewBooking, rosterId } from "./book";
 import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES } from "./firm-reasons";
-import { noticeHours } from "./notice";
+import { changeNoticeHours } from "./notice";
+import { localDateOf } from "../time/zoned";
 import { isoDate, timesOn } from "./shift-times";
 
 // The office moving or shortening a shift people are booked on (docs/api-and-jobs.md,
@@ -20,7 +21,8 @@ import { isoDate, timesOn } from "./shift-times";
 // - Curtailed when the new times sit inside the old ones at the same site (a shorter shift);
 //   otherwise moved (the Sheets sync's rule).
 // - Each confirmed worker: shift.curtailed / shift.moved {by: "firm", shiftId, workerId, reason,
-//   old and new times, old and new site, noticeHours counted from the old start}, and a
+//   old and new times, old and new site, noticeHours counted from the earlier of the old and new
+//   start (changeNoticeHours: a move earlier records the warning they really had)}, and a
 //   firm-change-notice job to tell them. The shift itself: shift.changed {by: "firm", fields,
 //   from/to}. Offers still out describe the old shift, so they expire.
 // - Before anything is logged, the rules are run for each booked worker at the new time (the
@@ -119,13 +121,42 @@ export async function moveShiftByFirm(
           !siteChanged &&
           times.startsAt.getTime() >= shift.startsAt.getTime() &&
           times.endsAt.getTime() <= shift.endsAt.getTime();
-        const notice = noticeHours(shift.startsAt, now);
+        const notice = changeNoticeHours(shift.startsAt, times.startsAt, now);
 
         await tx
           .update(shifts)
           .set({ ...times, siteId })
           .where(eq(shifts.id, request.shiftId));
 
+        // Each booked worker's row held first (in id order, after the shift's: the order a booking
+        // takes them), so a booking of theirs happening at this moment finishes first and is seen
+        // by the check below, or waits for this move (audit L21); "kept" is read after it (the
+        // office's worker controls clear it under that lock: src/lib/office/worker-access.ts).
+        // Then the new day's "applied" lock, as a booking takes it, so a booking on an application
+        // in progress that day and this move count the allowance in turn. The shift's lock keeps
+        // who is booked from changing meanwhile.
+        const booked = await tx
+          .select({ workerId: assignments.workerId })
+          .from(assignments)
+          .where(
+            and(
+              eq(assignments.shiftId, request.shiftId),
+              eq(assignments.status, "confirmed"),
+              isNotNull(assignments.workerId),
+            ),
+          );
+        const holderIds = [
+          ...new Set(booked.flatMap((b) => (b.workerId ? [b.workerId] : []))),
+        ].sort();
+        if (holderIds.length > 0) {
+          await tx
+            .select({ id: workers.id })
+            .from(workers)
+            .where(inArray(workers.id, holderIds))
+            .orderBy(asc(workers.id))
+            .for("no key update");
+          await lockAppliedDay(tx, localDateOf(times.startsAt, firm?.timezone ?? "Europe/London"));
+        }
         const holders = await tx
           .select({
             assignmentId: assignments.id,

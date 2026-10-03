@@ -6932,3 +6932,75 @@ planned in the follow-up commit (doc only). Ticked after this.
 **Commit:** `0b5bad8`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
 The follow-up commit also relabels the two old `/office/workers` rows in `docs/screens.md` as
 planned (doc only; the next task's verify covers it).
+
+## 2026-10-03 22:36 UTC — Phase 10, task 8: notice for a move counts from the earlier start
+
+**Task:** Notice hours for a move or curtailment count from the earlier of the old and new start
+(office editor and Sheets sync), so the notice report's short-notice flag never hides short
+notice. The move re-check takes the worker lock. Tests in `notice.report`. Update the "Dylan to
+confirm" note. (M6, M25, L21)
+
+**Plan:**
+1. **One rule, one place:** `changeNoticeHours(oldStart, newStart, at)` in
+   `src/lib/roster/notice.ts`, the notice from the earlier of the two starts. Used by the office's
+   move (`moveShiftByFirm`) and the sheet's (`logTimeChange` in `src/lib/roster/sheets/sync.ts`).
+   A shortening keeps its start (or starts later), so it's unchanged. A move earlier now records
+   the warning the worker really had of the new time.
+2. **The worker lock (L21):** the move locks each booked worker's row (FOR NO KEY UPDATE, in id
+   order) before the rules run for them, after the shift's lock, the same order as a booking. A
+   booking of the same worker happening at that moment then finishes first and is seen, or waits.
+3. **Tests:**
+   - `notice.report`: a move earlier is flagged short (office and sheet), and the CSV says so; the
+     old "from the old start" cases are unchanged (later moves and shortenings);
+   - unit tests of the helper;
+   - a barrier test: a booking that holds the worker while the move runs is seen, so the move is
+     refused for the overlap, not double-booked.
+4. **Docs:** the "Dylan to confirm" note becomes a decision; `docs/api-and-jobs.md` "Firm-initiated
+   changes", `docs/compliance.md` if it describes the notice, and the code comments.
+
+No schema change.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Notice for a move or shortening = the earlier of the old and new start, minus the change time | The worker's real warning of the change: a move earlier must not read as long notice (the report is the firm's Employment Rights Act evidence); a move later or a shortening still counts from the old start, as before | The new start only (a move later would read as more notice than the shift they'd planned around); the old start (hid short notice: M6, M25) |
+| Events from before keep their recorded figure | The action log is append-only evidence; both starts are logged, so a firm's report could be recomputed | Rewriting old events (never) |
+| The move holds each booked worker's row (after the shift's, in id order) before checking them | The same order a booking takes (shift, then worker), so a booking of that worker at the same moment is finished and seen, not missed (L21) | Locking only the shift (the race the audit found) |
+
+**One existing test changed on purpose:** the Sheets test moved a shift an hour earlier (22:00 to
+21:00) and asserted 34 hours' notice, counted from the old start. Under the decided rule it is 33
+(counted from the new, earlier start), which is the fix itself; the title now says so. The office
+test's moves were later and a shortening, so their figures are unchanged.
+
+**Tests:** a move earlier (the audit's own example: Saturday's shift moved on Monday 09:00 to
+Tuesday 08:00) records 23 hours, is flagged short and is found by the short-notice filter, with
+the CSV saying 23.00 and Yes; the helper's unit tests; a barrier test where a booking holds the
+worker while the office moves their other shift onto it: the move waits, sees it and is refused
+for the overlap. Reverting either notice rule, or the worker lock, fails a test.
+
+**Guardrails review:** SAFE TO COMMIT, no FIX FIRST. Fixed:
+
+| Finding | Fix |
+|---|---|
+| "kept" (from task 7) was read before the new worker lock, so a move racing "make inactive" could use a stale value | Who is booked is read first, their rows locked, then the holders (with "kept") read after the lock |
+| Two older Sheets gaps against "never hides short notice": a site-only change on the sheet logs no per-worker move; a re-time into the past updates with no event | Parked for task 9 (Sheets follows the office editor's rules), which changes that code; the wrong comment in `src/lib/notices/firm-change.ts` ("the sheet can't change it") corrected |
+| `book.ts`'s lock-order comment didn't include the move | Updated (and the deadlock it can have with the sync or a staff import, both retried) |
+| Nits: the barrier test matched any waiting query; it didn't check the cause; the sheet test didn't pin the figure; a long doc line | It now waits on the booking's own connection (`pg_blocking_pids`) and checks the refusal's `overlap` code; `sheets.sync` asserts 36 hours; rewrapped |
+
+**Adversarial review:** no FIX FIRST. Fixed:
+
+| Finding | Fix |
+|---|---|
+| The move didn't take the "applied" day lock a booking takes, so a move and a booking relying on an application in progress could both count the day's allowance and go one over (golden rule 6) | `lockAppliedDay()` shared from `book.ts`; the move takes it for the new day after the workers' (the booking's order: shift, worker, day). Test: a booking holding that day's lock makes the move wait; removing the lock fails it |
+| A comment overclaimed which lock "kept" changes under | Reworded (clearing is under the worker lock) |
+| `docs/testing.md` didn't describe the new cases | Added |
+| The reverse race (the move holds the worker, a booking waits) untested; the sheet case doesn't flip the flag; rounding at exactly the threshold (existing, as for cancellations) | Left: the first is the booking's existing lock (READ COMMITTED sees the move); the office test shows the flag flipping; the rounding is pinned on purpose ("48.00 not short") |
+
+**Verify:** `VERIFIED tree=a1ddf286acdd2877 e2e=true` (2,822 tests, 51 browser tests).
+
+**Auditor (round 1):** `VERDICT: DONE`. Notice from the earlier start PROVEN for the office editor
+and the Sheets sync, the worker lock PROVEN by a blocking test (and the day lock), the note
+decided; "No fakes found". Ticked after this.
+
+**Hours:** 0.5 (Phase 10: 6.6 of 30–45 h).

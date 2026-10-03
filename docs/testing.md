@@ -86,7 +86,12 @@ without breaking a 6am cancellation.
   book, shorten, move and remove), read back through the report and its CSV: who started each
   change, notice hours from the path's own clock, the flag exactly at 48 hours (48.00 not short,
   47.99 short) and at a firm's own threshold, negative notice after the start, and the firm's
-  reason (a worker's typed reason never appears).
+  reason (a worker's typed reason never appears). A move or shortening counts from the earlier of
+  the old and new start (Phase 10): a shift moved earlier (Saturday's moved on Monday to Tuesday)
+  records 23 hours, flagged short and found by "short notice only", and the sheet's move an hour
+  earlier records the hour less. `office.firm-change.test.ts` pins the move's locks: a booking of
+  the same worker at that moment, or one on that day's "applied" allowance, is waited for and
+  seen.
 - `pay.grouping.test.ts` — group keys stable; AI summary failure falls back cleanly. Built in Phase 6
   (`tests/integration/pay.grouping.test.ts`, on the real database): the same facts give the same key
   whoever raises it, whatever they write, whenever and in any order; the firm's week (Monday and

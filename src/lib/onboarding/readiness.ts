@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { firms, rosterSources } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
 import { effectiveSettings } from "./settings";
 
@@ -30,6 +31,8 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
       line: firms.shiftsLineE164,
       domain: firms.customDomain,
       domainVerified: firms.domainVerified,
+      agreementSignedOn: firms.agreementSignedOn,
+      slug: firms.slug,
     })
     .from(firms);
   if (!firm) throw new Error("the firm isn't visible inside its own transaction");
@@ -92,8 +95,10 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
   const items: ReadinessItem[] = [
     {
       item: "Agreement + DPA signed",
-      state: "confirm",
-      detail: "Not recorded here: confirm both are signed before importing any real data (Gate B).",
+      state: firm.agreementSignedOn ? "done" : "todo",
+      detail: firm.agreementSignedOn
+        ? `Recorded as signed on ${dayLabel(firm.agreementSignedOn)} ${firm.agreementSignedOn.slice(0, 4)}.`
+        : `Not recorded yet. Once both are signed: npm run firm:agreement -- --firm ${firm.slug} --signed <the date, like 04/10/2026>. Until then the live server takes no real staff data for this firm (Gate B).`,
     },
     {
       item: "Firm branding and sign-off",

@@ -1,4 +1,4 @@
-import { FILE_ERROR_TEXT, PROBLEM_TEXT } from "../imports/messages";
+import { AGREEMENT_NEEDED_TEXT, FILE_ERROR_TEXT, PROBLEM_TEXT } from "../imports/messages";
 import type { PayImportResult } from "./pay-import";
 
 // "Import pay records" in plain words (docs/screens.md `/office/pay/import`): what a checked file
@@ -31,6 +31,8 @@ export function payImportLines(result: PayImportResult | Common): string[] {
       return [FILE_ERROR_TEXT[result.code]];
     case "too_big":
       return ["The file is too big for the web (1 MB at most). Split it into smaller files."];
+    case "agreement_needed":
+      return [AGREEMENT_NEEDED_TEXT];
     case "logged_out":
       return ["Your session has ended. Log in again."];
     case "not_allowed":

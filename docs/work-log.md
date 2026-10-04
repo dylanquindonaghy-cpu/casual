@@ -8096,3 +8096,103 @@ Without a Google account, the tests show it:
 `npx vitest run tests/integration/sheets.connect.test.ts tests/integration/sheets.sync.test.ts`
 (with the database up: `npm run db:up`). With one, follow step 7 of "Connect the real Google
 Sheets" in `PLAN.md`.
+
+## 2026-10-04 — Phase 10, task 11: imports read what the file says
+
+- **Time spent:** 1.1 hours (started 01:13 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=85a25dcf7c005571 e2e=true`
+  (2,988 tests, 51 browser tests). The first run failed on the same older flaky test as in task 9
+  (it sometimes fails for timing reasons, not because of this task's code). The second run passed
+  with that test unchanged. Its fix is parked, now marked "fix it soon".
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M11, M15, M16, L39, L67, L68, L69, L70, L71, L78.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Firms send spreadsheets of workers, licences, shifts and pay. The **import** reads them into the
+app. The audit found ten ways a file could be read wrongly. Now:
+
+- **An Excel date keeps its day.** A licence expiring "12/06/2027 23:59:59" used to be read as the
+  13th, one day too long. The day is now taken before the time is rounded.
+- **Pay amounts with a space are refused.** "12 50" used to become £1,250.00. Now it's refused, and
+  the row is reported.
+- **"Marked as filled" stays filled.** If the office marked a shift filled with a place still free,
+  a re-import used to open it again. Now it doesn't. When a re-import rightly opens a shift (more
+  places than people booked), the action log says so.
+- **Windows Excel CSV files work.** Excel on Windows saves CSV files in an older text format,
+  **Windows-1252**, where "£" and accented letters are single bytes. Those files used to be refused
+  outright. Now they're read. A file that would come out garbled (a Mac CSV, or a broken file) is
+  refused with a message saying how to save it.
+- **No more identity swaps.** Without a **Staff ID** (the firm's own number for each worker), rows
+  are matched by mobile. A mistyped or recycled number used to rename someone else and hand them
+  that person's licences and pay. Now:
+  - a worker row matched by mobile must have the same name, or it's refused;
+  - a licence or pay row without a Staff ID must give the worker's name too, and it must match;
+  - a Staff ID whose name and mobile both change at once is refused (a Staff ID reused for a new
+    person never gets the old person's record).
+- **One set of rules everywhere.** Dates, shift times and mobiles are now read by the same code in
+  the office's shift editor, the Google Sheets sync and every import:
+  - **dates:** "Sat 7 Nov 2026" works everywhere; a wrong weekday or a made-up month is refused;
+  - **shift times:** a finish equal to the start, 24 hours or more, or a time the clocks skip in
+    March is refused, instead of becoming a day-long shift;
+  - **mobiles:** a UK landline written as +44 20… is refused; a mobile cell that lost its 0 is put
+    right on the sheet too.
+- **Gate B, recorded.** Gate B is the rule that no real staff data goes in before a firm's
+  agreement and data processing agreement are signed. A new owner command, `npm run firm:agreement`,
+  records the day they were signed. On the live server, nothing is imported for a firm until that
+  date is recorded: not through the office's import pages, not through `npm run import`, and no rota
+  sheet is connected. Your computer's database is unaffected. `firm:check` shows it, and a date
+  recorded on the wrong firm can be removed (`--clear`).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A match by mobile alone needs the same name | Stops the swap; a real name change still has a route | A warning only; refusing every row without a Staff ID |
+| Read Windows-1252 when a file isn't UTF-8, unless it looks garbled | That's what Excel on Windows writes | Refusing the file with a message (refused on day one) |
+| Gate B as a recorded date per firm, checked inside the import | One check for the web and the terminal, with evidence | Typing the firm's name each time (no record) |
+| Refuse equal, 24h+ and clock-skipped shift times | They were typos or clock-change accidents | Allowing 24-hour shifts |
+
+### What the new tests prove
+
+- **`tests/unit/imports.files.test.ts`:** a Windows CSV's "£" and accents; garbled files refused;
+  23:59:59 keeps its day (in a real Excel file too).
+- **`tests/unit/roster.shift-window.test.ts`, `sheets.parse.test.ts`:** the shift-time rule on both
+  clock-change nights; the date reader; the sheet's mobiles.
+- **`tests/integration/imports.test.ts`:**
+  - a rename by mobile refused;
+  - a moved number never hands one worker's record to another;
+  - a reused Staff ID refused;
+  - licence rows must name the worker;
+  - "marked as filled" stays filled (using the office's own button);
+  - a real reopen is logged;
+  - an expiry date with a time.
+- **`tests/integration/imports.gate-b.test.ts`:** on a live database the office's import, the
+  terminal import and `firm:sheet` refuse to save until the agreement is recorded, then work;
+  `firm:agreement` records, shows and clears, all logged.
+- **`tests/integration/sheets.sync.test.ts`:** a sheet row that would rename someone isn't linked,
+  and the office's action log says so.
+- **The tests catch the bugs:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm (in `PLAN.md`):**
+  - checking (not saving) a real staff file on the live server before the agreement is recorded;
+  - how to demo the web import on the live server (use a local copy).
+- **Parked:**
+  - an office "Change name" button;
+  - a worker who changed number without a Staff ID still arrives as a second worker, and their old
+    record keeps the old number;
+  - a re-import's reopen doesn't restart offers;
+  - US-format dates in CSV files;
+  - the flaky test, now marked to fix soon.
+
+### How to see it working
+
+1. `npm run db:reset`, then `npm run db:seed`, then `npm run dev`.
+2. Log in to `http://acme.localhost:3000/office` as `acme.admin@example.com`.
+3. Shifts → "Import from a file": a CSV with "Sat 7 Nov 2026" in the Date column imports; one with
+   09:00 to 09:00 says the times can't be the same.
+4. `npm run -s firm:check -- --firm acme`: "Agreement + DPA signed" is still to do, with the command
+   that records it.

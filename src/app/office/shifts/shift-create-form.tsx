@@ -148,7 +148,7 @@ export function ShiftCreateForm({
           Add another line
         </button>
       )}
-      <p>A finish at or before the start is the next morning.</p>
+      <p>A finish before the start is the next morning.</p>
       <label className="flex flex-col">
         <span className="font-semibold">Instructions (optional)</span>
         <textarea

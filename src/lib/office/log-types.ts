@@ -177,6 +177,7 @@ export const LOG_TYPES = {
       "firm.settings_changed",
       "firm.branding_changed",
       "firm.domain_changed",
+      "firm.agreement_recorded",
     ],
   },
   sheet: {

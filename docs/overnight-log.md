@@ -7226,3 +7226,135 @@ ownership, what `--disable` should do) were noted as parked with reasons.
 **Hours:** 0.9 (00:19 to 01:11 UTC). Phase 10 so far: 8.7 h of its 30–45 h estimate.
 
 **Commit:** `051f918`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-10-04 01:13 UTC — Phase 10, task 11: imports read what the file says
+
+**Task:** Imports read what the file says: an Excel date with a time near midnight keeps its day; a
+pay amount with a space inside ("12 50") is refused, not read as £1,250; re-importing never reopens
+a shift the office marked filled (`shift.reopened` logged when it legitimately reopens); a Windows
+Excel CSV (Windows-1252) imports or gets a plain message; a row without a Staff ID never renames or
+re-attaches a different worker; dates, times and mobiles are checked the same way on every import
+path; the office imports respect the Gate B guard. (M11, M15, M16, L39, L67, L68, L69, L70, L71, L78)
+
+**Plan:**
+1. **Excel dates (M15):** `formatSerial` takes the day from the whole serial and rounds only the
+   time within it (never past 23:59), for date and date-and-time cells alike.
+2. **Money (M16):** `importPence` strips only the pound sign and the spaces around the amount; a
+   space inside it is refused (`bad_money`).
+3. **Marked filled (M11):** a re-import leaves alone the status of a shift the office marked filled
+   with places still free (as the shift editor does). When a re-import does turn a filled shift back
+   to open (more places on a shift its bookings had filled), it's logged `shift.reopened`
+   {by: "import"}, with its own words.
+4. **Windows CSV (L69):** a file that isn't UTF-8 is read as Windows-1252 (Excel's "CSV (Comma
+   delimited)" on Windows), so "£" and accented names come through; one that isn't that either
+   gets a plain message ("Save it as CSV UTF-8 or .xlsx").
+5. **No Staff ID (L71, L78):** wherever a worker is matched by mobile alone (an import row without
+   a Staff ID, or a sheet's new Staff ID linking to a worker who has none), the names must match the
+   worker's (ignoring case and spaces), or the row is refused (`name_mismatch`), not renamed: a
+   mistyped or recycled number never gives one person's record, licences and pay to another.
+6. **One check for every path (L67, L68, L70):** one date reader for the sheet and every import
+   column (a time after the date is allowed and ignored; a weekday, if given, must be the right
+   one; month names are real ones, not any three letters); one shift-times rule for the sheet, the
+   imports and the office editor (a start or finish that doesn't exist on a clock-change day, a
+   finish equal to the start, or 24 hours or more is refused); one mobile reader (the dropped 0
+   repaired on the sheet too; a +44 number must be a mobile; an international number needs 9 to 15
+   digits).
+7. **Gate B for office imports (L39):** a recorded agreement: `firms.agreement_signed_at`, set by
+   the owner (`npm run firm:agreement`, logged), and shown done on `firm:check`. On a live database
+   (not this machine) the office's web imports and the terminal import save rows only for a firm
+   with a recorded agreement, and `firm:sheet` connects a sheet only then; a dry run still saves
+   nothing and is allowed. Local databases (development, tests) are unchanged.
+8. **Tests:** each finding, on the real paths (an exceljs workbook with 23:59:59, a Windows-1252
+   file, the shift editor and the sheet with the same clock-change cases, a file moving a mobile
+   between two workers, a live-database import refused then allowed).
+
+**Changed from the plan while building:**
+- Three older tests asserted what this task changes on purpose, and were updated (none loosened;
+  each gained the new check beside it):
+  - `imports.files` "refuses bytes that aren't UTF-8 text" used bytes that are valid Windows-1252
+    (which now import, the point of L69): it now uses bytes that are neither (and a UTF-16 file);
+    a new test proves a Windows-1252 file imports with its "£" and accents.
+  - `imports` "a changed row updates … by mobile without one" renamed a worker matched by mobile
+    alone (L71's bug): the mobile-matched row now changes the email instead, and two new tests
+    prove a rename by mobile is refused and a moved number never hands one worker's record to
+    another (L78).
+  - `sheets.sync` "a worker … with the same mobile and no staff id is linked" linked a worker with
+    another surname: it now links the same person (case and spaces aside), and a new test proves a
+    different person isn't linked or renamed.
+- The onboarding checklist's "Agreement + DPA signed" is now "to do" until recorded, then done (it
+  was always "confirm yourself"), so `onboarding`'s counts moved by one.
+- `firm:sheet` also checks the recorded agreement on a live database (the sheet is real staff
+  data too).
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A mobile-only match must have the same name (case and spaces aside) | Stops the identity swap the audit describes; a real name change is made in the app or with a Staff ID | A warning only (the swap still happens); refusing every mobile-only match (Staff IDs aren't universal) |
+| Windows-1252 as the fallback when a file isn't UTF-8 | It's what Excel on Windows writes; bytes it leaves undefined still refuse the file | A message only (the file would still be refused on day one) |
+| Gate B recorded per firm (`firms.agreement_signed_on`, owner-set), checked inside `runImport` | One check for the web and the terminal; dates are evidence; local databases unchanged | A typed confirmation on the web (no evidence); blocking dry runs too (they save nothing) |
+| Refuse a shift of 24 hours or more, a finish equal to the start, and clock-skipped times | All three were typos or clock-change accidents turned into a day-long shift | Allowing 24-hour shifts (none expected; the office can split one) |
+| An international mobile needs 9 to 15 digits; a +44 number must be a UK mobile | Matches what can get a WhatsApp or text; the same landline as 020… was already refused | Accept and fail to deliver (silently) |
+
+**Guardrails review:** no golden-rule breach. FIX FIRST: credentials and pay files still matched a
+worker by mobile alone (L71/L78 name them). SHOULD FIX: the "change it in the app" / "add a Staff
+ID column" advice pointed to paths that don't exist or don't work; a Sheets `name_mismatch` was
+silent to the office; the L78 login risk on the old record wasn't written down; Gate B treats a
+tunnel to the live database at localhost as local; "Tues/Weds/Thurs" were newly refused. Nits:
+float noise in Excel serials, a mostly-UTF-8 file re-decoded as Windows-1252, curly apostrophes
+and composed accents in the name check, stale copy, `shift.reopened`'s documented shape, UTC
+"today", no Gate B copy test, the dry-run-on-live question, short international numbers.
+
+**Adversarial review:** the same FIX FIRST and rename problems, plus: a reused Staff ID (new name
+and new mobile together) still swapped identities; Mac Roman and DOS CSVs were silently misread;
+`12:00 AM`, `9:00:00 AM`, `.000` and ISO `Z` times after a date were refused; no way to clear an
+agreement recorded on the wrong firm; the checklist showed an ISO date and a literal `<slug>`;
+"+353 (0)85…" stored undeliverable; the M11 test didn't use the office's real "mark as filled".
+
+**Fixed:**
+
+| Finding | Fix (tested) |
+|---|---|
+| Credentials and pay rows by mobile alone | Optional First name / Last name / Name columns; a row without a Staff ID must name the worker, and the name must match (`name_needed`, `name_mismatch`). The e2e pay import now names its worker |
+| A reused Staff ID | A Staff ID whose name and mobile both change is refused (`identity_change`), in imports and the Sheets sync |
+| Rename advice | Words, runbook and code comment now give the working route (link with a Staff ID under the old name, then rename); an office rename is parked |
+| Sheets `name_mismatch` silent | `roster.synced` counts refused staff rows, and its words say so; architecture updated |
+| L78 login risk | Written into the Parking lot; the refusal words say the number may be someone else's |
+| Tunnel | Runbook: never import through a tunnel; "live" is any database not on this machine |
+| Weekday short forms, AM/PM and other trailing times | Accepted (Tues, Weds, Thur, Thurs; `12:00 AM`, `9:00:00 AM`, `.000`, `Z`); a wrong weekday or an impossible time still refused |
+| Misread text | Windows-1252 only when it doesn't look like UTF-8 with a stray byte or a Mac CSV's accents (refused with the save-as message) |
+| Excel float noise | Rounded to the second before the day is split off (midnight noise is midnight; seconds don't round a minute up) |
+| Names | NFC, curly and straight apostrophes, hyphens and all spaces set aside |
+| Agreement | `--clear` (logged), London's "today", the checklist's readable date and the firm's own slug |
+| Irish "(0)" | Dropped after any country code |
+| Copy | "A finish before the start is the next morning."; the bad-mobile words; `shift.reopened` {source: "csv"} documented |
+| M11 test | Uses `closeShift` with one of two places booked, as the audit describes |
+
+Parked (PLAN.md): an office rename; the L78 duplicate and old-number login; re-import reopens not
+restarting waves; the web check not warning about Gate B; "12,500"; Mac CSV letters other than é
+and ü; short international numbers; and "Dylan to confirm" on dry runs of real files before the
+agreement and demo firms on the live server.
+
+Each review fix checked by breaking it: the credentials/pay name check, the reused Staff ID, the
+misread-text guard and the sync's refused-row count each make a test fail.
+
+**Verify, first run:** NOT VERIFIED: 1 of 2,988 tests failed, the same `sheets.jobs.test.ts`
+"queues one sync for each firm that is due" as in task 9's first run (two jobs where one was
+expected after a second tick). **Root cause** (unchanged, not this task's code): pg-boss
+de-duplicates the sync job in `singletonSeconds: 50` slots on the real clock; the test's first tick
+visits every firm in the test database (about 4 seconds here), so its second tick can land in the
+next slot. Its second failure tonight: the parked fix (de-duplicate on the app's own minute) is
+marked more urgent in PLAN.md. Verify run again on the same files, the test unchanged.
+
+**Verify, second run:** `VERIFIED tree=85a25dcf7c005571 e2e=true` (2,988 tests, 0 failed, 0
+skipped; 51 e2e).
+
+**Auditor (round 1), verbatim verdict:** `VERDICT: DONE`. Every claim PROVEN: M15 (the audit's own
+probe and an exceljs workbook), M16, M11 (with the real `closeShift`, and a logged real reopen),
+L69, L71/L78 (the audit's Ben/Ann scenario, licence and pay rows, the Sheets sync), L67/L68/L70 (one
+`shiftWindow`, date reader and mobile reader on every path), L39 (web, terminal and `firm:sheet`
+against a live-acting database). "Fakes found: none." The parked items were noted as visibly parked.
+
+**Hours:** 1.1 (01:13 to 02:21 UTC). Phase 10 so far: 9.8 h of its 30–45 h estimate.
+
+**Commit:** see the next "Log commit and push" commit.

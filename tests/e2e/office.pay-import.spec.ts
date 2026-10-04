@@ -1,4 +1,4 @@
-import { addOfficeUser } from "./db";
+import { addOfficeUser, workerName } from "./db";
 import { expect, test } from "./fixtures";
 import { codeSentTo, loginLinkSentTo, sentTo } from "./outbox";
 
@@ -29,10 +29,12 @@ test("payroll checks and imports a pay file; the worker sees the line", async ({
   await expect(page.getByRole("heading", { name: "Import pay records" })).toBeVisible();
 
   // A week ending 3 days ago, at a rate no seeded line has; and a row for nobody here.
+  // Matched by mobile, so each row names the worker too (a mistyped number never pays someone else).
+  const name = await workerName("acme", mobile);
   const file = [
-    "Mobile,Period start,Period end,Hours,Rate,Gross pay,Pay date",
-    `07700 900111,${ukDate(-9)},${ukDate(-3)},12.5,19.87,248.38,${ukDate(-1)}`,
-    `07700 900999,${ukDate(-9)},${ukDate(-3)},8,13.00,,`,
+    "Mobile,Name,Period start,Period end,Hours,Rate,Gross pay,Pay date",
+    `07700 900111,${name},${ukDate(-9)},${ukDate(-3)},12.5,19.87,248.38,${ukDate(-1)}`,
+    `07700 900999,Nobody Here,${ukDate(-9)},${ukDate(-3)},8,13.00,,`,
   ].join("\n");
   await page.getByLabel("Your file (.csv or .xlsx)").setInputFiles({
     name: "pay.csv",

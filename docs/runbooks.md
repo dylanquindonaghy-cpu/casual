@@ -399,14 +399,39 @@ Gate B's paperwork is signed):
 2. Dry run: `npm run import -- --firm <slug> --kind workers --as <office email> <file>`. It prints
    what it would create, update and skip, and why each skipped row was skipped.
 3. Fix the rows it names in the spreadsheet if you like, then run the same command with `--apply`.
-   On the live server (any database not on this machine), `--apply` also needs
-   `--agreement-signed <slug>`, repeating the firm's slug: it's you saying the firm's agreement and
-   DPA are signed (Gate B). Without it, or with another slug, nothing is saved and it says why. On
-   the server it runs in the one-off owner service: `docker compose run --rm owner node --import
-   tsx scripts/import.ts --firm acme --kind workers --as <office email> <file> --apply
-   --agreement-signed acme` (the file must be inside the container: not yet tried for real).
+   On the live server (any database not on this machine), saving needs two things (Gate B): the
+   firm's signing recorded (`npm run firm:agreement -- --firm <slug> --signed <date>`, onboarding
+   step 1), and `--agreement-signed <slug>` on the command, repeating the firm's slug. Without
+   either, nothing is saved and it says why. The office's own web imports (shifts, pay records)
+   need the recorded signing too. "Live" means any database not on this machine: never import
+   real data through a tunnel that makes the live database look local (localhost), or both checks
+   are skipped. On the server it runs in the one-off owner service: `docker
+   compose run --rm owner node --import tsx scripts/import.ts --firm acme --kind workers --as
+   <office email> <file> --apply --agreement-signed acme` (the file must be inside the container:
+   not yet tried for real).
 
-A row whose mobile matches an existing worker updates that worker (mobile is who they are). On a
+Reading the file (the same rules as the Sheets sync and the office's shift editor):
+- **CSV from Excel on Windows** ("CSV (Comma delimited)") is read as it is: "£" and accented names
+  come through. A file it can't read as text says to save it as "CSV UTF-8" or .xlsx.
+- **Dates** are day first (07/11/2026), yyyy-mm-dd, or "Sat 7 Nov 2026"; a time after a date
+  (Excel's date-and-time cells) is ignored, and a date cell's time never moves its day. A weekday
+  that isn't the date's, or a month that isn't a month, is refused.
+- **Times:** a finish at or before the start is the next morning; a finish equal to the start, 24
+  hours or more, or a time the clocks skip (01:00 to 02:00 on the March Sunday) is refused.
+- **Mobiles:** UK mobiles in any usual form (a number cell that lost its 0 is put right); a UK
+  landline, or a number too short to be a mobile, is refused.
+- **Money:** "£12.50", "12.5", "1,234.56"; a space inside an amount ("12 50") is refused.
+
+A row with a Staff ID updates the worker with that Staff ID, but not both their name and their
+mobile at once (a Staff ID reused for a new person: give them a new Staff ID; the same person:
+change one, import, then the other). A row without one is matched by mobile, and only if the name
+matches too (capitals, spaces, hyphens and the kind of apostrophe aside): a row whose mobile
+belongs to someone with another name is skipped ("that mobile belongs to a worker with another
+name"), so a mistyped or recycled number never renames someone or hands them another person's
+licences or pay. Credentials and pay files are the same: a row without a Staff ID needs the worker's
+name too (First name and Last name columns, or Name). The app has no rename yet: for a worker with
+no Staff ID who changed their name, import them once with a Staff ID and the name as it's held here
+(that links them), then again with the new name. On a
 credential, a blank cell leaves that field as it is (a re-import never un-suspends a licence or
 wipes an expiry); an expired licence given a new future expiry becomes valid. A shift with people
 booked can't have its times or role changed, or its number needed lowered, by an import: use the
@@ -441,6 +466,10 @@ your local database as `npm run -s …`.
 In order (who does it, how, and what done looks like):
 
 1. **Agreement and DPA signed** (you and the firm). Nothing real goes in before this (Gate B).
+   Once both are signed, record the day: `npm run -s firm:agreement -- --firm acme --signed
+   04/10/2026` (after step 2, which creates the firm). It says "Recorded…", and `firm:check` shows it
+   done. Until then the live server saves no import for the firm (the office's web imports and
+   `npm run import`) and `firm:sheet` connects no sheet.
 2. **Create the firm** (you): `npm run -s firm:create -- --slug acme --name "Acme Events"
    --sector security --admin-email jo@acme-events.example --admin-name "Jo Bloggs"`. The slug
    becomes `acme.<our domain>`; the sector (security, rail, construction or cleaning) brings its

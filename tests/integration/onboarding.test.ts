@@ -298,7 +298,8 @@ describe("the onboarding checklist from a firm's data", () => {
     const f = await created();
     const items = await withFirm(f.firmId, (tx) => firmReadiness(tx));
     expect(byItem(items)).toEqual({
-      "Agreement + DPA signed": "confirm",
+      // Recorded with npm run firm:agreement (Gate B, audit L39): not yet, so it's still to do.
+      "Agreement + DPA signed": "todo",
       "Firm branding and sign-off": "todo",
       "Office users": "done",
       "Rota source": "confirm",
@@ -313,7 +314,7 @@ describe("the onboarding checklist from a firm's data", () => {
     });
     const text = readinessText("Onboard Test Events", items);
     expect(text.split("\n")[0]).toBe(
-      "Onboarding Onboard Test Events: 4 things to do, 6 to confirm yourself.",
+      "Onboarding Onboard Test Events: 5 things to do, 5 to confirm yourself.",
     );
     expect(text).toContain("[ ] Firm branding and sign-off: Colour not set");
     expect(text).toContain("[x] Office users: 1 admin, 0 resourcers, 0 payroll users (active).");

@@ -157,6 +157,19 @@ describe("the action log's types and words", () => {
     expect(say("roster.source_connected", { mappingChanged: true, defaultMapping: true })).toBe(
       "The rota sheet's column settings were changed.",
     );
+    expect(say("shift.reopened", { source: "csv" }, "office")).toBe(
+      "Sam Rota's import opened it again: it needs more people than it has booked.",
+    );
+    expect(say("shift.reopened", {}, "office")).toBe("Sam Rota opened it again.");
+    expect(say("firm.agreement_recorded", { signedOn: "2026-10-02", was: "2026-10-01" })).toBe(
+      "The firm's agreement and data processing agreement were recorded as signed on Fri 2 Oct 2026 (was Thu 1 Oct 2026).",
+    );
+    expect(say("firm.agreement_recorded", { cleared: true, was: "2026-10-01" })).toBe(
+      "The firm's recorded agreement was removed (it said Thu 1 Oct 2026).",
+    );
+    expect(say("roster.synced", { shifts: 4, staffRefused: 2 })).toBe(
+      "The rota sheet was read (4 shifts). 2 staff rows weren't taken: a mobile or Staff ID in it belongs to someone else here with another name. Check the sheet's Staff tab.",
+    );
     expect(say("roster.source_forgotten")).toBe(
       "An old rota sheet, already switched off, was let go: another firm could connect it.",
     );

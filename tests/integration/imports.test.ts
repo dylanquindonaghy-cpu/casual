@@ -5,6 +5,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { resolveColumns } from "@/lib/imports/columns";
 import { ImportFileError } from "@/lib/imports/errors";
 import { runImport, type ImportResult } from "@/lib/imports/import";
+import { closeShift } from "@/lib/roster/close";
 import { readTable } from "@/lib/imports/table";
 import type { ImportKind } from "@/lib/imports/columns";
 import { appRolePool, superuserPool, uniqueSlug } from "../helpers/db";
@@ -56,6 +57,15 @@ async function newFirm() {
 }
 
 const csv = (text: string) => readTable(new TextEncoder().encode(text));
+
+const workerByMobile = async (firmId: string, mobile: string) => {
+  const { rows } = await su.query<{ id: string }>(
+    "select id::text as id from workers where firm_id = $1 and mobile_e164 = $2",
+    [firmId, mobile],
+  );
+  if (!rows[0]) throw new Error(`no worker with ${mobile}`);
+  return rows[0].id;
+};
 
 const eventsOf = async (firmId: string, action: string) =>
   (
@@ -138,16 +148,88 @@ describe("importing workers", () => {
       updated: 0,
       unchanged: 3,
     });
+    // By Staff ID, the name can change. By mobile alone, the rest can (a name change by mobile
+    // alone is refused: see the next test).
     const changed = WORKERS.replace("S1,Ada,Example", "S1,Ada,Lovelace").replace(
-      ",Cal,Example",
-      ",Cal,Smith",
+      ",Cal,Example,7700900303,,",
+      ",Cal,Example,7700900303,,cal@example.com",
     );
     expect(await f.run("workers", csv(changed))).toMatchObject({ updated: 2, unchanged: 1 });
     const updated = await eventsOf(f.firmId, "worker.updated");
     expect(updated.map((e) => e.data)).toEqual([
       { source: "csv", fields: ["lastName"] },
-      { source: "csv", fields: ["lastName"] },
+      { source: "csv", fields: ["email"] },
     ]);
+  });
+
+  // Audit L71: a mistyped mobile, with no Staff ID, used to rename whoever has it.
+  it("without a Staff ID, a row whose mobile is another worker's (another name) is refused, not renamed", async () => {
+    const f = await newFirm();
+    await f.run("workers", csv(WORKERS));
+    const cal = await workerByMobile(f.firmId, "+447700900303");
+    await su.query(
+      "insert into credentials (firm_id, worker_id, type, status) values ($1, $2, 'SIA_DS', 'valid')",
+      [f.firmId, cal],
+    );
+    const typo = "First name,Last name,Mobile\nDan,Other,07700 900303";
+    expect(await f.run("workers", csv(typo))).toMatchObject({
+      created: 0,
+      updated: 0,
+      skipped: 1,
+      problems: [{ row: 2, problem: "name_mismatch" }],
+    });
+    // Cal's own row still matches (the name, whatever its spacing).
+    expect(
+      await f.run("workers", csv("First name,Last name,Mobile\nCal,  Example,07700 900303")),
+    ).toMatchObject({ unchanged: 1, skipped: 0 });
+    const { rows } = await su.query(
+      `select w.first_name, w.last_name, count(c.id)::int as credentials
+         from workers w left join credentials c on c.worker_id = w.id
+        where w.id = $1 group by w.id`,
+      [cal],
+    );
+    expect(rows).toEqual([{ first_name: "Cal", last_name: "Example", credentials: 1 }]);
+    expect(await eventsOf(f.firmId, "worker.updated")).toEqual([]);
+  });
+
+  // Audit L78: a file with no Staff IDs where a number moved from one worker to another.
+  it("without Staff IDs, a number that moved between workers never hands one's record to the other", async () => {
+    const f = await newFirm();
+    await f.run("workers", csv("First name,Last name,Mobile\nAnn,Booker,07700 900311"));
+    const ann = await workerByMobile(f.firmId, "+447700900311");
+    // Ben now has Ann's old number, listed before Ann's row with her new one.
+    const moved = "First name,Last name,Mobile\nBen,Carter,07700 900311\nAnn,Booker,07700 900312";
+    const result = await f.run("workers", csv(moved));
+    expect(result).toMatchObject({ skipped: 1, problems: [{ row: 2, problem: "name_mismatch" }] });
+    const { rows } = await su.query(
+      "select first_name, last_name, mobile_e164 from workers where id = $1",
+      [ann],
+    );
+    // Ann's record is still Ann's: not renamed Ben. (Her new number arrives as a new worker: with
+    // no Staff ID the import can't know it's her; the office merges or uses Staff IDs.)
+    expect(rows).toEqual([
+      { first_name: "Ann", last_name: "Booker", mobile_e164: "+447700900311" },
+    ]);
+  });
+
+  // A Staff ID reused for a new starter: their name and mobile both differ from the leaver's.
+  it("a Staff ID whose name and mobile both change is refused (a new person, not the old record)", async () => {
+    const f = await newFirm();
+    await f.run("workers", csv(WORKERS));
+    const reused = "Staff ID,First name,Last name,Mobile\nS1,Zed,Newstarter,07700 900399";
+    expect(await f.run("workers", csv(reused))).toMatchObject({
+      updated: 0,
+      skipped: 1,
+      problems: [{ row: 2, problem: "identity_change" }],
+    });
+    // One at a time is fine: a new mobile, then (separately) a new name.
+    const newMobile = "Staff ID,First name,Last name,Mobile\nS1,Ada,Example,07700 900398";
+    expect(await f.run("workers", csv(newMobile))).toMatchObject({ updated: 1 });
+    const { rows } = await su.query(
+      "select first_name, mobile_e164 from workers where firm_id = $1 and external_ref = 'S1'",
+      [f.firmId],
+    );
+    expect(rows).toEqual([{ first_name: "Ada", mobile_e164: "+447700900398" }]);
   });
 
   it("a column the file doesn't have, or a blank email or status, leaves that field alone", async () => {
@@ -225,10 +307,11 @@ S1,Ada,Again,07700 900311,,,`;
 });
 
 describe("importing credentials", () => {
-  const CREDS = `Staff ID,Mobile,Licence type,Licence number,Expiry date,Status
-S1,,SIA DS,TEST-1012,07/11/2027,
-,07700 900302,sia-sg,TEST-2020,2028-03-01,applied
-S2,,first aid,,,`;
+  // The row found by mobile names the worker too (a mobile alone could be someone else's).
+  const CREDS = `Staff ID,Mobile,Name,Licence type,Licence number,Expiry date,Status
+S1,,,SIA DS,TEST-1012,07/11/2027,
+,07700 900302,Ben Example,sia-sg,TEST-2020,2028-03-01,applied
+S2,,,first aid,,,`;
 
   it("finds the worker by Staff ID or mobile and adds each credential, type codes in capitals", async () => {
     const f = await newFirm();
@@ -291,6 +374,37 @@ S2,,first aid,,,`;
       fields: ["expiresOn"],
       verificationCleared: true,
     });
+  });
+
+  // Audit L71, L78: a licence found by mobile alone went to whoever held the number.
+  it("a row found by mobile alone must name the worker, and the name must be theirs", async () => {
+    const f = await newFirm();
+    await f.run("workers", csv(WORKERS));
+    const file = `Mobile,First name,Last name,Type,Expires
+07700 900302,Ann,Other,SIA_DS,07/11/2027
+07700 900302,,,SIA_DS,07/11/2027
+07700 900302,ben,example,SIA_DS,07/11/2027`;
+    const result = await f.run("credentials", csv(file));
+    expect(result.problems).toEqual([
+      { row: 2, problem: "name_mismatch" },
+      { row: 3, problem: "name_needed" },
+    ]);
+    expect(result.created).toBe(1);
+    // A "Name" column works too, and a Staff ID needs no name.
+    const byName =
+      "Mobile,Name,Type\n07700 900302,Cal Example,FIRST_AID\n07700 900303,Cal  Example,FIRST_AID";
+    expect((await f.run("credentials", csv(byName))).problems).toEqual([
+      { row: 2, problem: "name_mismatch" },
+    ]);
+    const { rows } = await su.query(
+      `select w.first_name, c.type from credentials c join workers w on w.id = c.worker_id
+        where c.firm_id = $1 order by c.type`,
+      [f.firmId],
+    );
+    expect(rows).toEqual([
+      { first_name: "Cal", type: "FIRST_AID" },
+      { first_name: "Ben", type: "SIA_DS" },
+    ]);
   });
 
   it("skips rows it can't place or read", async () => {
@@ -423,6 +537,75 @@ describe("importing shifts", () => {
     expect(after.rows[0]).toEqual({ headcount: 2, instructions: "Gate B", status: "open" });
     const [changed] = await eventsOf(f.firmId, "shift.changed");
     expect(changed?.data).toEqual({ source: "csv", fields: ["headcount", "instructions"] });
+    // Opened again by the import: logged, as the office's own "Open it again" is.
+    const reopened = await eventsOf(f.firmId, "shift.reopened");
+    expect(reopened.map((e) => [e.data, e.actor_type, e.actor_id])).toEqual([
+      [{ source: "csv" }, "office", f.officeId],
+    ]);
+  });
+
+  // Audit M11: the office marked it filled with a place still free (it filled it another way).
+  it("a re-import never reopens a shift the office marked as filled", async () => {
+    const f = await newFirm();
+    const file = (needed: string, notes: string) =>
+      csv(
+        `Shift ID,Date,Start,End,Role,Needed,Instructions\nE2,07/11/2026,09:00,17:00,steward,${needed},${notes}`,
+      );
+    await f.run("shifts", file("2", "Gate A"));
+    await f.run("workers", csv(WORKERS));
+    const { rows: ids } = await su.query(
+      `select s.id::text as shift, w.id::text as worker from shifts s, workers w
+        where s.firm_id = $1 and w.firm_id = $1 and w.external_ref = 'S1'`,
+      [f.firmId],
+    );
+    const shiftId = ids[0]?.shift ?? "";
+    await su.query(
+      `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+       values ($1, $2, 1, $3, 'confirmed', now())`,
+      [f.firmId, shiftId, ids[0]?.worker],
+    );
+    // One of two places booked; the office fills the other another way and marks it filled.
+    await su.query("update office_users set role = 'admin' where id = $1", [f.officeId]);
+    expect(
+      await closeShift(
+        withFirm,
+        f.firmId,
+        {
+          shiftId,
+          by: { type: "office", id: f.officeId },
+        },
+        { clock: { now: () => NOW } },
+      ),
+    ).toMatchObject({ status: "closed" });
+    expect(await f.run("shifts", file("3", "Gate C"))).toMatchObject({ updated: 1 });
+    const { rows } = await su.query(
+      "select headcount, instructions, status from shifts where id = $1",
+      [shiftId],
+    );
+    expect(rows).toEqual([{ headcount: 3, instructions: "Gate C", status: "filled" }]);
+    expect(await eventsOf(f.firmId, "shift.reopened")).toEqual([]);
+  });
+
+  // Audit L67, L70: the same date and time rules as the Sheets sync and the office's editor.
+  it("dates and times are read as the sheet and the office's editor read them", async () => {
+    const f = await newFirm();
+    const result = await f.run(
+      "shifts",
+      csv(`Shift ID,Date,Start,End,Role
+D1,Sat 7 Nov 2026,09:00,17:00,steward
+D2,7 November 2026 00:00,10:00,18:00,steward
+D3,Fri 7 Nov 2026,09:00,17:00,steward
+D4,07/11/2026,09:00,09:00,steward
+D5,28/03/2027,01:30,06:00,steward
+D6,7 Novx 2026,09:00,17:00,steward`),
+    );
+    expect(result).toMatchObject({ created: 2 });
+    expect(result.problems).toEqual([
+      { row: 4, problem: "bad_date" },
+      { row: 5, problem: "bad_time" },
+      { row: 6, problem: "bad_time" },
+      { row: 7, problem: "bad_date" },
+    ]);
   });
 
   it("skips shift rows it can't read", async () => {
@@ -497,7 +680,7 @@ describe("importFromFile (npm run import)", () => {
     );
     expect(summarise(preview)).toBe(
       "Dry run (nothing saved): would create 3, update 0, leave 0 unchanged, skip 1.\n" +
-        "Row 5: the mobile number isn't a phone number we can read.",
+        "Row 5: the mobile number isn't a mobile we can text.",
     );
     const saved = await importFromFile(
       { firmSlug: slug, kind: "workers", officeEmail: email.toUpperCase(), path, apply: true },

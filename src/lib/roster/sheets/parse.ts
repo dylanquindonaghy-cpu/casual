@@ -1,7 +1,8 @@
-import { normaliseMobile } from "../../auth/mobile";
+import { spreadsheetMobile } from "../../auth/mobile";
 import { WORKER_STATUSES } from "../../db/schema/people";
 import { ROLE_PATTERN } from "../../db/schema/roster";
-import { nextDay, zonedToUtc, type WallTime } from "../../time/zoned";
+import type { WallTime } from "../../time/zoned";
+import { shiftWindow } from "../shift-window";
 import { rosterShiftSchema, rosterStaffSchema, type RosterShift, type RosterStaff } from "../plug";
 import type { SheetMapping } from "./mapping";
 
@@ -19,6 +20,11 @@ export const SHEET_PROBLEM_CODES = [
   "missing_name",
   "bad_mobile",
   "duplicate_mobile",
+  // A new Staff ID whose mobile belongs to a worker here with another name: not linked or renamed
+  // (src/lib/roster/workers.ts).
+  "name_mismatch",
+  // A Staff ID whose name and mobile both changed at once: not given the old record.
+  "identity_change",
   "bad_role",
   "bad_status",
   "bad_date",
@@ -113,18 +119,67 @@ export function normaliseRole(raw: string): string | null {
   return rolePattern.test(role) ? role : null;
 }
 
-const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+// A month or weekday as people write it: in full, its first three letters, or a usual short form
+// ("Sept", "Tues", "Weds", "Thur", "Thurs").
+const SHORT_FORMS: Record<string, string> = {
+  sept: "september",
+  tues: "tuesday",
+  weds: "wednesday",
+  thur: "thursday",
+  thurs: "thursday",
+};
+const nameIndex = (names: string[], word: string) => {
+  const w = word.toLowerCase();
+  return names.findIndex((n) => n === w || n.slice(0, 3) === w || SHORT_FORMS[w] === n);
+};
 
+// A date as a spreadsheet cell holds it, the one reader for the Sheets sync and every import
+// column (shift dates, licence expiry dates, pay periods): day first, as in the UK (07/11/2026,
+// 7/11/2026), yyyy-mm-dd, or "7 Nov 2026" / "Sat 7 November 2026". A time after it (Excel's date
+// and time cells, "07/11/2026 00:00") is allowed and ignored. A weekday, if given, must be that
+// date's; a month name must be a real one, not any three letters ("Junk" isn't June) (audit L70).
 export function parseSheetDate(raw: string): Pick<WallTime, "year" | "month" | "day"> | null {
-  const s = raw.trim();
+  let s = raw.trim();
+  // A time after the date: 00:00, 9:00:00, 00:00:00.000, 12:00 AM, or an ISO time ending Z.
+  const timed =
+    /^(.*\S)[\sT]+(\d{1,2})[:.](\d{2})(?::(\d{2})(?:\.\d+)?)?\s*([ap]\.?m\.?)?Z?$/i.exec(s);
+  if (timed) {
+    const hour = Number(timed[2]);
+    if (hour > (timed[5] ? 12 : 23) || Number(timed[3]) > 59 || Number(timed[4] ?? 0) > 59) {
+      return null;
+    }
+    s = timed[1] ?? "";
+  }
+  let weekday: number | null = null;
+  const named = /^([A-Za-z]{3,9}),?\s+(.+)$/.exec(s);
+  if (named) {
+    weekday = nameIndex(WEEKDAYS, named[1] ?? "");
+    if (weekday < 0) return null;
+    s = named[2] ?? "";
+  }
   let year: number, month: number, day: number;
   let m: RegExpExecArray | null;
   if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s))) {
     [day, month, year] = [Number(m[1]), Number(m[2]), Number(m[3])];
   } else if ((m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s))) {
     [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  } else if ((m = /^(?:[A-Za-z]{3,9},?\s+)?(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/.exec(s))) {
-    const monthIndex = MONTHS.indexOf((m[2] ?? "").slice(0, 3).toLowerCase());
+  } else if ((m = /^(\d{1,2})\s+([A-Za-z]{3,9}),?\s+(\d{4})$/.exec(s))) {
+    const monthIndex = nameIndex(MONTHS, m[2] ?? "");
     if (monthIndex < 0) return null;
     [day, month, year] = [Number(m[1]), monthIndex + 1, Number(m[3])];
   } else {
@@ -133,7 +188,9 @@ export function parseSheetDate(raw: string): Pick<WallTime, "year" | "month" | "
   const d = new Date(Date.UTC(year, month - 1, day));
   const real =
     d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
-  return real && year >= 2000 && year <= 2100 ? { year, month, day } : null;
+  if (!real || year < 2000 || year > 2100) return null;
+  if (weekday !== null && d.getUTCDay() !== weekday) return null;
+  return { year, month, day };
 }
 
 export function parseSheetTime(raw: string): Pick<WallTime, "hour" | "minute"> | null {
@@ -178,7 +235,7 @@ export function parseSheet(
     const firstName = cellOf(row, staffCols.firstName);
     const lastName = cellOf(row, staffCols.lastName);
     if (!firstName || !lastName) return flag("missing_name");
-    const mobile = normaliseMobile(cellOf(row, staffCols.mobile));
+    const mobile = spreadsheetMobile(cellOf(row, staffCols.mobile));
     if (!mobile) return flag("bad_mobile");
     if (seenMobiles.has(mobile)) return flag("duplicate_mobile");
     const roles = listOf(cellOf(row, staffCols.roles)).map(normaliseRole);
@@ -215,11 +272,9 @@ export function parseSheet(
     const start = parseSheetTime(cellOf(row, shiftCols.start));
     const end = parseSheetTime(cellOf(row, shiftCols.end));
     if (!start || !end) return flag("bad_time");
-    const startsAt = zonedToUtc({ ...date, ...start }, timeZone);
-    let endsAt = zonedToUtc({ ...date, ...end }, timeZone);
-    if (endsAt.getTime() <= startsAt.getTime()) {
-      endsAt = zonedToUtc({ ...nextDay({ ...date, ...end }), ...end }, timeZone);
-    }
+    const window = shiftWindow(date, start, end, timeZone);
+    if (!window) return flag("bad_time");
+    const { startsAt, endsAt } = window;
     const role = normaliseRole(cellOf(row, shiftCols.role));
     if (!role) return flag("bad_role");
     const headcountCell = cellOf(row, shiftCols.headcount);

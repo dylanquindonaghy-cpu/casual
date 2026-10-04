@@ -31,6 +31,13 @@ describe("reading payroll's numbers", () => {
     expect(importPence("468,75")).toBeNull();
     expect(importPence("1,2,3,4")).toBeNull();
     expect(importPence("12,345.67")).toBe(1234567);
+    // A space inside the amount is refused, never dropped (audit M16: "12 50" was read as £1,250).
+    expect(importPence("12 50")).toBeNull();
+    expect(importPence("468 75")).toBeNull();
+    expect(importPence("1 2.50")).toBeNull();
+    expect(importPence("12 500")).toBeNull();
+    expect(importPence("£ 12.50")).toBe(1250);
+    expect(importPence(" 12.50 ")).toBe(1250);
     expect(importPence("1,234,567")).toBe(123456700);
     // A spreadsheet's float noise is taken as the 2-decimal number it stands for; real extra
     // decimals aren't.

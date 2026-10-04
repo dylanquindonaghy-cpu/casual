@@ -17,7 +17,7 @@ import { retryAborted } from "../../db/retry";
 import { checkBooking } from "../book";
 import { RulesSettingsError } from "../eligibility-input";
 import { refreshShiftStatus, sheetsRosterPlug } from "../native";
-import { upsertWorker } from "../workers";
+import { upsertWorker, WorkerIdentityChange, WorkerNameMismatch } from "../workers";
 import { changeNoticeHours, noticeHours } from "../notice";
 import { cellRange, columnRange, tabRange } from "./a1";
 import { SHEET_LOCALE, SHEET_LOCALE_ERROR, SheetsError, type SheetsClient } from "./client";
@@ -253,6 +253,11 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
           skippedWrites: outcome.skippedWrites,
           notBooked: outcome.notBooked,
           problems: outcome.problems.length,
+          // Staff rows not taken because they'd give someone else's record to them (the office's
+          // to sort out in the sheet): said in the action log.
+          ...(staffRefused(outcome.problems) > 0
+            ? { staffRefused: staffRefused(outcome.problems) }
+            : {}),
         },
       });
       return outcome;
@@ -352,6 +357,11 @@ async function mirror(
         ),
       );
     } catch (err) {
+      if (err instanceof WorkerNameMismatch || err instanceof WorkerIdentityChange) {
+        const problem = err instanceof WorkerNameMismatch ? "name_mismatch" : "identity_change";
+        problems.push({ tab: "staff", row: person.row, problem });
+        continue;
+      }
       if (!isUniqueViolation(err)) throw err;
       problems.push({ tab: "staff", row: person.row, problem: "duplicate_mobile" });
     }
@@ -1021,3 +1031,6 @@ function isUniqueViolation(err: unknown): boolean {
   }
   return false;
 }
+
+const staffRefused = (problems: SheetProblem[]) =>
+  problems.filter((p) => p.problem === "name_mismatch" || p.problem === "identity_change").length;

@@ -167,6 +167,24 @@ describe("parseSheet: good rows", () => {
   });
 });
 
+describe("parseSheet: mobiles as the imports read them (audit L68)", () => {
+  it("a number cell that lost its 0 is a UK mobile; a +44 landline isn't", () => {
+    const result = parse([
+      ...staff,
+      staffRow({ ref: "N003", first: "Cy", last: "Example", mobile: "7700900303", roles: "coss" }),
+      staffRow({
+        ref: "N004",
+        first: "Di",
+        last: "Example",
+        mobile: "+44 20 7946 0000",
+        roles: "coss",
+      }),
+    ]);
+    expect(result.staff.find((s) => s.ref === "N003")?.mobileE164).toBe("+447700900303");
+    expect(result.problems).toEqual([{ tab: "staff", row: 5, problem: "bad_mobile" }]);
+  });
+});
+
 describe("parseSheet: bad rows are skipped and reported by row and code only", () => {
   it.each([
     [
@@ -225,6 +243,16 @@ describe("parseSheet: bad rows are skipped and reported by row and code only", (
     [{ ...base, date: "tomorrow" }, "bad_date"],
     [{ ...base, start: "25:00" }, "bad_time"],
     [{ ...base, end: "5pm" }, "bad_time"],
+    // Audit L67: a finish equal to the start isn't a 24-hour shift; a time the clocks skip (the
+    // March Sunday, 01:00 to 02:00) isn't moved an hour; nor is a shift of 24 hours or more made of
+    // the October Sunday's hour that happens twice.
+    [{ ...base, start: "09:00", end: "09:00" }, "bad_time"],
+    [{ ...base, date: "28/03/2027", start: "01:30", end: "06:00" }, "bad_time"],
+    [{ ...base, date: "27/03/2027", start: "22:00", end: "01:30" }, "bad_time"],
+    [{ ...base, date: "31/10/2027", start: "01:30", end: "01:15" }, "bad_time"],
+    // Audit L70: a weekday that isn't that date's, a month that isn't a month.
+    [{ ...base, date: "Mon 8 Nov 2026" }, "bad_date"],
+    [{ ...base, date: "8 Novx 2026" }, "bad_date"],
     [{ ...base, role: "C.O.S.S." }, "bad_role"],
     [{ ...base, needed: "0" }, "bad_headcount"],
     [{ ...base, needed: "two" }, "bad_headcount"],
@@ -295,16 +323,46 @@ describe("cells", () => {
     ["Sat 7 Nov 2026", { year: 2026, month: 11, day: 7 }],
     ["7 November 2026", { year: 2026, month: 11, day: 7 }],
     ["29/02/2028", { year: 2028, month: 2, day: 29 }],
+    // The same reader for every import column (audit L70): a weekday that's right, months in full
+    // or three letters (and "Sept"), a time after the date (Excel's date-and-time cells) ignored.
+    ["Saturday, 12 June 2027", { year: 2027, month: 6, day: 12 }],
+    ["sat 12 jun 2027", { year: 2027, month: 6, day: 12 }],
+    ["12 Sept 2027", { year: 2027, month: 9, day: 12 }],
+    ["12/06/2027 00:00", { year: 2027, month: 6, day: 12 }],
+    ["12/06/2027 23:59:59", { year: 2027, month: 6, day: 12 }],
+    ["2027-06-12T00:00", { year: 2027, month: 6, day: 12 }],
+    // Usual short weekdays, as typed into rotas (they worked before the stricter names).
+    ["Tues 15 Jun 2027", { year: 2027, month: 6, day: 15 }],
+    ["Weds 16 Jun 2027", { year: 2027, month: 6, day: 16 }],
+    ["Thurs 17 Jun 2027", { year: 2027, month: 6, day: 17 }],
+    ["Thur 17 Jun 2027", { year: 2027, month: 6, day: 17 }],
+    // Times as Excel and other systems write them after a date.
+    ["07/11/2026 12:00 AM", { year: 2026, month: 11, day: 7 }],
+    ["07/11/2026 9:00:00 AM", { year: 2026, month: 11, day: 7 }],
+    ["07/11/2026 00:00:00.000", { year: 2026, month: 11, day: 7 }],
+    ["2026-11-07T09:00:00Z", { year: 2026, month: 11, day: 7 }],
   ])("date %j", (raw, expected) => {
     expect(parseSheetDate(raw)).toEqual(expected);
   });
 
-  it.each(["29/02/2027", "11/07", "2026/11/07", "7 Nobember 2026", "07/11/1999", ""])(
-    "not a date: %j",
-    (raw) => {
-      expect(parseSheetDate(raw)).toBeNull();
-    },
-  );
+  it.each([
+    "29/02/2027",
+    "11/07",
+    "2026/11/07",
+    "7 Nobember 2026",
+    "07/11/1999",
+    "",
+    // Audit L70: the weekday must be the date's, and a month name a real one.
+    "Mon 12 Jun 2027",
+    "Satur 12 Jun 2027",
+    "12 Junk 2027",
+    "12 Juneteenth 2027",
+    "12/06/2027 25:00",
+    "12/06/2027 13:00 PM",
+    "Thurs 18 Jun 2027", // a Friday
+  ])("not a date: %j", (raw) => {
+    expect(parseSheetDate(raw)).toBeNull();
+  });
 
   it("times and roles", () => {
     expect(parseSheetTime("9:05")).toEqual({ hour: 9, minute: 5 });

@@ -284,7 +284,7 @@ every step works.
       env and worker comments are corrected; the "Connect the real Google Sheets" steps match the
       code; sheet dates are read as serial numbers, or a non-UK sheet locale is refused with a plain
       message; a sheet is bound to its firm. (M3, M17, L45)
-- [ ] Imports read what the file says: an Excel date with a time near midnight keeps its day; a
+- [x] Imports read what the file says: an Excel date with a time near midnight keeps its day; a
       pay amount with a space inside ("12 50") is refused, not read as £1,250; re-importing never
       reopens a shift the office marked filled (`shift.reopened` logged when it legitimately
       reopens); a Windows Excel CSV (Windows-1252) imports or gets a plain message; a row without a
@@ -492,7 +492,27 @@ every step works.
 - Imports, the CSV side of M17: CSV and Excel imports read dates day first too (shifts, credential
   expiry dates, pay periods: `src/lib/imports/import.ts`), so a CSV saved by US-locale Excel swaps
   days 1 to 12. Refuse a file whose dates are all month-first-shaped, or ask which way round on the
-  import screen (with Phase 10 task 11, the imports task).
+  import screen. (Phase 10 task 11 made every import path read dates the same way, day first, but
+  didn't add this: still open.)
+- Imports without Staff IDs (Phase 10 task 11, audit L78): a row whose mobile is someone else's is
+  now refused, but a worker who changed number arrives as a second, new worker (the file can't say
+  it's them), and their old record keeps the old number: whoever has that number now can log in
+  as them (their shifts, and their pay after the code). The refusal tells the office the number
+  may be someone else's; flag a new worker whose name matches an existing one on another mobile,
+  for the office to merge, or ask firms for a Staff ID column.
+- Office: a "Change name" (and mobile) on the worker's page. The app has no rename: a worker with
+  no Staff ID who changes their name needs two imports (link with a Staff ID, then rename).
+- Imports, small (Phase 10 task 11 reviews): a re-import that reopens a shift doesn't restart its
+  offer waves or urgent marking as the office's "Open it again" does; a check on the web doesn't say
+  the live server will refuse the save until the agreement is recorded; "12,500" is read as
+  £12,500 (a European-style 12.5 is possible); a Mac CSV is refused only when its accents show (é,
+  ü), other letters can come through changed; an international mobile now needs 9 to 15 digits
+  (Falklands and St Helena numbers are shorter).
+- **Dylan to confirm (Gate B, Phase 10 task 11):** a check (dry run) of a real staff file is
+  allowed on the live server before the agreement is recorded (nothing is saved, but it is read,
+  which counts as processing under UK GDPR). And the demo firms on the live server would need a
+  made-up signing date to try the web import there, which puts an "agreement recorded" line in
+  their log: use a local copy for demos instead.
 - Sheets, replacing a firm's sheet: shifts and staff are matched by Shift ID and Staff ID alone, not
   by which sheet they came from, so a new sheet that reused "S7" for another shift would cancel or
   move the people booked on our S7. `firm:sheet` now refuses another sheet while sheet shifts ahead
@@ -838,15 +858,18 @@ every step works.
   after Gate B paperwork is signed" task is blocked on it: no firm has signed yet). Only once the
   agreement and DPA are signed:
   1. Get the firm's spreadsheets (workers, credentials, shifts) by a route the firm trusts.
-  2. Follow `docs/runbooks.md` "Importing workers, credentials or shifts from a spreadsheet": a dry
+  2. Record the signing: `npm run -s firm:agreement -- --firm <slug> --signed <the date>` (on the
+     server, through the owner service).
+  3. Follow `docs/runbooks.md` "Importing workers, credentials or shifts from a spreadsheet": a dry
      run first, then `--apply --agreement-signed <slug>` (the import refuses to save to the live
-     database without it).
-  3. `firm:check` should then show the workers and credentials, and any role with no rule.
-  4. Then tick the task.
+     database without both).
+  4. `firm:check` should then show the workers and credentials, and any role with no rule.
+  5. Then tick the task.
   - Getting a file into the owner container on the server isn't worked out yet (a mounted folder,
     or `docker compose cp`): decide it on the first real import, and delete the file afterwards.
-  - A record of when each firm's agreement was signed (`firms.agreement_signed_at`, set by an owner
-    command, shown on `firm:check`) would replace "confirm yourself".
+  - ~~A record of when each firm's agreement was signed~~ (done in Phase 10 task 11:
+    `firms.agreement_signed_on`, set by `npm run firm:agreement`, shown on `firm:check`, and checked
+    by every import and `firm:sheet` on the live server).
 - **Try the runbooks for real** (the Phase 8 "Runbooks in `docs/runbooks.md` tried once for real
   (deploy, rollback, restore)" task is blocked on it: it needs the real server). After "Connect
   AWS" and "Connect the deploy", and **before any real worker's data is imported** (Gate B):
@@ -903,7 +926,7 @@ every step works.
         booking either way.
     - ~~For Phase 10 task 9, from task 8's review~~: done in task 9 (a site change on the sheet is
       logged per worker with notice; a sheet re-time into the past is refused as "started").
-    - **A flaky test (found in Phase 10 task 9's verify):** `sheets.jobs.test.ts` "queues one
+    - **A flaky test (found in Phase 10 task 9's verify; failed again in task 11's: fix it soon):** `sheets.jobs.test.ts` "queues one
       sync for each firm that is due" asserts a second tick in the same minute queues nothing.
       The sync job is de-duplicated by pg-boss's `singletonSeconds: 50` slots, which follow the
       real clock, not the test's fixed one, so two ticks straddling a slot boundary (a fraction
@@ -1682,3 +1705,4 @@ every step works.
 | 2026-10-03 | 10 | 0.5 | Notice for a moved or shortened shift counts from the earlier of the old and new start (office editor and rota sheet), so a shift moved earlier is flagged as short notice in the report (the firm's Employment Rights Act evidence); the move now holds each booked worker's row and the day's "applied" lock before re-checking them, so a booking at the same moment is seen (two race tests); "Dylan to confirm" note decided; 2822 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 1.2 | The rota sheet follows the office's rules: a role, time or site change to a booked shift is tried, then everyone booked is re-checked with the office move's own check (`src/lib/roster/recheck.ts`); refused → not made, logged once (`roster.sheet_change_refused`) and shown on Today's new "From your rota sheet"; a started shift is never re-timed or cancelled by a sync; refused names stay in the sheet's cell and are retried, and don't use up a place; a site change is logged per worker; new `shifts.sheet_issues` (migration 0030); two reviews' findings fixed; one older flaky test root-caused and parked; 2843 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.9 | Google Sheets, said honestly: `SHEETS_TRANSPORT=google` (with the service account's key file) switches the sync on; each sync first reads the sheet's locale and refuses anything but United Kingdom, with plain words in the action log; `npm run firm:sheet` (owner only) connects, replaces (guarded by `--same-ids` while sheet shifts ahead are booked), switches off, lets go or shows a firm's sheet; one sheet, one firm (a unique index), and the app can only update the sync's status columns (column-level grants); the "Connect the real Google Sheets" steps rewritten to match the code; Google added to the accounts list and the blocked table; two reviews' findings fixed or parked; an older `firm:check` crash for synced sheets found and fixed; 2911 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 1.1 | Imports read what the file says: an Excel date at 23:59:59 keeps its day; "12 50" refused as money; a re-import never reopens a shift the office marked filled (a real reopen is logged); Windows Excel CSVs read (garbled ones refused with a plain message); no identity swaps without a Staff ID (a mobile-only match needs the same name, licence and pay rows must name the worker, a reused Staff ID is refused); one date, shift-time and mobile reader for the editor, the sheet and every import (clock-change and equal times refused); Gate B recorded per firm (`npm run firm:agreement`, migration 0032), checked by every import and `firm:sheet` on the live server; two reviews' findings fixed or parked; the older flaky test hit again (parked, marked urgent); 2988 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |

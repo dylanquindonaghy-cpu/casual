@@ -48,6 +48,10 @@ describe("pay import words", () => {
       "The file is too big for the web (1 MB at most). Split it into smaller files.",
     ]);
     expect(payImportLines({ status: "not_allowed" })).toEqual(["You can't import pay records."]);
+    // Gate B on the live server (src/lib/imports/gate-b.ts).
+    expect(payImportLines({ status: "agreement_needed" })).toEqual([
+      "Nothing was saved: real staff data can be imported once your firm's agreement and data processing agreement with us are signed and recorded. Ask us to record them. You can still check a file.",
+    ]);
     expect(payImportLines({ status: "logged_out" })).toEqual([
       "Your session has ended. Log in again.",
     ]);

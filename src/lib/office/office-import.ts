@@ -5,6 +5,7 @@ import { retryAborted } from "../db/retry";
 import { withFirm, type FirmTx } from "../db/scoped";
 import type { ImportKind } from "../imports/columns";
 import { ImportFileError, type ImportFileErrorCode } from "../imports/errors";
+import { AgreementNotRecorded } from "../imports/gate-b";
 import { runImport, type ImportResult } from "../imports/import";
 import { readTable } from "../imports/table";
 import { WEB_IMPORT_MAX_BYTES } from "./import-limits";
@@ -20,7 +21,10 @@ export type OfficeImportResult<Extra = object> =
   | ({ status: "done"; result: ImportResult } & Extra)
   | { status: "file_error"; code: ImportFileErrorCode }
   | { status: "too_big" }
-  | { status: "not_allowed" };
+  | { status: "not_allowed" }
+  // Gate B (src/lib/imports/gate-b.ts): on the live server, nothing is saved until the firm's
+  // agreement and DPA are recorded as signed. A check still works.
+  | { status: "agreement_needed" };
 
 export async function importOfficeFile<Extra extends object>(
   ctx: OfficeContext,
@@ -57,6 +61,7 @@ export async function importOfficeFile<Extra extends object>(
           actorId: ctx.officeUserId,
           timeZone: firm?.timezone ?? "Europe/London",
           now,
+          ...(ctx.localDatabase === undefined ? {} : { localDatabase: ctx.localDatabase }),
         });
         const extra = opts.dryRun ? opts.afterCheck : await opts.after(tx, result);
         return { ...extra, status: "done" as const, result };
@@ -64,6 +69,7 @@ export async function importOfficeFile<Extra extends object>(
     );
   } catch (error) {
     if (error instanceof ImportFileError) return { status: "file_error", code: error.code };
+    if (error instanceof AgreementNotRecorded) return { status: "agreement_needed" };
     throw error;
   }
 }

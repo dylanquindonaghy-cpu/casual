@@ -64,6 +64,21 @@ describe("readTable", () => {
     expect(readTable(utf8("Name\nAda\n\n,\n"))).toEqual([["Name"], ["Ada"]]);
   });
 
+  // Excel on Windows, "CSV (Comma delimited)": Windows-1252, "£" is the byte A3 (audit L69).
+  it("reads a Windows Excel CSV: the pound sign and accented names come through", () => {
+    const bytes = new Uint8Array([
+      ...Buffer.from("Name,Rate\r\nRen", "latin1"),
+      0xe9, // é
+      ...Buffer.from("e,", "latin1"),
+      0xa3, // £
+      ...Buffer.from("12.50\r\n", "latin1"),
+    ]);
+    expect(readTable(bytes)).toEqual([
+      ["Name", "Rate"],
+      ["Renée", "£12.50"],
+    ]);
+  });
+
   it.each([
     ["an empty file", utf8(""), "empty"],
     ["a header with no rows", utf8("Name,Mobile\n"), "empty"],
@@ -75,7 +90,22 @@ describe("readTable", () => {
       new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
       "old_excel",
     ],
-    ["bytes that aren't UTF-8 text", new Uint8Array([0x4e, 0xff, 0xfe, 0x0a, 0x41]), "not_text"],
+    // Neither UTF-8 nor Windows-1252 (0x81 is undefined there), and a UTF-16 file (its NULs).
+    // Plain Windows-1252 bytes are read: see "a Windows Excel CSV" below.
+    ["bytes that aren't text", new Uint8Array([0x4e, 0x81, 0x0a, 0x41]), "not_text"],
+    ["a UTF-16 file", new Uint8Array([0xff, 0xfe, 0x4e, 0x00, 0x0a, 0x00, 0x41, 0x00]), "not_text"],
+    // Misread if taken as Windows-1252: UTF-8 with one stray byte ("RenÃ©e"), and a Mac CSV
+    // ("RenŽe": é is 0x8E there).
+    [
+      "a UTF-8 file with one stray byte",
+      new Uint8Array([...Buffer.from("Name\nRen\u00e9e\n"), 0xa3, 0x0a]),
+      "not_text",
+    ],
+    [
+      "a Mac CSV",
+      new Uint8Array([...Buffer.from("Name\nRen", "latin1"), 0x8e, 0x65, 0x0a]),
+      "not_text",
+    ],
     ["a zip that isn't a workbook", new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3]), "bad_xlsx"],
   ])("refuses %s", (_label, bytes, expected) => {
     expect(code(() => readTable(bytes))).toBe(expected);
@@ -120,6 +150,24 @@ describe("readXlsx (files written by exceljs)", () => {
       ["Date", "Start", "Both", "Plain"],
       ["07/11/2026", "09:00", "07/11/2026 22:30", "0.375"],
       ["14/06/2027"],
+    ]);
+  });
+
+  it("an expiry date of 23:59:59, shown as a date, is that day (audit M15)", async () => {
+    const bytes = await workbook((sheet) => {
+      sheet.addRow(["Staff ID", "Type", "Expiry date", "With time"]);
+      const row = sheet.addRow([
+        "S1",
+        "SIA_DS",
+        new Date(Date.UTC(2027, 5, 12, 23, 59, 59)),
+        new Date(Date.UTC(2027, 5, 12, 23, 59, 59)),
+      ]);
+      row.getCell(3).numFmt = "dd/mm/yyyy";
+      row.getCell(4).numFmt = "dd/mm/yyyy hh:mm";
+    });
+    expect(readTable(bytes)).toEqual([
+      ["Staff ID", "Type", "Expiry date", "With time"],
+      ["S1", "SIA_DS", "12/06/2027", "12/06/2027 23:59"],
     ]);
   });
 
@@ -336,5 +384,19 @@ describe("date formats", () => {
     expect(formatSerial(46333, "date", false)).toBe("07/11/2026");
     expect(formatSerial(0.3333333, "time", false)).toBe("08:00");
     expect(formatSerial(44871, "date", true)).toBe("07/11/2026");
+  });
+
+  // Audit M15: a date with a time near midnight keeps its day (the audit's own probe).
+  it("a time near midnight never moves the day", () => {
+    const lastSecond = 46550 + 86399 / 86400; // 12/06/2027 23:59:59
+    expect(formatSerial(lastSecond, "date", false)).toBe("12/06/2027");
+    expect(formatSerial(lastSecond, "datetime", false)).toBe("12/06/2027 23:59");
+    expect(formatSerial(46550 + 86370 / 86400, "datetime", false)).toBe("12/06/2027 23:59");
+    expect(formatSerial(46550 + 86340 / 86400, "datetime", false)).toBe("12/06/2027 23:59");
+    expect(formatSerial(46550 + 0.5, "datetime", false)).toBe("12/06/2027 12:00");
+    // Float noise just under midnight is midnight, as Excel shows it; seconds don't round up a
+    // minute (10:00:40 is 10:00, as Excel shows it).
+    expect(formatSerial(45000.99999999999, "datetime", false)).toBe("16/03/2023 00:00");
+    expect(formatSerial(45000 + (10 * 3600 + 40) / 86400, "time", false)).toBe("10:00");
   });
 });

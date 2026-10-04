@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   jsonb,
   numeric,
   pgPolicy,
@@ -35,6 +36,11 @@ export const firms = pgTable(
     shiftsLineE164: text("shifts_line_e164").unique(),
     // Shape and defaults are validated in code (FirmSettings), keys as in docs/data-model.md.
     settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
+    // Gate B (golden rule 7): the day the firm's agreement and DPA were signed, recorded by the
+    // owner (`npm run firm:agreement`), never by the app. Until it's set, a live database takes no
+    // real staff data for the firm: imports save nothing, and no rota sheet is connected
+    // (src/lib/imports/gate-b.ts).
+    agreementSignedOn: date("agreement_signed_on", { mode: "string" }),
     createdAt: createdAt(),
   },
   (t) => [

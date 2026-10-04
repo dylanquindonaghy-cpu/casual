@@ -211,11 +211,17 @@ export function formatSerial(
 ): string {
   // Days since 1899-12-30 (Excel's 1900 system, which counts a 29 Feb 1900 that never was) or
   // since 1904-01-01. The serial is a wall-clock time with no zone: read it as UTC fields.
+  // The day is the whole part, never moved by rounding the time: a licence expiring 12/06/2027
+  // 23:59:59 expires on the 12th, not the 13th (audit M15). The time is rounded to the minute
+  // within that day, at most 23:59.
+  // Rounded to the second first, as Excel shows it (a stored 45000.99999999999 is midnight).
   const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
-  const minutes = Math.round(serial * 1440);
-  const d = new Date(epoch + minutes * 60_000);
+  const seconds = Math.round(serial * 86_400);
+  const days = Math.floor(seconds / 86_400);
+  const minutes = Math.min(Math.floor((seconds - days * 86_400) / 60), 1439);
+  const d = new Date(epoch + days * 86_400_000);
   const day = `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
-  const time = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  const time = `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
   return kind === "date" ? day : kind === "time" ? time : `${day} ${time}`;
 }
 

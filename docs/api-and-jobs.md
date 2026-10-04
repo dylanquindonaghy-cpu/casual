@@ -116,7 +116,7 @@ offer messages on, never offered it, the daily cap unless urgent); queues `offic
 `offer.office_queued` {shiftId, workerId}), `markFilled(shiftId)` / `openAgain(shiftId)` (built:
 `closeShift()` / `reopenShift()` in `src/lib/roster/close.ts`, "Mark as filled" / "Open it again"
 on Today: status `filled` with places free, unanswered offers filled elsewhere, waves and
-escalation stop; logged `shift.closed` / `shift.reopened` {by: "firm", placesLeft}; not a sheet's
+escalation stop; logged `shift.closed` / `shift.reopened` {by: "firm", placesLeft} (a re-import that reopens a shift its bookings had filled logs `shift.reopened` {source: "csv"}, without restarting offer waves); not a sheet's
 shift),
 `assignManually(shiftId, workerId, override?)` (`bookShift()` with `by: office`; overrides only
 of checks 0 and 6-8, with a reason; active admins and resourcers only; built as `assignWorker()`,

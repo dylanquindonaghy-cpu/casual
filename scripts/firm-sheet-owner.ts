@@ -1,4 +1,5 @@
 import { Client, DatabaseError } from "pg";
+import { isLocalHost } from "../src/lib/db/admin/urls";
 import { DEFAULT_SHEET_MAPPING, type SheetMapping } from "../src/lib/roster/sheets/mapping";
 
 // A firm's Google Sheet (`npm run firm:sheet`, scripts/firm-sheet.ts): connect it, replace it,
@@ -36,6 +37,7 @@ export type ConnectResult =
   | { status: "has_sheet" } // another sheet is connected: needs --replace
   | { status: "booked_ahead"; shifts: number } // needs --same-ids
   | { status: "taken" } // another firm has this sheet
+  | { status: "agreement_needed" } // Gate B: live database, signing not recorded
   | { status: "no_firm" };
 
 export type DisableResult = { status: "disabled" } | { status: "none" } | { status: "no_firm" };
@@ -131,10 +133,26 @@ async function bookedSheetShiftsAhead(owner: Client, firmId: string): Promise<nu
 export async function connectSheet(
   adminUrl: string,
   slug: string,
-  opts: { spreadsheetId: string; mapping?: SheetMapping; replace: boolean; sameIds?: boolean },
+  opts: {
+    spreadsheetId: string;
+    mapping?: SheetMapping;
+    replace: boolean;
+    sameIds?: boolean;
+    localDatabase?: boolean; // unset: from the URL; tests pass false to act as on a live one
+  },
 ): Promise<ConnectResult> {
+  const local = opts.localDatabase ?? isLocalHost(adminUrl);
   try {
     const result = await withOwnerFirm(adminUrl, slug, async (owner, firmId) => {
+      // Gate B: a live database reads a firm's sheet (real staff) only once its agreement and DPA
+      // are recorded as signed (src/lib/imports/gate-b.ts).
+      if (!local) {
+        const { rows: firm } = await owner.query<{ signed: string | null }>(
+          "select agreement_signed_on::text as signed from firms where id = $1",
+          [firmId],
+        );
+        if (!firm[0]?.signed) return { status: "agreement_needed" } as const;
+      }
       const { rows } = await owner.query<{
         id: string;
         spreadsheet_id: string;

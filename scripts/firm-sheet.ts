@@ -207,6 +207,11 @@ try {
           `${slug} already has another sheet switched on. To use this one instead, run the same command with --replace (the old one is switched off, not deleted).`,
         );
         process.exit(1);
+      case "agreement_needed":
+        console.log(
+          `${slug}'s agreement and DPA aren't recorded as signed in ${where}, so its sheet (real staff) can't be connected yet. Record them first: npm run firm:agreement -- --firm ${slug} --signed <the date>.`,
+        );
+        process.exit(1);
       case "taken":
         console.log(
           "That sheet is already connected to another firm, so it can't be connected here. A sheet belongs to one firm only: check the link.",

@@ -99,6 +99,10 @@ create table firms (
                                          -- until bought (Twilio). One number, one firm. Set by
                                          -- `npm run firm:line` (the owner), never by the app.
   settings jsonb not null default '{}',
+  agreement_signed_on date,              -- Gate B: the day the agreement and DPA were signed, set by
+                                         -- `npm run firm:agreement` (the owner), never by the app.
+                                         -- Null: a live database takes no imported staff data and
+                                         -- connects no rota sheet for the firm (Phase 10)
   created_at timestamptz not null default now()
 );
 -- app_firm_by_line(number) (migration 0021): the firm for an incoming message's "To" number, before

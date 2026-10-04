@@ -260,6 +260,25 @@ export async function addWorker(
   }
 }
 
+// A seeded worker's name, by mobile, in the e2e database (a file matching them by mobile must name
+// them too: src/lib/imports/import.ts).
+export async function workerName(slug: string, mobileE164: string): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [row] = await tx
+        .select({ first: workers.firstName, last: workers.lastName })
+        .from(workers)
+        .where(eq(workers.mobileE164, mobileE164));
+      if (!row) throw new Error(`no worker with ${mobileE164}`);
+      return `${row.first} ${row.last}`;
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
 // A shift `daysAhead` days from now at a site of its own (a made-up name), with `workerId` booked
 // on it (confirmed): for the office's worker pages. Returns the shift's and the site's ids.
 export async function addBookedShift(

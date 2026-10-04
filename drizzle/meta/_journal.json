@@ -225,6 +225,13 @@
       "when": 1791073511669,
       "tag": "0031_sheet_one_firm",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791076773145,
+      "tag": "0032_firm_agreement",
+      "breakpoints": true
     }
   ]
 }

@@ -521,16 +521,48 @@ describe("sheets.sync: from the sheet into our tables", () => {
 
   it("a worker already here with the same mobile and no staff id is linked, not duplicated", async () => {
     const f = await northline();
+    // The same person (name case and spacing aside), added before the sheet was connected.
     await su.query(
-      "insert into workers (firm_id, first_name, last_name, mobile_e164) values ($1, 'Ada', 'Imported', '+447700900301')",
+      "insert into workers (firm_id, first_name, last_name, mobile_e164) values ($1, 'ada', ' Example', '+447700900301')",
       [f.firmId],
     );
     await sync(f);
     const { rows } = await su.query(
-      "select external_ref, last_name from workers where firm_id = $1 and mobile_e164 = '+447700900301'",
+      "select external_ref, first_name, last_name from workers where firm_id = $1 and mobile_e164 = '+447700900301'",
       [f.firmId],
     );
-    expect(rows).toEqual([{ external_ref: "N001", last_name: "Example" }]);
+    // Linked, and the sheet's spelling of the name kept from now on.
+    expect(rows).toEqual([{ external_ref: "N001", first_name: "Ada", last_name: "Example" }]);
+  });
+
+  // Audit L71, L78: a Staff ID whose mobile belongs to someone else here is never linked to them.
+  it("a new staff id whose mobile is a worker's with another name isn't linked or renamed; the office is told", async () => {
+    const f = await northline();
+    const other = await one(
+      "insert into workers (firm_id, first_name, last_name, mobile_e164) values ($1, 'Zoe', 'Other', '+447700900301')",
+      [f.firmId],
+    );
+    const result = await sync(f);
+    expect(result).toMatchObject({ status: "synced" });
+    expect(result.status === "synced" ? result.problems : []).toContainEqual({
+      tab: "staff",
+      row: 2,
+      problem: "name_mismatch",
+    });
+    const { rows } = await su.query(
+      "select external_ref, first_name, last_name from workers where id = $1",
+      [other],
+    );
+    expect(rows).toEqual([{ external_ref: null, first_name: "Zoe", last_name: "Other" }]);
+    // N001 isn't booked anywhere: there's no N001 here.
+    expect(await holdersOf(f.firmId, "P1")).toEqual([]);
+    // The office's action log says so, with the sync.
+    const log = await withFirm(f.firmId, (tx) =>
+      loadActionLog(tx, parseLogQuery({ type: "sheet" }), new Date()),
+    );
+    expect(log.entries.map((e) => e.words)).toContain(
+      "The rota sheet was read (2 shifts). 1 staff row wasn't taken: a mobile or Staff ID in it belongs to someone else here with another name. Check the sheet's Staff tab.",
+    );
   });
 });
 

@@ -23,7 +23,8 @@ import type { OfficeContext } from "./quick-actions";
 // firm's transaction). Every line is checked at the boundary before anything is written.
 //
 // - createShifts: one date, one site (or none), shared instructions, and 1-12 lines of role,
-//   start, finish and places. A finish at or before the start is the next day (a night shift).
+//   start, finish and places. A finish before the start is the next day (a night shift); one
+//   equal to it, 24 hours or more, or a time the clocks skip is refused (src/lib/roster/shift-window.ts).
 //   Never in the past. If any line is wrong nothing is saved, and each problem names its line.
 //   Native shifts, open at once, each logged shift.created {by: "firm"}.
 // - editShift: with nobody booked, anything. With people booked, only the places and the

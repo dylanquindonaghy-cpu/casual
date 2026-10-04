@@ -7,7 +7,7 @@ import type { MoveShiftResult } from "../roster/firm-change";
 import { noticeText } from "../portal/cancel-reasons";
 import type { CreateShiftsResult, EditShiftResult, ShiftProblem } from "./shift-editor";
 import type { ShiftImportResult } from "./shift-import";
-import { FILE_ERROR_TEXT } from "../imports/messages";
+import { AGREEMENT_NEEDED_TEXT, FILE_ERROR_TEXT } from "../imports/messages";
 
 // The office's shift screens in plain words (docs/screens.md `/office/shifts`).
 
@@ -37,7 +37,8 @@ export const PLACE_STATUS_WORDS: Record<string, string> = {
 
 export const SHIFT_PROBLEM_TEXT: Record<ShiftProblem, string> = {
   bad_date: "Choose a date.",
-  bad_time: "Enter the start and finish as times, like 08:00.",
+  bad_time:
+    "Enter the start and finish as times, like 08:00. They can't be the same, 24 hours or more apart, or in the hour the clocks skip in March.",
   bad_role: "Enter a role, like steward (letters, numbers and spaces only).",
   bad_headcount: "Places must be a whole number from 1 to 1000.",
   bad_site: "Choose a site from the list.",
@@ -117,6 +118,8 @@ export function importResultLines(result: ShiftImportResult | Common): string[] 
       return [FILE_ERROR_TEXT[result.code]];
     case "too_big":
       return ["The file is too big for the web (1 MB at most). Split it into smaller files."];
+    case "agreement_needed":
+      return [AGREEMENT_NEEDED_TEXT];
     default:
       return [COMMON[result.status]];
   }

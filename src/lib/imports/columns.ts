@@ -28,6 +28,10 @@ export const COLUMNS = {
     // One of ref or mobile identifies the worker (checked below).
     ref: { names: ["staff id", "staff no", "staff number", "employee id", "payroll id"] },
     mobile: { names: ["mobile", "mobile number", "phone", "phone number", "mobile phone"] },
+    // A row found by mobile (no Staff ID) must name the worker too (src/lib/imports/import.ts).
+    firstName: { names: ["first name", "forename", "given name"] },
+    lastName: { names: ["last name", "surname", "family name"] },
+    name: { names: ["name", "full name", "worker", "worker name", "employee name", "staff name"] },
     type: {
       names: ["type", "credential", "credential type", "licence type", "license type", "card type"],
       required: true,
@@ -52,6 +56,10 @@ export const COLUMNS = {
     // One of ref or mobile identifies the worker (checked below).
     ref: { names: ["staff id", "staff no", "staff number", "employee id", "payroll id"] },
     mobile: { names: ["mobile", "mobile number", "phone", "phone number", "mobile phone"] },
+    // A row found by mobile (no Staff ID) must name the worker too (src/lib/imports/import.ts).
+    firstName: { names: ["first name", "forename", "given name"] },
+    lastName: { names: ["last name", "surname", "family name"] },
+    name: { names: ["name", "full name", "worker", "worker name", "employee name", "staff name"] },
     periodStart: {
       names: ["period start", "week start", "from", "from date", "start date"],
       required: true,

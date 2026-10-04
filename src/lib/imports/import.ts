@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, count, desc, eq, isNotNull, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import { normaliseMobile } from "../auth/mobile";
+import { spreadsheetMobile } from "../auth/mobile";
 import {
   assignments,
   CANCELLED_ASSIGNMENT_STATUSES,
@@ -16,9 +16,17 @@ import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { refreshShiftStatus } from "../roster/native";
 import { normaliseRole, parseSheetDate, parseSheetTime } from "../roster/sheets/parse";
-import { upsertWorker } from "../roster/workers";
-import { nextDay, wallTimeOf, zonedToUtc } from "../time/zoned";
+import {
+  sameName,
+  upsertWorker,
+  WorkerIdentityChange,
+  WorkerNameMismatch,
+} from "../roster/workers";
+import { shiftWindow } from "../roster/shift-window";
+import { wallTimeOf } from "../time/zoned";
 import { resolveColumns, type ColumnsOf, type ImportKind } from "./columns";
+import { appDatabaseIsLocal } from "../db/where";
+import { requireAgreementForImport } from "./gate-b";
 
 // Imports a list of workers, credentials or shifts (rows from readTable) into the caller's firm,
 // inside the caller's withFirm transaction (docs/architecture.md, Roster plugs: CSV/Excel).
@@ -59,6 +67,9 @@ export const IMPORT_PROBLEM_CODES = [
   "unknown_worker",
   "duplicate_row", // the same worker, credential or shift twice in one file
   "duplicate_mobile", // the mobile belongs to another worker already
+  "name_mismatch", // no Staff ID, and the mobile belongs to a worker with another name
+  "name_needed", // credentials or pay: no Staff ID, and no name to check the mobile's worker against
+  "identity_change", // a Staff ID whose name and mobile both changed at once (reused for a new person)
   "shift_has_bookings",
   "shift_started",
   "bad_hours", // pay: hours that aren't a number from 0 to 1000 with at most 2 decimals
@@ -91,6 +102,9 @@ export interface ImportOptions {
   now: Date;
   // Set by `npm run import`: its --as isn't a login, so its events say so.
   via?: "cli";
+  // Is the database on this machine? A live one saves rows only for a firm whose agreement is
+  // recorded (Gate B, gate-b.ts). Unset: from DATABASE_URL; tests pass false to try a live one.
+  localDatabase?: boolean;
 }
 
 type RowOutcome = "created" | "updated" | "unchanged" | ImportProblemCode;
@@ -114,12 +128,52 @@ const tooLong = (value: string, max: number) => {
   return value;
 };
 
-// Excel drops the leading 0 of a mobile typed as a number (7700900123).
-export function importMobile(raw: string): string | null {
-  return normaliseMobile(/^7\d{9}$/.test(raw) ? `0${raw}` : raw);
-}
+// Excel drops the leading 0 of a mobile typed as a number (7700900123): the same reader as the
+// Sheets sync's (src/lib/auth/mobile.ts).
+export const importMobile = spreadsheetMobile;
 
 const email = z.email().max(254);
+
+// The worker a credentials or pay row is for: by Staff ID, or by mobile and name together. A row
+// found by mobile alone must name the worker (First name and Last name, or Name), and the name must
+// be theirs: a mistyped or reused number never gives one person's licence or pay to another (audit
+// L71, L78). Checked after the mobile is found, so an unknown number still says so.
+async function workerForRow(
+  tx: FirmTx,
+  row: string[],
+  c: {
+    ref: number | undefined;
+    mobile: number | undefined;
+    firstName: number | undefined;
+    lastName: number | undefined;
+    name: number | undefined;
+  },
+): Promise<string> {
+  const ref = cellOf(row, c.ref);
+  const mobileCell = cellOf(row, c.mobile);
+  if (!ref && !mobileCell) throw new Problem("missing_value");
+  const mobile = ref ? null : importMobile(mobileCell);
+  if (!ref && !mobile) throw new Problem("bad_mobile");
+  const [worker] = await tx
+    .select({ id: workers.id, first: workers.firstName, last: workers.lastName })
+    .from(workers)
+    .where(ref ? eq(workers.externalRef, ref) : eq(workers.mobileE164, mobile ?? ""));
+  if (!worker) throw new Problem("unknown_worker");
+  if (ref) return worker.id;
+  const first = cellOf(row, c.firstName);
+  const last = cellOf(row, c.lastName);
+  const full = cellOf(row, c.name);
+  if (first || last) {
+    if (!sameName(first, worker.first) || !sameName(last, worker.last)) {
+      throw new Problem("name_mismatch");
+    }
+  } else if (full) {
+    if (!sameName(full, `${worker.first} ${worker.last}`)) throw new Problem("name_mismatch");
+  } else {
+    throw new Problem("name_needed");
+  }
+  return worker.id;
+}
 
 // A spreadsheet's stored number can carry float noise ("36.299999999999997" for 36.3): take it
 // as 2 decimals only when it is that close to one; anything else is left for the checks to refuse.
@@ -141,9 +195,10 @@ export function importHours(raw: string): string | null {
 
 // Money as payroll writes it ("£12.50", "12.5", "1,234.56", " £ 12 "), in whole pence, up to
 // £9,999,999.99. Commas only as thousands separators in groups of three: "12,50" (a decimal
-// comma) is refused, never read as £1,250.
+// comma) is refused, never read as £1,250. Spaces only around the amount and after the pound sign:
+// "12 50" is refused, never read as £1,250 (audit M16).
 export function importPence(raw: string): number | null {
-  const text = spreadsheetDecimal(raw.replace(/[£\s]/g, ""));
+  const text = spreadsheetDecimal(raw.trim().replace(/^£\s*/, ""));
   if (!/^(\d{1,3}(,\d{3})+|\d{1,7})(\.\d{1,2})?$/.test(text)) return null;
   const m = /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(text.replace(/,/g, ""));
   if (!m) return null;
@@ -155,6 +210,10 @@ export function importPence(raw: string): number | null {
 export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<ImportResult> {
   const [header = [], ...data] = opts.rows;
   const columns = resolveColumns(opts.kind, header); // throws ImportFileError
+  await requireAgreementForImport(tx, {
+    saving: !opts.dryRun,
+    localDatabase: opts.localDatabase ?? appDatabaseIsLocal(),
+  }); // throws AgreementNotRecorded
 
   const work = async (sp: FirmTx): Promise<ImportResult> => {
     const result: ImportResult = {
@@ -175,6 +234,8 @@ export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<Import
         outcome = await sp.transaction((rowTx) => importRow(rowTx, row));
       } catch (err) {
         if (err instanceof Problem) outcome = err.code;
+        else if (err instanceof WorkerNameMismatch) outcome = "name_mismatch";
+        else if (err instanceof WorkerIdentityChange) outcome = "identity_change";
         else if (uniqueViolation(err) === "workers_firm_id_mobile_key")
           outcome = "duplicate_mobile";
         else if (uniqueViolation(err)) outcome = "duplicate_row";
@@ -327,11 +388,7 @@ function rowImporter(
       if (grossCell && grossPence === null) throw new Problem("bad_money");
       const payDate = dateCell(cellOf(row, c.payDate), false);
 
-      const [worker] = await tx
-        .select({ id: workers.id })
-        .from(workers)
-        .where(ref ? eq(workers.externalRef, ref) : eq(workers.mobileE164, mobile ?? ""));
-      if (!worker) throw new Problem("unknown_worker");
+      const worker = { id: await workerForRow(tx, row, c) };
       once(`pay:${worker.id}:${periodStart}:${periodEnd}:${ratePence}`);
 
       const line = and(
@@ -419,11 +476,7 @@ function rowImporter(
       const status = statusCell ? statuses.find((s) => s === statusCell) : undefined;
       if (statusCell && !status) throw new Problem("bad_status");
 
-      const [worker] = await tx
-        .select({ id: workers.id })
-        .from(workers)
-        .where(ref ? eq(workers.externalRef, ref) : eq(workers.mobileE164, mobile ?? ""));
-      if (!worker) throw new Problem("unknown_worker");
+      const worker = { id: await workerForRow(tx, row, c) };
       once(`credential:${worker.id}:${type}`);
 
       const [existing] = await tx
@@ -483,19 +536,19 @@ function rowImporter(
   }
 
   const c = columns as ColumnsOf<"shifts">;
+  // A time cell can hold a date too (Excel's date-and-time cells): the time is the last part.
   const timeOf = (cell: string) =>
     parseSheetTime(cell.includes(" ") ? (cell.split(/\s+/).at(-1) ?? "") : cell);
   return async (tx, row) => {
-    const date = parseSheetDate(cellOf(row, c.date).split(/\s+/)[0] ?? "");
+    // The same readers and rule as the Sheets sync and the office's editor (audit L67, L70).
+    const date = parseSheetDate(cellOf(row, c.date));
     if (!date) throw new Problem(cellOf(row, c.date) ? "bad_date" : "missing_value");
     const start = timeOf(cellOf(row, c.start));
     const end = timeOf(cellOf(row, c.end));
     if (!start || !end) throw new Problem("bad_time");
-    const startsAt = zonedToUtc({ ...date, ...start }, opts.timeZone);
-    let endsAt = zonedToUtc({ ...date, ...end }, opts.timeZone);
-    if (endsAt.getTime() <= startsAt.getTime()) {
-      endsAt = zonedToUtc({ ...nextDay({ ...date, ...end }), ...end }, opts.timeZone);
-    }
+    const window = shiftWindow(date, start, end, opts.timeZone);
+    if (!window) throw new Problem("bad_time");
+    const { startsAt, endsAt } = window;
     if (startsAt.getTime() <= opts.now.getTime()) throw new Problem("shift_started");
     const roleCell = cellOf(row, c.role);
     if (!roleCell) throw new Problem("missing_value");
@@ -533,6 +586,7 @@ function rowImporter(
         endsAt: shifts.endsAt,
         headcount: shifts.headcount,
         instructions: shifts.instructions,
+        status: shifts.status,
       })
       .from(shifts)
       .where(and(eq(shifts.source, "csv"), eq(shifts.externalRef, ref)))
@@ -578,8 +632,22 @@ function rowImporter(
       throw new Problem("shift_has_bookings");
     }
     await tx.update(shifts).set(fields).where(eq(shifts.id, existing.id));
-    await refreshShiftStatus(tx, existing.id, opts.now);
     await event(tx, "shift.changed", "shift", existing.id, { fields: changed });
+    // The status follows the places, as in the office's shift editor: never for a shift the office
+    // marked as filled with places still free (src/lib/roster/close.ts), which stays closed until
+    // the office opens it again (audit M11). A filled shift that a re-import does open again (more
+    // places than its bookings fill) is logged as reopened, by the import.
+    const closedByOffice = existing.status === "filled" && bookings < existing.headcount;
+    if (!closedByOffice) {
+      await refreshShiftStatus(tx, existing.id, opts.now);
+      if (existing.status === "filled") {
+        const [now] = await tx
+          .select({ status: shifts.status })
+          .from(shifts)
+          .where(eq(shifts.id, existing.id));
+        if (now?.status === "open") await event(tx, "shift.reopened", "shift", existing.id, {});
+      }
+    }
     return "updated";
   };
 }

@@ -26,7 +26,14 @@ import { forgetPhones, reflagFutureBookings } from "./worker-effects";
 // - every change is logged by field name, never by value (golden rule 5).
 //
 // A mobile that belongs to another worker throws Postgres's unique violation (23505): the caller
-// reports the row.
+// reports the row. A match by mobile alone (no staff id, or a new staff id linking to a worker who
+// has none) must also have the worker's name (sameName: capitals, spaces, hyphens and the kind of
+// apostrophe aside), or it throws WorkerNameMismatch and nothing is changed: a mistyped or recycled
+// number never renames one person and hands them another's licences, bookings and pay (audit L71,
+// L78). And a staff id whose name and mobile both change in one go throws WorkerIdentityChange: a
+// staff id reused for a new person never hands them the old one's record. A worker with no staff
+// id who changed their name: give them a staff id with the name as it's held here first (that
+// links them), then the new name. (The app has no rename yet: PLAN.md Parking lot.)
 
 type WorkerStatus = (typeof WORKER_STATUSES)[number];
 
@@ -51,6 +58,30 @@ export interface WorkerSource {
 }
 
 export type UpsertOutcome = "added" | "updated" | "linked" | "unchanged";
+
+export class WorkerNameMismatch extends Error {
+  constructor() {
+    super("a worker with this mobile has another name");
+    this.name = "WorkerNameMismatch";
+  }
+}
+
+export class WorkerIdentityChange extends Error {
+  constructor() {
+    super("this staff id's name and mobile both changed");
+    this.name = "WorkerIdentityChange";
+  }
+}
+
+// Two spellings of one name: the same letters once capitals, spaces, hyphens, the kind of
+// apostrophe (O’Brien, O'Brien) and how an accent is stored are set aside.
+const nameKey = (s: string) =>
+  s
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[’‘`´]/g, "'")
+    .replace(/[\s\u2010-\u2015-]+/g, "");
+export const sameName = (a: string, b: string) => nameKey(a) === nameKey(b);
 
 const current = {
   id: workers.id,
@@ -94,6 +125,21 @@ export async function upsertWorker(
           )
       )[0];
   const existing = byRef ?? byMobile;
+  if (
+    byMobile &&
+    !(
+      sameName(byMobile.firstName, person.firstName) && sameName(byMobile.lastName, person.lastName)
+    )
+  ) {
+    throw new WorkerNameMismatch();
+  }
+  if (
+    byRef &&
+    byRef.mobileE164 !== person.mobileE164 &&
+    !(sameName(byRef.firstName, person.firstName) && sameName(byRef.lastName, person.lastName))
+  ) {
+    throw new WorkerIdentityChange();
+  }
 
   if (!existing) {
     const [added] = await tx

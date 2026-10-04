@@ -32,6 +32,7 @@
     "firm:create": "node --env-file-if-exists=.env --import tsx scripts/firm-create.ts",
     "firm:settings": "node --env-file-if-exists=.env --import tsx scripts/firm-settings.ts",
     "firm:sheet": "node --env-file-if-exists=.env --import tsx scripts/firm-sheet.ts",
+    "firm:agreement": "node --env-file-if-exists=.env --import tsx scripts/firm-agreement.ts",
     "firm:check": "node --env-file-if-exists=.env --import tsx scripts/firm-check.ts",
     "firm:office-user": "node --env-file-if-exists=.env --import tsx scripts/firm-office-user.ts",
     "logs:scan": "node --import tsx scripts/logs-scan.ts",

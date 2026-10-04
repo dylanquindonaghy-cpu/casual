@@ -202,7 +202,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "shift.closed":
       return `${officeName} marked it as filled.`;
     case "shift.reopened":
-      return `${officeName} opened it again.`;
+      return d.source === "csv"
+        ? `${officeName}'s import opened it again: it needs more people than it has booked.`
+        : `${officeName} opened it again.`;
     case "shift.escalated":
       return "Still unfilled: the office was emailed.";
     case "shift.escalation_emailed":
@@ -388,6 +390,13 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             : `${person} was logged out of the office on every device.`;
       }
     }
+    case "firm.agreement_recorded":
+      if (d.cleared === true) {
+        return `The firm's recorded agreement was removed${typeof d.was === "string" ? ` (it said ${dayLabel(d.was)} ${d.was.slice(0, 4)})` : ""}.`;
+      }
+      return typeof d.signedOn === "string"
+        ? `The firm's agreement and data processing agreement were recorded as signed on ${dayLabel(d.signedOn)} ${d.signedOn.slice(0, 4)}${typeof d.was === "string" ? ` (was ${dayLabel(d.was)} ${d.was.slice(0, 4)})` : ""}.`
+        : "The firm's agreement and data processing agreement were recorded as signed.";
     case "firm.settings_changed": {
       const n = Array.isArray(d.keys) ? d.keys.length : 0;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
@@ -547,8 +556,13 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         : "The rota sheet was switched off: nothing more is read from it.";
     case "roster.source_forgotten":
       return "An old rota sheet, already switched off, was let go: another firm could connect it.";
-    case "roster.synced":
-      return `The rota sheet was read${typeof d.shifts === "number" ? ` (${d.shifts} shifts)` : ""}.`;
+    case "roster.synced": {
+      const read = `The rota sheet was read${typeof d.shifts === "number" ? ` (${d.shifts} shifts)` : ""}.`;
+      const n = typeof d.staffRefused === "number" ? d.staffRefused : 0;
+      return n > 0
+        ? `${read} ${n === 1 ? "1 staff row wasn't" : `${n} staff rows weren't`} taken: a mobile or Staff ID in it belongs to someone else here with another name. Check the sheet's Staff tab.`
+        : read;
+    }
     case "roster.sync_failed":
       return typeof d.code === "string"
         ? `Reading the rota sheet failed: ${syncErrorWords(d.code)}.`

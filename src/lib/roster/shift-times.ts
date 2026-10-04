@@ -1,8 +1,10 @@
 import { parseSheetDate, parseSheetTime } from "./sheets/parse";
-import { nextDay, zonedToUtc } from "../time/zoned";
+import { shiftWindow } from "./shift-window";
 
 // A shift's date and times as the office types them (a yyyy-mm-dd date, hh:mm times), in the
-// firm's time zone. A finish at or before the start is the next day (a night shift).
+// firm's time zone, by the same rule as the Sheets sync and the imports (shift-window.ts): a
+// finish at or before the start is the next day (a night shift); a finish equal to the start, a
+// time the clocks skip, or 24 hours or more is refused.
 
 export const isoDate = (raw: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(raw.trim()) ? parseSheetDate(raw.trim()) : null;
@@ -16,10 +18,5 @@ export function timesOn(
   const s = parseSheetTime(start);
   const e = parseSheetTime(end);
   if (!s || !e) return null;
-  const startsAt = zonedToUtc({ ...date, ...s }, timeZone);
-  let endsAt = zonedToUtc({ ...date, ...e }, timeZone);
-  if (endsAt.getTime() <= startsAt.getTime()) {
-    endsAt = zonedToUtc({ ...nextDay({ ...date, ...e }), ...e }, timeZone);
-  }
-  return { startsAt, endsAt };
+  return shiftWindow(date, s, e, timeZone);
 }

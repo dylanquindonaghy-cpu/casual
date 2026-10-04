@@ -168,7 +168,7 @@ describe("the shift screens' words", () => {
     expect(editResultText({ status: "saved", fields: ["headcount"] })).toBe("Saved.");
     expect(editResultText({ status: "has_bookings" })).toMatch(/^People are booked on this shift/);
     expect(editResultText({ status: "invalid", problems: ["bad_time", "bad_role"] })).toBe(
-      "Enter the start and finish as times, like 08:00. Enter a role, like steward (letters, numbers and spaces only).",
+      "Enter the start and finish as times, like 08:00. They can't be the same, 24 hours or more apart, or in the hour the clocks skip in March. Enter a role, like steward (letters, numbers and spaces only).",
     );
   });
 
@@ -181,9 +181,12 @@ describe("the shift screens' words", () => {
       skipped: 1,
       problems: [{ row: 4, problem: "bad_time" as const }],
     };
+    expect(importResultLines({ status: "agreement_needed" })).toEqual([
+      "Nothing was saved: real staff data can be imported once your firm's agreement and data processing agreement with us are signed and recorded. Ask us to record them. You can still check a file.",
+    ]);
     expect(importResultLines({ status: "done", result: { ...result, dryRun: true } })).toEqual([
       "This file would add 2 shifts, change 1, leave 0 as they are and skip 1.",
-      "Row 4: a time isn't a time we can read (use 09:00).",
+      "Row 4: the start or finish isn't a time we can read (use 09:00), or they're the same, 24 hours or more apart, or in the hour the clocks skip in March.",
     ]);
     expect(importResultLines({ status: "done", result: { ...result, dryRun: false } })[0]).toBe(
       "Imported: 2 shifts added, 1 changed, 0 left as they were, 1 skipped.",

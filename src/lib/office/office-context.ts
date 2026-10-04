@@ -14,6 +14,7 @@ export interface OfficeContext {
   officeUserId: string;
   run?: WithFirm; // tests pass a withFirm on their own pool
   clock?: Clock;
+  localDatabase?: boolean; // tests pass false to act as on a live database (Gate B)
 }
 
 export const parts = (ctx: OfficeContext) => ({

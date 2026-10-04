@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { resolveFirmBySlug } from "../src/lib/db/directory";
 import { withFirm } from "../src/lib/db/scoped";
 import { ImportFileError } from "../src/lib/imports/errors";
+import { AgreementNotRecorded } from "../src/lib/imports/gate-b";
 import { importFromFile, ImportSetupError } from "../src/lib/imports/from-file";
 import { errorCode } from "../src/lib/jobs/firm-job";
 import { FILE_ERROR_TEXT, summarise } from "../src/lib/imports/messages";
@@ -64,6 +65,12 @@ try {
 } catch (err) {
   if (err instanceof ImportFileError) console.error(FILE_ERROR_TEXT[err.code]);
   else if (err instanceof ImportSetupError) console.error(err.message);
+  // Gate B, recorded (src/lib/imports/gate-b.ts): the typed --agreement-signed isn't enough alone.
+  else if (err instanceof AgreementNotRecorded) {
+    console.error(
+      `${values.firm}'s agreement and DPA aren't recorded as signed in this database. Record them first: npm run firm:agreement -- --firm ${values.firm} --signed <the date they were signed>. Nothing was saved.`,
+    );
+  }
   // Anything else: a code only. A database error's message can quote a row (names, numbers).
   else console.error(`The import failed (${errorCode(err)}). Nothing was saved.`);
   process.exit(1);

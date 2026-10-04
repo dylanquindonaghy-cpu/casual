@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { firstTime, isTestId, testPagesOn } from "@/lib/e2e/fails-once";
+import { firstTime, isTestId, PAGE_FAILS_ON_PURPOSE, testPagesOn } from "@/lib/e2e/fails-once";
 
 // A page for the browser tests only (src/lib/e2e/fails-once.ts): "not found" unless
 // E2E_TEST_PAGES=on. The first time it's opened with a given ?id= it fails, as a page does when the
@@ -14,8 +14,7 @@ export default async function FailsOnce({
   if (!testPagesOn()) notFound();
   const { id } = await searchParams;
   if (!isTestId(id)) notFound();
-  if (firstTime(`page:${id}`))
-    throw new Error("the e2e test page fails the first time, on purpose");
+  if (firstTime(`page:${id}`)) throw new Error(PAGE_FAILS_ON_PURPOSE);
   return (
     <main className="mx-auto max-w-md p-6">
       <h1 className="text-3xl font-bold">It worked this time</h1>

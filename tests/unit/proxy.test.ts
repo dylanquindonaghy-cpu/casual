@@ -42,6 +42,25 @@ describe("the proxy's log line", () => {
     for (const leak of ["s3cret", "token", "mobile", "7700900"])
       expect(lines[0]).not.toContain(leak);
   });
+
+  // Audit M13: this runs for every request on any host, before any login, so a huge path (Node
+  // allows about 16,000 characters) must cost nothing: it's cut before masking, on any host.
+  it("cuts a huge path before masking it, quickly, even on a host we don't serve", () => {
+    const lines: string[] = [];
+    const handle = createProxy(createLogger({ write: (line) => lines.push(line) }), () => BASE);
+    for (const host of ["acme.localhost:3000", "evil.example.invalid:1"]) {
+      for (const path of [`/${"a".repeat(16_000)}`, "/a".repeat(8000), `/${"a.".repeat(8000)}`]) {
+        const started = performance.now();
+        handle(new NextRequest(`http://localhost:3000${path}`, { headers: { host } }));
+        expect(performance.now() - started).toBeLessThan(50);
+      }
+    }
+    for (const line of lines) {
+      const logged = (JSON.parse(line) as { path: string }).path;
+      expect(logged.length).toBeLessThanOrEqual(512 + 30);
+      expect(logged.endsWith("… [cut: too long to log]")).toBe(true);
+    }
+  });
 });
 
 describe("request ids", () => {

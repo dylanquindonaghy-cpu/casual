@@ -261,8 +261,10 @@ alert…" line (a text, once the phone sender is connected).
 The app masks phone numbers and emails before anything is logged; every e2e run checks it. On the
 server (after the dry-run day, say): `sudo -i`, `cd /opt/shiftdesk`, then (not yet tried for real)
 `docker compose logs --no-color web worker | docker compose run --rm -T --no-deps web node --import
-tsx scripts/logs-scan.ts`. It prints "no phone numbers or email addresses", or the line numbers of
-each one it found (the value itself masked). Anything found: tell Claude which log line.
+tsx scripts/logs-scan.ts`. It prints "no phone numbers, email addresses or login tokens", or the line
+numbers of each one it found (the value itself masked). Anything found: tell Claude which log line.
+(A login token in the logs is someone's working login for 15 minutes, or a session for 30 days:
+also tell them to log out on every device, from the office's Workers or Office team page.)
 
 ## Workers at one venue can't get login links
 

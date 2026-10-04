@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { Logger } from "../log";
+import { capText, MAX_PATH } from "../log/mask";
 import { parseHost } from "../tenancy/host";
 
 // The body of src/proxy.ts, built with its dependencies so tests can check what it does.
@@ -23,13 +24,15 @@ export function createProxy(
     const path = request.nextUrl.pathname;
     const internal = path === "/api/caddy/ask" || path === "/api/health";
 
-    // The path only (never the query string). The logger masks it, percent-encoding included.
+    // The path only (never the query string), cut to MAX_PATH first: this runs for every request
+    // on any host, before any login, so a huge path must cost nothing (audit M13). The logger masks
+    // it, percent-encoding included.
     logger.info("request", {
       requestId,
       method: request.method,
       host:
         match?.kind === "firm" ? match.slug : (match?.kind ?? (internal ? "internal" : "rejected")),
-      path: request.nextUrl.pathname,
+      path: capText(path, MAX_PATH),
     });
 
     if (!match && !internal) {

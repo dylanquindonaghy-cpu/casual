@@ -143,11 +143,39 @@ without breaking a 6am cancellation.
   that does nothing, the matching test fails. The unit test checks each button's wiring, the
   whole-page form (it works without the page's scripts), and that no deploy or CI file sets the
   switch.
-- `logs-scan.test.ts` and the e2e teardown (`tests/e2e/teardown.ts`) — no phone number or email in
-  the servers' output for the whole e2e run: numbers with spaces or dashes, +44 / 0044 / 0, in
-  brackets, after a slash, in URLs (%2B, a form's +), emails (%40 too); ids, ISO times, versions,
-  decimals, IP addresses, Unix times and already-masked values left alone; a firm's own shifts line
-  allowed, nothing else; the report never shows a value. `worker.firm-work.test.ts`: firm jobs
+- `logs-scan.test.ts`, `e2e.server-output.test.ts` and the e2e teardown (`tests/e2e/teardown.ts`,
+  `tests/e2e/server-output.ts`) — the servers' output for the whole e2e run (Phase 10, audit L52,
+  L53, L64, and two reviews, added the tokens, the errors and the wider numbers):
+  - No phone number or email: numbers with spaces, tabs, dots or dashes (up to 3 between digits),
+    +44 / 0044 / 0, in brackets, after a slash, in URLs (%2B, a form's +), before a full stop,
+    glued to letters, `_` or `-`; emails (%40 too; glued emails each). Ids, ISO times, versions,
+    decimals, IP addresses, Unix times, Twilio ids and already-masked values are left alone (a
+    number glued to a word, like `row_3456789012`, counts: a false alarm is checked by hand). A
+    firm's own shifts line is allowed, nothing else.
+  - No login token (`/l#…`, %-encoded too) or session cookie outside the console transport's own
+    prints (only a whole print is left out: its exact first line, then its end line), and none of
+    the tokens the run sent anywhere outside them.
+  - No server error except the error-screen tests' failures on purpose: pages, actions and routes
+    (`onRequestError`), promises and errors nobody caught in the web app (now logged as JSON), and
+    every worker job, ticks and alerts included (now logged as JSON). A connection closed
+    mid-page is a warning, not an error.
+  - A 200,000-character line is scanned in one pass.
+  The report never shows a value.
+- `log.masking-speed.test.ts`, `log.masking.test.ts`, `proxy.test.ts`, `log.console.test.ts` — the
+  masker can't be used to stall the web app (audit M13).
+  - Every string is cut to 2,000 characters, and request paths to 512, before masking. The cut
+    walks back over the partial word and the whole run of digits and separators before it. A
+    sweep with the cut at every position inside phone numbers (lists of them, %-encoded,
+    bracketed, dotted), emails, login links and encoded text finds nothing left unmasked. A quoted
+    value cut before its closing quote is still withheld.
+  - Every masking pattern is linear: each of 31 attacks, 200,000 characters, is masked uncut in
+    well under a second. The email and URL patterns before took 30 to 60 seconds, so they're now a
+    single pass from each "@" and over each run.
+  - A 16,000-character path costs the proxy under 50 ms on any host.
+  - Login links glued to an address or word are still withheld.
+- `next-config.logging.test.ts` — Next's own logging of server actions' arguments (a login token)
+  and full request addresses stays off (audit L11). `gdpr.spec.ts` and `office.workers.spec.ts`:
+  after a search, the page's address holds nothing that was typed (audit L54). `worker.firm-work.test.ts`: firm jobs
   come 5 per fetch but run one after another in order, and one failing leaves the rest alone.
 - `onboarding.test.ts` — onboarding a pilot firm (Phase 9, on the real database): `firm:create`
   makes the firm, applies its sector's pack, adds its admin and logs all three; refuses bad values
@@ -291,9 +319,9 @@ log has every step.
       server").
 - [x] Log masking verified (no phone numbers in logs). Every e2e run keeps the worker's and web
       app's whole output (`.dev/e2e-worker.log`, `.dev/e2e-web.log`) and `tests/e2e/teardown.ts`
-      fails the run on any phone number or email it finds there (`scripts/logs-scan.ts`: its own
-      patterns, not the masker's, after undoing URL and form escapes; a firm's own shifts line
-      allowed). It found a mobile typed into the office's worker search printed in the web server's
+      fails the run on any phone number, email or login token it finds there, or any server error
+      the tests didn't expect (`scripts/logs-scan.ts`: its own patterns, not the masker's, after
+      undoing URL and form escapes; a firm's own shifts line allowed). It found a mobile typed into the office's worker search printed in the web server's
       request log; the search no longer goes in the address. On the server after the dry run:
       docs/runbooks.md "Checking the logs for personal data".
 - [ ] Budget alert and uptime check firing to your phone ("Connect monitoring", "Connect alerts

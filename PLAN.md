@@ -306,7 +306,7 @@ every step works.
 - [x] A firm's own domain holds a login: a worker or office user who starts on the firm's domain is
       sent a link back to it and stays logged in there; an e2e test logs in on a custom host
       (M7, L84)
-- [ ] Logs are safe and checked: request paths and log strings are capped before masking, and
+- [x] Logs are safe and checked: request paths and log strings are capped before masking, and
       every masking pattern runs in linear time (timing tests); the e2e log scan also catches
       numbers before a full stop and login tokens; regression tests for the search and token
       fixes; the "destination stream closed early" error seen on every e2e run is explained and
@@ -819,7 +819,8 @@ every step works.
   - A reminder still goes when a credential the shift needs has expired or been suspended since
     booking. Decide whether that should hold the reminder and alert the office (Phase 5 Today
     view).
-  - For Phase 10 task 16 (found in the task 4 review, older than it): a date followed by a time-zone
+  - For Phase 10 task 19 (moved: missed by task 16, whose findings list didn't name it; found in
+    the task 4 review): a date followed by a time-zone
     offset can swallow the start of a phone number in the log masker
     (`2026-11-02T09:00:00+447700900123` keeps 8 digits unmasked). Limit the offset to real values
     (`[+-](?:0\d|1[0-4])(?::?[0-5]\d)?`) and require no digit after the date.
@@ -1742,3 +1743,4 @@ every step works.
 | 2026-10-04 | 10 | 0.8 | Retention and the privacy wording match the spec: per-firm `retention.message_days` (90), `retention.request_note_days` (365, the spec's 12 months) and a hold for disputes (`retention.hold_until`), set with `firm:settings` and read by the database's own messages purge (migration 0034); only closed requests lose their words; a newer reply is kept; the office's override reason is kept on the booking (migration 0033), never in the log, shown on the shift page and notice report, replaced on deletion and purged by age; the data page shows the firm's real keep-times; the data page, privacy notice and compliance say exactly what a deletion removes and keeps (other people's words aren't changed); Twilio caveat; new "Dylan to confirm" items; 3020 tests + 53 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.6 | "Try again" on the error screens really retries: the page's error screen uses Next's `retry()` (fetches the page again; `reset()` only redrew the failure), "Go to my shifts" is a full page load (recovers on My shifts itself), "Try again" is off with no signal until it's back; the whole-page error reloads through a form (works before the page's scripts, never resends a form); browser tests fail a page once and the page's frame once and recover (test-only failures behind `E2E_TEST_PAGES`, refused off localhost); two reviews' findings fixed; 3034 tests + 58 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.7 | A firm's own domain holds a login: a worker or office user who asks on it gets the link back on it (the job gets which address the request came in on as a word, takes the domain from the firm's own record and only while it's still verified, else the portal; old jobs get the portal; the log says `ownDomain`), and stays logged in there; browser tests log in on https://shifts.acme-events.test through an https stand-in for Caddy (a browser keeps no Secure cookie over http there) with the dev server allowed for that name; the guardrails review found a lost domain still marked verified would now get login links: recorded as a pre-pilot must-have (a periodic re-check, before any real firm's domain is verified); 3045 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 0.9 | Logs are safe and checked: every log string cut to 2,000 characters and request paths to 512 before masking, never leaving part of a number, email or token at the cut; every masking pattern a single pass (the old email and URL patterns took 30–60 s on a 200,000-character string; 31 timing attacks now well under a second); the e2e scan also catches numbers by a full stop, glued, dotted or tabbed, glued emails and login tokens (outside the console transport's own prints, which now end with their own line); the teardown fails on any unexpected server error, with the web app's uncaught errors and the worker's failed ticks now logged as JSON; "The destination stream closed early" explained (the connection closed mid-page) and logged as a warning; regression tests for the search address and Next's logging; two reviews' findings fixed; 3103 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |

@@ -50,6 +50,10 @@ test("an admin downloads a worker's data, deletes their details, and downloads t
   await expect(page.getByRole("heading", { name: "Data requests" })).toBeVisible();
   await page.getByLabel("Name or mobile number").fill("07700 900871");
   await page.getByRole("button", { name: "Find" }).click();
+  // Audit L54: what was typed (a mobile) never goes into the address, where the browser's history,
+  // the next site's Referer and a server log would keep it: the search is a form action.
+  await expect(page.getByRole("link", { name: "Dana Erasure" })).toBeVisible();
+  expect(page.url()).toBe(`${acme}/office/data`);
   await page.getByRole("link", { name: "Dana Erasure" }).click();
   await expect(page).toHaveURL(`${acme}/office/data/workers/${workerId}`);
   await expect(page.getByRole("heading", { name: "Dana Erasure" })).toBeVisible();

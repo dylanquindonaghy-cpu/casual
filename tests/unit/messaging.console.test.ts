@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getTransport } from "@/lib/messaging";
-import { createConsoleTransport } from "@/lib/messaging/console";
+import {
+  CONSOLE_PRINT_END,
+  CONSOLE_PRINT_START,
+  createConsoleTransport,
+} from "@/lib/messaging/console";
 
 describe("console messaging transport", () => {
   it("prints the outbound message and returns a provider id", async () => {
@@ -22,6 +26,9 @@ describe("console messaging transport", () => {
     expect(lines[0]).not.toContain("7700900");
     expect(lines[0]).toContain(result.providerMessageId);
     expect(lines[0]).toContain("Acme Events Shift Team: your shift is confirmed.");
+    // One print per message, its own last line marking the end (the e2e log check uses it).
+    expect(lines[0]?.split("\n").at(-1)).toBe(CONSOLE_PRINT_END);
+    expect(lines[0]?.startsWith(CONSOLE_PRINT_START)).toBe(true);
   });
 
   it("rejects a phone number that is not E.164", async () => {

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { DatabaseError } from "pg";
 import { describe, expect, it } from "vitest";
 import { createLogger, type Level } from "@/lib/log";
-import { maskPhone, maskText, redact } from "@/lib/log/mask";
+import { maskPhone, maskText, maskWithoutLimit, redact } from "@/lib/log/mask";
 import { createPgBossErrorLogger, pgBossErrorFields } from "@/worker/boss";
 
 // No personal data in logs (docs/compliance.md): phone numbers in any shape, emails, names,
@@ -200,12 +200,15 @@ describe("the logger", () => {
     expect((redact(err) as { stack: string[] }).stack).toEqual(["at save (/app/src/x.ts:10:5)"]);
   });
 
+  // The patterns themselves (maskWithoutLimit): this string is longer than maskText takes
+  // (MAX_TEXT, audit M13), and maskText's cut drops a trailing run of numbers whole.
   it("masks a very long run of digits quickly (no runaway backtracking)", () => {
     const text = `${"1 2-3.(4) ".repeat(2000)}x`;
     const started = performance.now();
-    const out = maskText(text);
+    const out = maskWithoutLimit(text);
     expect(performance.now() - started).toBeLessThan(200);
     expect(out.replace(/\D/g, "").length).toBe(3);
+    expect(maskText(text).replace(/\D/g, "")).toBe("");
   });
 
   it("masks object keys, not just values", () => {

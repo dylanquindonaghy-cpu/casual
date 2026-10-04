@@ -9,6 +9,9 @@ import { appEnv } from "../env";
 // tests/e2e/error-page.spec.ts taps "Try again" on each and gets the page.
 
 export const FRAME_FAILS_COOKIE = "e2e_frame_fails_once";
+// What each failure says: the e2e teardown expects these, and only these, as server errors.
+export const PAGE_FAILS_ON_PURPOSE = "the e2e test page fails the first time, on purpose";
+export const FRAME_FAILS_ON_PURPOSE = "the e2e test frame fails the first time, on purpose";
 export const testPagesOn = () => appEnv().E2E_TEST_PAGES === "on";
 export const isTestId = (id: unknown): id is string =>
   typeof id === "string" && /^[a-z0-9-]{1,64}$/.test(id);
@@ -32,6 +35,6 @@ export async function frameFailsOnce(readCookie: () => Promise<string | undefine
   if (!testPagesOn()) return;
   const id = await readCookie();
   if (isTestId(id) && firstTime(`frame:${id}`)) {
-    throw new Error("the e2e test frame fails the first time, on purpose");
+    throw new Error(FRAME_FAILS_ON_PURPOSE);
   }
 }

@@ -8530,3 +8530,87 @@ Now:
 
 `npm run e2e -- tests/e2e/custom-domain.spec.ts` (stop `npm run dev` first): four tests pass. Two
 of them log in on the made-up firm address.
+
+## 2026-10-04 — Phase 10, task 16: the logs are safe and checked
+
+- **Time spent:** 0.9 hours (started 05:27 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=eb9c4e444e29b60e e2e=true`
+  (3,103 tests, 60 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M13, L11, L52, L53, L54, L64.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+The **logs** are the lines the app writes about what it's doing, for you to read when something
+goes wrong. Before anything goes in them, a **masker** hides phone numbers, emails and anything
+after a `?` or `#` in an address (where login links carry their secret part).
+
+- **The masker can't be used to slow the app down.** It uses **patterns** (rules for spotting a
+  phone number or email). Two of them got much slower on very long text: a 16,000-character web
+  address took the app about 0.3 seconds to mask. Anyone could send a few of those a second and
+  stall the portal for every firm. Now:
+  - every piece of text is cut to 2,000 characters before masking, and web addresses to 512;
+  - the cut never leaves half a phone number or email behind;
+  - every pattern reads the text once. On a 200,000-character string, the old email and URL
+    patterns took 30 to 60 seconds; now 31 different attack strings each take a fraction of a
+    second.
+- **Every browser test run checks the servers' whole output**, and the run fails if it finds:
+  - a phone number (now also before a full stop, glued to a word, or written with dots);
+  - an email;
+  - a **login token**, the secret part of a login link. The test console still prints login links
+    on purpose (that's how you log in while developing), so each printed message now ends with its
+    own line, and the check leaves exactly those out. Every token the run sent is looked for
+    everywhere else too;
+  - **any server error** the tests didn't expect. Before, errors were printed but the run still
+    passed. The only errors allowed are the error-page tests' deliberate failures (task 14). Two
+    kinds of failure used to leave no log line at all, and now log one: a web app error nobody
+    caught, and a failed timed job in the worker.
+- **The error seen on every run, "The destination stream closed early", is explained.** It means
+  the connection closed before the page had finished sending. In the tests, a test ended while its
+  page was still loading. In real life it's someone closing a tab or tapping away. It isn't the
+  server failing, so it's now a warning, not an error.
+- **Two old fixes now have tests:**
+  - the setting that stops Next.js printing login tokens in its own logs;
+  - the office search, which keeps what you type (a mobile number) out of the address bar.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Cut to 2,000 characters (paths 512) before masking | Plenty for any real message; a huge one costs nothing | Masking whole strings |
+| The cut walks back over any half word or number | Half a phone number has too few digits to look like one | A fixed-size trim (the review showed it leaking) |
+| Console prints keep login links | That's how you log in while developing; production refuses this transport | Hiding them (you'd lose the link) |
+| A closed connection is a warning | It's a person leaving, not the server failing | Leaving it an error (failed every run) |
+| A number glued to a word counts as a finding | It catches "Mob07700900123"; a rare false alarm is checked by hand | Skipping glued numbers (the old gap) |
+
+### What the new tests prove
+
+- **`tests/unit/log.masking-speed.test.ts`:**
+  - 31 attack strings of 200,000 characters, each masked in well under a second;
+  - a sweep putting the cut at every position inside phone numbers, emails, login links and
+    encoded text, which never leaves anything unmasked;
+  - login links glued to a word are still hidden.
+- **`tests/unit/logs-scan.test.ts`:** the scan finds the new number shapes, glued emails and
+  tokens, leaves IP addresses and decimals alone, and reads a 200,000-character line in one go.
+- **`tests/unit/e2e.server-output.test.ts`:** the end-of-run check fails on a stray token, number
+  or error, and passes a clean run.
+- **`tests/unit/next-config.logging.test.ts`**, and the two browser search tests: the old fixes
+  stay fixed.
+- **The tests catch the bugs:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **Nothing new to decide.**
+- **Moved to task 19:** one more masker fix, found earlier and meant for this task, that I missed.
+  A date with a time zone glued to a phone number (`…09:00:00+447700900123`) leaves part of the
+  number showing.
+- **Changed for you:** `npm run -s logs:scan` (your check of the server's logs after the dry run)
+  now also reports login tokens. The runbook says what to do if it finds one.
+
+### How to see it working
+
+- Run `npm run e2e`. At the end it prints, for each server: "no phone numbers, email addresses or
+  login tokens".
+- While developing, each message the app "sends" is printed in the terminal and ends with
+  `[messaging:console] end of message`.

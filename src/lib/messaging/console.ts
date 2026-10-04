@@ -6,6 +6,14 @@ import { outboundMessageSchema, type MessagingTransport, type OutboundMessage } 
 
 type Print = (line: string) => void;
 
+// Each printed message starts with CONSOLE_PRINT_START and ends with its own line,
+// CONSOLE_PRINT_END. The print shows the whole body, login links included: in development that's
+// how you get your link, and production refuses this transport. The end line lets the e2e log
+// check (tests/e2e/teardown.ts, scripts/logs-scan.ts) leave these deliberate prints out when it
+// looks for login tokens anywhere else.
+export const CONSOLE_PRINT_START = "[messaging:console] ";
+export const CONSOLE_PRINT_END = "[messaging:console] end of message";
+
 // Dev and test transport: prints the message instead of sending it. Never reaches Twilio.
 // With an outbox file (CONSOLE_OUTBOX_FILE, dev and e2e only) it also appends each message as a
 // JSON line, so an end-to-end test can open the link a worker would have received. That file
@@ -32,7 +40,7 @@ export function createConsoleTransport(
             )
           : [];
       print(
-        `[messaging:console] ${msg.channel} to ${to}${from} (${providerMessageId})\n${subject}${msg.body}${files.join("")}`,
+        `${CONSOLE_PRINT_START}${msg.channel} to ${to}${from} (${providerMessageId})\n${subject}${msg.body}${files.join("")}\n${CONSOLE_PRINT_END}`,
       );
       if (outboxFile) {
         await mkdir(dirname(outboxFile), { recursive: true });

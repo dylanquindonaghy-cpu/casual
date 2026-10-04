@@ -53,6 +53,9 @@ test("a leaver made inactive, their booking cancelled from Today; another kept o
   await expect(page.getByRole("heading", { name: "Workers" })).toBeVisible();
   await page.getByLabel("Name or mobile number").fill(lenaName);
   await page.getByRole("button", { name: "Find" }).click();
+  // What was typed never goes into the address (audit L54; as on the data page).
+  await expect(page.getByRole("link", { name: lenaName })).toBeVisible();
+  expect(page.url()).toBe(`${acme}/office/workers`);
   await page.getByRole("link", { name: lenaName }).click();
   await expect(page.getByRole("heading", { name: lenaName })).toBeVisible();
   await expect(page.getByRole("link", { name: `Steward at Leaver Hall ${n}` })).toBeVisible();

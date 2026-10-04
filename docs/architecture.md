@@ -483,6 +483,11 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - HTTPS everywhere; HSTS.
 - Verify Twilio signatures on every webhook.
 - Rate limit login and OTP.
-- No personal data in logs (mask phone numbers).
+- No personal data in logs (mask phone numbers). (Built: `src/lib/log/mask.ts` masks numbers,
+  emails, query strings and quoted values in every log line, cutting each string to 2,000
+  characters and request paths to 512 first (never leaving part of a number, email or token at
+  the cut), every pattern a single pass, so a huge request can't stall the web app. Every e2e run
+  checks the servers' whole output for numbers, emails, login tokens and unexpected errors:
+  `docs/testing.md`.)
 - Least-privilege IAM; MFA on all accounts.
 - Dependency updates weekly; `npm audit` in CI.

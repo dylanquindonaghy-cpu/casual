@@ -7734,3 +7734,121 @@ none).
 **Hours:** 0.7 (04:42 to 05:24 UTC). Phase 10 so far: 12.7 of the 30–45 h estimate.
 
 **Commit:** `822ad34`, pushed to `build/overnight`.
+
+## 2026-10-04 05:27 UTC — Phase 10, task 16: logs are safe and checked
+
+**Task:** Logs are safe and checked: request paths and log strings are capped before masking, and
+every masking pattern runs in linear time (timing tests); the e2e log scan also catches numbers
+before a full stop and login tokens; regression tests for the search and token fixes; the
+"destination stream closed early" error seen on every e2e run is explained and fixed, and
+unexpected server errors fail the run (M13, L11, L52, L53, L54, L64)
+
+**Root causes (from reading the code and the last e2e run's logs):**
+- **M13:** the masker's EMAIL and URL_TAIL patterns try a match from every position of a run and
+  rescan to its end each time, so a 16,000-character path costs about 0.3 s of the one web
+  process. No string is cut before masking.
+- **"The destination stream closed early":** React's server renderer cancels a page with exactly
+  this message when the response's connection closes before the page is fully sent (in
+  `react-server-dom-turbopack-server`, on the destination's `close` event). In the last run:
+  - the office "cancel a booking" test ended right after its action;
+  - its page closed while the page's refresh was still streaming;
+  - the next test's requests follow at once.
+  The browser left; the server didn't fail. Next reports it through `onRequestError`, which logs
+  every report as a server error.
+- **L64:** the teardown prints server error lines but fails only on phones or emails.
+- **L52:** the scanner's phone pattern refuses a number next to a full stop, a letter, `_` or `-`
+  (to skip decimals and ids), so it misses "call 07700 900123." and "Mob07700900123".
+- **L53, L11:** the scanner has no idea of login tokens. And the console transport prints each
+  message body with `console.log`, which isn't masked (deliberately: in development that's how you
+  get your login link), so the e2e worker log holds every login link.
+- **L54:** the search test never checks the address stays free of what was typed.
+
+**Plan:**
+1. Cut every string to 2,000 characters, and request paths to 512, before masking (`capText`). The
+   cut never leaves half a phone number or email: the partial word and any trailing
+   digits/separators at the cut go too.
+2. EMAIL and URL_TAIL start a match only at the start of a run (a lookbehind), so each run is
+   tried once: linear. Stack lines over 500 characters aren't frames and are dropped before the
+   frame pattern. Timing tests: every pattern on 200,000-character attack strings, under a limit a
+   quadratic pattern can't meet (the uncapped masker is exported for that test only).
+3. A browser that left mid-page is logged as `info` "request ended early: the browser left", not
+   as an error.
+4. The teardown fails on any server error line except the e2e test pages' failures on purpose (task
+   14).
+5. The scanner:
+   - finds numbers before a full stop, or glued to letters, `_` or `-`, but still not decimals;
+   - finds login links (`/l#<token>`) and session cookie values;
+   - skips Twilio ids.
+   The console transport ends each printed message with an end line, so the teardown can leave its
+   deliberate prints out of the token check. The teardown also checks that no token from the
+   outbox file appears anywhere else in either server's output.
+6. Regression tests:
+   - `next.config.ts` keeps Next's argument and request logging off;
+   - after a search, the office data and workers pages' address holds nothing typed.
+
+**Built first, then the reviews:**
+- Cut before masking; "browser left" logged; scanner wider with tokens; the console transport's
+  end line; the teardown failing on tokens and unexpected errors, through a testable
+  `tests/e2e/server-output.ts`; regression tests for the search (L54) and for Next's logging
+  setting (L11).
+- **Mutation checks:**
+  - the old email and URL patterns took 41 s and 31 s on the 200,000-character attacks, where the
+    tests require under 0.75 s;
+  - the search writing what was typed into the address failed both browser search tests.
+- **A deliberate test change:** `log.masking.test.ts` "masks a very long run of digits quickly"
+  now calls `maskWithoutLimit`, with the same input and assertions. Its 20,000-character string is
+  longer than `maskText` now takes, and the safe cut drops a trailing run of numbers whole, so
+  `maskText` gives no digits. The test pins how the phone pattern treats a long run, which is
+  what `maskWithoutLimit` is. An added line checks `maskText` leaks nothing from that string.
+
+**Reviews:**
+- **Guardrails reviewer, "FIX FIRST":**
+  - FF1, the first cut could leave part of a number list, of a word longer than 300 characters
+    (%-encoded text) or of a quoted value. Fixed: the cut walks back with plain loops over the
+    whole partial word, then the whole run of digits and separators (`%` included), with no
+    limits; a quote cut before its closing mark is still withheld.
+  - FF2, the URL pattern was still quadratic after `(`, `=` and `,`, and its lookbehind stopped
+    masking login links glued to a word. Fixed: a single pass over each run that withholds
+    everything after the first `?` or `#` following a `/`. The email pattern is now matched from
+    each `@`, which also masks emails glued together.
+  - FF3, errors Next prints as plain text didn't fail the run. Fixed: the web app logs unhandled
+    rejections and uncaught exceptions as JSON (`src/lib/log/process.ts`, from
+    `src/instrumentation.ts`).
+  - Also taken:
+    - a closed connection logged as a warning, with neutral words, and React's "errored while
+      writing" treated the same way, matched by message;
+    - only a whole console print is left out of the token check;
+    - tokens are looked for %-decoded too;
+    - the scanner allows dots, tabs and doubled spaces between digits (IP addresses and
+      single-dot decimals left out).
+- **Adversarial review** (on the first version): most of its findings are the same as the
+  guardrails review's. Also:
+  - F2, the scanner's own email pattern was quadratic on whole log files. Fixed: matched from
+    each `@`, with a 200,000-character line timing test.
+  - F11, a failing worker tick or alert (outside the per-firm loop) reached no log line. Fixed:
+    `logFailures()` wraps them.
+  - Noted, not changed:
+    - F9, a number glued to a word (`row_3456789012`) is now a scan finding: a false alarm is
+      checked by hand, the price of catching "Mob07700900123";
+    - a log string over 2,000 characters in an event's data would now be refused by
+      `recordEvent` (none today: they're 500 at most).
+- **Mutation checks, second round:**
+  - the cut without the number-run walk-back failed the sweep;
+  - a quote that must close failed the quoted-value test;
+  - the scanner and teardown checks each fail on their unit tests' leak or error lines.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=eb9c4e444e29b60e e2e=true` (3,103 tests,
+60 browser tests; the teardown: no phone numbers, emails or login tokens, and no unexpected
+errors, in either server's output).
+
+**Auditor:** `VERDICT: DONE` ("all claims PROVEN"; fakes found: none).
+
+**Missed and moved:** a parked masker bug labelled "for Phase 10 task 16" (a date with a time-zone
+offset glued to a phone number, `2026-11-02T09:00:00+447700900123`, leaves 8 digits unmasked). It
+wasn't among the task's named findings, and I didn't see the note before verifying. The auditor
+pointed it out. Fixing it after the verify would have meant committing unverified code, so it's
+moved to task 19 (walkthrough polish), and the parked note says so.
+
+**Hours:** 0.9 (05:27 to 06:20 UTC). Phase 10 so far: 13.6 of the 30–45 h estimate.
+
+**Commit:** (filled in below)

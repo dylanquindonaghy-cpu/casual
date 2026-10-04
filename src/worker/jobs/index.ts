@@ -1,4 +1,4 @@
-import type { PgBoss } from "pg-boss";
+import type { Job, PgBoss } from "pg-boss";
 import { systemClock, type Clock } from "../../lib/auth/clock";
 import { sendLoginCodeTask } from "../../lib/auth/send-login-code";
 import { sendPortalLinkTask } from "../../lib/auth/send-portal-link";
@@ -11,6 +11,7 @@ import {
 } from "../../lib/credentials/scan";
 import { listFirmIds } from "../../lib/db/directory";
 import { appEnv } from "../../lib/env";
+import { log, type Logger } from "../../lib/log";
 import {
   RETENTION_PURGE_CRON,
   RETENTION_PURGE_TICK_QUEUE,
@@ -156,34 +157,46 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
   await registerFirmTask(boss, deps.reminders ?? shiftRemindersTask);
-  await boss.work(SHIFT_REMINDER_TICK_QUEUE, async () => {
-    await runShiftReminderTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
-  });
+  await boss.work(
+    SHIFT_REMINDER_TICK_QUEUE,
+    logFailures(SHIFT_REMINDER_TICK_QUEUE, async () => {
+      await runShiftReminderTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
   await boss.schedule(SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDER_TICK_CRON);
 
   // Credential expiry: always on (messages go through the configured transport).
   await registerFirmTask(boss, credentialScanFirmTask);
-  await boss.work(CREDENTIAL_SCAN_TICK_QUEUE, async () => {
-    await runCredentialScanTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
-  });
+  await boss.work(
+    CREDENTIAL_SCAN_TICK_QUEUE,
+    logFailures(CREDENTIAL_SCAN_TICK_QUEUE, async () => {
+      await runCredentialScanTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
   await boss.schedule(CREDENTIAL_SCAN_TICK_QUEUE, CREDENTIAL_SCAN_CRON, null, {
     tz: CREDENTIAL_SCAN_TZ,
   });
 
   // Pilot metrics: each firm's daily figures, recomputed for the last 7 days every night.
   await registerFirmTask(boss, metricsRollupFirmTask);
-  await boss.work(METRICS_ROLLUP_TICK_QUEUE, async () => {
-    await runMetricsRollupTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
-  });
+  await boss.work(
+    METRICS_ROLLUP_TICK_QUEUE,
+    logFailures(METRICS_ROLLUP_TICK_QUEUE, async () => {
+      await runMetricsRollupTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
   await boss.schedule(METRICS_ROLLUP_TICK_QUEUE, METRICS_ROLLUP_CRON, null, {
     tz: METRICS_ROLLUP_TZ,
   });
 
   // Retention (docs/compliance.md): each firm's old messages and login leftovers, every night.
   await registerFirmTask(boss, retentionPurgeFirmTask);
-  await boss.work(RETENTION_PURGE_TICK_QUEUE, async () => {
-    await runRetentionPurgeTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
-  });
+  await boss.work(
+    RETENTION_PURGE_TICK_QUEUE,
+    logFailures(RETENTION_PURGE_TICK_QUEUE, async () => {
+      await runRetentionPurgeTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
   await boss.schedule(RETENTION_PURGE_TICK_QUEUE, RETENTION_PURGE_CRON, null, {
     tz: RETENTION_PURGE_TZ,
   });
@@ -191,37 +204,50 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // The payroll digest: each firm's new pay queries at its digest time (the tick checks every 5
   // minutes), or when payroll presses "Send the digest now".
   await registerFirmTask(boss, deps.payDigest ?? payDigestFirmTask);
-  await boss.work(PAY_DIGEST_TICK_QUEUE, async () => {
-    await runPayDigestTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
-  });
+  await boss.work(
+    PAY_DIGEST_TICK_QUEUE,
+    logFailures(PAY_DIGEST_TICK_QUEUE, async () => {
+      await runPayDigestTick({ listFirmIds, run: withFirm, clock: deps.clock ?? systemClock });
+    }),
+  );
   await boss.schedule(PAY_DIGEST_TICK_QUEUE, PAY_DIGEST_TICK_CRON);
 
   // Alerts to the founder (src/lib/ops/): the tick every 5 minutes; each alert a job of its own.
   const alerts = deps.alerts ?? alertTransport(appEnv().ALERTS_TRANSPORT);
-  await boss.work(OPS_ALERT_QUEUE, async ([job]) => {
-    if (job) await sendOpsAlert(job.data, alerts);
-  });
-  await boss.work(OPS_ALERTS_TICK_QUEUE, async () => {
-    const url = deps.healthCheckUrl;
-    await runOpsAlertsTick({
-      listFirmIds,
-      run: withFirm,
-      clock: deps.clock ?? systemClock,
-      failedJobs: () => failedJobCounts(boss),
-      ...(url ? { health: () => checkWebHealth(url) } : {}),
-      queue: async (alert) => {
-        await queueOpsAlert(boss, alert);
-      },
-    });
-  });
+  await boss.work(
+    OPS_ALERT_QUEUE,
+    logFailures(OPS_ALERT_QUEUE, async (jobs: Job[]) => {
+      const job = jobs[0];
+      if (job) await sendOpsAlert(job.data, alerts);
+    }),
+  );
+  await boss.work(
+    OPS_ALERTS_TICK_QUEUE,
+    logFailures(OPS_ALERTS_TICK_QUEUE, async () => {
+      const url = deps.healthCheckUrl;
+      await runOpsAlertsTick({
+        listFirmIds,
+        run: withFirm,
+        clock: deps.clock ?? systemClock,
+        failedJobs: () => failedJobCounts(boss),
+        ...(url ? { health: () => checkWebHealth(url) } : {}),
+        queue: async (alert) => {
+          await queueOpsAlert(boss, alert);
+        },
+      });
+    }),
+  );
   await boss.schedule(OPS_ALERTS_TICK_QUEUE, OPS_ALERTS_CRON);
 
   if (deps.sheets) {
     const clock = deps.clock ?? systemClock;
     await registerFirmTask(boss, sheetsSyncTask(deps.sheets, clock));
-    await boss.work(SHEETS_TICK_QUEUE, async () => {
-      await runSheetsTick({ listFirmIds, run: withFirm, clock });
-    });
+    await boss.work(
+      SHEETS_TICK_QUEUE,
+      logFailures(SHEETS_TICK_QUEUE, async () => {
+        await runSheetsTick({ listFirmIds, run: withFirm, clock });
+      }),
+    );
     await boss.schedule(SHEETS_TICK_QUEUE, SHEETS_TICK_CRON);
   } else {
     await boss.unschedule(SHEETS_TICK_QUEUE);
@@ -287,4 +313,23 @@ export async function registerFirmJob<P extends FirmJobEnvelope>(
   job: FirmJob<P>,
 ): Promise<void> {
   await boss.work(job.queue, FIRM_WORK_OPTIONS, (jobs) => inOrder(jobs, (j) => runFirmJob(job, j)));
+}
+
+// A handler whose failures are logged (as a JSON error, through the masker) before pg-boss retries
+// or fails the job: the ticks and the ops alerts. Firm jobs log their own (runFirmTask). Without
+// it, pg-boss records a failed tick or alert and nothing reaches the log, so the e2e run's check of
+// the servers' output (tests/e2e/server-output.ts) couldn't see it.
+export function logFailures<A extends unknown[], R>(
+  queue: string,
+  handler: (...args: A) => Promise<R>,
+  logger: Logger = log,
+): (...args: A) => Promise<R> {
+  return async (...args) => {
+    try {
+      return await handler(...args);
+    } catch (error) {
+      logger.error("job failed", { queue, error });
+      throw error;
+    }
+  };
 }

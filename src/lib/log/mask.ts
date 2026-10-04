@@ -26,14 +26,72 @@ const PROTECTED =
 // only its last 3 digits. Separators and digits never overlap, so matching stays linear.
 // Over-masking a long number that isn't a phone is harmless.
 const PHONE = /(?<!\d)(?:\+|00)?\(?\d(?:[\s.()-]{0,3}\d){9,}(?!\d)/g;
-const EMAIL = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+// An email's domain, matched from its "@" (matching starts only at an "@", so a long run of
+// letters with no "@" costs nothing: audit M13). The part before the "@" is found by walking back
+// (maskEmails).
+const EMAIL_DOMAIN = /@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+const EMAIL_LOCAL = /[A-Za-z0-9._%+-]/;
 // drizzle's DrizzleQueryError message is the SQL plus every parameter, wherever it's quoted.
 const FAILED_QUERY = /Failed query:[\s\S]*/g;
 // Postgres quotes the offending input: invalid input syntax for type uuid: "Priya ...",
-// value "..." is out of range. Withhold any quoted value after a colon or the word value.
-const QUOTED_VALUE = /(:\s*|\bvalue\s+)"(?:[^"\\]|\\.)*"/gi;
-// Query strings and fragments can carry tokens, codes and numbers (login links, ?mobile=).
-const URL_TAIL = /((?:https?:\/\/[^\s"'<>?#]+)|(?:\/[\w.~%/-]*))[?#][^\s"'<>]*/gi;
+// value "..." is out of range. Withhold any quoted value after a colon or the word value, closed
+// or running to the end (a string cut before its closing quote).
+const QUOTED_VALUE = /(:\s*|\bvalue\s+)"(?:[^"\\]|\\[\s\S]|\\$)*(?:"|$)/gi;
+// A run of characters that can be part of one URL or path (no spaces, quotes or angle brackets).
+const URL_RUN = /[^\s"'<>]+/g;
+
+// How much of one string is masked and logged, and of a request's path (audit M13: a 16,000-
+// character path took the one web process about 0.3 s to mask). Plenty for any real message,
+// error or path.
+export const MAX_TEXT = 2000;
+export const MAX_PATH = 512;
+const CUT_NOTE = "… [cut: too long to log]"; // no digits: they'd look like part of what was cut
+// A word's characters (an email's and a percent-encoded value's included), and a written phone
+// number's (with "%", as the cut comes before %20 is undone).
+const WORD_CHAR = /[A-Za-z0-9._%+@-]/;
+const NUMBER_CHAR = /[\d\s.()+%-]/;
+
+// The first `max` characters, walked back so nothing at the cut is half a phone number, an email,
+// a token or an encoded value that the masker would then miss: the partial word goes, then the
+// whole run of digits and separators before it (a list of numbers too). One pass back: linear.
+function cutBack(text: string, max: number): string {
+  let end = max;
+  while (end > 0 && WORD_CHAR.test(text[end - 1] ?? "")) end -= 1;
+  while (end > 0 && NUMBER_CHAR.test(text[end - 1] ?? "")) end -= 1;
+  return text.slice(0, end);
+}
+
+// A string cut to `max` characters, saying so (for a request's path: the logger masks it after).
+export function capText(text: string, max = MAX_TEXT): string {
+  return text.length <= max ? text : `${cutBack(text, max)}${CUT_NOTE}`;
+}
+
+// Every email: "***@" and its domain. Linear: the domain pattern only starts at an "@", and each
+// walk back over the part before it stops where the last email ended.
+function maskEmails(text: string): string {
+  let out = "";
+  let last = 0;
+  for (const m of text.matchAll(EMAIL_DOMAIN)) {
+    let start = m.index;
+    while (start > last && EMAIL_LOCAL.test(text[start - 1] ?? "")) start -= 1;
+    if (start === m.index) continue; // nothing before the "@": not an email
+    out += `${text.slice(last, start)}***@${m[1] ?? ""}`;
+    last = m.index + m[0].length;
+  }
+  return out + text.slice(last);
+}
+
+// Query strings and fragments can carry tokens, codes and numbers (login links, ?mobile=): in each
+// run that holds a "/" (an address or a path), everything from the first ? or # after it is
+// withheld. One look at each run: linear (audit M13: the pattern this replaces was quadratic).
+function maskUrlTails(text: string): string {
+  return text.replace(URL_RUN, (run) => {
+    const slash = run.indexOf("/");
+    if (slash < 0) return run;
+    const tail = run.slice(slash).search(/[?#]/);
+    return tail < 0 ? run : `${run.slice(0, slash + tail)}?${WITHHELD}`;
+  });
+}
 
 function maskPhones(segment: string): string {
   return segment.replace(PHONE, (match) => {
@@ -52,12 +110,19 @@ function percentDecode(text: string): string {
   );
 }
 
+// Every log string goes through here: cut to MAX_TEXT first (safely: cutBack), then masked.
 export function maskText(input: string): string {
-  const text = percentDecode(input)
+  if (input.length <= MAX_TEXT) return maskWithoutLimit(input);
+  return `${maskWithoutLimit(cutBack(input, MAX_TEXT))}${CUT_NOTE}`;
+}
+
+// The masker on a string of any length. Only for maskText() and the timing tests
+// (tests/unit/log.masking-speed.test.ts), which show every pattern stays linear.
+export function maskWithoutLimit(input: string): string {
+  const decoded = percentDecode(input)
     .replace(FAILED_QUERY, "Failed query (details withheld)")
-    .replace(QUOTED_VALUE, (_, lead: string) => `${lead}"${WITHHELD}"`)
-    .replace(URL_TAIL, (_, base: string) => `${base}?${WITHHELD}`)
-    .replace(EMAIL, "***@$1");
+    .replace(QUOTED_VALUE, (_, lead: string) => `${lead}"${WITHHELD}"`);
+  const text = maskEmails(maskUrlTails(decoded));
   // Mask phones only outside UUIDs and dates.
   let out = "";
   let last = 0;
@@ -91,12 +156,15 @@ const FRAME = /^at .*(?::\d+:\d+\)?|\(native\)|\(index \d+\)|<anonymous>\)?)$/;
 function stackFrames(stack: string, message?: string): string[] {
   const at = message ? stack.indexOf(message) : -1;
   const frames = at >= 0 ? stack.slice(at + (message ?? "").length) : stack;
-  return frames
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => FRAME.test(line))
-    .slice(0, 10)
-    .map(maskText);
+  return (
+    frames
+      .split("\n")
+      .map((line) => line.trim())
+      // A real frame is a short line; anything long is a message's text, never tried.
+      .filter((line) => line.length <= 500 && FRAME.test(line))
+      .slice(0, 10)
+      .map(maskText)
+  );
 }
 
 function redactError(err: Error, depth: number, seen: WeakSet<object>): Record<string, unknown> {

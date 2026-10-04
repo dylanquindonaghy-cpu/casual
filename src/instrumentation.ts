@@ -5,8 +5,13 @@ import type { Instrumentation } from "next";
 // process.stdout) is imported dynamically, and only in the Node.js runtime.
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { routeConsoleThroughMasking } = await import("./lib/log/console");
+    const [{ routeConsoleThroughMasking }, { log }, { logProcessErrors }] = await Promise.all([
+      import("./lib/log/console"),
+      import("./lib/log"),
+      import("./lib/log/process"),
+    ]);
     routeConsoleThroughMasking();
+    logProcessErrors(log);
   }
 }
 

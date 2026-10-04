@@ -8622,7 +8622,7 @@ after a `?` or `#` in an address (where login links carry their secret part).
   (3,126 tests, 60 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M8, M9, L29, L38, L43, L50.
-- Committed and pushed to `build/overnight`.
+- Commit `5ea4711`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

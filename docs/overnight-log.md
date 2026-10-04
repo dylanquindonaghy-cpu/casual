@@ -7955,4 +7955,4 @@ only the additions.
 
 **Hours:** 0.9 (06:23 to 07:14 UTC). Phase 10 so far: 14.5 of the 30–45 h estimate.
 
-**Commit:** (filled in below)
+**Commit:** `5ea4711`, pushed to `build/overnight`.

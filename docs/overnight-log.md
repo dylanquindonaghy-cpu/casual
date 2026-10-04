@@ -7851,4 +7851,4 @@ moved to task 19 (walkthrough polish), and the parked note says so.
 
 **Hours:** 0.9 (05:27 to 06:20 UTC). Phase 10 so far: 13.6 of the 30–45 h estimate.
 
-**Commit:** (filled in below)
+**Commit:** `bdaaa19`, pushed to `build/overnight`.

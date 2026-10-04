@@ -8538,7 +8538,7 @@ of them log in on the made-up firm address.
   (3,103 tests, 60 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M13, L11, L52, L53, L54, L64.
-- Committed and pushed to `build/overnight`.
+- Commit `bdaaa19`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

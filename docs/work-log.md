@@ -8106,7 +8106,7 @@ Sheets" in `PLAN.md`.
   with that test unchanged. Its fix is parked, now marked "fix it soon".
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M11, M15, M16, L39, L67, L68, L69, L70, L71, L78.
-- Committed and pushed to `build/overnight`.
+- Commit `2dcbf52`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

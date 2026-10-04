@@ -7357,4 +7357,4 @@ against a live-acting database). "Fakes found: none." The parked items were note
 
 **Hours:** 1.1 (01:13 to 02:21 UTC). Phase 10 so far: 9.8 h of its 30–45 h estimate.
 
-**Commit:** see the next "Log commit and push" commit.
+**Commit:** `2dcbf52`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.

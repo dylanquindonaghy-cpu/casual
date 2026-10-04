@@ -8383,7 +8383,7 @@ deleting a worker weren't true. Now:
   (3,034 tests, 58 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit finding fixed: M4.
-- Committed and pushed to `build/overnight`.
+- Commit `a82e3a9`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

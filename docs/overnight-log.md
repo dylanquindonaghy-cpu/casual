@@ -7624,4 +7624,4 @@ test that fails a page once and recovers (M4)
 
 **Hours:** 0.6 (04:02 to 04:39 UTC). Phase 10 so far: 12.0 of the 30–45 h estimate.
 
-**Commit:** (filled in below)
+**Commit:** `a82e3a9`, pushed to `build/overnight`.

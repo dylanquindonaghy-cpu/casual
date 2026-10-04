@@ -8713,7 +8713,7 @@ does).
   (3,126 tests, 60 browser tests). Documentation only.
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M26, L13, L36, L37, L59, L60, L89.
-- Committed and pushed to `build/overnight`.
+- Commit `94d475c`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

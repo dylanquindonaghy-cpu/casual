@@ -8036,4 +8036,4 @@ the handover told Dylan to find them with `grep "Dylan to"`, which catches about
 
 **Hours:** 0.7 (07:16 to 08:00 UTC). Phase 10 so far: 15.2 of the 30–45 h estimate.
 
-**Commit:** (filled in below)
+**Commit:** `94d475c`, pushed to `build/overnight`.

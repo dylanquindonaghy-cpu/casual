@@ -31,10 +31,11 @@ async function snapshot() {
      union all select 'assignments', array_agg(id::text order by id) from assignments where firm_id = any($1)
      union all select 'requests', array_agg(id::text order by id) from requests where firm_id = any($1)
      union all select 'pay_records', array_agg(id::text order by id) from pay_records where firm_id = any($1)
+     union all select 'pay_queries', array_agg(id::text order by id) from pay_queries where firm_id = any($1)
      union all select 'roster_events', array_agg(id::text order by id) from events
        where firm_id = any($1)
          and action in ('shift.created', 'shift.assigned', 'shift.cancelled', 'request.created',
-                        'shift.marked_urgent')`,
+                        'shift.marked_urgent', 'pay_query.created')`,
     [[ACME, NORTHLINE]],
   );
   return rows;
@@ -218,6 +219,8 @@ describe("the demo seed's credential packs", () => {
 });
 
 describe("Acme's Saturday event day", () => {
+  // The Saturday's shifts are the ones still ahead (the seed's last event is in the past:
+  // seed-extras.ts, tested below).
   const acmeRows = async <T extends Record<string, unknown>>(text: string) =>
     (await su.query<T>(text, [ACME])).rows;
 
@@ -238,7 +241,7 @@ describe("Acme's Saturday event day", () => {
               count(*) filter (where status = 'open')::int as open,
               count(*) filter (where is_urgent)::int as urgent,
               count(*) filter (where instructions is null)::int as no_instructions
-         from shifts where firm_id = $1`,
+         from shifts where firm_id = $1 and starts_at > now()`,
     );
     expect(counts).toMatchObject({
       shifts: 40,
@@ -259,7 +262,7 @@ describe("Acme's Saturday event day", () => {
     // A filled shift has its booking, and every booking is confirmed on a filled shift.
     const [consistent] = await acmeRows<{ bad: number }>(
       `select count(*)::int as bad from shifts s
-        where s.firm_id = $1 and (s.status = 'filled') <> exists (
+        where s.firm_id = $1 and s.starts_at > now() and (s.status = 'filled') <> exists (
           select 1 from assignments a where a.shift_id = s.id and a.status = 'confirmed')`,
     );
     expect(consistent).toEqual({ bad: 0 });
@@ -303,7 +306,8 @@ describe("Acme's Saturday event day", () => {
 
   it("books only workers the rules allow, and never the five kept free for demo logins", async () => {
     const booked = await acmeRows<{ shift_id: string; worker_id: string }>(
-      "select shift_id::text, worker_id::text from assignments where firm_id = $1 and status = 'confirmed'",
+      `select a.shift_id::text, a.worker_id::text from assignments a join shifts s on s.id = a.shift_id
+        where a.firm_id = $1 and a.status = 'confirmed' and s.starts_at > now()`,
     );
     expect(booked).toHaveLength(32);
     const { previewBooking } = await import("@/lib/roster/book");
@@ -388,6 +392,8 @@ describe("Acme's Saturday event day", () => {
         where firm_id = $1
           and action in ('shift.created', 'shift.assigned', 'shift.cancelled', 'request.created',
                          'shift.marked_urgent')
+          and coalesce(data ->> 'shiftId', entity_id::text) in (
+                select id::text from shifts where firm_id = $1 and starts_at > now())
         group by action order by action`,
     );
     expect(rows).toEqual([
@@ -430,7 +436,7 @@ describe("Acme's Saturday event day", () => {
     const [order] = await acmeRows<{ bad: number }>(
       `select count(*)::int as bad from assignments a join shifts s on s.id = a.shift_id
         where a.firm_id = $1 and a.confirmed_at <= s.created_at`,
-    );
+    ); // every seeded booking, the last event's included
     expect(order).toEqual({ bad: 0 });
     expect(JSON.stringify(cancelled?.data)).not.toContain("unwell");
   });
@@ -452,5 +458,171 @@ describe("Acme's Saturday event day", () => {
       `select count(*)::int as n from assignments where firm_id = $1 and worker_id = '${ruth}' and status = 'confirmed'`,
     );
     expect(still).toEqual({ n: 1 });
+  });
+});
+
+// The walkthrough's other states (src/lib/db/admin/seed-extras.ts, Phase 10 task 20).
+describe("the demo's past event, pay queries and Northline's night", () => {
+  const rowsOf = async <T extends Record<string, unknown>>(firmId: string, text: string) =>
+    (await su.query<T>(text, [firmId])).rows;
+  const london = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+
+  it("Acme's last event: yesterday, 3 stewards at the racecourse and 2 officers at the centre, booked, nobody marked yet", async () => {
+    const rows = await rowsOf<{
+      day: string;
+      site: string;
+      role: string;
+      status: string;
+      booking: string;
+      worker: string;
+    }>(
+      ACME,
+      `select (s.starts_at at time zone 'Europe/London')::date::text as day, si.name as site,
+              s.role, s.status, a.status as booking, a.worker_id::text as worker
+         from shifts s join sites si on si.id = s.site_id
+         join assignments a on a.shift_id = s.id
+        where s.firm_id = $1 and s.ends_at < now() order by s.role, a.worker_id`,
+    );
+    expect(rows).toHaveLength(5);
+    const yesterday = london(new Date(Date.now() - 86_400_000));
+    for (const r of rows) {
+      expect(r.day).toBe(yesterday);
+      expect([r.status, r.booking]).toEqual(["filled", "confirmed"]);
+    }
+    expect(rows.map((r) => [r.role, r.site])).toEqual(
+      [
+        ...[1, 2, 3].map(() => ["steward", "Acme Demo Racecourse"]),
+        ...[1, 2].map(() => ["security_officer", "Acme Demo Shopping Centre"]),
+      ].sort(),
+    );
+    // Logged as the app would: each shift's creation and each booking.
+    const [logged] = await rowsOf<{ created: number; assigned: number }>(
+      ACME,
+      `select count(*) filter (where action = 'shift.created')::int as created,
+              count(*) filter (where action = 'shift.assigned')::int as assigned
+         from events where firm_id = $1
+          and coalesce(data ->> 'shiftId', entity_id::text) in (
+                select id::text from shifts where firm_id = $1 and ends_at < now())`,
+    );
+    expect(logged).toEqual({ created: 5, assigned: 5 });
+  });
+
+  it("Acme's pay queries: 10 open, 7 about one week's steward rate, 2 hours missing at the centre, 1 something else, each logged", async () => {
+    const groups = await rowsOf<{ key: string; n: number; status: string[] }>(
+      ACME,
+      `select group_key as key, count(*)::int as n, array_agg(distinct status) as status
+         from pay_queries where firm_id = $1 group by group_key order by count(*) desc`,
+    );
+    expect(groups.map((g) => g.n)).toEqual([7, 2, 1]);
+    expect(groups.every((g) => g.status.join() === "open")).toBe(true);
+    // The rate group: the stewards' £13.00, as their pay lines that week say.
+    expect(groups[0]?.key).toMatch(/^pay1:wrong_rate:\d{4}-\d{2}-\d{2}:rate:1300$/);
+    expect(groups[1]?.key).toMatch(
+      new RegExp(`^pay1:missing_hours:\\d{4}-\\d{2}-\\d{2}:site:${seedId("acme/site/centre")}$`),
+    );
+    // Not "paid late": a browser test raises one, and two such groups (different weeks) would both
+    // match its search for its own (the adversarial review).
+    expect(groups[2]?.key).toMatch(/^pay1:other:\d{4}-\d{2}-\d{2}$/);
+    const [logged] = await rowsOf<{ n: number }>(
+      ACME,
+      `select count(*)::int as n from events e join pay_queries q on q.id = e.entity_id
+        where e.firm_id = $1 and e.action = 'pay_query.created' and e.data ->> 'groupKey' = q.group_key`,
+    );
+    expect(logged).toEqual({ n: 10 });
+  });
+
+  it("Northline's night: 3 track operatives booked tomorrow at 23:00; one cancelled by the office at short notice, logged with the reason and the notice", async () => {
+    const rows = await rowsOf<{
+      day: string;
+      starts: string;
+      site: string;
+      status: string;
+      booking: string;
+      reason: string | null;
+      notice: string | null;
+    }>(
+      NORTHLINE,
+      `select (s.starts_at at time zone 'Europe/London')::date::text as day,
+              to_char(s.starts_at at time zone 'Europe/London', 'HH24:MI') as starts, si.name as site,
+              s.status, a.status as booking, a.cancel_reason as reason, a.notice_hours::text as notice
+         from shifts s join sites si on si.id = s.site_id join assignments a on a.shift_id = s.id
+        where s.firm_id = $1 order by a.status, a.worker_id`,
+    );
+    const tomorrow = london(new Date(Date.now() + 86_400_000));
+    expect(rows.map((r) => [r.day, r.starts, r.site])).toEqual(
+      [1, 2, 3].map(() => [tomorrow, "23:00", "Northline Demo Junction"]),
+    );
+    expect(rows.map((r) => [r.booking, r.status])).toEqual([
+      ["cancelled_firm", "open"],
+      ["confirmed", "filled"],
+      ["confirmed", "filled"],
+    ]);
+    expect(rows[0]?.reason).toBe("Weather or safety");
+    const notice = Number(rows[0]?.notice);
+    expect(notice).toBeGreaterThan(0);
+    expect(notice).toBeLessThan(48); // Northline's short-notice threshold
+    const [cancelled] = await rowsOf<{
+      actor_type: string;
+      actor_id: string;
+      data: Record<string, unknown>;
+    }>(
+      NORTHLINE,
+      "select actor_type, actor_id::text, data from events where firm_id = $1 and action = 'shift.cancelled'",
+    );
+    expect(cancelled).toMatchObject({
+      actor_type: "office",
+      actor_id: seedId("northline/office/resourcer"),
+      data: { by: "firm", reason: "Weather or safety", noticeHours: notice },
+    });
+  });
+
+  it("the notice report shows Northline's short-notice firm cancellation (audit L25)", async () => {
+    const { loadNoticeReport, parseNoticeQuery } = await import("@/lib/office/notice-report");
+    const report = await withFirm(NORTHLINE, (tx) =>
+      loadNoticeReport(tx, parseNoticeQuery({}), new Date()),
+    );
+    const cancellations = report.rows.filter((r) => r.kind === "cancelled");
+    expect(cancellations).toHaveLength(1);
+    expect(cancellations[0]).toMatchObject({
+      initiator: "office",
+      shortNotice: true,
+      reason: "Weather or safety",
+    });
+  });
+});
+
+// The guardrails review of Phase 10 task 20: a re-run a week later makes this week's Saturday the
+// "last event", whose workers it books are on that Saturday already. Each seeded booking is one the
+// rules would allow: nobody holds two live bookings that overlap.
+describe("the seed run again a week later", () => {
+  it("adds next week's Saturday and last event, and never double-books anyone", async () => {
+    await seed({
+      adminUrl: urls.admin,
+      appUrl: urls.app,
+      nodeEnv: "test",
+      today: new Date(Date.now() + 7 * 86_400_000),
+    });
+    const { rows: overlaps } = await su.query<{ worker_id: string; a: string; b: string }>(
+      `select a1.worker_id::text, a1.id::text as a, a2.id::text as b
+         from assignments a1 join shifts s1 on s1.id = a1.shift_id
+         join assignments a2 on a2.worker_id = a1.worker_id and a2.id > a1.id
+         join shifts s2 on s2.id = a2.shift_id
+        where a1.firm_id = any($1) and a2.firm_id = a1.firm_id
+          and a1.status not in ('cancelled_worker', 'cancelled_firm')
+          and a2.status not in ('cancelled_worker', 'cancelled_firm')
+          and s1.starts_at < s2.ends_at and s2.starts_at < s1.ends_at`,
+      [[ACME, NORTHLINE]],
+    );
+    expect(overlaps).toEqual([]);
+    // Every shift's status still says whether its place is held.
+    const { rows: wrong } = await su.query<{ n: number }>(
+      `select count(*)::int as n from shifts s
+        where s.firm_id = any($1) and s.status in ('open', 'filled')
+          and (s.status = 'filled') <> exists (
+            select 1 from assignments a where a.shift_id = s.id
+              and a.status not in ('cancelled_worker', 'cancelled_firm'))`,
+      [[ACME, NORTHLINE]],
+    );
+    expect(wrong).toEqual([{ n: 0 }]);
   });
 });

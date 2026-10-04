@@ -9,7 +9,7 @@ without breaking a 6am cancellation.
 |---|---|---|---|
 | Unit | Vitest | Rules engine (table-driven), ranking, notice-hours maths, grouping keys, template rendering, zod schemas for AI outputs | every commit |
 | Integration | Vitest + real Postgres (Docker) | RLS isolation per table, scoped client, atomic assign race, idempotent webhook insert, job handlers with a fake clock, Sheets adapter against a mocked Sheets API | every commit |
-| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP (built: `tests/e2e/flow.worker.spec.ts`, timed); office: create shift → make urgent → wave → assign; firm cancel → notice report | on PR and before deploy |
+| E2E | Playwright (mobile viewport; own web app, worker and seeded `*_e2e` database; login links read from the console transport's outbox file) | login → my shifts → take shift → cancel → request → pay OTP (built: `tests/e2e/flow.worker.spec.ts`, timed); office: create shift → make urgent → wave → assign; firm cancel → notice report. Then a second run (`playwright.walkthrough.config.ts`, Phase 10 task 20): `walkthrough.spec.ts` does every step of `docs/walkthrough.md` in order, on its own freshly seeded database and a **production build** (`next build`, `next start`, port 3200), the office at desktop size and the worker at phone size, so a verified run proves the production build too (audit L16, L88, L66) | on PR and before deploy |
 | Contract | Vitest | Twilio signature verification with real sample payloads; TwiML output; template variable coverage | every commit |
 | Security | scripts | `npm audit`, secrets scan, RLS "enabled on every table" check, log masking test | every commit |
 | Manual | checklist | Real phone, real Twilio number, iPhone home-screen push, poor-signal open of My shifts | before pilot |
@@ -214,18 +214,20 @@ without breaking a 6am cancellation.
 **Acme Events (security/events, native mode):** a fake shifts line (+44 7700 900000, Ofcom's drama
 range; Northline has none), 60 workers (5 with expired SIA, 3 "applied"),
 3 sites (stadium, racecourse, shopping centre), a Saturday event with 40 shifts, one 6am
-cancellation that becomes urgent, two open requests, pay records for 8 weeks, 12 pay queries
-(9 about one rate change).
+cancellation that becomes urgent, two open requests, pay records for 8 weeks, yesterday's event
+(5 bookings not marked yet), 10 pay queries (7 about one rate change).
 
-**Northline Rail Labour (rail, Sheets mode with a mocked sheet):** 30 workers with PTS/Sentinel/
-D&A dates, night possessions, one short-notice firm cancellation.
+**Northline Rail Labour (rail):** 30 workers with PTS/Sentinel/D&A dates, tomorrow night's
+possession with one short-notice firm cancellation. (Its mocked rota sheet is still to come: no
+Google account.)
 
 **What exists when.** `npm run db:seed` (also run by `npm run db:reset`) grows with each phase.
 Phase 1 loads both firms, their sites, office users (admin, resourcer, payroll), workers and
 credentials (Phase 2 adds each firm's credential pack: security for Acme, rail for Northline): Acme's 60 workers (5 expired SIA, 3 applied) and Northline's 30 with PTS, Sentinel
 and drugs and alcohol dates. Phase 3 adds Acme's Saturday event day
-(`src/lib/db/admin/seed-saturday.ts`), described below. Still to come: Northline's mocked sheet
-(Phase 2), the short-notice firm cancellation (Phase 5) and pay queries (Phase 6). Numbers are in Ofcom's drama range (+447700900000-999), emails are
+(`src/lib/db/admin/seed-saturday.ts`), described below. Phase 10 task 20 adds the walkthrough's
+other states (`src/lib/db/admin/seed-extras.ts`), described below. Still to come: Northline's
+mocked sheet (Phase 2). Numbers are in Ofcom's drama range (+447700900000-999), emails are
 @example.com, credential numbers start `TEST-`; the seed refuses production and non-local
 databases, and running it twice changes nothing (fixed ids, upserts).
 
@@ -250,6 +252,23 @@ before a call so it's the coming one):
 - Re-running `npm run db:seed` the same week adds nothing and never undoes a demo's changes. Run
   in a later week, it adds that week's Saturday too; run on a Saturday, it adds next Saturday
   while today's is still there. Use `npm run db:reset` for exactly one Saturday.
+
+**The walkthrough's other states (Phase 10 task 20, `seed-extras.ts`).** Each on workers no browser
+test uses, and the pay queries of kinds no browser test raises (a test's own "paid late" group is
+never split or joined), so they can't change what those tests check:
+- Acme's last event: yesterday (always among Today's "Who worked?", which looks back 7 days), 3
+  stewards at the racecourse (07700 900110, 900117, 900118) and 2 security officers at the
+  shopping centre (900150, 900151), all booked and none marked yet ("Past 30 days" on their My
+  shifts too).
+- Acme's 10 open pay queries: 7 stewards (900110, 900117 to 900121, 900124) about the last
+  complete week's rate (paid £13.00), 2 hours missing at the shopping centre on the last event
+  (900150, 900151), 1 "something else" (900152). Each with the app's own grouping key, and logged.
+- A re-run on a later day adds that day's (a new last event, pay queries, Northline night); a
+  seeded booking that would overlap one the worker holds is left out, and so is its query.
+- Northline's night: 3 track operatives (07700 900300 to 900302) booked tomorrow 23:00 to 07:00 at
+  the junction; the office cancelled 900302's booking when the seed ran ("Weather or safety"), so
+  under Northline's 48-hour threshold: the notice report's short-notice firm cancellation (audit
+  L25).
 
 **Demo logins (Acme, `http://acme.localhost:3000/login`):**
 

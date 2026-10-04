@@ -8201,3 +8201,98 @@ none; it ran `npm run build` itself: 0 brand errors, every route dynamic).
 **Hours:** 2.0 (08:03 to 10:05 UTC). Phase 10 so far: 17.2 of the 30–45 h estimate.
 
 **Commit:** `11db2e3`, pushed to `build/overnight`. (`gh` isn't installed, so CI wasn't checked.)
+
+## 2026-10-04 10:08 UTC — Phase 10, task 20: the local walkthrough pack
+
+**Task:** Local walkthrough pack: `docs/walkthrough.md` gives Dylan numbered steps on Windows + WSL
+(Docker Desktop, the folder, `db:up`, `db:reset`, `dev`, which browser, the production-mode run with
+`npm run build`) to try every screen as a worker and as admin, resourcer and payroll. A dev-only
+fake phone (`npm run sim:*`) sends signed WhatsApp, SMS and call webhooks to the local server, and
+outbound messages show in the terminal. The demo seed covers every screen and state the
+walkthrough visits. It includes a "found a bug" template. A browser test, `walkthrough.spec.ts`,
+runs every step, with the office at desktop size. (L16, L25, L58, L66, L88)
+
+**Plan:**
+- **A run of its own for the walkthrough test.** The other browser tests share one seeded database
+  and use up seed state the walkthrough needs (the urgent dropout, the seeded office logins: each
+  is already used 3 times, the 15-minute limit). So `npm run e2e` runs the existing tests, then a
+  second Playwright run (`playwright.walkthrough.config.ts`) that rebuilds and seeds its own
+  database, exactly what Dylan gets after `npm run db:reset`. Its web app is a **production build**
+  (`next build`, then `next start`), so `verify.sh`'s browser stage now proves the production build
+  too (L16, L88), without changing `verify.sh`. The office at desktop size (L66); the worker's
+  steps at phone size in the same test.
+- **The fake phone** (`scripts/sim-phone.ts`; `npm run sim:whatsapp`, `sim:sms`, `sim:call`):
+  posts a WhatsApp, a text, or a call (with an optional voicemail) to the local server, signed with
+  the `.env`'s `TWILIO_AUTH_TOKEN` exactly as Twilio signs, to the address the server checks. It
+  refuses anything but a localhost `APP_BASE_DOMAIN` (never a real server). Replies show in the
+  `npm run dev` terminal (the console transport). The walkthrough test calls the same code.
+- **The demo seed**, for the states the walkthrough visits: Acme's 12 pay queries (9 about one
+  rate change: the digest's groups); a past event with bookings to mark (who worked, and "Past 30
+  days" on My shifts); Northline's short-notice firm cancellation (L25). The other parked seed item
+  (Northline's mocked sheet) stays parked: no Google account.
+- **`docs/walkthrough.md`**: numbered steps for Windows + WSL from nothing (Docker Desktop,
+  Ubuntu, the folder, `.env`, `npm install`, `db:up`, `db:reset`, `dev`), Chrome or Edge, then
+  every screen as a worker and as admin, resourcer and payroll, the fake phone, the production-mode
+  run, and a "found a bug" template (L58). Sample import files for the shift and pay imports.
+- **`tests/e2e/walkthrough.spec.ts`**: every step of the doc, in order, including a firm
+  cancellation followed by the notice report (L25).
+
+**Problems met while building (root causes):**
+- The walkthrough's production build failed ("Cannot read properties of null (reading
+  'useContext')" prerendering `/_global-error`). Root cause: `.env` sets `NODE_ENV=development`,
+  `playwright.config.ts` loads `.env` into its own environment, and the web server's `next build`
+  inherited it ("non-standard NODE_ENV"). By hand (`npm run build`) Next doesn't take `NODE_ENV`
+  from `.env`, which is why it built. Fix: the walkthrough's web server gets `NODE_ENV=production`;
+  its worker keeps development (production refuses the console transport).
+- My edit script truncated `playwright.walkthrough.config.ts` (a stray comma made the text a
+  tuple, and the file had been opened for writing first: the same slip as task 17). Rewritten in
+  full with the editor.
+
+**Decisions Dylan would normally approve:**
+
+| Decision | Why | Considered |
+|---|---|---|
+| The walkthrough test in its own Playwright run (own database, own port 3200) | The other tests use up seed state it needs; a fresh seed is what Dylan has after `db:reset` | One run, with personas no other test uses (the urgent dropout and the seeded office logins can't be shared) |
+| That run serves a production build | `verify.sh` can't be edited; its browser stage then proves the production build (L16, L88) | All browser tests on a production build (as CI does): more risk, more time per run |
+| The fake phone signs with `.env`'s made-up `TWILIO_AUTH_TOKEN` and refuses any non-localhost address | Same path as Twilio's real posts; can't reach a real server | Unsigned dev-only routes (a second way in) |
+| Sample import files made by a command, dated from today | Fixed files go out of date (imports care about dates) | Files in the repo |
+| Seed additions on workers no browser test uses | Can't change what those tests see | New workers (would change the seed's counts that tests rely on) |
+| The walkthrough test turns Acme's quiet hours off | A night-time run otherwise waits until 07:00 for the offer, confirmation and answers | Accepting "held" as an outcome (weaker) |
+
+**Reviews (guardrails, a doc fact-checker, an adversarial reviewer):**
+- Guardrails, FIX FIRST: run again a week later, the seed booked last week's Saturday workers on a
+  second shift at the same time (the "last event" is then that Saturday). Root cause: the extra
+  bookings skipped the rules' overlap check. Fix: a seeded booking that would overlap one the
+  worker holds is left out and its place stays open; a test seeds twice a week apart and finds no
+  overlaps (fails without the fix). Also: the comment overstated idempotency (Northline's night is
+  per day): corrected.
+- Fact-checker: the dev window shows `+44*******122`, not `+447*******122`: fixed. CLAUDE.md's
+  commands: `npm start` and `db:down` added.
+- Adversarial (2 HIGH, 4 MEDIUM, 2 LOW), all checked against the code:
+  - HIGH: the main run's `pay.query.spec.ts` would fail Thursday to Saturday: the seeded "paid
+    late" query (last Saturday) and the spec's own (3 days ago) fall in different weeks then, so
+    two groups match its search. Fix: the seed's third query is "something else"; no seeded query
+    is a kind a browser test raises.
+  - HIGH: the walkthrough failed every night (quiet hours hold the offer, the confirmation and the
+    answers). Fixed already: the test turns Acme's quiet hours off; the guide explains them.
+  - MEDIUM: the 09:00 weekday digest can go while the run's app builds, so "Send the digest now"
+    sends only Zoe's (1 query). Fix: the step accepts "query"/"queries" and the guide explains.
+  - MEDIUM: from Friday noon Zoe's cancelled shift (step 12) is urgent too, so step 19 saw "2
+    urgent shifts". Fix: any number, and "Take shift" on the 08:00 one; the guide says why.
+  - MEDIUM: on a Saturday evening "last Saturday" was 7 days back and dropped out of "Who worked?"
+    (it looks back 7 days). Fix: the last event is yesterday.
+  - MEDIUM: `npm run e2e -- <file>` passed the file to the walkthrough run only. Fix:
+    `scripts/e2e.mjs`: arguments go to the main run, and the walkthrough runs only without them.
+  - LOW: the dropout's id is worked out once, just after the seed; step 21 checks the requests'
+    exact words and the past event; step 32 checks Zoe's query is in the "paid late" group; the
+    guide's step 21 counts 4 requests, step 25 says what to do when "Check" says no, step 42 says
+    to restart after editing `.env`; a seeded "hours missing" query is left out with its booking.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=5abc35e06b8df306 e2e=true` (3,264 tests;
+browser tests: 60, then the walkthrough's 3 on a production build).
+
+**Auditor:** `VERDICT: DONE` ("nothing — already DONE"; fakes found: none; it judged Part 1 and
+Part 5, which the run does rather than clicks, as proven in substance, and L16/L88 as closed for
+the `RUN_E2E=1` stage and honestly recorded as partial otherwise).
+
+**Hours:** 1.4 (10:08 to 11:30 UTC). Phase 10 so far: 18.6 of the 30–45 h estimate.

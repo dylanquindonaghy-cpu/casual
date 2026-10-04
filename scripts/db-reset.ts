@@ -1,3 +1,4 @@
+import { printSeedSummary } from "./seed-summary";
 import { APP_DB_ROLE, JOBS_DB_ROLE, adminEnv } from "../src/lib/env";
 import { ensureOwnerRole, recreateDatabase, syncRolePassword } from "../src/lib/db/admin/bootstrap";
 import { runMigrations } from "../src/lib/db/admin/migrate";
@@ -36,5 +37,10 @@ await runMigrations({
   appUrl: env.DATABASE_URL,
   jobsUrl: env.DATABASE_JOBS_URL,
 });
-await seed({ adminUrl: env.DATABASE_ADMIN_URL, appUrl: env.DATABASE_URL, nodeEnv: env.NODE_ENV });
+const summary = await seed({
+  adminUrl: env.DATABASE_ADMIN_URL,
+  appUrl: env.DATABASE_URL,
+  nodeEnv: env.NODE_ENV,
+});
 console.log(`Recreated ${dbName}, applied migrations and loaded the demo firms.`);
+printSeedSummary(summary);

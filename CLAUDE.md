@@ -104,7 +104,12 @@ docs/
   or `drizzle-kit migrate`: only `db:migrate` also forces RLS, applies grants and installs pg-boss
 - `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e` (its own web app and worker on
   port 3100, an https front on 3443 for a firm's own domain (needs `openssl`), and its own `*_e2e`
-  database; stop `npm run dev` first)
+  database; then the walkthrough's run on a production build, port 3200 (`npm run e2e:walkthrough`
+  alone; `npm run e2e -- <file>` runs only that file of the first); stop `npm run dev` first)
+- `npm run sim:whatsapp`, `sim:sms`, `sim:call` — the fake phone for the local shifts line;
+  `npm run walkthrough:files` — the sample import files (`docs/walkthrough.md`)
+- `npm run build` then `npm start` (with `npm run worker`) — the production-mode run locally;
+  `npm run db:down` — stop the local database
 - `./scripts/verify.sh` — runs all of the above and writes the verified stamp
 
 (Create these scripts in Phase 0 if missing.)

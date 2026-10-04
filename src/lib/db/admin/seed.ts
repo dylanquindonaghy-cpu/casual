@@ -1,12 +1,14 @@
-import { sql } from "drizzle-orm";
+import { and, eq, gt, lt, notInArray, sql } from "drizzle-orm";
 import { Client, Pool } from "pg";
 import { applyCredentialPack } from "../../credentials/apply-pack";
 import { recordEvent } from "../../events/record";
 import { createWithFirm, type FirmTx } from "../scoped";
 import {
+  CANCELLED_ASSIGNMENT_STATUSES,
   assignments,
   credentials,
   officeUsers,
+  payQueries,
   payRecords,
   requests,
   shifts,
@@ -15,6 +17,15 @@ import {
 } from "../schema";
 import { seedFirms, type SeedFirm } from "./seed-data";
 import { acmeSaturday, type SaturdaySeed } from "./seed-saturday";
+import {
+  acmePastEvent,
+  acmePayQueries,
+  northlineNight,
+  type ExtraBooking,
+  type ExtraShift,
+  type PayQuerySeed,
+} from "./seed-extras";
+import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { isLocalHost } from "./urls";
 
@@ -67,6 +78,15 @@ export async function seed(opts: {
       await withFirm(firm.id, async (tx) => {
         await loadFirm(tx, firm);
         if (saturday) await loadSaturday(tx, firm, saturday, now);
+        // The walkthrough's other states (seed-extras.ts, Phase 10 task 20).
+        if (firm.slug === "acme") {
+          const past = acmePastEvent(firm.workers, firm.sites, now);
+          await loadExtraShifts(tx, firm, past);
+          await loadPayQueries(tx, acmePayQueries(firm.workers, past, now));
+        }
+        if (firm.slug === "northline") {
+          await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now));
+        }
       });
       summary.firms.push({
         slug: firm.slug,
@@ -312,4 +332,169 @@ async function loadPay(tx: FirmTx, firmId: string, day: SaturdaySeed): Promise<v
     .insert(payRecords)
     .values(day.pay.map((p) => ({ ...p, firmId })))
     .onConflictDoNothing();
+}
+
+// Shifts and bookings from seed-extras.ts: added once (fixed ids, nothing overwritten), and logged
+// once, as the app logs them: the shift's creation, each booking (by the worker), and an office
+// cancellation with its reason and the notice the worker had (golden rule 12).
+// A booking is left out (its place stays open) when the worker already holds a booking that
+// overlaps it, as the rules would refuse: a re-run in a later week makes last week's Saturday the
+// "last event", and its workers are booked on that Saturday already (the guardrails review).
+async function loadExtraShifts(
+  tx: FirmTx,
+  firm: SeedFirm,
+  extra: { shiftsCreatedAt: Date; shifts: ExtraShift[]; bookings: ExtraBooking[] },
+): Promise<void> {
+  const firmId = firm.id;
+  const clashes = new Set<string>();
+  for (const b of extra.bookings) {
+    const shift = extra.shifts.find((s) => s.id === b.shiftId);
+    if (!shift || b.status !== "confirmed") continue;
+    const [held] = await tx
+      .select({ id: assignments.id })
+      .from(assignments)
+      .innerJoin(
+        shifts,
+        and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
+      )
+      .where(
+        and(
+          eq(assignments.workerId, b.workerId),
+          notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
+          lt(shifts.startsAt, shift.endsAt),
+          gt(shifts.endsAt, shift.startsAt),
+        ),
+      )
+      .limit(1);
+    if (held && held.id !== b.id) clashes.add(b.id);
+  }
+  const openShifts = new Set(extra.bookings.filter((b) => clashes.has(b.id)).map((b) => b.shiftId));
+  const added = await tx
+    .insert(shifts)
+    .values(
+      extra.shifts.map((s) => ({
+        ...s,
+        status: openShifts.has(s.id) ? ("open" as const) : s.status,
+        firmId,
+        headcount: 1,
+        source: "native" as const,
+        isUrgent: false,
+        createdAt: extra.shiftsCreatedAt,
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ id: shifts.id });
+  const fresh = new Set(added.map((s) => s.id));
+  for (const s of added) {
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "shift.created",
+      entityType: "shift",
+      entityId: s.id,
+      data: { source: "seed" },
+    });
+  }
+  const bookings = extra.bookings.filter((b) => fresh.has(b.shiftId) && !clashes.has(b.id));
+  if (bookings.length === 0) return;
+  await tx.insert(assignments).values(
+    bookings.map((b) => ({
+      id: b.id,
+      firmId,
+      shiftId: b.shiftId,
+      slot: 1,
+      workerId: b.workerId,
+      status: b.status,
+      confirmedAt: b.confirmedAt,
+      cancelledAt: b.cancelledAt,
+      cancelReason: b.cancelReason,
+      noticeHours: b.noticeHours === null ? null : b.noticeHours.toFixed(2),
+    })),
+  );
+  const resourcer = firm.officeUsers.find((u) => u.role === "resourcer");
+  for (const b of bookings) {
+    await recordEvent(tx, {
+      actorType: "worker",
+      actorId: b.workerId,
+      action: "shift.assigned",
+      entityType: "assignment",
+      entityId: b.id,
+      data: {
+        by: "worker",
+        shiftId: b.shiftId,
+        workerId: b.workerId,
+        slot: 1,
+        noticeHours: b.bookedNoticeHours,
+      },
+    });
+    if (b.status === "cancelled_firm") {
+      if (!resourcer) throw new Error(`${firm.slug} has no resourcer to cancel it`);
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: resourcer.id,
+        action: "shift.cancelled",
+        entityType: "assignment",
+        entityId: b.id,
+        data: {
+          by: "firm",
+          shiftId: b.shiftId,
+          workerId: b.workerId,
+          noticeHours: b.noticeHours,
+          ...(b.cancelReason ? { reason: b.cancelReason } : {}),
+        },
+      });
+    }
+  }
+}
+
+// Pay queries from seed-extras.ts: added once, each with the group key the app gives it (from the
+// pay lines and the shift's site: src/lib/pay/grouping.ts), and logged as a raised query.
+async function loadPayQueries(tx: FirmTx, queries: PayQuerySeed[]): Promise<void> {
+  for (const q of queries) {
+    // A query about a shift only from someone booked on it (a booking left out as an overlap,
+    // above, takes its query with it).
+    if (q.shiftId) {
+      const [booked] = await tx
+        .select({ id: assignments.id })
+        .from(assignments)
+        .where(
+          and(
+            eq(assignments.shiftId, q.shiftId),
+            eq(assignments.workerId, q.workerId),
+            notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
+          ),
+        )
+        .limit(1);
+      if (!booked) continue;
+    }
+    const facts = await groupFactsFor(tx, {
+      workerId: q.workerId,
+      shiftId: q.shiftId,
+      workDate: q.workDate,
+      issue: q.issue,
+    });
+    const groupKey = payGroupKey(facts);
+    const [created] = await tx
+      .insert(payQueries)
+      .values({
+        id: q.id,
+        firmId: sql`app_current_firm_id()`,
+        workerId: q.workerId,
+        shiftId: q.shiftId,
+        workDate: q.workDate,
+        issueType: q.issue,
+        details: q.details,
+        groupKey,
+      })
+      .onConflictDoNothing()
+      .returning({ id: payQueries.id });
+    if (!created) continue;
+    await recordEvent(tx, {
+      actorType: "worker",
+      actorId: q.workerId,
+      action: "pay_query.created",
+      entityType: "pay_query",
+      entityId: created.id,
+      data: { issueType: q.issue, shiftId: q.shiftId, workDate: q.workDate, groupKey },
+    });
+  }
 }

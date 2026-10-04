@@ -325,7 +325,7 @@ every step works.
       is told they're booked; login links aren't followed by a full stop; an office cancellation
       for "the client needs fewer staff" doesn't re-offer the place; `npm run build` logs no brand
       errors; the action log shows per-firm numbers
-- [ ] Local walkthrough pack: `docs/walkthrough.md` gives Dylan numbered steps on Windows + WSL
+- [x] Local walkthrough pack: `docs/walkthrough.md` gives Dylan numbered steps on Windows + WSL
       (Docker Desktop, the folder, `db:up`, `db:reset`, `dev`, which browser, the production-mode
       run with `npm run build`) to try every screen as a worker and as admin, resourcer and payroll.
       A dev-only fake phone (`npm run sim:*`) sends signed WhatsApp, SMS and call webhooks to the
@@ -987,11 +987,10 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   of" only. Needed before the security pack goes live if a firm accepts either licence.
 - Phase 2 CSV import / office worker editing: validate `workers.roles` as snake_case with zod
   (shifts and credential_rules enforce it in the database; workers.roles doesn't yet).
-- Demo seed, still to add (see docs/testing.md): Northline's mocked sheet (Phase 2), the
-  short-notice firm cancellation (Phase 5), 12 pay queries, 9 about one rate change (Phase 6).
-  Acme's Saturday, the two requests and 8 weeks of pay are in (Phase 3). Also worth adding: past
-  shifts matching the pay lines, so "Past 30 days" on My shifts isn't empty in a demo. (The
-  seeded dropout's urgent mark is now logged, as the app logs it.)
+- Demo seed, still to add (see docs/testing.md): Northline's mocked sheet (Phase 2; needs a Google
+  account). Done in Phase 10 task 20: the short-notice firm cancellation (Northline), 10 pay
+  queries (7 about one rate change), and last Saturday's event (so "Past 30 days" and "Who worked?"
+  aren't empty). (The seeded dropout's urgent mark is now logged, as the app logs it.)
 - Urgent flag follow-ups (from the Phase 4 urgent flag task):
   - The office Today view (Phase 5): "Mark urgent" / "Not urgent" buttons calling
     `setShiftUrgent()`, and the flag shown on each shift.
@@ -1496,8 +1495,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     window, quiet hours, waves, sign-off)?
   - **Dylan to confirm:** payroll doesn't see the report (admins and resourcers do); it may want
     it once compensation is calculated (Stage 2).
-  - The demo seed's short-notice firm cancellation (docs/testing.md, Northline) isn't there yet:
-    add it with the seed's past event (see "Marking who worked follow-ups").
+  - Done in Phase 10 task 20: the demo seed's short-notice firm cancellation (Northline), shown in
+    the notice report (`tests/integration/seed.test.ts`, `tests/e2e/walkthrough.spec.ts` step 36).
   - The shift column shows the shift as it is now; for a booking or cancellation made before a
     later move, the notice hours (recorded at the time) are right but the start shown is the new
     one. Record the start in those events too if the 2027 rules need it.
@@ -1911,8 +1910,11 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     an uppercase `[X]` gets through, the Stop hook only catches a few phrasings, the stamp is taken
     after the run, a tick doesn't need the browser tests, and the reviewers are read-only by
     instruction only. All 67 ticks so far were checked and none used these gaps.
-  - L4, L16, L61, L62, L65, L88: make `verify.sh` also run `npm run build`, require the browser
-    tests for a tick, and widen `invariants.sh` (Playwright skips, `scripts/` in the withFirm check).
+  - L4, L61, L62, L65: require the browser tests for a tick, and widen `invariants.sh` (Playwright
+    skips, `scripts/` in the withFirm check). (L16, L88: since Phase 10 task 20 the browser stage,
+    `RUN_E2E=1`, includes a production build: the walkthrough runs against `next build`. A run
+    without `RUN_E2E=1` still doesn't build: making `verify.sh` build every time is yours to
+    decide.)
   - L9, L57: CI on GitHub hasn't been checked since Phase 0. Open the repo's Actions tab and check
     the latest `build/overnight` run has a green tick, or install `gh` so Claude can check.
   - L14: try the iPhone home-screen login on a real iPhone.
@@ -2025,3 +2027,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-04 | 10 | 0.9 | Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly turned-on worker (same image: no migration; it says "Applied the settings in .env"), tested by running the real script against a stand-in docker; the worker has a sign of life and a health check, so a crashing one fails the deploy; images carry their commit, printed as "Deployed … (commit <SHA>)"; the Caddyfile checked by Caddy itself (validate and its JSON) and sending HSTS; database TLS on in production (`sslmode=verify-full` against Amazon's bundle in the image; the app refuses a production database address without it); the runbook trial after Twilio and SES with a test firm, rollback from the image list with the timer stopped, and other steps matched to the scripts; two reviews' findings fixed (the image build had broken: caught and guarded); 3126 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.7 | Every decision waiting for Dylan in one place: a "Decisions waiting for Dylan" section (130 decisions in 10 groups, each listed once with the default in force and where to read more, plus 13 checks and to-dos), with a "when each one matters" list built from each row's deadline (before any real data, when you create the accounts, before submitting the WhatsApp templates, before a pilot…); every "Connect …" step says You or Claude, and that each service's sender is still to be written; stale references fixed across the plan, the ADRs, the rules and compliance docs and the work log; a fact-checker (about 140 claims) and a completeness critic found 17 things to fix (all done); 3126 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 2.0 | Walkthrough polish: an office-placed worker gets a "Confirmed: …" message (a `shift-confirmed` job, claim → send → record, never crossing a change notice); login links survive a full stop or quote after them; "The client needs fewer staff" takes the place away (refused on the last place or a sheet shift); a repeated call hears the first answer; the sign-off rule checked as messages are built; the baseline needs all 8 figures; no shared event numbers in the log, the notice report or the data downloads; the AI pay line may only restate facts (an allow-list); 10 login links a day per number or email; `firm:line` logged and guarded; no brand errors in `npm run build`; the masker's dates are real ones; three review rounds (2 + 1 focused), all findings fixed; 3243 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 1.4 | Local walkthrough pack: `docs/walkthrough.md`, 43 numbered steps for Windows + WSL (setup, every screen as a worker and as resourcer, payroll and admin, the fake phone, the production-mode run, a "found a bug" template); a fake phone (`npm run sim:whatsapp`, `sim:sms`, `sim:call`: signed like Twilio, local only); sample import files (`npm run walkthrough:files`); the seed's yesterday event, 10 pay queries and Northline's short-notice firm cancellation; `db:reset` prints the urgent link; `walkthrough.spec.ts` does every step in its own run on a production build, office at desktop size; three reviews, all findings fixed; 3264 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (see docs/work-log.md) |

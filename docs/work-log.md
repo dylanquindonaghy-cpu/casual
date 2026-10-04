@@ -8904,3 +8904,87 @@ With `npm run dev` running: log in to the office at `http://acme.localhost:3000/
 shift, choose someone under "Assign someone", then "Assign". The terminal where `npm run dev` runs
 prints the "Confirmed: …" message within a few seconds (at night it waits for the morning unless
 the shift is within 24 hours), and the shift's History says "{name} was told they're booked."
+
+## 2026-10-04 — Phase 10, task 20: the local walkthrough pack
+
+- **Time spent:** 1.4 hours (started 10:08 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=5abc35e06b8df306 e2e=true`
+  (3,264 tests; browser tests: 60, then the walkthrough's 3 on a production build).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: L16, L25, L58, L66, L88.
+- Three reviews (guardrails, a fact-checker for the guide, an adversarial reviewer); every finding
+  fixed.
+- Commit: see the next commit on `build/overnight` (the hash goes in the decision log).
+
+### What was built, in plain words
+
+This is everything you need to try the whole app on your own computer before you create any
+accounts.
+
+- **The guide, `docs/walkthrough.md`.** 43 numbered steps:
+  - setting up on Windows with Ubuntu (WSL), Docker Desktop and Chrome or Edge;
+  - every screen as a worker (four made-up people, each showing something different: taking and
+    cancelling a shift, pay, a time change, an expired licence, the urgent shift);
+  - then the office as resourcer, payroll and admin, and Northline's notice report;
+  - the shifts line with the fake phone;
+  - the app as the server will run it (the **production-mode run**: built once, faster);
+  - a "found a bug" template to fill in for each problem;
+  - a list of things that can go wrong, and what to do.
+- **A fake phone.** `npm run sim:whatsapp`, `sim:sms` and `sim:call` play the part of a worker's
+  phone. They send a WhatsApp, a text or a call (with a voicemail) to the app on your computer,
+  signed the way Twilio signs, so the app treats them as real. The replies print in the terminal,
+  as every message does locally. It refuses to talk to anything but your own computer.
+- **More of the demo.**
+  - Yesterday's event at Acme, with 5 bookings nobody has marked yet (so you can try "Who
+    worked?").
+  - 10 pay queries, 7 of them about one rate change (so payroll sees real groups).
+  - Northline's night shift tomorrow, where the office cancelled someone at short notice (so the
+    notice report flags it).
+  - `npm run db:reset` now prints the urgent shift's link at the end, which step 18 uses.
+- **Sample files for the imports.** `npm run walkthrough:files` writes a shifts file and a pay file,
+  dated from today, so they're never out of date.
+- **A browser test of the whole guide.** `walkthrough.spec.ts` does steps 10 to 40 in order, the
+  office at desktop size and the worker at phone size. It runs on its own fresh demo (exactly
+  what you have after `npm run db:reset`) and against a **production build**. So whenever the check
+  runs with the browser tests, it now proves the production build works too, without changing
+  `verify.sh`.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The walkthrough test in its own run, on its own fresh database | Other tests use up demo state it needs (the urgent shift, the office logins) | Sharing one run |
+| That run serves a production build | Proves the build without editing `verify.sh` | Every browser test on a production build |
+| The fake phone signs like Twilio and only talks to localhost | Same way in as the real thing; can't reach a real server | A test-only shortcut into the app |
+| Sample files made by a command, dated today | The imports care about dates | Fixed files in the repo |
+| Yesterday's event, not last Saturday's | "Who worked?" looks back 7 days; on a Saturday evening, last Saturday dropped out | Last Saturday |
+
+### What the new tests prove
+
+- **`tests/e2e/walkthrough.spec.ts`:** every step of the guide works as written, on a production
+  build, day or night.
+- **`tests/unit/fake-phone.test.ts`:**
+  - the fake phone's messages are accepted by the real webhook code;
+  - a wrong key is refused;
+  - a call, its voicemail and its end are each signed for their own address;
+  - it never talks to anything but a local server;
+  - the command explains itself when given the wrong options.
+- **`tests/integration/seed.test.ts`:**
+  - the new demo rows, as the app would record them;
+  - the notice report flags Northline's short-notice cancellation;
+  - running the seed again a week later never books anyone twice at the same time (this failed
+    before the fix).
+- **The tests catch the bugs:** the fixes were broken on purpose, and their tests failed.
+
+### Parked, open, and things that need Dylan
+
+- **Try the walkthrough.** Open `docs/walkthrough.md` and follow it from step 1. Each step says
+  what you should see. Use the template at the end for anything that doesn't match.
+- **Decide (PLAN.md, "Decisions waiting for Dylan"):** make `verify.sh` build the app on every run,
+  not only with the browser tests (`RUN_E2E=1`).
+- **Still parked:** Northline's mocked rota sheet (it needs a Google account).
+
+### How to see it working
+
+Follow `docs/walkthrough.md`. Or, to watch the test do it: stop `npm run dev`, then run
+`npm run e2e:walkthrough`. It takes a few minutes: it builds the app first.

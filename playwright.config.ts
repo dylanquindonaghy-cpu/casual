@@ -25,17 +25,19 @@ const e2e = (url: string | undefined) => {
   if (!url) throw new Error("DATABASE_URL, DATABASE_JOBS_URL and DATABASE_ADMIN_URL must be set");
   return withDatabase(url, `${databaseName(url)}_e2e`);
 };
-const env = {
+// The servers' settings for a browser-test run on `port`, with its own outbox. Also used by the
+// walkthrough's run (playwright.walkthrough.config.ts), which serves a production build.
+export const serverEnv = (port: number, outbox: string, opts: { testPages?: boolean } = {}) => ({
   DATABASE_URL: e2e(process.env.DATABASE_URL),
   DATABASE_JOBS_URL: e2e(process.env.DATABASE_JOBS_URL),
   DATABASE_ADMIN_URL: e2e(process.env.DATABASE_ADMIN_URL),
-  APP_BASE_DOMAIN: `localhost:${PORT}`,
+  APP_BASE_DOMAIN: `localhost:${port}`,
   MESSAGING_TRANSPORT: "console",
-  CONSOLE_OUTBOX_FILE: OUTBOX,
+  CONSOLE_OUTBOX_FILE: outbox,
   // The offline copy of My shifts is off by default in development; the e2e run tests it.
   OFFLINE_COPY: "on",
   // The test-only pages (src/app/e2e/), e.g. one that fails once (tests/e2e/error-page.spec.ts).
-  E2E_TEST_PAGES: "on",
+  ...(opts.testPages === false ? {} : { E2E_TEST_PAGES: "on" }),
   // Web push: never a real key in e2e (a browser would then ask Google's push service), and the
   // console sender.
   VAPID_PUBLIC_KEY: "",
@@ -46,11 +48,15 @@ const env = {
   GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "",
   // A made-up key, so the e2e run can post signed Twilio webhooks (tests/e2e/whatsapp.inbound.spec.ts).
   TWILIO_AUTH_TOKEN: E2E_TWILIO_AUTH_TOKEN,
-};
+});
+const env = serverEnv(PORT, OUTBOX);
 
 export default defineConfig({
   testDir: "tests/e2e",
   testMatch: "**/*.spec.ts",
+  // The walkthrough runs on its own, against a fresh database and a production build
+  // (playwright.walkthrough.config.ts; `npm run e2e` runs both).
+  testIgnore: "**/walkthrough.spec.ts",
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   workers: 1,

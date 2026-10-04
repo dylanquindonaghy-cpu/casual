@@ -14,9 +14,9 @@ const FIRM_LINES = seedFirms()
 const ON_PURPOSE = new Set([PAGE_FAILS_ON_PURPOSE, FRAME_FAILS_ON_PURPOSE]);
 
 // Every login token the run sent (from the console transport's outbox file).
-function sentTokens(): string[] {
-  if (!existsSync(OUTBOX)) return [];
-  return [...readFileSync(OUTBOX, "utf8").matchAll(/\/l#([A-Za-z0-9_-]{43})/g)].map(
+function sentTokens(outbox: string): string[] {
+  if (!existsSync(outbox)) return [];
+  return [...readFileSync(outbox, "utf8").matchAll(/\/l#([A-Za-z0-9_-]{43})/g)].map(
     (m) => m[1] ?? "",
   );
 }
@@ -30,10 +30,16 @@ function sentTokens(): string[] {
 // failures on purpose (audit L64: a page, action or job that failed where no test looked used to
 // pass the run). Any finding fails the run.
 export default function teardown(): void {
+  checkRun(OUTBOX, SERVER_LOGS);
+}
+
+// The same checks for any run: its outbox and its servers' output (the walkthrough's run too:
+// tests/e2e/walkthrough-teardown.ts).
+export function checkRun(outbox: string, serverLogs: readonly string[]): void {
   const reports: string[] = [];
   const failures: string[] = [];
-  const tokens = sentTokens();
-  for (const file of SERVER_LOGS) {
+  const tokens = sentTokens(outbox);
+  for (const file of serverLogs) {
     if (!existsSync(file)) throw new Error(`${file} is missing: the servers' output wasn't kept`);
     const { findings, errors } = checkServerOutput(readFileSync(file, "utf8"), {
       allowNumbers: FIRM_LINES,

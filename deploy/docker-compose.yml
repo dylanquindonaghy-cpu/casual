@@ -58,11 +58,18 @@ services:
       MESSAGING_TRANSPORT: ${MESSAGING_TRANSPORT:-}
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
+      # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,
+      # "Connect the real Google Sheets").
+      GOOGLE_SERVICE_ACCOUNT_JSON_PATH: ${GOOGLE_SERVICE_ACCOUNT_JSON_PATH:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       ALERTS_TRANSPORT: ${ALERTS_TRANSPORT:-console}
       # The ops alerts check the web app from inside the server (docs/runbooks.md "Alerts from the app").
       HEALTH_CHECK_URL: http://web:3000/api/health
+    # The Google service account's key file, next to this file in secrets/ (never in the image or
+    # the repo), read-only; only the worker reads it.
+    volumes:
+      - ./secrets:/app/secrets:ro
     logging: *logging
 
   # One-off: `docker compose run --rm migrate` (deploy.sh does it before every start). Never

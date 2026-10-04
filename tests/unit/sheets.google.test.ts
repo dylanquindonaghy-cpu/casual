@@ -109,6 +109,31 @@ describe("googleSheetsClient", () => {
     expect(calls.filter((c) => c.url === TOKEN_URI)).toHaveLength(1);
   });
 
+  it("reads the spreadsheet's locale in one small request (its properties only)", async () => {
+    const { fn, calls } = fakeFetch((call) =>
+      call.url === TOKEN_URI ? tokenReply() : json({ properties: { locale: "en_US" } }),
+    );
+    const client = googleSheetsClient({ key, fetch: fn });
+    expect(await client.locale(SHEET)).toBe("en_US");
+    expect(calls).toHaveLength(2);
+    const url = new URL(calls[1]?.url ?? "");
+    expect(`${url.origin}${url.pathname}`).toBe(`${SHEETS_API}/${SHEET}`);
+    expect(url.searchParams.get("fields")).toBe("properties.locale");
+    expect(calls[1]?.init.method).toBe("GET");
+    expect(new Headers(calls[1]?.init.headers).get("authorization")).toBe("Bearer ya29.test-token");
+  });
+
+  it("a locale reply it can't read, or a refused one, has a code", async () => {
+    const odd = fakeFetch((call) => (call.url === TOKEN_URI ? tokenReply() : json({ sheets: [] })));
+    await expect(googleSheetsClient({ key, fetch: odd.fn }).locale(SHEET)).rejects.toMatchObject({
+      code: "sheets_bad_response",
+    });
+    const hidden = fakeFetch((call) => (call.url === TOKEN_URI ? tokenReply() : json({}, 403)));
+    await expect(googleSheetsClient({ key, fetch: hidden.fn }).locale(SHEET)).rejects.toMatchObject(
+      { code: "sheet_not_shared" },
+    );
+  });
+
   it("writes every cell in one request, as RAW text (never a formula)", async () => {
     const { fn, calls } = fakeFetch((call) => (call.url === TOKEN_URI ? tokenReply() : json({})));
     const client = googleSheetsClient({ key, fetch: fn });
@@ -150,7 +175,8 @@ describe("googleSheetsClient", () => {
     [401, "sheets_auth_failed"],
     [500, "sheets_unavailable"],
     [503, "sheets_unavailable"],
-    [400, "sheets_bad_response"],
+    // A tab that isn't there, or a file that isn't a Google Sheet: the firm's to fix.
+    [400, "sheet_unreadable"],
   ])("a %i from Sheets is the code %s, never Google's message", async (status, code) => {
     const { fn } = fakeFetch((call) =>
       call.url === TOKEN_URI

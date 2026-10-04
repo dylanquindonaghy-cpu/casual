@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { TABLE_ACCESS } from "@/lib/db/admin/access";
+import { COLUMN_UPDATES, TABLE_ACCESS } from "@/lib/db/admin/access";
 import { appRolePool, superuserPool, urls } from "../helpers/db";
 import { EXPECTED_TABLES } from "../helpers/tenant-rows";
 
@@ -162,11 +162,28 @@ describe.each(EXPECTED_TABLES)("table %s", (table) => {
       };
     };
     const allowed = [...(TABLE_ACCESS[table] ?? [])].sort();
+    // A column-level UPDATE (COLUMN_UPDATES) is an update right on some columns, not the table.
+    const columnUpdate = COLUMN_UPDATES[table] ? ["UPDATE"] : [];
     expect(await effective("shiftdesk_app")).toEqual({
       table: allowed,
-      anyColumn: allowed.filter((p) => columnPrivileges.includes(p)),
+      anyColumn: [
+        ...new Set([...allowed.filter((p) => columnPrivileges.includes(p)), ...columnUpdate]),
+      ].sort(),
     });
     expect(await effective("shiftdesk_jobs")).toEqual({ table: [], anyColumn: [] });
+  });
+
+  it("column-level grants to the app role: exactly COLUMN_UPDATES (UPDATE only)", async () => {
+    const { rows } = await su.query<{ column: string; privilege: string }>(
+      `select att.attname::text as column, a.privilege_type as privilege
+         from pg_attribute att, aclexplode(att.attacl) a
+        where att.attrelid = $1::regclass and a.grantee = 'shiftdesk_app'::regrole
+        order by 1, 2`,
+      [`public.${table}`],
+    );
+    expect(rows).toEqual(
+      [...(COLUMN_UPDATES[table] ?? [])].sort().map((column) => ({ column, privilege: "UPDATE" })),
+    );
   });
 
   it("grants nothing to PUBLIC, on the table or any of its columns", async () => {
@@ -214,7 +231,13 @@ it("every foreign key between firm tables includes firm_id on both sides", async
 // Postgres checks unique indexes before foreign keys, so a unique key without firm_id lets one
 // firm probe another's rows: point a row at Firm B's parent and read a duplicate-key error
 // instead of a foreign-key one. Exceptions: unguessable values (sha256 token hashes, a
-// server-made random request id) and the firm directory itself.
+// server-made random request id), the firm directory itself, and keys across firms on purpose
+// that the app role can't write at all (checked below), so it can't probe with them.
+const OWNER_ONLY_KEYS: Record<string, { table: string; column: string }> = {
+  // One spreadsheet, one firm (audit L45): set only by the owner's npm run firm:sheet.
+  roster_sources_spreadsheet_id_key: { table: "roster_sources", column: "spreadsheet_id" },
+};
+
 it("every unique key on a firm table starts with firm_id (except unguessable tokens)", async () => {
   const { rows } = await su.query<{ name: string; first: string }>(
     `select i.relname as name, a.attname::text as first
@@ -234,9 +257,36 @@ it("every unique key on a firm table starts with firm_id (except unguessable tok
   ];
   expect(rows.length).toBeGreaterThan(unguessable.length);
   expect(rows.filter((r) => unguessable.includes(r.name)).map((r) => r.name)).toEqual(unguessable);
-  const leaky = rows.filter((r) => r.first !== "firm_id" && !unguessable.includes(r.name));
+  const leaky = rows.filter(
+    (r) => r.first !== "firm_id" && !unguessable.includes(r.name) && !(r.name in OWNER_ONLY_KEYS),
+  );
   expect(leaky).toEqual([]);
 });
+
+it.each(Object.entries(OWNER_ONLY_KEYS))(
+  "%s: a key across firms the app role can't write (no INSERT, no UPDATE of its column)",
+  async (name, { table, column }) => {
+    // The index is on exactly that column of that table, and unique.
+    const { rows: index } = await su.query(
+      `select t.relname as table, array(select a.attname::text from unnest(x.indkey) k
+                join pg_attribute a on a.attrelid = t.oid and a.attnum = k) as columns,
+              x.indisunique as unique
+         from pg_index x
+         join pg_class i on i.oid = x.indexrelid
+         join pg_class t on t.oid = x.indrelid
+        where i.relname = $1 and i.relnamespace = 'public'::regnamespace`,
+      [name],
+    );
+    expect(index).toEqual([{ table, columns: [column], unique: true }]);
+    const { rows } = await su.query(
+      `select has_table_privilege('shiftdesk_app', $1::regclass, 'INSERT') as can_insert,
+              has_any_column_privilege('shiftdesk_app', $1::regclass, 'INSERT') as can_insert_any,
+              has_column_privilege('shiftdesk_app', $1::regclass, $2, 'UPDATE') as can_update`,
+      [`public.${table}`, column],
+    );
+    expect(rows[0]).toEqual({ can_insert: false, can_insert_any: false, can_update: false });
+  },
+);
 
 describe("the job queue (pgboss schema)", () => {
   it("the app role may only enqueue: SELECT on queue, INSERT and SELECT(id) on job_common", async () => {

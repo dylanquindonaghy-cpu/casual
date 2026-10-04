@@ -8,9 +8,12 @@ reviewed once by a solicitor before the first pilot.
 - **Each firm is the controller.** It decides why staff data is used.
 - **We are the processor.** We only process data on the firm's instructions.
 - **Our sub-processors:** AWS (hosting, database, Bedrock AI, SES email), Twilio (numbers, SMS,
-  WhatsApp, voice), Meta (WhatsApp), ElevenLabs (only if the AI phone add-on is used).
-  List them in the DPA. Twilio, Meta and ElevenLabs are US-linked: check each one's DPA and
-  UK transfer terms.
+  WhatsApp, voice), Meta (WhatsApp), ElevenLabs (only if the AI phone add-on is used), Google
+  (only for a firm whose rota is a Google Sheet: our Google Cloud service account reads and writes
+  the sheet the firm shares with it; the sheet itself stays in the firm's own Google account).
+  List them in the DPA. Twilio, Meta, ElevenLabs and Google are US-linked: check each one's DPA
+  and UK transfer terms. **Dylan to confirm** the Google line with the solicitor (added in Phase 10
+  task 10).
 
 ## Data processing agreement (must cover)
 

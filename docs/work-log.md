@@ -7995,3 +7995,104 @@ accounts-to-create list). Until then, the tests show it:
    started shift is never re-timed or cancelled by a sync".
 3. Once a sheet is connected, the office's Today page shows "From your rota sheet" with any change
    that wasn't made, and why.
+
+## 2026-10-04 — Phase 10, task 10: the Google Sheets setup, said honestly
+
+- **Time spent:** 0.9 hours (started 00:19 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=9e917f199bbba895 e2e=true` (2,911 tests, 51 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M3, M17, L45.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+A firm can keep its rota in a **Google Sheet**. The app reads it through a **service account**: a
+robot Google login that belongs to us. Each firm shares its sheet with it.
+
+The audit found three problems:
+- **It couldn't be switched on (M3).** The setting only accepted "none", the setup steps in
+  `PLAN.md` would have failed, and Google was missing from your list of accounts to create.
+- **Dates could be read the wrong way round (M17).** The app reads a date as day/month/year. A sheet
+  set to the United States shows 12 June as "6/12", which would have been read as 6 December, with
+  no error.
+- **Nothing tied a sheet to its firm (L45).** Every firm shares with the same robot login, so if
+  one firm had been able to type in another firm's sheet link, the app would have read and written
+  that other firm's rota.
+
+Now:
+- **It can be switched on.** `SHEETS_TRANSPORT=google`, plus the path to the robot login's **key
+  file** (its password, kept in the never-committed `secrets/` folder), switches the sync on. Off is
+  still the default. Nothing called Google tonight: the tests use a fake Google.
+- **Only a United Kingdom sheet is read.** Each sync first asks Google for the sheet's **locale**
+  (its country setting). Anything but United Kingdom is refused before a single cell is read. The
+  office's action log says why and how to fix it: File → Settings → Locale.
+- **A new owner command, `npm run firm:sheet`, connects a firm's sheet.** It takes the sheet's link.
+  It can also replace a sheet, switch one off, let one go (`--forget`), or show where a firm's sheet
+  stands, in plain words.
+- **One sheet, one firm.** The database refuses the same sheet for a second firm. The app itself
+  can't add a sheet or change which one a firm uses. It may only update the sync's four "how did
+  it go" columns (a **column-level grant**: permission for some columns of a table, not all).
+- **Replacing a sheet is guarded.** Shifts are matched by their Shift ID. If a new sheet reused
+  "S7" for a different shift, the first sync would cancel the people booked on S7. So while sheet
+  shifts ahead have people booked, the command refuses another sheet unless you say it's a copy
+  (`--same-ids`).
+- **Plain words for every sync failure**, in the action log, `firm:check` and `firm:sheet`. A sheet
+  Google can't read (a renamed tab, or an Excel file) now says so, instead of "try again later".
+- **The setup steps match the code.** "Connect the real Google Sheets" in the `PLAN.md` Parking lot
+  is now numbered steps, checked line by line against the code by two reviewers. Google is now in
+  your accounts list and in the "what's blocked" table.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Refuse any sheet not set to United Kingdom | One small request; nothing else changes | Reading dates as Google's own numbers (would also turn staff IDs like "000123" into "123"; parked as the fuller fix for the date column only) |
+| Make it switchable now | The old reason it was off (sheet names skipped the rules) was fixed earlier; only the account is missing | Leave it off until the account exists (the steps would need code changes then) |
+| Only the owner connects a sheet; one sheet, one firm | Doesn't depend on any screen being careful | Making the firm prove it owns the sheet (parked, for if an office screen is ever built) |
+| Replacing needs `--same-ids` while sheet shifts ahead are booked | A reused Shift ID would cancel real bookings and log it as the firm's own change | Refuse every replace; match rows by sheet too (parked: bigger change) |
+
+### What the new tests prove
+
+- **`tests/integration/sheets.connect.test.ts`:** connecting, the same sheet refused for a second
+  firm (even switched off), replacing, `--same-ids`, switching off, letting go, the default columns
+  put back, and the app unable to add, remove or re-point a sheet (it can still update the sync's
+  status).
+- **`tests/integration/sheets.sync.test.ts`:**
+  - a US sheet isn't read at all; the office is told once, in plain words; once it's set to UK,
+    syncing works again;
+  - a sheet switched to US after syncing well changes nothing;
+  - the locale request refused fails like any read;
+  - one locale request per sync.
+- **`tests/unit/sheets.transport.test.ts`, `env.test.ts`, `sheets.google.test.ts`:** the switch, the
+  key file (errors never quote it), the locale request, and Google's 400.
+- **`tests/integration/rls.every-table.test.ts`, `tenancy.isolation.test.ts`:** the app's exact
+  rights on every table and column. The one cross-firm index has its own check that the app can't
+  write it.
+- **`tests/integration/onboarding.test.ts`:** `firm:check`'s rota line for a sheet never synced,
+  failing, and synced. **This found an older bug:** `firm:check` crashed for any firm whose sheet
+  had ever synced. The cause: a raw database read got the time back as text, not a date. Fixed.
+- **The tests catch the bugs:** the locale check, the app's limited rights, the key-file rule and
+  the replace guard were each broken on purpose, and their tests failed.
+
+### Parked, open, and things that need Dylan
+
+- **Your step:** "Connect the real Google Sheets" in the `PLAN.md` Parking lot. It needs a Google
+  Cloud account (free for this). Step 7 tries it on your computer with a test sheet and Northline's
+  demo workers. On the server it also needs Twilio first, because the worker that runs the sync
+  only starts there once Twilio is connected.
+- **Dylan to confirm (in `PLAN.md`):**
+  - what switching a firm's sheet off should do to its shifts ahead (today they freeze);
+  - the Google line added to the sub-processor list in `docs/compliance.md` (for the solicitor).
+- **Parked:**
+  - dates in a UK sheet with their own month-first format, or typed before the locale was changed;
+  - US-format dates in CSV imports;
+  - matching sheet rows by which sheet they came from;
+  - proof of ownership, if an office screen for the sheet is ever built;
+  - the Google quota at about 20 or more Sheets firms.
+
+### How to see it working
+
+Without a Google account, the tests show it:
+`npx vitest run tests/integration/sheets.connect.test.ts tests/integration/sheets.sync.test.ts`
+(with the database up: `npm run db:up`). With one, follow step 7 of "Connect the real Google
+Sheets" in `PLAN.md`.

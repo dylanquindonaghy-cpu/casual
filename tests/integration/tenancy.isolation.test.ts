@@ -1,6 +1,6 @@
 import type { ClientBase, Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { schemaTableNames, TABLE_ACCESS } from "@/lib/db/admin/access";
+import { COLUMN_UPDATES, schemaTableNames, TABLE_ACCESS } from "@/lib/db/admin/access";
 import { appRolePool, superuserPool } from "../helpers/db";
 import {
   countAll,
@@ -81,7 +81,8 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
       const truth = await su.query(`select 1 from public.${table} where id = $1`, [id]);
       expect(truth.rowCount).toBe(1);
     } else {
-      // firms and events: the app role has no UPDATE at all, in any firm.
+      // firms, events and roster_sources: the app role can't update the row as a whole, in any
+      // firm.
       for (const firmId of [A.firmId, B.firmId]) {
         const upd = await pgError(inFirm(app, firmId, (c) => touchById(c, table, id)));
         expect(upd).toMatchObject({
@@ -89,6 +90,19 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
           message: expect.stringMatching(/permission denied/),
         });
       }
+    }
+    // A column the app may update (COLUMN_UPDATES): the same check on that column.
+    const column = COLUMN_UPDATES[table]?.[0];
+    if (column) {
+      const touch = (c: ClientBase) =>
+        c
+          .query(
+            `update public.${table} set ${c.escapeIdentifier(column)} = ${c.escapeIdentifier(column)} where id = $1`,
+            [id],
+          )
+          .then((r) => r.rowCount ?? -1);
+      expect(await inFirm(app, B.firmId, touch)).toBe(1);
+      expect(await inFirm(app, A.firmId, touch, { commit: true })).toBe(0);
     }
   });
 
@@ -145,7 +159,7 @@ describe.each(EXPECTED_TABLES)("%s", (table) => {
         message: expect.stringMatching(/row-level security/),
       });
     } else {
-      // firms: created only by an admin script, never by the app.
+      // firms and roster_sources: created only by an owner script, never by the app.
       for (const firmId of [A.firmId, B.firmId]) {
         const err = await pgError(inFirm(app, firmId, (c) => run(c, INSERTS[table](firmId, B))));
         expect(err).toMatchObject({

@@ -2,6 +2,7 @@ import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { dayLabel } from "../rules/reasons";
+import { syncErrorWords } from "../roster/sheets/error-words";
 import { REASON_WORDS } from "./worker-reasons";
 
 // The action log in plain words for the office (docs/screens.md: short sentences, plain words): a
@@ -534,10 +535,24 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return "Too many tries: logging in was paused for a while.";
 
     // The rota sheet and imports.
+    case "roster.source_connected":
+      return d.mappingChanged
+        ? "The rota sheet's column settings were changed."
+        : d.replaced
+          ? "A new rota sheet was connected in place of the old one."
+          : "The rota sheet was connected.";
+    case "roster.source_disabled":
+      return d.replaced
+        ? "The old rota sheet was switched off (a new one replaces it)."
+        : "The rota sheet was switched off: nothing more is read from it.";
+    case "roster.source_forgotten":
+      return "An old rota sheet, already switched off, was let go: another firm could connect it.";
     case "roster.synced":
       return `The rota sheet was read${typeof d.shifts === "number" ? ` (${d.shifts} shifts)` : ""}.`;
     case "roster.sync_failed":
-      return "Reading the rota sheet failed.";
+      return typeof d.code === "string"
+        ? `Reading the rota sheet failed: ${syncErrorWords(d.code)}.`
+        : "Reading the rota sheet failed.";
     case "roster.sheet_conflict":
       return d.holderNotInSheet
         ? "Someone booked on this shift in the app isn't in the rota sheet's staff list."

@@ -10,18 +10,27 @@ import { wallTimeOf } from "@/lib/time/zoned";
 
 // An in-memory Google Sheets for tests: never the network. Counts every read and write request,
 // can fail the next one with a given code, and can run a hook before a read (to simulate the
-// office editing the sheet mid-sync).
+// office editing the sheet mid-sync). `reads` counts batch reads of cells; the locale request
+// (one per sync) is counted apart, in `localeReads`.
 
 export class FakeSheets implements SheetsClient {
   private books = new Map<string, Map<string, string[][]>>();
+  private locales = new Map<string, string>();
   reads = 0;
+  localeReads = 0;
   writes = 0;
   lastWrites: SheetWrite[] = [];
   failNextRead: SheetsErrorCode | null = null;
+  failNextLocale: SheetsErrorCode | null = null;
   failNextWrite: SheetsErrorCode | null = null;
   beforeRead: ((readNumber: number) => void) | null = null;
 
-  create(spreadsheetId: string, tabs: Record<string, string[][]>): void {
+  create(
+    spreadsheetId: string,
+    tabs: Record<string, string[][]>,
+    options: { locale?: string } = {},
+  ): void {
+    this.locales.set(spreadsheetId, options.locale ?? "en_GB");
     this.books.set(
       spreadsheetId,
       new Map(Object.entries(tabs).map(([name, rows]) => [name, rows.map((r) => [...r])])),
@@ -51,6 +60,23 @@ export class FakeSheets implements SheetsClient {
     target[column] = value;
   }
 
+  // As the office would change it: File → Settings → Locale.
+  setLocale(spreadsheetId: string, locale: string): void {
+    this.locales.set(spreadsheetId, locale);
+  }
+
+  async locale(spreadsheetId: string): Promise<string> {
+    this.localeReads += 1;
+    if (this.failNextLocale) {
+      const code = this.failNextLocale;
+      this.failNextLocale = null;
+      throw new SheetsError(code);
+    }
+    const locale = this.locales.get(spreadsheetId);
+    if (locale === undefined) throw new SheetsError("sheet_not_found");
+    return locale;
+  }
+
   async batchGet(spreadsheetId: string, ranges: string[]): Promise<string[][][]> {
     this.reads += 1;
     this.beforeRead?.(this.reads);
@@ -64,7 +90,7 @@ export class FakeSheets implements SheetsClient {
     return ranges.map((range) => {
       const r = parseRange(range);
       const rows = book.get(r.tab);
-      if (!rows) throw new SheetsError("sheets_bad_response");
+      if (!rows) throw new SheetsError("sheet_unreadable"); // as Google answers: a 400
       if (r.column === undefined) return rows.map((row) => [...row]);
       return rows.map((row) => [row[r.column ?? 0] ?? ""]);
     });
@@ -84,7 +110,7 @@ export class FakeSheets implements SheetsClient {
       const r = parseRange(w.range);
       if (r.column === undefined || r.row === undefined) throw new Error(`not a cell: ${w.range}`);
       const rows = book.get(r.tab);
-      if (!rows) throw new SheetsError("sheets_bad_response");
+      if (!rows) throw new SheetsError("sheet_unreadable"); // as Google answers: a 400
       while (rows.length < r.row) rows.push([]);
       const row = rows[r.row - 1] ?? [];
       while (row.length <= r.column) row.push("");

@@ -107,6 +107,14 @@ describe("deploy/docker-compose.yml", () => {
       expect(keys(name), name).not.toContain("DATABASE_ADMIN_URL");
     }
     expect(keys("web")).not.toContain("DATABASE_JOBS_URL");
+    // The Google service account's key: only the worker, read-only, from secrets/ beside the
+    // compose file (never the image).
+    expect(keys("worker")).toContain("GOOGLE_SERVICE_ACCOUNT_JSON_PATH");
+    expect(services.worker?.volumes?.map((v) => [v.target, v.read_only, v.type])).toEqual([
+      ["/app/secrets", true, "bind"],
+    ]);
+    expect(services.worker?.volumes?.[0]?.source).toMatch(/\/secrets$/);
+    expect(services.web?.volumes ?? []).toEqual([]);
     expect(keys("caddy")).toEqual(["ACME_EMAIL", "APP_BASE_DOMAIN"]);
     expect(keys("migrate")).toEqual(
       ["DATABASE_ADMIN_URL", "DATABASE_JOBS_URL", "DATABASE_URL", "NODE_ENV"].sort(),

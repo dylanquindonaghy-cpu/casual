@@ -6181,6 +6181,7 @@ Phases 4 and 6 to 9 will grow.
 | Amazon Bedrock | Phase 6: grouping pay queries with an AI summary line | "Connect Bedrock" |
 | An AWS account | Phase 8: the server and database, Docker and the deploy, backups and monitoring; then the runbooks tried for real | "Connect AWS", "Connect the deploy", "Connect monitoring", then "Try the runbooks for real" |
 | A signed pilot firm (Gate B) | Phase 9: importing its real data, sending its privacy notice wording, the baseline week, the dry run, the weekly reviews and the week-4 report; the rest of the pre-pilot checklist | "Import the pilot firm's real data", "Send the pilot firm its privacy notice wording", "Record the baseline week", "Run the dry-run event day", "Run the pilot's weekly reviews…", "Pre-pilot checks on the server" |
+| A Google Cloud account (a service account) *(added 2026-10-04, Phase 10 task 10: this row was missing)* | No ticked task waits on it, but the Phase 2 Sheets plug has only run against a fake Google, so no firm can use a Google Sheet until then. Phase 2's "11 / 0" above counts it as done. It can be tried on your computer as soon as the account exists; on the server it also needs Twilio (the worker, which runs the sync, starts there only once Twilio is connected). | "Connect the real Google Sheets" |
 
 Office logins in production also need **Amazon SES** (emails): "Connect Amazon SES".
 
@@ -6202,7 +6203,9 @@ Office logins in production also need **Amazon SES** (emails): "Connect Amazon S
      - **The privacy notice:** have a solicitor read `docs/privacy-notice.md` once, with the terms
        and DPA.
 3. **Create the outside accounts, when you're ready.**
-   - The usual order is AWS first, then Twilio, then SES, then Bedrock and web push.
+   - The usual order is AWS first, then Twilio, then SES, then Bedrock and web push. *(Added
+     2026-10-04: and a Google Cloud account for the rota sheets, any time: "Connect the real Google
+     Sheets". It was missing from this list.)*
    - Each "Connect …" item in the `PLAN.md` Parking lot has numbered steps: what to click, what to
      type, and what you should see.
    - Tell Claude when one is set up, and it will connect it and tick the task.
@@ -7112,3 +7115,114 @@ changes, and the flaky `sheets.jobs` test.
 **Hours:** 1.2 (23:07 to 00:16 UTC). Phase 10 so far: 7.8 h of its 30–45 h estimate.
 
 **Commit:** `0c7d9b3`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-10-04 00:19 UTC — Phase 10, task 10: Sheets, said honestly
+
+**Task:** Sheets, said honestly: Google is in the accounts-to-create list and the blocked table; the
+env and worker comments are corrected; the "Connect the real Google Sheets" steps match the code;
+sheet dates are read as serial numbers, or a non-UK sheet locale is refused with a plain message; a
+sheet is bound to its firm. (M3, M17, L45)
+
+**Plan:**
+1. **Switchable (M3):** `SHEETS_TRANSPORT` accepts `google`, which needs
+   `GOOGLE_SERVICE_ACCOUNT_JSON_PATH`; a small `sheetsClientFrom(env)` builds the real client (the
+   key file read once at start; a bad file stops the worker with a plain error that never quotes
+   the file). The worker uses it instead of `const sheets = undefined`. Comments in `env.ts`, the
+   worker and `google.ts` give today's reason (no Google account yet), not the old one (the rules
+   engine now checks sheet bookings, since Phase 2 and task 9). The deploy compose passes the path
+   and mounts `secrets/` read-only for the worker. No call to Google anywhere: tests use a fake
+   `fetch`.
+2. **Connecting a sheet, owner-only (L45, and M3's steps):** `npm run firm:sheet` (owner
+   connection, like `firm:domain`): connect a firm's sheet by its link or id (with the default
+   column mapping, or a mapping file), replace it (`--replace`), switch it off (`--disable`), or
+   show where it stands (last sync, the last error in plain words). A spreadsheet can be connected
+   to one firm only: a unique index on `roster_sources.spreadsheet_id` across all firms (RLS can't
+   see across firms, an index can), with a plain refusal. The app role loses INSERT and DELETE on
+   `roster_sources` and may update only the sync's four status columns (column-level grants), so
+   no app screen can point a firm at another firm's sheet. The office settings form, if ever built,
+   needs proof of ownership first: parked.
+3. **Dates (M17):** each sync first reads the sheet's locale (one small request); anything other
+   than `en_GB` fails the sync with `sheet_locale_not_uk` and nothing is read or written. The
+   office's action log says it plainly, with the fix (File → Settings → Locale: United Kingdom), as
+   do `firm:sheet` and the runbook. Chosen over serial numbers because unformatted values would
+   also turn number-formatted cells (a staff id "000123", a mobile shown with its 0) into bare
+   numbers, and a UK office typing into a US-locale sheet would still get the sheet's (US)
+   reading of "6/12".
+4. **Docs:** PLAN.md's "Connect the real Google Sheets" rewritten as numbered steps that match the
+   code; the "Before any Sheets firm goes live" note; the morning summary's blocked table and
+   account list gain Google (a dated correction); runbooks "Google Sheets sync failing" (no
+   "settings" screen: `firm:sheet`); architecture, data model, api-and-jobs; `.env.example` and
+   `deploy/env.example`.
+5. **Tests:** env (google without a path refused); `sheetsClientFrom` (none, google, a bad file);
+   the Google client's locale request against a fake network; the sync refusing a US-locale sheet
+   (nothing imported, logged once, the words); grants (the app can't insert, delete, or change the
+   sheet id or mapping; can update the status columns); `firm:sheet` (connect, the same sheet for
+   a second firm refused, replace, disable, show).
+
+**Changed from the plan while building:**
+- The invariant test "every unique key on a firm table starts with firm_id" got one named
+  exception, the new cross-firm sheet index, with its own test: the app role can't insert into the
+  table or update the column at all, so it can't probe with it.
+- `docs/compliance.md` lists Google as a sub-processor for Sheets firms ("Dylan to confirm").
+- Google's 400 (a renamed tab, an Excel file in Drive) now has its own code, `sheet_unreadable`,
+  instead of `sheets_bad_response` ("tries again shortly"), so the office is told to fix it. The
+  Google client's test for a 400 and the fake's missing tab say so.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Refuse a sheet whose locale isn't `en_GB` | Cells are read as shown; a UK sheet shows dates day first. One request, nothing else touched | Serial numbers for every cell (would turn number-formatted staff ids and mobiles into bare numbers); serial numbers for the date columns only (a second request either way; parked as the fuller fix, with one `spreadsheets.get`) |
+| Wire `SHEETS_TRANSPORT=google` now | The reason it was off (the rules didn't check sheet names) is gone; only the account is missing, which is Dylan's step | Keep `none` only and have Claude wire it after the account (the steps would need a code change) |
+| Owner-only connection, one sheet one firm, column grants | Binds the sheet without trusting any app screen; the index sees across firms where RLS can't | Proof of ownership in the sheet (parked for if an office form is ever built); a trigger instead of column grants |
+| `--replace` needs `--same-ids` while sheet shifts ahead have people booked | A reused Shift ID would cancel real bookings with false evidence | Refuse every replace; key rows by source (parked: bigger change) |
+
+**Guardrails review:** no golden-rule breach. FIX FIRST: verify not yet run (expected, run
+below); the local walkthrough steps (new workers would have no licences, so every booking would be
+refused; the timing); the server step (the worker runs only once Twilio is connected). All fixed
+in the steps. SHOULD FIX, all fixed: the date paths the locale check doesn't catch (written into
+the steps, the runbook, the error words and the Parking lot); a sheet could never be released
+(`--forget`, tested); more locale tests (one locale read per sync, the locale request refused, a
+sheet switched to US after syncing well). Nits fixed: the owner-only key test tied to the index's
+column; prototype-safe error words; `COLUMN_UPDATES` keys checked against the tables; the test's
+temp key removed; word tests for every new event shape; key upload steps. Left: the script reads
+`GOOGLE_SERVICE_ACCOUNT_JSON_PATH` without zod (only to print the email, inside a try); the web
+shares the app role (already parked with ADR-011).
+
+**Adversarial review:** the locale request, the grants, the owner script's RLS and events, and the
+wiring checked out. FIX FIRST, the same two steps as above (plus: set the locale before typing any
+date, or the M17 swap is recreated). SHOULD FIX, all fixed or parked: dates typed before a locale
+change (the words now say to check them); custom formats and the CSV side of M17 (parked);
+`--replace` with a sheet that reuses Shift IDs would cancel real bookings (now refused unless
+`--same-ids`, tested; the real fix parked); `--disable` freezes the shifts (said by the script and
+the runbook; "Dylan to confirm" what it should do); connecting again without `--mapping` never reset
+a broken mapping (now it does, and clears the failure so the next tick retries; tested); a Google
+400 called temporary (`sheet_unreadable`); `/office/settings` in screens.md described an office
+sheet form (now says it's owner-only); the e2e run could pick up a real Google key from `.env` (the
+e2e environment now forces `SHEETS_TRANSPORT=none`). Nits: stale Parking-lot line, comments,
+`has_any_column_privilege`, two small owner-script edge cases (parked).
+
+Each fix checked by breaking it: the locale check, the app's grants, and the key-path rule each
+make their tests fail.
+
+**A bug the new tests found (older than this task):** `firm:check`'s "Rota source" line crashed
+(`last_synced_at.toISOString is not a function`) for every firm whose sheet had ever synced.
+**Root cause:** `src/lib/onboarding/readiness.ts` read `roster_sources` with raw SQL
+(`tx.execute`) typed as returning a `Date`, but Drizzle's Postgres driver hands raw queries a
+timestamp as text (only its column mapping makes a `Date`). No test had a synced sheet. **Fix:**
+the read goes through the query builder; a test now covers never synced, failing (with the words)
+and synced. The only other raw query with timestamps (`src/lib/auth/sessions.ts`) already takes
+`Date | string`.
+
+**Verify:** `VERIFIED tree=9e917f199bbba895 e2e=true` (2,911 tests, 0 failed, 0 skipped; 51 e2e).
+
+**Auditor (round 1), verbatim verdict:** `VERDICT: DONE`. Every claim PROVEN: Google in the
+accounts list and the blocked table (dated additions); the env and worker comments; the steps
+matching the code, env names, scripts and the compose mount; the locale refusal with plain words
+(and its tests); the sheet bound to its firm (the index, the grants, the owner-only script, and
+their tests). "Fakes found: none." The parked edges (custom date formats, CSV dates, proof of
+ownership, what `--disable` should do) were noted as parked with reasons.
+
+**Hours:** 0.9 (00:19 to 01:11 UTC). Phase 10 so far: 8.7 h of its 30–45 h estimate.
+
+**Commit:** see the next "Log commit and push" commit.

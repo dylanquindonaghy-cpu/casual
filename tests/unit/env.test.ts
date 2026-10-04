@@ -88,6 +88,37 @@ describe("environment", () => {
     );
   });
 
+  it("Google Sheets: off by default; google needs the key file's path; nothing else is accepted", () => {
+    expect(parseWorkerEnv(worker).SHEETS_TRANSPORT).toBe("none");
+    // As the env examples ship it: an empty path means not set.
+    expect(
+      parseWorkerEnv({ ...worker, GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "" })
+        .GOOGLE_SERVICE_ACCOUNT_JSON_PATH,
+    ).toBeUndefined();
+    expect(() => parseWorkerEnv({ ...worker, SHEETS_TRANSPORT: "google" })).toThrow(
+      /GOOGLE_SERVICE_ACCOUNT_JSON_PATH/,
+    );
+    expect(() =>
+      parseWorkerEnv({
+        ...worker,
+        SHEETS_TRANSPORT: "google",
+        GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "",
+      }),
+    ).toThrow(/GOOGLE_SERVICE_ACCOUNT_JSON_PATH/);
+    const env = parseWorkerEnv({
+      ...worker,
+      SHEETS_TRANSPORT: "google",
+      GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "./secrets/google-service-account.json",
+    });
+    expect(env).toMatchObject({
+      SHEETS_TRANSPORT: "google",
+      GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "./secrets/google-service-account.json",
+    });
+    expect(() => parseWorkerEnv({ ...worker, SHEETS_TRANSPORT: "csv" })).toThrow(
+      /SHEETS_TRANSPORT/,
+    );
+  });
+
   it("rejects the console transport in production", () => {
     expect(() => parseWorkerEnv({ ...worker, NODE_ENV: "production" })).toThrow(
       /MESSAGING_TRANSPORT/,

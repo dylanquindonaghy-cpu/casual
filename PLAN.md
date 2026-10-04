@@ -280,7 +280,7 @@ every step works.
       re-checks the people booked (refused → not applied, flagged for the office); a started shift
       is never re-timed or cancelled by a sync (ADR-013); refused names aren't silently erased from
       the firm's sheet. Tests for each. (M1, M2, L12)
-- [ ] Sheets, said honestly: Google is in the accounts-to-create list and the blocked table; the
+- [x] Sheets, said honestly: Google is in the accounts-to-create list and the blocked table; the
       env and worker comments are corrected; the "Connect the real Google Sheets" steps match the
       code; sheet dates are read as serial numbers, or a non-UK sheet locale is refused with a plain
       message; a sheet is bound to its firm. (M3, M17, L45)
@@ -470,10 +470,46 @@ every step works.
   retries on deadlock: keep it so for any new writer.)
 - **Before any Sheets firm goes live:** the sheet's names now go through the rules (refused ones
   are logged `roster.sheet_booking_refused`). What's left: connect the real Google service account
-  (steps parked), then add `google` to `SHEETS_TRANSPORT` (it accepts only `none` now) and wire
-  `googleSheetsClient` into `src/worker/index.ts`. (Since Phase 10 task 9 the office sees what the
-  sheet asks for and didn't get on Today, "From your rota sheet", and a refused name stays in its
-  sheet while there's room.)
+  ("Connect the real Google Sheets"; since Phase 10 task 10 the code side is done:
+  `SHEETS_TRANSPORT=google`, `npm run firm:sheet`, only United Kingdom sheets, one sheet per firm),
+  and decide the items below (a vanished row, a Draft shift with people on it, telling workers about
+  sheet edits). (Since Phase 10 task 9 the office sees what the sheet asks for and didn't get on
+  Today, "From your rota sheet", and a refused name stays in its sheet while there's room.)
+- Sheets, before any office settings screen for the sheet (Phase 10 task 10, audit L45): connecting
+  a sheet is owner-only (`npm run firm:sheet`), a sheet belongs to one firm (even switched off,
+  until `--forget`), and the app role can't change a source's sheet. If the office ever picks its
+  own sheet in the app, first make the firm prove the sheet is theirs (a code we give them typed
+  into a cell, say): otherwise the first firm to name a sheet that's shared with our service account
+  but not yet connected gets it. Until then the owner trusts the link the firm gives:
+  `firm:sheet` could also print the sheet's title from Google, to check it's the right one.
+- Sheets dates, what the United Kingdom locale check doesn't catch (Phase 10 task 10, audit M17):
+  a date cell with its own custom month-first format (M/d/yyyy) in a UK sheet, and dates typed while
+  a sheet was set to another country (they can move when it's changed to UK). Both read wrongly
+  with no error for days 1 to 12. The fix: read the Date, Start and End columns as Google's own
+  values (one `spreadsheets.get` with `fields=properties.locale,sheets.data.rowData.values.effectiveValue`
+  for just those ranges, which also folds in the locale request) and compare. 12-hour times ("9:00
+  PM") are refused as a bad time, which is safe.
+- Imports, the CSV side of M17: CSV and Excel imports read dates day first too (shifts, credential
+  expiry dates, pay periods: `src/lib/imports/import.ts`), so a CSV saved by US-locale Excel swaps
+  days 1 to 12. Refuse a file whose dates are all month-first-shaped, or ask which way round on the
+  import screen (with Phase 10 task 11, the imports task).
+- Sheets, replacing a firm's sheet: shifts and staff are matched by Shift ID and Staff ID alone, not
+  by which sheet they came from, so a new sheet that reused "S7" for another shift would cancel or
+  move the people booked on our S7. `firm:sheet` now refuses another sheet while sheet shifts ahead
+  have people booked, unless `--same-ids` says it's a copy. The real fix: key sheet rows by their
+  source as well, or treat a new sheet's first sync as a fresh import.
+- Sheets, a switched-off sheet (`firm:sheet --disable`): its shifts stay but freeze (workers can't
+  book them, the office is told to change them in the sheet), and people already booked stay booked
+  and still get reminders. **Dylan to confirm** what switching a firm's sheet off should do to its
+  shifts ahead (hand them to the app's own rota, or cancel them with notice).
+- Sheets, small: two `firm:sheet` connects of the same sheet for the same firm at the same moment
+  report the second as "connected to another firm"; reconnecting a sheet without `--mapping` puts
+  the default headings back (said in the script's help).
+- Sheets quota: each sync makes 2 to 4 Google requests (the locale, the read, then a re-read and a
+  write when there's something to write), against one service account's per-minute quota (Google
+  has published 60 read requests a minute per user; the Cloud console's "Quotas" page shows the real
+  figure). Fine for a handful of firms; past about 20 Sheets firms on event days, read the locale
+  less often (or with the cells, in one `spreadsheets.get`) or ask Google for more.
 - A shift row the office deletes from its sheet stays in our copy and stays bookable (the sync
   ignores vanished rows). Decide what a vanished row means (a firm cancellation with notice, or a
   flag for the office) before any Sheets firm goes live.
@@ -579,16 +615,95 @@ every step works.
   worker-only role would be least privilege (revisit with ADR-011).
 - Workers aren't told when an office edit in the sheet cancels, moves or books them (Phase 4
   notifications / Phase 5 firm-initiated changes).
-- Connect the real Google Sheets (needs Dylan): create a Google Cloud project and a service
-  account, download its key into `secrets/` (git-ignored), share a test sheet with the service
-  account's email, set `SHEETS_TRANSPORT=google` and `GOOGLE_SERVICE_ACCOUNT_JSON_PATH`, run one sync
-  by hand. The client (`src/lib/roster/sheets/google.ts`) is tested only against a fake network.
+- **Connect the real Google Sheets** (the Phase 2 Sheets plug is built, but has only been tested
+  against a fake Google; nothing reads a real sheet until this is done). Needs a Google account; the
+  Sheets API itself costs nothing. The code side is ready (Phase 10 task 10): `SHEETS_TRANSPORT=google`
+  switches the sync on, and `npm run firm:sheet` connects a firm's sheet.
+  1. **Dylan:** go to console.cloud.google.com and sign in with the business's Google account (not a
+     personal one). Make a project: the project menu at the top → "New project" → name it
+     `shiftdesk` → Create.
+  2. **Dylan:** in that project, "APIs & Services" → "Library" → search "Google Sheets API" → open
+     it → Enable.
+  3. **Dylan:** "IAM & Admin" → "Service accounts" → "Create service account". Name it
+     `shiftdesk-sync` and press "Create and continue", then "Done". It needs no roles: it only ever
+     sees sheets someone shares with it.
+  4. **Dylan:** open `shiftdesk-sync` → the "Keys" tab → "Add key" → "Create new key" → JSON →
+     Create. A `.json` file downloads. It's a password: never email it, never put it anywhere else
+     in the project. (If Google says key creation is blocked by an organisation policy, stop and
+     tell Claude.)
+  5. **Dylan:** put that file in the project's `secrets` folder (the folder is never committed).
+     In the terminal, in the project folder, type these two lines, pressing Enter after each
+     (change `<you>` to your Windows user name, and the file name to the one that downloaded):
+     `mkdir -p secrets`
+     `mv "/mnt/c/Users/<you>/Downloads/shiftdesk-1234abcd.json" secrets/google-service-account.json`
+     Then `grep client_email secrets/google-service-account.json` shows the service account's email:
+     that's the address firms share their sheets with.
+  6. **Dylan, a test sheet first (demo people only):** make a new Google Sheet. **Before typing
+     anything**, File → Settings → Locale: **United Kingdom** → "Save settings" (a sheet in another
+     locale is refused, on purpose: its dates read the other way round, and dates typed while it
+     was set to another country can move when it's changed). Then make two tabs:
+     - `Staff`, row 1: Staff ID, First name, Last name, Mobile, Roles, Status. Then two of
+       Northline's demo workers, so they keep their demo licences: look them up on
+       `http://northline.localhost:3000/office/workers` by mobile, `07700 900310` and
+       `07700 900311`, and copy each one's first and last name. Give them Staff IDs `N010` and
+       `N011`, Roles `track_operative`, Status `Active`, and type each mobile with its space (typed
+       as one long number, Google drops the 0).
+     - `Shifts`, row 1: Shift ID, Date, Start, End, Site, Role, Needed, Status, Instructions,
+       Assigned. Two shifts: `S1` tomorrow and `S2` the day after, each 07:00 to 15:00, Site
+       `Northline Demo Depot`, Role `track_operative`, Needed `2`, Status `Open`, Assigned empty.
+       Type dates day first (14/11/2026 for 14 November) and leave the Date column's format alone
+       (no custom date format).
+     Then "Share" → paste the `client_email` → Editor → Send.
+  7. **On your computer:** in `.env`, set `SHEETS_TRANSPORT=google` and
+     `GOOGLE_SERVICE_ACCOUNT_JSON_PATH=./secrets/google-service-account.json` (stop `npm run dev`
+     first if it's running, and start it again after). Run
+     `npm run -s firm:sheet -- --firm northline --sheet <the sheet's link>`: it says "Connected
+     northline's sheet". Then `npm run dev`. What you should see:
+     - Within about two minutes, `npm run -s firm:sheet -- --firm northline` says "Last synced: …"
+       and "No error", and `http://northline.localhost:3000/office/shifts` lists S1 and S2. (A shift
+       starting in the next 24 hours makes it an event day, so the sync runs every minute;
+       otherwise every 15 minutes.)
+     - Type `N010` into S1's Assigned cell: within a minute that worker is booked on S1 (the shift
+       page in the office shows them).
+     - Log in to the portal as the other worker (`http://northline.localhost:3000`, mobile
+       `07700 900311`; the login link is printed in the `npm run dev` terminal) and take S2:
+       within a minute `N011` appears in S2's Assigned cell.
+     - Set the sheet's locale to United States: at the next sync, `firm:sheet` says it's failing
+       because of the locale, and the office's action log (`/office/log`) says why and how to fix
+       it. Set it back to United Kingdom: syncing starts again (within 5 minutes on an event day:
+       a failing sheet is tried less often).
+  8. **Claude, after Dylan:** tell Claude what step 7 showed; anything that didn't match is looked
+     into (some refusals are on purpose: a name the rules refuse stays in its cell and shows on
+     Today's "From your rota sheet").
+  9. **On the server** (after "Connect AWS", "Connect the deploy" and **"Connect Twilio"**: the
+     worker, which runs the sync, only starts once Twilio is connected and `COMPOSE_PROFILES=worker`
+     is set; until then no sheet is read on the server):
+     1. Get the key file onto the server: in the Lightsail console, open the instance's browser
+        terminal; its menu should have "Upload file" (choose the file: it lands in the home
+        folder). If it doesn't, stop and ask Claude for another way: never paste the key into a
+        chat or an email.
+     2. Type, one line at a time:
+        `sudo install -d -m 0755 /opt/shiftdesk/secrets`
+        `sudo mv ~/shiftdesk-1234abcd.json /opt/shiftdesk/secrets/google-service-account.json`
+        (the name of the file you uploaded)
+        `sudo chown 1000:1000 /opt/shiftdesk/secrets/google-service-account.json`
+        `sudo chmod 400 /opt/shiftdesk/secrets/google-service-account.json`
+        (the app runs as user 1000 in its container, which sees the folder read-only at
+        `/app/secrets`).
+     3. `sudo nano /opt/shiftdesk/.env`: set `SHEETS_TRANSPORT=google` and
+        `GOOGLE_SERVICE_ACCOUNT_JSON_PATH=/app/secrets/google-service-account.json`. Save (Ctrl+O,
+        Enter, Ctrl+X). Then `cd /opt/shiftdesk && sudo docker compose up -d`.
+     4. Connect each firm's sheet: `sudo docker compose run --rm owner node --import tsx
+        scripts/firm-sheet.ts --firm <slug> --sheet <link>`.
+  10. **Before a real firm's sheet goes live:** the "Before any Sheets firm goes live" items above
+      are decided and built.
 - Sheets: rows or staff that disappear from the sheet are left as they are here (not cancelled or
   deactivated). Decide with the pilot firm; flag them to the office first.
 - Sheets: tell the office about sync errors (`last_error_code`), clashes (`roster.sheet_conflict`)
   and bad rows (Phase 5 Today view). Today they are only in the database and events.
-- Demo seed: Northline's mocked sheet. Local dev has no sheet transport (`SHEETS_TRANSPORT=none`);
-  a file-backed dev transport would let the demo sync a sheet on a laptop.
+- Demo seed: Northline's mocked sheet. Local dev has no sheet unless `.env` says
+  `SHEETS_TRANSPORT=google` with a real key ("Connect the real Google Sheets"); a file-backed dev
+  transport would let the demo sync a sheet on a laptop with no Google account.
 - Office import screens: shifts (`/office/shifts/import`) and pay records (`/office/pay/import`) are
   built, both on `importOfficeFile()` (`src/lib/office/office-import.ts`). Workers and credentials
   ("import CSV" on a workers screen) can reuse it with their kind.
@@ -1566,3 +1681,4 @@ every step works.
 | 2026-10-03 | 10 | 1.1 | Worker leavers and blocks: a new Workers page where admins and resourcers make a worker inactive (logged out everywhere, no reminders, sticks against the rota sheet), active again, unblock them, block them from a site (rules check 9 made live, in both rules loaders) or log them out on every device, each with a reason from a list and logged; their bookings ahead show on Today as "Bookings to check" to cancel (with the new "They've left, or can't work here" reason and notice hours) or keep; a mobile change ends links and forgets phones; two reviews found a sheet sync race, vanishing confirmations and more (all fixed and tested, a few narrow items parked); 2816 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.5 | Notice for a moved or shortened shift counts from the earlier of the old and new start (office editor and rota sheet), so a shift moved earlier is flagged as short notice in the report (the firm's Employment Rights Act evidence); the move now holds each booked worker's row and the day's "applied" lock before re-checking them, so a booking at the same moment is seen (two race tests); "Dylan to confirm" note decided; 2822 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 1.2 | The rota sheet follows the office's rules: a role, time or site change to a booked shift is tried, then everyone booked is re-checked with the office move's own check (`src/lib/roster/recheck.ts`); refused → not made, logged once (`roster.sheet_change_refused`) and shown on Today's new "From your rota sheet"; a started shift is never re-timed or cancelled by a sync; refused names stay in the sheet's cell and are retried, and don't use up a place; a site change is logged per worker; new `shifts.sheet_issues` (migration 0030); two reviews' findings fixed; one older flaky test root-caused and parked; 2843 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 0.9 | Google Sheets, said honestly: `SHEETS_TRANSPORT=google` (with the service account's key file) switches the sync on; each sync first reads the sheet's locale and refuses anything but United Kingdom, with plain words in the action log; `npm run firm:sheet` (owner only) connects, replaces (guarded by `--same-ids` while sheet shifts ahead are booked), switches off, lets go or shows a firm's sheet; one sheet, one firm (a unique index), and the app can only update the sync's status columns (column-level grants); the "Connect the real Google Sheets" steps rewritten to match the code; Google added to the accounts list and the blocked table; two reviews' findings fixed or parked; an older `firm:check` crash for synced sheets found and fixed; 2911 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |

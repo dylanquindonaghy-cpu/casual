@@ -39,8 +39,10 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Each reminder a booking got (or why not): evidence in a no-show dispute.
   shift_reminders: NO_DELETE,
   metrics_daily: NO_DELETE, // pilot figures: corrected, never removed (the week-4 report's evidence)
-  // Sheet connection settings (office settings later; the sync updates its status columns).
-  roster_sources: CRUD,
+  // A firm's sheet: connected, replaced and switched off only by the owner (npm run firm:sheet),
+  // so no screen can point a firm at another firm's sheet (audit L45). The app reads it, and the
+  // sync updates only its status columns (COLUMN_UPDATES).
+  roster_sources: ["SELECT"],
   // Imported payroll lines: added and corrected by re-import, never deleted by the app (they are
   // what a pay question is checked against).
   pay_records: NO_DELETE,
@@ -54,6 +56,11 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   push_subscriptions: CRUD,
   // A site a worker may not work at: added and removed by the office (both logged), never edited.
   worker_site_blocks: ["SELECT", "INSERT", "DELETE"],
+};
+
+// Columns the app role may update on a table it can't update as a whole (a column-level grant).
+export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
+  roster_sources: ["last_synced_at", "last_attempted_at", "last_error_code", "sync_started_at"],
 };
 
 export function schemaTableNames(): string[] {
@@ -73,7 +80,9 @@ export async function applyTableSecurity(client: ClientBase): Promise<void> {
   );
   const inDb = rows.map((r) => r.name);
   const missing = inDb.filter((t) => !(t in TABLE_ACCESS));
-  const stale = Object.keys(TABLE_ACCESS).filter((t) => !inDb.includes(t));
+  const stale = [...Object.keys(TABLE_ACCESS), ...Object.keys(COLUMN_UPDATES)].filter(
+    (t) => !inDb.includes(t),
+  );
   if (missing.length > 0 || stale.length > 0) {
     throw new Error(
       `TABLE_ACCESS is out of date. No entry for: [${missing.join(", ")}]. ` +
@@ -103,7 +112,16 @@ export async function applyTableSecurity(client: ClientBase): Promise<void> {
     const privileges = TABLE_ACCESS[table] ?? [];
     await client.query(`alter table ${t} enable row level security`);
     await client.query(`alter table ${t} force row level security`);
+    // Revoking on the table revokes its column-level grants too, so this resets both.
     await client.query(`revoke all on ${t} from public, ${app}, ${jobs}`);
     await client.query(`grant ${privileges.join(", ")} on ${t} to ${app}`);
+    const columns = COLUMN_UPDATES[table];
+    if (columns) {
+      if (privileges.includes("UPDATE")) {
+        throw new Error(`${table}: COLUMN_UPDATES on a table the app can already update`);
+      }
+      const list = columns.map((c) => client.escapeIdentifier(c)).join(", ");
+      await client.query(`grant update (${list}) on ${t} to ${app}`);
+    }
   }
 }

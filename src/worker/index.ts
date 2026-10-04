@@ -2,6 +2,7 @@ import { workerEnv } from "../lib/env";
 import { log } from "../lib/log";
 import { routeConsoleThroughMasking } from "../lib/log/console";
 import { alertTransport } from "../lib/ops/alerts";
+import { sheetsClientFrom } from "../lib/roster/sheets/transport";
 import { createBoss } from "./boss";
 import { registerJobs } from "./jobs";
 
@@ -18,9 +19,9 @@ process.on("uncaughtException", (err) => {
 
 const env = workerEnv();
 const boss = createBoss(env.DATABASE_JOBS_URL);
-// No Sheets client yet (SHEETS_TRANSPORT is "none" until the rules engine checks sheet bookings):
-// then googleSheetsClient({ key: loadServiceAccountKey(path) }) from lib/roster/sheets/google.
-const sheets = undefined;
+// Google Sheets: none (the default) until a Google account exists (PLAN.md Parking lot, "Connect
+// the real Google Sheets"); then the real client, its key file read here, once.
+const sheets = sheetsClientFrom(env);
 
 async function shutdown(signal: string): Promise<void> {
   log.info("worker stopping", { signal });

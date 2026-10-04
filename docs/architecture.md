@@ -158,7 +158,7 @@ behaviour, the `[from, to)` window, and another firm's rows out of reach.
 | Adapter | When | Notes |
 |---|---|---|
 | Native | Firm has no rota system, or wants ours | Our tables are the source of truth. `nativeRosterPlug(tx, { clock })` in `src/lib/roster/native.ts`, on the caller's `withFirm` transaction. `assign` locks the shift row, creates any missing open slot rows up to the headcount, then does the one conditional update; the shift becomes `filled` with its last slot and `open` again on a cancel. |
-| Google Sheets | Most target firms | Firm shares the sheet with our service account. Column mapping per firm, by header text (`roster_sources.mapping`, `src/lib/roster/sheets/mapping.ts`): a staff tab with a staff id column, a shifts tab with a shift id column and an "Assigned" column listing staff ids in slot order. Sync every minute on event days, every 15 minutes otherwise. One batch read and at most one batch write per sync. Never read the sheet per request (Google rate limits): the portal uses `sheetsRosterPlug`, our mirror of the sheet, and only the sync job touches Google. |
+| Google Sheets | Most target firms | Firm shares the sheet with our service account. Column mapping per firm, by header text (`roster_sources.mapping`, `src/lib/roster/sheets/mapping.ts`): a staff tab with a staff id column, a shifts tab with a shift id column and an "Assigned" column listing staff ids in slot order. Sync every minute on event days, every 15 minutes otherwise. One read of the sheet's locale, one batch read and at most one batch write per sync (plus a re-read of two columns before writing). Never read the sheet per request (Google rate limits): the portal uses `sheetsRosterPlug`, our mirror of the sheet, and only the sync job touches Google. |
 | CSV/Excel | Onboarding and firms emailing spreadsheets | Import workers, credentials, shifts and pay records (the `pay` kind: staff ID or mobile, period start and end, hours, rate, gross, pay date; one line per worker, period and rate, re-imports update). `src/lib/imports/`: `readTable()` reads a .csv (commas, semicolons or tabs) or .xlsx (our own small reader on Node's zlib: first sheet, Excel dates, size and zip-bomb limits; old .xls refused); `runImport()` finds columns by header name (with common aliases), checks every row, then creates or updates inside the firm's `withFirm` transaction, logging each change with the office user. Workers go through the same `upsertWorker()` as the Sheets sync. Bad rows are skipped and reported by row number and code. A dry run does the same work and rolls back. Until the office screen (Phase 5): `npm run import`. |
 | Approve-only | Any system we can read but not write | We prepare the change; office applies it with one tap. |
 
@@ -213,8 +213,28 @@ A name the office puts in its sheet is booked through `checkBooking()` with the 
 reason "Put on the rota sheet by the office" and the notice hours: a name that fails
 anything else (credentials, role, account, a double booking, a blocked site; golden rule 6) isn't
 booked, is logged `roster.sheet_booking_refused` with the reason codes, and, like a name added to a
-full shift, drops out of the sheet at the next write. **Not live yet:** `SHEETS_TRANSPORT` accepts
-only `none` until the real service account is connected (parked).
+full shift, drops out of the sheet at the next write.
+
+**A sheet is bound to its firm** (Phase 10, audit L45). Every firm shares its sheet with the same
+service account, so the spreadsheet id is all that ties a sheet to a firm. Only the owner connects,
+replaces or switches off a firm's sheet (`npm run firm:sheet`, logged `roster.source_connected` /
+`roster.source_disabled`); the app role can't add a source or change its sheet or mapping, only the
+sync's four status columns (a column-level grant, `COLUMN_UPDATES` in `src/lib/db/admin/access.ts`);
+and a unique index on `roster_sources.spreadsheet_id` (across firms: RLS can't see them, an index
+can) lets one spreadsheet belong to one firm only. An office settings form for the sheet would need
+proof that the firm owns it first (parked).
+
+**Only a United Kingdom sheet is read** (audit M17). Cells are read as the sheet shows them
+(`FORMATTED_VALUE`), and a date as day/month/year. A sheet in another locale shows dates the other
+way round ("6/12/2027" is 12 June in a US sheet), so each sync first reads the spreadsheet's locale
+(one small request) and, unless it's `en_GB`, fails with `sheet_locale_not_uk` without reading or
+writing anything; the office's action log says how to fix it (File → Settings → Locale). Not read as
+serial numbers: unformatted values would also turn a number-formatted staff id ("000123") or mobile
+into a bare number.
+
+**Switched on by** `SHEETS_TRANSPORT=google` and `GOOGLE_SERVICE_ACCOUNT_JSON_PATH` in the worker's
+environment (`src/lib/roster/sheets/transport.ts`); `none` (the default) schedules no sync. Off until
+a Google account exists: the steps are "Connect the real Google Sheets" in the `PLAN.md` Parking lot.
 
 ## Rules engine
 

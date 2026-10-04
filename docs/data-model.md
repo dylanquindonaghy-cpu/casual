@@ -387,6 +387,9 @@ create table metrics_daily (
 
 -- Where a firm's rota lives when it isn't our tables (native firms have no row). No secrets:
 -- the firm shares its sheet with our service account; the key is in the worker's environment.
+-- Rows are added and changed only by the owner (npm run firm:sheet); the app role may read them
+-- and update only the four sync status columns (last_synced_at, last_attempted_at,
+-- last_error_code, sync_started_at: a column-level grant).
 create table roster_sources (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
@@ -401,6 +404,8 @@ create table roster_sources (
   created_at timestamptz not null default now()
 );
 create unique index roster_sources_one_enabled_per_firm on roster_sources (firm_id) where enabled;
+-- One spreadsheet, one firm (audit L45): across firms on purpose (the app can't write the column).
+create unique index roster_sources_spreadsheet_id_key on roster_sources (spreadsheet_id);
 
 create table messages (                 -- built in Phase 7 (migrations 0022-0024): WhatsApp, texts, calls
   id uuid primary key default gen_random_uuid(),

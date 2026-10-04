@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { sheetsRosterPlug } from "@/lib/roster/native";
 import type { RosterPlug } from "@/lib/roster/plug";
-import { eventsAboutWorker } from "@/lib/office/action-log";
+import { eventsAboutWorker, loadActionLog, parseLogQuery } from "@/lib/office/action-log";
 import { loadToday } from "@/lib/office/today";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
 import {
@@ -689,6 +689,88 @@ describe("sheets.sync: bad data, failures and safety", () => {
     const [failed] = await eventsOf(f.firmId, "roster.sync_failed");
     expect(failed?.data).toEqual({ code });
     expect(label).toBeTruthy();
+  });
+
+  // Audit M17: cells are read as the sheet shows them, and a date as day/month/year. A sheet in a
+  // US locale shows 12 June 2027 as "6/12/2027", which would be read as 6 December.
+  it("a sheet whose locale isn't United Kingdom isn't read at all; the office is told why, once", async () => {
+    const f = await northline();
+    f.fake.setLocale(f.sheetId, "en_US");
+    expect(await sync(f)).toEqual({ status: "failed", code: "sheet_locale_not_uk" });
+    expect(await sync(f, new Date(NOW.getTime() + 5 * 60_000))).toEqual({
+      status: "failed",
+      code: "sheet_locale_not_uk",
+    });
+    // Nothing read past the locale, nothing imported, nothing written.
+    expect(f.fake.reads).toBe(0);
+    expect(f.fake.writes).toBe(0);
+    const { rows: imported } = await su.query<{ n: number }>(
+      `select (select count(*) from shifts where firm_id = $1)::int
+            + (select count(*) from workers where firm_id = $1)::int as n`,
+      [f.firmId],
+    );
+    expect(imported[0]?.n).toBe(0);
+    const failed = await eventsOf(f.firmId, "roster.sync_failed");
+    expect(failed.map((e) => e.data)).toEqual([{ code: "sheet_locale_not_uk" }]);
+    // As the office's action log shows it (events are stamped with the real clock).
+    const log = await withFirm(f.firmId, (tx) =>
+      loadActionLog(tx, parseLogQuery({ type: "sheet" }), new Date()),
+    );
+    expect(log.entries.map((e) => e.words)).toContain(
+      "Reading the rota sheet failed: the sheet's locale isn't United Kingdom, so its dates could be read the wrong way round. In Google Sheets: File, Settings, Locale: United Kingdom, then Save settings. Then check the sheet's dates: ones typed before the change may have moved.",
+    );
+
+    // The office changes it: the next sync goes ahead.
+    f.fake.setLocale(f.sheetId, "en_GB");
+    expect(await sync(f, new Date(NOW.getTime() + 10 * 60_000))).toMatchObject({
+      status: "synced",
+    });
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001"]);
+    const { rows } = await su.query(
+      "select last_error_code from roster_sources where firm_id = $1",
+      [f.firmId],
+    );
+    expect(rows[0]).toEqual({ last_error_code: null });
+    // One locale request per sync, the failed ones included (what the quota note counts).
+    expect(f.fake.localeReads).toBe(3);
+  });
+
+  it("a sheet switched to another locale after syncing well stops being read; what's here stays", async () => {
+    const f = await northline();
+    expect(await sync(f)).toMatchObject({ status: "synced" });
+    const shiftsNow = async () =>
+      (
+        await su.query(
+          "select external_ref, starts_at, ends_at, status from shifts where firm_id = $1 order by external_ref",
+          [f.firmId],
+        )
+      ).rows;
+    const before = await shiftsNow();
+    const readsBefore = f.fake.reads;
+    f.fake.setLocale(f.sheetId, "en_US");
+    // The office then edits a date, which the sync must not read.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Date", "6/12/2030");
+    expect(await sync(f, new Date(NOW.getTime() + 60_000))).toEqual({
+      status: "failed",
+      code: "sheet_locale_not_uk",
+    });
+    expect(f.fake.reads).toBe(readsBefore);
+    expect(await shiftsNow()).toEqual(before);
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001"]);
+  });
+
+  it("the locale request refused (the sheet no longer shared): the same failure as any read", async () => {
+    const f = await northline();
+    f.fake.failNextLocale = "sheet_not_shared";
+    expect(await sync(f)).toEqual({ status: "failed", code: "sheet_not_shared" });
+    expect(f.fake.reads).toBe(0);
+    const [failed] = await eventsOf(f.firmId, "roster.sync_failed");
+    expect(failed?.data).toEqual({ code: "sheet_not_shared" });
+    const { rows } = await su.query(
+      "select last_error_code, sync_started_at from roster_sources where firm_id = $1",
+      [f.firmId],
+    );
+    expect(rows[0]).toEqual({ last_error_code: "sheet_not_shared", sync_started_at: null });
   });
 
   it("two syncs of one firm never overlap; a lease left by a crash expires", async () => {

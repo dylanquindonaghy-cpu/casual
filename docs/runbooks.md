@@ -337,18 +337,46 @@ Browsers check for a new one each time the portal opens, at least once a day. **
 
 ## Google Sheets sync failing
 
-`roster_sources.last_error_code` (and each `roster.sync_failed` event) says why:
+`npm run -s firm:sheet -- --firm <slug>` shows the firm's sheet, when it last synced and why it's
+failing, in plain words. `roster_sources.last_error_code` (and each `roster.sync_failed` event,
+which the office sees in its action log, with the same words) has the code:
 
+- `sheet_locale_not_uk`: the sheet's locale isn't United Kingdom, so its dates could be read the
+  wrong way round; nothing was read → ask the firm to set it: in Google Sheets, File → Settings →
+  Locale: United Kingdom → Save settings, then to check the sheet's dates (dates typed while it was
+  set to another country can move when it's changed). The next sync goes ahead.
+- `sheet_unreadable`: Google couldn't read what the sync asked for: a tab was renamed or deleted,
+  or the file in Drive is an Excel file, not a Google Sheet → ask the firm to put the tab names back
+  (Staff and Shifts, or the ones in its mapping), or to save the file as a Google Sheet (File → Save
+  as Google Sheets) and send you the new link (then see "Replacing a firm's sheet" below).
 - `sheet_not_shared`: the firm removed the service account → ask them to re-share the sheet with
   its email (Editor).
-- `sheet_not_found`: wrong spreadsheet id, or the sheet was deleted → check the id in settings.
+- `sheet_not_found`: wrong spreadsheet id, or the sheet was deleted → check the link the firm gave
+  you. If the sheet was deleted, ask the firm to restore it from Google Drive's Bin (the link stays
+  the same); otherwise see "Replacing a firm's sheet" below.
 - `missing_column` / `duplicate_column`: a header the mapping names was renamed, removed or
-  doubled → fix the header in the sheet, or re-map in settings; the next sync resumes.
-- `sheets_rate_limited`: Google's per-minute quota → the sync already reads once and writes at most
-  once; check nothing else is using the service account.
+  doubled → fix the header in the sheet; or, if the firm wants its own headings, write a mapping
+  file (the shape of `DEFAULT_SHEET_MAPPING`, `src/lib/roster/sheets/mapping.ts`) and run
+  `npm run firm:sheet -- --firm <slug> --sheet <link> --mapping <file.json>`. The next sync resumes.
+- `sheets_rate_limited`: Google's per-minute quota → each sync makes 2 to 4 requests (the locale,
+  one read, and when there's something to write, a re-read of two columns and one write); check
+  nothing else is using the service account.
 - `sheets_unavailable` / `sheets_auth_failed` / `sheets_bad_response`: Google side or our key →
   check Google's status page and the key file; syncs retry every tick.
-- `bad_mapping`: the stored mapping doesn't parse → fix it in settings.
+- `bad_mapping`: the stored mapping doesn't parse → connect the same sheet again with a mapping that
+  does (`--mapping`), or without one for the default headings; the next tick tries again.
+- **Replacing a firm's sheet:** `npm run firm:sheet -- --firm <slug> --sheet <new link> --replace`.
+  Shifts and staff are matched by their Shift ID and Staff ID, not by which sheet they came from, so
+  the new sheet must use the same ones (a copy of the old one). While shifts ahead from the old
+  sheet have people booked, it refuses unless you add `--same-ids`, which says the new sheet is
+  such a copy: a new sheet that reused "S7" for another shift would cancel or move the people booked
+  on S7, logged as the firm's own change.
+- **Switching a sheet off:** `npm run firm:sheet -- --firm <slug> --disable`. Its shifts stay but
+  freeze: workers can't book them, the office is told to change them in the sheet, and people
+  already booked stay booked. **Letting one go** (connected to the wrong firm by mistake, say):
+  switch it off, then `npm run firm:sheet -- --firm <slug> --forget --sheet <link>`; another firm
+  can then connect it. On the server, a `--mapping` file must be inside the owner container: ask
+  Claude before you need one there.
 - While a firm's syncs fail, retries back off to every 5 minutes on event days (30 otherwise), and
   `roster.sync_failed` is logged only when the code changes.
 - Nothing booked in the portal is lost while syncs fail: the next successful sync writes it.
@@ -427,8 +455,12 @@ In order (who does it, how, and what done looks like):
    payroll: `npm run -s firm:office-user -- --firm acme --role resourcer --email
    sam@acme-events.example --name "Sam Rota"` (roles: admin, resourcer, payroll). It says "Added: they can
    now log in to acme's office as resourcer." An email that already has a login is left as it is (it says its role and whether it's active).
-5. **Rota source** (you and the resourcer): a Google Sheet ("Connect the real Google Sheets" in
-   PLAN.md), or none: shifts made in the office or imported from CSV.
+5. **Rota source** (you and the resourcer): a Google Sheet, or none: shifts made in the office or
+   imported from CSV. For a sheet (once "Connect the real Google Sheets" in PLAN.md is done): the
+   firm sets its sheet's locale to United Kingdom (File → Settings → Locale) and shares it with our
+   service account's email as Editor; then `npm run -s firm:sheet -- --firm acme --sheet <link>`
+   (on the server, through the owner service). `npm run -s firm:sheet -- --firm acme` shows when it
+   last synced, and why it's failing if it is. A sheet can be connected to one firm only.
 6. **Workers and credentials** (you, from the firm's spreadsheets, **only after Gate B**): "Importing
    workers, credentials or shifts from a spreadsheet" below. `firm:check` then shows how many
    active workers have no credential on file.

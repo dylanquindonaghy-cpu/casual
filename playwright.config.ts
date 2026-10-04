@@ -35,6 +35,10 @@ const env = {
   // console sender.
   VAPID_PUBLIC_KEY: "",
   PUSH_TRANSPORT: "console",
+  // Never a real Google Sheet: .env may switch the sheets on for a local try (PLAN.md "Connect the
+  // real Google Sheets"), never for a test run.
+  SHEETS_TRANSPORT: "none",
+  GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "",
   // A made-up key, so the e2e run can post signed Twilio webhooks (tests/e2e/whatsapp.inbound.spec.ts).
   TWILIO_AUTH_TOKEN: E2E_TWILIO_AUTH_TOKEN,
 };

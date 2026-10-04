@@ -182,6 +182,9 @@ export const LOG_TYPES = {
   sheet: {
     label: "Rota sheet and imports",
     actions: [
+      "roster.source_connected",
+      "roster.source_disabled",
+      "roster.source_forgotten",
       "roster.synced",
       "roster.sync_failed",
       "roster.sheet_conflict",

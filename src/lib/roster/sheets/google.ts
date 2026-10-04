@@ -7,7 +7,8 @@ import { SheetsError, type SheetsClient, type SheetWrite } from "./client";
 // The real Google Sheets client, as our service account (docs/architecture.md, Roster plugs:
 // each firm shares its sheet with the service account's email). The key file's path comes from
 // the worker's environment (GOOGLE_SERVICE_ACCOUNT_JSON_PATH), never the database or the repo.
-// Not wired into the worker yet: see SHEETS_TRANSPORT in src/lib/env.ts.
+// The worker builds it when SHEETS_TRANSPORT=google (transport.ts). Until a Google account exists
+// (PLAN.md Parking lot, "Connect the real Google Sheets"), it has only talked to a fake network.
 //
 // Auth is Google's service-account flow: a JWT signed RS256 with the account's private key is
 // exchanged for a one-hour access token, cached until a minute before it expires. `fetch` is
@@ -43,6 +44,9 @@ export const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const tokenResponse = z.object({
   access_token: z.string().min(1),
   expires_in: z.number().int().positive(),
+});
+const localeResponse = z.object({
+  properties: z.object({ locale: z.string().min(1).max(20) }),
 });
 const batchGetResponse = z.object({
   valueRanges: z
@@ -83,6 +87,7 @@ export function serviceAccountJwt(key: ServiceAccountKey, now: Date): string {
 function codeForStatus(status: number): SheetsError["code"] {
   if (status === 403) return "sheet_not_shared";
   if (status === 404) return "sheet_not_found";
+  if (status === 400) return "sheet_unreadable";
   if (status === 429) return "sheets_rate_limited";
   if (status === 401) return "sheets_auth_failed";
   if (status >= 500) return "sheets_unavailable";
@@ -140,6 +145,17 @@ export function googleSheetsClient(options: GoogleSheetsOptions): SheetsClient {
     `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values:${action}`;
 
   return {
+    async locale(spreadsheetId) {
+      const query = new URLSearchParams({ fields: "properties.locale" });
+      const body = localeResponse.safeParse(
+        await call(`${SHEETS_API}/${encodeURIComponent(spreadsheetId)}?${query.toString()}`, {
+          method: "GET",
+        }),
+      );
+      if (!body.success) throw new SheetsError("sheets_bad_response");
+      return body.data.properties.locale;
+    },
+
     async batchGet(spreadsheetId, ranges) {
       const query = new URLSearchParams({
         majorDimension: "ROWS",

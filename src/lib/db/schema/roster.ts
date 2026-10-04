@@ -498,6 +498,12 @@ export const rosterSources = pgTable(
     uniqueIndex("roster_sources_one_enabled_per_firm")
       .on(t.firmId)
       .where(sql`enabled`),
+    // A spreadsheet belongs to one firm (audit L45). Every firm shares its sheet with the same
+    // service account, so the id is all that ties a sheet to a firm: the index sees every firm's
+    // rows (RLS can't), so no firm can be pointed at a sheet another firm already uses. Set only
+    // by the owner (npm run firm:sheet); the app may change only the sync's status columns
+    // (src/lib/db/admin/access.ts).
+    uniqueIndex("roster_sources_spreadsheet_id_key").on(t.spreadsheetId),
     check("roster_sources_kind_check", sql`${t.kind} in ('sheets')`),
     check(
       "roster_sources_spreadsheet_id_format",

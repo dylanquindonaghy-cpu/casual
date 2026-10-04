@@ -99,11 +99,18 @@ export const workerEnvSchema = z
       .string()
       .regex(/^\.dev\//)
       .optional(),
-    // Google Sheets sync. Only "none" for now: the sync would book the names an office puts in
-    // its sheet, and until the rules engine checks those bookings (credentials in date, golden
-    // rule 6) it must not run for real. "google" (with GOOGLE_SERVICE_ACCOUNT_JSON_PATH, a key
-    // file in the git-ignored secrets/) is added then, like "twilio" for messaging.
-    SHEETS_TRANSPORT: z.enum(["none"]).default("none"),
+    // Google Sheets sync (src/lib/roster/sheets/transport.ts). "none" (the default): no sheet is
+    // ever read, and the sync's tick isn't scheduled. "google": the real client, as the service
+    // account whose key file is at GOOGLE_SERVICE_ACCOUNT_JSON_PATH (in the git-ignored secrets/,
+    // never the repo or the database). Off until a Google account exists (PLAN.md Parking lot,
+    // "Connect the real Google Sheets"); the owner then connects a firm's sheet (npm run
+    // firm:sheet).
+    SHEETS_TRANSPORT: z.enum(["none", "google"]).default("none"),
+    // An empty value (as the env examples ship it) means not set.
+    GOOGLE_SERVICE_ACCOUNT_JSON_PATH: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.string().max(500).optional(),
+    ),
     // Web push. "console" prints what would be pushed (development and tests); "none" pushes
     // nothing. The real sender ("webpush", with VAPID keys) is added when it's connected (PLAN.md
     // Parking lot); until then production must use "none".
@@ -114,6 +121,10 @@ export const workerEnvSchema = z
   })
   .refine(realSecret, realSecretMessage)
   .refine(alertsOn, alertsOnMessage)
+  .refine((e) => e.SHEETS_TRANSPORT !== "google" || e.GOOGLE_SERVICE_ACCOUNT_JSON_PATH, {
+    path: ["GOOGLE_SERVICE_ACCOUNT_JSON_PATH"],
+    message: "SHEETS_TRANSPORT=google needs the path to the service account's key file",
+  })
   .refine((e) => e.NODE_ENV !== "production" || e.PUSH_TRANSPORT !== "console", {
     path: ["PUSH_TRANSPORT"],
     message: "console push is not allowed when NODE_ENV=production",

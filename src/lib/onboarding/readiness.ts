@@ -1,6 +1,7 @@
-import { sql } from "drizzle-orm";
-import { firms } from "../db/schema";
+import { eq, sql } from "drizzle-orm";
+import { firms, rosterSources } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { syncErrorWords } from "../roster/sheets/error-words";
 import { effectiveSettings } from "./settings";
 
 // The pilot onboarding checklist (docs/go-to-market.md; docs/runbooks.md "Onboarding a pilot
@@ -67,12 +68,17 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
     where not exists (select 1 from credential_rules cr where cr.role = r.role)
     order by r.role
   `);
-  const { rows: sheet } = await tx.execute<{
-    last_synced_at: Date | null;
-    last_error_code: string | null;
-  }>(sql`
-    select last_synced_at, last_error_code from roster_sources where enabled limit 1
-  `);
+  // Through the query builder, not raw SQL: Drizzle's driver hands raw queries a timestamp as text,
+  // and only its column mapping makes it a Date (a raw read here crashed firm:check for every
+  // firm whose sheet had ever synced).
+  const sheet = await tx
+    .select({
+      last_synced_at: rosterSources.lastSyncedAt,
+      last_error_code: rosterSources.lastErrorCode,
+    })
+    .from(rosterSources)
+    .where(eq(rosterSources.enabled, true))
+    .limit(1);
 
   const settings = effectiveSettings(firm.settings)
     .map((s) => `${s.key} ${String(s.value)}${s.source === "default" ? " (default)" : ""}`)
@@ -104,14 +110,14 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
           item: "Rota source",
           state: source.last_synced_at && !source.last_error_code ? "done" : "todo",
           detail: source.last_synced_at
-            ? `Google Sheet, last synced ${source.last_synced_at.toISOString()}${source.last_error_code ? `, now failing (${source.last_error_code})` : ""}.`
-            : `Google Sheet added, never synced${source.last_error_code ? ` (${source.last_error_code})` : ""}.`,
+            ? `Google Sheet, last synced ${source.last_synced_at.toISOString()}${source.last_error_code ? `, now failing (${source.last_error_code}): ${syncErrorWords(source.last_error_code)}` : ""}.`
+            : `Google Sheet added, never synced${source.last_error_code ? ` (${source.last_error_code}): ${syncErrorWords(source.last_error_code)}` : ""}.`,
         }
       : {
           item: "Rota source",
           state: "confirm",
           detail:
-            "No Google Sheet: shifts are made in the office or imported from CSV. Confirm that's what the firm wants.",
+            "No Google Sheet: shifts are made in the office or imported from CSV. Confirm that's what the firm wants (a sheet is connected with npm run firm:sheet).",
         },
     {
       item: "Workers and credentials imported",

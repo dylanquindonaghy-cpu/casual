@@ -177,8 +177,10 @@ sheet while there's room and is tried again at each sync. A new role, times or s
 shift is made only if everyone booked can still work it (the office editor's check), and a started
 shift is never re-timed, re-roled, moved or cancelled: what isn't done is shown on the office's
 Today (Phase 10, audit M1, M2, L12).
-The live transport stays off (`SHEETS_TRANSPORT` is `none` only) until the real service account is
-connected.
+The live transport is off by default (`SHEETS_TRANSPORT=none`); `google` with the service
+account's key switches it on, once a Google account exists. Phase 10 (audit M17, L45): only a sheet
+whose locale is United Kingdom is read (its dates read day first), and a spreadsheet is bound to one
+firm, connected only by the owner (`npm run firm:sheet`), never by the app.
 **Revisit when:** a firm needs one row per slot instead of an "Assigned" list, or sheets get big
 enough that one read per minute is too slow.
 

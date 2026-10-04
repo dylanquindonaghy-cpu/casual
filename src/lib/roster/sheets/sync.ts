@@ -20,7 +20,7 @@ import { refreshShiftStatus, sheetsRosterPlug } from "../native";
 import { upsertWorker } from "../workers";
 import { changeNoticeHours, noticeHours } from "../notice";
 import { cellRange, columnRange, tabRange } from "./a1";
-import { SheetsError, type SheetsClient } from "./client";
+import { SHEET_LOCALE, SHEET_LOCALE_ERROR, SheetsError, type SheetsClient } from "./client";
 import { sheetMappingSchema } from "./mapping";
 import { mergeHolders, sameHolders } from "./merge";
 import {
@@ -156,6 +156,10 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
 
     let parsed: ParsedSheet;
     try {
+      // Only a United Kingdom sheet: its dates read day first, as the parser reads them.
+      if ((await client.locale(claim.spreadsheetId)) !== SHEET_LOCALE) {
+        return await fail(SHEET_LOCALE_ERROR);
+      }
       const [staffRows = [], shiftRows = []] = await client.batchGet(claim.spreadsheetId, [
         tabRange(mapping.data.staff.tab),
         tabRange(mapping.data.shifts.tab),

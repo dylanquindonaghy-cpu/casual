@@ -1,9 +1,11 @@
+import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { firmReadiness, readinessText, type ReadinessItem } from "@/lib/onboarding/readiness";
 import { addOfficeUser, createFirm } from "../../scripts/firm-create-owner";
 import { readFirmSettings, setFirmSettings } from "../../scripts/firm-settings-owner";
+import { connectSheet } from "../../scripts/firm-sheet-owner";
 import { appRolePool, superuserPool, uniqueSlug, urls } from "../helpers/db";
 
 // Onboarding a pilot firm (docs/runbooks.md "Onboarding a pilot firm"): creating it, agreeing its
@@ -374,6 +376,35 @@ describe("the onboarding checklist from a firm's data", () => {
       "2 active workers, 1 credential; 1 active worker has no credential on file.",
     );
     expect(readinessText("x", items)).not.toMatch(/Pat|Checker|\+447700900301|\+447700900302/);
+  });
+
+  it("a rota sheet: connected and never synced, then failing, in plain words", async () => {
+    const f = await created();
+    const sheet = `test_${randomBytes(30).toString("base64url")}`.slice(0, 44);
+    await connectSheet(urls.admin, f.slug, { spreadsheetId: sheet, replace: false });
+    const rota = async () =>
+      (await withFirm(f.firmId, (tx) => firmReadiness(tx))).find((i) => i.item === "Rota source");
+    expect(await rota()).toEqual({
+      item: "Rota source",
+      state: "todo",
+      detail: "Google Sheet added, never synced.",
+    });
+    await su.query(
+      "update roster_sources set last_error_code = 'sheet_locale_not_uk' where firm_id = $1",
+      [f.firmId],
+    );
+    expect((await rota())?.detail).toBe(
+      "Google Sheet added, never synced (sheet_locale_not_uk): the sheet's locale isn't United Kingdom, so its dates could be read the wrong way round. In Google Sheets: File, Settings, Locale: United Kingdom, then Save settings. Then check the sheet's dates: ones typed before the change may have moved.",
+    );
+    await su.query(
+      "update roster_sources set last_error_code = null, last_synced_at = '2026-10-04T09:00:00Z' where firm_id = $1",
+      [f.firmId],
+    );
+    expect(await rota()).toEqual({
+      item: "Rota source",
+      state: "done",
+      detail: "Google Sheet, last synced 2026-10-04T09:00:00.000Z.",
+    });
   });
 
   it("counts only its own firm's data, and only roles on shifts that are still to come", async () => {

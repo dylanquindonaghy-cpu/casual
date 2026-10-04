@@ -38,6 +38,8 @@ const NOT_EVENTS = new Set<string>([
   "quiet_hours.start",
   "quiet_hours.end",
   "quiet_hours.urgent_override",
+  // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
+  "properties.locale",
 ]);
 const recorded = new Set(
   [...sourceFiles(ROOT), ...sourceFiles(join(process.cwd(), "scripts"))]
@@ -133,6 +135,35 @@ describe("the action log's types and words", () => {
       "2 waiting pay queries moved to the group that matches the pay records now.",
     );
     expect(say("roster.synced", { shifts: 12 })).toBe("The rota sheet was read (12 shifts).");
+    // A failed sync says why, in plain words, with the fix when the firm can make it (audit M17).
+    expect(say("roster.sync_failed", { code: "sheet_locale_not_uk" })).toBe(
+      "Reading the rota sheet failed: the sheet's locale isn't United Kingdom, so its dates could be read the wrong way round. In Google Sheets: File, Settings, Locale: United Kingdom, then Save settings. Then check the sheet's dates: ones typed before the change may have moved.",
+    );
+    expect(say("roster.sync_failed", { code: "sheet_not_shared" })).toBe(
+      "Reading the rota sheet failed: the sheet isn't shared with our Google account (share it again, as Editor).",
+    );
+    expect(say("roster.source_connected", { replaced: false })).toBe(
+      "The rota sheet was connected.",
+    );
+    expect(say("roster.source_connected", { replaced: true })).toBe(
+      "A new rota sheet was connected in place of the old one.",
+    );
+    expect(say("roster.source_disabled", { replaced: false })).toBe(
+      "The rota sheet was switched off: nothing more is read from it.",
+    );
+    expect(say("roster.source_disabled", { replaced: true })).toBe(
+      "The old rota sheet was switched off (a new one replaces it).",
+    );
+    expect(say("roster.source_connected", { mappingChanged: true, defaultMapping: true })).toBe(
+      "The rota sheet's column settings were changed.",
+    );
+    expect(say("roster.source_forgotten")).toBe(
+      "An old rota sheet, already switched off, was let go: another firm could connect it.",
+    );
+    // A Google 400: a renamed tab or an Excel file, which the firm fixes (not "try again").
+    expect(say("roster.sync_failed", { code: "sheet_unreadable" })).toBe(
+      "Reading the rota sheet failed: Google couldn't read the sheet: check it's a Google Sheet (not an Excel file) and its tabs still have the names agreed (Staff and Shifts, unless you were told others).",
+    );
     expect(
       say("pay_query.created", { issueType: "wrong_rate", workDate: "2026-10-31" }, "worker"),
     ).toBe("Ann Booker raised a pay query (wrong rate, Sat 31 Oct).");

@@ -12,6 +12,9 @@ const PORT = 3100;
 export const OUTBOX = ".dev/e2e-outbox.jsonl";
 export const E2E_TWILIO_AUTH_TOKEN = "e2e-twilio-auth-token-not-real-0000";
 export const CUSTOM_DOMAIN = "shifts.acme-events.test";
+// https for that domain, as Caddy gives a firm's own domain in production (tests/e2e/tls-front.ts):
+// the browser sends https://shifts.acme-events.test here.
+const TLS_FRONT_PORT = 3443;
 // Everything the worker and the web app print during the run (their logs), kept so the teardown can
 // check no phone number or email got past the log masker (tests/e2e/teardown.ts).
 // (.dev/ is gitignored: made here, before the servers' output is written into it. `tee` hides the
@@ -55,14 +58,17 @@ export default defineConfig({
   globalTeardown: "./tests/e2e/teardown.ts",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   // Mobile first: workers use the portal from a phone. The browser (only) maps a made-up domain
-  // (.test is reserved: it never resolves on the internet) to this machine, so a firm's own domain
-  // can be tried (tests/e2e/custom-domain.spec.ts).
+  // (.test is reserved: it never resolves on the internet) to this machine's https front for it, so
+  // a firm's own domain can be tried, logins included (tests/e2e/custom-domain.spec.ts, which alone
+  // accepts the front's self-signed certificate; next.config.ts lets the dev server serve it).
   projects: [
     {
       name: "mobile-chrome",
       use: {
         ...devices["Pixel 7"],
-        launchOptions: { args: [`--host-resolver-rules=MAP ${CUSTOM_DOMAIN} 127.0.0.1`] },
+        launchOptions: {
+          args: [`--host-resolver-rules=MAP ${CUSTOM_DOMAIN} 127.0.0.1:${TLS_FRONT_PORT}`],
+        },
       },
     },
   ],
@@ -81,6 +87,12 @@ export default defineConfig({
       env,
       reuseExistingServer: false,
       timeout: 240_000,
+    },
+    {
+      // https for the made-up domain, passing requests to the web app above (as Caddy would).
+      command: `node --import tsx tests/e2e/tls-front.ts ${CUSTOM_DOMAIN} ${TLS_FRONT_PORT} ${PORT}`,
+      wait: { stdout: /\[tls-front\] https for/ },
+      timeout: 30_000,
     },
   ],
 });

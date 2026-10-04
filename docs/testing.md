@@ -123,6 +123,14 @@ without breaking a 6am cancellation.
   in well under a minute through the real web app and worker; every webhook answered 200 quickly
   (p95 under 2 s, after one warm-up), every message's reply stored within a minute of the last. It
   failed (31 of 200 in a minute) before the worker fetched firm jobs in bursts.
+- `custom-domain.spec.ts` (e2e) and `auth.own-domain.test.ts` — a firm's own domain (Phases 8 and
+  10). Served only once verified, with the firm's bar; Caddy's certificate check. A worker and an
+  office user who log in on it get their link back on it and stay logged in there (the session
+  cookie on that address only; audit M7, L84). In the browser tests the made-up domain gets https
+  from `tests/e2e/tls-front.ts`, standing in for Caddy: a browser keeps no `Secure` cookie over
+  plain http on a name that isn't localhost. The integration test: the job takes the domain from
+  the firm's own record and only while it's verified; a request on the portal gets the portal; a
+  job queued without `address` gets the portal; the payload takes only the two words.
 - `error-page.spec.ts` (e2e) and `error-pages.test.ts` — the error screens recover (audit M4). The
   failures are on purpose and only in the e2e run (`src/lib/e2e/fails-once.ts`: `E2E_TEST_PAGES=on`,
   which only `playwright.config.ts` sets and the app refuses unless its address is localhost; off,
@@ -290,3 +298,10 @@ log has every step.
       docs/runbooks.md "Checking the logs for personal data".
 - [ ] Budget alert and uptime check firing to your phone ("Connect monitoring", "Connect alerts
       to your phone")
+- [ ] Only if a pilot firm wants its own domain: a periodic re-check of every verified domain's
+      CNAME (marking it unverified once it no longer points to us) is built **before** that
+      domain is verified. Since Phase 10 a login link can go to a verified own domain; a domain
+      that has stopped pointing to us but is still marked verified would get login links, and
+      whoever now holds it could use them. With it, a way to end the sessions made on a domain
+      that's lost (a session isn't tied to an address, so they'd stay valid for up to 30 days)
+      (PLAN.md Parking lot, "Phase 8 custom domains")

@@ -420,8 +420,13 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   for firms that exist, so no wildcard certificate (and no DNS provider API) is needed. Requests reach
   the web app with their real Host and an `X-Real-IP` Caddy sets itself. The owner saves and
   verifies a firm's domain with `npm run firm:domain` (its CNAME must point to
-  `<slug>.<our-domain>`); only then is it served (`firmForHost()`) or approved. Links in messages
-  still use `<slug>.<our-domain>`: parked.)
+  `<slug>.<our-domain>`); only then is it served (`firmForHost()`) or approved. A login started on
+  the firm's own domain gets its link back on that domain (Phase 10, audit M7: the job is told
+  which of the firm's two addresses the request came in on, and uses the domain from the firm's
+  own record only while it's verified), so the session, a host-only cookie, is held there. Other
+  links in messages still use `<slug>.<our-domain>`: parked. A session belongs to one address, so
+  someone logged in on the firm's domain who taps such a link logs in again on
+  `<slug>.<our-domain>`, and then has a session on each, each logged out on its own address.)
 - Branding per firm: name, logo, primary colour, sign-off "[Firm] Shift Team". (Built in Phase 8:
   every firm page, portal and office, opens with the firm's bar (`src/app/brand-bar.tsx`, from the
   root layout): its logo, if set, and its name, on its colour, with black or white text, whichever

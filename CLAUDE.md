@@ -103,7 +103,8 @@ docs/
 - `npm run db:generate` — write a migration from `src/lib/db/schema/`. Never use `drizzle-kit push`
   or `drizzle-kit migrate`: only `db:migrate` also forces RLS, applies grants and installs pg-boss
 - `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e` (its own web app and worker on
-  port 3100 and its own `*_e2e` database; stop `npm run dev` first)
+  port 3100, an https front on 3443 for a firm's own domain (needs `openssl`), and its own `*_e2e`
+  database; stop `npm run dev` first)
 - `./scripts/verify.sh` — runs all of the above and writes the verified stamp
 
 (Create these scripts in Phase 0 if missing.)

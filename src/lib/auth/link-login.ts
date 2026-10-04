@@ -13,6 +13,7 @@ import {
 } from "./sessions";
 import { hitLimit, LIMITS, logLimitReached, peekLimit, toMinutes } from "./throttle";
 import { looksLikeToken } from "./tokens";
+import type { FirmAddress } from "../tenancy/portal-url";
 
 // The parts of link login that workers and office users share (docs/architecture.md, Login):
 // spending a one-time link, starting a session, looking it up, rotating it, ending it. Each
@@ -21,6 +22,9 @@ import { looksLikeToken } from "./tokens";
 
 export interface AuthContext {
   firm: { id: string };
+  // Which of the firm's addresses the request came in on (currentFirmAddress()): a login link goes
+  // back to it. Unset: the portal (<slug>.<base>).
+  address?: FirmAddress;
   clientIp?: string; // from X-Real-IP (set by Caddy); "unknown" when missing
   clock?: Clock;
   run?: WithFirm; // tests pass a withFirm on their own pool

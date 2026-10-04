@@ -5,6 +5,8 @@ import type { FirmDirectoryEntry } from "../db/directory";
 import { withFirm, type FirmTx } from "../db/scoped";
 import { appEnv } from "../env";
 import { firmForHost } from "./firm";
+import { parseHost } from "./host";
+import type { FirmAddress } from "./portal-url";
 
 // The firm for the current request (ADR-012). Every page, server action and route handler that
 // touches firm data goes through here (a check in a layout doesn't stop the page from
@@ -29,4 +31,11 @@ export async function withCurrentFirm<T>(
 ): Promise<T> {
   const firm = await getCurrentFirm();
   return withFirm(firm.id, (tx) => fn(tx, firm));
+}
+
+// Which of the firm's addresses this request came in on (getCurrentFirm() has already checked a
+// custom domain is the firm's verified one): a login link goes back to it.
+export async function currentFirmAddress(): Promise<FirmAddress> {
+  const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
+  return match?.kind === "custom" ? "own_domain" : "portal";
 }

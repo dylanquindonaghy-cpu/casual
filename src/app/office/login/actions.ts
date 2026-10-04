@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { requestOfficeLoginLink } from "@/lib/auth/office-login";
 import { clientIp, requestLog } from "@/lib/request";
-import { getCurrentFirm } from "@/lib/tenancy/current-firm";
+import { currentFirmAddress, getCurrentFirm } from "@/lib/tenancy/current-firm";
 
 export type OfficeLoginState =
   | { status: "idle" }
@@ -21,7 +21,8 @@ export async function requestOfficeLinkAction(
   const email = z.string().max(254).safeParse(formData.get("email"));
   if (!email.success) return { status: "invalid_email" };
   try {
-    return await requestOfficeLoginLink({ firm, clientIp: await clientIp() }, email.data);
+    const address = await currentFirmAddress(); // the link goes back to the same address
+    return await requestOfficeLoginLink({ firm, address, clientIp: await clientIp() }, email.data);
   } catch (error) {
     (await requestLog()).error("office link request failed", { firmId: firm.id, error });
     return { status: "error" };

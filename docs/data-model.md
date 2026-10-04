@@ -498,7 +498,8 @@ create table events (
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
 -- (recordEvent() refuses anything the log masker would change).
 -- Login events (kind worker or office): auth.link_requested (entity login_request; data {kind, matched}),
--- auth.link_sent (magic_link; {purpose, channel, providerMessageId}), auth.link_rejected
+-- auth.link_sent (magic_link; {purpose, channel, providerMessageId}, + ownDomain: true when the
+-- link was on the firm's own domain), auth.link_rejected
 -- (magic_link or none; {kind, reason: unknown|used|expired|wrong_kind|inactive}), auth.login
 -- (session; actor worker/office), auth.session_rotated, auth.logout, auth.rate_limited
 -- (login_request, magic_link or session; {limit: "login:mobile" | "login:ip" | "office:email" |

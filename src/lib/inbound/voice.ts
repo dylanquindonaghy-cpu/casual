@@ -21,9 +21,10 @@ import { plainResponse, readTwilioRequest } from "./twilio-request";
 // "Call-to-text"). Someone rings the firm's shifts line:
 // - the voice webhook finds the firm by the number called, stores the call once (a `messages` row,
 //   channel voice, Twilio's CallSid, a withheld number's too: a repeat of the same call does
-//   nothing more), logs `call.received`, and asks for the caller's login link exactly as the login
-//   page does (the same throttle and the same answer for any number: a worker's number gets their
-//   link by message, any other number nothing). Its answer is TwiML: the doc's spoken message (no
+//   nothing more), logs `call.received`, and asks for the caller's login link as the login page
+//   does (the same throttle and the same answer for any number: a worker's number gets their link
+//   by message, any other number nothing; on the firm's portal address, as a call comes in on
+//   neither of its web addresses). Its answer is TwiML: the doc's spoken message (no
 //   link promised when the number is withheld, or when the login limits stopped it or asking
 //   failed), then a voicemail (<Record transcribe>, 2 minutes at most) and hang up;
 // - the transcription webhook stores the voicemail's text once (the RecordingSid) and queues the

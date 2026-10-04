@@ -63,6 +63,7 @@ export async function requestOfficeLoginLink(
     await sendFirmJob(tx, sendPortalLinkTask, {
       idempotencyKey: requestId,
       purpose: "office_login",
+      address: ctx.address ?? "portal",
       subjectId: user?.id ?? null,
     });
   });

@@ -8,7 +8,7 @@ import { errorCode, firmJobEnvelope, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
 import type { OutboundMessage } from "../messaging/transport";
 import { loginLinkMessage, officeLoginLinkEmail } from "../messaging/templates";
-import { portalUrl } from "../tenancy/portal-url";
+import { ownDomainUrl, portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { systemClock, type Clock } from "./clock";
 import { issueMagicLink, markLinkSent } from "./magic-links";
@@ -24,9 +24,15 @@ export const SEND_PORTAL_LINK_QUEUE = "send-portal-link";
 export const sendPortalLinkPayload = firmJobEnvelope.extend({
   idempotencyKey: z.uuid(), // the login request id
   purpose: z.enum(["worker_login", "office_login"]),
+  // Which of the firm's addresses the request came in on: the link goes back to it, if it's still
+  // the firm's verified own domain (otherwise the portal). A job queued before this existed: the
+  // portal.
+  address: z.enum(["portal", "own_domain"]).default("portal"),
   subjectId: z.uuid().nullable(),
 });
 export type SendPortalLinkPayload = z.infer<typeof sendPortalLinkPayload>;
+// As queued, before the defaults (a job queued before `address` existed has none).
+type QueuedPayload = z.input<typeof sendPortalLinkPayload>;
 
 export interface SendPortalLinkDeps {
   transport: MessagingTransport;
@@ -39,12 +45,13 @@ export type SendResult =
   | { sent: false; reason: "no_subject" | "inactive" | "already_sent" | "failed" };
 
 type LinkClaim =
-  { done: "inactive" | "already_sent" } | { magicLinkId: string; message: OutboundMessage };
+  | { done: "inactive" | "already_sent" }
+  | { magicLinkId: string; message: OutboundMessage; ownDomain: boolean };
 
 // (1) The claim: the link for this login request, marked sent and committed before the message goes.
 async function claimLink(
   tx: FirmTx,
-  payload: SendPortalLinkPayload & { subjectId: string },
+  payload: QueuedPayload & { subjectId: string },
   deps: SendPortalLinkDeps,
   now: Date,
 ): Promise<LinkClaim> {
@@ -70,6 +77,8 @@ async function claimLink(
     .select({
       name: firms.name,
       slug: firms.slug,
+      customDomain: firms.customDomain,
+      domainVerified: firms.domainVerified,
       settings: firms.settings,
       line: firms.shiftsLineE164, // the firm's shifts line: the link goes from it
     })
@@ -110,11 +119,20 @@ async function claimLink(
   // arrived) and never sends a second link.
   await markLinkSent(tx, link.id, now);
 
-  const portal = portalUrl(firm.slug, deps.baseDomain);
+  // Back to the firm's own domain only if that's where the request came in and it's still the
+  // firm's verified one, from the firm's own record (never the request's Host, which a forger
+  // controls); otherwise the portal.
+  // (The verified mark is only as fresh as the last `npm run firm:domain -- --check`: a periodic
+  // re-check must exist before a real firm's domain is verified, docs/testing.md "Pre-pilot
+  // checklist".)
+  const ownDomain =
+    payload.address === "own_domain" && firm.domainVerified ? firm.customDomain : null;
+  const portal = ownDomain ? ownDomainUrl(ownDomain) : portalUrl(firm.slug, deps.baseDomain);
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
   // SMS fallback and SES email come with Twilio and SES.
   return {
     magicLinkId: link.id,
+    ownDomain: ownDomain !== null,
     message: office
       ? {
           channel: "email",
@@ -150,7 +168,7 @@ async function linkOutcomeLogged(tx: FirmTx, linkId: string): Promise<boolean> {
 // auth.link_sent, or auth.link_send_failed. A retried job finds the link already sent and sends nothing:
 // the link it may already have sent still works, and someone who got nothing asks for another.
 export async function sendPortalLink(
-  payload: SendPortalLinkPayload,
+  payload: QueuedPayload,
   run: WithFirm,
   deps: SendPortalLinkDeps,
 ): Promise<SendResult> {
@@ -185,6 +203,9 @@ export async function sendPortalLink(
       data: {
         purpose: payload.purpose,
         channel: claim.message.channel,
+        // A link on the firm's own domain says so (the portal is the default, unmarked). Not
+        // "address": the log masker treats any key with that word as personal.
+        ...(claim.ownDomain ? { ownDomain: true } : {}),
         ...("providerMessageId" in sent
           ? { providerMessageId: sent.providerMessageId }
           : { code: sent.code }),

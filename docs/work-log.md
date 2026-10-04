@@ -8453,3 +8453,80 @@ themselves. Now:
       "Something went wrong". In development, Next.js's own error box also opens over it: press Esc.
    3. Tap "Try again": "It worked this time".
    4. Take the line out of `.env` again afterwards.
+
+## 2026-10-04 — Phase 10, task 15: a firm's own web address can hold a login
+
+- **Time spent:** 0.7 hours (started 04:42 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=67c20d065ed86402 e2e=true`
+  (3,045 tests, 60 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M7, L84.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+A firm can have its own web address for the portal (`shifts.acme.co.uk`) instead of ours
+(`acme.<our domain>`). The audit found that nobody could stay logged in on it. Whoever asked for a
+login link there was sent a link to our address, so they ended up logged in on ours. The reason is
+the **session cookie**, the small file the browser keeps to remember you're logged in. On purpose,
+it belongs to exactly one web address, so one firm's address can never plant or read another's.
+
+Now:
+
+- **The login link goes back to where you asked.** Ask on the firm's own address, and your link
+  is on that address. Ask on ours, and it's on ours. The same goes for workers (WhatsApp) and the
+  office (email).
+- **Safe against tricks.** The app never copies the address from the request. It only notes
+  *which* of the firm's two addresses the request came in on, then takes the actual domain from the
+  firm's own record. It uses that domain only while it's still marked verified, and otherwise uses
+  ours.
+- **The action log says so.** When a link went to the firm's own address, its log entry says
+  `ownDomain`.
+- **A real browser test logs in there**, as a worker and as an office user, and checks they stay
+  logged in. That needed real https (the padlock), as a browser refuses to keep a secure session
+  cookie on plain http for any name but `localhost`. So the browser tests now run a small https
+  front for the made-up test address. It does the same job as Caddy, the web server that gives
+  real addresses their padlock in production.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The link goes back to the address you started on | Sessions belong to one address on purpose | Every link on the firm's address once verified (parked: every message's links would have to move too) |
+| The job is told only "portal" or "own domain", never an address | A forged request can't point a real link anywhere | Passing the address itself |
+| Old queued jobs get our address | They still run after an update | Failing them |
+| An https front in the browser tests | The only way a browser keeps the cookie there, and it matches production | A browser flag (tried: it doesn't let the cookie through) |
+
+### What the new tests prove
+
+- **`tests/integration/auth.own-domain.test.ts`:**
+  - asked on the firm's address, the link is on it, for a worker and an office user, and it logs
+    them in;
+  - asked on ours, it's ours;
+  - a domain no longer verified, or taken off, gets ours;
+  - an old job gets ours;
+  - the job refuses anything but the two words;
+  - the log entry says `ownDomain` only when it went there.
+- **`tests/e2e/custom-domain.spec.ts`:** a worker and an office user log in on
+  `https://shifts.acme-events.test`. They stay logged in on other pages and a fresh visit, and
+  the cookie is on that address only.
+- **The tests catch the bug:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **Before any real firm uses its own address** (a new item on the pre-pilot checklist in
+  `docs/testing.md`): a daily re-check that the firm's address still points to us. Today it's
+  checked only when you run `npm run firm:domain -- --check`. If a firm let its domain lapse and
+  someone else bought it, the app would still send login links there until someone re-checked.
+  The guardrails review caught this. Nothing is live and no real address is verified, so it's
+  written down rather than built tonight.
+- **Two logins:** links in other messages (offers, reminders) still go to our address. Someone
+  logged in on the firm's address who taps one logs in once more there. Moving those links is
+  parked.
+- **Browser tests need `openssl`** (already on your machine and on GitHub's runners). They also
+  now use port 3443 besides 3100.
+
+### How to see it working
+
+`npm run e2e -- tests/e2e/custom-domain.spec.ts` (stop `npm run dev` first): four tests pass. Two
+of them log in on the made-up firm address.

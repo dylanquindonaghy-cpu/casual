@@ -53,9 +53,11 @@ describe("worker login, start to finish", () => {
       status: "sent",
     });
 
-    // 2. The queued job holds ids only: no number, no token.
+    // 2. The queued job holds ids and fixed words only: no number, no token. (Phase 10: which of
+    // the firm's addresses the request came in on, a word, never the address itself.)
     const job = await latestLinkJob(su, A.firmId);
     expect(Object.keys(job?.data ?? {}).sort()).toEqual([
+      "address",
       "firmId",
       "idempotencyKey",
       "purpose",
@@ -64,6 +66,7 @@ describe("worker login, start to finish", () => {
     expect(job?.data).toMatchObject({
       firmId: A.firmId,
       purpose: "worker_login",
+      address: "portal",
       subjectId: A.workerId,
     });
 

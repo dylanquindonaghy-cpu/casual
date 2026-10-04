@@ -10,8 +10,9 @@ import { isValidSlug } from "./slug";
 //   anything else      not served
 //
 // The base domain includes the port in dev (localhost:3000) and none in production. A custom
-// domain has no port in production; locally it may carry the base domain's own port (the browser
-// tests map a made-up domain to this machine).
+// domain has no port in production; locally it may carry the base domain's own port (a made-up
+// domain mapped to this machine over plain http; the browser tests now reach theirs over https,
+// with no port, through tests/e2e/tls-front.ts).
 
 export type HostMatch =
   { kind: "apex" } | { kind: "firm"; slug: string } | { kind: "custom"; domain: string };

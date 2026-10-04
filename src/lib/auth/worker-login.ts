@@ -65,6 +65,7 @@ export async function requestWorkerLoginLink(
     await sendFirmJob(tx, sendPortalLinkTask, {
       idempotencyKey: requestId,
       purpose: "worker_login",
+      address: ctx.address ?? "portal",
       subjectId: worker?.id ?? null,
     });
   });

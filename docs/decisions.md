@@ -335,8 +335,14 @@ get certificates); a wildcard certificate for subdomains (DNS-01); an office set
 `domain-verify` job (needs the settings screen and an update grant on firms).
 **Consequences:** onboarding a domain is a two-step owner task (save, then check once the CNAME is
 there); a domain whose CNAME goes away keeps being served until someone runs `--check` (a periodic
-re-check is parked). Links in messages still use `<slug>.<base>`. **Revisit when:** firms set their
-own domains in the office, or links should use the firm's domain.
+re-check is parked). Links in messages still use `<slug>.<base>`, except a login link asked for on
+the firm's domain, which goes back to it (Phase 10, audit M7: otherwise the domain could never hold
+a session, as the session cookie is host-only on purpose). That makes the verified mark matter
+more: it's only as fresh as the last `--check`, and a domain that stopped pointing to us (a
+changed CNAME, or a lapsed domain someone else registered) would still get login links, which
+whoever holds it could use. So the periodic re-check must exist before any real firm's domain is
+verified (`docs/testing.md`, pre-pilot checklist). **Revisit when:** firms set their own
+domains in the office, or links should use the firm's domain.
 
 ## ADR-020: A GDPR deletion erases the person and keeps the anonymous evidence; messages go only through two owner-run functions
 

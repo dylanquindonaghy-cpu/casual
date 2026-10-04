@@ -7625,3 +7625,112 @@ test that fails a page once and recovers (M4)
 **Hours:** 0.6 (04:02 to 04:39 UTC). Phase 10 so far: 12.0 of the 30–45 h estimate.
 
 **Commit:** `a82e3a9`, pushed to `build/overnight`.
+
+## 2026-10-04 04:42 UTC — Phase 10, task 15: a firm's own domain holds a login
+
+**Task:** A firm's own domain holds a login: a worker or office user who starts on the firm's domain
+is sent a link back to it and stays logged in there; an e2e test logs in on a custom host (M7, L84)
+
+**Root cause (audit M7):** the login link is always built from the firm's slug and our base domain
+(`portalUrl()`, `src/lib/auth/send-portal-link.ts`), and the session cookie is host-only (`__Host-`,
+no Domain: on purpose, so one firm's address can't plant another's). So someone who asks on
+`shifts.acme.co.uk` gets a link to `acme.<our domain>` and is logged in there, never on the firm's
+own domain.
+
+**Plan:**
+1. The login request notes which of the firm's two addresses it came in on (`address: "portal" |
+   "own_domain"`, from the request's host). It goes into the send-portal-link job as that word only;
+   jobs already queued (without it) mean "portal".
+2. The job builds the link on the firm's own domain only when the request came in there and the
+   domain is still verified on the firm's own record (never the request's Host itself, so a forged
+   Host can't point a real link elsewhere); otherwise on `<slug>.<base>` as today.
+3. Workers (`/l#`) and the office (`/office/l#`) alike. The cookie stays host-only, so the session
+   lives on the address the link opened.
+4. **The browser test:** log in on `shifts.acme-events.test` (the made-up domain the e2e browser maps
+   to this machine) as a worker and as an office user. The link comes back on that domain, and after
+   opening it they stay logged in there. Over plain http a browser refuses the `Secure` session
+   cookie on any name but localhost, so the e2e browser is told to treat that one test address as
+   secure (a Chrome flag in `playwright.config.ts`, for that address only), as https would be in
+   production. **Replaced while building** (see below): the flag didn't let the cookie through, so
+   the test domain gets real https from a stand-in for Caddy.
+5. Messages' other links (offers, reminders) stay on `<slug>.<base>`: that's the parked "links in
+   messages on the firm's own domain". The parked note now says that a session belongs to one
+   address, so someone logged in on the own domain logs in again from a message's link.
+
+**Root causes found while building the browser test (written before each fix):**
+- **The page that opens the link never became interactive on the made-up domain.** The dev
+  server refuses its live connection (`/_next/hmr`) from any address but localhost (logged:
+  "Blocked cross-origin request to Next.js dev resource /_next/hmr"). Without it, the page under
+  `next dev` never finishes starting, so "Log me in" did nothing. Fix: `allowedDevOrigins:
+  ["**.test"]` in `next.config.ts` (development only; `.test` names never exist on the internet).
+- **The session cookie was dropped on the made-up domain over http.** Set-Cookie came back
+  (`__Host-sd_session …; Secure`), but the browser kept nothing: a `Secure` cookie needs https on
+  any name but localhost. The Chrome flag `--unsafely-treat-insecure-origin-as-secure` made the page
+  a secure context (with full Chromium; not with the headless shell) but still didn't let the
+  cookie through. Fix: the browser tests give the made-up domain real https, standing in for Caddy
+  (`tests/e2e/tls-front.ts`: a certificate made by `openssl` at the start, the Host passed through
+  unchanged). The browser maps the domain's https port to it and accepts that certificate. So
+  links to a firm's own domain are always `https://<domain>`, as in production.
+
+**Decisions:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| The link goes back to the address the person started on | The task; sessions are host-only on purpose (one firm's address can't plant another's cookie) | Every link on the own domain once verified (parked: also needs every message's links moved) |
+| The address word in the job, the domain from the firm's row | A forged Host can't point a real link anywhere; the payload stays ids and fixed words | The Host itself in the payload |
+| Re-read at send: the firm's row must still say verified, else the portal | A domain taken off, or marked unverified by `--check`, gets no links. **Correction (guardrails review):** this is only the database mark, as fresh as the last `npm run firm:domain -- --check`; a CNAME that went away without a check still gets links. So the periodic re-check is now a must-have before any real firm's domain is verified (pre-pilot checklist, ADR-019, the runbook) | Trusting the request; a live DNS check in the job (DNS inside the worker; parked with the periodic re-check) |
+| A job queued before this change gets the portal | Old jobs still run | Failing them |
+| An https front in the browser tests, standing in for Caddy | The only way a browser keeps the session cookie there; matches production | A cookie-allowing flag (doesn't work); setting the cookie by hand (wouldn't test the app) |
+| `allowedDevOrigins: ["**.test"]` | The dev server needs its live connection to start the page | Running that test only against a production build |
+
+**Reviews:**
+- **Guardrails reviewer:** the code is sound. No request can produce a link to another firm or to
+  a host from the request; the payload is fixed words; the cookie is host-only.
+  - "FIX FIRST": the log claimed the send-time re-check protects against a domain whose CNAME went
+    away, but it only re-reads the database mark, which is as fresh as the last `--check`. Before
+    this, no login link ever went to a firm's domain; now one can. So a lost domain still marked
+    verified could get login links, a takeover.
+  - Taken, as the honest record (no real domain is verified, nothing is live):
+    - the log row is corrected;
+    - ADR-019 says it;
+    - the runbook says "not for a real firm yet";
+    - a new pre-pilot checklist item: the periodic re-check, and a way to end the sessions made on
+      a lost domain, before any real firm's domain is verified;
+    - the parked note says it's a must-have.
+    A live DNS check inside the job was considered and parked with the re-check (DNS from the
+    worker; the e2e would need a stand-in resolver).
+  - Also taken:
+    - the link-sent log entry says `ownDomain: true` when the link went there;
+    - `allowedDevOrigins` narrowed to the one test name;
+    - the certificate allowance scoped to the custom-domain spec.
+- **Root cause found while adding the log key:** the first try named it `address`, and the record
+  step failed in silence (the test's job runner is quiet). `recordEvent()` refuses anything the
+  log masker would change, and the masker treats any key containing "address" as personal (a
+  postal or email address). Renamed to `ownDomain`. The integration test checks the entry, so it
+  can't fail silently again.
+- **Adversarial review:** the design and the production path hold. The https front matches Caddy
+  where it matters, Next's server-action Origin check passes behind both, and CI runs
+  `next start` (where `allowedDevOrigins` doesn't apply) on Ubuntu with OpenSSL 3.
+  - H1: `tests/integration/auth.login-flow.test.ts` pins the job's keys exactly; it now lists
+    `address` too, and checks its value (stricter, not weaker).
+  - M1: the same takeover risk; handled as above, plus the runbook says sessions made on a removed
+    domain stay valid until they run out.
+  - L1 (two sessions, one logout per address) is documented in the architecture and parked notes.
+  - L3 and L4 (docs and stale comments) are fixed; nits fixed, including the e2e port 3443 and
+    `openssl` in CLAUDE.md.
+  - Not covered by a test, and noted: logout, session refresh and the offline copy on the own
+    domain (by reading, they compare Origin with Host, which the front and Caddy keep).
+- **Mutation checks:** each one broke the fix on purpose, and its test then failed:
+  - the login actions not passing the address: both browser login tests failed (the links came
+    back on the portal);
+  - the job ignoring the verified mark: "no longer verified" failed.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=67c20d065ed86402 e2e=true` (3,045 tests,
+60 browser tests).
+
+**Auditor:** `VERDICT: DONE` ("all claims PROVEN against code, tests and logs on disk"; fakes found:
+none).
+
+**Hours:** 0.7 (04:42 to 05:24 UTC). Phase 10 so far: 12.7 of the 30–45 h estimate.
+
+**Commit:** (filled in below)

@@ -303,7 +303,7 @@ every step works.
       (M24, L23, L30, L41, L85, L86, L87)
 - [x] "Try again" on the error screens really retries (Next 16 `retry()`), proven by a browser test
       that fails a page once and recovers (M4)
-- [ ] A firm's own domain holds a login: a worker or office user who starts on the firm's domain is
+- [x] A firm's own domain holds a login: a worker or office user who starts on the firm's domain is
       sent a link back to it and stays logged in there; an e2e test logs in on a custom host
       (M7, L84)
 - [ ] Logs are safe and checked: request paths and log strings are capped before masking, and
@@ -380,11 +380,17 @@ every step works.
   own storage instead of the firm's site; home-screen icons made from the logo (the manifest has the
   theme colour only); the brand colour on buttons too (today the bar only).
 - Phase 8 custom domains, left for later: links in messages and emails on the firm's own domain
-  once verified (today `<slug>.<base>`, which also works); a periodic re-check of each verified
-  domain's CNAME (today `npm run firm:domain -- --check` by hand); an office settings section for it;
-  run `caddy validate` on `deploy/Caddyfile` with the deploy task (not run yet: no Caddy here);
-  `allowedDevOrigins` if anyone uses a custom domain against `npm run dev` (only live reload is
-  refused).
+  once verified (today `<slug>.<base>`, except a login link asked for on the firm's domain, Phase 10;
+  a session belongs to one address, so someone logged in on the firm's domain who taps a message's
+  link logs in again on `<slug>.<base>`); a periodic re-check of each verified domain's CNAME (today
+  `npm run firm:domain -- --check` by hand); an office settings section for it; run
+  `caddy validate` on `deploy/Caddyfile` with the deploy task (not run yet: no Caddy here); trying
+  a firm's own domain against `npm run dev` needs an https front like the browser tests'
+  (`tests/e2e/tls-front.ts`) and an `allowedDevOrigins` entry (only the browser tests' name is
+  allowed); a person logged in on both addresses has two sessions, and "Log out" ends the one it's
+  on (with its kept My shifts copy), so moving message links to the own domain removes that too. **The periodic re-check is a must-have before any real firm's
+  domain is verified** (pre-pilot checklist in `docs/testing.md`): login links now go to a verified
+  own domain, and the verified mark is only as fresh as the last `--check`.
 - Phase 8: Caddy sets `X-Real-IP` (the app's only source of the client IP) and the web port is
   never published; Postgres TLS with `sslmode=verify-full` and the RDS CA bundle; a compose
   `migrate` service that alone holds `DATABASE_ADMIN_URL`.
@@ -1735,3 +1741,4 @@ every step works.
 | 2026-10-04 | 10 | 0.8 | The phone's copy of My shifts is gone after logout: a "forgotten at" mark the service worker checks, so a load still in flight at logout or login is never kept, and the copy is deleted again once the server confirms the logout; on slow but working signal the stale copy swaps itself for the fresh page (stopping at the first tap or a logout); Log out is a plain `/api/logout` route (same origin only), so copies kept from this build on can always log out; with no signal it says "No signal. You may still be logged in. …" and gives up after 10 s; the privacy notice and erase notes cover the phone's copy; two reviews found the swap fighting the logout (fixed and tested); 3004 tests + 53 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.8 | Retention and the privacy wording match the spec: per-firm `retention.message_days` (90), `retention.request_note_days` (365, the spec's 12 months) and a hold for disputes (`retention.hold_until`), set with `firm:settings` and read by the database's own messages purge (migration 0034); only closed requests lose their words; a newer reply is kept; the office's override reason is kept on the booking (migration 0033), never in the log, shown on the shift page and notice report, replaced on deletion and purged by age; the data page shows the firm's real keep-times; the data page, privacy notice and compliance say exactly what a deletion removes and keeps (other people's words aren't changed); Twilio caveat; new "Dylan to confirm" items; 3020 tests + 53 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.6 | "Try again" on the error screens really retries: the page's error screen uses Next's `retry()` (fetches the page again; `reset()` only redrew the failure), "Go to my shifts" is a full page load (recovers on My shifts itself), "Try again" is off with no signal until it's back; the whole-page error reloads through a form (works before the page's scripts, never resends a form); browser tests fail a page once and the page's frame once and recover (test-only failures behind `E2E_TEST_PAGES`, refused off localhost); two reviews' findings fixed; 3034 tests + 58 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 0.7 | A firm's own domain holds a login: a worker or office user who asks on it gets the link back on it (the job gets which address the request came in on as a word, takes the domain from the firm's own record and only while it's still verified, else the portal; old jobs get the portal; the log says `ownDomain`), and stays logged in there; browser tests log in on https://shifts.acme-events.test through an https stand-in for Caddy (a browser keeps no Secure cookie over http there) with the dev server allowed for that name; the guardrails review found a lost domain still marked verified would now get login links: recorded as a pre-pilot must-have (a periodic re-check, before any real firm's domain is verified); 3045 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |

@@ -589,7 +589,10 @@ action log ("The firm's colour changed."), under "Firm settings and office team"
 
 ## A firm's own domain (shifts.firmname.co.uk)
 
-Setting one up (owner-only, like `npm run firm:line`):
+Setting one up (owner-only, like `npm run firm:line`). **Not for a real firm yet:** the periodic
+re-check of each verified domain's DNS must be built first (`docs/testing.md`, pre-pilot
+checklist): login links go to a verified domain, so one that stopped pointing to us must stop
+being marked verified on its own.
 
 1. Ask the firm to add a DNS record at their domain provider: type **CNAME**, name `shifts` (or
    whatever they want before their domain), value **their own subdomain with us**, e.g.
@@ -604,8 +607,14 @@ Setting one up (owner-only, like `npm run firm:line`):
 3. Once they've added it (DNS can take up to an hour or so):
    `npm run firm:domain -- --firm acme --check`. When it says verified, open
    `https://shifts.acme.co.uk`: the first visit takes a few seconds while Caddy gets its
-   certificate; then it's the firm's portal with its bar.
-4. To change it: `--domain <new> --replace`. To remove it: `--clear`.
+   certificate; then it's the firm's portal with its bar. Workers and office staff who log in
+   there get their login link on that address and stay logged in there. Links in other messages
+   (offers, reminders) still go to `<slug>.<our domain>`, where they log in once more (parked:
+   links in messages on the firm's own domain).
+4. To change it: `--domain <new> --replace`. To remove it: `--clear`. Logins made on the old
+   domain stay valid until they run out (30 days): a session isn't tied to an address. If the
+   domain was lost to someone else, that matters: see the pre-pilot checklist item in
+   `docs/testing.md` (a periodic re-check, and a way to end the sessions made there, come first).
 
 Each change is in the office action log under "Firm settings and office team".
 

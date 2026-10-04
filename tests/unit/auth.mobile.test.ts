@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normaliseMobile, spreadsheetMobile } from "@/lib/auth/mobile";
 import { loginLinkMessage } from "@/lib/messaging/templates";
-import { portalUrl } from "@/lib/tenancy/portal-url";
+import { ownDomainUrl, portalUrl } from "@/lib/tenancy/portal-url";
 import { signOffFor } from "@/lib/tenancy/sign-off";
 
 describe("what workers type as their mobile number", () => {
@@ -62,6 +62,10 @@ describe("portal links", () => {
     expect(portalUrl("acme", "localhost:3000")).toBe("http://acme.localhost:3000");
     expect(portalUrl("acme", "shiftdesk.co.uk")).toBe("https://acme.shiftdesk.co.uk");
     expect(portalUrl("acme", "Shiftdesk.co.uk.")).toBe("https://acme.shiftdesk.co.uk");
+  });
+
+  it("on a firm's own domain: always https (Caddy's certificate; a browser keeps no session over http)", () => {
+    expect(ownDomainUrl("shifts.acme.co.uk")).toBe("https://shifts.acme.co.uk");
   });
 });
 

@@ -8461,7 +8461,7 @@ themselves. Now:
   (3,045 tests, 60 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M7, L84.
-- Committed and pushed to `build/overnight`.
+- Commit `822ad34`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

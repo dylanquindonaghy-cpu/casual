@@ -8,9 +8,9 @@ import {
   SITE_CHANGED_ON_SHEET,
 } from "../roster/sheets/sync";
 
-// Free text a person typed about a worker, which goes when the worker is erased (and, for a
-// request, after 90 days: src/lib/gdpr/retention.ts). Fixed wording the app chose stays: it names
-// nobody and says only what kind of thing happened.
+// Free text a person typed about a worker, which goes when the worker is erased (and, for a closed
+// request, after the firm's retention.request_note_days: src/lib/gdpr/retention.ts). Fixed wording
+// the app chose stays: it names nobody and says only what kind of thing happened.
 
 // A request's typed fields: the worker's note, and the colleague they'd swap with (a name).
 export const REQUEST_FREE_TEXT_KEYS = ["note", "swapWith"] as const;

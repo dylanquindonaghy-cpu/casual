@@ -43,6 +43,17 @@ describe("a shift's history", () => {
     ).toBe(
       "Sam Rota placed Ann Booker. Allowed despite: marked as a day off and too little rest. Reason: Rang in",
     );
+    // From Phase 10 the words stay on the booking (the shift's page), not in the log.
+    expect(
+      ev(
+        "shift.assigned",
+        { by: "firm", workerId: "w1", overridden: ["rest"], reasonGiven: true },
+        "office",
+        "o1",
+      ),
+    ).toBe(
+      "Sam Rota placed Ann Booker. Allowed despite: too little rest. The office gave a reason (shown with the booking until it's cleared).",
+    );
     expect(
       ev("shift.cancelled", { by: "worker", workerId: "w1", noticeHours: 5 }, "worker", "w1"),
     ).toBe("Ann Booker cancelled, with 5 hours' notice.");
@@ -205,7 +216,9 @@ describe("the shift screens' words", () => {
         { status: "booked", assignmentId: "a", slot: 1, overridden: ["rest"] },
         "Ann",
       ),
-    ).toBe("Ann is booked on this shift. The override and your reason are in the log.");
+    ).toBe(
+      "Ann is booked on this shift. The override is in the log, and your reason is kept with the booking.",
+    );
     expect(assignResultText({ status: "invalid_reason" }, "Ann")).toBe(
       "Give a reason for the override (no phone numbers or email addresses).",
     );

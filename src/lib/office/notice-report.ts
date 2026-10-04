@@ -65,7 +65,9 @@ export interface NoticeRow {
   noticeFromCurrentStart: boolean; // an older offer: counted from the shift's start as it is now
   shortNotice: boolean;
   // The firm's reason: its fixed change and cancellation words, the rota sheet's, or the office's
-  // typed override reason when it placed someone. A worker's typed reason is never logged.
+  // typed override reason when it placed someone (from Phase 10 read from the booking, not the
+  // log: gone once the retention purge or a deletion clears it). A worker's typed reason is never
+  // logged.
   reason: string | null;
 }
 
@@ -141,6 +143,7 @@ type Row = {
   site_name: string | null;
   first_name: string | null;
   last_name: string | null;
+  override_reason: string | null;
 };
 
 // Who started it, from the event: the worker, the office, the rota sheet (the Google Sheets sync,
@@ -222,7 +225,7 @@ export async function loadNoticeReport(
            (${recorded}) is null and e.action = 'offer.sent' and s.starts_at is not null
              as from_current,
            s.id::text as shift_id, s.role, s.starts_at, si.name as site_name,
-           w.first_name, w.last_name
+           w.first_name, w.last_name, a.override_reason
       from events e ${joins}
      where ${whereSql}
      order by e.id desc
@@ -274,7 +277,13 @@ export async function loadNoticeReport(
         noticeHours: hours !== null && Number.isFinite(hours) ? hours : null,
         noticeFromCurrentStart: Boolean(r.from_current),
         shortNotice: hours !== null && Number.isFinite(hours) && hours < threshold.hours,
-        reason: firmStarted && typeof r.data.reason === "string" ? r.data.reason : null,
+        reason: !firmStarted
+          ? null
+          : typeof r.data.reason === "string"
+            ? r.data.reason
+            : r.action === "shift.assigned" && r.override_reason
+              ? r.override_reason
+              : null,
       };
     }),
   };

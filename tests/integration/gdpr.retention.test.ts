@@ -11,14 +11,19 @@ import {
   retentionPurgeTask,
   runRetentionPurgeTick,
 } from "@/lib/gdpr/retention";
+import { RETENTION_DEFAULTS } from "@/lib/gdpr/retention-settings";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { registerJobs } from "@/worker/jobs";
 import { QUEUES } from "@/worker/jobs/queues";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 
-// The retention purge (docs/compliance.md "Retention defaults"): what has been kept long enough
-// goes, nothing newer, only in the firm the job is for, with one event per run.
+// The retention purge (docs/compliance.md "Retention defaults (per firm, adjustable)"): what has
+// been kept long enough goes, nothing newer, only in the firm the job is for, with one event per
+// run; by the firm's own settings (the spec's defaults), never during a hold, never the words of an
+// open request, never a reply newer than the cut-off (audit M24).
+const MESSAGE_DAYS = RETENTION_DEFAULTS.messageDays;
+const WORDS_DAYS = RETENTION_DEFAULTS.requestNoteDays;
 
 let su: Pool;
 let app: Pool;
@@ -67,20 +72,41 @@ const message = (t: Tenant, days: number, replyTo: string | null = null) =>
 async function aged(t: Tenant, now: Date) {
   const ago = (days: number) => new Date(now.getTime() - days * DAY);
   const worker = t.workerId;
-  const oldMessage = await message(t, RETENTION.messageDays + 1);
-  const newReplyToOld = await message(t, RETENTION.messageDays - 1, oldMessage);
-  const recentMessage = await message(t, RETENTION.messageDays - 1);
-  const request = (days: number, payload: Record<string, unknown>) =>
+  const oldMessage = await message(t, MESSAGE_DAYS + 1);
+  const newReplyToOld = await message(t, MESSAGE_DAYS - 1, oldMessage);
+  const recentMessage = await message(t, MESSAGE_DAYS - 1);
+  // A request closed `closedDaysAgo` days ago (null: still open, or escalated).
+  const request = (
+    closedDaysAgo: number | null,
+    payload: Record<string, unknown>,
+    status: "auto_resolved" | "open" | "escalated" = "auto_resolved",
+  ) =>
     one(
-      "insert into requests (firm_id, worker_id, type, payload, created_at) values ($1, $2, 'general', $3, $4)",
-      [t.firmId, worker, JSON.stringify(payload), ago(days)],
+      `insert into requests (firm_id, worker_id, type, payload, status, resolved_at, created_at)
+       values ($1, $2, 'general', $3, $4, $5, $6)`,
+      [
+        t.firmId,
+        worker,
+        JSON.stringify(payload),
+        closedDaysAgo === null ? status : "auto_resolved",
+        closedDaysAgo === null ? null : ago(closedDaysAgo),
+        ago(WORDS_DAYS + 30),
+      ],
     );
-  const oldRequest = await request(RETENTION.requestNoteDays + 1, {
+  const oldRequest = await request(WORDS_DAYS + 1, {
     note: "Old words",
     swapWith: "Cara Booker",
     via: "whatsapp",
   });
-  const recentRequest = await request(RETENTION.requestNoteDays - 1, { note: "Recent words" });
+  const recentRequest = await request(WORDS_DAYS - 1, { note: "Recent words" });
+  // Opened long ago and still waiting for the office: its words stay until it's closed.
+  const openRequest = await request(null, { note: "Still waiting" }, "escalated");
+  // The office's reason for placing someone despite a rule, on a booking made long ago.
+  await su.query(
+    `update assignments set override_reason = 'Rang in for Priya', created_at = $2,
+                            confirmed_at = $2 where id = $1`,
+    [t.rows.assignments, ago(WORDS_DAYS + 1)],
+  );
   const throttle = (days: number) =>
     one("insert into auth_throttle (firm_id, bucket, window_start, hits) values ($1, $2, $3, 1)", [
       t.firmId,
@@ -116,6 +142,7 @@ async function aged(t: Tenant, now: Date) {
     recentMessage,
     oldRequest,
     recentRequest,
+    openRequest,
     oldThrottle,
     recentThrottle,
     oldLink,
@@ -134,23 +161,37 @@ describe("the retention purge", () => {
     const a = await aged(t, now);
     const counts = await withFirm(t.firmId, (tx) => purgeExpired(tx, now));
     expect(counts).toEqual({
-      messages: 2,
+      messages: 1,
       requestNotes: 1,
+      overrideReasons: 1,
       throttle: 1,
       loginLinks: 1,
       sessions: 2,
       codes: 1,
     });
 
-    expect(await ids("messages", t.firmId)).toEqual([a.recentMessage, t.rows.messages].sort());
+    // The old message goes; a reply to it newer than the cut-off stays, no longer pointing at it.
+    expect(await ids("messages", t.firmId)).toEqual(
+      [a.recentMessage, a.newReplyToOld, t.rows.messages].sort(),
+    );
+    const { rows: reply } = await su.query("select reply_to from messages where id = $1", [
+      a.newReplyToOld,
+    ]);
+    expect(reply).toEqual([{ reply_to: null }]);
     const { rows: reqs } = await su.query<{ id: string; payload: unknown }>(
       "select id::text, payload from requests where id = any($1::uuid[])",
-      [[a.oldRequest, a.recentRequest]],
+      [[a.oldRequest, a.recentRequest, a.openRequest]],
     );
     expect(Object.fromEntries(reqs.map((r) => [r.id, r.payload]))).toEqual({
       [a.oldRequest]: { via: "whatsapp" },
       [a.recentRequest]: { note: "Recent words" },
+      [a.openRequest]: { note: "Still waiting" },
     });
+    const { rows: booking } = await su.query(
+      "select override_reason from assignments where id = $1",
+      [t.rows.assignments],
+    );
+    expect(booking).toEqual([{ override_reason: null }]);
     expect(await ids("auth_throttle", t.firmId)).toEqual(
       [a.recentThrottle, t.rows.auth_throttle].sort(),
     );
@@ -170,6 +211,7 @@ describe("the retention purge", () => {
     expect(again).toEqual({
       messages: 0,
       requestNotes: 0,
+      overrideReasons: 0,
       throttle: 0,
       loginLinks: 0,
       sessions: 0,
@@ -185,7 +227,15 @@ describe("the retention purge", () => {
         actor_type: "system",
         entity_type: "firm",
         entity_id: t.firmId,
-        data: { messages: 2, requestNotes: 1, throttle: 1, loginLinks: 1, sessions: 2, codes: 1 },
+        data: {
+          messages: 1,
+          requestNotes: 1,
+          overrideReasons: 1,
+          throttle: 1,
+          loginLinks: 1,
+          sessions: 2,
+          codes: 1,
+        },
       },
       { actor_type: "system", entity_type: "firm", entity_id: t.firmId, data: again },
     ]);
@@ -222,12 +272,148 @@ describe("the retention purge", () => {
     });
   });
 
-  it("the messages' 90 days live in the database function, and no firm means an error", async () => {
-    const { rows } = await su.query<{ def: string }>(
-      "select pg_get_functiondef('app_purge_old_messages()'::regprocedure) as def",
+  // The firm's own settings, read by the database function too (so no caller can shorten them):
+  // the defaults when nothing (or nothing sensible) is set, and a hold stops everything personal.
+  const settle = (t: Tenant, retention: Record<string, unknown>) =>
+    su.query(
+      "update firms set settings = jsonb_build_object('retention', $2::jsonb) where id = $1",
+      [t.firmId, JSON.stringify(retention)],
     );
-    expect(RETENTION.messageDays).toBe(90);
-    expect(rows[0]?.def).toContain("interval '90 days'");
+
+  it("follows the firm's own settings, in the database function as in the app", async () => {
+    const t = await createTenant(su);
+    const now = new Date();
+    await settle(t, { message_days: 45, request_note_days: 30 });
+    const goes = await message(t, 46);
+    const stays = await message(t, 44);
+    const request = (closed: number) =>
+      one(
+        `insert into requests (firm_id, worker_id, type, payload, status, resolved_at)
+         values ($1, $2, 'general', '{"note": "words"}', 'auto_resolved', $3)`,
+        [t.firmId, t.workerId, new Date(now.getTime() - closed * DAY)],
+      );
+    const wordsGo = await request(31);
+    const wordsStay = await request(29);
+    const counts = await withFirm(t.firmId, (tx) => purgeExpired(tx, now));
+    expect(counts).toMatchObject({ messages: 1, requestNotes: 1 });
+    const kept = await ids("messages", t.firmId);
+    expect(kept).toContain(stays);
+    expect(kept).not.toContain(goes);
+    const { rows } = await su.query<{ id: string; payload: unknown }>(
+      "select id::text, payload from requests where id = any($1::uuid[])",
+      [[wordsGo, wordsStay]],
+    );
+    expect(Object.fromEntries(rows.map((r) => [r.id, r.payload]))).toEqual({
+      [wordsGo]: {},
+      [wordsStay]: { note: "words" },
+    });
+  });
+
+  it.each([
+    ["nothing set", {}],
+    ["too short (under 30 days)", { message_days: 7 }],
+    ["not a whole number", { message_days: 45.5 }],
+    ["text", { message_days: "45" }],
+  ])("%s: the default 90 days", async (_label, retention) => {
+    const t = await createTenant(su);
+    await settle(t, retention);
+    const goes = await message(t, MESSAGE_DAYS + 1);
+    const stays = await message(t, MESSAGE_DAYS - 1);
+    await withFirm(t.firmId, (tx) => purgeExpired(tx, new Date()));
+    const kept = await ids("messages", t.firmId);
+    expect(kept).toContain(stays);
+    expect(kept).not.toContain(goes);
+  });
+
+  it("a hold for a dispute: nothing personal goes until the day after it (logins still tidy up)", async () => {
+    const t = await createTenant(su);
+    const now = new Date();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(now);
+    await settle(t, { hold_until: today });
+    const a = await aged(t, now);
+    const held = await withFirm(t.firmId, (tx) => purgeExpired(tx, now));
+    expect(held).toEqual({
+      messages: 0,
+      requestNotes: 0,
+      overrideReasons: 0,
+      throttle: 1,
+      loginLinks: 1,
+      sessions: 2,
+      codes: 1,
+    });
+    expect(await ids("messages", t.firmId)).toContain(a.oldMessage);
+    const { rows } = await su.query(
+      `select data from events where firm_id = $1 and action = 'retention.purged'`,
+      [t.firmId],
+    );
+    expect(rows[0]?.data).toMatchObject({ held: true });
+    // The hold over (it was yesterday): the purge goes ahead.
+    const tomorrow = new Date(now.getTime() + DAY);
+    const after = await withFirm(t.firmId, (tx) => purgeExpired(tx, tomorrow));
+    expect(after).toMatchObject({ requestNotes: 1, overrideReasons: 1 });
+  });
+
+  // The reviews: a place's row is made long before someone fills it.
+  it("an override reason counts from when the person was booked, not when the place was made", async () => {
+    const t = await createTenant(su);
+    const now = new Date();
+    await settle(t, { request_note_days: 30 });
+    await su.query(
+      `update assignments set override_reason = 'Rang in', created_at = $2, confirmed_at = $3
+        where id = $1`,
+      [t.rows.assignments, new Date(now.getTime() - 60 * DAY), new Date(now.getTime() - DAY)],
+    );
+    expect(await withFirm(t.firmId, (tx) => purgeExpired(tx, now))).toMatchObject({
+      overrideReasons: 0,
+    });
+    const { rows } = await su.query("select override_reason from assignments where id = $1", [
+      t.rows.assignments,
+    ]);
+    expect(rows).toEqual([{ override_reason: "Rang in" }]);
+  });
+
+  it("the database's own reading of a hold: over the day after; a date that isn't a day is no hold", async () => {
+    const londonDay = (offsetDays: number) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(
+        new Date(Date.now() + offsetDays * DAY),
+      );
+    for (const [hold, kept] of [
+      [londonDay(0), true], // today: held
+      [londonDay(-1), false], // yesterday: over
+      ["2027-02-30", false], // not a real day: no hold, as the app reads it
+    ] as const) {
+      const t = await createTenant(su);
+      await settle(t, { hold_until: hold });
+      const old = await message(t, MESSAGE_DAYS + 1);
+      await withFirm(t.firmId, (tx) => purgeExpired(tx, new Date()));
+      expect((await ids("messages", t.firmId)).includes(old), String(hold)).toBe(kept);
+    }
+  });
+
+  it("each firm by its own settings: another firm's messages and reasons are untouched", async () => {
+    const a = await createTenant(su);
+    const b = await createTenant(su);
+    const now = new Date();
+    await settle(a, { message_days: 30 });
+    const aMid = await message(a, 60);
+    const bMid = await message(b, 60);
+    await su.query(
+      "update assignments set override_reason = 'Rang in', confirmed_at = $2 where id = $1",
+      [b.rows.assignments, new Date(now.getTime() - (WORDS_DAYS + 1) * DAY)],
+    );
+    await withFirm(a.firmId, (tx) => purgeExpired(tx, now));
+    expect(await ids("messages", a.firmId)).not.toContain(aMid);
+    expect(await ids("messages", b.firmId)).toContain(bMid);
+    const { rows } = await su.query("select override_reason from assignments where id = $1", [
+      b.rows.assignments,
+    ]);
+    expect(rows).toEqual([{ override_reason: "Rang in" }]);
+    // B's own run keeps its 60-day message (its default is 90 days).
+    await withFirm(b.firmId, (tx) => purgeExpired(tx, now));
+    expect(await ids("messages", b.firmId)).toContain(bMid);
+  });
+
+  it("no firm means an error", async () => {
     const client = await app.connect();
     try {
       await expect(client.query("select app_purge_old_messages()")).rejects.toThrow(/needs a firm/);
@@ -276,7 +462,7 @@ describe("the nightly purge job", () => {
     expect(rows.map((r) => r.data)).toEqual([
       { firmId: t.firmId, idempotencyKey: "retention-purge:2026-11-03" },
     ]);
-    const old = await message(t, RETENTION.messageDays + 1);
+    const old = await message(t, MESSAGE_DAYS + 1);
     await runFirmTask(
       retentionPurgeTask(() => ({ now: () => new Date() })),
       { id: "job", data: rows[0]?.data ?? {} },

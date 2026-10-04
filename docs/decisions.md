@@ -353,7 +353,9 @@ anonymous row, with any typed text on them cleared (a worker's "Something else: 
 note becomes "Something else"; the app's fixed wording stays). The app role still has no DELETE on
 messages: `app_erase_worker()` (the row made anonymous and its messages deleted in one call, by the
 number the row held, once per worker) and `app_purge_old_messages()` (only over 90 days old, the age
-fixed in the function) run as the owner, bound to the current firm by forced RLS. Admins only (a new `data`
+fixed in the function; since Phase 10 task 13 the firm's own `retention.message_days`, read inside the
+function from the firm's settings, which only the owner can change, and nothing during a hold) run as
+the owner, bound to the current firm by forced RLS. Admins only (a new `data`
 area). Retention purges messages, request notes and login leftovers nightly; the 12-month purge of
 the log, requests and offers is not built.
 **Options:** a full delete (would need ON DELETE on evidence and deleting events); one shared

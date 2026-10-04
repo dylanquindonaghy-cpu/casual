@@ -37,8 +37,8 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
 - Anyone significantly affected by an automated decision (e.g. refused a shift) can ask for a
   human review. Build a "Ask the office to review" button on refusal screens.
 - People who aren't staff (Phase 7): a message to the shifts line from a number that isn't an
-  active worker's is kept in `messages` (the number and their words, 90 days with the retention
-  job), shown to the firm's admins and resourcers on Today, and never put in the log, an email or
+  active worker's is kept in `messages` (the number and their words, the firm's
+  `retention.message_days`, 90 by default, with the retention job), shown to the firm's admins and resourcers on Today, and never put in the log, an email or
   the AI. The firm's privacy notice should cover messages to its shifts line.
 - The shifts line (Phase 7): a WhatsApp no keyword matches is sorted by AI (once Bedrock is
   connected) into one of four labels, from the worker's text alone; the reply is always the app's own
@@ -60,17 +60,25 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
 
 ## Retention defaults (per firm, adjustable)
 
+Each firm's own settings, set by us with `npm run firm:settings` (Phase 10, audit M24; the app can't
+change them): `retention.message_days` and `retention.request_note_days` (30 to 2190 days), and a
+hold, `retention.hold_until` (a date): until then the purge deletes nothing personal, for a dispute
+or tribunal (logged as a settings change). **Dylan to confirm** the defaults below, the 30-day
+floor, and that a hold covers the whole firm (not one worker).
+
 | Data | Keep |
 |---|---|
-| Raw messages and transcripts | 90 days (built: the nightly purge) |
-| The words typed into a request (a note, a colleague's name) | 90 days (built: removed, the request stays) |
+| Raw messages and transcripts | 90 days by default (built: the nightly purge). A reply newer than that stays, even when the message it answered goes |
+| The words typed into a request (a note, a colleague's name) | 12 months by default, counted from when the request closed (built: removed, the request stays). An open or escalated request keeps them. (Phase 8 built 90 days from creation, with no "Dylan to confirm"; Phase 10 put back the spec's 12 months) |
+| The office's typed reason for placing someone despite a rule | On the booking, not in the log; the same 12 months from the booking (built) |
 | Call audio | Not stored by default (30 days if enabled) |
 | Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |
 | Login links, codes, sessions, rate-limit counters | 1 to 30 days after they stop working (built; docs/data-model.md "Retention") |
 
 Nightly purge job (built, Phase 8: `retention-purge`, one `retention.purged` event per firm per
-run). Firms can export their data any time (built: an admin's "Download all your data" on
+run, saying `held` during a hold). Twilio's own copies of messages and recordings need their own
+deletion job before the 90 days is true there ("Connect Twilio", "Before going live"). Firms can export their data any time (built: an admin's "Download all your data" on
 `/office/data`).
 
 ## GDPR requests (built, Phase 8)
@@ -81,15 +89,24 @@ An admin handles them on `/office/data` (docs/runbooks.md "GDPR requests"):
   their number before it was known), the action log's rows about them, the shifts those were
   about, and when they logged in. Login secrets (hashes, a phone's push keys) are left out. Each
   download is logged (`worker.data_exported`), which evidences the one-month deadline.
-- **Erasure:** the worker's personal details are deleted: name, mobile, email, staff id,
-  licences and cards, days off, messages, logins and phones, and the text anyone typed about them
-  on their requests (their note, a colleague they'd swap with, the office's answer), pay queries
-  (their details, payroll's note) and cancellations (a typed reason; "Something else: …" becomes
-  "Something else"). Their bookings, offers, cancellations (with notice hours and the app's fixed
-  reason words), reminders and pay lines stay, attached to an anonymous "Deleted worker" row, as the
-  firm's evidence (Employment Rights Act notice records, payroll). The log holds ids and fixed words,
-  never names, numbers or messages, with one exception erasure can't reach: the office's typed
-  reason for placing someone despite a rule (append-only, checked for phones and emails only).
+- **Erasure:** the worker's personal details are deleted: name, mobile, email, staff id (also
+  out of our copy of the rota sheet's names, `shifts.synced_holders`), licences and cards, days
+  off, messages, logins and phones, and the text anyone typed on the worker's own records: their
+  requests (their note, a colleague they'd swap with, the office's answer), pay queries (their
+  details, payroll's note), cancellations (a typed reason; "Something else: …" becomes "Something
+  else") and bookings (the office's reason for placing them despite a rule becomes "Reason deleted
+  with the worker's details"). Their bookings, offers, cancellations (with notice hours and the
+  app's fixed reason words), reminders and pay lines stay, attached to an anonymous "Deleted
+  worker" row, as the firm's evidence (Employment Rights Act notice records, payroll). The log holds
+  ids and fixed words, never names, numbers or messages (from Phase 10 the office's override reason
+  is on the booking, not the log). **Not changed by an erasure:** what other people wrote that
+  names them (a colleague's swap request, pay query or cancellation note, someone else's
+  message): a colleague's request words and messages go on the firm's retention schedule above;
+  pay query text, cancellation notes and the office's answers on requests are never purged on a
+  schedule ("Dylan to confirm" in PLAN.md). The data page and the privacy notice say "aren't
+  changed". The staff id leaves our copy of the rota sheet's names only on shifts that have ended
+  (and comes back on any row the firm's sheet still names them on). A hold doesn't stop a
+  deletion ("Dylan to confirm").
   Once Twilio is connected, Twilio keeps its own copy of messages (the log holds their ids):
   deleting those there is a step still to write (PLAN.md Parking lot, "GDPR follow-ups"). Refused while they are booked on a shift that hasn't
   ended (the office cancels it first, with a reason). Logged (`worker.erased`, counts only). The firm

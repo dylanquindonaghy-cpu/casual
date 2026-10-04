@@ -200,6 +200,10 @@ describe("a firm's settings", () => {
       "quiet_hours.start": ["22:00", "default"],
       "quiet_hours.end": ["07:00", "default"],
       "quiet_hours.urgent_override": [true, "default"],
+      // How long the firm keeps things (Phase 10, audit M24): the spec's defaults until agreed.
+      "retention.message_days": [90, "default"],
+      "retention.request_note_days": [365, "default"],
+      "retention.hold_until": ["none", "default"],
     });
     expect(await readFirmSettings(urls.admin, "no-such-firm")).toEqual({ status: "no_firm" });
   });

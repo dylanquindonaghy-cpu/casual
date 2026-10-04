@@ -37,7 +37,7 @@ Replace the parts in [brackets]. Send both parts.
 > for zero-hours work).
 >
 > **Messages to our shifts line:** texts, WhatsApps and calls to our shifts line [number], and the
-> text of any voicemail, are kept for 90 days, then deleted. This includes messages from people who
+> text of any voicemail, are kept for [90] days, then deleted. This includes messages from people who
 > aren't our staff (we keep the number and the message so we can reply). Automatic replies are
 > signed "[Our firm name] Shift Team"; they are never from a named person.
 >
@@ -63,23 +63,40 @@ Replace the parts in [brackets]. Send both parts.
 > receive messages[, and Google, as we keep our rota in a Google Sheet]. Twilio and Meta may handle your number and messages in
 > the United States, under their data transfer terms.
 >
-> **How long:** messages to the shifts line, 90 days. Login links and codes, 7 days after they run
-> out; login sessions, 30 days after they end. Your details, shifts, requests, pay records and the
+> **How long:** messages to the shifts line, [90] days. The words typed into a request (a note, a
+> colleague's name) and the reason our office gave for placing you on a shift a rule would have
+> stopped, [12 months] after the request closed or the booking was made. Login links and codes, 7
+> days after they run out; login sessions, 30 days after they end. If there's a dispute, we may keep
+> things longer, until it's settled. Your details, shifts, requests, pay records and the
 > record of offers, changes and cancellations are kept as our records [for as long as you work with
 > us and then for [period]].
 >
 > **Your rights:** you can ask us for a copy of your information (we'll send it within a month),
 > ask us to correct it, or ask us to delete it. If you ask us to delete it, your name, number,
-> email, licences, messages, logins and the notes written about you on requests, pay questions
-> and cancellations are deleted. The record of the shifts you were offered, worked or cancelled,
-> and your pay records, stay without your name, because we must be able to show the notice we
-> gave and what we paid. The copy of My shifts on your own phone goes the next time your phone
-> opens My shifts with signal, and is never shown once it's 14 days old. One thing stays in our
-> permanent log: if our office placed you on a shift
-> a rule would have stopped, the reason it typed (checked to hold no phone number or email). You can also object, and ask for a decision to be reviewed by a person. Contact
-> [our contact]. You can complain to the Information Commissioner's Office (ico.org.uk).
+> email, staff number, licences, days off, messages and logins are deleted, and so are the notes on your own
+> requests, pay questions and cancellations, and the reasons our office typed when it placed you
+> on a shift. The record of the shifts you were offered, worked or cancelled, and your pay records,
+> stay without your name, because we must be able to show the notice we gave and what we paid.
+> What other people wrote that mentions you (a colleague's swap request or pay question naming you,
+> say, or a message someone else sent us) isn't changed by your request: some of it is deleted on
+> the schedule above, and the rest is kept as our records.
+> The copy of My shifts on your own phone goes the next time your phone opens My shifts with
+> signal, and is never shown once it's 14 days old. You can also object, and ask for a decision to
+> be reviewed by a person. Contact [our contact]. You can complain to the Information
+> Commissioner's Office (ico.org.uk).
 
 ## Notes for you (not for the firm to publish)
+
+- **The retention periods** in square brackets are this firm's own settings (`npm run -s
+  firm:settings -- --firm <slug>` shows them: `retention.message_days`, default 90;
+  `retention.request_note_days`, default 365). Put the firm's own numbers in before it publishes.
+  A hold (`retention.hold_until`) pauses the deletions for a dispute; the notice says so in general
+  terms.
+- **Before sending this to a firm, once Twilio is connected (audit L41):** Twilio keeps its own copy
+  of messages, call recordings and transcriptions in our account until they're deleted there. The
+  app's 90 days are only true when the job that deletes them from Twilio exists ("Connect Twilio",
+  PLAN.md Parking lot, "Before going live"). Until then, don't send the "kept for 90 days" wording,
+  or add "and our messaging provider's copy for [period]".
 
 - **The [period]** for keeping records after someone leaves is the firm's call. The app doesn't
   yet delete the action log, requests or offers after 12 months (PLAN.md, "GDPR follow-ups": for
@@ -94,7 +111,8 @@ Replace the parts in [brackets]. Send both parts.
 - **The AI** isn't connected yet ("Connect Bedrock"). The "Automation" paragraph says it "may be
   used" and the sub-processor line says "once it's switched on", so the notice is true now and
   stays true when it's connected.
-- **Deletion keeps pay records and the office's typed override reasons** (both said in "Your
-  rights"): the first is for you to confirm (PLAN.md "GDPR follow-ups"); the second can't change
-  without changing the append-only log (`docs/compliance.md` "GDPR requests").
+- **Deletion keeps pay records** (said in "Your rights"): for you to confirm (PLAN.md "GDPR
+  follow-ups"). The office's typed override reasons are deleted with the worker since Phase 10
+  (they're on the booking now, not in the append-only log). Some of what colleagues typed (pay
+  questions, cancellation notes) is never deleted on a schedule: "Dylan to confirm" in PLAN.md.
 - **Our supplier's legal name** is yours: the business you sign the pilot agreement as.

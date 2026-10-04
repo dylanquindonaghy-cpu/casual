@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { workerDataSummary } from "@/lib/gdpr/worker-erase";
 import { dayWithYear } from "@/lib/office/action-log";
-import { upcomingShifts } from "@/lib/office/data-copy";
+import { eraseExplainer, OTHERS_WORDS, upcomingShifts } from "@/lib/office/data-copy";
 import { localDateOf } from "@/lib/time/zoned";
 import { EraseForm } from "./erase-form";
 
@@ -51,7 +51,7 @@ export default async function OfficeWorkerDataPage({
         {worker.erasedAt ? (
           <p className="mt-2">
             Deleted on {dayWithYear(localDateOf(worker.erasedAt, firm.timezone), today.slice(0, 4))}
-            . Their shift history stays, without a name.
+            . Their shift history stays, without a name. {OTHERS_WORDS}
           </p>
         ) : worker.upcoming > 0 ? (
           <p className="mt-2">
@@ -60,12 +60,11 @@ export default async function OfficeWorkerDataPage({
           </p>
         ) : (
           <>
-            <p className="mt-2">
-              This deletes {worker.name}&rsquo;s name, mobile number, email, licences and cards,
-              days off, messages, notes and logins. Their shifts, offers, cancellations and pay
-              lines stay, without a name, as {firm.name}&rsquo;s records (the notice report needs
-              them).
-            </p>
+            {eraseExplainer(worker.name, firm.name).map((line) => (
+              <p key={line} className="mt-2">
+                {line}
+              </p>
+            ))}
             <p className="mt-2">
               If {worker.name} is in your rota sheet or a staff file you import, remove them there
               too, or the next sync or import adds them back.

@@ -12,8 +12,8 @@ afterEach(() => {
 
 describe("logOut", () => {
   it("posts the kind to /api/logout, same origin only, with a time limit", async () => {
-    const fetch = vi.fn(async (_url: string, _init: RequestInit) =>
-      Response.json({ status: "done" }),
+    const fetch = vi.fn(async (...args: [string, RequestInit]) =>
+      args.length === 2 ? Response.json({ status: "done" }) : Response.error(),
     );
     vi.stubGlobal("fetch", fetch);
     expect(await logOut("worker")).toBe("done");

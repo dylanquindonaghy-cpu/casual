@@ -129,7 +129,7 @@ export function assignResultText(result: BookingResult | Common, name: string): 
   switch (result.status) {
     case "booked":
       return result.overridden.length > 0
-        ? `${name} is booked on this shift. The override and your reason are in the log.`
+        ? `${name} is booked on this shift. The override is in the log, and your reason is kept with the booking.`
         : `${name} is booked on this shift.`;
     case "not_eligible":
       return `${name} can't be booked: ${result.reasons.join(" ")}`;

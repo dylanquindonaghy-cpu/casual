@@ -50,7 +50,7 @@ export function AssignButton({
     <div className="mt-2 flex flex-col gap-2">
       {overrides && !done && (
         <label className="flex flex-col">
-          <span className="font-semibold">Why is it all right? (goes in the log)</span>
+          <span className="font-semibold">Why is it all right? (kept with the booking)</span>
           <textarea
             className="rounded border border-slate-400 px-2 py-1"
             rows={2}

@@ -4,6 +4,11 @@ import { parseAllocationSettings } from "../roster/allocation-input";
 import { ALLOCATION_MODES } from "../rules/allocation";
 import { quietHours } from "../rules/quiet-hours";
 import { urgentWindowHours } from "../rules/urgent";
+import {
+  RETENTION_MAX_DAYS,
+  RETENTION_MIN_DAYS,
+  retentionSettings,
+} from "../gdpr/retention-settings";
 
 // The firm settings the onboarding checklist asks the firm to agree (docs/go-to-market.md "Pilot
 // onboarding checklist"; docs/data-model.md "Firm settings"), as the app reads them. Each app
@@ -21,6 +26,9 @@ export const SETTING_KEYS = [
   "quiet_hours.start",
   "quiet_hours.end",
   "quiet_hours.urgent_override",
+  "retention.message_days",
+  "retention.request_note_days",
+  "retention.hold_until",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 export type SettingValue = string | number | boolean;
@@ -51,6 +59,9 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "quiet_hours.start": (s) => quietHours(s).start,
   "quiet_hours.end": (s) => quietHours(s).end,
   "quiet_hours.urgent_override": (s) => quietHours(s).urgentOverride,
+  "retention.message_days": (s) => retentionSettings(s).messageDays,
+  "retention.request_note_days": (s) => retentionSettings(s).requestNoteDays,
+  "retention.hold_until": (s) => retentionSettings(s).holdUntil ?? "none",
 };
 
 // What each key means, for the command's output.
@@ -64,6 +75,10 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "quiet_hours.start": "no messages to workers from (local time)",
   "quiet_hours.end": "no messages to workers until (local time)",
   "quiet_hours.urgent_override": "urgent messages may still go in quiet hours (true or false)",
+  "retention.message_days": `days the shifts line's messages are kept (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
+  "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
+  "retention.hold_until":
+    "nothing personal is purged until after this date (yyyy-mm-dd), for a dispute; none for no hold",
 };
 
 const stored = (s: Settings, key: SettingKey): unknown => {
@@ -95,6 +110,7 @@ export function effectiveSettings(s: Settings): EffectiveSetting[] {
 
 function parseValue(key: SettingKey, raw: string): SettingValue | null {
   const text = raw.trim();
+  if (key === "retention.hold_until") return text === "" ? null : text;
   if (key === "allocation_mode" || key === "quiet_hours.start" || key === "quiet_hours.end") {
     return text === "" ? null : text;
   }
@@ -112,7 +128,14 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
   const value = parseValue(key, raw);
   if (value === null) return null;
   let next: Settings;
-  if (key.startsWith("quiet_hours.")) {
+  if (key.startsWith("retention.")) {
+    // Stored as it's read: a hold of "none" removes the date.
+    const part = key.slice("retention.".length);
+    const inner = s.retention && typeof s.retention === "object" ? (s.retention as Settings) : {};
+    const rest = { ...inner };
+    delete rest[part];
+    next = { ...s, retention: value === "none" ? rest : { ...rest, [part]: value } };
+  } else if (key.startsWith("quiet_hours.")) {
     // The app reads quiet hours whole (a start without an end is ignored), so the other parts are
     // kept as the app reads them now.
     const now = quietHours(s);

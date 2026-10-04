@@ -138,10 +138,16 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ? d.overridden.map((c) => CODE_WORDS[String(c)] ?? String(c))
         : [];
       if (!byOffice) return `${worker} took it.`;
+      // The office's reason is kept on the booking (the shift's page shows it), never in the log;
+      // an entry from before that change carries its words.
+      const reason =
+        typeof d.reason === "string"
+          ? ` Reason: ${d.reason}`
+          : d.reasonGiven === true
+            ? " The office gave a reason (shown with the booking until it's cleared)."
+            : "";
       const override =
-        overridden.length > 0
-          ? ` Allowed despite: ${list(overridden)}.${typeof d.reason === "string" ? ` Reason: ${d.reason}` : ""}`
-          : "";
+        overridden.length > 0 ? ` Allowed despite: ${list(overridden)}.${reason}` : "";
       return `${officeName} placed ${worker}.${override}`;
     }
     case "shift.booking_refused":
@@ -423,7 +429,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "retention.purged": {
       const n = (key: string) => Number(d[key] ?? 0);
       const logins = n("throttle") + n("loginLinks") + n("sessions") + n("codes");
-      return `Old data was deleted on schedule: ${n("messages")} messages and ${n("requestNotes")} request notes over 90 days old, ${logins} old login records.`;
+      if (d.held === true) {
+        return `Old login records were tidied up (${logins}). Nothing else was deleted: a hold is on (a dispute).`;
+      }
+      const of = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+      return `Old data was deleted on schedule, by the firm's retention settings: ${of(n("messages"), "message", "messages")}, ${of(n("requestNotes"), "request note", "request notes")}, ${of(n("overrideReasons"), "reason on a booking", "reasons on bookings")} and ${of(logins, "old login record", "old login records")}.`;
     }
     case "credential_pack.applied":
       return "The credential rules for the firm's sector were set up.";

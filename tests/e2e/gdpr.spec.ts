@@ -77,7 +77,7 @@ test("an admin downloads a worker's data, deletes their details, and downloads t
   await page.getByLabel("I understand this can’t be undone").check();
   await erase.click();
   await expect(page.getByRole("status")).toHaveText(
-    "Deleted. Dana Erasure's personal details are gone. Their shift history stays, without a name.",
+    "Deleted. Dana Erasure's personal details are gone. Their shift history stays, without a name. Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed.",
   );
   await page.reload();
   await expect(page.getByRole("heading", { name: "Deleted worker" })).toBeVisible();

@@ -196,10 +196,19 @@ describe("Assign", () => {
       }),
     ).toMatchObject({ status: "booked", overridden: ["unavailable"] });
     const [event] = await eventOf(t.f.firmId);
-    expect(event?.data).toMatchObject({
-      overridden: ["unavailable"],
-      reason: "Rang in: can do it",
-    });
+    // The override is logged; the office's words about the worker stay on the booking (Phase 10,
+    // audit L23: never in the append-only log), where the shift's page shows them.
+    expect(event?.data).toMatchObject({ overridden: ["unavailable"], reasonGiven: true });
+    expect(event?.data).not.toHaveProperty("reason");
+    const { rows } = await su.query(
+      "select override_reason from assignments where shift_id = $1 and worker_id = $2",
+      [shiftId, away],
+    );
+    expect(rows).toEqual([{ override_reason: "Rang in: can do it" }]);
+    const page = await officeShiftDetail(t.ctx, await t.token(), shiftId);
+    expect(page?.places.map((p) => [p.worker, p.overrideReason])).toEqual([
+      [expect.stringContaining("Away"), "Rang in: can do it"],
+    ]);
   });
 
   it("a reason with a phone number is refused (the log never holds personal details)", async () => {

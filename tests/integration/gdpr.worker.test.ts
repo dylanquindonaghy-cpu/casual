@@ -78,6 +78,15 @@ async function everything() {
   const past = await b.shift({ startsAt: hoursFromNow(-72) });
   const pastCancelled = await b.shift({ startsAt: hoursFromNow(-30) });
   const booking = await b.booking(worker, past, "completed");
+  // The office placed them despite a rule, with its own words about them (Phase 10: kept on the
+  // booking, not in the log); and our copy of the rota sheet's names holds their staff id.
+  await su.query("update assignments set override_reason = $2 where id = $1", [
+    booking,
+    "Rang in for Priya, she's ill",
+  ]);
+  await su.query("update shifts set synced_holders = array['STAFF-9', 'STAFF-1'] where id = $1", [
+    past,
+  ]);
   const cancelled = await b.booking(worker, pastCancelled, "cancelled_worker");
   // Their own words on the cancellation, and a booking the office cancelled with its fixed words.
   await su.query("update assignments set cancel_reason = $2 where id = $1", [
@@ -446,6 +455,10 @@ describe("erasing a worker", () => {
 
   it("removes their personal details and keeps the anonymous evidence", async () => {
     const t = await everything();
+    // A shift still ahead whose sheet names they were taken off (the sheet hasn't caught up yet):
+    // its merge base keeps the id, so the next sync still writes the sheet back (the reviews).
+    const ahead = await t.b.shift({ startsAt: hoursFromNow(72) });
+    await su.query("update shifts set synced_holders = array['STAFF-1'] where id = $1", [ahead]);
     const result = await eraseWorker(ctx(t.b, t.admin), t.worker);
     const counts = {
       licences: 2,
@@ -458,8 +471,24 @@ describe("erasing a worker", () => {
       requests: 3,
       payQueries: 1,
       cancelReasons: 1,
+      overrideReasons: 1,
+      sheetMentions: 1,
     };
     expect(result).toEqual({ status: "erased", name: "Ann Booker", counts });
+    // The office's words about them are replaced; the booking still says there was a reason. Their
+    // staff id is out of our copy of the sheet's names (audit L30, L85, L86).
+    const { rows: placed } = await su.query(
+      `select a.override_reason, s.synced_holders from assignments a
+         join shifts s on s.id = a.shift_id where a.id = $1`,
+      [t.ids.booking],
+    );
+    expect(placed).toEqual([
+      { override_reason: "Reason deleted with the worker's details", synced_holders: ["STAFF-9"] },
+    ]);
+    const { rows: stillAhead } = await su.query("select synced_holders from shifts where id = $1", [
+      ahead,
+    ]);
+    expect(stillAhead).toEqual([{ synced_holders: ["STAFF-1"] }]);
 
     const { rows: w } = await su.query(
       `select first_name, last_name, mobile_e164, email, external_ref, roles, status,

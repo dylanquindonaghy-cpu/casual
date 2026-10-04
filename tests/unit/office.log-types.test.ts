@@ -38,6 +38,9 @@ const NOT_EVENTS = new Set<string>([
   "quiet_hours.start",
   "quiet_hours.end",
   "quiet_hours.urgent_override",
+  "retention.message_days",
+  "retention.request_note_days",
+  "retention.hold_until",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
 ]);
@@ -169,6 +172,23 @@ describe("the action log's types and words", () => {
     );
     expect(say("roster.synced", { shifts: 4, staffRefused: 2 })).toBe(
       "The rota sheet was read (4 shifts). 2 staff rows weren't taken: a mobile or Staff ID in it belongs to someone else here with another name. Check the sheet's Staff tab.",
+    );
+    // The nightly purge, by the firm's own settings; during a hold nothing personal goes (M24).
+    expect(
+      say("retention.purged", {
+        messages: 3,
+        requestNotes: 2,
+        overrideReasons: 1,
+        throttle: 1,
+        loginLinks: 1,
+        sessions: 0,
+        codes: 0,
+      }),
+    ).toBe(
+      "Old data was deleted on schedule, by the firm's retention settings: 3 messages, 2 request notes, 1 reason on a booking and 2 old login records.",
+    );
+    expect(say("retention.purged", { throttle: 2, held: true })).toBe(
+      "Old login records were tidied up (2). Nothing else was deleted: a hold is on (a dispute).",
     );
     expect(say("roster.source_forgotten")).toBe(
       "An old rota sheet, already switched off, was let go: another firm could connect it.",

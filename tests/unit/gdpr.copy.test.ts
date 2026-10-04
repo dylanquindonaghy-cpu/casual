@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { workerExportCsv, workerExportFileName } from "@/lib/gdpr/worker-export";
 import { ERASED_REASON, erasedCancelReason } from "@/lib/gdpr/free-text";
-import { eraseResultText, type EraseActionResult } from "@/lib/office/data-copy";
+import {
+  eraseExplainer,
+  eraseResultText,
+  keepTimeLines,
+  type EraseActionResult,
+} from "@/lib/office/data-copy";
 
 // A worker's CSV export (src/lib/gdpr/worker-export.ts): one value per line, and the office's
 // words after a deletion (docs/screens.md `/office/data/workers/[id]`).
@@ -73,6 +78,8 @@ describe("what a deletion says", () => {
         requests: 0,
         payQueries: 0,
         cancelReasons: 0,
+        overrideReasons: 0,
+        sheetMentions: 0,
       },
     },
     { status: "booked", name: "Ann Booker", upcoming: 1 },
@@ -93,7 +100,7 @@ describe("what a deletion says", () => {
 
   it("the words", () => {
     expect(eraseResultText(results[0] as EraseActionResult)).toBe(
-      "Deleted. Ann Booker's personal details are gone. Their shift history stays, without a name.",
+      "Deleted. Ann Booker's personal details are gone. Their shift history stays, without a name. Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed.",
     );
     expect(eraseResultText(results[1] as EraseActionResult)).toBe(
       "Ann Booker is booked on 1 shift that hasn't ended. Cancel those first, then delete.",
@@ -104,6 +111,32 @@ describe("what a deletion says", () => {
     expect(eraseResultText({ status: "error" })).toBe(
       "Something went wrong. Reload the page to see if it was deleted.",
     );
+  });
+
+  // Audit L86, L87: what an admin relies on when answering a worker's deletion request.
+  it("before deleting: exactly what goes and what stays, including other people's words", () => {
+    expect(eraseExplainer("Ann Booker", "Acme Events")).toEqual([
+      "This deletes Ann Booker's name, mobile number, email, staff ID, licences and cards, days off, sites they're kept off, messages, logins and phone notifications, the notes on their own requests, pay questions and cancellations, and the office's typed reasons on their bookings.",
+      "Their shifts, offers, cancellations and pay lines stay, without a name, as Acme Events's records (the notice report needs them).",
+      "Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed.",
+    ]);
+  });
+
+  // Audit M24: the page used to say 90 days whatever the firm's settings were.
+  it("how long we keep things: the firm's own settings, and a hold when there is one", () => {
+    const lines = keepTimeLines(
+      { messageDays: 120, requestNoteDays: 365, holdUntil: "2027-03-31" },
+      "Wed 31 Mar 2027",
+    );
+    expect(lines.slice(0, 4)).toEqual([
+      "Messages to and from your shifts line: 120 days.",
+      "What a worker typed into a request (a note, a colleague's name): 365 days after the request is closed. An open request keeps it.",
+      "The office's typed reason for placing someone despite a rule: 365 days after they were booked.",
+      "A hold is on until Wed 31 Mar 2027: nothing above is deleted until then.",
+    ]);
+    expect(
+      keepTimeLines({ messageDays: 90, requestNoteDays: 365, holdUntil: null }, null),
+    ).not.toEqual(expect.arrayContaining([expect.stringContaining("A hold is on")]));
   });
 });
 

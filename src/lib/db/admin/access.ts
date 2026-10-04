@@ -50,7 +50,7 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // The worker marks and clears days they can't work (logged as events); a day is never edited.
   worker_unavailable_days: ["SELECT", "INSERT", "DELETE"],
   // The shifts line's messages in and out: handled, never deleted by the app (what a worker asked
-  // and what they were told). Kept 90 days (retention, Phase 8).
+  // and what they were told). Kept for the firm's retention.message_days (90 by default).
   messages: NO_DELETE,
   // A phone's push address: saved, moved to a new login on the same phone, removed.
   push_subscriptions: CRUD,

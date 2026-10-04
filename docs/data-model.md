@@ -293,6 +293,9 @@ create table assignments (
   confirmed_at timestamptz,              -- required when confirmed, no_show or completed
   cancelled_at timestamptz,              -- cancelled_*: cancelled_at, a non-blank cancel_reason
   cancel_reason text,                    --   and notice_hours are all required (golden rule 12)
+  override_reason text,                  -- the office's typed reason for placing them despite a rule
+                                         --   (Phase 10: here, not in the log; cleared by erasure and
+                                         --   the retention purge)
   notice_hours numeric(8,2),             -- starts_at - cancelled_at, in hours; negative if after the start
   office_kept_at timestamptz,            -- Phase 10: the office kept it though its worker stopped being
                                          -- active or was blocked from the site (Today's "Bookings to
@@ -604,10 +607,17 @@ policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 
 ## Retention (defaults, per firm)
 
+Per firm, in `firms.settings.retention` (Phase 10, audit M24; set with `npm run firm:settings`, the
+owner's; `src/lib/gdpr/retention-settings.ts`): `message_days` (default 90), `request_note_days`
+(default 365), both 30 to 2190, and `hold_until` (a date). "Dylan to confirm" in
+`docs/compliance.md`.
+
 | Data | Keep | Built (Phase 8) |
 |---|---|---|
-| Raw messages and transcripts | 90 days | Yes: `messages` over 90 days old (and replies to them), by `app_purge_old_messages()` |
-| The words typed into a request (`requests.payload.note`, `.swapWith`) | 90 days | Yes: removed, the request stays |
+| Raw messages and transcripts | `retention.message_days` (90) | Yes: `messages` older than that, by `app_purge_old_messages()`, which reads the firm's settings itself; a newer reply stays (its `reply_to` cleared) |
+| The words typed into a request (`requests.payload.note`, `.swapWith`) | `retention.request_note_days` (365) after it closed | Yes: removed from closed requests (approved, declined, auto-resolved), the request stays; open and escalated ones keep them |
+| The office's override reason (`assignments.override_reason`) | The same, after the booking | Yes: cleared |
+| Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words and override reasons (logins still tidy up) |
 | Call audio | Don't store by default (30 days if enabled) | Not stored |
 | Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) | **Not yet**: events are append-only and no policy lets anyone delete them (PLAN.md Parking lot) |
 | Workers and credentials | Until the firm deletes them | An admin erases a worker (`/office/data`) |
@@ -622,7 +632,7 @@ many of each.
 
 **Deleting messages.** The app role has no DELETE on `messages`. Two owner-run functions (SECURITY
 DEFINER, pinned search_path, bound to the current firm by forced RLS) are the only ways:
-`app_purge_old_messages()` (over 90 days old; the age is fixed in the function) and
+`app_purge_old_messages()` (older than the firm's `retention.message_days`, read inside the function from the firm's own settings, so no caller can shorten it; nothing during a hold) and
 `app_erase_worker(worker)` (for one worker of this firm not yet erased: it reads their number
 from the row, makes the row "Deleted worker" and deletes their messages, the replies to them, and
 messages from or to that number with no worker set; the caller can't name a number, and it runs

@@ -7450,3 +7450,100 @@ none." Open, all parked: the production-mode e2e locally, the stable action key.
 **Hours:** 0.8 (02:24 to 03:10 UTC). Phase 10 so far: 10.6 h of its 30–45 h estimate.
 
 **Commit:** `ac37fe6`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-10-04 03:12 UTC — Phase 10, task 13: the retention purge and privacy wording match the spec
+
+**Task:** The retention purge and privacy wording match the spec: per-firm retention settings with
+the spec's defaults and a hold for disputes; open or escalated requests keep their words until
+closed; replies newer than the cut-off are kept; the office's override reason is not typed into the
+append-only log; `docs/compliance.md`, `docs/privacy-notice.md` and the data page say exactly what a
+deletion removes and keeps. New choices marked "Dylan to confirm". (M24, L23, L30, L41, L85, L86,
+L87)
+
+**Plan:**
+1. **Per-firm retention (M24):** three firm settings, set by the owner with `npm run firm:settings`
+   (the app role can't change firms): `retention.message_days` (default 90, the spec's),
+   `retention.request_note_days` (default 365: the spec kept requests 12 months; the 90 built in
+   Phase 8 had no "Dylan to confirm"), and `retention.hold_until` (a date: until then the purge
+   deletes nothing personal, for a dispute or tribunal; logged as a settings change). Both day
+   counts between 30 and 2190 (6 years); an unreadable value falls back to the default. The
+   messages function (owner-run) reads the firm's own settings itself, so no caller can shorten
+   it.
+2. **Requests:** words go only from requests that are closed (approved, declined, auto-resolved), the
+   set number of days after they closed; open or escalated ones keep them.
+3. **Replies (M24 4):** a reply newer than the cut-off is kept (unlinked from the old message it
+   answered, which goes).
+4. **The override reason (L23, L30, L85):** kept on the booking (`assignments.override_reason`, an
+   ordinary column), never in the append-only log; the log says the office gave one. The shift page
+   shows it with the booking. A worker's deletion replaces it with the fixed "Reason deleted with the
+   worker's details", and the retention purge clears it with request words.
+5. **What a deletion removes and keeps (L86, L87, L41):** the deletion also takes the worker's staff
+   id out of `shifts.synced_holders`; the data page, `docs/compliance.md` and the privacy notice say
+   exactly what goes and what stays (colleagues' words that name them stay until the purge;
+   messages others sent stay until the purge); the notice's notes say Twilio's own copies need the
+   parked deletion job before the wording is sent; dated corrections to the earlier logs' claims.
+6. **Dylan to confirm:** the defaults (90 and 365 days, the 30-day floor), a firm-wide hold, the
+   override reason's retention.
+7. **Tests:** the purge with each setting, a hold, open and closed requests, a newer reply; the
+   settings; the booking's reason (on the row, not the log; cleared on deletion and by the purge);
+   the deletion's staff id; the data page's words.
+
+**Corrections to earlier claims (audit L86):** Phase 8's work log ("the history kept after a
+deletion holds no name or number"), the data page ("Their shift history stays, without a name") and
+an earlier decisions table ("events never hold names, phones or emails") were not true while the
+office's typed override reason went into the log and the staff id stayed in `synced_holders`. From
+this task the override reason goes with the worker, and the staff id leaves the sheet copy of
+shifts that have ended (shifts ahead keep it for the merge, and a sheet that still names them puts
+it back). What other people typed that names the worker (a colleague's override or cancellation
+note, a pay query, a message) isn't changed by an erasure; the data page and privacy notice now say
+so instead of claiming the history holds no name.
+
+**Guardrails review:** the definer function, tenant scoping and "the reason is off the log on every
+path" all checked out. FIX FIRST: the office's `/office/data` page still said "90 days" for messages
+and request words (and `screens.md`, and an old note in the privacy notice still said deletion keeps
+override reasons); the override-reason purge counted from when the place's row was made, not the
+booking (a reason typed today on an old shift could go that night). SHOULD FIX: the hold test
+didn't prove the database side; the notice report silently lost the override reason; the
+cross-firm test didn't cover the new pieces; a hold doesn't stop a deletion (unrecorded);
+`decisions.md` stale. Nits: stale comments, the SQL cast's AND order, awkward erased wording,
+"placed despite a rule" for a reason given with no override.
+
+**Adversarial review:** the same two, plus: "other people's words are cleared on schedule" isn't
+true for pay queries, cancellation notes or the office's answers (never purged); taking the staff
+id out of `synced_holders` for shifts still ahead changes the next sync's merge (a cancellation the
+sheet hasn't caught up with could be re-booked); the erase explainer left out the staff id, site
+blocks and phone notifications.
+
+**Fixed:**
+
+| Finding | Fix (tested) |
+|---|---|
+| Data page and docs | `/office/data` shows the firm's own keep-times and any hold (`keepTimeLines`, read through `firmRetention`); `screens.md`, the privacy notice (body and notes), compliance and ADR-016 say what the code does |
+| Override reason age | Counted from `confirmed_at` (when the person was booked); test: an old place, a recent booking, a 30-day setting: kept |
+| "Others' words on schedule" | Now "aren't changed" on the page; the notice says "some of it is deleted on the schedule above, and the rest is kept as our records"; which kinds never go is "Dylan to confirm" |
+| `synced_holders` for shifts ahead | Only shifts that have ended lose the id; test: a shift ahead keeps it |
+| Notice report | Reads the reason from the booking (gone once cleared); test |
+| Hold, database side | Test: held today, over yesterday, a non-day is no hold |
+| Cross-firm | Test: firm A's 30 days don't touch firm B's messages or reasons |
+| A hold vs a deletion | "Dylan to confirm"; the runbook says to check with the firm first |
+| Erase explainer | Lists the staff ID, sites they're kept off and phone notifications too |
+| Nits | Nested SQL cast; "the reason was deleted with the worker's details"; a reason stored only with an override; comments updated |
+
+Each review fix checked by breaking it: counting override reasons from the place's creation
+instead of the booking, scrubbing the staff id from shifts still ahead, and the notice report not
+reading the booking's reason each make a test fail. (The "closed requests only" filter is a
+backstop: the database already forbids an open or escalated request from having a closing date,
+which the date condition relies on; removing that condition is caught.)
+
+**Verify:** `VERIFIED tree=48b139963414f72a e2e=true` (3,020 tests, 0 failed, 0 skipped; 53 e2e).
+
+**Auditor (round 1), verbatim verdict:** `VERDICT: DONE`. Every claim PROVEN: the per-firm settings
+and the spec's defaults (in the app and the database function), the hold (both sides), open
+requests keeping their words, newer replies kept, the override reason never in the log (a test
+counts log entries holding the words: none), the data page, compliance and privacy notice wording
+(unit and e2e), the Twilio caveat, and the "Dylan to confirm" lines. "Fakes found: none." It noted
+this entry's last line pointed "below" at nothing (filled in after the audit, before the commit).
+
+**Hours:** 0.8 (03:12 to 03:59 UTC). Phase 10 so far: 11.4 h of its 30–45 h estimate.
+
+**Commit:** see the next "Log commit and push" commit.

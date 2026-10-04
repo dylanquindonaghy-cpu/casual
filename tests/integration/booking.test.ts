@@ -181,7 +181,7 @@ describe("bookShift: a worker taking a shift", () => {
 });
 
 describe("bookShift: the office placing someone", () => {
-  it("overrides rest with a reason, and the log records both", async () => {
+  it("overrides rest with a reason: the log records the override, the booking keeps the words", async () => {
     const f = await bookingFirm(su, withFirm);
     const resourcer = await f.office("resourcer");
     const sam = await f.worker();
@@ -209,10 +209,20 @@ describe("bookShift: the office placing someone", () => {
           slot: 1,
           noticeHours: 48,
           overridden: ["rest"],
-          reason: "Late cover agreed with the worker",
+          // The office's words are about a person: never in the append-only log (audit L23, L85).
+          reasonGiven: true,
         },
       },
     ]);
+    const { rows } = await su.query("select override_reason from assignments where id = $1", [
+      result.status === "booked" ? result.assignmentId : "",
+    ]);
+    expect(rows).toEqual([{ override_reason: "Late cover agreed with the worker" }]);
+    const { rows: logged } = await su.query<{ n: number }>(
+      "select count(*)::int as n from events where firm_id = $1 and data::text like '%Late cover%'",
+      [f.firmId],
+    );
+    expect(logged[0]?.n).toBe(0);
   });
 
   it("never overrides a credential, and refuses a reason holding contact details", async () => {

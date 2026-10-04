@@ -632,7 +632,20 @@ deletion").
   hasn't ended: cancel those on the shift's page first (with a reason). Their shift history stays,
   without a name, as the firm's records. Then remove them from the firm's rota sheet or staff file,
   or the next sync or import adds them back as a new worker. Messages they send afterwards arrive as
-  from a number we don't know.
+  from a number we don't know. What other people wrote that names them (a colleague's swap
+  request or pay query, someone else's message) isn't changed: some goes on the firm's retention
+  schedule, the rest stays as the firm's records. If the worker asks for those too, tell the firm;
+  it's the firm's call (and Dylan's to build, if needed). During a hold for a dispute, check with
+  the firm before deleting anyone: a hold doesn't stop a deletion.
+- **A dispute or tribunal (keep everything for now):** a hold stops the nightly purge deleting
+  anything personal for the firm until the day after the date: `npm run -s firm:settings -- --firm
+  acme --set retention.hold_until=2027-03-31`. When it's settled: `--set retention.hold_until=none`.
+  Each change is in the action log (the firm's settings changed), and every night's purge says
+  "a hold is on".
+- **A firm's retention periods:** `npm run -s firm:settings -- --firm acme` shows them;
+  `--set retention.message_days=180` or `--set retention.request_note_days=730` changes them
+  (30 to 2190 days). Agree them with the firm before its pilot; the privacy notice's numbers in
+  square brackets must match.
 - **Breach:** contain, note the timeline, tell the firm (controller) immediately; the firm decides
   on ICO notification within 72 hours.
 

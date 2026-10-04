@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { MINUTE, systemClock, type Clock } from "../auth/clock";
-import { officeUsers, rosterSources, shifts, workers } from "../db/schema";
+import { assignments, officeUsers, rosterSources, shifts, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { retryAborted } from "../db/retry";
@@ -89,8 +89,8 @@ export type BookingResult =
   | { status: "not_yet"; opensAt: Date }
   // The office user can't place staff (disabled, or payroll).
   | { status: "not_allowed" }
-  // An override without a reason, or a reason holding a phone number or email address (it goes
-  // into the action log, which never holds personal details).
+  // An override without a reason, or a reason holding a phone number or email address (it's kept
+  // with the booking, which a worker's deletion clears; never in the log).
   | { status: "invalid_reason" }
   | Exclude<AssignResult, { status: "assigned" }>;
 
@@ -269,7 +269,17 @@ async function bookInTransaction(
   const assigned = await plug.assign(shiftId, workerId, result.pass);
   if (assigned.status !== "assigned") return assigned;
 
-  const reason = by.type === "office" ? by.reason : undefined;
+  // The office's reason is free text about a person: kept on the booking (which a deletion and the
+  // retention purge can clear), never in the append-only log, which only says one was given
+  // (audit L23, L30, L85).
+  // Only with an override: the shift's page shows it as "placed despite a rule".
+  const reason = by.type === "office" && result.overridden.length > 0 ? by.reason : undefined;
+  if (reason) {
+    await tx
+      .update(assignments)
+      .set({ overrideReason: reason })
+      .where(eq(assignments.id, assigned.assignmentId));
+  }
   await recordEvent(tx, {
     actorType: by.type,
     actorId: by.id,
@@ -283,7 +293,7 @@ async function bookInTransaction(
       slot: assigned.slot,
       noticeHours: noticeHours(check.startsAt, now),
       ...(result.overridden.length > 0 ? { overridden: result.overridden } : {}),
-      ...(reason ? { reason } : {}),
+      ...(reason ? { reasonGiven: true } : {}),
     },
   });
   // A worker booked onto a shift they were offered (they took it, or the office placed them) has

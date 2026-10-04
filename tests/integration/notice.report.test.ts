@@ -9,7 +9,12 @@ import {
   parseNoticeQuery,
   type NoticeRow,
 } from "@/lib/office/notice-report";
-import { cancelBookingByOffice, cancelShift, moveShift } from "@/lib/office/quick-actions";
+import {
+  assignWorker,
+  cancelBookingByOffice,
+  cancelShift,
+  moveShift,
+} from "@/lib/office/quick-actions";
 import { cancelMyShift } from "@/lib/portal/cancel-shift";
 import { takeShift } from "@/lib/portal/take-shift";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
@@ -126,6 +131,33 @@ describe("a worker's own cancellation", () => {
       ["cancelled", "worker", "Ann Booker", 48, false, null],
       ["cancelled", "worker", "Ben Booker", 47.99, true, null],
     ]);
+  });
+});
+
+// Phase 10 task 13: the office's typed reason for placing someone despite a rule is kept on the
+// booking, not in the log; the report reads it from there, until a deletion or the retention purge
+// clears it.
+describe("the office placing someone despite a rule", () => {
+  it("shows the office's reason, read from the booking", async () => {
+    const t = await nativeFirm();
+    await su.query(
+      "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-11-07')",
+      [t.f.firmId, t.ann],
+    );
+    expect(
+      await assignWorker(t.office(hoursFromNow(0)), t.shiftId, t.ann, {
+        codes: ["unavailable"],
+        reason: "Rang in: can do it after all",
+      }),
+    ).toMatchObject({ status: "booked" });
+    const r = await t.report({ kind: "bookings" });
+    expect(rowsOf(r.rows)).toEqual([
+      ["booked", "office", "Ann Booker", expect.any(Number), false, "Rang in: can do it after all"],
+    ]);
+    // Cleared (the purge, or a deletion): the row stays, without the words.
+    await su.query("update assignments set override_reason = null where worker_id = $1", [t.ann]);
+    const after = await t.report({ kind: "bookings" });
+    expect(rowsOf(after.rows)[0]?.[5]).toBeNull();
   });
 });
 

@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
 import {
@@ -18,7 +18,7 @@ import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeUserMay, parts, type OfficeContext } from "../office/office-context";
 import { rosterId } from "../roster/book";
-import { erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./free-text";
+import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./free-text";
 
 // Deleting a worker's personal details (a GDPR erasure request: docs/runbooks.md "GDPR requests",
 // docs/compliance.md). The worker's row stays, anonymous, because offers, bookings, cancellations,
@@ -37,8 +37,13 @@ import { erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./free-text";
 //   pay queries (their details, payroll's note) and cancellations (a typed reason; the app's fixed
 //   wording stays: free-text.ts);
 // - worker.erased with how many of each (never what they were).
-// What can't be reached: the office's typed reason for placing someone despite a rule (in the
-// append-only log, checked for phones and emails only), the firm's own rota sheet or staff file
+// - replaced: the office's typed reasons for placing them despite a rule (on their bookings: from
+//   Phase 10 never in the log), with the fixed wording; and their staff id taken out of our copy of
+//   the rota sheet's names (shifts.synced_holders).
+// What can't be reached: the office's typed reason in an older log entry (written before Phase 10,
+// checked for phones and emails only), words other people typed that name them (a colleague's swap
+// request, someone else's message or pay query: those go on the firm's retention schedule), the
+// firm's own rota sheet or staff file
 // (the next sync or import would add them back: the runbook says to remove them there too), and
 // the copy of My shifts on the worker's own phone (public/sw.js): it goes the next time that phone
 // opens My shifts with signal (the server then says "not logged in"), and is never shown once
@@ -55,6 +60,8 @@ export interface ErasedCounts {
   requests: number;
   payQueries: number;
   cancelReasons: number; // typed cancellation reasons replaced (free-text.ts)
+  overrideReasons: number; // the office's typed reasons on their bookings, replaced likewise
+  sheetMentions: number; // shifts whose kept rota-sheet names (synced_holders) held their staff id
 }
 
 export type EraseWorkerResult =
@@ -64,7 +71,12 @@ export type EraseWorkerResult =
   | { status: "not_found" }
   | { status: "not_allowed" };
 
-async function eraseLocked(tx: FirmTx, id: string): Promise<ErasedCounts> {
+async function eraseLocked(tx: FirmTx, id: string, now: Date): Promise<ErasedCounts> {
+  // Their staff id, read before the row loses it: our copy of the rota sheet's names holds it too.
+  const [before] = await tx
+    .select({ ref: workers.externalRef })
+    .from(workers)
+    .where(eq(workers.id, id));
   // Owner-run (the app role may not delete messages): the row becomes "Deleted worker" and their
   // messages go, found by the number the row held.
   const erased = await tx.execute<{ n: number }>(sql`select app_erase_worker(${id}::uuid) as n`);
@@ -82,6 +94,33 @@ async function eraseLocked(tx: FirmTx, id: string): Promise<ErasedCounts> {
     await tx.update(assignments).set({ cancelReason: kept }).where(eq(assignments.id, row.id));
     cancelReasons += 1;
   }
+
+  // The office's reason for placing them despite a rule: the booking still says there was one.
+  const overrideReasons = await deleted(
+    tx
+      .update(assignments)
+      .set({ overrideReason: ERASED_REASON })
+      .where(and(eq(assignments.workerId, id), isNotNull(assignments.overrideReason)))
+      .returning({ id: assignments.id }),
+  );
+  // Their staff id in the names we last read from the firm's sheet (the merge base), on shifts that
+  // have ended: taken out (audit L86). Not on shifts still ahead, where the base decides the next
+  // sync's merge (a cancellation the sheet hasn't caught up with yet must still be written back).
+  // While the firm's sheet still names them, the next sync of that row puts the id back: the page
+  // and the runbook tell the office to remove them from the sheet too.
+  const ref = before?.ref ?? null;
+  const sheetMentions =
+    ref === null
+      ? 0
+      : await deleted(
+          tx
+            .update(shifts)
+            .set({ syncedHolders: sql`array_remove(${shifts.syncedHolders}, ${ref})` })
+            .where(
+              and(sql`${shifts.syncedHolders} @> array[${ref}]::text[]`, lte(shifts.endsAt, now)),
+            )
+            .returning({ id: shifts.id }),
+        );
 
   const typed = sql.raw(`array[${REQUEST_FREE_TEXT_KEYS.map((k) => `'${k}'`).join(", ")}]`);
   const counts: ErasedCounts = {
@@ -139,6 +178,8 @@ async function eraseLocked(tx: FirmTx, id: string): Promise<ErasedCounts> {
         .returning({ id: payQueries.id }),
     ),
     cancelReasons,
+    overrideReasons,
+    sheetMentions,
   };
   return counts;
 }
@@ -235,7 +276,7 @@ export async function eraseWorker(
       const upcoming = await upcomingBookings(tx, workerId, now);
       if (upcoming > 0) return { status: "booked", name, upcoming };
 
-      const counts = await eraseLocked(tx, worker.id);
+      const counts = await eraseLocked(tx, worker.id, now);
       await recordEvent(tx, {
         actorType: "office",
         actorId: by.id,

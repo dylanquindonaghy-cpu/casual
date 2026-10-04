@@ -69,7 +69,8 @@ export function offerTo(
 
 // The office placing someone on a shift ("Assign" on the shift's page): the one booking path,
 // with the office's overrides (only started, rest, weekly hours or a day off) and a reason when it
-// overrides anything. Logged shift.assigned {by: "firm", overridden, reason}.
+// overrides anything. Logged shift.assigned {by: "firm", overridden, reasonGiven}: the reason
+// itself is kept on the booking, not in the log (Phase 10).
 export function assignWorker(
   ctx: OfficeContext,
   shiftId: string,

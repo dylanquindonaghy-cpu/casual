@@ -228,6 +228,10 @@ export const assignments = pgTable(
     confirmedAt: timestamptz("confirmed_at"),
     cancelledAt: timestamptz("cancelled_at"),
     cancelReason: text("cancel_reason"),
+    // The office's reason for placing someone despite a rule (free text, at most 500 characters,
+    // no phone or email): kept here, never in the append-only log, so a worker's deletion and the
+    // retention purge can clear it (audit L23, L30, L85).
+    overrideReason: text("override_reason"),
     // Shift start minus cancelled_at, in hours. Negative when cancelled after the start.
     noticeHours: numeric("notice_hours", { precision: 8, scale: 2 }),
     // When the office chose to keep this booking though its worker stopped being active, or was

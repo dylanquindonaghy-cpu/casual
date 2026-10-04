@@ -8281,3 +8281,97 @@ shows it when there's no signal. The audit found five problems with it. Now:
    "Log out". It says "No signal. You may still be logged in. …", and the copy is gone (reload
    while offline: the plain "No signal" page).
 4. Back to "No throttling": reload, tap "Log out", and you're on the login page.
+
+## 2026-10-04 — Phase 10, task 13: how long things are kept, and what a deletion removes
+
+- **Time spent:** 0.8 hours (started 03:12 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=48b139963414f72a e2e=true`
+  (3,020 tests, 53 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M24, L23, L30, L41, L85, L86, L87.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Every night a job, the **retention purge**, deletes personal data the firm has kept long enough. The
+audit found it deleted more than your spec allowed, and that some of the words we show firms about
+deleting a worker weren't true. Now:
+
+- **Each firm has its own retention settings.** Three new firm settings, set by you with
+  `npm run firm:settings` (the app itself can't change them):
+  - `retention.message_days`: how long the shifts line's messages are kept (default 90, as in your
+    spec);
+  - `retention.request_note_days`: how long a request's words are kept after it's closed (default
+    365, the "12 months" in your spec; the earlier build had quietly made it 90);
+  - `retention.hold_until`: a **hold**, a date until which nothing personal is deleted, for a
+    dispute or a tribunal.
+- **An open request keeps its words.** The words go only from requests that are closed, and only
+  once they've been closed for the set time.
+- **Replies are kept with their own age.** A reply newer than the limit is kept, even when the old
+  message it answered goes.
+- **The office's override reason is out of the permanent log.** When the office places someone
+  despite a rule, it types a reason ("Rang in, she can do it"). That used to go into the **action
+  log**, which can never be edited, so a deletion couldn't clear it. Now:
+  - it's kept on the booking itself, and the log only says a reason was given;
+  - the shift's page and the notice report show it;
+  - deleting the worker replaces it, and the nightly purge clears it after the set time.
+- **The words about deleting a worker are exact.** The data page, the privacy notice and the
+  compliance notes now say exactly what goes and what stays. That includes one thing they used to
+  leave out: words other people wrote that name the worker (a colleague's swap request, say) aren't
+  changed by deleting that worker. The data page shows the firm's real keep-times and any hold.
+- **Twilio's copies are flagged.** Once Twilio is connected, it keeps its own copy of messages. The
+  privacy notice's notes now say the "90 days" wording mustn't go to a firm until the job that
+  deletes Twilio's copies exists.
+- **A correction:** an earlier work-log entry (Phase 8, "GDPR") said the history kept after a
+  deletion "holds no name or number". That wasn't true while the override reason was in the log.
+  It is now for the reason; for other people's words, see above.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Defaults from your spec: 90 days for messages, 12 months for request words | The spec said so; the 90 for request words was never asked | Keeping 90 |
+| Only you set retention (not a screen) | The app can't change firm settings; a hold matters legally | An office settings screen |
+| A hold covers the whole firm | Simple and safe while there's one pilot firm | A hold per worker |
+| The override reason kept on the booking | A deletion and the purge can clear it there | Keeping it in the log (can't be cleared); fixed reason codes (still an option) |
+
+### What the new tests prove
+
+- **`tests/integration/gdpr.retention.test.ts`:**
+  - each setting is followed, by the database's own purge too;
+  - unreadable settings fall back to the defaults;
+  - a hold keeps everything personal, and the database agrees when it ends;
+  - open requests keep their words, and a newer reply stays;
+  - the override reason counts from when the person was booked;
+  - one firm's settings never touch another's rows.
+- **`tests/unit/gdpr.retention-settings.test.ts`:** the settings, and `firm:settings` refusing what
+  the purge wouldn't use.
+- **`tests/integration/booking.test.ts`, `office.shift-pages.test.ts`, `notice.report.test.ts`:**
+  the override reason is on the booking, never in any log entry, and shows on the shift's page and
+  in the notice report.
+- **`tests/integration/gdpr.worker.test.ts`:** a deletion replaces the override reason and takes
+  the staff ID out of the sheet record for shifts that have ended. A shift still ahead keeps it, so
+  the next sync merges correctly.
+- **`tests/unit/gdpr.copy.test.ts`:** the data page's exact words.
+- **The tests catch the bugs:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm (all in `PLAN.md`):**
+  - the default keep-times, the 30-day minimum, and a firm-wide hold;
+  - whether a hold should also stop an admin deleting a worker (today it doesn't; the runbook says
+    to check first);
+  - whether pay query text, cancellation notes and the office's answers should also go on a
+    schedule (today they're only cleared when that worker is deleted);
+  - the override reason as free text, or fixed reasons.
+- **Before sending the privacy notice:** fill in the firm's own keep-times (the numbers in square
+  brackets), and don't promise "90 days" for messages until Twilio's copies are deleted too.
+
+### How to see it working
+
+1. `npm run -s firm:settings -- --firm acme`: three `retention.*` lines (90, 365, none).
+2. `npm run -s firm:settings -- --firm acme --set retention.hold_until=2026-12-31`, then open
+   `http://acme.localhost:3000/office/data` as `acme.admin@example.com`: "How long we keep things"
+   shows the hold. `--set retention.hold_until=none` ends it.
+3. On a shift's page, assign someone the rules refuse for a day off, with a reason: the reason
+   shows next to their name, and the History says only that a reason was given.

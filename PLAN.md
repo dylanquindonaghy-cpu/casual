@@ -295,7 +295,7 @@ every step works.
       loading leaves no copy on the phone; a slow but working connection shows the fresh page; a
       kept copy from an older build can still log out; logging out with no signal says what happened.
       Service-worker tests with a slow network. (M27, L90, L91, L92, L93)
-- [ ] The retention purge and privacy wording match the spec: per-firm retention settings with the
+- [x] The retention purge and privacy wording match the spec: per-firm retention settings with the
       spec's defaults and a hold for disputes; open or escalated requests keep their words until
       closed; replies newer than the cut-off are kept; the office's override reason is not typed
       into the append-only log; `docs/compliance.md`, `docs/privacy-notice.md` and the data page
@@ -513,6 +513,13 @@ every step works.
   offline can't load the dev server's reload script, so it never becomes interactive, and logging
   out from the kept copy is tested only in the service worker's sandbox. Add a production-mode e2e
   run to `verify.sh` (or a second Playwright project) and a browser test for it.
+- **Dylan to confirm (retention, Phase 10 task 13, audit M24):** the defaults (messages 90 days, a
+  closed request's words and the office's override reasons 12 months, as the original spec said;
+  Phase 8 had built 90 days for request words without asking); the 30-day floor and 6-year ceiling
+  for a firm's own numbers; and that a hold (`retention.hold_until`) covers the whole firm, not one
+  worker. Also: an erasure leaves what other people wrote that names the worker (a colleague's swap
+  request, someone else's message) to the retention schedule; deleting those on request too would
+  mean searching other people's words for a name (docs/compliance.md "GDPR requests").
 - **Dylan to confirm (Gate B, Phase 10 task 11):** a check (dry run) of a real staff file is
   allowed on the live server before the agreement is recorded (nothing is saved, but it is read,
   which counts as processing under UK GDPR). And the demo firms on the live server would need a
@@ -545,11 +552,11 @@ every step works.
   own shift editor refuses any role change once people are booked, and a CSV import refuses role
   and time changes on booked shifts. Should the sheet be as strict as the editor (refuse every
   role change on a booked shift), or the editor as flexible as the sheet?
-- **Dylan to confirm:** the office's override reason is free text in `events.data`. `bookShift()`
-  refuses one holding a phone number or email address, but a name could still get in, and it
-  shows in the shift's History. The Phase 5 manual-assign screen (built) keeps free text for now.
-  The fix is reason codes plus a note kept on the assignment row, which means changing the
-  booking path's API and the database: confirm before it's built.
+- **Dylan to confirm:** the office's override reason is still free text (up to 500 characters, no
+  phone or email), but since Phase 10 task 13 it's kept on the booking (`assignments.override_reason`),
+  never in the append-only log: a worker's deletion replaces it, and the retention purge clears it
+  with request words (12 months by default). The shift's page shows it with the booking. Reason
+  codes instead of free text are still an option.
 - Phase 3 `takeShift` and `cancelShift` actions: take the firm from `getCurrentFirm()` (ADR-012),
   never from input, and the worker from the session; `src/app` can't import `withFirm`, so add a
   small lib wrapper.
@@ -1250,9 +1257,8 @@ every step works.
 - Action log follow-ups (Phase 5):
   - **Dylan to confirm:** payroll doesn't see the action log (admins and resourcers do), and
     resourcers see that a worker's pay record was added or changed (never an amount).
-  - **Dylan to confirm:** the office's override reason when placing someone ("Rang in") is typed
-    text stored in the append-only log (checked for phone numbers and emails only), and the log
-    shows it to admins and resourcers. Keep it, or switch to a fixed list like the change reasons?
+  - ~~The office's override reason in the append-only log~~ (Phase 10 task 13: on the booking now;
+    the log says one was given; see "Dylan to confirm" above).
   - Worker list edge: past 2,000 workers the chosen one may not be in the list (the filter still
     applies; the list shows "Everyone"). The search box fixes it.
   - Worker and shift filters read `data ->> 'workerId'` / `'shiftId'` over the chosen days: fine
@@ -1604,14 +1610,23 @@ every step works.
     change notices already log `shift.change_notice_skipped` {reason: erased}).
   - Before connecting Twilio: erasure can't reach Twilio's own message logs (the events hold
     `providerMessageId`s). Add a runbook step to delete a worker's messages at Twilio on erasure.
-  - `shifts.synced_holders` keeps an erased worker's sheet staff id on the sheet shifts they held
-    (the firm's own id for them; the sync rewrites it only for rows still in the sheet). Remove it
-    on erasure with `array_remove` if it matters.
+  - ~~`shifts.synced_holders` keeps an erased worker's sheet staff id~~ (Phase 10 task 13: removed
+    on erasure from shifts that have ended; shifts still ahead keep it, because it decides the
+    next sync's merge; and the next sync puts it back on any row the firm's sheet still names them
+    on: the page and runbook say to remove them from the sheet).
   - Resourcers see the "Data requests and deletion" group in the action log (who asked for their
     data, who was deleted), though only admins can use the data page. Hide it from them if the firm
     minds.
-  - Other typed text about a worker is kept past 90 days: pay query details and "Something else:
-    …" cancellation notes (erasure clears both). Decide whether the 90-day purge should too.
+  - **Dylan to confirm (Phase 10 task 13):** some typed text is never purged on a schedule: pay
+    query details and payroll's notes, "Something else: …" cancellation notes, and the office's
+    answer on a request (erasure clears each of these for the worker's own rows, never for a
+    colleague's that names them). The data page and the privacy notice now say "aren't changed"
+    rather than promising a schedule. Decide whether the nightly purge should clear them too (after
+    `retention.request_note_days`, say).
+  - **Dylan to confirm (Phase 10 task 13):** a hold (`retention.hold_until`) stops the nightly
+    purge, but not an admin deleting a worker on request. Under UK GDPR a legal claim can be a
+    reason to refuse a deletion (Art. 17(3)(e)); decide whether a hold should block deletions too
+    (today the admin decides, and the runbook says to check with us first).
 - **Dylan to decide: audit findings the overnight loop may not fix** (from
   `docs/audit-2026-09-30.md`, 2026-10-03). The loop is forbidden to edit `.claude/`,
   `scripts/verify.sh` and `scripts/invariants.sh`, so these wait for your OK:
@@ -1718,3 +1733,4 @@ every step works.
 | 2026-10-04 | 10 | 0.9 | Google Sheets, said honestly: `SHEETS_TRANSPORT=google` (with the service account's key file) switches the sync on; each sync first reads the sheet's locale and refuses anything but United Kingdom, with plain words in the action log; `npm run firm:sheet` (owner only) connects, replaces (guarded by `--same-ids` while sheet shifts ahead are booked), switches off, lets go or shows a firm's sheet; one sheet, one firm (a unique index), and the app can only update the sync's status columns (column-level grants); the "Connect the real Google Sheets" steps rewritten to match the code; Google added to the accounts list and the blocked table; two reviews' findings fixed or parked; an older `firm:check` crash for synced sheets found and fixed; 2911 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 1.1 | Imports read what the file says: an Excel date at 23:59:59 keeps its day; "12 50" refused as money; a re-import never reopens a shift the office marked filled (a real reopen is logged); Windows Excel CSVs read (garbled ones refused with a plain message); no identity swaps without a Staff ID (a mobile-only match needs the same name, licence and pay rows must name the worker, a reused Staff ID is refused); one date, shift-time and mobile reader for the editor, the sheet and every import (clock-change and equal times refused); Gate B recorded per firm (`npm run firm:agreement`, migration 0032), checked by every import and `firm:sheet` on the live server; two reviews' findings fixed or parked; the older flaky test hit again (parked, marked urgent); 2988 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.8 | The phone's copy of My shifts is gone after logout: a "forgotten at" mark the service worker checks, so a load still in flight at logout or login is never kept, and the copy is deleted again once the server confirms the logout; on slow but working signal the stale copy swaps itself for the fresh page (stopping at the first tap or a logout); Log out is a plain `/api/logout` route (same origin only), so copies kept from this build on can always log out; with no signal it says "No signal. You may still be logged in. …" and gives up after 10 s; the privacy notice and erase notes cover the phone's copy; two reviews found the swap fighting the logout (fixed and tested); 3004 tests + 53 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 0.8 | Retention and the privacy wording match the spec: per-firm `retention.message_days` (90), `retention.request_note_days` (365, the spec's 12 months) and a hold for disputes (`retention.hold_until`), set with `firm:settings` and read by the database's own messages purge (migration 0034); only closed requests lose their words; a newer reply is kept; the office's override reason is kept on the booking (migration 0033), never in the log, shown on the shift page and notice report, replaced on deletion and purged by age; the data page shows the firm's real keep-times; the data page, privacy notice and compliance say exactly what a deletion removes and keeps (other people's words aren't changed); Twilio caveat; new "Dylan to confirm" items; 3020 tests + 53 e2e; verified and audited DONE (see docs/work-log.md) |

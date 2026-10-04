@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { requireOfficeArea } from "@/lib/auth/current-office";
+import { firmRetention } from "@/lib/gdpr/retention-view";
+import { dayLabel } from "@/lib/rules/reasons";
+import { keepTimeLines } from "@/lib/office/data-copy";
 import { FindWorkerForm } from "../find-worker-form";
 import { findWorkersAction } from "./actions";
 
@@ -11,7 +14,8 @@ const button = "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover
 // download all the firm's data. Admins only (checked here and in every function it calls). The
 // search is a server action (../find-worker-form.tsx): what's typed never goes in the address.
 export default async function OfficeDataPage() {
-  const { firm } = await requireOfficeArea("data");
+  const { firm, officeUser } = await requireOfficeArea("data");
+  const keep = await firmRetention({ firm, officeUserId: officeUser.id });
   return (
     <main className="mx-auto max-w-2xl p-6 text-lg">
       <p className="text-base text-slate-600">{firm.name} office</p>
@@ -45,15 +49,12 @@ export default async function OfficeDataPage() {
       <section className={section}>
         <h2 className={heading}>How long we keep things</h2>
         <ul className="mt-2 list-disc pl-6">
-          <li>Messages to and from your shifts line: 90 days.</li>
-          <li>A worker&rsquo;s own words copied into a request: 90 days.</li>
-          <li>Login links and codes: 7 days after they run out.</li>
-          <li>Logins: 30 days after they end.</li>
-          <li>Workers and their licences and cards: until you delete them here.</li>
-          <li>
-            Shifts, bookings, offers, requests, pay records and the action log: kept as your records
-            (deleted workers&rsquo; without a name).
-          </li>
+          {keepTimeLines(
+            keep,
+            keep.holdUntil ? `${dayLabel(keep.holdUntil)} ${keep.holdUntil.slice(0, 4)}` : null,
+          ).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
         </ul>
       </section>
 

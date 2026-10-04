@@ -172,8 +172,12 @@ days. A name added in the sheet to an already-full shift isn't booked (logged as
 Started shifts are history: a sync never books, cancels or re-times them. A worker blocked here
 stays blocked; a mobile changed in the sheet signs the worker out. The sheet's names go through
 the rules engine with the office's overrides (ADR-014); one that fails a credential, role,
-account, double-booking or site check isn't booked and is logged for the office. The live
-transport stays off (`SHEETS_TRANSPORT` is `none` only) until the real service account is
+account, double-booking or site check isn't booked and is logged for the office; it stays in the
+sheet while there's room and is tried again at each sync. A new role, times or site on a booked
+shift is made only if everyone booked can still work it (the office editor's check), and a started
+shift is never re-timed, re-roled, moved or cancelled: what isn't done is shown on the office's
+Today (Phase 10, audit M1, M2, L12).
+The live transport stays off (`SHEETS_TRANSPORT` is `none` only) until the real service account is
 connected.
 **Revisit when:** a firm needs one row per slot instead of an "Assigned" list, or sheets get big
 enough that one read per minute is too slow.

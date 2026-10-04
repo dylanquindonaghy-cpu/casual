@@ -2,7 +2,8 @@ import type { QueueOfficeOfferResult } from "../offers/office-offer";
 import type { CloseShiftResult } from "../roster/close";
 import type { SetUrgentResult } from "../roster/urgent";
 import type { KeepResult } from "./worker-access";
-import type { TodayBookingToCheck, TodayView, UrgentShift } from "./today";
+import { ruleWords } from "./event-words";
+import type { TodayBookingToCheck, TodaySheetIssue, TodayView, UrgentShift } from "./today";
 
 // The Today view's words (docs/screens.md `/office/today`): short sentences, plain words.
 
@@ -157,4 +158,42 @@ export function keepResultText(result: KeepResult | KeepCommon, name: string): s
     case "error":
       return "Something went wrong. Reload the page to see if it was kept.";
   }
+}
+
+// "From your rota sheet": what the sheet asks for that the app didn't do.
+const SHEET_FIELD_WORDS: Record<string, string> = {
+  role: "role",
+  startsAt: "start",
+  endsAt: "finish",
+  siteId: "site",
+  status: "status",
+};
+const andList = (items: string[]) =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+
+export function sheetChangeText(change: NonNullable<TodaySheetIssue["change"]>): string {
+  const fields = andList([...new Set(change.fields.map((f) => SHEET_FIELD_WORDS[f] ?? "details"))]);
+  const asked = `Your rota sheet changes its ${fields}`;
+  switch (change.reason) {
+    case "started":
+      return `${asked}, but the shift has started: not changed here.`;
+    case "in_past":
+      return `${asked} to a time that has already passed: not changed here. Check the date in the sheet.`;
+    case "settings":
+      return `${asked}, but the firm's rules settings need fixing first: not changed here.`;
+    case "rules": {
+      const people = change.people.map((p) => `${p.name} (${ruleWords(p.codes)})`);
+      const them = people.length === 1 ? "that booking" : "those bookings";
+      return `${asked}, but ${andList(people)} can't work it: not changed here. Change the sheet back, or cancel ${them} and the next sync makes the change.`;
+    }
+  }
+}
+
+export function sheetNameText(n: TodaySheetIssue["names"][number]): string {
+  const why = n.codes.includes("no_place")
+    ? "every place was taken"
+    : `they couldn't be booked (${ruleWords(n.codes)}) and every place is now taken`;
+  return n.dropped
+    ? `${n.name} was in your rota sheet, but ${why}: taken out of the sheet.`
+    : `${n.name} is in your rota sheet but isn't booked: ${ruleWords(n.codes)}. The next sync tries again.`;
 }

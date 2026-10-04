@@ -8,6 +8,10 @@
 // - added in the sheet since base: booked while places remain; the rest are not booked and
 //   reported (a conflict for the office to sort out).
 //
+// The Sheets sync (src/lib/roster/sheets/sync.ts) passes no headcount limit (all the sheet's new
+// names come back in `holders`) and gives places itself, after the rules: a name they refuse
+// doesn't use one up (Phase 10).
+//
 // Staff ids (refs) only. Order: the sheet's order first, then new bookings from here.
 
 export interface MergeInput {

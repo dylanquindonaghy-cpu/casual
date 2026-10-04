@@ -279,14 +279,17 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
 // sync, an import): filled when every place within the headcount is held, else open. Draft and
 // cancelled shifts are left alone. Inside the caller's withFirm transaction.
 export async function refreshShiftStatus(tx: FirmTx, shiftId: string, now: Date): Promise<void> {
+  // Written only when it changes (the Sheets sync calls this for every row, every minute).
   await tx.execute(sql`
-    update shifts s set status = case
-        when (select count(*) from assignments a
-               where a.shift_id = s.id and a.worker_id is not null
-                 and a.status not in ${CANCELLED}
-                 and a.slot <= s.headcount) >= s.headcount
-        then 'filled' else 'open' end
-     where s.id = ${shiftId} and s.status in ('open', 'filled')
+    update shifts s set status = next.status
+      from (select case
+              when (select count(*) from assignments a
+                     where a.shift_id = s2.id and a.worker_id is not null
+                       and a.status not in ${CANCELLED}
+                       and a.slot <= s2.headcount) >= s2.headcount
+              then 'filled' else 'open' end as status
+              from shifts s2 where s2.id = ${shiftId}) next
+     where s.id = ${shiftId} and s.status in ('open', 'filled') and s.status <> next.status
   `);
   // Full now: offers still waiting are closed (src/lib/offers/close.ts).
   await closeOffersIfFilled(tx, shiftId, now);

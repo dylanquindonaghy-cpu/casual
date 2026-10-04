@@ -184,14 +184,21 @@ firm's sync lease; read the sheet once; in one transaction mirror staff (by staf
 with the same mobile and no staff id is linked) and shifts (by shift id), then merge who holds each
 shift three ways: the sheet now, our bookings now, and what the sheet held after the last sync
 (`shifts.synced_holders`). A name removed on either side is removed; a booking made here is always
-kept (the worker was told it's confirmed); a name added in the sheet is booked while places
-remain, and any left over is logged as a conflict for the office. The office's changes in the sheet
-are applied through the roster plug and logged like any firm change (golden rule 12): a removed
-name is a cancellation by the firm with notice hours, a "Cancelled" status cancels each booking,
-new times are logged per booked worker as moved or curtailed, and new shifts, changed fields and
-status changes each get an event. Shifts that have started are mirrored but their bookings are
-history: never booked, cancelled or re-timed by a sync (so a first sync books no old names). The
-merge base becomes the "Assigned" cell as read. Then one batch write puts our bookings back into
+kept (the worker was told it's confirmed); a name added in the sheet goes through the rules first
+and is booked while places remain (a refused name doesn't use up a place). The office's changes in
+the sheet are applied through the roster plug and logged like any firm change (golden rule 12): a
+removed name is a cancellation by the firm with notice hours, a "Cancelled" status cancels each
+booking, new times or a new site are logged per booked worker as moved or curtailed, and new
+shifts, changed fields and status changes each get an event. The office editor's rules hold for
+the sheet too (Phase 10): a new role, times or site on a booked shift is made only if everyone
+booked can still work it (`recheckHolders()`, the same check as the office's move, with the
+sheet's overrides), otherwise our copy keeps them. Shifts that have started are history: never
+booked, cancelled, re-timed, re-roled or moved by a sync (so a first sync books no old names). What
+the sheet asks for and didn't get is kept on the shift (`shifts.sheet_issues`) and shown on the
+office's Today ("From your rota sheet"); a refused change is logged once
+(`roster.sheet_change_refused`). Names the sync couldn't book stay in the sheet's cell while there
+is room, and each sync tries them again; only a name with no room left is taken out (on Today and
+in the log). The merge base becomes the "Assigned" cell as read, less those names. Then one batch write puts our bookings back into
 every cell that differs, after re-reading (one request) each target row's id and "Assigned" cells:
 a row that moved or a cell the office edited meanwhile is left for the next sync. Each written cell
 becomes the new base. A failed or skipped write loses nothing: the next sync pushes the same

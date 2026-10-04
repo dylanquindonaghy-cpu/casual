@@ -276,7 +276,7 @@ every step works.
       (office editor and Sheets sync), so the notice report's short-notice flag never hides short
       notice. The move re-check takes the worker lock. Tests in `notice.report`. Update the
       "Dylan to confirm" note. (M6, M25, L21)
-- [ ] Sheets sync follows the office editor's rules: a role, time or site change to a booked shift
+- [x] Sheets sync follows the office editor's rules: a role, time or site change to a booked shift
       re-checks the people booked (refused → not applied, flagged for the office); a started shift
       is never re-timed or cancelled by a sync (ADR-013); refused names aren't silently erased from
       the firm's sheet. Tests for each. (M1, M2, L12)
@@ -471,13 +471,19 @@ every step works.
 - **Before any Sheets firm goes live:** the sheet's names now go through the rules (refused ones
   are logged `roster.sheet_booking_refused`). What's left: connect the real Google service account
   (steps parked), then add `google` to `SHEETS_TRANSPORT` (it accepts only `none` now) and wire
-  `googleSheetsClient` into `src/worker/index.ts`. Show the office `roster.sheet_booking_refused`
-  and `roster.sheet_conflict` (Phase 5): the refused name drops out of its sheet at the next write.
+  `googleSheetsClient` into `src/worker/index.ts`. (Since Phase 10 task 9 the office sees what the
+  sheet asks for and didn't get on Today, "From your rota sheet", and a refused name stays in its
+  sheet while there's room.)
 - A shift row the office deletes from its sheet stays in our copy and stays bookable (the sync
   ignores vanished rows). Decide what a vanished row means (a firm cancellation with notice, or a
   flag for the office) before any Sheets firm goes live.
 - Booking: availability (Phase 3 `/profile`, `worker_unavailable_days`) and blocked sites (Phase
   10 task 7, `worker_site_blocks`, set on the office's worker page) both feed the rules now.
+- **Dylan to confirm:** a role changed in the rota sheet on a booked shift is made when everyone
+  booked can do the new role (Phase 10 task 9: the same rules check as a move), but the office's
+  own shift editor refuses any role change once people are booked, and a CSV import refuses role
+  and time changes on booked shifts. Should the sheet be as strict as the editor (refuse every
+  role change on a booked shift), or the editor as flexible as the sheet?
 - **Dylan to confirm:** the office's override reason is free text in `events.data`. `bookShift()`
   refuses one holding a phone number or email address, but a name could still get in, and it
   shows in the shift's History. The Phase 5 manual-assign screen (built) keeps free text for now.
@@ -780,11 +786,15 @@ every step works.
       - An offer or a reminder already being sent in the milliseconds the office makes someone
         inactive may still go (those claims don't wait on the office's lock). Today shows the
         booking either way.
-    - **For Phase 10 task 9 (Sheets follows the office's rules), from task 8's review:** a site
-      change made on the sheet updates the shift but writes no per-worker `shift.moved` with
-      notice (the office editor does: golden rule 12); and a sheet re-timing a booked shift to a
-      start already passed updates it with no event (task 9's "never re-timed once started"
-      covers that one).
+    - ~~For Phase 10 task 9, from task 8's review~~: done in task 9 (a site change on the sheet is
+      logged per worker with notice; a sheet re-time into the past is refused as "started").
+    - **A flaky test (found in Phase 10 task 9's verify):** `sheets.jobs.test.ts` "queues one
+      sync for each firm that is due" asserts a second tick in the same minute queues nothing.
+      The sync job is de-duplicated by pg-boss's `singletonSeconds: 50` slots, which follow the
+      real clock, not the test's fixed one, so two ticks straddling a slot boundary (a fraction
+      of a second apart, about 1 run in a few hundred) queue two. Fix: de-duplicate on the app's
+      own minute (the job's idempotencyKey, e.g. a firm-scoped `singletonKey` holding the minute)
+      and pin the test to it.
     - **The office blocking a whole worker** (not just from a site): today only a rota sheet or
       file sets "blocked"; the office can unblock, make inactive, or block from a site. Add
       "Block" to the worker's page if a firm asks (Phase 10 task 7 built the rest).
@@ -1143,11 +1153,10 @@ every step works.
   - "Cancel {name}'s booking" on the shift page: its confirmation ("…They'll be told.") goes when
     the page refreshes and the booking moves to "Cancelled" (the Cancelled line stays). Keep the
     confirmation like "Mark the rest as worked" does.
-  - Edge cases: the Google Sheets sync can still move a started shift's times (marks stay on a
-    shift the sheet moved into the future); a sheet shift cancelled after it started keeps its
-    bookings, shows under "Who worked?" and can be marked, but hours on a cancelled shift don't
-    count; the profile's booked days count only `confirmed` bookings, so a day marked as worked
-    loses its "booked" flag on the unavailable-days list.
+  - Edge cases: (since Phase 10 task 9 the Sheets sync never re-times or cancels a started shift:
+    the office sees the sheet's change on Today instead); the profile's booked days count only
+    `confirmed` bookings, so a day marked as worked loses its "booked" flag on the unavailable-days
+    list.
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
   pack is `src/lib/messaging/whatsapp-templates.ts`: 19 templates (6 "no site" variants and a "no note" one), each
@@ -1556,3 +1565,4 @@ every step works.
 | 2026-10-03 | 10 | 0.8 | Office access can be taken away: on the office team page an admin can turn someone's access off (logged out everywhere at once, unused login links spent), back on (nothing old comes back), change their role (making an admin asks "Yes" first) or log them out on every device; the same from `firm:office-user`; the firm always keeps an admin; every change logged; a worker's status change from an import or the sheet also logs them out everywhere; two reviews found a deadlock with a login at the same moment and a missed session (both fixed and tested); 2759 tests + 50 e2e; verified and audited DONE on round 2 (see docs/work-log.md) |
 | 2026-10-03 | 10 | 1.1 | Worker leavers and blocks: a new Workers page where admins and resourcers make a worker inactive (logged out everywhere, no reminders, sticks against the rota sheet), active again, unblock them, block them from a site (rules check 9 made live, in both rules loaders) or log them out on every device, each with a reason from a list and logged; their bookings ahead show on Today as "Bookings to check" to cancel (with the new "They've left, or can't work here" reason and notice hours) or keep; a mobile change ends links and forgets phones; two reviews found a sheet sync race, vanishing confirmations and more (all fixed and tested, a few narrow items parked); 2816 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-03 | 10 | 0.5 | Notice for a moved or shortened shift counts from the earlier of the old and new start (office editor and rota sheet), so a shift moved earlier is flagged as short notice in the report (the firm's Employment Rights Act evidence); the move now holds each booked worker's row and the day's "applied" lock before re-checking them, so a booking at the same moment is seen (two race tests); "Dylan to confirm" note decided; 2822 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 1.2 | The rota sheet follows the office's rules: a role, time or site change to a booked shift is tried, then everyone booked is re-checked with the office move's own check (`src/lib/roster/recheck.ts`); refused → not made, logged once (`roster.sheet_change_refused`) and shown on Today's new "From your rota sheet"; a started shift is never re-timed or cancelled by a sync; refused names stay in the sheet's cell and are retried, and don't use up a place; a site change is logged per worker; new `shifts.sheet_issues` (migration 0030); two reviews' findings fixed; one older flaky test root-caused and parked; 2843 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |

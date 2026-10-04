@@ -211,8 +211,8 @@ async function claimNotice(
   const told = {
     start: (first && dateOf(first.oldStartsAt)) || row.startsAt,
     end: (first && dateOf(first.oldEndsAt)) || row.endsAt,
-    // A Google Sheet's moves don't log the site yet (a site change on the sheet isn't logged per
-    // worker: PLAN.md Parking lot, for Phase 10 task 9), so the shift's own site stands in.
+    // The site as it was (a sheet's moves log it too since Phase 10; older events may not: then
+    // the shift's own site stands in).
     siteId:
       first && "oldSiteId" in first ? ((first.oldSiteId as string | null) ?? null) : row.siteId,
   };

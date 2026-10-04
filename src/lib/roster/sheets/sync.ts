@@ -8,6 +8,7 @@ import {
   shifts,
   sites,
   workers,
+  type SheetIssues,
 } from "../../db/schema";
 import type { FirmTx, WithFirm } from "../../db/scoped";
 import { recordEvent } from "../../events/record";
@@ -31,6 +32,8 @@ import {
   type SheetShift,
 } from "./parse";
 import { markUrgentAfterDropout } from "../urgent";
+import { recheckHolders, type RecheckHolder } from "../recheck";
+import type { RuleCode } from "../../rules/eligibility";
 
 // One sync of a firm's Google Sheet with our mirror of it (docs/architecture.md, Roster plugs;
 // ADR-013). Run by the sheets-sync job, never by a request:
@@ -56,11 +59,15 @@ export const SYNC_LEASE_MS = 5 * MINUTE;
 export const REMOVED_ON_SHEET = "Removed on the rota sheet";
 export const CANCELLED_ON_SHEET = "Shift cancelled on the rota sheet";
 export const CHANGED_ON_SHEET = "Times changed on the rota sheet";
+export const SITE_CHANGED_ON_SHEET = "Site changed on the rota sheet";
 export const ADDED_ON_SHEET = "Put on the rota sheet by the office";
 // A name in the office's own sheet may override these (never credentials, role, account, a
 // double booking or a blocked site; golden rule 6). "Started" isn't among them: a sync never books
 // a shift that has started.
 export const SHEET_OVERRIDES = ["rest", "weekly_hours", "unavailable"] as const;
+// The fields of a shift that decide who may work it: a change to one of them on a booked shift is
+// made only if everyone booked can still work it (recheckHolders), never on a started shift.
+const RULED_FIELDS = ["role", "startsAt", "endsAt", "siteId"] as const;
 
 export type SyncOutcome =
   | { status: "no_source" }
@@ -92,6 +99,7 @@ interface PendingWrite {
   row: number;
   theirs: string[]; // the cell as read in step 2
   holders: string[]; // what we write
+  base: string[]; // the merge base once written: what we write, less names we couldn't book
 }
 
 interface MirrorResult {
@@ -170,7 +178,7 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
           .where(ours)
           .for("update");
         if (!held) throw new LeaseLost();
-        return mirror(tx, parsed, clock, now);
+        return mirror(tx, parsed, clock, now, claim.timezone);
       }),
     );
 
@@ -213,7 +221,7 @@ export async function syncSheet({ run, firmId, client, clock }: SyncDeps): Promi
       for (const w of written) {
         await tx
           .update(shifts)
-          .set({ syncedHolders: w.holders })
+          .set({ syncedHolders: w.base })
           .where(and(eq(shifts.source, "sheets"), eq(shifts.externalRef, w.ref)));
       }
       const outcome = {
@@ -318,6 +326,7 @@ async function mirror(
   sheet: ParsedSheet,
   clock: Clock,
   now: Date,
+  timeZone: string,
 ): Promise<MirrorResult> {
   const problems = [...sheet.problems];
   const plug = sheetsRosterPlug(tx, { clock });
@@ -392,18 +401,24 @@ async function mirror(
         headcount: shifts.headcount,
         instructions: shifts.instructions,
         syncedHolders: shifts.syncedHolders,
+        sheetIssues: shifts.sheetIssues,
       })
       .from(shifts)
       .where(and(eq(shifts.source, "sheets"), eq(shifts.externalRef, row.ref)))
       .for("no key update");
-    // A shift that has started (by the sheet or by our copy) is mirrored, but its bookings are
-    // history: never booked, cancelled or re-timed after the fact.
-    const started =
-      row.startsAt.getTime() <= now.getTime() ||
-      (existing !== undefined && existing.startsAt.getTime() <= now.getTime());
+    // What this sync couldn't do for this row, for Today (saved at the end of the row).
+    const issues: SheetIssues = {};
+    // A shift that has started (our copy's start, or the sheet's for a new row) is mirrored, but
+    // its bookings are history: never booked, cancelled, re-timed, re-roled or moved after the fact.
+    const started = (existing?.startsAt ?? row.startsAt).getTime() <= now.getTime();
     const sheetStatus = row.status === "cancelled" || row.status === "draft" ? row.status : null;
+    const theirs = holdersOf(row);
+    // Who holds it is merged only for a row we can read, not a draft (its names are the office's
+    // plan), a cancelled shift or a started one (history).
+    const merging = row.holdersReadable && sheetStatus === null && !started;
 
     let shiftId: string;
+    let removedFirst = 0;
     if (!existing) {
       const [inserted] = await tx
         .insert(shifts)
@@ -420,29 +435,116 @@ async function mirror(
       await recordEvent(tx, system("shift.created", "shift", shiftId, {}));
     } else {
       shiftId = existing.id;
+      // 1. The people the sheet took off it go first, at the shift as they knew it, so their
+      //    notice is right and they don't stand in the way of its other changes.
+      if (merging) {
+        const removed = await sheetRemovals(tx, plug, shiftId, theirs, existing.syncedHolders, now);
+        cancelled += removed;
+        removedFirst = removed;
+      }
+      // 2. Role, times and site decide who may work a shift: the office editor's rules apply to
+      //    the sheet too (audit M1, M2). A started shift is never changed by a sync (ADR-013), nor
+      //    one moved into the past; a booked one only if everyone still booked can work it (the
+      //    rules, with the sheet's overrides), tried in a savepoint. Otherwise our copy keeps
+      //    them, the office is told (Today, and the log), and the rest of the row still applies.
+      //    A shift the sheet cancels in the same edit keeps the times its people knew this sync.
+      const differs = (k: keyof typeof fields, value: (typeof fields)[keyof typeof fields]) =>
+        value instanceof Date
+          ? (existing[k] as Date).getTime() !== value.getTime()
+          : existing[k] !== value;
       const changed = (Object.keys(fields) as (keyof typeof fields)[]).filter((k) =>
-        fields[k] instanceof Date
-          ? (existing[k] as Date).getTime() !== (fields[k] as Date).getTime()
-          : existing[k] !== fields[k],
+        differs(k, fields[k]),
       );
-      if (changed.length > 0) {
-        if ((changed.includes("startsAt") || changed.includes("endsAt")) && !started) {
-          if (sheetStatus !== "cancelled") await logTimeChange(tx, shiftId, existing, row, now);
+      const checked = changed.filter((k) => (RULED_FIELDS as readonly string[]).includes(k));
+      const cancelling = sheetStatus === "cancelled" && existing.status !== "cancelled";
+      let refusal: NonNullable<SheetIssues["change"]>["reason"] | null = null;
+      let refusedBy: { workerId: string; codes: RuleCode[] }[] = [];
+      let verdicts: RecheckHolder[] = [];
+      if (checked.length > 0) {
+        if (started) refusal = "started";
+        else if (cancelling) {
+          // Held back this sync (below): its people are told of the shift they knew.
+        } else if (row.startsAt.getTime() <= now.getTime()) refusal = "in_past";
+        else {
+          const tried = await tryRuledChange(tx, {
+            shiftId,
+            ruled: {
+              role: fields.role,
+              startsAt: fields.startsAt,
+              endsAt: fields.endsAt,
+              siteId: fields.siteId,
+            },
+            existing,
+            timeZone,
+            now,
+          });
+          if (tried.refusal) {
+            refusal = tried.refusal;
+            refusedBy = tried.workers;
+          } else {
+            verdicts = tried.holders;
+          }
         }
-        await tx.update(shifts).set(fields).where(eq(shifts.id, shiftId));
+      }
+      const apply =
+        refusal !== null || cancelling
+          ? {
+              ...fields,
+              role: existing.role,
+              startsAt: existing.startsAt,
+              endsAt: existing.endsAt,
+              siteId: existing.siteId,
+            }
+          : fields;
+      if (refusal !== null) {
+        issues.change = {
+          fields: checked,
+          wanted: Object.fromEntries(
+            checked.map((k) => [
+              k,
+              fields[k] instanceof Date ? fields[k].toISOString() : fields[k],
+            ]),
+          ),
+          reason: refusal,
+          workers: refusedBy,
+        };
+        problems.push({
+          tab: "shifts",
+          row: row.row,
+          problem: refusal === "started" ? "started_change" : "change_refused",
+        });
+      }
+      // 3. What's left of the row.
+      const applied = changed.filter((k) => differs(k, apply[k]));
+      if (applied.length > 0) {
+        const moved = applied.some((k) => k === "startsAt" || k === "endsAt" || k === "siteId");
+        if (moved) await logTimeChange(tx, shiftId, existing, apply, now, verdicts);
+        await tx.update(shifts).set(apply).where(eq(shifts.id, shiftId));
         // A new site: a booking the office kept (Phase 10, Today's "Bookings to check") is looked
         // at again, in case its worker is blocked from the new site.
-        if (changed.includes("siteId")) {
+        if (applied.includes("siteId")) {
           await tx
             .update(assignments)
             .set({ officeKeptAt: null })
             .where(eq(assignments.shiftId, shiftId));
         }
-        await recordEvent(tx, system("shift.changed", "shift", shiftId, { fields: changed }));
+        // Anyone the sheet's own overrides let through (rest, hours, a day off), for the record.
+        const overridden = verdicts
+          .filter((v) => !v.ok)
+          .map((v) => ({ workerId: v.workerId, codes: v.codes }));
+        await recordEvent(
+          tx,
+          system("shift.changed", "shift", shiftId, {
+            fields: applied,
+            ...(overridden.length > 0 ? { overridden } : {}),
+          }),
+        );
+        // More places (or fewer): open / filled follow before any new name is booked.
+        if (applied.includes("headcount")) await refreshShiftStatus(tx, shiftId, now);
       }
     }
 
-    // Status set in the sheet: Cancelled or Draft; otherwise open/filled follow the slots.
+    // 4. Status set in the sheet: Cancelled or Draft; otherwise open/filled follow the slots.
     const before = existing?.status ?? sheetStatus ?? "open";
     if (sheetStatus === "cancelled" && before !== "cancelled" && !started) {
       for (const holder of await liveHolders(tx, shiftId)) {
@@ -462,7 +564,18 @@ async function mirror(
         }
       }
     }
-    const after = sheetStatus ?? (before === "cancelled" || before === "draft" ? "open" : before);
+    let after = sheetStatus ?? (before === "cancelled" || before === "draft" ? "open" : before);
+    // A shift that has started is never cancelled (or drafted) by a sync: its bookings are history.
+    if (existing && started && after !== before) {
+      issues.change = {
+        fields: [...(issues.change?.fields ?? []), "status"],
+        wanted: { ...(issues.change?.wanted ?? {}), status: after },
+        reason: "started",
+        workers: [],
+      };
+      problems.push({ tab: "shifts", row: row.row, problem: "started_change" });
+      after = before;
+    }
     if (existing && after !== before) {
       await tx.update(shifts).set({ status: after }).where(eq(shifts.id, shiftId));
       await recordEvent(
@@ -471,29 +584,45 @@ async function mirror(
       );
     }
 
-    // Who holds it. Not for a draft (its names are the office's plan: left alone in the sheet),
-    // a cancelled or started shift (history), or a cell we couldn't read (reported).
-    if (row.holdersReadable && sheetStatus === null && !started) {
-      const result = await mergeShift(
-        tx,
-        plug,
-        shiftId,
-        row,
-        existing?.syncedHolders ?? [],
+    // 5. Who holds it: the sheet's new names.
+    const previousNames = existing?.sheetIssues?.names ?? [];
+    if (merging) {
+      const result = await mergeShift(tx, plug, shiftId, row, {
+        base: existing?.syncedHolders ?? [],
+        saved: existing?.syncedHolders ?? null,
         workerIds,
         now,
-      );
+        previous: previousNames,
+        removedFirst,
+      });
+      if (result.names.length > 0) issues.names = result.names;
       booked += result.booked;
       cancelled += result.cancelled;
       notBooked += result.notBooked;
       if (result.write) writes.push(result.write);
       if (result.problem) problems.push(result.problem);
-    } else if (row.holdersReadable) {
-      // Nothing merged: the sheet's cell as read is the base from now on.
-      await tx
-        .update(shifts)
-        .set({ syncedHolders: holdersOf(row) })
-        .where(eq(shifts.id, shiftId));
+    } else {
+      if (row.holdersReadable) {
+        // Nothing merged. A draft's base is who's booked here, so its planned names count as new
+        // when it's published; otherwise the sheet's cell as read is the base from now on.
+        const base =
+          sheetStatus === "draft"
+            ? (await liveHolders(tx, shiftId)).flatMap((h) => (h.ref ? [h.ref] : []))
+            : theirs;
+        await saveBase(tx, shiftId, existing?.syncedHolders ?? null, base);
+      }
+      // A started shift's names are history; otherwise what was said last still stands.
+      if (!started && previousNames.length > 0) issues.names = previousNames;
+    }
+
+    // 6. Tell the office what's new (once: a sync that sees the same sheet says nothing), and keep
+    //    what's true now for Today.
+    if (issues.change && canon(issues.change) !== canon(existing?.sheetIssues?.change ?? null)) {
+      await recordEvent(tx, system("roster.sheet_change_refused", "shift", shiftId, issues.change));
+    }
+    const next = issues.change || issues.names ? issues : null;
+    if (canon(next) !== canon(existing?.sheetIssues ?? null)) {
+      await tx.update(shifts).set({ sheetIssues: next }).where(eq(shifts.id, shiftId));
     }
 
     // The sheet may have changed the headcount: keep open / filled true to the slots.
@@ -503,21 +632,60 @@ async function mirror(
   return { writes, booked, cancelled, notBooked, problems };
 }
 
+// The people the sheet took off a shift since the last sync (in the base, booked here, not in the
+// cell now): cancelled by the firm with notice, before the row's other changes are made.
+async function sheetRemovals(
+  tx: FirmTx,
+  plug: ReturnType<typeof sheetsRosterPlug>,
+  shiftId: string,
+  theirs: string[],
+  base: string[] | null,
+  now: Date,
+): Promise<number> {
+  const ours = await liveHolders(tx, shiftId);
+  // Someone booked here with no staff id: this shift's holders aren't synced (mergeShift says so).
+  if (ours.some((h) => !h.ref)) return 0;
+  const inBase = new Set(base ?? []);
+  const inTheirs = new Set(theirs);
+  let cancelled = 0;
+  for (const holder of ours) {
+    if (!holder.ref || !holder.workerId || holder.status !== "confirmed") continue;
+    if (!inBase.has(holder.ref) || inTheirs.has(holder.ref)) continue;
+    const result = await plug.markCancelled(shiftId, holder.workerId, {
+      reason: REMOVED_ON_SHEET,
+      by: "firm",
+      at: now,
+    });
+    if (result.status === "cancelled") {
+      cancelled += 1;
+      await logCancel(tx, { ...result, shiftId, workerId: holder.workerId }, REMOVED_ON_SHEET);
+    }
+  }
+  return cancelled;
+}
+
 async function mergeShift(
   tx: FirmTx,
   plug: ReturnType<typeof sheetsRosterPlug>,
   shiftId: string,
   row: SheetShift,
-  base: string[],
-  workerIds: Map<string, string>,
-  now: Date,
+  opts: {
+    base: string[];
+    saved: string[] | null; // the base as stored (null: never synced)
+    workerIds: Map<string, string>;
+    now: Date;
+    previous: NonNullable<SheetIssues["names"]>; // what the last sync told the office
+    removedFirst: number; // people the sheet took off this sync (sheetRemovals)
+  },
 ): Promise<{
   booked: number;
   cancelled: number;
   notBooked: number;
+  names: NonNullable<SheetIssues["names"]>;
   write?: PendingWrite;
   problem?: SheetProblem;
 }> {
+  const { base, workerIds, now, previous } = opts;
   const theirs = holdersOf(row);
   const ours = await liveHolders(tx, shiftId);
   if (ours.some((h) => !h.ref)) {
@@ -531,14 +699,18 @@ async function mergeShift(
       booked: 0,
       cancelled: 0,
       notBooked: 0,
+      names: previous,
       problem: { tab: "shifts", row: row.row, problem: "holder_not_in_sheet" },
     };
   }
+  // Who the merge keeps, and every name the sheet added since base (no headcount here: the rules
+  // run before a place is given, so a name they refuse doesn't use up a place a later name could
+  // have had: audit L12). The sheet's removals were made first (sheetRemovals).
   const merged = mergeHolders({
     base,
     theirs,
     ours: ours.map((h) => h.ref ?? ""),
-    headcount: row.headcount,
+    headcount: Number.MAX_SAFE_INTEGER,
   });
   let booked = 0;
   let cancelled = 0;
@@ -557,10 +729,23 @@ async function mergeShift(
     }
   }
   const held = new Set(ours.map((h) => h.ref));
-  let unbooked = merged.notBooked.length;
+  // Places left: the people still booked here.
+  let room = row.headcount - ours.filter((h) => !h.ref || keep.has(h.ref)).length;
+  // Names the sheet added that aren't booked (refused, no place, or unknown): they stay in the
+  // sheet's cell while there's room, for the office to see (Today, "From your rota sheet"), but
+  // out of the merge base, so each sync tries them again (booked once they can work it, or a place
+  // frees up).
+  const left = new Map<string, { workerId?: string; codes: string[] }>();
+  const refuse = (ref: string, workerId: string | undefined, codes: string[]) => {
+    left.set(ref, { ...(workerId ? { workerId } : {}), codes });
+  };
   for (const ref of merged.holders) {
     if (held.has(ref)) continue;
     const workerId = workerIds.get(ref);
+    if (room <= 0) {
+      refuse(ref, workerId, ["no_place"]);
+      continue;
+    }
     // A name in the office's sheet is the office placing someone: the rules still decide, with the
     // office's overrides (SHEET_OVERRIDES). Anything else they refuse isn't booked, and the refusal
     // is logged for the office. A firm whose rules settings are broken books no sheet names until
@@ -571,35 +756,22 @@ async function mergeShift(
         check = await checkBooking(tx, { shiftId, workerId, now, overrides: [...SHEET_OVERRIDES] });
       } catch (err) {
         if (!(err instanceof RulesSettingsError)) throw err;
-        unbooked += 1;
-        await recordEvent(
-          tx,
-          system("roster.sheet_booking_refused", "shift", shiftId, {
-            workerId,
-            codes: ["settings_invalid"],
-          }),
-        );
+        refuse(ref, workerId, ["settings_invalid"]);
         continue;
       }
     }
     if (!workerId || check?.status !== "checked") {
-      unbooked += 1;
+      refuse(ref, workerId, ["not_found"]);
       continue;
     }
     if (!check.result.pass) {
-      unbooked += 1;
-      await recordEvent(
-        tx,
-        system("roster.sheet_booking_refused", "shift", shiftId, {
-          workerId,
-          codes: check.result.codes,
-        }),
-      );
+      refuse(ref, workerId, check.result.codes);
       continue;
     }
     const result = await plug.assign(shiftId, workerId, check.result.pass);
     if (result.status === "assigned") {
       booked += 1;
+      room -= 1;
       // Named on the sheet after being offered it: they took it (src/lib/offers/close.ts).
       await acceptOwnOffer(tx, shiftId, workerId, now);
       await recordEvent(
@@ -615,33 +787,112 @@ async function mergeShift(
         }),
       );
     } else {
-      unbooked += 1;
+      refuse(ref, workerId, ["no_place"]);
     }
-  }
-  if (unbooked > 0) {
-    await recordEvent(
-      tx,
-      system("roster.sheet_conflict", "shift", shiftId, { notBooked: unbooked }),
-    );
   }
   // A name taken off close to the start leaves an urgent gap, as any dropout does, but only if
   // the sheet's changes as a whole left one: checked after its new names are booked, so a name
   // swapped for another is not a dropout.
-  if (cancelled > 0) await markUrgentAfterDropout(tx, { shiftId, now, source: "sheets" });
-  const final = (await liveHolders(tx, shiftId)).map((h) => h.ref ?? "");
-  const inStep = sameHolders(final, theirs);
-  // The sheet's changes up to this read are applied: its cell as read is the base, until a
-  // write succeeds (then the written value is).
-  await tx
-    .update(shifts)
-    .set({ syncedHolders: inStep ? final : theirs })
-    .where(eq(shifts.id, shiftId));
+  if (cancelled + opts.removedFirst > 0) {
+    await markUrgentAfterDropout(tx, { shiftId, now, source: "sheets" });
+  }
+  const live = await liveHolders(tx, shiftId);
+  const final = live.map((h) => h.ref ?? "");
+  // What the cell should say: our bookings, then the sheet's names we couldn't book (in the
+  // sheet's order) while there's room for them. A sheet name is never written into a cell past
+  // the shift's places (the next read couldn't use the cell), so a name with no room left is the
+  // only one taken out of the office's sheet: on Today and in the log, never silently.
+  const spare = Math.max(0, row.headcount - final.length);
+  const stayInSheet = theirs.filter((ref) => left.has(ref) && !final.includes(ref)).slice(0, spare);
+  const wanted = [...final, ...stayInSheet];
+  // For Today: the names left this sync (dropped when there was no room in the cell), and any
+  // dropped before that still isn't booked or back in the sheet.
+  const finalIds = new Set(live.flatMap((h) => (h.workerId ? [h.workerId] : [])));
+  const theirsIds = new Set(theirs.flatMap((ref) => workerIds.get(ref) ?? []));
+  const now_ = [...left].flatMap(([ref, l]) =>
+    l.workerId
+      ? [
+          {
+            workerId: l.workerId,
+            codes: l.codes,
+            ...(stayInSheet.includes(ref) ? {} : { dropped: true }),
+          },
+        ]
+      : [],
+  );
+  const names: NonNullable<SheetIssues["names"]> = [
+    ...now_,
+    ...previous.filter(
+      (p) =>
+        p.dropped &&
+        !finalIds.has(p.workerId) &&
+        !theirsIds.has(p.workerId) &&
+        !now_.some((n) => n.workerId === p.workerId),
+    ),
+  ];
+  // Each refusal is logged once, until what's said about that name changes (from the last sync's
+  // own record, so a sync that sees the same sheet says nothing new).
+  const told = new Set(previous.map((p) => canon(p)));
+  let newlyRefused = 0;
+  for (const n of now_) {
+    if (told.has(canon(n))) continue;
+    newlyRefused += 1;
+    await recordEvent(
+      tx,
+      system("roster.sheet_booking_refused", "shift", shiftId, {
+        workerId: n.workerId,
+        codes: n.codes,
+        ...(n.dropped ? { droppedFromSheet: true } : {}),
+      }),
+    );
+  }
+  if (newlyRefused > 0) {
+    await recordEvent(
+      tx,
+      system("roster.sheet_conflict", "shift", shiftId, { notBooked: left.size }),
+    );
+  }
+  const inStep = sameHolders(wanted, theirs);
+  // The sheet's changes up to this read are applied: its cell as read is the base (less the names
+  // we couldn't book), until a write succeeds (then the written value is, less the same).
+  const notLeft = (refs: string[]) => refs.filter((ref) => !left.has(ref));
+  await saveBase(tx, shiftId, opts.saved, notLeft(theirs));
   return {
     booked,
     cancelled,
-    notBooked: unbooked,
-    write: inStep ? undefined : { ref: row.ref, row: row.row, theirs, holders: final },
+    notBooked: left.size,
+    names,
+    write: inStep
+      ? undefined
+      : { ref: row.ref, row: row.row, theirs, holders: wanted, base: notLeft(wanted) },
   };
+}
+
+// The merge base, written only when it changes (every sheet row is synced every minute).
+async function saveBase(
+  tx: FirmTx,
+  shiftId: string,
+  was: string[] | null,
+  base: string[],
+): Promise<void> {
+  if (was !== null && was.length === base.length && was.every((ref, i) => ref === base[i])) return;
+  await tx.update(shifts).set({ syncedHolders: base }).where(eq(shifts.id, shiftId));
+}
+
+// Compares two values as JSON with every object's keys in order (jsonb reorders them on the way
+// in, so a plain JSON.stringify of what we read back never matches what we built).
+function canon(value: unknown): string {
+  const sorted = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(sorted)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.entries(v as Record<string, unknown>)
+              .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0))
+              .map(([k, w]) => [k, sorted(w)]),
+          )
+        : v;
+  return JSON.stringify(sorted(value));
 }
 
 const holdersOf = (row: SheetShift) => row.assigned.map((a) => a.staffRef);
@@ -665,34 +916,97 @@ async function logCancel(
 }
 
 // Golden rule 12: a move or curtailment by the office is logged per booked worker, with the old
-// and new times and the notice given (counted from the earlier of the old and new start, as the
-// office editor counts it: changeNoticeHours).
+// and new times and site and the notice given (counted from the earlier of the old and new start,
+// as the office editor counts it: changeNoticeHours), and the rules' answer for them at the new
+// shift (rulesOk, codes: what the sheet's overrides let through). Curtailed when the new times
+// sit inside the old ones at the same site; otherwise moved (the office editor's rule). The
+// reason says what changed: the times, or only the site.
 async function logTimeChange(
   tx: FirmTx,
   shiftId: string,
-  before: { startsAt: Date; endsAt: Date },
-  after: { startsAt: Date; endsAt: Date },
+  before: { startsAt: Date; endsAt: Date; siteId: string | null },
+  after: { startsAt: Date; endsAt: Date; siteId: string | null },
   now: Date,
+  verdicts: RecheckHolder[],
 ): Promise<void> {
+  const sameTimes =
+    after.startsAt.getTime() === before.startsAt.getTime() &&
+    after.endsAt.getTime() === before.endsAt.getTime();
   const curtailed =
+    before.siteId === after.siteId &&
     after.startsAt.getTime() >= before.startsAt.getTime() &&
     after.endsAt.getTime() <= before.endsAt.getTime();
+  const verdictOf = new Map(verdicts.map((v) => [v.workerId, v]));
   for (const holder of await liveHolders(tx, shiftId)) {
-    if (holder.status !== "confirmed") continue;
+    if (holder.status !== "confirmed" || !holder.workerId) continue;
+    const v = verdictOf.get(holder.workerId);
     await recordEvent(
       tx,
       system(curtailed ? "shift.curtailed" : "shift.moved", "assignment", holder.assignmentId, {
         by: "firm",
         shiftId,
         workerId: holder.workerId,
-        reason: CHANGED_ON_SHEET,
+        reason: sameTimes ? SITE_CHANGED_ON_SHEET : CHANGED_ON_SHEET,
         oldStartsAt: before.startsAt.toISOString(),
         oldEndsAt: before.endsAt.toISOString(),
         newStartsAt: after.startsAt.toISOString(),
         newEndsAt: after.endsAt.toISOString(),
+        oldSiteId: before.siteId,
+        newSiteId: after.siteId,
         noticeHours: changeNoticeHours(before.startsAt, after.startsAt, now),
+        ...(v ? { rulesOk: v.ok, ...(!v.ok ? { codes: v.codes } : {}) } : {}),
       }),
     );
+  }
+}
+
+class ChangeRefused extends Error {
+  constructor(readonly workers: { workerId: string; codes: RuleCode[] }[]) {
+    super("the people booked can't work the changed shift");
+  }
+}
+
+// A booked shift's role, times or site changed in the sheet: made in a savepoint, then everyone
+// still booked checked at the changed shift (src/lib/roster/recheck.ts, with the sheet's
+// overrides). Someone can't work it, or the firm's rules settings can't be read (fail closed):
+// rolled back, and who and why are returned. Otherwise it stands, with everyone's answer (the
+// caller writes the same row again and logs it).
+async function tryRuledChange(
+  tx: FirmTx,
+  opts: {
+    shiftId: string;
+    ruled: { role: string; startsAt: Date; endsAt: Date; siteId: string | null };
+    existing: { siteId: string | null };
+    timeZone: string;
+    now: Date;
+  },
+): Promise<
+  | { refusal: "rules" | "settings"; workers: { workerId: string; codes: RuleCode[] }[] }
+  | { refusal: null; holders: RecheckHolder[] }
+> {
+  try {
+    const holders = await tx.transaction(async (sp) => {
+      await sp.update(shifts).set(opts.ruled).where(eq(shifts.id, opts.shiftId));
+      const result = await recheckHolders(sp, {
+        shiftId: opts.shiftId,
+        now: opts.now,
+        startsAt: opts.ruled.startsAt,
+        timeZone: opts.timeZone,
+        siteChanged: opts.ruled.siteId !== opts.existing.siteId,
+        allowed: SHEET_OVERRIDES,
+      });
+      if (result.blocked.length > 0) {
+        throw new ChangeRefused(
+          result.blocked.map((b) => ({ workerId: b.workerId, codes: b.codes })),
+        );
+      }
+      return result.holders;
+    });
+    return { refusal: null, holders };
+  } catch (err) {
+    if (err instanceof ChangeRefused) return { refusal: "rules", workers: err.workers };
+    if (err instanceof RulesSettingsError) return { refusal: "settings", workers: [] };
+    throw err;
   }
 }
 

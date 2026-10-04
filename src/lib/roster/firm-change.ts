@@ -1,16 +1,16 @@
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
-import { assignments, firms, offers, shifts, sites, workers } from "../db/schema";
+import { firms, offers, shifts, sites } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { queueFirmChangeNotice } from "../notices/firm-change";
 import { OVERRIDABLE_CODES, type RuleCode } from "../rules/eligibility";
-import { lockAppliedDay, officeCanPlace, previewBooking, rosterId } from "./book";
+import { officeCanPlace, rosterId } from "./book";
 import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES } from "./firm-reasons";
 import { changeNoticeHours } from "./notice";
-import { localDateOf } from "../time/zoned";
+import { recheckHolders } from "./recheck";
 import { isoDate, timesOn } from "./shift-times";
 
 // The office moving or shortening a shift people are booked on (docs/api-and-jobs.md,
@@ -128,95 +128,23 @@ export async function moveShiftByFirm(
           .set({ ...times, siteId })
           .where(eq(shifts.id, request.shiftId));
 
-        // Each booked worker's row held first (in id order, after the shift's: the order a booking
-        // takes them), so a booking of theirs happening at this moment finishes first and is seen
-        // by the check below, or waits for this move (audit L21); "kept" is read after it (the
-        // office's worker controls clear it under that lock: src/lib/office/worker-access.ts).
-        // Then the new day's "applied" lock, as a booking takes it, so a booking on an application
-        // in progress that day and this move count the allowance in turn. The shift's lock keeps
-        // who is booked from changing meanwhile.
-        const booked = await tx
-          .select({ workerId: assignments.workerId })
-          .from(assignments)
-          .where(
-            and(
-              eq(assignments.shiftId, request.shiftId),
-              eq(assignments.status, "confirmed"),
-              isNotNull(assignments.workerId),
-            ),
-          );
-        const holderIds = [
-          ...new Set(booked.flatMap((b) => (b.workerId ? [b.workerId] : []))),
-        ].sort();
-        if (holderIds.length > 0) {
-          await tx
-            .select({ id: workers.id })
-            .from(workers)
-            .where(inArray(workers.id, holderIds))
-            .orderBy(asc(workers.id))
-            .for("no key update");
-          await lockAppliedDay(tx, localDateOf(times.startsAt, firm?.timezone ?? "Europe/London"));
-        }
-        const holders = await tx
-          .select({
-            assignmentId: assignments.id,
-            workerId: assignments.workerId,
-            first: workers.firstName,
-            last: workers.lastName,
-            kept: assignments.officeKeptAt,
-          })
-          .from(assignments)
-          .innerJoin(
-            workers,
-            and(eq(workers.firmId, assignments.firmId), eq(workers.id, assignments.workerId)),
-          )
-          .where(
-            and(
-              eq(assignments.shiftId, request.shiftId),
-              eq(assignments.status, "confirmed"),
-              isNotNull(assignments.workerId),
-            ),
-          )
-          .orderBy(asc(assignments.slot));
-        // Can each of them still work it? The rules at the new time, before anything is logged.
-        const checks = new Map<string, { ok: boolean; codes: RuleCode[]; reasons: string[] }>();
-        for (const h of holders) {
-          if (!h.workerId) continue;
-          const verdict = await previewBooking(tx, {
-            shiftId: request.shiftId,
-            workerId: h.workerId,
-            now,
-          });
-          // No answer (their record is missing) counts as a no the office can't override.
-          checks.set(
-            h.workerId,
-            verdict ?? { ok: false, codes: [], reasons: ["Their record couldn't be checked."] },
-          );
-        }
-        const overridable = (codes: RuleCode[]) =>
-          codes.length > 0 &&
-          codes.every((c) => (OVERRIDABLE_CODES as readonly string[]).includes(c));
-        // A booking the office chose to keep (Today's "Bookings to check", Phase 10) though its
-        // worker isn't active, or is blocked from the site: those two don't stop a move of the
-        // time. A move to another site asks again (below), so a block there is never kept unseen.
-        const accepted = (codes: RuleCode[], kept: boolean) =>
-          kept && !siteChanged
-            ? codes.filter((c) => c !== "not_active" && c !== "blocked_site")
-            : codes;
-        const blocked = holders.filter((h) => {
-          const c = h.workerId ? checks.get(h.workerId) : undefined;
-          if (!c || c.ok) return false;
-          if (c.codes.length === 0) return true; // their record couldn't be checked: never let through
-          const left = accepted(c.codes, h.kept !== null);
-          return left.length > 0 && !overridable(left);
+        // Can each booked worker still work it? The rules at the new time and site, with their
+        // rows (and the new day's "applied" lock) held: src/lib/roster/recheck.ts.
+        const { holders, blocked } = await recheckHolders(tx, {
+          shiftId: request.shiftId,
+          now,
+          startsAt: times.startsAt,
+          timeZone: firm?.timezone ?? "Europe/London",
+          siteChanged,
+          allowed: OVERRIDABLE_CODES,
         });
         if (blocked.length > 0) {
           throw new MoveBlocked(
             blocked.map((h) => ({
-              workerId: h.workerId ?? "",
-              name: `${h.first} ${h.last}`,
-              reasons: (h.workerId && checks.get(h.workerId)?.reasons) || [],
-              codes: (h.workerId && checks.get(h.workerId)?.codes) || [],
+              workerId: h.workerId,
+              name: h.name,
+              reasons: h.reasons,
+              codes: h.codes,
             })),
           );
         }
@@ -248,10 +176,8 @@ export async function moveShiftByFirm(
               ...moved,
               noticeHours: notice,
               // The rules' answer at the new time (codes only): what the office was shown.
-              rulesOk: h.workerId ? (checks.get(h.workerId)?.ok ?? false) : false,
-              ...(h.workerId && !checks.get(h.workerId)?.ok
-                ? { codes: checks.get(h.workerId)?.codes ?? [] }
-                : {}),
+              rulesOk: h.ok,
+              ...(!h.ok ? { codes: h.codes } : {}),
             },
           });
           await queueFirmChangeNotice(tx, { eventId, assignmentId: h.assignmentId });
@@ -276,12 +202,8 @@ export async function moveShiftByFirm(
         });
 
         const warnings = holders
-          .filter((h) => h.workerId && !checks.get(h.workerId)?.ok)
-          .map((h) => ({
-            workerId: h.workerId ?? "",
-            name: `${h.first} ${h.last}`,
-            reasons: (h.workerId && checks.get(h.workerId)?.reasons) || [],
-          }));
+          .filter((h) => !h.ok)
+          .map((h) => ({ workerId: h.workerId, name: h.name, reasons: h.reasons }));
         return {
           status: curtailed ? "curtailed" : "moved",
           told: holders.length,

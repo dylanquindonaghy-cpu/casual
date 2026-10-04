@@ -7898,3 +7898,100 @@ Parked for task 9 (making the rota sheet follow the office's rules):
 2. Open a booked shift a few days ahead, and choose "Move, shorten or cancel".
 3. Move it to tomorrow. The confirmation now says the real notice.
 4. The Notice report shows the change as short notice.
+
+## 2026-10-04 — Phase 10, task 9: the rota sheet follows the office's rules
+
+- **Time spent:** 1.2 hours (started 23:07 UTC on 3 October).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=25f4e382795d4b67 e2e=true`
+  (2,843 tests, 51 browser tests). The first run failed on one older test that is flaky (it
+  sometimes fails for timing reasons, not because the code is wrong; see "Parked" below). The
+  second run passed with that test unchanged.
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M1, M2, L12.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+A firm can keep its rota in a **Google Sheet** (a spreadsheet the office already uses). Every
+minute, the **sync** (a background job that copies the sheet into our database and writes our
+bookings back) reads it.
+
+Before this task, the sheet could do things the office's own screens refuse:
+- **Change a booked shift** (its role, times or site) without checking the people already booked.
+  A worker could end up on a shift their licence doesn't cover, or with too little rest.
+- **Re-time or cancel a shift that had already started.**
+- **Quietly erase names** the office typed in when the rules refused them.
+
+Now:
+- **A change to a booked shift is checked first.** The sync tries the change, then runs the same
+  rules check the office's "Move" button uses, for everyone booked. If anyone can't work the shift
+  as changed, the change is undone and the shift stays as it was. The office is told on Today, and
+  it's logged once (not every minute).
+- **A started shift is left alone.** The sheet can't move it, shorten it or cancel it. The attempt
+  is logged and shown on Today. Headcount and instructions still follow the sheet.
+- **Refused names stay on the sheet.** If the rules refuse a name the office typed, the name stays
+  in its cell, and Today says why. Each sync tries again, so the person is booked as soon as they
+  can work it. A refused name no longer uses up a place someone else could have had.
+- **One case where a name does leave the sheet:** when there are more names than places, the extra
+  name can't stay in the cell (the next read couldn't make sense of it). It's taken out, shown on
+  Today and logged.
+- **Today has a new section, "From your rota sheet".** It lists sheet changes that weren't made and
+  names that weren't booked, with the reason in plain words. It clears itself when the office fixes
+  the sheet.
+- **A site change made on the sheet is now logged for each booked worker**, with notice hours, like
+  a move.
+
+Key facts:
+- One shared re-check (`src/lib/roster/recheck.ts`) is used by both the office's move and the
+  sheet, so the two can't drift apart.
+- A new database column, `shifts.sheet_issues` (migration 0030), holds what Today shows. It is
+  rewritten only when something actually changes.
+- New log entries: `roster.sheet_change_refused`, and `roster.sheet_booking_refused` now also says
+  when a name was taken out of the sheet.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One re-check for both the office and the sheet | They can't disagree on who may work a changed shift | Copying the office's code into the sync |
+| Try the change inside a **savepoint** (a checkpoint in the database you can roll back to), undo it if anyone fails | The rules see the shift exactly as it would be; nothing half-made is left behind | Building "the shift as it would be" by hand |
+| Removals first, then the change, then the rest, then new names | Someone the office swapped out can't block the edit; a raised headcount is seen by new names | One pass (the reviews found false refusals) |
+| Refused names stay in the cell and are retried every sync | The office's typing isn't erased; they're booked as soon as they can be | Never retrying them; erasing them (the old bug) |
+| A role change on a booked shift is allowed when everyone booked can do the new role | The firm's sheet is its own; only what the rules refuse is refused | Refuse every role change, as the office editor does. **Dylan to confirm** (in `PLAN.md`) |
+
+### What the new tests prove
+
+- **`tests/integration/sheets.sync.test.ts`**, new cases:
+  - A role change a booked worker can't do is refused, logged once, and not rewritten on the next
+    identical sync.
+  - A time change past a booked worker's licence expiry is refused.
+  - A site change is applied and logged per worker.
+  - A started shift isn't re-timed or cancelled; a change into the past is refused.
+  - A refused name doesn't use a place, stays in the sheet and is booked once it can be.
+  - Today shows the issues and clears them when fixed.
+  - Broken rules settings refuse just that change; the rest of the sync goes through.
+  - A swap plus a role change, a raised headcount plus a new name, a cancel plus a move (notice
+    counted from the old start), a draft shift published later, and a change that passes only by
+    the sheet's allowed overrides (recorded).
+- **`tests/unit/office.sheet-issues-copy.test.ts`** and **`tests/unit/office.today-view.test.ts`:**
+  Today's wording and the new section.
+- **The tests catch the bugs:** each fix was deliberately broken in turn, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to confirm** (in `PLAN.md`): should the sheet be allowed to change a booked shift's role
+  when everyone booked can do it? The office's own editor never changes a role.
+- **A flaky test** (`sheets.jobs.test.ts`): it can fail when two checks happen either side of a
+  50-second boundary on the real clock. Not caused by this task. The fix is parked in `PLAN.md`.
+
+### How to see it working
+
+There's no real Google Sheet connected locally yet (that needs a Google account, which is on the
+accounts-to-create list). Until then, the tests show it:
+
+1. Run `npx vitest run tests/integration/sheets.sync.test.ts` (with the database up:
+   `npm run db:up`).
+2. You should see every case listed above pass, including "a role Ada can't do isn't made" and "a
+   started shift is never re-timed or cancelled by a sync".
+3. Once a sheet is connected, the office's Today page shows "From your rota sheet" with any change
+   that wasn't made, and why.

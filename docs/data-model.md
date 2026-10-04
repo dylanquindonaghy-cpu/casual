@@ -266,7 +266,11 @@ create table shifts (
   external_ref text,                     -- the row's key in the firm's sheet or import
   instructions text,
   synced_holders text[],                 -- Sheets: the "Assigned" cell's staff ids after the last
-                                         -- successful sync (the three-way merge's base)
+                                         -- successful sync (the three-way merge's base; names the
+                                         -- sync couldn't book left out, so they're tried again)
+  sheet_issues jsonb,                    -- Sheets only (Phase 10): what the sheet asks for that the last
+                                         -- sync couldn't do ({change?: {fields, wanted, reason, workers},
+                                         -- names?: [{workerId, codes, dropped?}]}), for Today; null: none
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, source, external_ref) -- one shift per sheet/import row (NULLs don't collide)

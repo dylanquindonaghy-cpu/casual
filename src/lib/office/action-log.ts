@@ -120,12 +120,14 @@ function range(query: LogQuery, today: string, timeZone: string) {
   return { from, to, start: midnight(from), end: midnight(addDays(to, 1)), clamped };
 }
 
-// The action log's rows about one worker (the table aliased `e`): theirs, ones naming them, and ones
+// The action log's rows about one worker (the table aliased `e`): theirs, ones naming them (as the
+// event's worker, or among its workers: a refused move or rota sheet change), and ones
 // about their bookings, requests, credentials, pay lines and queries, login links and codes. The
 // Worker filter here and their data export (src/lib/gdpr/worker-export.ts) both use it.
 export function eventsAboutWorker(w: string): SQL {
   return sql`(
       e.data ->> 'workerId' = ${w}
+      or e.data -> 'workers' @> jsonb_build_array(jsonb_build_object('workerId', ${w}::text))
       or (e.actor_type = 'worker' and e.actor_id = ${w}::uuid)
       or (e.entity_type = 'worker' and e.entity_id = ${w}::uuid)
       or (e.entity_type = 'assignment' and e.entity_id in (
@@ -228,7 +230,18 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
     ...new Set(values.filter((v): v is string => !!v && uuid.safeParse(v).success)),
   ];
   const workerIds = ids(
-    page.flatMap((r) => [r.subject_worker, r.actor_type === "worker" ? r.actor_id : null]),
+    page.flatMap((r) => [
+      r.subject_worker,
+      r.actor_type === "worker" ? r.actor_id : null,
+      // People named in a refused rota sheet change (roster.sheet_change_refused).
+      ...(Array.isArray(r.data.workers)
+        ? r.data.workers.map((w) =>
+            typeof (w as { workerId?: unknown }).workerId === "string"
+              ? ((w as { workerId: string }).workerId as string)
+              : null,
+          )
+        : []),
+    ]),
   );
   const officeIds = ids(
     page.flatMap((r) => [

@@ -1,8 +1,14 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess, type OfficeRole } from "../auth/roles";
-import { CANCELLED_ASSIGNMENT_STATUSES, firms, REQUEST_TYPES } from "../db/schema";
+import {
+  CANCELLED_ASSIGNMENT_STATUSES,
+  firms,
+  REQUEST_TYPES,
+  workers,
+  type SheetIssues,
+} from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { addDays, localDateOf } from "../time/zoned";
 
@@ -109,6 +115,23 @@ export interface TodayBookingToCheck {
   cause: "inactive" | "blocked" | "site_blocked";
 }
 
+// What the firm's Google Sheet asks for that the app couldn't do (Phase 10, audit M1, M2, L12):
+// a change to a booked or started shift the rules refused, and names it couldn't book. Kept on the
+// shift by each sync (shifts.sheet_issues), so it shows what's true now; until the shift ends.
+export interface TodaySheetIssue {
+  shiftId: string;
+  role: string;
+  site: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  change: {
+    fields: string[];
+    reason: "rules" | "settings" | "started" | "in_past";
+    people: { name: string; codes: string[] }[];
+  } | null;
+  names: { name: string; codes: string[]; dropped: boolean }[];
+}
+
 export interface TodayView {
   officeUser: { id: string; name: string; role: OfficeRole };
   timeZone: string;
@@ -118,6 +141,8 @@ export interface TodayView {
   cancellations: TodayCancellation[];
   toCheck: TodayBookingToCheck[];
   toCheckMore: boolean; // more than the list shows
+  fromSheet: TodaySheetIssue[];
+  fromSheetMore: boolean;
   toMark: TodayToMark[]; // shifts that ended in the last 7 days
   toMarkMore: boolean; // more than the list shows
   requests: { total: number; byType: Partial<Record<(typeof REQUEST_TYPES)[number], number>> };
@@ -284,6 +309,46 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
      limit ${LIST_MAX + 1}
   `);
 
+  const { rows: sheetRows } = await tx.execute<{
+    id: string;
+    role: string;
+    starts_at: string | Date;
+    ends_at: string | Date;
+    site_name: string | null;
+    sheet_issues: SheetIssues;
+  }>(sql`
+    select s.id, s.role, s.starts_at, s.ends_at, si.name as site_name, s.sheet_issues
+      from shifts s
+      left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+     where s.sheet_issues is not null and s.status <> 'cancelled'
+       -- Until the shift ends; a change refused because ours had started stays while the sheet's
+       -- wanted start is still ahead (a row id reused for a new date: it needs a new id).
+       and (s.ends_at > ${now}
+            or (s.sheet_issues -> 'change' ->> 'reason' = 'started'
+                and (s.sheet_issues -> 'change' -> 'wanted' ->> 'startsAt')::timestamptz > ${now}))
+     order by s.starts_at, s.id
+     limit ${LIST_MAX + 1}
+  `);
+  const sheetWorkerIds = [
+    ...new Set(
+      sheetRows.flatMap((r) => [
+        ...(r.sheet_issues.change?.workers ?? []).map((w) => w.workerId),
+        ...(r.sheet_issues.names ?? []).map((n) => n.workerId),
+      ]),
+    ),
+  ];
+  const sheetNames = new Map(
+    sheetWorkerIds.length === 0
+      ? []
+      : (
+          await tx
+            .select({ id: workers.id, first: workers.firstName, last: workers.lastName })
+            .from(workers)
+            .where(inArray(workers.id, sheetWorkerIds))
+        ).map((w) => [w.id, `${w.first} ${w.last}`]),
+  );
+  const nameOf = (id: string) => sheetNames.get(id) ?? "Someone";
+
   const { rows: toMark } = await tx.execute<{
     id: string;
     role: string;
@@ -388,6 +453,29 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
       startsAt: new Date(b.starts_at),
       endsAt: new Date(b.ends_at),
       cause: b.worker_status === "active" ? "site_blocked" : b.worker_status,
+    })),
+    fromSheetMore: sheetRows.length > LIST_MAX,
+    fromSheet: sheetRows.slice(0, LIST_MAX).map((r) => ({
+      shiftId: r.id,
+      role: r.role,
+      site: r.site_name,
+      startsAt: new Date(r.starts_at),
+      endsAt: new Date(r.ends_at),
+      change: r.sheet_issues.change
+        ? {
+            fields: r.sheet_issues.change.fields,
+            reason: r.sheet_issues.change.reason,
+            people: r.sheet_issues.change.workers.map((w) => ({
+              name: nameOf(w.workerId),
+              codes: w.codes,
+            })),
+          }
+        : null,
+      names: (r.sheet_issues.names ?? []).map((n) => ({
+        name: nameOf(n.workerId),
+        codes: n.codes,
+        dropped: n.dropped === true,
+      })),
     })),
     toMarkMore: toMark.length > LIST_MAX,
     toMark: toMark.slice(0, LIST_MAX).map((t) => ({

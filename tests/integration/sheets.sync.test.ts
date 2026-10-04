@@ -5,11 +5,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { sheetsRosterPlug } from "@/lib/roster/native";
 import type { RosterPlug } from "@/lib/roster/plug";
+import { eventsAboutWorker } from "@/lib/office/action-log";
+import { loadToday } from "@/lib/office/today";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
 import {
   CANCELLED_ON_SHEET,
   CHANGED_ON_SHEET,
   REMOVED_ON_SHEET,
+  SITE_CHANGED_ON_SHEET,
   syncSheet,
   SYNC_LEASE_MS,
 } from "@/lib/roster/sheets/sync";
@@ -469,8 +472,14 @@ describe("sheets.sync: from the sheet into our tables", () => {
       oldEndsAt: "2026-11-08T06:00:00.000Z",
       newStartsAt: "2026-11-07T22:00:00.000Z",
       newEndsAt: "2026-11-08T04:00:00.000Z",
+      // The site too, as the office editor logs it (Phase 10): here it didn't change.
+      oldSiteId: expect.any(String),
+      newSiteId: expect.any(String),
       noticeHours: 37,
+      // The rules' answer for Ada at the new times (Phase 10): fine.
+      rulesOk: true,
     });
+    expect(curtailed?.data.oldSiteId).toBe(curtailed?.data.newSiteId);
     // The shift and worker named are the booking's own (the notice report reads them).
     const { rows: booking } = await su.query<{ shift_id: string; worker_id: string }>(
       "select shift_id::text, worker_id::text from assignments where id = $1",
@@ -587,7 +596,13 @@ describe("sheets.sync: from our tables back to the sheet", () => {
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N003"); // office adds N003 too
     expect(await sync(f)).toMatchObject({ notBooked: 1, writes: 1 });
     expect(await holdersOf(f.firmId, "P1")).toEqual(["N001", "N002"]);
+    // The portal booking goes into the sheet. N003 can't stay: the cell would name three people
+    // for two places (the next read couldn't use it). It's on Today and in the log instead.
     expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N001, N002");
+    expect((await eventsOf(f.firmId, "roster.sheet_booking_refused"))[0]?.data).toMatchObject({
+      workerId: await idOf("workers", f.firmId, "N003"),
+      codes: ["no_place"],
+    });
     const [clash] = await eventsOf(f.firmId, "roster.sheet_conflict");
     expect(clash).toEqual({ data: { source: "sheets", notBooked: 1 }, entity_id: shiftId });
   });
@@ -925,7 +940,7 @@ describe("sheets.sync: the rules decide who the sheet can book", () => {
       [f.firmId, ben],
     );
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002");
-    expect(await sync(f)).toMatchObject({ booked: 1, notBooked: 1, writes: 1 });
+    expect(await sync(f)).toMatchObject({ booked: 1, notBooked: 1, writes: 0 });
     expect(await holdersOf(f.firmId, "P1")).toEqual(["N002"]);
     const shiftId = await idOf("shifts", f.firmId, "P1");
     expect(await eventsOf(f.firmId, "roster.sheet_booking_refused")).toEqual([
@@ -934,9 +949,23 @@ describe("sheets.sync: the rules decide who the sheet can book", () => {
         data: { source: "sheets", workerId: ada, codes: ["credential_missing"] },
       },
     ]);
-    // As with a name added to a full shift, the sheet is put back in step with the bookings.
-    expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N002");
+    // The office's name isn't erased from its own sheet (audit L12): the cell is as it typed it,
+    // so nothing needs writing.
+    expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N001, N002");
     expect(await eventsOf(f.firmId, "shift.assigned")).toHaveLength(1);
+    // The next sync tries Ada again (still refused) and says nothing new; once she has a PTS card,
+    // the one after books her.
+    expect(await sync(f, new Date(NOW.getTime() + 60_000))).toMatchObject({
+      booked: 0,
+      notBooked: 1,
+    });
+    expect(await eventsOf(f.firmId, "roster.sheet_booking_refused")).toHaveLength(1);
+    await su.query(
+      "insert into credentials (firm_id, worker_id, type, expires_on) values ($1, $2, 'PTS', '2028-01-01')",
+      [f.firmId, ada],
+    );
+    expect(await sync(f, new Date(NOW.getTime() + 120_000))).toMatchObject({ booked: 1 });
+    expect((await holdersOf(f.firmId, "P1")).sort()).toEqual(["N001", "N002"]);
   });
 
   it("the office's own rota may override rest and weekly hours, and the log says so", async () => {
@@ -1080,5 +1109,349 @@ describe("offers on a sheet shift (src/lib/offers/close.ts)", () => {
     // Another sync with nothing changed closes nothing more.
     expect(await sync(f)).toMatchObject({ status: "synced" });
     expect(await eventsOf(f.firmId, "offer.closed")).toHaveLength(1);
+  });
+});
+
+describe("sheets.sync: a booked or started shift follows the office editor's rules (audit M1, M2)", () => {
+  const shiftRow2 = async (f: SheetFirm) => {
+    const { rows } = await su.query<{
+      role: string;
+      starts_at: Date;
+      ends_at: Date;
+      site_id: string | null;
+      status: string;
+    }>("select role, starts_at, ends_at, site_id, status from shifts where id = $1", [
+      await idOf("shifts", f.firmId, "P1"),
+    ]);
+    return rows[0];
+  };
+
+  it("a role Ada can't do isn't made: our copy keeps its role, the office is told once", async () => {
+    const f = await northline();
+    await sync(f); // Ada booked on P1 (Track Operative)
+    const ada = await idOf("workers", f.firmId, "N001");
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Role", "Steward");
+    const outcome = await sync(f);
+    expect(outcome).toMatchObject({ status: "synced" });
+    expect(outcome.status === "synced" && outcome.problems).toContainEqual({
+      tab: "shifts",
+      row: 2,
+      problem: "change_refused",
+    });
+    expect((await shiftRow2(f))?.role).toBe("track_operative");
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001"]);
+    expect(await eventsOf(f.firmId, "roster.sheet_change_refused")).toEqual([
+      {
+        entity_id: shiftId,
+        data: {
+          source: "sheets",
+          fields: ["role"],
+          wanted: { role: "steward" },
+          reason: "rules",
+          workers: [{ workerId: ada, codes: ["wrong_role"] }],
+        },
+      },
+    ]);
+    // The next sync sees the same sheet: still not made, nothing new logged, and the shift's row
+    // isn't rewritten (what Today shows is unchanged).
+    const version = async () =>
+      (await su.query<{ v: string }>("select xmin::text as v from shifts where id = $1", [shiftId]))
+        .rows[0]?.v;
+    const before = await version();
+    await sync(f, new Date(NOW.getTime() + 60_000));
+    expect(await eventsOf(f.firmId, "roster.sheet_change_refused")).toHaveLength(1);
+    expect(await version()).toBe(before);
+    // Ada's own log (and her data download) includes it: she's named in it.
+    const hers = await withFirm(f.firmId, (tx) =>
+      tx.execute<{ action: string }>(
+        sql`select e.action from events e where ${eventsAboutWorker(ada)} order by e.id`,
+      ),
+    );
+    expect(hers.rows.map((r) => r.action)).toContain("roster.sheet_change_refused");
+    // A role she can do (COSS) is made.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Role", "COSS");
+    await sync(f, new Date(NOW.getTime() + 120_000));
+    expect((await shiftRow2(f))?.role).toBe("coss");
+  });
+
+  it("Today shows what the sheet asks for that wasn't done, until it's true again", async () => {
+    const f = await northline();
+    await sync(f);
+    await su.query(
+      "update credential_rules set required_types = '{PTS}' where firm_id = $1 and role = 'track_operative'",
+      [f.firmId],
+    );
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Role", "Steward"); // Ada isn't a steward
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002"); // Ben has no PTS card
+    await sync(f);
+    const today = () => withFirm(f.firmId, async (tx) => (await loadToday(tx, NOW)).fromSheet);
+    expect(await today()).toEqual([
+      expect.objectContaining({
+        change: {
+          fields: ["role"],
+          reason: "rules",
+          people: [{ name: "Ada Example", codes: ["wrong_role"] }],
+        },
+        names: [{ name: "Ben Example", codes: ["credential_missing"], dropped: false }],
+      }),
+    ]);
+    // The office puts the role back and takes Ben out: nothing left to show.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Role", "Track Operative");
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001");
+    await sync(f, new Date(NOW.getTime() + 60_000));
+    expect(await today()).toEqual([]);
+  });
+
+  it("new times past a licence's expiry aren't made; times within it are, logged per worker", async () => {
+    const f = await northline();
+    await sync(f);
+    const ada = await idOf("workers", f.firmId, "N001");
+    // Track work now needs a PTS card; Ada's runs to Sunday 8 November (Saturday night is fine).
+    await su.query(
+      "update credential_rules set required_types = '{PTS}' where firm_id = $1 and role = 'track_operative'",
+      [f.firmId],
+    );
+    await su.query(
+      "insert into credentials (firm_id, worker_id, type, expires_on) values ($1, $2, 'PTS', '2026-11-08')",
+      [f.firmId, ada],
+    );
+    // Sunday night instead: it runs into Monday 9th, past her card.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Date", "08/11/2026");
+    await sync(f);
+    expect((await shiftRow2(f))?.starts_at).toEqual(new Date("2026-11-07T22:00:00Z"));
+    expect(await eventsOf(f.firmId, "shift.moved")).toEqual([]);
+    expect((await eventsOf(f.firmId, "roster.sheet_change_refused"))[0]?.data).toMatchObject({
+      fields: ["startsAt", "endsAt"],
+      reason: "rules",
+      workers: [{ workerId: ada, codes: ["credential_expired"] }],
+    });
+    // Back to Saturday, an hour earlier: made, and logged for Ada with its notice.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Date", "07/11/2026");
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Start", "21:00");
+    await sync(f, new Date(NOW.getTime() + 60_000));
+    expect((await shiftRow2(f))?.starts_at).toEqual(new Date("2026-11-07T21:00:00Z"));
+    expect((await eventsOf(f.firmId, "shift.moved")).map((e) => e.data.workerId)).toEqual([ada]);
+  });
+
+  it("a site change on a booked shift is logged per worker, with the old and new site and notice", async () => {
+    const f = await northline();
+    await sync(f);
+    const before = (await shiftRow2(f))?.site_id;
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Site", "Other Yard");
+    await sync(f);
+    const after = (await shiftRow2(f))?.site_id;
+    expect(after).not.toBe(before);
+    const [moved] = await eventsOf(f.firmId, "shift.moved");
+    expect(moved?.data).toMatchObject({
+      by: "firm",
+      reason: SITE_CHANGED_ON_SHEET,
+      oldSiteId: before,
+      newSiteId: after,
+      noticeHours: 37,
+      rulesOk: true,
+    });
+  });
+
+  it("a started shift is never re-timed or cancelled by a sync; the office is told", async () => {
+    const f = await northline();
+    await sync(f); // Ada booked on P1, Saturday 22:00
+    const started = new Date("2026-11-07T23:00:00Z");
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "End", "02:00"); // sending them home early, in the sheet
+    const outcome = await sync(f, started);
+    expect(outcome.status === "synced" && outcome.problems).toContainEqual({
+      tab: "shifts",
+      row: 2,
+      problem: "started_change",
+    });
+    expect((await shiftRow2(f))?.ends_at).toEqual(new Date("2026-11-08T06:00:00Z"));
+    expect(await eventsOf(f.firmId, "shift.curtailed")).toEqual([]);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "Cancelled");
+    await sync(f, new Date(started.getTime() + 60_000));
+    expect((await shiftRow2(f))?.status).not.toBe("cancelled");
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001"]);
+    expect(
+      (await eventsOf(f.firmId, "roster.sheet_change_refused")).map((e) => [
+        e.data.fields,
+        e.data.reason,
+      ]),
+    ).toEqual([
+      [["endsAt"], "started"],
+      // The next sync: the finish still refused, and now the status too (one entry each time what
+      // the office is told changes).
+      [["endsAt", "status"], "started"],
+    ]);
+  });
+
+  it("a booked shift moved into the past in the sheet isn't moved (it would have started)", async () => {
+    const f = await northline();
+    await sync(f);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Date", "05/11/2026"); // last Thursday
+    await sync(f);
+    expect((await shiftRow2(f))?.starts_at).toEqual(new Date("2026-11-07T22:00:00Z"));
+    expect((await eventsOf(f.firmId, "roster.sheet_change_refused"))[0]?.data).toMatchObject({
+      reason: "in_past",
+    });
+  });
+
+  it("a refused name doesn't use up a place: the next name in the sheet gets it", async () => {
+    const DEE: StaffCells = {
+      ref: "N004",
+      first: "Dee",
+      last: "Example",
+      mobile: "07700 900304",
+      roles: "track_operative",
+    };
+    const f = await sheetFirm(
+      [ADA, BEN, CAL, DEE].map(staffRow),
+      [{ ...P1, needed: "3" }, P2].map(shiftRow),
+    );
+    await sync(f); // P1 needs 3: Ada booked
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    await book(f.firmId, shiftId, await idOf("workers", f.firmId, "N002")); // Ben, in the portal
+    await su.query(
+      "update credential_rules set required_types = '{PTS}' where firm_id = $1 and role = 'track_operative'",
+      [f.firmId],
+    );
+    const cal = await idOf("workers", f.firmId, "N003");
+    await su.query(
+      "insert into credentials (firm_id, worker_id, type, expires_on) values ($1, $2, 'PTS', '2028-01-01')",
+      [f.firmId, cal],
+    );
+    // One place left. Dee (no PTS card) is first in the cell, then Cal.
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N004, N003");
+    expect(await sync(f)).toMatchObject({ booked: 1, notBooked: 1 });
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001", "N002", "N003"]);
+    // Full now: the cell names the three booked (Dee is on Today and in the log).
+    expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N001, N002, N003");
+    const today = () => withFirm(f.firmId, async (tx) => (await loadToday(tx, NOW)).fromSheet);
+    expect((await today())[0]?.names).toEqual([
+      { name: "Dee Example", codes: ["credential_missing"], dropped: true },
+    ]);
+    // Still there after the next sync (she's no longer in the sheet, and still not booked).
+    await sync(f, new Date(NOW.getTime() + 60_000));
+    expect((await today())[0]?.names).toEqual([
+      { name: "Dee Example", codes: ["credential_missing"], dropped: true },
+    ]);
+  });
+
+  it("a refused name stays in the sheet while there's room, and is tried again at each sync", async () => {
+    const f = await northline();
+    await sync(f); // P1 needs 2: Ada booked
+    await su.query(
+      "update credential_rules set required_types = '{PTS}' where firm_id = $1 and role = 'track_operative'",
+      [f.firmId],
+    );
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002"); // Ben: no PTS card
+    expect(await sync(f)).toMatchObject({ booked: 0, notBooked: 1, writes: 0 });
+    expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N001, N002");
+    await sync(f, new Date(NOW.getTime() + 60_000));
+    expect(await eventsOf(f.firmId, "roster.sheet_booking_refused")).toHaveLength(1);
+    expect(await eventsOf(f.firmId, "roster.sheet_conflict")).toHaveLength(1);
+  });
+});
+
+describe("sheets.sync: one edit, several changes, in the right order", () => {
+  const DEE: StaffCells = {
+    ref: "N004",
+    first: "Dee",
+    last: "Example",
+    mobile: "07700 900304",
+    roles: "Steward",
+  };
+  const firmWithDee = () => sheetFirm([ADA, BEN, CAL, DEE].map(staffRow), [P1, P2].map(shiftRow));
+  const p1 = async (f: SheetFirm) =>
+    (
+      await su.query<{ role: string; starts_at: Date; headcount: number; status: string }>(
+        "select role, starts_at, headcount, status from shifts where id = $1",
+        [await idOf("shifts", f.firmId, "P1")],
+      )
+    ).rows[0];
+
+  it("broken rules settings: the rest of the sync still goes through; a booked shift's change waits", async () => {
+    const f = await northline();
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002");
+    await sync(f); // Ada and Ben booked
+    await su.query(
+      `update firms set settings = settings || '{"min_rest_hours": -5}' where id = $1`,
+      [f.firmId],
+    );
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001"); // Ben off
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Start", "21:00");
+    expect(await sync(f)).toMatchObject({ status: "synced", cancelled: 1 });
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001"]);
+    expect((await p1(f))?.starts_at).toEqual(new Date("2026-11-07T22:00:00Z"));
+    expect((await eventsOf(f.firmId, "roster.sheet_change_refused"))[0]?.data).toMatchObject({
+      reason: "settings",
+    });
+  });
+
+  it("a person swapped out in the same edit as a new role doesn't block it", async () => {
+    const f = await firmWithDee();
+    await sync(f); // Ada (no steward role) booked
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Role", "Steward");
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N004"); // Ada out, Dee (a steward) in
+    expect(await sync(f)).toMatchObject({ booked: 1, cancelled: 1 });
+    expect((await p1(f))?.role).toBe("steward");
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N004"]);
+    expect(await eventsOf(f.firmId, "roster.sheet_change_refused")).toEqual([]);
+    expect(await eventsOf(f.firmId, "roster.sheet_booking_refused")).toEqual([]);
+  });
+
+  it("more places and a new name in one edit: the name is booked at once", async () => {
+    const f = await northline();
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002");
+    await sync(f); // P1 full (2 of 2)
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Needed", "3");
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002, N003");
+    expect(await sync(f)).toMatchObject({ booked: 1, notBooked: 0 });
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001", "N002", "N003"]);
+    expect(await eventsOf(f.firmId, "roster.sheet_booking_refused")).toEqual([]);
+  });
+
+  it("cancelled and moved in one edit: notice from the start the worker knew", async () => {
+    const f = await northline();
+    await sync(f); // Ada on Saturday 22:00, 37 hours away
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Date", "14/11/2026");
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "Cancelled");
+    expect(await sync(f)).toMatchObject({ cancelled: 1 });
+    const [cancelled] = await eventsOf(f.firmId, "shift.cancelled");
+    expect(cancelled?.data).toMatchObject({ noticeHours: 37, reason: CANCELLED_ON_SHEET });
+    expect(await eventsOf(f.firmId, "shift.moved")).toEqual([]);
+  });
+
+  it("a draft row's planned names are booked when it's published, not erased", async () => {
+    const f = await northline();
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "Draft");
+    await sync(f); // P1 a draft: Ada planned, not booked
+    expect(await holdersOf(f.firmId, "P1")).toEqual([]);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "");
+    expect(await sync(f, new Date(NOW.getTime() + 60_000))).toMatchObject({ booked: 1 });
+    expect(await holdersOf(f.firmId, "P1")).toEqual(["N001"]);
+    expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N001");
+  });
+
+  it("a change the sheet's own overrides let through is recorded with the rules' answer", async () => {
+    const f = await northline();
+    await sync(f); // Ada, Saturday night
+    const ada = await idOf("workers", f.firmId, "N001");
+    await su.query(
+      "insert into worker_unavailable_days (firm_id, worker_id, day) values ($1, $2, '2026-11-09')",
+      [f.firmId, ada],
+    );
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Date", "08/11/2026"); // Sunday night: into her day off
+    await sync(f);
+    expect((await p1(f))?.starts_at).toEqual(new Date("2026-11-08T22:00:00Z"));
+    const [moved] = await eventsOf(f.firmId, "shift.moved");
+    expect(moved?.data).toMatchObject({ workerId: ada, rulesOk: false, codes: ["unavailable"] });
+  });
+
+  it("a refused change still lets the rest of the row through (more places)", async () => {
+    const f = await northline();
+    await sync(f);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Role", "Steward"); // Ada isn't one: refused
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Needed", "3");
+    await sync(f);
+    expect(await p1(f)).toMatchObject({ role: "track_operative", headcount: 3 });
   });
 });

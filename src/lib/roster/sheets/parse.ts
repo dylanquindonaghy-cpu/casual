@@ -29,6 +29,8 @@ export const SHEET_PROBLEM_CODES = [
   "duplicate_holder", // the assigned cell names someone twice
   "over_headcount", // the assigned cell names more people than the shift needs
   "holder_not_in_sheet", // booked here by someone with no staff id: the shift's holders aren't synced
+  "change_refused", // a booked shift's role, times or site changed, and someone booked can't work it
+  "started_change", // a shift that has started was re-timed, re-roled, moved or cancelled: ignored
   "invalid_row",
 ] as const;
 export type SheetProblemCode = (typeof SHEET_PROBLEM_CODES)[number];

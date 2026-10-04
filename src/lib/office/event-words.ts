@@ -44,6 +44,34 @@ const CODE_WORDS: Record<string, string> = {
   unavailable: "marked as a day off",
 };
 
+// Why someone can't work a shift, for the office (every rules check: src/lib/rules/eligibility.ts),
+// plus "no place left" for a rota sheet name over the headcount.
+export const RULE_WORDS: Record<string, string> = {
+  started: "it had started",
+  not_active: "not active",
+  wrong_role: "not that role",
+  no_rule: "no licence rule for the role",
+  credential_missing: "a licence or card missing",
+  credential_expired: "a licence or card out of date",
+  credential_suspended: "a licence suspended",
+  applied_over_allowance: "over the day's limit for applications in progress",
+  overlap: "booked elsewhere then",
+  rest: "too little rest",
+  weekly_hours: "over the weekly hours",
+  unavailable: "marked as a day off",
+  blocked_site: "blocked from the site",
+  no_place: "no place left",
+  not_found: "their record wasn't found",
+  settings_invalid: "the firm's rules settings need fixing",
+};
+
+export const ruleWords = (codes: unknown): string => {
+  const words = Array.isArray(codes)
+    ? [...new Set(codes.map((c) => RULE_WORDS[String(c)] ?? "the rules said no"))]
+    : [];
+  return words.length > 0 ? list(words) : "the rules said no";
+};
+
 const list = (items: string[]) =>
   items.length <= 1
     ? (items[0] ?? "")
@@ -515,7 +543,32 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ? "Someone booked on this shift in the app isn't in the rota sheet's staff list."
         : "The rota sheet names someone the app couldn't book on this shift.";
     case "roster.sheet_booking_refused":
-      return `${worker} is in the rota sheet but couldn't be booked (the rules said no).`;
+      return d.droppedFromSheet
+        ? `${worker} was in the rota sheet but couldn't be booked (${ruleWords(d.codes)}): taken out of the sheet, which was full.`
+        : `${worker} is in the rota sheet but couldn't be booked: ${ruleWords(d.codes)}.`;
+    case "roster.sheet_change_refused": {
+      const FIELD: Record<string, string> = {
+        role: "role",
+        startsAt: "start",
+        endsAt: "finish",
+        siteId: "site",
+        status: "status",
+      };
+      const fields = Array.isArray(d.fields)
+        ? d.fields.map((f) => FIELD[String(f)] ?? "details")
+        : [];
+      const what = `The rota sheet's change to the ${list(fields.length > 0 ? fields : ["shift"])} wasn't made`;
+      if (d.reason === "started") return `${what}: the shift had started.`;
+      if (d.reason === "in_past") return `${what}: the new time had already passed.`;
+      if (d.reason === "settings") return `${what}: the firm's rules settings need fixing.`;
+      const people = Array.isArray(d.workers)
+        ? d.workers.map((w) => {
+            const one = w as { workerId?: unknown; codes?: unknown };
+            return `${names.worker(one.workerId)} (${ruleWords(one.codes)})`;
+          })
+        : [];
+      return `${what}: ${people.length > 0 ? `${list(people)} can't work it` : "someone booked can't work it"}.`;
+    }
     case "import.completed":
       return `${officeName} imported ${IMPORT_KIND_WORDS[String(d.kind)] ?? "a file"}: ${Number(d.created ?? 0)} added, ${Number(d.updated ?? 0)} changed, ${Number(d.skipped ?? 0)} skipped.`;
     case "pay_record.imported":

@@ -118,6 +118,8 @@ describe("the page", async () => {
     cancellations: [],
     toCheck: [],
     toCheckMore: false,
+    fromSheet: [],
+    fromSheetMore: false,
     toMark: [],
     toMarkMore: false,
     requests: { total: 0, byType: {} },
@@ -141,6 +143,37 @@ describe("the page", async () => {
     ]) {
       expect(page).toContain(line);
     }
+  });
+
+  it("from your rota sheet: shown only when there's something, with the shift and what wasn't done", () => {
+    expect(text(empty)).not.toContain("From your rota sheet");
+    const page = text({
+      ...empty,
+      fromSheet: [
+        {
+          shiftId: "s1",
+          role: "track_operative",
+          site: "Demo Junction",
+          startsAt: new Date("2026-11-07T22:00:00Z"),
+          endsAt: new Date("2026-11-08T06:00:00Z"),
+          change: {
+            fields: ["role"],
+            reason: "rules",
+            people: [{ name: "Ada Example", codes: ["wrong_role"] }],
+          },
+          names: [{ name: "Ben Example", codes: ["credential_missing"], dropped: false }],
+        },
+      ],
+    });
+    expect(page).toContain("From your rota sheet");
+    expect(page).toContain("Your rota sheet asks for these, but the app couldn&#x27;t do them.");
+    expect(page).toContain("at Demo Junction");
+    expect(page).toContain(
+      "Your rota sheet changes its role, but Ada Example (not that role) can&#x27;t work it: not changed here.",
+    );
+    expect(page).toContain(
+      "Ben Example is in your rota sheet but isn&#x27;t booked: a licence or card missing. The next sync tries again.",
+    );
   });
 
   it("messages from numbers we don't know: the number, their words, when; a former worker named", () => {

@@ -185,6 +185,7 @@ export const LOG_TYPES = {
       "roster.synced",
       "roster.sync_failed",
       "roster.sheet_conflict",
+      "roster.sheet_change_refused",
       "import.completed",
       "site.created",
     ],

@@ -147,6 +147,18 @@ export const credentialRules = pgTable(
   ],
 ).enableRLS();
 
+export interface SheetIssues {
+  change?: {
+    fields: string[]; // role, startsAt, endsAt, siteId, status
+    wanted: Record<string, unknown>; // the sheet's values
+    reason: "rules" | "settings" | "started" | "in_past";
+    workers: { workerId: string; codes: string[] }[];
+  };
+  // In the sheet but not booked (rules codes, no_place, settings_invalid); dropped: taken out of
+  // the sheet's cell because it was full of people booked.
+  names?: { workerId: string; codes: string[]; dropped?: boolean }[];
+}
+
 export const shifts = pgTable(
   "shifts",
   {
@@ -169,6 +181,10 @@ export const shifts = pgTable(
     // The base of the three-way merge between the sheet and bookings made here
     // (src/lib/roster/sheets/merge.ts). Null until first synced.
     syncedHolders: text("synced_holders").array(),
+    // What the firm's Google Sheet asks for that the last sync couldn't do (Phase 10, audit M1, M2,
+    // L12), for Today's "From your rota sheet": a change to a booked or started shift the rules
+    // refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
+    sheetIssues: jsonb("sheet_issues").$type<SheetIssues>(),
     createdAt: createdAt(),
   },
   (t) => [

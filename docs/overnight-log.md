@@ -7006,3 +7006,109 @@ decided; "No fakes found". Ticked after this.
 **Hours:** 0.5 (Phase 10: 6.6 of 30–45 h).
 
 **Commit:** `9e1d7f9`, pushed to `build/overnight`. **CI:** not checked (`gh` isn't installed).
+
+## 2026-10-03 23:07 UTC — Phase 10, task 9: the Sheets sync follows the office editor's rules
+
+**Task:** Sheets sync follows the office editor's rules: a role, time or site change to a booked
+shift re-checks the people booked (refused → not applied, flagged for the office); a started shift
+is never re-timed or cancelled by a sync (ADR-013); refused names aren't silently erased from the
+firm's sheet. Tests for each. (M1, M2, L12)
+
+**Plan:**
+1. **One re-check for both editors** (`src/lib/roster/recheck.ts`, from the office move): lock the
+   booked workers (id order) and the new day's "applied" lock, read the holders, run the rules for
+   each at the new shift, and say who fails something the editor can't override (the office:
+   started, rest, weekly hours, day off; the sheet: rest, weekly hours, day off, as for names it
+   books). A kept booking's "not active"/"blocked site" don't count unless the site changes (task 7).
+   The office move then uses it unchanged in behaviour.
+2. **The sync, a booked shift whose role, times or site change in the sheet:** the change is
+   tried inside a savepoint; if anyone booked can't work it, it's rolled back (not applied), and
+   `roster.sheet_change_refused` {fields, workers: [{workerId, codes}], wanted} is logged, once per
+   distinct wanted value (not every sync). Otherwise it's applied, and every booked worker gets a
+   `shift.moved` / `shift.curtailed` with notice, for a site change too (the item parked from task 8).
+3. **A started shift** (by the sheet or our copy): its role, times and site are never changed by
+   a sync, and a "Cancelled" status doesn't cancel it; the attempt is logged the same way (reason
+   `started`). Headcount and instructions still follow the sheet.
+4. **Names (L12):** the rules run before a place is given, so a refused name doesn't use up a
+   place an overflow name could have had; names refused or with no place left stay in the sheet's
+   cell (written back with our bookings, and kept in the merge base so they aren't retried or
+   logged again until the office retypes them).
+5. **Flagged for the office:** Today gets "From your rota sheet" (shifts not started): a change not
+   made ("… wasn't changed: {name} can't work it ({reasons})"), still differing from our copy, and
+   a name not booked ({reasons}, or no place left) who still isn't booked. Office words for every
+   rule code.
+6. **Docs:** architecture (Roster plugs), ADR-013's note, api-and-jobs `sheets-sync`, screens
+   (Today), the Parking lot's task-9 items closed.
+7. **Tests:** each case in `sheets.sync.test.ts`, the merge's room order, Today's section, the
+   office move still behaving the same.
+
+**Changed from the plan while building:** item 4 said a refused name would stay in the merge base
+(not retried). It's the other way: refused names stay in the sheet's cell but out of the base, so
+each sync tries them again (booked once they can work it), and a refusal is logged only when what
+the office is told changes. And a cell is never written past the shift's places (the next read
+couldn't use it): a name with no room left is the one taken out of the sheet, shown on Today and
+logged (`droppedFromSheet`). Item 5's Today section reads a new column, `shifts.sheet_issues`
+(migration 0030), kept to what's true at each sync, rather than old events (which went stale
+once the office fixed its sheet). Schema changes are under the standing overnight approval.
+
+**Decisions:**
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One re-check for both editors (`recheckHolders`) | The sheet and the office can't drift apart on who may work a changed shift | Copying the move's code into the sync |
+| A change is tried in a savepoint, rolled back if anyone can't work it | The rules read the shift as it would be; nothing half-made survives a refusal | Rebuilding the rules input by hand for "the shift as it would be" |
+| Each row: the sheet's removals, then the ruled change, then the rest, then status, then new names | A person the office swapped out can't block the edit; notice is from the times people knew; a raised headcount is seen by its new names | One pass (the reviews found false refusals and wrong notice) |
+| Names left out of the base, kept in the cell while there's room | The office's names aren't erased, and they're booked as soon as they can be | Keep them in the base (never retried); erase them (L12) |
+| A role change on a booked shift is allowed when everyone booked can do it | The office's sheet is its own; refusing only what the rules refuse | Refuse every role change (as the office editor does): "Dylan to confirm" in PLAN.md |
+
+**Guardrails review:** FIX FIRST and SHOULD FIX, all fixed:
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: broken rules settings during a booked shift's change stopped the whole sync, every minute | Caught and refused (reason `settings`, fail closed); the rest of the sync goes through. Tested (a removal in the same sync still applies) |
+| People removed in the same edit still blocked the change (false refusal, then a false move for the new person) | Removals run first. Tested (swap and new role in one edit: no refusal, no move) |
+| Refusals de-duplicated against the last event ever (missed real new refusals) | Against the shift's own record from the last sync (`sheet_issues`); no event queries |
+| An applied sheet change passing only by the sheet's overrides wasn't recorded | `rulesOk`/`codes` per worker on the move, `overridden` on `shift.changed`. Tested (a day off) |
+| A worker's data export and log filter missed events naming them in `workers[]` | `eventsAboutWorker` matches them. Tested |
+| Raised headcount plus a new name: a false "no place left" | Open / filled refreshed after the row's fields, before names. Tested |
+| Cancelled plus new times: notice counted from the new start | The old times stand for that sync. Tested (37 hours) |
+| A "started" refusal for a reused row disappeared from Today once our copy ended | Shown while the sheet's wanted start is ahead |
+| Nits: site-only reason wording; jsonb key order made every sync rewrite the row; the savepoint wrote more than the ruled fields; a sheet date in the past called "started"; dropped names hid their reason; duplicate queries; the merge header; a long ADR line | All fixed (a new fixed reason "Site changed on the rota sheet", added to the GDPR fixed wording; `canon()`; `in_past`; also the merge base and status are now written only when they change, tested by the row's version not moving on a same-sheet sync) |
+
+**Adversarial review:** no FIX FIRST; its SHOULD FIX items overlap the above (swap ordering,
+cancel plus move, sheet date in the past, raised headcount, overrides unlogged, `sheet_issues`
+churn), all fixed, plus:
+
+| Finding | Fix |
+|---|---|
+| A draft row published later had its planned names erased (older than this task) | A draft's base is who's booked here, so its names count as new on publishing. Tested |
+| Started shifts carried "The next sync tries again" forever | A started shift's names aren't shown |
+| Unlogged paths (a name whose record can't be found) | Refused as `not_found`, logged and shown |
+| The sheet is more permissive on role than the office editor | "Dylan to confirm" in PLAN.md |
+| A refused site change still creates the site row; refused names held under lock while re-tried | Left (harmless; the sync's own transaction) |
+
+Each fix was checked by breaking it: the settings catch, removals first, the status refresh, the
+cancel hold-back, the draft base, the override record and the issues comparison each make a test
+fail.
+
+**Verify, first run:** NOT VERIFIED: 1 of 2,843 tests failed, `sheets.jobs.test.ts` "queues one
+sync for each firm that is due" (two jobs where one was expected after a second tick). **Root
+cause:** not this task's code (nothing in the tick or the job's options changed). The sync job is
+de-duplicated by pg-boss's `singletonSeconds: 50` slots, on the real clock; the test runs two
+ticks a moment apart and expects the second to queue nothing, which fails when the two straddle a
+50-second slot boundary (rare: it passes alone and in every earlier run). Parked with a fix (de-
+duplicate on the app's own minute). Verify run again on the same files, the test unchanged.
+
+**Verify, second run:** `VERIFIED tree=25f4e382795d4b67 e2e=true` (2,843 tests, 0 failed, 0
+skipped; 51 e2e).
+
+**Auditor (round 1), verbatim verdict:** `VERDICT: DONE`. Every claim PROVEN: the re-check and
+refusal (`recheck.ts`, `tryRuledChange` in a savepoint, `sheet_issues`, Today, the event logged
+once), the started shift (re-time and cancel both guarded; ADR-013 and architecture now match the
+code), refused names kept in the sheet (`mergeShift`), and tests for each asserting real rows.
+"Fakes found: none." Open items it noted, all parked: the "Dylan to confirm" on sheet role
+changes, and the flaky `sheets.jobs` test.
+
+**Hours:** 1.2 (23:07 to 00:16 UTC). Phase 10 so far: 7.8 h of its 30–45 h estimate.
+
+**Commit:** see the next "Log commit and push" commit.

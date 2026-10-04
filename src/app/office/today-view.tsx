@@ -3,6 +3,8 @@ import type { TodayShift, TodayView } from "@/lib/office/today";
 import {
   placesText,
   requestsText,
+  sheetChangeText,
+  sheetNameText,
   stoppedText,
   toCheckText,
   toMarkText,
@@ -107,6 +109,35 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
             ))}
           </ul>
           {view.toCheckMore && <p className="mt-2">Showing the first 50.</p>}
+        </section>
+      )}
+
+      {view.fromSheet.length > 0 && (
+        <section className={section} aria-labelledby="from-sheet">
+          <h2 id="from-sheet" className={heading}>
+            From your rota sheet
+          </h2>
+          <p className="mt-2">Your rota sheet asks for these, but the app couldn&apos;t do them.</p>
+          <ul>
+            {view.fromSheet.map((i) => (
+              <li key={i.shiftId} className={card}>
+                <p className="text-lg font-semibold">
+                  <Link href={`/office/shifts/${i.shiftId}`} className="underline">
+                    {roleLabel(i.role)}
+                    {i.site ? ` at ${i.site}` : ""}
+                  </Link>
+                </p>
+                <p>{shiftWhen(i.startsAt, i.endsAt, tz)}</p>
+                {i.change && <p className="mt-2">{sheetChangeText(i.change)}</p>}
+                {i.names.map((n, k) => (
+                  <p key={`${n.name}-${k}`} className="mt-2">
+                    {sheetNameText(n)}
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ul>
+          {view.fromSheetMore && <p className="mt-2">Showing the first 50.</p>}
         </section>
       )}
 

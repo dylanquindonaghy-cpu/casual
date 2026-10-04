@@ -8296,3 +8296,56 @@ Part 5, which the run does rather than clicks, as proven in substance, and L16/L
 the `RUN_E2E=1` stage and honestly recorded as partial otherwise).
 
 **Hours:** 1.4 (10:08 to 11:30 UTC). Phase 10 so far: 18.6 of the 30–45 h estimate.
+
+**Commit:** `1173ded`, pushed to `build/overnight`. (`gh` isn't installed, so CI wasn't checked.)
+
+## Morning summary (2026-10-04, written 11:35 UTC)
+
+**Phase 10 is finished: all 20 tasks are ticked**, each verified (`RUN_E2E=1 ./scripts/verify.sh`
+printed VERIFIED, browser tests included) and audited DONE by the independent auditor, then
+committed and pushed to `build/overnight`. Every medium finding from the audit and every low
+finding assigned to Phase 10 is fixed with a test, or parked with a reason you can see in PLAN.md.
+The app is ready for you to walk through on your own computer.
+
+**Hours per phase against the estimates** (from PLAN.md's Hours log; the estimates were written for
+a person, so every phase came in well under):
+
+| Phase | Hours | Estimate |
+|---|---|---|
+| 0 Repo, tooling, guardrails | 1.0 | 10–15 h |
+| 1 Tenancy, data model, login | 4.5 | 25–35 h |
+| 2 Roster core, rules, Sheets plug | 5.0 | 30–40 h |
+| 3 Staff portal | 4.5 | 35–45 h |
+| 4 Urgent board, notifications, waves | 3.5 | 27–37 h |
+| 5 Dashboard, action log, notice report | 5.5 | 23–33 h |
+| 6 Payroll queries and digest | 3.1 | 12–18 h |
+| 7 WhatsApp shifts line, call-to-text | 4.2 | 15–20 h |
+| 8 Branding, domains, deploy | 5.6 | 18–28 h |
+| 9 Pilot hardening | 2.5 | 10–15 h |
+| 10 Audit fixes and walkthrough | 18.6 | 30–45 h |
+
+**Blocked, and why (not ticked; nothing more can be built without you):**
+- **Outside accounts:** web push, the WhatsApp templates and Meta's approval, the shifts line, inbound
+  WhatsApp, the unknown-number alert, call-to-text, STOP handling, the AI summaries (Bedrock), the
+  AWS server, backups and alerts, the Twilio fallback, and trying the runbooks for real. Each is
+  built and tested as far as it can go without the account. The "Connect …" steps in PLAN.md's
+  Parking lot say what you do and what Claude does.
+- **The business gates (A, B, C):** discovery calls, a signed pilot, and the pilot's results.
+- **Real data:** importing a firm's real workers waits for Gate B's signed agreement (golden rule 7).
+
+**What needs you, in order:**
+1. **Walk through the app.** Open `docs/walkthrough.md` and follow it from step 1. It takes about two
+   hours, and you can stop after any part. Each step says what you should see. For anything that
+   doesn't match, fill in the "Found a bug?" template at the end and paste it to Claude.
+2. **Look at the decisions.** PLAN.md's "Decisions waiting for Dylan" section lists each one with the
+   default now in force. Today's new ones:
+   - Office 10: the daily login-link cap's trade-off;
+   - Messages 27: only office bookings send "Confirmed";
+   - Pay 9: the AI pay line;
+   - whether `verify.sh` should build the app on every run.
+   Tell Claude your choice for any you want changed.
+3. **Check CI once** (audit L9, L57): on GitHub, open the repo's Actions tab and look at the latest
+   `build/overnight` run. A green tick is good. A red cross: tell Claude.
+4. **Then the accounts**, when you're happy with the walkthrough. Follow PLAN.md's "Connect …"
+   steps (AWS first for the server). `build/overnight` isn't merged into `main`: that's yours to do
+   when you deploy (Deploy 1 in the decisions list).

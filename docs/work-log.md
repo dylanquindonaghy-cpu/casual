@@ -8914,7 +8914,7 @@ the shift is within 24 hours), and the shift's History says "{name} was told the
 - Audit findings fixed: L16, L25, L58, L66, L88.
 - Three reviews (guardrails, a fact-checker for the guide, an adversarial reviewer); every finding
   fixed.
-- Commit: see the next commit on `build/overnight` (the hash goes in the decision log).
+- Commit `1173ded`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

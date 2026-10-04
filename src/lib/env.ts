@@ -44,6 +44,12 @@ const appFields = {
   // The offline copy of My shifts (public/sw.js, ADR-016). Unset: on in production, off in
   // development (a slow first compile would show an old copy). The e2e run sets "on".
   OFFLINE_COPY: z.enum(["on", "off"]).optional(),
+  // Failing on purpose, for the browser tests of the error screens (src/lib/e2e/fails-once.ts: a
+  // page that fails once, and the page's frame failing once). Only the e2e run sets it
+  // (playwright.config.ts); a deployment never does (tests/unit/error-pages.test.ts checks the
+  // deploy and CI files), and it's refused unless APP_BASE_DOMAIN is localhost. Unset: the test
+  // page is "not found" and nothing fails.
+  E2E_TEST_PAGES: z.enum(["on"]).optional(),
   // The public half of the deployment's VAPID key pair, for web push subscriptions. Unset: the profile says
   // phone notifications aren't switched on yet (PLAN.md Parking lot, "connect the real web push").
   // An empty value (as .env.example ships it) means not set.
@@ -86,7 +92,12 @@ const alertsOnMessage = {
 export const appEnvSchema = z
   .object(appFields)
   .refine(realSecret, realSecretMessage)
-  .refine(alertsOn, alertsOnMessage);
+  .refine(alertsOn, alertsOnMessage)
+  // The test-only pages never on a real address, even if the switch were copied into one.
+  .refine((e) => !e.E2E_TEST_PAGES || /^localhost(:\d+)?$/.test(e.APP_BASE_DOMAIN), {
+    path: ["E2E_TEST_PAGES"],
+    message: "the test-only pages are only for a local test run (APP_BASE_DOMAIN=localhost)",
+  });
 
 export const workerEnvSchema = z
   .object({

@@ -7547,3 +7547,81 @@ this entry's last line pointed "below" at nothing (filled in after the audit, be
 **Hours:** 0.8 (03:12 to 03:59 UTC). Phase 10 so far: 11.4 h of its 30–45 h estimate.
 
 **Commit:** `a3c62e3`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-10-04 04:02 UTC — Phase 10, task 14: "Try again" on the error screens really retries
+
+**Task:** "Try again" on the error screens really retries (Next 16 `retry()`), proven by a browser
+test that fails a page once and recovers (M4)
+
+**Plan:**
+1. `src/app/error.tsx` passes Next's `retry()` (re-fetches the page from the server, then clears
+   the error), not `reset()` (which re-renders what the browser already has, so a server failure
+   just shows again). `ErrorBody` takes `retry`.
+2. "Go to my shifts" becomes a plain link (a full page load), so it recovers on My shifts itself,
+   where a client-side link to the same address did nothing.
+3. `src/app/global-error.tsx` (the page's frame failed, so the router itself may be broken):
+   "Try again" reloads the page.
+4. **The browser test:** a page that fails exactly once per id and then works
+   (`src/app/e2e/fails-once/page.tsx`), which exists only when the e2e run sets
+   `E2E_TEST_PAGES=on` (else it's not found; never set by the deploy, and a test checks the deploy
+   files never set it). The test opens it, sees "Something went wrong", taps "Try again", and sees
+   the page.
+5. Copy test updated for the new prop.
+
+**Root causes (written before the fixes):**
+- "Try again" passed Next's `reset()`, which only clears the error and redraws the page from what
+  the browser already has (`node_modules/next/dist/client/components/error-boundary.js:39-47`); a
+  page that failed on the server is still a failure there, so it fails again. `retry()` refreshes
+  from the server first.
+- "Go to my shifts" was a Next `<Link href="/">`: on `/` itself the address doesn't change, and the
+  error screen only clears when it does (`error-boundary.js:86-91`).
+- The first try at the whole-page browser test timed out: under `next dev` (the local e2e run), a
+  failure in the page's frame opens Next's developer overlay over the page, which takes the tap. A
+  production server (CI) has none. The test presses Escape first, as a developer would.
+
+**Decisions:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| The page's error screen uses `retry()` | Next's docs and source: it fetches the page again | `reset()` (the bug) |
+| The whole-page error reloads (a form's submit; with scripts, the whole address as a plain load) | The frame itself failed, so nothing is worth keeping; Next's own built-in whole-page error does the same (`client/components/builtin/global-error.js`); it works before the page's scripts load (the prebuilt error page), and never resends a form (a reload after a no-script login post would ask to) | `retry()` there too (needs the scripts and a working router) |
+| "Go to my shifts" a plain link (a full load) | Recovers on My shifts itself | A Next link (keeps the error on `/`) |
+| "Try again" off with no signal (on again with the signal) | Offline, `retry()` falls back to loading the page, which puts the browser's own offline page in place of "No signal" (adversarial review) | Leaving it on |
+| Failing on purpose only with `E2E_TEST_PAGES=on`, refused unless the address is localhost | A test-only switch can't be switched on in a deployment by accident (guardrails review) | Only the variable |
+| The frame's failure: a hook in the root layout, reading a cookie only when the switch is on | The only way to make the whole-page error show is the root layout failing | No browser test for it (the adversarial review's M1) |
+
+**Reviews:**
+- **Guardrails reviewer:** no defect in the code. "FIX FIRST": a passing verify run on the current
+  files (that's the next step). Taken:
+  - the localhost-only switch;
+  - a unit test that the test page is "not found" with the switch off;
+  - a cap on the page's memory of ids.
+  Noted: the whole-page "Try again" without scripts (fixed: a form, below) and a reload resending
+  a login form (fixed: a plain load).
+- **Adversarial review:** no high findings; all six claims hold. Fixed:
+  - M1: a browser test for the whole-page error, plus the reasons for a reload above;
+  - L1: the whole-page "Try again" now works without the page's scripts;
+  - L2: with no signal, "Try again" is off, and the comment that wrongly promised the service
+    worker's "No signal" page is gone;
+  - L4: test 1 checks it's the page's error screen;
+  - L5: each test and retry gets its own id;
+  - L6: the docs say "not found unless switched on", and CI's files are checked too.
+  Not changed, L3: the browser test proves "Go to my shifts" is a full load, not the failure on `/`
+  itself (that would need a test hook in My shifts); the boundary clearing only on a new address
+  is from Next's source (`error-boundary.js:86-91`).
+- **Mutation checks:** each one broke the fix on purpose, and its test then failed:
+  - `reset()` back: the page test failed;
+  - a Next link back: the full-load test failed;
+  - "Try again" left on with no signal: the no-signal test failed;
+  - a whole-page "Try again" that does nothing: the frame test failed;
+  - the switch check removed from the page, and the localhost check removed: the unit tests failed;
+  - the whole-page button not wired to the reload: the unit test failed.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=a9acf6bcc3db0a8c e2e=true` (3,034 tests,
+58 browser tests).
+
+**Auditor:** `VERDICT: DONE` ("task 14's claims are all PROVEN"; fakes found: none).
+
+**Hours:** 0.6 (04:02 to 04:39 UTC). Phase 10 so far: 12.0 of the 30–45 h estimate.
+
+**Commit:** (filled in below)

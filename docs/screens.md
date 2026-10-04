@@ -31,9 +31,13 @@ address has no bar.
   "Go to my shifts". Never "404".
 - A page fails (`src/app/error.tsx`): "Something went wrong" / "It's not you. Try again in a
   moment." / "If it keeps happening, contact the office." / "Try again" / "Go to my shifts". With
-  no network at all: "No signal" / "Check your signal and try again."
+  no network at all: "No signal" / "Check your signal and try again." "Try again" fetches the page
+  from the server again (Next's `retry()`). It's disabled until the page is ready to respond to a
+  tap, and while there's no signal (it comes back on, with "Something went wrong", when the signal
+  does). "Go to my shifts" is a full page load, so it recovers on My shifts itself too.
 - The whole page fails, frame and all (`src/app/global-error.tsx`): the same words, without "Go to
-  my shifts".
+  my shifts". "Try again" loads the page again (as Next's own whole-page error does), even before
+  the page's scripts have loaded.
 - A tap fails (take, cancel, request, review, profile, pay code, login): "Something went wrong. Try
   again." With no network at all: "No signal. Try again when you have signal."
   (`tryAgainText()`, `src/lib/portal/copy.ts`).

@@ -8375,3 +8375,81 @@ deleting a worker weren't true. Now:
    shows the hold. `--set retention.hold_until=none` ends it.
 3. On a shift's page, assign someone the rules refuse for a day off, with a reason: the reason
    shows next to their name, and the History says only that a reason was given.
+
+## 2026-10-04 — Phase 10, task 14: "Try again" on the error screens really tries again
+
+- **Time spent:** 0.6 hours (started 04:02 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=a9acf6bcc3db0a8c e2e=true`
+  (3,034 tests, 58 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit finding fixed: M4.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+When a page fails (the database is slow for a moment, say), the worker sees "Something went
+wrong" with a **Try again** button. The audit found that button didn't really try again. It
+redrew the failure the phone already had, so the error stayed until the worker reloaded the page
+themselves. Now:
+
+- **"Try again" fetches the page again.** Next.js (the framework the app is built on) gives the
+  error screen two functions: `reset()`, which only redraws, and `retry()`, which asks the server
+  for the page again first. The button now uses `retry()`.
+- **"Go to my shifts" always works.** It was a link that moves inside the app without loading a
+  new page. On My shifts itself that did nothing, because the address didn't change. Now it loads
+  the page afresh.
+- **With no signal**, the screen says "No signal" and "Try again" is greyed out. When the signal
+  comes back, the screen changes back to "Something went wrong" and the button works again.
+  Without this, tapping it with no signal would have swapped our screen for the browser's own
+  "no internet" page.
+- **When the whole page fails** (its frame, not just its middle), "Try again" loads the page
+  again. It works even if the page's code hasn't loaded, the same way Next.js's own error page
+  does.
+- **Test-only failures.** To prove all this in a real browser, the app has to fail on purpose,
+  once. A setting, `E2E_TEST_PAGES`, switches that on. Only the browser-test run sets it, and the
+  app refuses to start with it unless its address is `localhost` (your own computer). So it can't
+  be switched on in a real deployment by mistake. With it off, the test page says "We can't find
+  that page." and nothing fails.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The page's error screen uses `retry()` | Next.js's own docs say so; it asks the server again | `reset()` (the bug) |
+| The whole-page error reloads the page | The frame failed, so nothing on it is worth keeping; Next.js's own whole-page error does the same; it works before the page's code loads | `retry()` there too (needs the page's code running) |
+| "Try again" greyed out with no signal | Otherwise the browser's "no internet" page replaces ours | Leaving it on |
+| The test-only switch refused off `localhost` | A test switch must never work on a real address | Trusting the setting alone |
+
+### What the new tests prove
+
+- **`tests/e2e/error-page.spec.ts`**, in a real browser:
+  - a page fails once, and "Try again" brings it back;
+  - "Go to my shifts" loads a fresh page;
+  - with no signal the button waits, then works;
+  - the whole page's frame fails once, and "Try again" brings it back;
+  - a bad test address gives "We can't find that page."
+- **`tests/unit/error-pages.test.ts`:**
+  - each button is wired to the right thing;
+  - the whole-page button works without the page's code;
+  - the test switch is refused off `localhost`;
+  - with the switch off, nothing fails;
+  - no deploy or CI file sets the switch.
+- **The tests catch the bugs:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- Nothing new to decide.
+- One limit: the browser test shows "Go to my shifts" loads a fresh page, but not My shifts itself
+  failing (that would need a test hook inside My shifts). Next.js's own code shows why a fresh load
+  is enough.
+
+### How to see it working
+
+1. `npm run e2e -- tests/e2e/error-page.spec.ts` (stop `npm run dev` first): five tests pass.
+2. Or by hand:
+   1. Add the line `E2E_TEST_PAGES=on` to your `.env`. Your `APP_BASE_DOMAIN` must be
+      `localhost:3000`, or the app refuses to start.
+   2. Run `npm run dev`, and open `http://acme.localhost:3000/e2e/fails-once?id=try1`. You see
+      "Something went wrong". In development, Next.js's own error box also opens over it: press Esc.
+   3. Tap "Try again": "It worked this time".
+   4. Take the line out of `.env` again afterwards.

@@ -123,6 +123,18 @@ without breaking a 6am cancellation.
   in well under a minute through the real web app and worker; every webhook answered 200 quickly
   (p95 under 2 s, after one warm-up), every message's reply stored within a minute of the last. It
   failed (31 of 200 in a minute) before the worker fetched firm jobs in bursts.
+- `error-page.spec.ts` (e2e) and `error-pages.test.ts` — the error screens recover (audit M4). The
+  failures are on purpose and only in the e2e run (`src/lib/e2e/fails-once.ts`: `E2E_TEST_PAGES=on`,
+  which only `playwright.config.ts` sets and the app refuses unless its address is localhost; off,
+  the test page is "not found" and the root layout's hook reads nothing). A page that fails the
+  first time (`/e2e/fails-once?id=`) shows "Something went wrong" with "Go to my shifts"; "Try
+  again" fetches it again and it shows. "Go to my shifts" is a full page load. With no signal it
+  says "No signal" and "Try again" is off until the signal is back. The page's frame failing once
+  (a cookie) shows the whole-page error, and "Try again" loads the page. With the old buttons
+  (Next's `reset()`, a Next link), "Try again" left on with no signal, or a whole-page "Try again"
+  that does nothing, the matching test fails. The unit test checks each button's wiring, the
+  whole-page form (it works without the page's scripts), and that no deploy or CI file sets the
+  switch.
 - `logs-scan.test.ts` and the e2e teardown (`tests/e2e/teardown.ts`) — no phone number or email in
   the servers' output for the whole e2e run: numbers with spaces or dashes, +44 / 0044 / 0, in
   brackets, after a slash, in URLs (%2B, a form's +), emails (%40 too); ids, ISO times, versions,

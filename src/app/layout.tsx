@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
+import { FRAME_FAILS_COOKIE, frameFailsOnce } from "@/lib/e2e/fails-once";
 import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { BrandBar } from "./brand-bar";
 import "./globals.css";
@@ -22,6 +24,8 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 // Every firm page opens with the firm's bar (its logo, name and colour); the platform's own
 // address has none.
 export default async function RootLayout({ children }: { children: ReactNode }) {
+  // The browser test of the whole-page error screen (only in the e2e run; otherwise nothing).
+  await frameFailsOnce(async () => (await cookies()).get(FRAME_FAILS_COOKIE)?.value);
   const brand = await getCurrentBrand();
   return (
     <html lang="en-GB">

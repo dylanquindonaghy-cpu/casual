@@ -557,12 +557,12 @@ const SCREENS: [string, ReactElement][] = [
     createElement(PushSettingView, { state: "off", firmName: "Acme Events", justTurnedOff: true }),
   ],
   ["Page not found", createElement(NotFound)],
-  ["Something went wrong", createElement(ErrorPage, { reset: () => undefined })],
+  ["Something went wrong", createElement(ErrorPage, { retry: () => undefined })],
   [
     "A page failed with no signal",
-    createElement(ErrorBody, { online: false, reset: () => undefined }),
+    createElement(ErrorBody, { online: false, ready: true, retry: () => undefined }),
   ],
-  ["The whole page failed", createElement(GlobalError, { reset: () => undefined })],
+  ["The whole page failed", createElement(GlobalError)],
 ];
 
 describe("every staff screen and state is in plain words", () => {
@@ -605,13 +605,17 @@ describe("every staff screen and state is in plain words", () => {
 
   it("with no signal, says so rather than 'Something went wrong'", () => {
     const words = text(
-      renderToStaticMarkup(createElement(ErrorBody, { online: false, reset: () => undefined })),
+      renderToStaticMarkup(
+        createElement(ErrorBody, { online: false, ready: true, retry: () => undefined }),
+      ),
     );
     expect(words).toContain("No signal");
     expect(words).toContain("Check your signal and try again.");
     expect(words).not.toContain("Something went wrong");
     const online = text(
-      renderToStaticMarkup(createElement(ErrorBody, { online: true, reset: () => undefined })),
+      renderToStaticMarkup(
+        createElement(ErrorBody, { online: true, ready: true, retry: () => undefined }),
+      ),
     );
     expect(online).toContain("Something went wrong");
     expect(online).toContain("If it keeps happening, contact the office.");

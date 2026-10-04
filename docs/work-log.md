@@ -7908,7 +7908,7 @@ Parked for task 9 (making the rota sheet follow the office's rules):
   second run passed with that test unchanged.
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M1, M2, L12.
-- Committed and pushed to `build/overnight`.
+- Commit `0c7d9b3`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

@@ -7111,4 +7111,4 @@ changes, and the flaky `sheets.jobs` test.
 
 **Hours:** 1.2 (23:07 to 00:16 UTC). Phase 10 so far: 7.8 h of its 30–45 h estimate.
 
-**Commit:** see the next "Log commit and push" commit.
+**Commit:** `0c7d9b3`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.

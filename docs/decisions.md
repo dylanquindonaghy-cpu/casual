@@ -38,7 +38,9 @@ agreement + DPA.
 
 **Context:** Staff live on WhatsApp. SMS costs ~4p each in the UK.
 **Decision:** Twilio (one account covers UK numbers, SMS, WhatsApp, voice; ElevenLabs imports
-Twilio numbers natively). Order: web push → WhatsApp → SMS.
+Twilio numbers natively). Order: web push → WhatsApp → SMS. (As built: the worker's chosen channel,
+WhatsApp or text, with a text when WhatsApp is refused, **and** a push as well, not push instead:
+`src/lib/notify/send.ts`. Which it should be is in PLAN.md, "Decisions waiting for Dylan".)
 **Consequences:** Meta business verification per firm; approved templates for offers and login
 links; service messages beyond 1,000 per number per month are charged from 1 October 2026.
 **Revisit when:** SMS volume makes Telnyx worth a look.
@@ -47,7 +49,8 @@ links; service messages beyond 1,000 per number per month are charged from 1 Oct
 
 **Context:** ~10 calls a day per firm. An AI voice agent costs ~£30/month per firm at that volume
 but adds complexity.
-**Decision:** Default: short recorded message + instant WhatsApp/SMS link. AI phone line
+**Decision:** Default: short recorded message + instant WhatsApp/SMS link (as built: by WhatsApp
+only; the SMS fallback for login links is parked). AI phone line
 (existing ElevenLabs agent) is a £149/month add-on in Stage 2.
 **Consequences:** cuts calls instead of just answering them; pushes staff to the portal.
 
@@ -64,7 +67,8 @@ not "AI".
 
 **Context:** App fatigue; staff juggle several agency apps; smartphone ownership is high
 but lower among over-65s.
-**Decision:** Mobile-first web portal (installable), login by link on WhatsApp/SMS.
+**Decision:** Mobile-first web portal (installable), login by link on WhatsApp/SMS (as built: by
+WhatsApp only, the SMS fallback is parked; office users by email).
 **Consequences:** iPhone push only after "add to home screen"; WhatsApp covers urgent alerts.
 **Revisit when:** geofencing (Stage 3) needs a native app (Flutter).
 
@@ -207,8 +211,9 @@ confirm against any copy however old (a failing sync would take bookings the she
 lock the worker first (the opposite order to the sync's).
 **Consequences:** a Sheets firm whose sync has been failing for 20 minutes can't take portal
 bookings until it recovers (the worker is told to try again shortly). Two tabs can't double-book
-one person. The office's overrides are limited to checks 0 and 6-8 and always carry a reason in
-the action log. Bookings relying on the "applied" allowance queue per firm and day, so two
+one person. The office's overrides are limited to checks 0 and 6-8 and always carry a reason (since
+Phase 10 task 13 kept on the booking, `assignments.override_reason`; the action log only says a
+reason was given). Bookings relying on the "applied" allowance queue per firm and day, so two
 applicants can't both take the day's last allowed place.
 **Revisit when:** event-day bookings need a tighter freshness window than 20 minutes, or a
 sheet row deleted by the office must stop being bookable before the sync notices (parked).
@@ -358,12 +363,13 @@ messages, the free text on requests and pay queries). The rows that are evidence
 anonymous row, with any typed text on them cleared (a worker's "Something else: …" cancellation
 note becomes "Something else"; the app's fixed wording stays). The app role still has no DELETE on
 messages: `app_erase_worker()` (the row made anonymous and its messages deleted in one call, by the
-number the row held, once per worker) and `app_purge_old_messages()` (only over 90 days old, the age
-fixed in the function; since Phase 10 task 13 the firm's own `retention.message_days`, read inside the
-function from the firm's settings, which only the owner can change, and nothing during a hold) run as
-the owner, bound to the current firm by forced RLS. Admins only (a new `data`
-area). Retention purges messages, request notes and login leftovers nightly; the 12-month purge of
-the log, requests and offers is not built.
+number the row held, once per worker) and `app_purge_old_messages()` (messages older than the
+firm's own `retention.message_days`, 90 unless set, read inside the function from the firm's
+settings, which only the owner can change, and nothing during a hold: Phase 10 task 13; at first
+the age was fixed at 90 days) run as the owner, bound to the current firm by forced RLS. Admins only
+(a new `data` area). Retention purges messages, closed requests' notes, the office's override
+reasons and login leftovers nightly; the 12-month purge of the log, requests and offers is not
+built.
 **Options:** a full delete (would need ON DELETE on evidence and deleting events); one shared
 "Deleted worker" row (loses which anonymous person did what); a DELETE grant on messages for the
 app role (any bug could delete them); a message function taking a number from its caller (a bug
@@ -371,9 +377,10 @@ could delete anyone's unknown-number messages); a placeholder mobile instead of 
 to; with null the type checker flagged the Drizzle readers, and the raw-SQL readers filter it out).
 **Consequences:** the notice report keeps its rows, showing "Deleted worker"; a firm's rota sheet
 or staff file can add the person back (the runbook says to remove them there too); unknown-number
-messages from their old number are deleted with them. Not reachable: the office's typed reason for
-placing someone despite a rule, which is in the append-only log (checked for phones and emails
-only), and Twilio's own copy of messages (by the ids in events), once Twilio is connected. **Revisit when:** the 2027 rules set how long
+messages from their old number are deleted with them. Not reachable: Twilio's own copy of messages
+(by the ids in events), once Twilio is connected. (The office's typed reason for placing someone
+despite a rule was in the append-only log at first; since Phase 10 task 13 it's on the booking,
+replaced by an erasure and cleared by the nightly purge.) **Revisit when:** the 2027 rules set how long
 notice records are kept (then decide the log's purge: it needs a delete policy on events, which a
 pinned test forbids today).
 

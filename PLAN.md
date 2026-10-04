@@ -315,7 +315,7 @@ every step works.
       enabled worker; the runbook trial is moved to after SES and Twilio, with a test-firm step, so
       its checks can pass; the Caddyfile is checked by Caddy itself; HSTS is sent; database TLS is
       on in the production settings; runbook steps match the scripts (M8, M9, L29, L38, L43, L50)
-- [ ] Every decision waiting for Dylan is in one place: a "Decisions waiting for Dylan" section in
+- [x] Every decision waiting for Dylan is in one place: a "Decisions waiting for Dylan" section in
       `PLAN.md` lists each open decision once (from `PLAN.md`, the decision tables in
       `docs/overnight-log.md`, `docs/compliance.md` and `docs/privacy-notice.md`), grouped, with the
       safe default now in force. The Parking lot steps say who does each step (Dylan, or Claude
@@ -353,6 +353,229 @@ every step works.
 - Check in / check out with location at tap
 - Native app (Flutter) with geofencing for unmanaged sites — DPIA first (see compliance)
 - No-show prediction from the action log
+
+## Decisions waiting for Dylan
+
+Every decision still waiting for you, listed once, grouped (Phase 10 task 18, from this file, the
+decision tables in `docs/overnight-log.md`, `docs/compliance.md`, `docs/privacy-notice.md` and
+`docs/decisions.md`). **Default now** is what the app does today. A row that starts with a bold
+**When …** or **Before …** has to be settled by then; any other can stay as it is until you want it
+changed. **Where** says where the details are (Parking lot items are in this file; "log" is
+`docs/overnight-log.md`). To decide one, tell Claude: it changes the code if needed, then strikes
+the line here. (The old way of finding these, `grep "Dylan to" PLAN.md`, misses many: use this
+list.) After the decisions, a short table of checks and to-dos that aren't choices.
+
+**When each one matters** (every row with that tag):
+1. **Before any real data** (the pilot firm's staff, even a check of a file): Legal 1, 2, 4 and 6;
+   Checks 1.
+2. **When you create the accounts:** Messages 20, 23, 24 and 25; Deploy 2; Checks 2 and 3.
+3. **Before submitting the WhatsApp templates** (Meta's approval is the slow step; changing approved
+   words means submitting again): Messages 11 to 17.
+4. **Before the first real import:** Sheets 11; Checks 9.
+5. **Before a pilot:** Data 1, 3, 6, 7, 8 and 13; Rules 3 and 8 (a security firm); Messages 1 and
+   3; Pay 4; Office 10; Product 2 and 7; Checks 6, 7 and 8.
+6. **Before any Sheets firm** (if the pilot keeps its rota in a Google Sheet): Sheets 1 to 3.
+7. **When you deploy:** Deploy 1; Checks 4.
+8. **Before any firm uses its own address:** Checks 5.
+9. **Before the pilot's data is a year old:** Data 2.
+
+### Legal and compliance
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | **Before any real data:** a solicitor reads the terms, the DPA and `docs/privacy-notice.md` (or use templates; about £500–£1,500). Ask them too about health details workers may type ("I'm unwell": Data 11). Give the business's legal name for the notice | Nothing reviewed; no real data is saved on a live server until a firm's signing is recorded (`firm:agreement`) | compliance.md; privacy-notice.md; Parking lot "Send the pilot firm its privacy notice wording" |
+| 2 | **Before any real data:** the sub-processors' DPAs and UK transfer terms: Twilio, Meta, AWS, Google (Sheets firms only); the browser push services once push is live; ElevenLabs only if ever used | Listed in the docs only; nothing signed | compliance.md "Sub-processors"; privacy-notice.md |
+| 3 | A limited company, insurance (professional indemnity, cyber) and an accountant, once a pilot says yes | Not done | compliance.md; business.md |
+| 4 | **Before any real data:** the pilot agreement: you own the software and they license it; price and term; the DPA; exclusivity; naming them as a reference. The first pilot firm is your employer: check your own employment contract (who owns what you make, outside work) first | Not agreed | go-to-market.md |
+| 5 | Short notice in the notice report until the 2027 rules are final (and any compensation rules) | 48 hours unless the owner sets the firm's `short_notice_threshold_hours` | compliance.md; Parking lot "Notice report" items |
+| 6 | **Before any real data:** may a real staff file be checked (a dry run, nothing saved) on the live server before the agreement is recorded? It's still reading personal data, from your employer's files (golden rule 7). Demo firms on the live server would need a made-up signing date | Allowed. Until you decide, the safe course is not to check a real file there | Parking lot "Dylan to confirm (Gate B…)"; log, Phase 10 task 11 |
+| 7 | Notice for a cancellation phoned in counts from when the office types it, not when the worker rang; and the office can't record a cancellation as the worker's own (always the firm's, with notice) | Typed-in time; always the firm's | Parking lot "Firm-initiated changes follow-ups"; log, Phase 5 |
+| 8 | A message that may not have arrived (sent, then its record failed) still counts in the notice evidence, marked "not confirmed" | Counted and marked | log, Phase 10 task 3 |
+| 9 | Workers can't cancel once a shift starts; the office can until it ends (negative notice recorded, the place not reopened) | As stated | log, Phase 3 |
+| 10 | Sending someone home part-way is a curtailment with notice, not a cancellation | As stated | Parking lot "Dylan to confirm: sending someone home…" |
+| 11 | A move is refused when a booked worker fails a check the office can't override (or ask each worker to confirm instead) | Refused and logged | Parking lot "Firm-initiated changes follow-ups" |
+| 12 | The fixed list of reasons for the office's changes; "Another reason" has no detail | 6 reasons | `src/lib/roster/firm-reasons.ts`; log, Phase 5 |
+| 13 | A change notice goes at night (urgent) when the shift starts within the urgent window or is under way; otherwise it waits for the morning | As stated | Parking lot "Firm-initiated changes follow-ups" |
+| 14 | The notice report's CSV: at most 20,000 rows; downloads aren't logged | As stated | log, Phase 5 notice report |
+| 15 | What an AI may see: the pay summary gets a group's facts only; the message sorter gets the worker's own words and may only return a label | No AI connected | log, Phases 6 and 7; "Connect Bedrock" |
+
+### Data and retention (GDPR)
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | **Before a pilot:** the keep-times (they go into the firm's privacy notice): messages 90 days; a closed request's words and the office's override reason 365 days; a firm may choose 30 days to 6 years; one hold covers the whole firm | As stated | Parking lot "Dylan to confirm (retention…)"; compliance.md |
+| 2 | **Before the pilot's data is a year old:** purge year-old action log, requests and offers (it means changing the log's "never deleted" protection on purpose), or keep them longer once the 2027 rules say how long | Never purged | Parking lot "GDPR follow-ups"; ADR-020 |
+| 3 | **Before a pilot:** how long records are kept after someone leaves (the notice's "[period]"); it mustn't promise less than is kept | Kept with no end date | privacy-notice.md |
+| 4 | Typed text with no schedule: pay query details, payroll's notes, "Something else: …" cancellation notes, the office's answers. Purge them after a time? | Kept until that worker is deleted | Parking lot "GDPR follow-ups" |
+| 5 | Deleting a worker leaves what other people wrote that names them (a colleague's swap request) | Unchanged | Parking lot "GDPR follow-ups"; compliance.md |
+| 6 | **Before a pilot:** deleting a worker keeps their pay lines (anonymous) and their pay queries with the text cleared | As stated | Parking lot "GDPR follow-ups" |
+| 7 | **Before a pilot:** deleting a worker deletes their licence and card records; security firms may have to keep screening records (BS 7858, SIA) | Deleted | Parking lot "GDPR follow-ups"; privacy-notice.md |
+| 8 | **Before a pilot:** only admins delete, and not while the worker is booked on a shift that hasn't ended | As stated | Parking lot "GDPR follow-ups" |
+| 9 | A hold (for a dispute) also blocks an admin deleting a worker? | It doesn't; the runbook says check first | Parking lot "GDPR follow-ups" |
+| 10 | The office's reason for placing someone despite a rule: free text, or fixed reason codes? | Free text, up to 500 characters, phone numbers and emails refused; on the booking, never in the log | Parking lot "Dylan to confirm: the office's override reason…" |
+| 11 | A worker's cancellation reason and note ("I'm unwell" is health data): keep free text, or fixed codes only? | Quick reasons, or "Something else" with a note of up to 200 characters (no check on what's typed); on the booking, never in the log | `src/lib/portal/cancel-reasons.ts`; log, Phase 3 |
+| 12 | A swap request's "Who could take it?" is free text that can name a colleague | As stated | Parking lot "Dylan to confirm: a swap request's…" |
+| 13 | **Before a pilot:** Twilio keeps its own copies of messages, recordings and transcriptions: a job to delete them (with the Twilio sender), and until then don't promise "90 days" | Nothing deletes anything at Twilio (not connected) | "Connect Twilio" step 10; privacy-notice.md notes |
+| 14 | A firm's logo is loaded from its own website (which sees workers' internet addresses), or uploaded to us | Loaded from the firm's site, no referrer | compliance.md; privacy-notice.md |
+| 15 | The phone keeps an offline copy of My shifts (with shift instructions) for up to 14 days | As stated | log, Phase 3 and Phase 10 task 12 |
+| 16 | Resourcers see the "Data requests and deletion" group in the action log | Visible | Parking lot "GDPR follow-ups" |
+| 17 | A deleted worker's sheet staff ID stays on shifts still ahead (the sheet merge needs it) | As stated | log, Phase 10 task 13 |
+| 18 | The firm export is one JSON file of every firm table; every export is logged | As stated | log, Phase 8 GDPR |
+| 19 | A shift's site and address show to every worker in the firm; its instructions only to those booked | As stated | log, Phase 3 |
+
+### Rules, eligibility and credentials
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | The SIA "applied" allowance (deploying staff whose licence is in progress, reported as up to 15%): confirm the rule; whether close protection counts; a night shift counts by its start day | 0%, and no command sets it | rules-and-credentials.md; compliance.md |
+| 2 | The office may book despite "shift already started", rest, weekly hours or a day off (never a worker; names typed in a rota sheet too, except "started": Sheets 5) | As stated | Parking lot "Dylan to confirm: the office may override…" |
+| 3 | **Before a pilot (a security firm):** "any of" licences: a door supervisor licence also covers guarding, so door supervisors can't take security-officer shifts today | "All of" only | Parking lot; `src/lib/rules/packs.ts` |
+| 4 | The sector packs' role → licence rules; each firm gets its own editable copy | As in `packs.ts` | log, Phase 1 |
+| 5 | The expiry to record for cards with no fixed validity (DBS, rail drugs and alcohol, steward refreshers) | The card's own date; none means never | rules-and-credentials.md |
+| 6 | A licence counts if valid and in date for every day the shift touches; a suspended card fails | As stated | log, Phase 1 |
+| 7 | My shifts' licence banner also shows cards already expired (the spec asked for "expires within 30 days") | Shows both | Parking lot "Dylan to confirm: the My shifts banner…" |
+| 8 | **Before a pilot (a security firm):** a licence that lapses after someone is booked: hold the reminder and alert the office? (Deploying an unlicensed guard is an offence) | The reminder still goes, and nothing flags the booking | Parking lot (credential expiry and reminders items) |
+| 9 | Expiry warnings at 30, 14 and 7 days, sent at 08:00; a Monday list to admins and resourcers | As stated | log, Phase 2 credential expiry |
+| 10 | Imported licences are never marked "checked" | As stated | log, Phase 2 imports |
+| 11 | Days off: from today to 180 days ahead, at most 60; marking one doesn't cancel bookings | As stated | log, Phase 3 profile |
+| 12 | Fair rotation's priority window (ADR-015): a place held 15 minutes for the 4 with fewest hours | Only when a firm chooses fair rotation (default first come, first served) | Parking lot "Dylan to confirm: fair rotation…"; decisions.md |
+| 13 | No-shows push a worker back in fair rotation? | No (a no-show lowers their hours, so moves them up) | Parking lot "Marking who worked follow-ups" |
+
+### Offers, reminders and messages
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | **Before a pilot:** urgent messages go during quiet hours (22:00–07:00) unless a firm turns it off; the spec reads as "if the firm allows it" | Urgent messages go at night | `src/lib/rules/quiet-hours.ts`; log, Phase 4 (never flagged before) |
+| 2 | Notifications by WhatsApp or text **and** push, or push first to save the WhatsApp fee (ADR-003 said push first) | Both | Parking lot "Dylan to confirm: notifications go by WhatsApp…" |
+| 3 | **Before a pilot:** first come, first served sends the urgent offer to every eligible worker at once, not "the best 3–5" | Everyone at once | Parking lot "Offer waves follow-ups" |
+| 4 | The 3-offers-a-day cap: fixed, or per firm; urgent offers count towards it | Fixed; urgent ones count | Parking lot (offer cap items) |
+| 5 | Re-offer to workers whose earlier offers became "filled elsewhere" when the office reopens a shift? | No | Parking lot |
+| 6 | A wave held by quiet hours past the shift's start | Stops as "started"; only the escalation tells the office | "Connect Twilio", last paragraph |
+| 7 | Any cancellation that reopens a place inside the urgent window starts waves (the office's too); someone who cancelled is never offered it again. "The client needs fewer staff" will stop re-offering in Phase 10 task 19: lower the places instead? | As stated | log, Phase 4; Parking lot; Phase 10 task 19 |
+| 8 | The escalation email: 3 hours before the start, to admins and resourcers, once per shift (not per gap) | As stated | Parking lot "Offer waves follow-ups" |
+| 9 | A message that fails isn't retried (at most once: lost, never doubled) | As stated | log, Phases 4 and 10 |
+| 10 | Reminders at 24 hours and 2 hours, held by quiet hours (a 2-hour one before 07:00 is skipped); no opt-out | As stated | Parking lot "Shift reminders follow-ups" |
+| 11 | **Before submitting the WhatsApp templates:** "Cancel in the app" in the 24-hour reminder (there's no app) | "Cancel in the app" | Parking lot "Shift reminders follow-ups" |
+| 12 | **Before submitting the WhatsApp templates:** texts: the sign-off adds a second text; "{day}" not "today"; short text versions of other messages; nothing limits a text's length; the office's 500-character note is about 9 texts | As stated | "Submit the WhatsApp templates" |
+| 13 | **Before submitting the WhatsApp templates:** the copy written overnight, read once: `credential_expired`, the Monday list email, the "no site" versions, `shift_cancelled_by_firm`, request updates ("approved" can read as "booked"; "answered" for a question) | In `src/lib/messaging/templates.ts` and the docs | docs/messaging-templates.md; log, Phases 2–5 |
+| 14 | **Before submitting the WhatsApp templates:** a worker who cancels gets only the on-screen confirmation; send the `cancellation_ack` message too (it needs its template)? | Not sent | Parking lot; log, Phase 3 |
+| 15 | **Before submitting the WhatsApp templates:** Meta will probably put `login_code` in its "authentication" category: fixed wording and no sign-off, against golden rule 8 | Written with the sign-off | "Submit the WhatsApp templates"; docs/messaging-templates.md |
+| 16 | **Before submitting the WhatsApp templates:** a change notice to a worker who's no longer active still carries the portal link (they can't log in): a version without it? Also check Meta accepts the office's free-text note as a variable | As stated | Parking lot; "Submit the WhatsApp templates" |
+| 17 | **Before submitting the WhatsApp templates:** payroll's note goes in the WhatsApp or text itself (or "See it on your pay page": a different template) | In the message | Parking lot "Pay query status follow-ups" |
+| 18 | "Offer to someone" uses the same checks as waves (no override); a failed one isn't resent | As stated | log, Phase 5 |
+| 19 | The shifts line's keywords ("work" and "available" give open shifts; "shift" alone doesn't) | As stated | Parking lot "Unknown number follow-ups" |
+| 20 | **When you create the accounts (Twilio):** "CANCEL" by text turns texts off (Twilio's list): drop it so "cancel" means a shift? And Twilio's own opt-out settings (Advanced Opt-Out on, its keyword list the same as ours) | Turns texts off | "Connect Twilio" step 5 |
+| 21 | STOP by text turns texts off, not all contact: a worker who chose texts then gets WhatsApp instead | As stated | log, Phase 7 |
+| 22 | Unknown numbers: a former worker gets no reply, a stranger gets "reply with your full name"; one reply and one email per number per 24 hours. An unknown caller gets no text back (their voicemail reaches the office) | As stated | Parking lot "Unknown number follow-ups"; log, Phase 7 |
+| 23 | **When you create the accounts (Twilio):** a firm with no shifts line yet: a shared ShiftDesk number, or nothing until its line is live | No sending number set | "Connect Twilio" step 8 |
+| 24 | **When you create the accounts (Twilio):** voicemail transcription: Twilio's basic one, or Amazon Transcribe later | Twilio's | "Connect Twilio" step 10 |
+| 25 | **When you create the accounts (Meta):** service messages over 1,000 a month per number are charged (from 1 October 2026: a payment method on file or they stop); each firm needs Meta business verification (days) | Not connected | compliance.md |
+| 26 | A firm may shorten its sign-off ("Acme Shift Team"), never a person's name | Allowed | log, Phase 8 branding |
+
+### Rota sheets and imports
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | **Before any Sheets firm:** a row deleted from the sheet, or a person who vanishes from it: a firm cancellation with notice, or a flag for the office? | Ignored | Parking lot "Before any Sheets firm goes live" |
+| 2 | **Before any Sheets firm:** a booked sheet shift set to Draft | Bookings kept; no notice | Parking lot |
+| 3 | **Before any Sheets firm:** tell workers when an edit in the sheet books, moves or cancels them? | Not told | Parking lot |
+| 4 | Role changes on booked shifts: the sheet allows one if everyone booked can do it; the editor and imports refuse | As stated | Parking lot "Dylan to confirm: a role changed in the rota sheet…" |
+| 5 | A name typed into the sheet overrides rest, weekly hours and days off (as the office can: Rules 2) | As stated | Parking lot "Dylan to confirm: (1) re-check the live source…" |
+| 6 | "Re-check the live source" means our copy synced in the last 20 minutes | As stated | same |
+| 7 | A name with no place left is taken out of the firm's sheet (logged) | As stated | log, Phase 10 task 9 |
+| 8 | Switching a sheet off (`firm:sheet --disable`): its shifts ahead are frozen (no booking; booked stay) | Frozen | Parking lot |
+| 9 | Only UK-locale sheets | Others refused | log, Phase 10 task 10 |
+| 10 | A worker matched by mobile alone must have the same name | Refused otherwise | log, Phase 10 task 11 |
+| 11 | **Before the first real import:** a worker who changed number, imported without a Staff ID, arrives as a new worker, and their old record keeps the old number, so whoever has that number next could log in as them. Require a Staff ID column, or flag a new worker with an existing name? | As stated | Parking lot (import items) |
+| 12 | An imported shift with no Shift ID is matched by site, role and times (a new time makes a new shift); US-format dates | As stated | Parking lot (import items) |
+| 13 | Imports can't change booked or started shifts | Skipped | log, Phase 2 |
+| 14 | Web imports up to about 1 MB (the terminal 5 MB) | As stated | Parking lot "Dylan to confirm: new shifts are open at once…" |
+| 15 | A shift of 24 hours or more is refused (sheet, imports, editor) | Refused | log, Phase 10 task 11 |
+
+### Pay and payroll
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | Correcting or removing a wrongly imported pay line | No way to; a corrected rate becomes a second line | Parking lot "Pay records (Dylan to decide …)" |
+| 2 | How pay queries are grouped (rate, site or week by issue); a worker paid at two rates | As stated | Parking lot "Pay query grouping follow-ups" |
+| 3 | A query's group freezes once it's been in a digest? | It can still move | same |
+| 4 | **Before a pilot:** the digest: 09:00 Monday to Friday, to payroll only, names only in the attachment (check the firm is happy with that going to payroll's mailbox) | As stated | Parking lot "Payroll digest follow-ups" |
+| 5 | A digest send that timed out (may have arrived) puts its queries back | Put back | same |
+| 6 | The pay query form: behind the pay code; 8 weeks of shifts or 90 days back; details only for "Something else" | As stated | Parking lot |
+| 7 | Payroll sorts a whole group with one note; no "declined" status | As stated | log, Phase 6 |
+| 8 | The pay area is for payroll and admins only | As stated | log, Phase 6 |
+
+### Office and access
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | An office settings screen (notice threshold, urgent window, quiet hours, waves, sign-off, digest time, retention, domain, and the rules settings: rest 11 hours, weekly cap 48, travel buffer 0)? It needs a new permission on `firms` | Owner-only commands (`firm:settings` and others); the rules settings can't be changed at all, so every firm runs on those defaults | Parking lot; compliance.md; rules-and-credentials.md |
+| 2 | What payroll and resourcers see (payroll: no Today, notice report or log; resourcers: that a pay record changed, never the amount) | As stated | Parking lot; `src/lib/auth/roles.ts` |
+| 3 | "Mark as filled" records who and when, not how | As stated | Parking lot |
+| 4 | New shifts are open at once (no draft step) | As stated | Parking lot |
+| 5 | Answering requests: a note to decline, optional to approve; approving changes nothing else | As stated | Parking lot |
+| 6 | Marking "didn't attend" doesn't message the worker; unmarked bookings aren't completed automatically | As stated | Parking lot "Marking who worked follow-ups" |
+| 7 | The office's "make inactive" beats the sheet and files; "Bookings to check" on Today, with nothing escalating one left unanswered as the shift gets close (mark it urgent, or email the office?) | As stated | log, Phase 10 task 7; Parking lot |
+| 8 | The pilot metrics' definitions and default period (the last 7 complete days) | As stated | Parking lot; log, Phase 9 |
+| 9 | The action log: last 7 days by default, 92 days per search, no export; Today: no email about a new worker request | As stated | log, Phase 5 |
+| 10 | **Before a pilot:** login limits at a briefing on venue Wi-Fi (one internet address for everyone): raise, or per firm? | 10 per address and 3 per number every 15 minutes | Parking lot |
+| 11 | Workers can't change their own contact details (the office does) | As stated | log, Phase 3 profile |
+
+### Deploy, servers and security
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | **When you deploy:** merge `build/overnight` into `main` (yours; it builds the first image). Check CI on GitHub's Actions tab first (or install `gh` so Claude can) | Not merged; CI unchecked | "Connect the deploy"; Parking lot "Dylan to decide: audit findings the overnight loop may not fix" |
+| 2 | **When you create the accounts:** a stable server-action key (a GitHub secret; Claude wires it into the image build); pin `actions/checkout`, the Node image and the RDS certificate file | Not pinned | "Connect the deploy" (4) |
+| 3 | The call fallback: one TwiML Bin per firm, one manager's mobile | Command built; no bins | "Connect Twilio" step 10 |
+| 4 | One server until about 5 paying firms | As stated | ADR-002 |
+| 5 | Links in messages stay on `<slug>.<our domain>` even when a firm's own address is verified (only login links go back to it) | As stated | Parking lot "Phase 8 custom domains"; ADR-019 |
+| 6 | The web app's database login can call `app_firm_ids()` (revisit if a second service needs the database) | As stated | Parking lot |
+| 7 | A test-only failing page ships in the app (switched on only in the browser tests, on localhost) | As stated | log, Phase 10 task 14 |
+
+### How the build is run
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | Add `npm run build` to `scripts/verify.sh` (task 17's image break would have been caught) | Not in it | Parking lot "Dylan to confirm: add npm run build…" |
+| 2 | Require the browser tests for a tick; a production-mode browser run | Optional (`RUN_E2E=1`) | Parking lot "Dylan to decide: audit findings the overnight loop may not fix" |
+| 3 | Widen `scripts/invariants.sh` (Playwright skips, `scripts/` in the withFirm check, `twilio` in tests) | Not covered | same |
+| 4 | The safety net's gaps (the tick guard, Stop hook, stamp timing; reviewers read-only by tool) | Unchanged | same |
+| 5 | CLAUDE.md: add `resolveFirmByLine()` and the domain look-up to the allowed look-ups; where the "set a firm's line" code sits; and the loop's own edit to CLAUDE.md (the browser tests' port 3443 and `openssl`): keep it? | As is | Parking lot "Shifts line follow-ups"; log, Phase 10 task 15 |
+| 6 | Golden rule 3's wording: message ids are unique per firm, not across all firms | Per firm | log, Phase 7 |
+| 7 | Schema, auth and tenancy changes made overnight without waiting (your standing instruction), to look over once: migrations 0019 to 0034 (`drizzle/`), notably a worker's mobile may be empty once deleted, with owner-run delete and purge functions (0026); `otp_codes.request_id` (0027); the firm's agreement date (0032); the override reason on the booking (0033); per-firm retention read by the database (0034) | Done on `build/overnight` | log (each task's Decisions) |
+| 8 | A database rule for "one waiting request per worker, shift and kind" (a schema change) | Held by a lock in code | Parking lot |
+
+### Product and scope
+
+| # | Decision | Default now | Where |
+|---|---|---|---|
+| 1 | Pricing (£299 pilot, about £3 per active worker a month, £199 minimum) | A hypothesis | business.md; ADR-007 |
+| 2 | **Before a pilot:** on a real iPhone, does the home-screen app stay logged in? (iPhone push only works from the home screen.) If not, a typed-code login, or remove the hint | Hint shown | Parking lot "Offline and home-screen follow-ups" |
+| 3 | What an "offered" booking means | Unused; offers live in `offers` | Parking lot |
+| 4 | Open shifts: 28 days ahead, at most 50 checked; My shifts: a shift on now stays under Upcoming | As stated | log, Phase 3 |
+| 5 | The urgent flag stays on after a shift fills (the office clears it) | As stated | Parking lot |
+| 6 | "Similar shifts" on a filled shift's page (not built) | Not built | Parking lot "Blocked-shift follow-ups" |
+| 7 | **Before a pilot:** settings to agree with each pilot firm: urgent window, wave size, escalation time, quiet hours, allocation mode, sign-off | 24 h; 4; 3 h; 22:00–07:00; first come, first served; "[Firm] Shift Team" | go-to-market.md |
+| 8 | Later: the next sector, an AI phone line, a firm's own copy of the system, location check-in | Not now | decisions.md |
+
+### Checks and to-dos (not choices)
+
+| # | What | Who | Where |
+|---|---|---|---|
+| 1 | **Before any real data:** pay the ICO data protection fee (Tier 1) | You | compliance.md |
+| 2 | **When you create the accounts:** check the two monthly prices `deploy/lightsail.sh` shows before typing `yes` | You | "Connect AWS" |
+| 3 | **When you create the accounts:** MFA on every account, least-privilege access, a one-page breach plan (72 hours to report) | You | compliance.md |
+| 4 | **When you deploy:** the first deploy's database step connects with checked encryption (a certificate error: tell Claude) | You | runbooks "Deploy" |
+| 5 | **Before any firm uses its own address:** a regular re-check that it still points to us | Claude | docs/testing.md pre-pilot checklist; ADR-019 |
+| 6 | **Before a pilot:** a per-worker limit on "Take shift" | Claude | Parking lot |
+| 7 | **Before a pilot:** licence expiry messages go by WhatsApp whatever the worker chose (a worker who chose texts gets none): move them onto the normal sender | Claude | Parking lot (credential expiry items) |
+| 8 | **Before a pilot:** the dry-run event day on the firm's real setup | You, with the firm | pilot-playbook.md; Phase 9 |
+| 9 | **Before the first real import:** how a real file gets into the server's owner container (a mounted folder, or `docker compose cp`) | Claude, then you | Parking lot "Import the pilot firm's real data" |
+| 10 | On the first restore: check a snapshot keeps the database's logins | You | "Try the runbooks for real" |
+| 11 | Monitoring and alerts as the runbook says (Lightsail alarms, an outside uptime check, the app's alerts to you) | You | runbooks "Monitoring and alerts" |
+| 12 | Fix the flaky test (`sheets.jobs.test.ts`): its fix is written out | Claude | Parking lot |
+| 13 | Capture real Twilio requests for the tests | You, then Claude | "Connect Twilio" step 11 |
 
 ## Parking lot
 
@@ -406,13 +629,13 @@ every step works.
 - Pay data: `myPay()` (Phase 3) re-checks the stepped-up session it's given (kind, worker and the
   30-minute window) and throws `StepUpRequiredError` otherwise. The Phase 6 "Raise a pay query"
   action must do the same (call `steppedUpWorker()` itself), not rely on the /pay page.
-- Before Twilio (Phase 4), send-login-code too: make a retried job a no-op (a unique request id
-  on otp_codes, like magic_links.request_id; a schema change). Today a retry after a real send
-  sends a second code that replaces the first.
-- Before Twilio (Phase 4): send-portal-link sends inside its database transaction. Commit the
-  unsent link first, then send, then mark it sent (today a commit failing after a real send leaves
-  a delivered link that doesn't work, and the retry sends a second message). Also skip login
-  requests more than a few minutes old (after the worker was down).
+- ~~Before Twilio (Phase 4), send-login-code too: make a retried job a no-op (a unique request id
+  on otp_codes, like magic_links.request_id; a schema change).~~ Done in Phase 10 task 3
+  (`otp_codes.request_id`, migration 0027; a code is sent at most once).
+- ~~Before Twilio (Phase 4): send-portal-link sends inside its database transaction. Commit the
+  unsent link first, then send, then mark it sent.~~ Done in Phase 10 task 3 (claim, send, record:
+  a link is sent at most once). Still open: skip login requests more than a few minutes old (after
+  the worker was down).
 - When an office settings screen lets a firm edit `sign_off`: validate it (ends "Shift Team",
   never a person's name).
 - When an office-users admin screen exists: use one email rule for storing and logging in (the
@@ -598,8 +821,9 @@ every step works.
   retention treat pay records. A corrected rate re-imports as a second line (the rate is part of
   the key), so the worker sees both; and an update overwrites the old hours and gross (the log
   keeps field names only), so what a worker was shown before is lost. Consider superseded rows or
-  a versions table in Phase 6. A Windows-1252 CSV with £ is refused as "not text" (ask for UTF-8
-  or .xlsx). Demo pay records come with the demo-seed task.
+  a versions table in Phase 6. ~~A Windows-1252 CSV with £ is refused as "not text".~~ Since
+  Phase 10 task 11 a Windows Excel CSV is read; only a garbled one is refused, with a plain
+  message. Demo pay records come with the demo-seed task.
 - Phase 6's "Pay records CSV import" line is effectively built in Phase 3 (the `pay` kind of the
   importer); the office screen is built in Phase 6 (`/office/pay/import`).
 - Fair rotation: a shift created as a draft and opened later counts its window from creation (no
@@ -789,9 +1013,10 @@ every step works.
     gets the 24-hour one the day before.
   - **Dylan to confirm:** the approved `shift_reminder_24h` says "Cancel in the app", but there is
     no app to download (it's a link). Consider "Cancel with the link" before submitting templates.
-  - Reminders go to every confirmed booking, including a worker the office has since made
-    inactive or blocked. Decide with the Phase 5 worker screen whether blocking cancels their
-    bookings.
+  - ~~Reminders go to every confirmed booking, including a worker the office has since made
+    inactive or blocked.~~ Since Phase 10 task 7 they don't (nor for a booking at a site the
+    worker is blocked from, until the office keeps it); those bookings show on Today as "Bookings
+    to check", to cancel or keep. Blocking doesn't cancel bookings by itself.
   - No per-worker opt-out for reminders (only the channel). Add one if pilots ask.
   - The "no-show count tracked" half of product-spec P1-8: no-shows are now marked and logged
     (`shift.no_show`); counting them per worker and per week is parked under "Marking who worked
@@ -1037,17 +1262,22 @@ every step works.
   check:** the two monthly prices the script shows before it asks for `yes` (the doc says about
   $24 + $15); it picks the cheapest 2-CPU 4 GB server and the cheapest standard database plan.
   **For the deploy task:** SSH is closed to the internet (only Lightsail's browser console), so
-  "GitHub Actions SSHes in" (docs/architecture.md, runbooks "Deploy") can't work as written: pick a
-  way that fits (the server pulls new images itself, say). And re-running `deploy/lightsail.sh`
+  "GitHub Actions SSHes in" (docs/architecture.md, runbooks "Deploy") can't work as written.
+  (Decided in Phase 8: the server pulls new images itself, `deploy/deploy.sh` every 2 minutes.)
+  And re-running `deploy/lightsail.sh`
   resets the firewall to its own rules, so a deploy must not depend on an extra rule. The server
   reboots itself at 02:30 UTC when an update needs it: every compose service needs
   `restart: unless-stopped`.
 - **Connect Twilio** (the Phase 4 "WhatsApp utility templates via Twilio…" task is blocked on it:
   an account, a UK number, approved templates and money):
-  1. Create the Twilio account and a UK number; set up the WhatsApp sender (Meta business
+  **Who does what:** steps marked **You** are yours (an account, a console, a phone, a decision).
+  Steps marked **Claude** are code still to write after yours: the real sender for this service
+  doesn't exist yet (the app has only a console or fake one), so each is a build round with its own
+  tests, verify and audit, not a switch to flip. Tell Claude when your steps are done.
+  1. **You:** create the Twilio account and a UK number; set up the WhatsApp sender (Meta business
      verification).
-  2. Submit the templates: see "Submit the WhatsApp templates" below (the pack is ready).
-  3. Write the Twilio transport next to the console one (`src/lib/messaging/`): WhatsApp by content
+  2. **You:** submit the templates: see "Submit the WhatsApp templates" below (the pack is ready).
+  3. **Claude:** write the Twilio transport next to the console one (`src/lib/messaging/`): WhatsApp by content
      id and variables, SMS by body; `MESSAGING_TRANSPORT=twilio` (production refuses `console`).
      Throw `ChannelRefusedError` only for Twilio's "not a WhatsApp number" style errors (so offer
      waves fall back to SMS only then); every other error is a failed send (logged, not retried on
@@ -1056,10 +1286,10 @@ every step works.
      make a dearer kind of text, about 3). Credential messages always go by WhatsApp, whatever the
      worker chose (see the credential-scan item): workers who chose text get no expiry warnings
      until they move onto the shared sender.
-  4. The status webhook (`POST /api/webhooks/twilio/status`): signature check, the `messages`
+  4. **Claude:** the status webhook (`POST /api/webhooks/twilio/status`): signature check, the `messages`
      table with `provider_message_id` (golden rule 3), then the 60-second "not delivered → SMS"
      fallback job.
-  5. STOP replies to SMS mark the channel opted out. (Built in Phase 7 short of Twilio, and the
+  5. **You** (after Claude's step 3): STOP replies to SMS mark the channel opted out. (Built in Phase 7 short of Twilio, and the
      Phase 7 "STOP handling" task is blocked on this.) On each firm's number (Phone Numbers →
      Manage → Active numbers → the number → Messaging configuration), set "A message comes in" to
      `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/sms` (HTTP POST). Check whether Twilio's own
@@ -1074,24 +1304,26 @@ every step works.
      {firm} now…" (or Twilio's own reply), their profile says texts are off, and "START" turns them
      back on. Then tick the STOP task. **Dylan to decide:** drop CANCEL from Twilio's list and
      ours, so "cancel" alone by text means cancelling a shift, not stopping texts.
-  6. Test with 3 real phones (Android, iPhone, an older phone by SMS): the pre-pilot checklist.
-  7. **One number per firm (the Phase 7 "shifts line" task is blocked on this):** buy a UK number
+  6. **You:** test with 3 real phones (Android, iPhone, an older phone by SMS): the pre-pilot
+     checklist.
+  7. **You. One number per firm (the Phase 7 "shifts line" task is blocked on this):** buy a UK number
      for each firm in Twilio (Phone Numbers → Buy a number, with SMS, voice and WhatsApp), register
      it as a WhatsApp sender for the firm (Messaging → Senders → WhatsApp senders), and point its
      webhooks at `/api/webhooks/twilio/...` (next tasks). Then set it in the app:
      `npm run firm:line -- --firm acme --number "+44 7700 900123"` (it should say "The shifts line
      for acme is now +447700900123."). Every WhatsApp and text for that firm then carries it as
      `from`: the Twilio sender sends from `message.from`. Then tick the shifts line task.
-  8. **Dylan to decide:** a firm with no line yet: send from a shared ShiftDesk number, or no
+  8. **You, a decision:** a firm with no line yet: send from a shared ShiftDesk number, or no
      WhatsApp/text until its line is live (today the app builds the message with no `from`).
-  9. **Incoming WhatsApps:** in each WhatsApp sender's settings, set "When a message comes in" to
+  9. **You. Incoming WhatsApps:** in each WhatsApp sender's settings, set "When a message comes in" to
      `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/whatsapp` (HTTP POST), and put the account's
      auth token (Account → API keys & tokens) in the web app's environment as `TWILIO_AUTH_TOKEN`
      (never in the repo). Send the line a WhatsApp saying "shifts": you should get the open shifts
      link back within seconds. Then from a phone that isn't on file: you should get "Thanks for your
      message. We don't recognise this number…", and the office's admins and resourcers an email;
      the message shows on Today. Then tick the "Unknown number" task too.
-  10. **Incoming calls (the Phase 7 "Call-to-text" task is blocked on this):** on each firm's
+  10. **You (Claude first builds the "SMS fallback for login links" named at the end). Incoming
+     calls (the Phase 7 "Call-to-text" task is blocked on this):** on each firm's
      number in Twilio (Phone Numbers → Manage → Active numbers → the number → Voice configuration),
      set "A call comes in" to Webhook, `https://<APP_BASE_DOMAIN>/api/webhooks/twilio/voice`, HTTP
      POST, with the same `TWILIO_AUTH_TOKEN` as step 9.
@@ -1121,14 +1353,14 @@ every step works.
      voicemail shows on Today. The link only goes by WhatsApp today: build the parked "SMS
      fallback for login links" (Phase 4/7) first, so a worker without WhatsApp gets it by text.
      Then tick the Call-to-text task.
-     **Before going live:** Twilio keeps each voicemail's recording and transcription in the
+     **Claude, before going live:** Twilio keeps each voicemail's recording and transcription in the
      account until deleted, but compliance.md says call audio isn't stored by default. Build a
      job that deletes the Recording (by its RecordingSid) once the transcription is stored, with
      the Twilio transport; or turn on Twilio's own automatic deletion if the account has it.
      **Dylan to decide:** Twilio's transcription is basic (names and places often come out wrong).
      A better one (Amazon Transcribe in London) is a later option; the request always keeps the
      text Twilio gave, and the office can ring back.
-  11. **Real sample requests:** once any of steps 5, 9 or 10 is live, capture one real request to
+  11. **You, then Claude. Real sample requests:** once any of steps 5, 9 or 10 is live, capture one real request to
      each webhook (a WhatsApp, a text, a call, a transcription), change the token and any real
      numbers, and add them to `tests/integration/twilio.contract.test.ts` as fixed samples, so the
      tests also run on Twilio's own bytes.
@@ -1169,9 +1401,9 @@ every step works.
     rule 8; the doc's line had no sign-off), which makes the demo text 163 characters: 2 texts,
     against the doc's "keep under 160".
 - Shift screens follow-ups (Phase 5):
-  - **Dylan to confirm:** new shifts are open at once (no draft step); editing a booked shift's
-    date, times, role or site is refused until the move/cancel screen (the next task) handles
-    notice; the web import takes files up to 1 MB (the terminal import 5 MB).
+  - **Dylan to confirm:** new shifts are open at once (no draft step); a booked shift's date, times
+    or site change only through "Move, shorten or cancel" (built in Phase 5, with notice), and its
+    role never; the web import takes files up to 1 MB (the terminal import 5 MB).
   - The web import runs the whole file in one transaction (holding its shifts' locks until it
     ends). Fine at 1 MB; for bigger files, a background job.
   - The worker picker lists active people with the role (no search). Add a search box if firms
@@ -1330,12 +1562,15 @@ every step works.
     list.
 - **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
-  pack is `src/lib/messaging/whatsapp-templates.ts`: 19 templates (6 "no site" variants and a "no note" one), each
+  pack is `src/lib/messaging/whatsapp-templates.ts`: 20 templates (13 messages, plus 6 "no site"
+  variants and a "no note" one), each
   with its category, language (English UK), body with `{{1}}`-style variables and sample values. A
   test proves the code sends exactly these words.
+  All steps here are **You**, except step 4's map, which **Claude** wires into the Twilio sender.
   1. In the Twilio Console, open Messaging → Content Template Builder → Create new.
-  2. For each template in the pack: type its `name` as the template name, pick the WhatsApp card,
-     paste its `body`, set the language to English (UK), and give each `{{n}}` the sample value
+  2. For each template in the pack: type its `name` as the template name, choose the **Text**
+     content type (every template is plain text with variables; `login_code` may have to be the
+     WhatsApp **Authentication** type instead, see below), paste its `body`, set the language to English (UK), and give each `{{n}}` the sample value
      from `example`, in the `variables` order. Submit it for WhatsApp approval as "Utility".
   3. Wait for Meta's answer (usually minutes to a day). If one is refused or re-categorised, change
      the wording in `docs/messaging-templates.md`, the template function and the pack together
@@ -1361,15 +1596,21 @@ every step works.
   fail by itself.
 - **Connect the real web push** (the Phase 4 web push task is blocked on it: an outside service
   and a secret key):
-  1. `npm install web-push`, then `npx web-push generate-vapid-keys` on the server (never commit the
-     private key).
-  2. Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (mailto:) in production.
-  3. Write the web-push adapter next to the console one (`src/lib/push/transport.ts`), treating
+  **Who does what:** steps marked **You** are yours (an account, a console, a phone, a decision).
+  Steps marked **Claude** are code still to write after yours: the real sender for this service
+  doesn't exist yet (the app has only a console or fake one), so each is a build round with its own
+  tests, verify and audit, not a switch to flip. Tell Claude when your steps are done.
+  1. **Claude:** `npm install web-push`. **You:** then `npx web-push generate-vapid-keys` on the
+     server (never commit the private key).
+  2. **You:** set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (mailto:) in
+     production's `.env` (Claude adds the last two to the compose file's worker settings).
+  3. **Claude:** write the web-push adapter next to the console one (`src/lib/push/transport.ts`), treating
      404/410 as "gone"; add `PUSH_TRANSPORT=webpush` (production currently must use `none`).
   4. (Built: the service worker re-saves a renewed subscription, `pushsubscriptionchange`.)
-  5. Rate-limit `POST /api/push/subscribe` (each save writes an event) with the auth throttle.
-  6. Test on a real Android phone and an iPhone (added to the home screen).
-  7. docs/compliance.md and docs/privacy-notice.md: add the browser push services as
+  5. **Claude:** rate-limit `POST /api/push/subscribe` (each save writes an event) with the auth
+     throttle.
+  6. **You:** test on a real Android phone and an iPhone (added to the home screen).
+  7. **Claude:** docs/compliance.md and docs/privacy-notice.md: add the browser push services as
      sub-processors, how long `push_subscriptions` rows are kept, and what notifications show on a
      locked phone.
   Also: push the office's escalation alert, and the push-first-then-WhatsApp order (the `notify`
@@ -1377,16 +1618,24 @@ every step works.
 - **Connect Bedrock** (the Phase 6 "Group queries by likely cause … Haiku summarises" task is
   blocked on it: an outside service with an AWS account and money). The grouping is built; only
   the AI's one-line summary per group waits (the app writes its own line meanwhile).
-  1. In the AWS console (London account, eu-west-2), open Amazon Bedrock → Model access, and ask
+  **Who does what:** steps marked **You** are yours (an account, a console, a phone, a decision).
+  Steps marked **Claude** are code still to write after yours: the real sender for this service
+  doesn't exist yet (the app has only a console or fake one), so each is a build round with its own
+  tests, verify and audit, not a switch to flip. Tell Claude when your steps are done.
+  1. **You:** in the AWS console (London account, eu-west-2), open Amazon Bedrock → Model access, and ask
      for access to Claude Haiku (an EU cross-region inference profile, so data stays in the EU).
-  2. Create an IAM role for the worker's server allowing only `bedrock:InvokeModel` on that
-     profile. No keys in the repo: keys in the server's environment (Lightsail instances can't have
-     an IAM role).
-  3. Write the Bedrock client behind `AiClient` (`src/lib/ai/client.ts`): a timeout (5 seconds),
-     no retries in a request path, and log the call (purpose, model, tokens; never the prompt).
-  4. Add `AI_TRANSPORT=bedrock|none` to the worker's environment (default `none`); the payroll
-     digest (next task) passes the client to `loadPayQueryGroups({ ai })`.
-  5. docs/compliance.md: Bedrock as a sub-processor (AI disclosure); the model sees only a
+  2. **You:** create an IAM **user** (not a role: Lightsail instances can't have one) with an access
+     key, allowed only `bedrock:InvokeModel` on that profile, and put its key and secret in the
+     server's `.env` (never in the repo). **Claude** adds them to the worker's settings in
+     `deploy/docker-compose.yml` (no AWS keys reach the worker today).
+  3. **Claude:** write the Bedrock client behind `AiClient` (`src/lib/ai/client.ts`): a timeout
+     (5 seconds), no retries in a request path, and log the call (purpose, model, tokens; never the
+     prompt).
+  4. **Claude:** add `AI_TRANSPORT=bedrock|none` to the worker's environment (default `none`), and
+     pass the client as the payroll digest's `ai` (`src/lib/pay/digest.ts`: `ai: noAi` today). The
+     payroll page's "AI summary" line only appears once that page also calls `summariseGroups`
+     (`src/lib/office/pay-query-groups.ts`): today it never does, so the line never shows.
+  5. **Claude:** docs/compliance.md: Bedrock as a sub-processor (AI disclosure); the model sees only a
      group's facts (count, issue, week, site, rate), no names or workers' words.
   Then tick the grouping task after a real summary passes the checks. The same client serves the
   shifts line's classifier (`classify_message`, `src/lib/ai/classify-message.ts`): pass it in
@@ -1423,21 +1672,29 @@ every step works.
 - **Connect Amazon SES** (every office email goes through the console transport until then: login
   links by email, escalations, the credential list and now the payroll digest with its attached
   list; an outside service with an AWS account):
-  1. In the AWS console (London, eu-west-2), open Amazon SES → Identities → Create identity, and
+  **Who does what:** steps marked **You** are yours (an account, a console, a phone, a decision).
+  Steps marked **Claude** are code still to write after yours: the real sender for this service
+  doesn't exist yet (the app has only a console or fake one), so each is a build round with its own
+  tests, verify and audit, not a switch to flip. Tell Claude when your steps are done.
+  1. **You:** in the AWS console (London, eu-west-2), open Amazon SES → Identities → Create identity, and
      verify the sending domain: add the DKIM records it shows to the domain's DNS. Wait for
      "Verified".
-  2. Ask to leave the SES sandbox (Account dashboard → Request production access): until then SES
+  2. **You:** ask to leave the SES sandbox (Account dashboard → Request production access): until then SES
      only sends to addresses you've verified.
-  3. Give the worker's server permission to send only (an IAM policy allowing `ses:SendRawEmail`
-     from the verified identity; raw email is what carries attachments). No keys in the repo.
-  4. Write the SES sender beside the console one (`src/lib/messaging/`): email only (texts and
+  3. **You:** give the worker's server permission to send only (an IAM user with an access key and
+     a policy allowing `ses:SendRawEmail` from the verified identity; raw email is what carries
+     attachments), its key in the server's `.env`, never the repo. **Claude** passes it to the
+     worker.
+  4. **Claude:** write the SES sender beside the console one (`src/lib/messaging/`): email only (texts and
      WhatsApp stay with Twilio), each attachment as a MIME part (`text/csv; charset=utf-8`), a
      timeout, and the provider's message id back as `providerMessageId`. Route email to it and
      phone messages to Twilio when `MESSAGING_TRANSPORT` is the real one.
-  5. Bounces and complaints (SES → SNS → a webhook): mark the office user's address as not
+  5. **Claude** (you subscribe the SNS topic once it's built): bounces and complaints (SES → SNS → a
+     webhook): mark the office user's address as not
      working, so the digest and the credential list skip it (they already skip an address that
      isn't valid, and count it).
-  6. Test: send yourself a payroll digest from `/office/pay-queries` and open the list in Excel.
+  6. **You:** test: send yourself a payroll digest from `/office/pay-queries` and open the list in
+     Excel.
 - Payroll digest follow-ups (Phase 6 digest task):
   - **Dylan to confirm:** the default time (09:00, Monday to Friday, firm-local); only payroll gets
     it (admins only when the firm has no payroll user); each digest has the new queries, with a
@@ -1590,8 +1847,9 @@ every step works.
 - GDPR follow-ups (Phase 8 "GDPR: worker data export (JSON + CSV) and delete; firm data export;
   retention purge job" task):
   - **Dylan to decide (before the pilot's data is a year old):** the 12-month purge of the action
-    log, requests and offers (docs/compliance.md). Events are append-only: nothing, not even the
-    owner, can delete them, and `tests/integration/rls.every-table.test.ts` pins "no UPDATE or
+    log, requests and offers (docs/compliance.md). Events are append-only: the app can't delete them
+    and no policy lets anyone (the database's owner could only by changing that on purpose:
+    switching off forced row security or adding a policy), and `tests/integration/rls.every-table.test.ts` pins "no UPDATE or
     DELETE policy on events". Deleting year-old evidence needs that changed on purpose (an
     owner-only DELETE policy limited to rows over the retention age, run by the purge), or a longer
     period once the 2027 rules say how long notice records must be kept.
@@ -1754,3 +2012,4 @@ every step works.
 | 2026-10-04 | 10 | 0.7 | A firm's own domain holds a login: a worker or office user who asks on it gets the link back on it (the job gets which address the request came in on as a word, takes the domain from the firm's own record and only while it's still verified, else the portal; old jobs get the portal; the log says `ownDomain`), and stays logged in there; browser tests log in on https://shifts.acme-events.test through an https stand-in for Caddy (a browser keeps no Secure cookie over http there) with the dev server allowed for that name; the guardrails review found a lost domain still marked verified would now get login links: recorded as a pre-pilot must-have (a periodic re-check, before any real firm's domain is verified); 3045 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.9 | Logs are safe and checked: every log string cut to 2,000 characters and request paths to 512 before masking, never leaving part of a number, email or token at the cut; every masking pattern a single pass (the old email and URL patterns took 30–60 s on a 200,000-character string; 31 timing attacks now well under a second); the e2e scan also catches numbers by a full stop, glued, dotted or tabbed, glued emails and login tokens (outside the console transport's own prints, which now end with their own line); the teardown fails on any unexpected server error, with the web app's uncaught errors and the worker's failed ticks now logged as JSON; "The destination stream closed early" explained (the connection closed mid-page) and logged as a warning; regression tests for the search address and Next's logging; two reviews' findings fixed; 3103 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.9 | Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly turned-on worker (same image: no migration; it says "Applied the settings in .env"), tested by running the real script against a stand-in docker; the worker has a sign of life and a health check, so a crashing one fails the deploy; images carry their commit, printed as "Deployed … (commit <SHA>)"; the Caddyfile checked by Caddy itself (validate and its JSON) and sending HSTS; database TLS on in production (`sslmode=verify-full` against Amazon's bundle in the image; the app refuses a production database address without it); the runbook trial after Twilio and SES with a test firm, rollback from the image list with the timer stopped, and other steps matched to the scripts; two reviews' findings fixed (the image build had broken: caught and guarded); 3126 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 0.7 | Every decision waiting for Dylan in one place: a "Decisions waiting for Dylan" section (130 decisions in 10 groups, each listed once with the default in force and where to read more, plus 13 checks and to-dos), with a "when each one matters" list built from each row's deadline (before any real data, when you create the accounts, before submitting the WhatsApp templates, before a pilot…); every "Connect …" step says You or Claude, and that each service's sender is still to be written; stale references fixed across the plan, the ADRs, the rules and compliance docs and the work log; a fact-checker (about 140 claims) and a completeness critic found 17 things to fix (all done); 3126 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |

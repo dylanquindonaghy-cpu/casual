@@ -6557,8 +6557,14 @@ Key facts:
 - The app's database login still can't delete messages directly. Two small database functions
   (run as the database's owner, but only inside the current firm) are the only ways: one erases a
   worker and deletes their messages, the other only deletes messages over 90 days old.
+  (Corrected in Phase 10 task 18: at the time it also deleted a newer reply to an old message;
+  since task 13 a reply keeps its own age, and the keep-time is each firm's setting, 90 days unless
+  changed.)
 - A database rule (a "check") makes an erased worker's record exactly "Deleted worker" with no
-  mobile, email or staff id, so nothing can half-erase or bring back a record.
+  mobile, email or staff id, so nothing can half-erase a record. (Corrected in Phase 10 task 18:
+  this said "or bring back a record". The check doesn't stop that: setting the deleted mark back
+  to empty, with a new mobile, would pass it, as the app's database login may still change worker
+  records. No app code does it.)
 - New migration: `drizzle/0026_gdpr.sql`. New code: `src/lib/gdpr/`, `src/app/office/data/`.
 
 ### Decisions made
@@ -8699,3 +8705,77 @@ your first go. Now:
 `npx vitest run tests/unit/deploy.script.test.ts tests/integration/deploy.caddy.test.ts`: the deploy
 script's cases, and Caddy reading the settings file (it needs Docker running, as the tests' database
 does).
+
+## 2026-10-04 — Phase 10, task 18: every decision waiting for you, in one place
+
+- **Time spent:** 0.7 hours (started 07:16 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=39c7a3e1964edc01 e2e=true`
+  (3,126 tests, 60 browser tests). Documentation only.
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M26, L13, L36, L37, L59, L60, L89.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+While building at night, I made many choices that would normally have waited for you. They were
+written down wherever they came up, in different words, and the handover told you to find them by
+searching for "Dylan to", which finds only some. Now there's one list:
+
+- **`PLAN.md`, "Decisions waiting for Dylan"** (just above the Parking lot). 130 decisions in 10
+  groups (legal, data, rules, messages, rota sheets, pay, office, deploy, how the build is run,
+  product), each listed once. For each:
+  - what to decide;
+  - **what the app does now**, checked against the code (you can leave most as they are);
+  - where to read more.
+- **"When each one matters"** at the top: the ones you must settle by a given point, by stage:
+  - before any real data;
+  - when you create the accounts;
+  - before submitting the WhatsApp templates;
+  - before the first real import;
+  - before a pilot;
+  - before any Sheets firm;
+  - when you deploy;
+  - before any firm uses its own address;
+  - before the pilot's data is a year old.
+- **A short table of checks and to-dos** that aren't choices (pay the ICO fee, check prices, MFA,
+  and Claude's few must-dos).
+- **Who does each step** in "Connect Twilio", the WhatsApp templates, web push, Bedrock and SES:
+  **You** (an account, a console, a phone) or **Claude** (code to write after you). Each also says
+  plainly that the real sender for that service doesn't exist yet. Once your account is set up,
+  expect a build round from Claude, not a switch to flip.
+- **Out-of-date statements fixed:** the plan, the design decisions (ADRs), the rules and compliance
+  docs and the work log had several things that were no longer true (for example "nothing, not even
+  the owner, can delete the log" and "only 19 templates"). Each is now corrected, saying when and
+  why.
+
+### Worth knowing now
+
+- **Two defaults nobody had flagged before:**
+  - urgent messages go out during quiet hours (22:00–07:00) unless a firm turns that off, though
+    the spec reads as "only if the firm allows it";
+  - a worker who cancels gets only the on-screen confirmation, never a message.
+- **Before any real data:** a real staff file can be checked (a dry run, nothing saved) on the live
+  server before the agreement is recorded. The first pilot firm is your employer. Until you
+  decide, don't check a real file there.
+- **Before the pilot agreement:** check your own employment contract (who owns what you make
+  outside work), since the first pilot firm is your employer.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One section, grouped by subject, each decision once | Easy to work through; no repeats | One long list in date order |
+| Every deadline as one exact tag, and a "when" list made from them | You can see what's due at each stage; a script checked they match | Free-text urgency notes |
+| Checks and to-dos in their own table | They aren't choices | Mixing them in |
+
+### What checked it
+
+- **A fact-checker** checked about 140 statements in the section against the code. It found 3 to
+  fix (one row mixed up two things; the "when" list didn't match the tags; one figure couldn't be
+  checked). All fixed.
+- **A completeness critic** confirmed every "Dylan to" line in the plan is in the list. It found
+  14 smaller decisions missing, a few repeats, and rows that were really to-dos. All fixed.
+
+### How to see it
+
+Open `PLAN.md` and find "## Decisions waiting for Dylan". Start with "When each one matters".

@@ -7,13 +7,15 @@ rules decide. This makes them easy to test in tables. The loader is
 cancelled from 8 days before to 8 days after the shift (never the shift itself), credential names
 and `applied_allowed` types from `credential_types`, the day's deployed and applied counts (others
 booked on shifts starting that local day; "applied" = working on an application in progress for a
-type their role needs), and the settings below from `firms.settings`. Availability and blocked
-sites are empty until their stores exist. A pass (`EligibilityPass`) is single-use and names one
+type their role needs), and the settings below from `firms.settings`. Availability (the worker's
+days off) and blocked sites are loaded too (checks 8 and 9). A pass (`EligibilityPass`) is single-use and names one
 worker and one shift; roster plugs refuse to book without it (`consumeEligibilityPass()`).
 
 Settings keys (`firms.settings`, defaults in brackets): `min_rest_hours` (11),
 `weekly_hours_cap` (48), `travel_buffer_minutes` (0), `credential_applied_allowance_pct` (0). A
-value that makes no sense fails the booking rather than loosening a rule.
+value that makes no sense fails the booking rather than loosening a rule. Nothing can change these
+yet (`npm run firm:settings` doesn't offer them, and there's no settings screen), so every firm runs
+on the defaults; only the demo seed sets others (PLAN.md, "Decisions waiting for Dylan").
 
 ## Function shape
 
@@ -67,7 +69,7 @@ type EligibilityResult = {
 | 4 | If credential is `applied`: allowed only if firm allowance > 0 and adding this worker keeps applied share ≤ allowance % | "Your licence is still being processed. The office can only deploy a limited number of staff in that position today." |
 | 5 | No overlap with other assignments (± travel buffer) | "You're already booked at [time] that day." (or "on Fri 6 Nov" for another day) |
 | 6 | Rest gap ≥ `minRestHours` from the previous and the next assignment | "This is too close to your previous shift (11 hours' rest needed)." / "...your next shift..." |
-| 7 | Weekly hours (confirmed + this shift) ≤ cap. The week is Monday 00:00 to Monday 00:00 local, the one the shift starts in; every booking counts only its hours inside that week, in real elapsed time | "This would take you over your weekly hours limit." |
+| 7 | Weekly hours (confirmed + this shift) ≤ cap, in **every** week the shift touches. A week is Monday 00:00 to Monday 00:00 local, so a Sunday-night shift is checked against both weeks (`src/lib/rules/eligibility.ts`); every booking counts only its hours inside each week, in real elapsed time | "This would take you over your weekly hours limit." |
 | 8 | Not marked unavailable for any calendar day the shift touches (a night shift touches two) | "You've marked yourself unavailable that day. Change it in your profile to take this shift." |
 | 9 | Site not in worker's blocked list (`worker_site_blocks`, set by the office on the worker's page: Phase 10) | "This site isn't available to you. Contact the office." |
 
@@ -136,7 +138,8 @@ default rule; cleaning needs DBS per site, not per role):
 
 **Applied/in progress allowance:** SIA approved contractors have been able to deploy a capped
 share of staff whose licence application is in progress (reported as up to 15%). Model it as a
-firm setting `appliedAllowancePct`; default 0; and it counts only for credential types marked
+firm setting `credential_applied_allowance_pct` (above: no command sets it yet); default 0; and it
+counts only for credential types marked
 `applied_allowed` (the three SIA licences). Any other type in progress: "Your [name] is still
 being processed. This shift needs a valid one. Send it to the office when you have it." Confirm
 the current SIA rule before enabling.

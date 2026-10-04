@@ -35,7 +35,7 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   > "Shift messages, requests and enquiries may be handled by automated systems on our behalf.
   > You can ask for any decision about your shifts to be reviewed by a member of our team."
 - Anyone significantly affected by an automated decision (e.g. refused a shift) can ask for a
-  human review. Build a "Ask the office to review" button on refusal screens.
+  human review. (Built: "Ask the office to review" on a refused shift, `src/lib/portal/review.ts`.)
 - People who aren't staff (Phase 7): a message to the shifts line from a number that isn't an
   active worker's is kept in `messages` (the number and their words, the firm's
   `retention.message_days`, 90 by default, with the retention job), shown to the firm's admins and resourcers on Today, and never put in the log, an email or
@@ -71,7 +71,7 @@ floor, and that a hold covers the whole firm (not one worker).
 | Raw messages and transcripts | 90 days by default (built: the nightly purge). A reply newer than that stays, even when the message it answered goes |
 | The words typed into a request (a note, a colleague's name) | 12 months by default, counted from when the request closed (built: removed, the request stays). An open or escalated request keeps them. (Phase 8 built 90 days from creation, with no "Dylan to confirm"; Phase 10 put back the spec's 12 months) |
 | The office's typed reason for placing someone despite a rule | On the booking, not in the log; the same 12 months from the booking (built) |
-| Call audio | Not stored by default (30 days if enabled) |
+| Call audio | We store none: only a voicemail's text. But Twilio records every voicemail (up to 2 minutes) to transcribe it, and keeps the recording until it's deleted there: a deletion job comes with the Twilio sender ("Connect Twilio", "Before going live") |
 | Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |
 | Login links, codes, sessions, rate-limit counters | 1 to 30 days after they stop working (built; docs/data-model.md "Retention") |
@@ -147,7 +147,8 @@ for the service the worker asked for): `docs/privacy-notice.md`, "On your phone"
   definitive check, not the card. Deploying someone without a valid licence is a criminal offence
   and can land on the business.
 - SIA approved contractors may deploy a limited share of staff whose licence application is in
-  progress (reported as up to 15%) — keep this as a firm setting and confirm current SIA rules.
+  progress (reported as up to 15%) — kept as a firm setting (default 0, and no command sets it
+  yet) until the current SIA rules are confirmed.
 - Third-party check APIs exist, but the SIA doesn't endorse them. **Don't build a scraper.**
 - **Rail:** PTS, Sentinel, drugs and alcohol test dates. **Construction:** CSCS card type/expiry.
   **Cleaning:** DBS where the site requires it.

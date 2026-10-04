@@ -6194,7 +6194,9 @@ Office logins in production also need **Amazon SES** (emails): "Connect Amazon S
    - Every one is in a "Decisions" table in this log.
    - The ones waiting on you are marked in `PLAN.md`. To list them: in the terminal, in the project
      folder, type `grep -n "Dylan to" PLAN.md` and press Enter. About 50 lines come up; each one
-     says what to decide.
+     says what to decide. *(Superseded in Phase 10 task 18: that search missed many, worded other
+     ways. Every open decision is now listed once in `PLAN.md`, "Decisions waiting for Dylan", just
+     above the Parking lot.)*
    - Tonight's most important:
      - **The 12-month purge:** whether and when to delete action-log rows, requests and offers after
        12 months (it means changing the log's append-only protection).
@@ -7956,3 +7958,82 @@ only the additions.
 **Hours:** 0.9 (06:23 to 07:14 UTC). Phase 10 so far: 14.5 of the 30–45 h estimate.
 
 **Commit:** `5ea4711`, pushed to `build/overnight`.
+
+## 2026-10-04 07:16 UTC — Phase 10, task 18: every decision waiting for Dylan in one place
+
+**Task:** Every decision waiting for Dylan is in one place: a "Decisions waiting for Dylan" section
+in `PLAN.md` lists each open decision once (from `PLAN.md`, the decision tables in
+`docs/overnight-log.md`, `docs/compliance.md` and `docs/privacy-notice.md`), grouped, with the safe
+default now in force. The Parking lot steps say who does each step (Dylan, or Claude after Dylan),
+and stale references are fixed. (M26, L13, L36, L37, L59, L60, L89)
+
+**Root cause (M26, L59):** decisions were written wherever they came up, in several phrasings, and
+the handover told Dylan to find them with `grep "Dylan to"`, which catches about half.
+
+**Plan:**
+1. Four readers pull every open decision from `PLAN.md`, the decision log (two halves) and the
+   compliance, privacy, ADR and rules docs, each with the default the code uses now (checked
+   in `src/` where cheap). I merge them into one grouped section at the top of the Parking lot,
+   each listed once with its source.
+2. The "Connect …" steps get a "who" on each step: **You** (an account, a console, a click) or
+   **Claude** (code to write and test after you've done yours). They also say plainly that each
+   service's sender is still to be written once its account exists (L36, L60).
+3. Stale references:
+   - L37: the Bedrock wiring point, an IAM user (not a role), 20 templates, Twilio's "Text" type;
+   - L13: the weekly hours check covers every week a shift touches;
+   - L89: the overstatements.
+   The handover's grep advice points to the new section instead.
+
+**Built:**
+- **The extraction:** four readers took every open decision from `PLAN.md`, the decision log (two
+  halves) and the compliance, privacy, ADR and rules docs, each with the default checked against
+  `src/` where cheap. I merged them into one section, "Decisions waiting for Dylan", just above the
+  Parking lot.
+- **"Who does what":** each step of "Connect Twilio", "Submit the WhatsApp templates", "Connect
+  the real web push", "Connect Bedrock" and "Connect Amazon SES" now says **You** or **Claude**, and
+  each section says the real sender is still to be written once its account exists (L36, L60).
+- **Stale references fixed:**
+  - L37: the Bedrock wiring point is `src/lib/pay/digest.ts` (`ai: noAi`), and the payroll page
+    never asks for an AI line; an IAM user (Lightsail can't have a role), with keys still to be
+    passed to the worker; 20 templates; Twilio's "Text" content type;
+  - L13: the weekly hours check covers every week a shift touches;
+  - L89: three overstatements corrected in place, saying when and why;
+  - from the readers: ADR-003, -004, -006, -014 and -020; the rules doc (days off and site blocks
+    are loaded; the rules settings can't be changed yet); compliance.md (call audio, the review
+    button, the SIA allowance); four Parking lot notes struck through or corrected (the login-code
+    and portal-link changes done in task 3, reminders to inactive workers, the deploy pulling
+    itself, Windows CSVs, booked-shift edits);
+  - the morning summary's `grep "Dylan to"` advice points to the section.
+
+**Reviews:**
+- **Fact-checker** (about 140 claims checked against the code, 3 problems):
+  - one row joined two things: phone numbers and emails are refused only in the office's override
+    reason, not in a worker's cancellation note. Split into Data 10 and Data 11;
+  - the "start with these" list didn't match the rows' "before …" tags. Rebuilt: every row with a
+    deadline carries one exact tag, and the list is made from them (a script checked they match);
+  - "about half" couldn't be checked, so it's now "misses many".
+- **Completeness critic:** every "Dylan to" line in `PLAN.md` maps to a row. Taken:
+  - 14 missing decisions added: `login_code`'s Meta category, STOP moving a worker to WhatsApp,
+    the change notice's link for inactive workers, Meta and free-text variables, escalating
+    unanswered "Bookings to check", unknown callers, site and address shown to every worker,
+    workers' own contact details, 24-hour shifts refused, message links on our address after an
+    own domain, a recycled mobile number on a re-import (before the first real import), bookings
+    past a licence's expiry, Twilio's opt-out settings, and the employment-contract check;
+  - duplicates merged (CI, the settings screen, "the client needs fewer staff");
+  - to-dos and checks moved to their own table;
+  - wrong references fixed (ADR-002, the pay item's name, "above the Parking lot");
+  - new deadline buckets: when you create the accounts, before submitting the WhatsApp templates,
+    and before the first real import.
+  - It flagged one default worth knowing: a real staff file can be checked (a dry run, nothing
+    saved) on the live server before the agreement is recorded, and the first pilot firm is
+    Dylan's employer. That row is now "before any real data", with "until you decide, don't check
+    a real file there". The code is unchanged (a docs task).
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=39c7a3e1964edc01 e2e=true` (3,126 tests,
+60 browser tests; documentation only).
+
+**Auditor:** `VERDICT: DONE` ("nothing — tick the box"; fakes found: none).
+
+**Hours:** 0.7 (07:16 to 08:00 UTC). Phase 10 so far: 15.2 of the 30–45 h estimate.
+
+**Commit:** (filled in below)

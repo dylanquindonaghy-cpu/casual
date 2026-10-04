@@ -8614,3 +8614,88 @@ after a `?` or `#` in an address (where login links carry their secret part).
   login tokens".
 - While developing, each message the app "sends" is printed in the terminal and ends with
   `[messaging:console] end of message`.
+
+## 2026-10-04 — Phase 10, task 17: the deploy and the runbooks work as written
+
+- **Time spent:** 0.9 hours (started 06:23 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=59463b9885d76828 e2e=true`
+  (3,126 tests, 60 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M8, M9, L29, L38, L43, L50.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+The **deploy** is how a new version reaches the server. On the server, a small script
+(`deploy.sh`) runs every 2 minutes, pulls the newest version and starts it. The **runbooks** are
+your step-by-step instructions for the server. The audit found both had gaps you'd have hit on
+your first go. Now:
+
+- **Changing a setting works.** The server's settings live in a file called `.env`. Before, after
+  you changed it (say, turning the worker on after "Connect Twilio"), the script saw no new version
+  and did nothing, while telling you all was well. Now it applies the change. It says "Applied the
+  settings in .env", and stays quiet when nothing changed.
+- **A broken worker can't look fine.** The **worker** is the part that sends messages and runs the
+  timed jobs. It now writes a "still alive" mark every 15 seconds, and the server checks it. A
+  worker that keeps crashing never passes, so the deploy fails loudly instead of saying it worked.
+- **"Deployed …" names the version.** Each version now carries the code change (the **commit**) it
+  was built from, and the script prints it. The runbook's checks read that.
+- **The web server's settings are checked by the real thing.** **Caddy** is the program in front of
+  the app that handles the padlock (HTTPS). A test now runs the real Caddy on our settings file. It
+  also checks a new **HSTS** header, which tells browsers to always use the padlock for a year,
+  even if someone types the address without it.
+- **The database connection is encrypted and checked.** In production the app talks to Amazon's
+  database server over the internet. It now insists on an encrypted connection, and checks the
+  server really is Amazon's, using Amazon's certificates built into the app's image. A production
+  setting without this stops the app from starting, rather than quietly sending data in the clear.
+- **The runbooks match the scripts:**
+  - the trial run comes after Twilio and email are connected (its checks need an emailed office
+    login), with a first step that creates a test firm;
+  - rollback takes the version from the list of versions that actually exist, and pauses the
+    every-2-minutes run while you do it;
+  - the "first deploy" copies all six files;
+  - notes on changing settings, turning the worker off, and when to rotate a secret;
+  - the plan's count of AWS steps (9).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Same version: apply `.env` anyway (no database change) | Docker only changes what changed; quiet otherwise | Comparing settings by hand |
+| A "still alive" mark for the worker | A crashing worker otherwise looked healthy | Watching restart counts |
+| HSTS for a year, this address only | Each firm's address gets its own; "all subdomains" or the browsers' preload list are hard to undo | Longer, or preloaded |
+| Encrypted and checked (`verify-full`) | Encrypting without checking lets an impostor answer | `require` (encrypt only) |
+| The trial after Twilio and email | Its checks need an emailed login | Weaker checks |
+
+### What the new tests prove
+
+- **`tests/unit/deploy.script.test.ts`:** the real deploy script, with a stand-in for Docker:
+  - a new version: database step first;
+  - same version with a settings change: applied, no database step;
+  - the worker turned on: started;
+  - nothing changed: silent;
+  - failures: loud;
+  - event mornings: nothing touched.
+- **`tests/integration/deploy.caddy.test.ts`:** Caddy reads our file, and its own configuration has
+  HSTS, our certificate check, and the real IP passed on.
+- **`tests/unit/deploy.database-tls.test.ts`:**
+  - the server's settings ask for checked encryption;
+  - production refuses an address without it;
+  - the image's build settings pass that check (they didn't at first: the review caught a broken
+    image build).
+- **`tests/unit/deploy.compose.test.ts`, `tests/unit/worker.heartbeat.test.ts`:** the worker's
+  health check passes only while its "still alive" mark is fresh.
+- **The tests catch the bugs:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **Dylan to check on the first deploy:** that the database step connects with the encrypted,
+  checked connection. If it stops with a certificate error, don't remove the setting: tell
+  Claude. Amazon says Lightsail uses these certificates, but it can't be tried from here.
+- **Later:** pin the checksum of Amazon's certificate file once the first real image is built.
+
+### How to see it working
+
+`npx vitest run tests/unit/deploy.script.test.ts tests/integration/deploy.caddy.test.ts`: the deploy
+script's cases, and Caddy reading the settings file (it needs Docker running, as the tests' database
+does).

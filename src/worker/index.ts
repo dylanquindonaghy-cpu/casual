@@ -4,6 +4,7 @@ import { routeConsoleThroughMasking } from "../lib/log/console";
 import { alertTransport } from "../lib/ops/alerts";
 import { sheetsClientFrom } from "../lib/roster/sheets/transport";
 import { createBoss } from "./boss";
+import { startHeartbeat } from "./heartbeat";
 import { registerJobs } from "./jobs";
 
 routeConsoleThroughMasking();
@@ -37,6 +38,8 @@ await registerJobs(boss, {
   alerts: alertTransport(env.ALERTS_TRANSPORT),
   ...(env.HEALTH_CHECK_URL ? { healthCheckUrl: env.HEALTH_CHECK_URL } : {}),
 });
+// Its container's health check reads this (deploy/docker-compose.yml).
+if (env.WORKER_HEARTBEAT_FILE) startHeartbeat(env.WORKER_HEARTBEAT_FILE);
 // Plain line kept for humans and for Playwright's readiness check.
 console.log("[worker] started, listening for jobs");
 log.info("worker started");

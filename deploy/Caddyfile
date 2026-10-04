@@ -7,8 +7,10 @@
 #   (src/app/api/caddy/ask/route.ts). So nobody can make us fetch certificates for other names.
 # Every request goes to the web app with its real Host (the app finds the firm from it) and
 # X-Real-IP set from the connection, replacing any the client sent (the app's only source of the
-# client's IP, for rate limits: src/lib/request.ts). Not run yet: tried for real with the deploy
-# (PLAN.md, Phase 8).
+# client's IP, for rate limits: src/lib/request.ts). Every answer says HSTS: a browser that has been
+# here once uses https for the next year, even when the address is typed without it. Checked by Caddy
+# itself (tests/integration/deploy.caddy.test.ts: validated, then read as Caddy's own JSON); not run
+# for real yet: that's with the deploy (PLAN.md, Phase 8).
 {
 	email {$ACME_EMAIL}
 	on_demand_tls {
@@ -17,6 +19,7 @@
 }
 
 (app) {
+	header Strict-Transport-Security "max-age=31536000"
 	# Our certificate check is for Caddy alone (it asks web:3000 directly): not from outside.
 	respond /api/caddy/* 404
 	reverse_proxy web:3000 {

@@ -79,23 +79,34 @@ step (`migrate`, the only service with the owner's database login: it also creat
 jobs roles if missing, forces RLS, applies grants and installs pg-boss), then starts the new version
 and waits until it's healthy. A failed migration stops there and the old version keeps running; a
 new version that doesn't come up healthy shows as a failed run in `journalctl -u shiftdesk-deploy`.
-**It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge then goes
-out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh --now` by hand.
+When the image hasn't changed, each run still applies any change you made to `.env` (Docker
+Compose recreates only the containers whose settings changed, and starts the worker once it's
+turned on), printing "Applied the settings in .env" when something changed (otherwise only
+Docker's own "Pulling … Pulled" lines for the image check).
+**It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge, or a
+change to `.env`, then goes out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh
+--now` by hand.
 
 The job worker stays off until the Twilio sender exists: it can't start in production before then
 (messages must never be printed instead of sent), so `.env` has `COMPOSE_PROFILES=` empty and only
 the web app and Caddy run. After "Connect Twilio": set `COMPOSE_PROFILES=worker` and the messaging
-values, then `./deploy.sh --now`.
+values, then `./deploy.sh --now`: it prints the worker being created and started, waits until
+it's healthy (about a minute), then "Applied the settings in .env", and `docker compose ps` shows
+the worker "healthy". If it fails instead ("No new image, but the app isn't running healthily"),
+`docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`).
 
 **The first time** (after "Set up AWS (once)"), in the server's browser console (`sudo -i` first):
 
-1. Copy the four files from the repo's `deploy/` folder into `/opt/shiftdesk`:
-   `docker-compose.yml`, `Caddyfile`, `deploy.sh` and `env.example` (the console has an upload
-   button, or paste each into `nano /opt/shiftdesk/<name>`). Then `chmod 700 /opt/shiftdesk/deploy.sh`.
+1. Copy six files from the repo's `deploy/` folder into `/opt/shiftdesk`: `docker-compose.yml`,
+   `Caddyfile`, `deploy.sh`, `env.example`, `shiftdesk-deploy.service` and `shiftdesk-deploy.timer`
+   (the console has an upload button, or paste each into `nano /opt/shiftdesk/<name>`). Then
+   `chmod 700 /opt/shiftdesk/deploy.sh`.
 2. `cd /opt/shiftdesk && cp env.example .env && chmod 600 .env && nano .env`: fill in every value
    (the comments in the file say where each comes from). Generate new secrets with
    `openssl rand -base64 32` (the session secret) and `openssl rand -hex 24` (the app and jobs
-   passwords).
+   passwords). Keep the end of the three database addresses as it is
+   (`?sslmode=verify-full&sslrootcert=/app/rds-ca.pem`): the connection is encrypted and the
+   database's certificate checked, and the app won't start in production without it.
 3. Let the server read GitHub's registry: on GitHub → your picture → Settings → Developer settings →
    Personal access tokens → Tokens (classic) → Generate new token (classic), tick only
    `read:packages`, no expiry or a long one. Then on the server:
@@ -103,17 +114,32 @@ values, then `./deploy.sh --now`.
    Succeeded"). The token is kept in root's Docker settings; keep a copy in your password manager.
 4. The image must exist: merge to `main` once and wait for "Deploy image" to finish in GitHub's
    Actions tab.
-5. Start it by hand the first time: `./deploy.sh --now` (it prints "Deploying …" then "Deployed …").
-   Then `docker compose ps` shows web ("healthy") and caddy "Up" (and the worker, once it's turned
-   on after "Connect Twilio").
-6. Turn on the timer: copy `shiftdesk-deploy.service` and `shiftdesk-deploy.timer` from `deploy/`
-   into `/etc/systemd/system/`, then `systemctl daemon-reload && systemctl enable --now
+5. Start it by hand the first time: `./deploy.sh --now` (it prints "Deploying …" then "Deployed …
+   (commit <the commit's 40-character SHA>)"). Then `docker compose ps` shows web ("healthy") and
+   caddy "Up" (and the worker "healthy", once it's turned on after "Connect Twilio"). If the
+   migration step stops with a certificate error ("self-signed certificate", "unable to verify",
+   "unable to get local issuer certificate", "does not match certificate's altnames"), don't remove
+   the end of the database addresses: tell Claude, with the message (the image's certificate
+   bundle, or the address used, may need changing for Lightsail).
+6. Turn on the timer: `cp /opt/shiftdesk/shiftdesk-deploy.service /opt/shiftdesk/shiftdesk-deploy.timer
+   /etc/systemd/system/`, then `systemctl daemon-reload && systemctl enable --now
    shiftdesk-deploy.timer`. `systemctl list-timers shiftdesk-deploy` shows the next run.
 
 **Every deploy after that:** merge to `main`. Within a few minutes of CI passing (outside
-05:30–09:00 UK), `journalctl -u shiftdesk-deploy` shows "Deployed …". Then check
-`https://<a firm>.<our domain>/api/health` says `{"ok":true}` and the office Today page works on a
-phone. Post a one-line note in the Hours log.
+05:30–09:00 UK), `journalctl -u shiftdesk-deploy` shows "Deployed … (commit <its SHA>)". Then check
+`https://<our domain>/api/health` says `{"ok":true}` and the office Today page works on a phone.
+Post a one-line note in the Hours log.
+
+**Changing a setting** (in `.env`): as root, `nano /opt/shiftdesk/.env`, make every change, save
+once (the timer could apply a half-done edit saved part-way), then `/opt/shiftdesk/deploy.sh
+--now`. It prints "Applied the settings in .env" (or nothing, if the change didn't affect any
+container). Without `--now`, the timer applies it within 2 minutes (after 09:00 on event mornings).
+
+- **Turning the worker off again:** empty `COMPOSE_PROFILES=` in `.env`, then
+  `docker compose rm --stop --force worker` (turning a profile off doesn't remove its container).
+- **Stopping a container on purpose** (the worker during an incident, say): stop the timer first,
+  `systemctl stop shiftdesk-deploy.timer`, or its next run starts it again within 2 minutes. Start
+  the timer again afterwards: `systemctl start shiftdesk-deploy.timer`.
 
 **Never deploy** between 05:30 and 09:00 UK on an event day for any pilot firm, or during a live
 event (the script enforces the first; for the second, pin the current version, below, until the
@@ -121,15 +147,20 @@ event is over).
 
 ## Rollback
 
-1. Find the last good version's commit SHA (GitHub → the repo → Actions → "Deploy image" runs, or
-   `git log`).
+1. Find the last good version's image tag: GitHub → the repo → Packages (on the right) → the image.
+   Its tags are 40-character commit SHAs, newest first, and only those commits have an image (one
+   per push to `main` that passed CI, not one per commit). Copy the whole SHA of the one before the
+   bad version: the short 7-character one isn't found.
 2. In the server's browser console, become root first (everything in `/opt/shiftdesk` is root's):
-   `sudo -i`, then `cd /opt/shiftdesk`. `nano .env`, set `SHIFTDESK_TAG=<that SHA>` (Ctrl+O, Enter,
-   Ctrl+X to save and leave), then `./deploy.sh --now --no-migrate`. It prints "Deploying …" then
-   "Deployed …" with that SHA. `--no-migrate` because an older version's
-   migration step can't run against a database a newer version has changed (and doesn't need to:
-   migrations only add). `--now` works on event mornings too. While pinned, merges to `main` aren't
-   deployed.
+   `sudo -i`, then `cd /opt/shiftdesk`. Stop the timer first, so a run of its own can't start the
+   old version with its migration step part-way through this: `systemctl stop
+   shiftdesk-deploy.timer` (if it says "Another deploy is running." below, wait a minute and run it
+   again). `nano .env`, set `SHIFTDESK_TAG=<that SHA>` (Ctrl+O, Enter, Ctrl+X to save and leave),
+   then `./deploy.sh --now --no-migrate`. It prints "Deploying …" then "Deployed … (commit <that
+   SHA>)". `--no-migrate` because an older version's migration step can't run against a database
+   a newer version has changed (and doesn't need to: migrations only add). `--now` works on event
+   mornings too. Then `systemctl start shiftdesk-deploy.timer`: while pinned, merges to `main`
+   aren't deployed.
 3. When the fix is out: set `SHIFTDESK_TAG=main` again (as root, `nano /opt/shiftdesk/.env`); the
    next run deploys it, with its migration.
 4. If a migration must be reverted, restore the database (below) rather than hand-editing.
@@ -142,8 +173,10 @@ event is over).
    `nano .env`, and in `DATABASE_URL`, `DATABASE_JOBS_URL` and `DATABASE_ADMIN_URL` replace the old
    database's address (the part after `@`, before `:5432`) with the new one's (Lightsail →
    Databases → the new one → "Endpoint"). The user names and passwords stay (a restore keeps them:
-   check this the first time, below). Then `docker compose up -d`: it recreates `web` and `worker`
-   with the new values (`docker compose restart` would **not**: it keeps the old ones).
+   check this the first time, below). Change all three, save once (the deploy timer applies a saved
+   `.env` within 2 minutes, so don't save part-way), then `docker compose up -d`: it recreates
+   `web` and `worker` with the new values (`docker compose restart` would **not**: it keeps the old
+   ones).
 3. Check it's recent: the newest event (the recency check in "Restore drill (monthly)" step 2,
    run against the new database) should be from just before the problem. (Plain counts as the
    owner show nothing: RLS is forced.)
@@ -180,23 +213,33 @@ On your own computer, with the AWS CLI logged in (reactivate the key from "Set u
 ## Try the runbooks for real (once, before the pilot's data)
 
 Deploy, Rollback and Restore have only been checked against the scripts, never run. Try each once
-on the real server **before any real worker's data is imported** (Gate B): the database then holds
-only the demo firms, so a restore that goes wrong costs nothing. Allow about two hours on a weekday,
-outside 05:30–09:00 UK. Write each result in the table at the end, and tell Claude anything that
-was wrong or unclear so the runbook gets fixed.
+on the real server **after "Connect Twilio" and "Connect Amazon SES"** (office logins come by email,
+sent by the worker, which can't run in production before Twilio) and **before any real worker's
+data is imported** (Gate B): the database then holds only a test firm of your own, so a restore that
+goes wrong costs nothing. Allow about two hours on a weekday, outside 05:30–09:00 UK. Write each
+result in the table at the end, and tell Claude anything that was wrong or unclear so the runbook
+gets fixed.
 
+0. **A test firm** (the live database starts empty: the demo firms are only ever made on your own
+   computer). On the server, through the owner service ("Onboarding a pilot firm", running an owner
+   command): `docker compose run --rm owner node --import tsx scripts/firm-create.ts --slug trial
+   --name "Trial Firm" --sector security --admin-email <your own email> --admin-name "<your name>"`.
+   It says "Created … and its admin.". Then open `https://trial.<our domain>/office` on your phone
+   (the first visit takes a few seconds while Caddy gets its certificate) and log in with the link
+   emailed to you: the Today page opens. Keep it as your own test firm afterwards (there's no
+   command to delete a firm yet: "Offboarding a firm").
 1. **Deploy.** After the first deploy ("Deploy", the first time), merge any small change to
    `main` (ask Claude for a harmless one). Worked if, within a few minutes of CI passing:
-   `sudo journalctl -u shiftdesk-deploy --since "15 minutes ago"` shows "Deployed …" with the new
-   commit's SHA; `sudo docker compose -f /opt/shiftdesk/docker-compose.yml ps` shows web
-   "healthy"; `https://<a firm>.<our domain>/api/health` says `{"ok":true}`; the office Today page
-   opens on your phone.
+   `sudo journalctl -u shiftdesk-deploy --since "15 minutes ago"` shows "Deployed … (commit <the
+   new commit's SHA>)"; `sudo docker compose -f /opt/shiftdesk/docker-compose.yml ps` shows web
+   "healthy"; `https://<our domain>/api/health` says `{"ok":true}`; the test firm's office Today
+   page opens on your phone.
 2. **Rollback.** Follow "Rollback" steps 1–2 with the SHA of the version *before* the one you just
    deployed. Worked if "Deployed …" shows that older SHA, the site still works, and it's still on
    it 5 minutes later (the timer leaves a pin alone). Then step 3 (`SHIFTDESK_TAG=main`): within a
    few minutes "Deployed …" shows the newest SHA again.
 3. **Restore.** Follow "Restore the database" steps 1–3 with the latest snapshot, naming the new
-   database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the demo firm's Today page
+   database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the test firm's Today page
    opens, and the newest event is from just before the snapshot. Also note whether the passwords
    really were kept (step 2 depends on it). Then point `.env` back at the original database,
    `docker compose up -d` again, check the site, and delete `shiftdesk-db-2` in Lightsail (it costs
@@ -205,6 +248,7 @@ was wrong or unclear so the runbook gets fixed.
 
 | Runbook | Date | Worked? | What was wrong or unclear |
 |---|---|---|---|
+| A test firm | | | |
 | Deploy (first time) | | | |
 | Deploy (a merge) | | | |
 | Rollback (pin and unpin) | | | |
@@ -230,7 +274,8 @@ Three things tell you when something's wrong, without you watching. First reacti
 3. **An uptime check that the app itself answers**, from the internet, with a phone app: sign up
    for an uptime service (UptimeRobot, Better Stack and others have free plans: check the plan's
    terms allow business use), add a plain **HTTPS** monitor (not a keyword one) for
-   `https://<a firm>.<our domain>/api/health` every 5 minutes, alerting to your email and its phone
+   `https://<our domain>/api/health` every 5 minutes (our own address: it has its certificate
+   from the start, firm or no firm), alerting to your email and its phone
    app. `/api/health` answers with an error when the app can't reach its database, so "anything
    but OK" means down. You should get a "down" alert within minutes if the app stops answering,
    and an "up" when it's back.
@@ -285,8 +330,9 @@ nothing sits in front of Caddy; behind a load balancer or CDN use `trusted_proxi
 
 ## Rotate a secret
 
-Twilio auth token, session secret, AWS keys: rotate in the provider, update `.env` on the
-server, `docker compose up -d`, after 22:00. Rotating `SESSION_SECRET` doesn't log anyone out
+Twilio auth token, session secret, AWS keys: after 22:00, rotate in the provider, update `.env` on
+the server (the deploy timer applies a saved `.env` within 2 minutes, so make the edit itself after
+22:00 too), then `docker compose up -d`. Rotating `SESSION_SECRET` doesn't log anyone out
 (sessions are stored as sha256 of their own token); it resets every rate-limit counter and
 cancels one-time codes that are still live.
 
@@ -317,8 +363,10 @@ The service worker (`public/sw.js`) stays on workers' phones until a new one rep
 Browsers check for a new one each time the portal opens, at least once a day. **Never delete
 `public/sw.js` from the site:** a phone that gets a 404 when it checks keeps the old one.
 
-0. Quickest: set `OFFLINE_COPY=off` and redeploy. Each phone removes the service worker and its
-   copy the next time My shifts opens. (If My shifts itself won't open, use step 2.)
+0. Quickest: as root, set `OFFLINE_COPY=off` in `/opt/shiftdesk/.env`, then
+   `/opt/shiftdesk/deploy.sh --now` (it says "Applied the settings in .env"). Each phone removes
+   the service worker and its copy the next time My shifts opens. (If My shifts itself won't open,
+   use step 2.) `OFFLINE_COPY=on` puts it back.
 
 1. To fix a bug, deploy a corrected `public/sw.js`. Phones pick it up the next time the portal
    opens. If the stored copy's format changed, change `CACHE` in `public/sw.js` and

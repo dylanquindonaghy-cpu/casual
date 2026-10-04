@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -97,6 +97,7 @@ describe("deploy/docker-compose.yml", () => {
         "APP_BASE_DOMAIN",
         "DATABASE_URL",
         "NODE_ENV",
+        "OFFLINE_COPY", // the phones' offline copy on or off (not a secret; Phase 10 task 17)
         "SESSION_SECRET",
         "TWILIO_AUTH_TOKEN",
         "VAPID_PUBLIC_KEY",
@@ -152,6 +153,38 @@ describe("deploy/docker-compose.yml", () => {
     const today = ENV.replace("MESSAGING_TRANSPORT=console", "MESSAGING_TRANSPORT=");
     expect(running(`${today}\nCOMPOSE_PROFILES=`)).toEqual(["caddy", "web"]);
     expect(running(`${ENV}\nCOMPOSE_PROFILES=worker`)).toEqual(["caddy", "web", "worker"]);
+  });
+
+  // The adversarial review (Phase 10 task 17): with no health check, a worker that kept crashing
+  // looked started to `up --wait`, so deploy.sh reported success every 2 minutes.
+  it("the worker is healthy only while it writes its sign of life (a crashing or hung one never is)", () => {
+    const worker = services.worker;
+    expect(worker?.environment?.WORKER_HEARTBEAT_FILE).toBe("/tmp/shiftdesk-worker-alive");
+    const test = worker?.healthcheck?.test ?? [];
+    expect(test.slice(0, 3)).toEqual(["CMD", "node", "-e"]);
+    const check = (file: string) => {
+      try {
+        execFileSync("node", ["-e", test[3] ?? ""], {
+          env: { NODE_ENV: "test", PATH: process.env.PATH ?? "", WORKER_HEARTBEAT_FILE: file },
+          stdio: "ignore",
+        });
+        return "healthy";
+      } catch {
+        return "unhealthy";
+      }
+    };
+    const dir = mkdtempSync(join(tmpdir(), "heartbeat-"));
+    const fresh = join(dir, "fresh");
+    writeFileSync(fresh, "1");
+    const stale = join(dir, "stale");
+    writeFileSync(stale, "1");
+    const twoMinutesAgo = new Date(Date.now() - 120_000);
+    utimesSync(stale, twoMinutesAgo, twoMinutesAgo);
+    expect([check(fresh), check(stale), check(join(dir, "missing"))]).toEqual([
+      "healthy",
+      "unhealthy",
+      "unhealthy",
+    ]);
   });
 
   it("the web app's health check asks /api/health; Caddy's file is read-only and its certificates kept", () => {

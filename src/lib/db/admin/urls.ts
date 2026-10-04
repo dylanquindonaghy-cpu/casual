@@ -1,4 +1,5 @@
 import { parse } from "pg-connection-string";
+import { databaseHost, isLocalDatabaseHost } from "../tls";
 
 // Connection-string helpers for the admin scripts and the test setup.
 
@@ -25,10 +26,10 @@ export function credentials(url: string): { user: string; password: string } {
   return { user, password };
 }
 
-// This machine only: a loopback address or a Unix socket path.
+// This machine only: a loopback address or a Unix socket path (src/lib/db/tls.ts, shared with the
+// production TLS check).
 export function isLocalHost(url: string): boolean {
-  const { host } = connectionTarget(url);
-  return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(host) || host.startsWith("/");
+  return isLocalDatabaseHost(databaseHost(url));
 }
 
 // Locally the admin URL logs in as the Docker superuser and switches to the non-superuser owner

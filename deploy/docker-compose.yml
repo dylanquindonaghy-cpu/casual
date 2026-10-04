@@ -26,6 +26,9 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       ALERTS_TRANSPORT: ${ALERTS_TRANSPORT:-console}
+      # The phones' offline copy of My shifts: "off" switches it off (docs/runbooks.md "A bad service
+      # worker").
+      OFFLINE_COPY: ${OFFLINE_COPY:-on}
     healthcheck:
       test:
         - CMD
@@ -66,6 +69,21 @@ services:
       ALERTS_TRANSPORT: ${ALERTS_TRANSPORT:-console}
       # The ops alerts check the web app from inside the server (docs/runbooks.md "Alerts from the app").
       HEALTH_CHECK_URL: http://web:3000/api/health
+      # Its sign of life, read by the health check below (src/worker/heartbeat.ts).
+      WORKER_HEARTBEAT_FILE: /tmp/shiftdesk-worker-alive
+    # Healthy only while the worker writes its sign of life (every 15 seconds, once it has started):
+    # a worker that keeps crashing or hangs is never healthy, so deploy.sh's `up --wait` fails
+    # instead of reporting it started.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const f = require('fs'); try { process.exit(Date.now() - f.statSync(process.env.WORKER_HEARTBEAT_FILE).mtimeMs < 60000 ? 0 : 1) } catch { process.exit(1) }"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     # The Google service account's key file, next to this file in secrets/ (never in the image or
     # the repo), read-only; only the worker reads it.
     volumes:

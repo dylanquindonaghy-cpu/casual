@@ -480,7 +480,11 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 
 ## Security checklist
 
-- HTTPS everywhere; HSTS.
+- HTTPS everywhere; HSTS. (Phase 10 task 17: Caddy serves only HTTPS, redirecting plain HTTP, and every answer
+  carries `Strict-Transport-Security: max-age=31536000` (`deploy/Caddyfile`, checked by Caddy itself
+  in `tests/integration/deploy.caddy.test.ts`). The database connection is encrypted and its
+  certificate checked in production (`sslmode=verify-full` against Amazon's bundle in the image;
+  the app refuses to start without it).)
 - Verify Twilio signatures on every webhook.
 - Rate limit login and OTP.
 - No personal data in logs (mask phone numbers). (Built: `src/lib/log/mask.ts` masks numbers,

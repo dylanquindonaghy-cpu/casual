@@ -2,9 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// deploy/Caddyfile (Phase 8): Caddy isn't run in tests (it's tried for real with the deploy), so
-// this pins what the app relies on: on-demand certificates only after asking our own check, and
-// every request reaching the web app with its real Host and an X-Real-IP Caddy sets itself.
+// deploy/Caddyfile (Phase 8): this pins the file's text, what the app relies on: on-demand
+// certificates only after asking our own check, every request reaching the web app with its real
+// Host and an X-Real-IP Caddy sets itself, and HSTS (Phase 10). Caddy itself checks the file too
+// (tests/integration/deploy.caddy.test.ts); it's tried for real with the deploy.
 
 const ROOT = process.cwd();
 const caddyfile = readFileSync(join(ROOT, "deploy/Caddyfile"), "utf8")
@@ -24,9 +25,9 @@ describe("the Caddyfile", () => {
     expect(caddyfile).toMatch(/https:\/\/ \{\s*tls \{\s*on_demand\s*\}\s*import app\s*\}/);
   });
 
-  it("proxies to the web app with X-Real-IP from the connection (replacing any the client sent), but not our certificate check", () => {
+  it("proxies to the web app with X-Real-IP from the connection (replacing any the client sent), but not our certificate check; HSTS on every answer", () => {
     expect(caddyfile).toMatch(
-      /\(app\) \{\s*respond \/api\/caddy\/\* 404\s*reverse_proxy web:3000 \{\s*header_up X-Real-IP \{remote_host\}\s*\}\s*\}/,
+      /\(app\) \{\s*header Strict-Transport-Security "max-age=31536000"\s*respond \/api\/caddy\/\* 404\s*reverse_proxy web:3000 \{\s*header_up X-Real-IP \{remote_host\}\s*\}\s*\}/,
     );
     // Nothing rewrites Host: the app finds the firm from it.
     expect(caddyfile).not.toMatch(/header_up Host/i);

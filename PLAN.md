@@ -311,7 +311,7 @@ every step works.
       numbers before a full stop and login tokens; regression tests for the search and token
       fixes; the "destination stream closed early" error seen on every e2e run is explained and
       fixed, and unexpected server errors fail the run (M13, L11, L52, L53, L54, L64)
-- [ ] Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly
+- [x] Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly
       enabled worker; the runbook trial is moved to after SES and Twilio, with a test-firm step, so
       its checks can pass; the Caddyfile is checked by Caddy itself; HSTS is sent; database TLS is
       on in the production settings; runbook steps match the scripts (M8, M9, L29, L38, L43, L50)
@@ -383,8 +383,9 @@ every step works.
   once verified (today `<slug>.<base>`, except a login link asked for on the firm's domain, Phase 10;
   a session belongs to one address, so someone logged in on the firm's domain who taps a message's
   link logs in again on `<slug>.<base>`); a periodic re-check of each verified domain's CNAME (today
-  `npm run firm:domain -- --check` by hand); an office settings section for it; run
-  `caddy validate` on `deploy/Caddyfile` with the deploy task (not run yet: no Caddy here); trying
+  `npm run firm:domain -- --check` by hand); an office settings section for it (separately:
+  Caddy now checks `deploy/Caddyfile` itself, `tests/integration/deploy.caddy.test.ts`, Phase 10
+  task 17); trying
   a firm's own domain against `npm run dev` needs an https front like the browser tests'
   (`tests/e2e/tls-front.ts`) and an `allowedDevOrigins` entry (only the browser tests' name is
   allowed); a person logged in on both addresses has two sessions, and "Log out" ends the one it's
@@ -891,10 +892,12 @@ every step works.
     by every import and `firm:sheet` on the live server).
 - **Try the runbooks for real** (the Phase 8 "Runbooks in `docs/runbooks.md` tried once for real
   (deploy, rollback, restore)" task is blocked on it: it needs the real server). After "Connect
-  AWS" and "Connect the deploy", and **before any real worker's data is imported** (Gate B):
+  AWS", "Connect the deploy", "Connect Twilio" and "Connect Amazon SES" (its checks log in to a
+  test firm's office, by an emailed link the worker sends), and **before any real worker's data is
+  imported** (Gate B):
   1. Open `docs/runbooks.md` → "Try the runbooks for real (once, before the pilot's data)".
-  2. Do its four steps in order (deploy, rollback, restore, restore drill), about two hours on a
-     weekday outside 05:30–09:00 UK.
+  2. Do its steps in order (a test firm, deploy, rollback, restore, restore drill), about two hours
+     on a weekday outside 05:30–09:00 UK.
   3. Fill in its table: the date, whether it worked, and anything wrong or unclear.
   4. Tell Claude what went wrong so the runbook is fixed, then tick the task.
   - To check on the first restore: that a Lightsail snapshot restore keeps the database's user
@@ -1006,11 +1009,16 @@ every step works.
   (1) the worker won't start in production until the Twilio sender exists (by design:
   `MESSAGING_TRANSPORT=console` is refused in production), so it's behind `COMPOSE_PROFILES=worker`
   and stays off; "Connect Twilio" comes before a real pilot; until then only the web app and Caddy
-  run; (2) merging `build/overnight` into `main` is yours to do (the overnight rules never touch
-  `main`), and it's what first builds the image; (3) **decide the database's TLS**: if Lightsail's
-  Postgres 16 insists on TLS, nothing connects until the three database addresses end with
-  `?sslmode=verify-full&sslrootcert=/app/rds-ca.pem` and Amazon's RDS certificate bundle is in the
-  image (or mounted); check on first connection; (4) **a stable server-action key** (Phase 10 task
+  run (turning it on later: set `COMPOSE_PROFILES=worker` and the Twilio values in `.env`, then
+  `./deploy.sh --now`, which now applies `.env` changes: Phase 10 task 17); (2) merging
+  `build/overnight` into `main` is yours to do (the overnight rules never touch `main`), and it's
+  what first builds the image; (3) **the database's TLS is on** (Phase 10 task 17): the three
+  database addresses in `deploy/env.example` end with
+  `?sslmode=verify-full&sslrootcert=/app/rds-ca.pem`, the image fetches Amazon's RDS certificate
+  bundle to that path when it's built, and the app refuses a production database address without
+  them. **Dylan to check** on the first `./deploy.sh --now`: the migration step connects (that
+  Lightsail's database certificate is in Amazon's RDS bundle, as expected; a certificate error:
+  tell Claude, and don't remove the ending); (4) **a stable server-action key** (Phase 10 task
   12, audit L92): an action's id is salted with a key Next makes afresh for each build, so a My
   shifts copy kept on a phone before a deploy can't "Cancel this shift" until it's reloaded with
   signal (Log out is a plain route now and always works). Make a key once (`openssl rand -base64
@@ -1021,9 +1029,10 @@ every step works.
 - **Connect AWS** (the Phase 8 "AWS: Lightsail 4 GB instance + managed Postgres" task is blocked on
   it: an AWS account and money). Everything is written: `deploy/lightsail.sh` and
   `deploy/cloud-init.sh`, checked by `tests/unit/deploy.lightsail.test.ts` but never run. Follow
-  docs/runbooks.md "Set up AWS (once)" (8 numbered steps: account and MFA, a CLI login with
+  docs/runbooks.md "Set up AWS (once)" (9 numbered steps: account and MFA, a CLI login with
   Lightsail access only, the AWS CLI, `aws configure`, `bash deploy/lightsail.sh`, the two DNS A
-  records, the database password into your password manager, the browser console). You should see
+  records, the database password into your password manager, the browser console, then putting
+  the CLI key away). You should see
   the static IP and the database's address at the end. Then tick the AWS task. **Dylan to
   check:** the two monthly prices the script shows before it asks for `yes` (the doc says about
   $24 + $15); it picks the cheapest 2-CPU 4 GB server and the cheapest standard database plan.
@@ -1744,3 +1753,4 @@ every step works.
 | 2026-10-04 | 10 | 0.6 | "Try again" on the error screens really retries: the page's error screen uses Next's `retry()` (fetches the page again; `reset()` only redrew the failure), "Go to my shifts" is a full page load (recovers on My shifts itself), "Try again" is off with no signal until it's back; the whole-page error reloads through a form (works before the page's scripts, never resends a form); browser tests fail a page once and the page's frame once and recover (test-only failures behind `E2E_TEST_PAGES`, refused off localhost); two reviews' findings fixed; 3034 tests + 58 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.7 | A firm's own domain holds a login: a worker or office user who asks on it gets the link back on it (the job gets which address the request came in on as a word, takes the domain from the firm's own record and only while it's still verified, else the portal; old jobs get the portal; the log says `ownDomain`), and stays logged in there; browser tests log in on https://shifts.acme-events.test through an https stand-in for Caddy (a browser keeps no Secure cookie over http there) with the dev server allowed for that name; the guardrails review found a lost domain still marked verified would now get login links: recorded as a pre-pilot must-have (a periodic re-check, before any real firm's domain is verified); 3045 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.9 | Logs are safe and checked: every log string cut to 2,000 characters and request paths to 512 before masking, never leaving part of a number, email or token at the cut; every masking pattern a single pass (the old email and URL patterns took 30–60 s on a 200,000-character string; 31 timing attacks now well under a second); the e2e scan also catches numbers by a full stop, glued, dotted or tabbed, glued emails and login tokens (outside the console transport's own prints, which now end with their own line); the teardown fails on any unexpected server error, with the web app's uncaught errors and the worker's failed ticks now logged as JSON; "The destination stream closed early" explained (the connection closed mid-page) and logged as a warning; regression tests for the search address and Next's logging; two reviews' findings fixed; 3103 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 0.9 | Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly turned-on worker (same image: no migration; it says "Applied the settings in .env"), tested by running the real script against a stand-in docker; the worker has a sign of life and a health check, so a crashing one fails the deploy; images carry their commit, printed as "Deployed … (commit <SHA>)"; the Caddyfile checked by Caddy itself (validate and its JSON) and sending HSTS; database TLS on in production (`sslmode=verify-full` against Amazon's bundle in the image; the app refuses a production database address without it); the runbook trial after Twilio and SES with a test firm, rollback from the image list with the timer stopped, and other steps matched to the scripts; two reviews' findings fixed (the image build had broken: caught and guarded); 3126 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |

@@ -7852,3 +7852,107 @@ moved to task 19 (walkthrough polish), and the parked note says so.
 **Hours:** 0.9 (05:27 to 06:20 UTC). Phase 10 so far: 13.6 of the 30–45 h estimate.
 
 **Commit:** `bdaaa19`, pushed to `build/overnight`.
+
+## 2026-10-04 06:23 UTC — Phase 10, task 17: deploy and runbooks work as written
+
+**Task:** Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly
+enabled worker; the runbook trial is moved to after SES and Twilio, with a test-firm step, so its
+checks can pass; the Caddyfile is checked by Caddy itself; HSTS is sent; database TLS is on in the
+production settings; runbook steps match the scripts (M8, M9, L29, L38, L43, L50)
+
+(Process note: this plan was written after the first changes, not before. The decisions below
+were made as each part was built.)
+
+**Root causes:**
+- **M8:** `deploy.sh` exits as soon as the running containers are on the chosen image. A change
+  to `.env`, or the worker turned on, leaves the containers on the same image, so nothing ever
+  ran `docker compose up`.
+- **M9:** the trial was scheduled before Twilio and SES, but its checks need an office login (an
+  emailed link sent by the worker) and a firm (production has no demo firms). Its health URL used a
+  firm's subdomain, which gets no certificate until that firm exists.
+- **L29:** nothing ran Caddy on the file.
+- **L50:** no `Strict-Transport-Security` anywhere.
+- **L38:** no TLS settings in the server's `.env`, and no certificate bundle in the image.
+- **L43:**
+  - "Deployed …" printed the image name, not a commit;
+  - images are tagged with the full SHA, but the runbook didn't say so;
+  - the plan said 8 AWS steps where the runbook has 9;
+  - the first deploy copied 4 files, but step 6 needs the 2 systemd units too.
+
+**Plan and decisions:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| Same image: `docker compose up -d` anyway (no migration), saying "Applied the settings in .env" only when a container was created, recreated, started or removed | Compose changes only what changed and is quiet otherwise; it runs every 2 minutes | Comparing compose config hashes by hand (more to go wrong) |
+| One `up` for both paths, the migration only for a new image | Simplest; an existing test pins migrate-before-up in the text | Two copies of the start command |
+| A stand-in `docker` that records calls, to run `deploy.sh` for real in the unit tests | Tests the logic, not the text (the audit's complaint) | Only text checks |
+| Images labelled with their commit (`org.opencontainers.image.revision`), printed by `deploy.sh` | The runbook's checks read a commit SHA | Telling Dylan to compare image ids |
+| HSTS in Caddy, `max-age=31536000`, no `includeSubDomains`, no preload | Caddy is where HTTPS lives; each firm address gets it on its own; preload is hard to undo | In the app (Next headers) |
+| Caddy checks the file in an integration test (Docker, the production Caddy version): `caddy validate`, then `caddy adapt` and the JSON checked | Those tests already need Docker; a real parse catches what text matching can't | A CI-only step |
+| Database TLS: `sslmode=verify-full&sslrootcert=/app/rds-ca.pem` in `deploy/env.example`; the image fetches Amazon's RDS bundle when it's built; production refuses an address without it, unless it's on the same machine | Encrypted and checked, and a missing setting fails loudly at start | `sslmode=require` (encrypts but doesn't check who answers) |
+| The trial after Twilio and SES, with a test firm (step 0) and the health check on our own address | Its checks can pass then | Weaker checks |
+
+**Root cause found while building:** the first TLS check refused the good addresses. `pg`'s parser
+opens the certificate file an address names (`/app/rds-ca.pem`), which exists only inside the
+image, and my check counted that error as "no TLS". It now reads the host with the file
+parameters left out. Also, a slip of mine emptied `src/lib/env.ts` mid-edit (a script opened it
+for writing before reading it). It was restored from the last commit and re-edited; the diff shows
+only the additions.
+
+**Reviews:**
+- **Guardrails reviewer, "FIX FIRST":** the Docker image no longer built.
+  - Root cause: `next build` runs in production mode, and the root layout reads the settings while
+    pages are prerendered (the test-page hook calls `appEnv()`). The Dockerfile's build-only
+    placeholder database address had no TLS ending, so the new production check refused it.
+  - Fixed: the placeholder carries the ending. A unit test runs the Dockerfile's build-stage
+    settings through the production check (`verify.sh` doesn't build the image), and it failed when
+    the ending was taken off again.
+  - Also taken:
+    - a neutral message when the image is unchanged but the app isn't healthy;
+    - the Caddy test pulls its image first with a long timeout, runs offline (`--network none`),
+      and says plainly when Docker is missing;
+    - runbook: stop the timer before stopping a container on purpose, how to turn the worker off
+      (`docker compose rm --stop --force worker`), save `.env` once, and the test firm can't be
+      deleted yet;
+    - `OFFLINE_COPY` now reaches the web app (the runbook's "A bad service worker" step did
+      nothing). A deliberate change to the pinned web settings list in
+      `deploy.compose.test.ts`, which stays exact;
+    - one shared local-host helper;
+    - clearer `?`/`&` wording.
+  - Not done: pinning the CA bundle's checksum. That needs the file, from Amazon; it's noted in the
+    Dockerfile for the first real build.
+- **Root cause found while sharing the helper:** the existing socket test
+  (`postgres://u:p@/db?host=/sock`) failed. My helper stripped the certificate parameters with the
+  browser-standard URL parser, which refuses an address with a login and an empty host, while pg
+  accepts it. It now strips them from the text, and pg's own parser reads the rest.
+- **Adversarial review:** it confirmed the claims with live tests, using its own containers in its
+  own scratch space:
+  - real Docker Compose (v5.1.1): the same-image path applies a `.env` change and starts the
+    worker, and is silent when nothing changed;
+  - a TLS Postgres: the right CA connects; the wrong CA or the wrong name is refused;
+  - live Caddy: HSTS on 200, 404 and 502.
+  It also built the image, fetching Amazon's public certificate bundle (not an account or a paid
+  service), and found the bundle readable by the app's user with 111 certificates, including the
+  eu-west-2 roots.
+  Findings:
+  - F2, a worker that kept crashing looked "healthy" to `up --wait` (no health check), so the
+    deploy said "Applied" every 2 minutes. Fixed: the worker writes a sign of life every 15
+    seconds once started (`src/worker/heartbeat.ts`), and its container's health check needs it
+    under a minute old. The check's real command is run against a fresh, a stale and a missing
+    file in `deploy.compose.test.ts`; inverting it failed that test.
+  - F3, rollback pointed at commits with no image. Now: the image's tags on GitHub's Packages page.
+  - F4, rollback could race the timer. Now: stop the timer first, start it after.
+  - F5–F7: wording about Docker's own pull lines; edit `.env` for a secret rotation after 22:00
+    too; the likeliest certificate errors listed.
+  - F8 was already fixed (the text strip above).
+  - Not verified from here: a live Lightsail database's certificate chain. The first deploy's
+    migration step is the check, and the runbook says what to do on an error.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=59463b9885d76828 e2e=true` (3,126 tests,
+60 browser tests).
+
+**Auditor:** `VERDICT: DONE` ("this task's claims are all PROVEN"; fakes found: none).
+
+**Hours:** 0.9 (06:23 to 07:14 UTC). Phase 10 so far: 14.5 of the 30–45 h estimate.
+
+**Commit:** (filled in below)

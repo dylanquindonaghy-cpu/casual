@@ -9,6 +9,9 @@
 #     retry): the migration step, then the new version, waiting until it's healthy. A failed
 #     migration stops there, leaving the old version running; a new version that doesn't come up
 #     healthy is reported as a failure (the unit fails; see journalctl -u shiftdesk-deploy);
+#   - otherwise applies any change to .env or docker-compose.yml (Phase 10, audit M8): Docker
+#     Compose recreates only the containers whose settings changed and starts a service newly turned
+#     on (the worker, with COMPOSE_PROFILES=worker), and changes nothing when nothing changed;
 #   - one run at a time.
 #
 #   ./deploy.sh                  the timer's run
@@ -58,13 +61,37 @@ for id in $running_ids; do
   [[ "$(docker inspect --format '{{.Image}}' "$id")" == "$target" ]] || up_to_date=false
 done
 if [[ "$up_to_date" == true ]]; then
-  exit 0
+  # The same image: no migration (the database is already right). `up` below still applies any
+  # change to .env or docker-compose.yml: Docker Compose recreates only the containers whose
+  # settings changed and starts a service newly turned on (audit M8), and otherwise changes nothing.
+  migrate=false
+else
+  echo "Deploying $image ($target)."
 fi
-
-echo "Deploying $image ($target)."
 if [[ "$migrate" == true ]]; then
   "${compose[@]}" run --rm migrate
 fi
-"${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180
+if ! output="$("${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180 2>&1)"; then
+  echo "$output" >&2
+  if [[ "$up_to_date" == true ]]; then
+    echo "No new image, but the app isn't running healthily (see above): a change in .env, or something else (the database?)." >&2
+  else
+    echo "The new version didn't come up healthy (see above)." >&2
+  fi
+  exit 1
+fi
+if [[ "$up_to_date" == true ]]; then
+  # Said only when something changed: this runs every 2 minutes.
+  if grep -qE 'Creat|Recreat|Start|Remov' <<<"$output"; then
+    echo "$output"
+    echo "Applied the settings in .env ($image, unchanged)."
+  fi
+  exit 0
+fi
+echo "$output"
 docker image prune -f >/dev/null
-echo "Deployed $image."
+# The commit the image was built from (its label: .github/workflows/deploy.yml), for the runbook's
+# checks; "unknown" for an image built without it.
+commit="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image" 2>/dev/null || true)"
+[[ -n "$commit" && "$commit" != "<no value>" ]] || commit="unknown"
+echo "Deployed $image (commit $commit)."

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { databaseTlsOn } from "./db/tls";
 
 // Environment, split by who may read it (docs/decisions.md ADR-011):
 // - app: web and worker. Data access only through the restricted app role.
@@ -26,6 +27,22 @@ const connectsAs = (role: string) =>
   postgresUrl.refine((url) => urlUser(url) === role, {
     message: `must connect as the ${role} role (see .env.example)`,
   });
+
+// In production every database address must ask for checked TLS (databaseTlsOn, src/lib/db/tls.ts;
+// audit L38).
+const DATABASE_TLS_MESSAGE =
+  'in production the database connection must be encrypted and checked: the address needs sslmode=verify-full&sslrootcert=/app/rds-ca.pem (after a "?", or "&" if it already has one; docs/runbooks.md "Deploy")';
+const tlsInProduction =
+  (...keys: string[]) =>
+  (e: Record<string, unknown>, ctx: z.RefinementCtx) => {
+    if (e.NODE_ENV !== "production") return;
+    for (const key of keys) {
+      const url = e[key];
+      if (typeof url === "string" && !databaseTlsOn(url)) {
+        ctx.addIssue({ code: "custom", path: [key], message: DATABASE_TLS_MESSAGE });
+      }
+    }
+  };
 
 // The value in .env.example: fine locally, refused in production.
 const EXAMPLE_SECRET = "dev-only-secret-change-me-in-prod-0123456789";
@@ -91,6 +108,7 @@ const alertsOnMessage = {
 
 export const appEnvSchema = z
   .object(appFields)
+  .superRefine(tlsInProduction("DATABASE_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   // The test-only pages never on a real address, even if the switch were copied into one.
@@ -129,7 +147,14 @@ export const workerEnvSchema = z
     // The web app's health check as the worker reaches it inside the server
     // (http://web:3000/api/health in deploy/docker-compose.yml). Unset: the ops alerts don't check it.
     HEALTH_CHECK_URL: z.url({ protocol: /^https?$/ }).optional(),
+    // Where the worker writes its sign of life for its container's health check (src/worker/
+    // heartbeat.ts; /tmp/shiftdesk-worker-alive in deploy/docker-compose.yml). Unset: none.
+    WORKER_HEARTBEAT_FILE: z
+      .string()
+      .regex(/^\/tmp\/[\w.-]+$/)
+      .optional(),
   })
+  .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine((e) => e.SHEETS_TRANSPORT !== "google" || e.GOOGLE_SERVICE_ACCOUNT_JSON_PATH, {
@@ -153,6 +178,7 @@ export const adminEnvSchema = z
     DATABASE_URL: connectsAs(APP_DB_ROLE),
     DATABASE_JOBS_URL: connectsAs(JOBS_DB_ROLE),
   })
+  .superRefine(tlsInProduction("DATABASE_ADMIN_URL", "DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine((e) => ![APP_DB_ROLE, JOBS_DB_ROLE].includes(urlUser(e.DATABASE_ADMIN_URL)), {
     path: ["DATABASE_ADMIN_URL"],
     message: "must be the owner, not the app or jobs role",

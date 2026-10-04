@@ -8204,7 +8204,7 @@ app. The audit found ten ways a file could be read wrongly. Now:
   (3,004 tests, 53 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M27, L90, L91, L92, L93.
-- Committed and pushed to `build/overnight`.
+- Commit `ac37fe6`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

@@ -7449,4 +7449,4 @@ none." Open, all parked: the production-mode e2e locally, the stable action key.
 
 **Hours:** 0.8 (02:24 to 03:10 UTC). Phase 10 so far: 10.6 h of its 30–45 h estimate.
 
-**Commit:** see the next "Log commit and push" commit.
+**Commit:** `ac37fe6`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.

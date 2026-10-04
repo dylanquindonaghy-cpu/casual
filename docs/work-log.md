@@ -8289,7 +8289,7 @@ shows it when there's no signal. The audit found five problems with it. Now:
   (3,020 tests, 53 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M24, L23, L30, L41, L85, L86, L87.
-- Committed and pushed to `build/overnight`.
+- Commit `a3c62e3`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

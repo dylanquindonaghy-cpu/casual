@@ -7546,4 +7546,4 @@ this entry's last line pointed "below" at nothing (filled in after the audit, be
 
 **Hours:** 0.8 (03:12 to 03:59 UTC). Phase 10 so far: 11.4 h of its 30–45 h estimate.
 
-**Commit:** see the next "Log commit and push" commit.
+**Commit:** `a3c62e3`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.

@@ -7358,3 +7358,95 @@ against a live-acting database). "Fakes found: none." The parked items were note
 **Hours:** 1.1 (01:13 to 02:21 UTC). Phase 10 so far: 9.8 h of its 30–45 h estimate.
 
 **Commit:** `2dcbf52`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.
+
+## 2026-10-04 02:24 UTC — Phase 10, task 12: the offline My shifts copy is gone after logout
+
+**Task:** The offline My shifts copy is gone after logout: logging out or in while a page is still
+loading leaves no copy on the phone; a slow but working connection shows the fresh page; a kept
+copy from an older build can still log out; logging out with no signal says what happened.
+Service-worker tests with a slow network. (M27, L90, L91, L92, L93)
+
+**Plan:**
+1. **No copy after logout or login (M27):** the page's `clearOfflineCopy()` first writes a "forgotten
+   at" time into a small cache of its own (`shiftdesk-my-shifts-forgot`), then deletes the copy.
+   The service worker notes when each load of My shifts started, and keeps its answer only if
+   nothing was forgotten since (checked before and again after writing, so a logout at that moment
+   still wins). Persistent, so it holds even if the service worker restarted in between; the
+   worker's activate step leaves the marker alone.
+2. **Slow but working signal (L90):** when the kept copy is shown (after 4 s with no answer), the
+   service worker marks it with its keep time; the page watches its cache, and as soon as a newer
+   copy has been kept (the late answer arrived) it opens `/?fresh`, which the service worker answers
+   with that just-kept copy (under two minutes old, notice hidden), then puts the address back to
+   `/`. If the copy is gone instead (the answer was "logged out"), it opens `/` from the network.
+3. **Log out from any build (L92):** Log out no longer calls a server action (whose id changes
+   with each build); it posts to a plain route (`/api/logout`, same-origin only), which ends the
+   session and clears the cookie, then the browser goes to the login page. A kept copy made from
+   now on can always log out. "Cancel this shift" still uses an action: a stable
+   `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` at build time keeps ids across builds; parked in "Connect the
+   deploy" (it's a GitHub secret).
+4. **No signal (L91):** if the logout request can't reach us, the button stays and says: "You're
+   still logged in: there's no signal. Your shifts are no longer kept on this phone. Try again when
+   you have signal." (and the copy and the phone's alerts are already gone).
+5. **What can't be reached (L93):** the erase code's notes, the privacy notice and compliance.md
+   say the phone's copy goes when the phone next opens My shifts with signal (or after 14 days).
+6. **Tests:** the sandbox runs the real `public/sw.js` with a slow network against the real
+   page-side `clearOfflineCopy()` (a logout and a login mid-load leave no copy; a fresh copy
+   replaces a stale one; `/?fresh`); the page's watcher with fakes; the route (same origin only,
+   ends the session, clears the cookie); e2e: logging out with no signal says so and stays logged
+   in, then logs out with signal.
+
+**Changed from the plan while building:**
+- The service worker's tests now also run the page's own `clearOfflineCopy()` and watcher against
+  the same fake cache store and clock, so the logout race is tested end to end in the sandbox.
+- The old `logoutAction` / `officeLogoutAction` server actions are removed (the button no longer
+  uses them). A copy kept before this change still calls its old action and can't log out until
+  it's reloaded with signal; the route keeps Log out working for copies kept from this build on.
+- Two existing sandbox expectations named the notice tag exactly; it now also carries
+  `data-kept-at` (the page's watcher needs it), so they say that.
+
+**Guardrails review:** FIX FIRST: the fresh-copy watcher saw the copy deleted at logout and opened
+My shifts again: with no signal the new message vanished after 2 seconds; with slow signal the page
+(the session still live) was kept again after the logout. Reproduced. SHOULD FIX: the marker and
+the delete ran together, not marker first; Log out could hang on "Logging out…" (no fetch limit);
+the watcher could also unload a cancellation being sent. Nits: check the marker straight after
+writing the page; `/?fresh` showing a copy kept before a logout; `keptCopyTime` re-creating the
+cache; the route's body size and error log; shorter, honest wording; the api-and-jobs claim about
+older copies; cross-firm Origin and cookie-cleared assertions.
+
+**Adversarial review:** the same FIX FIRST (reproduced in a sandbox, both with no signal and slow
+signal) and the same marker order and hanging fetch, plus: `history.replaceState` on `/?fresh` ran
+before Next's router hooked the history (Back and later navigations would break); `/?fresh` with
+no fresh copy and no signal fetched twice and showed the browser's error page. Nits: "You're still
+logged in" can be wrong when the reply was lost; the button flicked back during the redirect.
+
+**Fixed:**
+
+| Finding | Fix (tested) |
+|---|---|
+| Watcher during logout | It stops on any tap, key or form and when a logout or login starts (an event `clearOfflineCopy` fires); and once the server has ended the session, the copy is deleted again, so a load that started in between is never kept (`logOutOfThisPhone`). Sandbox: logout from the kept copy with another load in flight leaves no copy and no navigation; a tap stops it |
+| Marker order | Written first, then the delete (inside the 1.5 s limit); also checked straight after the page is written |
+| Hanging logout | 10-second limit; "No signal. You may still be logged in. …" (the copy sentence only if it was deleted) |
+| `replaceState` too early | Deferred until after the router's own effect, keeping the router's state |
+| `/?fresh` fallback | The same handling as `/` (network with the kept copy after 4 s), one fetch; a copy kept before the last logout or login is never "fresh" |
+| Route | Body capped at 1 KB; a failure logged with the firm; another firm's Origin refused (e2e) |
+| Cookie | The e2e checks the session cookie is gone after logging out |
+
+Not done in the browser test: logging out from the kept copy itself under `next dev` (the kept copy
+offline can't load the dev server's reload script, so it isn't interactive); covered in the sandbox
+with the real service worker and page code, and parked: a production-mode e2e run locally.
+
+Each fix checked by breaking it: the watcher's stop on logout, the second delete, and the marker
+check in `/?fresh` each make a test fail.
+
+**Verify:** `VERIFIED tree=b2b6735938795fc2 e2e=true` (3,004 tests, 0 failed, 0 skipped; 53 e2e).
+
+**Auditor (round 1), verbatim verdict:** `VERDICT: DONE`. Every claim PROVEN: M27 (the real
+`public/sw.js` in the sandbox: a logout or login mid-load, an answer written as the logout comes),
+L90 (the fresh page replaces the stale copy; `/?fresh`; the watcher stops), L92 (the stable route,
+the old actions gone, the key for "Cancel this shift" parked), L91 (unit and e2e: the message stays,
+the cookie goes with signal), L93 (the erase notes, compliance and privacy notice). "Fakes found:
+none." Open, all parked: the production-mode e2e locally, the stable action key.
+
+**Hours:** 0.8 (02:24 to 03:10 UTC). Phase 10 so far: 10.6 h of its 30–45 h estimate.
+
+**Commit:** see the next "Log commit and push" commit.

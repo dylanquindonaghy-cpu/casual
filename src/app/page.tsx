@@ -9,7 +9,7 @@ import { HomeScreenHint } from "./home-screen-hint";
 import { LogoutButton } from "./logout-button";
 import { MyShiftsView } from "./my-shifts-view";
 import { OfflineCopy } from "./offline-copy";
-import { logoutAction, refreshSessionAction } from "./session-actions";
+import { refreshSessionAction } from "./session-actions";
 import { SessionKeeper } from "./session-keeper";
 
 // The root URL serves two sites: the ShiftDesk home page on the base domain, and each firm's
@@ -60,7 +60,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         >
           My profile
         </Link>
-        <LogoutButton action={logoutAction} after="/login?out=1" />
+        <LogoutButton kind="worker" after="/login?out=1" />
       </main>
     );
   }

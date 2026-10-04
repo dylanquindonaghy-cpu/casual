@@ -291,7 +291,7 @@ every step works.
       Staff ID never renames or re-attaches a different worker; dates, times and mobiles are checked
       the same way on every import path; the office imports respect the Gate B guard. (M11, M15,
       M16, L39, L67, L68, L69, L70, L71, L78)
-- [ ] The offline My shifts copy is gone after logout: logging out or in while a page is still
+- [x] The offline My shifts copy is gone after logout: logging out or in while a page is still
       loading leaves no copy on the phone; a slow but working connection shows the fresh page; a
       kept copy from an older build can still log out; logging out with no signal says what happened.
       Service-worker tests with a slow network. (M27, L90, L91, L92, L93)
@@ -508,6 +508,11 @@ every step works.
   £12,500 (a European-style 12.5 is possible); a Mac CSV is refused only when its accents show (é,
   ü), other letters can come through changed; an international mobile now needs 9 to 15 digits
   (Falklands and St Helena numbers are shorter).
+- e2e in production mode locally (Phase 10 task 12): `verify.sh` runs the browser tests against
+  `next dev`; CI runs them against a production build. Under `next dev` a kept My shifts copy
+  offline can't load the dev server's reload script, so it never becomes interactive, and logging
+  out from the kept copy is tested only in the service worker's sandbox. Add a production-mode e2e
+  run to `verify.sh` (or a second Playwright project) and a browser test for it.
 - **Dylan to confirm (Gate B, Phase 10 task 11):** a check (dry run) of a real staff file is
   allowed on the live server before the agreement is recorded (nothing is saved, but it is read,
   which counts as processing under UK GDPR). And the demo firms on the live server would need a
@@ -991,8 +996,14 @@ every step works.
   `main`), and it's what first builds the image; (3) **decide the database's TLS**: if Lightsail's
   Postgres 16 insists on TLS, nothing connects until the three database addresses end with
   `?sslmode=verify-full&sslrootcert=/app/rds-ca.pem` and Amazon's RDS certificate bundle is in the
-  image (or mounted); check on first connection. Later: pin `actions/checkout` to a commit SHA and
-  the Node base image to a digest.
+  image (or mounted); check on first connection; (4) **a stable server-action key** (Phase 10 task
+  12, audit L92): an action's id is salted with a key Next makes afresh for each build, so a My
+  shifts copy kept on a phone before a deploy can't "Cancel this shift" until it's reloaded with
+  signal (Log out is a plain route now and always works). Make a key once (`openssl rand -base64
+  32`), add it as a GitHub Actions secret, and pass it to `next build` in the Docker build as
+  `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (a build secret, never a build argument, so it isn't in the
+  image's history). Later: pin `actions/checkout` to a commit SHA and the Node base image to a
+  digest.
 - **Connect AWS** (the Phase 8 "AWS: Lightsail 4 GB instance + managed Postgres" task is blocked on
   it: an AWS account and money). Everything is written: `deploy/lightsail.sh` and
   `deploy/cloud-init.sh`, checked by `tests/unit/deploy.lightsail.test.ts` but never run. Follow
@@ -1706,3 +1717,4 @@ every step works.
 | 2026-10-04 | 10 | 1.2 | The rota sheet follows the office's rules: a role, time or site change to a booked shift is tried, then everyone booked is re-checked with the office move's own check (`src/lib/roster/recheck.ts`); refused → not made, logged once (`roster.sheet_change_refused`) and shown on Today's new "From your rota sheet"; a started shift is never re-timed or cancelled by a sync; refused names stay in the sheet's cell and are retried, and don't use up a place; a site change is logged per worker; new `shifts.sheet_issues` (migration 0030); two reviews' findings fixed; one older flaky test root-caused and parked; 2843 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.9 | Google Sheets, said honestly: `SHEETS_TRANSPORT=google` (with the service account's key file) switches the sync on; each sync first reads the sheet's locale and refuses anything but United Kingdom, with plain words in the action log; `npm run firm:sheet` (owner only) connects, replaces (guarded by `--same-ids` while sheet shifts ahead are booked), switches off, lets go or shows a firm's sheet; one sheet, one firm (a unique index), and the app can only update the sync's status columns (column-level grants); the "Connect the real Google Sheets" steps rewritten to match the code; Google added to the accounts list and the blocked table; two reviews' findings fixed or parked; an older `firm:check` crash for synced sheets found and fixed; 2911 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 1.1 | Imports read what the file says: an Excel date at 23:59:59 keeps its day; "12 50" refused as money; a re-import never reopens a shift the office marked filled (a real reopen is logged); Windows Excel CSVs read (garbled ones refused with a plain message); no identity swaps without a Staff ID (a mobile-only match needs the same name, licence and pay rows must name the worker, a reused Staff ID is refused); one date, shift-time and mobile reader for the editor, the sheet and every import (clock-change and equal times refused); Gate B recorded per firm (`npm run firm:agreement`, migration 0032), checked by every import and `firm:sheet` on the live server; two reviews' findings fixed or parked; the older flaky test hit again (parked, marked urgent); 2988 tests + 51 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 0.8 | The phone's copy of My shifts is gone after logout: a "forgotten at" mark the service worker checks, so a load still in flight at logout or login is never kept, and the copy is deleted again once the server confirms the logout; on slow but working signal the stale copy swaps itself for the fresh page (stopping at the first tap or a logout); Log out is a plain `/api/logout` route (same origin only), so copies kept from this build on can always log out; with no signal it says "No signal. You may still be logged in. …" and gives up after 10 s; the privacy notice and erase notes cover the phone's copy; two reviews found the swap fighting the logout (fixed and tested); 3004 tests + 53 e2e; verified and audited DONE (see docs/work-log.md) |

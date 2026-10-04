@@ -73,7 +73,9 @@ Replace the parts in [brackets]. Send both parts.
 > email, licences, messages, logins and the notes written about you on requests, pay questions
 > and cancellations are deleted. The record of the shifts you were offered, worked or cancelled,
 > and your pay records, stay without your name, because we must be able to show the notice we
-> gave and what we paid. One thing stays in our permanent log: if our office placed you on a shift
+> gave and what we paid. The copy of My shifts on your own phone goes the next time your phone
+> opens My shifts with signal, and is never shown once it's 14 days old. One thing stays in our
+> permanent log: if our office placed you on a shift
 > a rule would have stopped, the reason it typed (checked to hold no phone number or email). You can also object, and ask for a decision to be reviewed by a person. Contact
 > [our contact]. You can complain to the Information Commissioner's Office (ico.org.uk).
 

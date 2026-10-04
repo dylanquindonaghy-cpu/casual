@@ -8196,3 +8196,88 @@ app. The audit found ten ways a file could be read wrongly. Now:
    09:00 to 09:00 says the times can't be the same.
 4. `npm run -s firm:check -- --firm acme`: "Agreement + DPA signed" is still to do, with the command
    that records it.
+
+## 2026-10-04 — Phase 10, task 12: the phone's copy of My shifts is gone after logout
+
+- **Time spent:** 0.8 hours (started 02:24 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=b2b6735938795fc2 e2e=true`
+  (3,004 tests, 53 browser tests).
+- The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
+- Audit findings fixed: M27, L90, L91, L92, L93.
+- Committed and pushed to `build/overnight`.
+
+### What was built, in plain words
+
+So that My shifts opens with no signal at a venue, the phone keeps a copy of that one page. A
+small background script in the browser, the **service worker** (`public/sw.js`), keeps it and
+shows it when there's no signal. The audit found five problems with it. Now:
+
+- **Logging out mid-load leaves no copy.** On poor signal, My shifts could still be loading when
+  the worker tapped Log out. The late answer then put their page back on the phone, for up to 14
+  days. Now logging out (or in) first writes down the time. The service worker never keeps an
+  answer to a load that started before then. Once the server confirms the logout, the copy is
+  deleted a second time, to catch anything that started in between.
+- **Slow signal shows the fresh page.** On slow but working signal, the old copy showed after 4
+  seconds, wrongly labelled "No signal", and stayed there. Now the page watches for the fresh answer
+  and swaps itself for it as soon as it arrives. The swap stops as soon as the worker taps anything
+  or logs out, so it never throws away something they're doing.
+- **Log out no longer depends on the build.** Log out used a "server action", whose hidden id
+  changes every time the app is rebuilt. A copy saved before an update couldn't log out. Now it's a
+  plain address (`/api/logout`) that never changes, so copies saved from now on keep working.
+  ("Cancel this shift" still uses an action. Making its id stable needs a secret in the deploy, so
+  it's a step in "Connect the deploy".)
+- **No signal is said plainly.** Logging out with no signal used to fall into the general error page
+  and leave the phone logged in, without saying so. Now the button stays and says: "No signal. You
+  may still be logged in. Your shifts are no longer kept on this phone. Try again when you have
+  signal." The copy is deleted either way. The logout gives up after 10 seconds instead of spinning
+  forever on weak signal.
+- **The privacy wording is complete.** When a worker is deleted or blocked, the copy on their own
+  phone goes the next time that phone opens My shifts with signal. The erase notes, the privacy
+  notice and the compliance notes now say so.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A "forgotten at" time the service worker checks | Survives the service worker restarting; no messages to lose | A counter in the service worker's memory (lost on restart) |
+| Delete the copy again after the server confirms the logout | Closes the gap where the session was still live | Only the first delete (the reviews showed the gap) |
+| The page swaps to the fresh copy by itself, but stops at the first tap | Shows the truth without losing what the worker is doing | A banner with a button (the stale copy would stay unless tapped) |
+| Log out as a plain route | It works across builds; same-origin only, like the push route | A stable action key alone (needs a deploy secret; parked) |
+
+### What the new tests prove
+
+- **`tests/unit/offline.sw.test.ts`:** the real service worker in a sandbox with a slow network,
+  next to the page's real logout and login code:
+  - a logout or login mid-load leaves no copy;
+  - an answer being written as the logout comes is removed;
+  - the fresh page replaces the stale copy, and "logged out" sends the page to the network;
+  - a logout from the stale copy stops the swap and keeps nothing;
+  - a tap stops it;
+  - `/?fresh` with no signal shows the kept copy.
+- **`tests/unit/portal.logout-client.test.ts`:** the order (copy, alerts, session, copy again), the
+  10-second limit, and the wording.
+- **`tests/e2e/offline.worker.spec.ts`:**
+  - logging out with no signal shows the message, keeps it, and deletes the copy;
+  - with signal it logs out and the session cookie is gone;
+  - the logout address refuses other sites and other firms.
+- **The tests catch the bugs:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **"Connect the deploy" step (4):** a stable key for server actions (a GitHub secret), so "Cancel
+  this shift" also works on a copy saved before an update.
+- **Browser tests in production mode on your computer:** `verify.sh` runs them against the
+  development server. There, a saved copy can't become interactive offline. So logging out from the
+  copy itself is tested in the sandbox, and in GitHub's checks (which use a production build).
+
+### How to see it working
+
+1. The copy is off while developing: in `.env`, set `OFFLINE_COPY=on`. Then `npm run dev`, and log
+   in at `http://acme.localhost:3000` as a demo worker (mobile 07700 900113, say; the login link is
+   printed in the terminal).
+2. In the browser's developer tools (Network tab), choose "Offline", and reload: My shifts shows,
+   with "No signal."
+3. Set it back to "No throttling" and reload. Then choose "Offline" again (don't reload) and tap
+   "Log out". It says "No signal. You may still be logged in. …", and the copy is gone (reload
+   while offline: the plain "No signal" page).
+4. Back to "No throttling": reload, tap "Log out", and you're on the login page.

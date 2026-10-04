@@ -5,7 +5,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MyShiftsView } from "@/app/my-shifts-view";
 import { offlineCopyOn } from "@/lib/env";
-import { OFFLINE_CACHE } from "@/lib/portal/offline";
+import { logOutOfThisPhone } from "@/lib/portal/logout-client";
+import {
+  clearOfflineCopy,
+  OFFLINE_CACHE,
+  OFFLINE_FORGOT_CACHE,
+  watchForFreshCopy,
+} from "@/lib/portal/offline";
 
 // public/sw.js, the service worker that keeps My shifts for when there's no signal, run as it is
 // in a sandbox: a fake cache store, a fake network and fake fetch events. Service workers only run
@@ -53,6 +59,9 @@ class FakeCaches {
   }
   async keys() {
     return [...this.stores.keys()];
+  }
+  async has(name: string) {
+    return this.stores.has(name);
   }
   async delete(name: string) {
     return this.stores.delete(name);
@@ -200,6 +209,7 @@ const PAGE = `<!doctype html><html><head>
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe("which requests the service worker answers", () => {
@@ -219,8 +229,15 @@ describe("which requests the service worker answers", () => {
     expect(answers(req("https://example.com/_next/static/x.js"))).toBe(false);
   });
 
-  it("shares its cache name with the page (which deletes it on logout and login)", () => {
+  it("shares its cache names with the page (which deletes the copy on logout and login)", () => {
     expect(SOURCE).toContain(`const CACHE = "${OFFLINE_CACHE}";`);
+    expect(SOURCE).toContain(`const FORGOT = "${OFFLINE_FORGOT_CACHE}";`);
+    // The marker's key and header, and the copy's time header, as the page writes and reads them.
+    const page = readFileSync("src/lib/portal/offline.ts", "utf8");
+    for (const constant of ["FORGOT_KEY", "FORGOT_AT", "KEPT_AT"]) {
+      const value = new RegExp(`const ${constant} = ("[^"]+");`);
+      expect(SOURCE.match(value)?.[1], constant).toBe(page.match(value)?.[1]);
+    }
   });
 });
 
@@ -347,7 +364,8 @@ describe("with no signal", () => {
     const w = loadWorker(() => Promise.reject(new TypeError("offline")), { now: 2 * DAY });
     await withCopy(w, DAY);
     const page = await (await dispatch(w, navigate()).handled)?.text();
-    expect(page).toContain('<div data-offline-notice="" role="status">');
+    // Its notice shows, marked with when the copy was kept (the page watches for a newer one).
+    expect(page).toContain(`<div data-offline-notice="" role="status" data-kept-at="${DAY}">`);
     expect(page).toContain('<div hidden="">not this one</div>'); // nothing else unhidden
     expect(page).toContain("Updated 09:00 on Mon 2 Nov");
     // And the styles come from the copy.
@@ -370,7 +388,9 @@ describe("with no signal", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(shown).toBeUndefined(); // still waiting for the network
     await vi.advanceTimersByTimeAsync(1);
-    expect(await shown?.text()).toContain('<div data-offline-notice="" role="status">');
+    expect(await shown?.text()).toContain(
+      `<div data-offline-notice="" role="status" data-kept-at="${DAY}">`,
+    );
     arrive(answer(PAGE.replace("09:00", "09:07")));
     await settled();
     expect(await (await cache.match("/"))?.text()).toContain("Updated 09:07");
@@ -410,6 +430,280 @@ describe("with no signal", () => {
   });
 });
 
+// Poor signal at a venue, with the page's own side (src/lib/portal/offline.ts) run against the same
+// cache store, on one clock: the page's clearOfflineCopy() on logout and login, and its watcher.
+describe("with a slow network, logging out, logging in and the fresh page (audit M27, L90)", () => {
+  const T = 2 * DAY;
+  // The worker's clock is the test's (fake) clock, so the page and the worker agree on "now".
+  const sharedClock = {
+    get now() {
+      return Date.now();
+    },
+  };
+  const slowPage = () => {
+    let arrive: (r: Response) => void = () => undefined;
+    const slow = new Promise<Response>((resolve) => (arrive = resolve));
+    return { slow, arrive: (r: Response) => arrive(r) };
+  };
+  const keptCopy = async (w: ReturnType<typeof loadWorker>, keptAt: number) => {
+    const cache = await w.caches.open(OFFLINE_CACHE);
+    await cache.put(
+      "/",
+      new Response(PAGE, { headers: { "x-shiftdesk-kept-at": String(keptAt) } }),
+    );
+  };
+  const keptPage = async (w: ReturnType<typeof loadWorker>) =>
+    (await w.caches.has(OFFLINE_CACHE))
+      ? await (await (await w.caches.open(OFFLINE_CACHE)).match("/"))?.text()
+      : undefined;
+
+  it("logging out while the page is still loading: the late answer is never kept", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const net = slowPage();
+    const w = loadWorker(
+      (r) => (key(r).endsWith("/") ? net.slow : Promise.resolve(answer("f"))),
+      sharedClock,
+    );
+    vi.stubGlobal("caches", w.caches);
+    await keptCopy(w, DAY);
+    const { handled, settled } = dispatch(w, navigate());
+    await vi.advanceTimersByTimeAsync(4_000); // no answer yet: the kept copy shows
+    expect(await (await handled)?.text()).toContain("No signal.");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await clearOfflineCopy(); // "Log out"
+    expect(await keptPage(w)).toBeUndefined();
+    // The answer to the load from before the logout arrives (a 200: it was asked while logged in).
+    net.arrive(answer(PAGE.replace("Sam", "Sam again")));
+    await settled();
+    expect(await keptPage(w)).toBeUndefined();
+  });
+
+  it("an answer being written as the logout comes is removed straight after", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const w = loadWorker(
+      async (r) => (key(r).endsWith("/") ? answer(PAGE) : answer("f")),
+      sharedClock,
+    );
+    vi.stubGlobal("caches", w.caches);
+    // The page writes its "forgotten at" mark just as the worker stores the page (and its delete of
+    // the copy hasn't happened: it raced its 1.5-second limit, say).
+    const cache = await w.caches.open(OFFLINE_CACHE);
+    const put = cache.put.bind(cache);
+    cache.put = async (r, response) => {
+      if (key(r).endsWith("/")) {
+        vi.setSystemTime(Date.now() + 5);
+        await (
+          await w.caches.open(OFFLINE_FORGOT_CACHE)
+        ).put(
+          "/forgot",
+          new Response("", { headers: { "x-shiftdesk-forgot-at": String(Date.now()) } }),
+        );
+      }
+      return put(r, response);
+    };
+    await dispatch(w, navigate()).settled();
+    expect(await keptPage(w)).toBeUndefined();
+  });
+
+  it("logging in while the last worker's page is still loading keeps only the new worker's", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const before = slowPage();
+    let calls = 0;
+    const w = loadWorker((r) => {
+      if (!key(r).endsWith("/")) return Promise.resolve(answer("f"));
+      calls += 1;
+      return calls === 1 ? before.slow : Promise.resolve(answer(PAGE.replace("Sam", "Kim")));
+    }, sharedClock);
+    vi.stubGlobal("caches", w.caches);
+    const first = dispatch(w, navigate()); // the last worker's page, on its way
+    await vi.advanceTimersByTimeAsync(1_000);
+    await clearOfflineCopy(); // the new worker logs in on this phone
+    await vi.advanceTimersByTimeAsync(1);
+    await dispatch(w, navigate()).settled(); // the new worker's My shifts
+    before.arrive(answer(PAGE)); // then the last worker's answer turns up
+    await first.settled();
+    expect(await keptPage(w)).toContain("Hello Kim");
+  });
+
+  it("a slow but working signal: the fresh page replaces the kept copy as soon as it's kept", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const net = slowPage();
+    const w = loadWorker(
+      (r) => (key(r).endsWith("/") ? net.slow : Promise.resolve(answer("f"))),
+      sharedClock,
+    );
+    vi.stubGlobal("caches", w.caches);
+    await keptCopy(w, DAY);
+    const { handled, settled } = dispatch(w, navigate());
+    await vi.advanceTimersByTimeAsync(4_000);
+    const shown = (await (await handled)?.text()) ?? "";
+    const shownKeptAt = shown.match(/data-kept-at="(\d+)"/)?.[1] ?? "";
+    expect(shownKeptAt).toBe(String(DAY));
+    // The page watches; the answer arrives 3 seconds later and is kept.
+    const went: string[] = [];
+    const stop = watchForFreshCopy({ shownKeptAt, go: (path) => went.push(path), everyMs: 1_000 });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(went).toEqual([]);
+    net.arrive(answer(PAGE.replace("09:00", "09:07")));
+    await settled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(went).toEqual(["/?fresh"]);
+    stop();
+    // `/?fresh` is answered with that copy, as the server sent it (no notice), without the network.
+    const fetchedBefore = w.fetched.length;
+    const fresh = await (await dispatch(w, navigate("/?fresh")).handled)?.text();
+    expect(fresh).toContain("Updated 09:07");
+    expect(fresh).toContain('<div data-offline-notice="" hidden="" role="status">');
+    expect(w.fetched.length).toBe(fetchedBefore);
+  });
+
+  it("the answer says logged out instead: the page goes to the network (and the login page)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const net = slowPage();
+    const w = loadWorker(
+      (r) => (key(r).endsWith("/") ? net.slow : Promise.resolve(answer("f"))),
+      sharedClock,
+    );
+    vi.stubGlobal("caches", w.caches);
+    await keptCopy(w, DAY);
+    const { settled } = dispatch(w, navigate());
+    await vi.advanceTimersByTimeAsync(4_000);
+    const went: string[] = [];
+    watchForFreshCopy({ shownKeptAt: String(DAY), go: (path) => went.push(path), everyMs: 1_000 });
+    net.arrive(opaqueRedirect());
+    await settled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(went).toEqual(["/"]);
+  });
+
+  it("`/?fresh` with no recent copy goes to the network as usual", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const w = loadWorker(async () => answer("from the network"), sharedClock);
+    await keptCopy(w, T - 3 * 60 * 1000); // kept 3 minutes ago: not "just kept"
+    expect(await (await dispatch(w, navigate("/?fresh")).handled)?.text()).toBe("from the network");
+    const empty = loadWorker(async () => answer("from the network"), sharedClock);
+    expect(await (await dispatch(empty, navigate("/?fresh")).handled)?.text()).toBe(
+      "from the network",
+    );
+  });
+
+  // The reviews of this task: logging out from the kept copy deleted it, the watcher saw it gone
+  // and opened My shifts again (the no-signal message vanished; on slow signal, the page was kept
+  // again with the session still live).
+  it("a logout from the kept copy stops the watcher; a load that started meanwhile is never kept", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const win = new EventTarget();
+    vi.stubGlobal("window", win);
+    const later = slowPage();
+    const w = loadWorker(
+      (r) => (key(r).endsWith("/") ? later.slow : Promise.resolve(answer("f"))),
+      sharedClock,
+    );
+    vi.stubGlobal("caches", w.caches);
+    await keptCopy(w, DAY);
+    const went: string[] = [];
+    watchForFreshCopy({ shownKeptAt: String(DAY), go: (p) => went.push(p), everyMs: 1_000 });
+    // Log out: the copy first (the watcher stops), then a load of My shifts starts somehow (another
+    // tab) while the session is still live, then the server ends the session.
+    let other: ReturnType<typeof dispatch> | undefined;
+    const result = logOutOfThisPhone("worker", {
+      clearCopy: clearOfflineCopy,
+      forgetPush: async () => {
+        await vi.advanceTimersByTimeAsync(1);
+        other = dispatch(w, navigate());
+        await vi.advanceTimersByTimeAsync(3_000);
+      },
+      logOut: async () => "done",
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await result).toEqual({ outcome: "done", copyCleared: true });
+    // That load's answer comes last: the page (the session was live when it was asked).
+    later.arrive(answer(PAGE));
+    await other?.settled();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(went).toEqual([]);
+    expect(await keptPage(w)).toBeUndefined();
+  });
+
+  it("a tap or a key stops the watcher (a cancellation half-filled is never thrown away)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const win = new EventTarget();
+    const went: string[] = [];
+    watchForFreshCopy({
+      shownKeptAt: String(DAY),
+      read: async () => "newer",
+      go: (p) => went.push(p),
+      everyMs: 1_000,
+      stopOn: win,
+    });
+    win.dispatchEvent(new Event("click"));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(went).toEqual([]);
+  });
+
+  it("`/?fresh` with no fresh copy and no signal shows the kept copy, asking the network once", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const w = loadWorker(() => Promise.reject(new TypeError("offline")), sharedClock);
+    await keptCopy(w, DAY); // kept yesterday
+    const shown = await (await dispatch(w, navigate("/?fresh")).handled)?.text();
+    expect(shown).toContain("No signal.");
+    expect(w.fetched.filter((p) => p === "/")).toHaveLength(1);
+  });
+
+  it("a copy kept before a logout or login is never shown as fresh", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const w = loadWorker(async () => answer("from the network"), sharedClock);
+    await keptCopy(w, T - 30_000);
+    await (
+      await w.caches.open(OFFLINE_FORGOT_CACHE)
+    ).put(
+      "/forgot",
+      new Response("", { headers: { "x-shiftdesk-forgot-at": String(T - 10_000) } }),
+    );
+    expect(await (await dispatch(w, navigate("/?fresh")).handled)?.text()).toBe("from the network");
+  });
+
+  it("the watcher stops when asked, and gives up when no answer ever comes (no signal at all)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const went: string[] = [];
+    let reads = 0;
+    const read = async () => {
+      reads += 1;
+      return String(DAY);
+    };
+    watchForFreshCopy({
+      shownKeptAt: String(DAY),
+      read,
+      go: (p) => went.push(p),
+      everyMs: 1_000,
+      forMs: 5_000,
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(went).toEqual([]);
+    expect(reads).toBeLessThanOrEqual(6);
+    const stop = watchForFreshCopy({
+      shownKeptAt: String(DAY),
+      read: async () => "later",
+      go: (p) => went.push(p),
+      everyMs: 1_000,
+    });
+    stop();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(went).toEqual([]);
+  });
+});
+
 describe("a new version of the service worker", () => {
   it("deletes older ShiftDesk caches and leaves the current one and anyone else's", async () => {
     const w = loadWorker(async () => answer("x"));
@@ -420,6 +714,11 @@ describe("a new version of the service worker", () => {
     w.listeners.activate?.({ waitUntil: (p: Promise<unknown>) => pending.push(p) });
     await Promise.all(pending);
     expect((await w.caches.keys()).sort()).toEqual([OFFLINE_CACHE, "someone-else"]);
+    // The page's "forgotten at" mark is kept too (it outlives the copy it was about).
+    await w.caches.open(OFFLINE_FORGOT_CACHE);
+    w.listeners.activate?.({ waitUntil: (p: Promise<unknown>) => pending.push(p) });
+    await Promise.all(pending);
+    expect(await w.caches.keys()).toContain(OFFLINE_FORGOT_CACHE);
   });
 });
 
@@ -440,8 +739,8 @@ describe("My shifts and the kept copy together", () => {
     const notice = html.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0] ?? "";
     expect(notice).toContain('hidden=""');
     const { sandbox } = loadWorker(async () => answer("x"));
-    const show = sandbox.showNoSignalNotice as (html: string) => string;
-    const shown = show(html);
+    const show = sandbox.showNoSignalNotice as (html: string, keptAt: number) => string;
+    const shown = show(html, 1000);
     expect(shown.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0]).not.toContain("hidden");
     expect(shown.replace(/<[^>]+>/g, "")).toContain(
       "No signal.These are your shifts from 09:05 on Mon 2 Nov. They may have changed.Taking or cancelling a shift needs signal.",

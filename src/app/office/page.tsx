@@ -6,7 +6,7 @@ import { todayView } from "@/lib/office/today";
 import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { LogoutButton } from "../logout-button";
 import { SessionKeeper } from "../session-keeper";
-import { officeLogoutAction, refreshOfficeSessionAction } from "./session-actions";
+import { refreshOfficeSessionAction } from "./session-actions";
 import { TodayContent } from "./today-view";
 
 // The office dashboard: Today for admins and resourcers (docs/screens.md `/office/today`);
@@ -82,7 +82,7 @@ export default async function OfficeHome() {
       ) : (
         <p className="mt-2">Your dashboard will appear here.</p>
       )}
-      <LogoutButton action={officeLogoutAction} after="/office/login?out=1" />
+      <LogoutButton kind="office" after="/office/login?out=1" />
     </main>
   );
 }

@@ -38,8 +38,11 @@ import { erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./free-text";
 //   wording stays: free-text.ts);
 // - worker.erased with how many of each (never what they were).
 // What can't be reached: the office's typed reason for placing someone despite a rule (in the
-// append-only log, checked for phones and emails only), and the firm's own rota sheet or staff file
-// (the next sync or import would add them back: the runbook says to remove them there too).
+// append-only log, checked for phones and emails only), the firm's own rota sheet or staff file
+// (the next sync or import would add them back: the runbook says to remove them there too), and
+// the copy of My shifts on the worker's own phone (public/sw.js): it goes the next time that phone
+// opens My shifts with signal (the server then says "not logged in"), and is never shown once
+// it's 14 days old (audit L93).
 
 export interface ErasedCounts {
   licences: number; // credentials (the log masker refuses a key named "credentials")

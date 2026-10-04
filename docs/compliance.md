@@ -108,8 +108,13 @@ rate-limited login. Breach plan: one page, who to tell, within 72 hours.
 of that one page (ADR-016): the worker's first name, their upcoming shifts with times, sites and
 instructions, and any licence expiry banner (type and date). It never holds pay, requests or
 anyone else's data; only the page itself and the site's own style and script files are kept.
-It is deleted when the worker logs out or logs in on that browser, and when the server answers
-"not logged in" the next time My shifts loads. A copy older than 14 days is never shown, and is
+It is deleted when the worker logs out or logs in on that browser (also when My shifts was still
+loading on poor signal: the late answer is never kept, Phase 10), and when the server answers
+"not logged in" the next time My shifts loads. Logging out with no signal deletes the copy but
+can't end the session if the server can't be reached: the button says the worker may still be
+logged in. A worker blocked, made inactive or deleted loses their session at once, but their phone's
+copy goes only when that phone next opens My shifts with signal (up to 14 days; the deletion
+notes in `src/lib/gdpr/worker-erase.ts` and the privacy notice say so). A copy older than 14 days is never shown, and is
 deleted the next time My shifts opens; until then it stays in the browser's storage. On iPhone,
 Safari and a home-screen app keep separate storage, so logging out in one doesn't clear the
 other. It's off unless switched on (`OFFLINE_COPY`; on in production). The "don't show the home

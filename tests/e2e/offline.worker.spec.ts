@@ -5,7 +5,8 @@ import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
 
 // My shifts with no signal, in a real browser: the service worker (public/sw.js) keeps the last
-// copy, shows it offline with its notice, and logging out deletes it. Also the web app manifest
+// copy, shows it offline with its notice, and logging out deletes it (and says so when there's no
+// signal to log out with). Also the web app manifest
 // and the iPhone "home screen" hint.
 
 const acme = "http://acme.localhost:3100";
@@ -87,6 +88,66 @@ test("a new login on the same phone never shows the last worker's copy", async (
   expect(second).not.toBe(first);
   await expect.poll(() => keptText(page), { timeout: 15_000 }).toContain(second);
   expect(await keptText(page)).not.toContain(first);
+});
+
+// Audit L91: with no signal, Log out used to fail into the error page, leaving the phone logged in
+// without saying so. (Logging out from the kept copy itself, where the fresh-copy watcher runs, is
+// in the service worker's sandbox test: under `next dev` a kept copy offline can't load the dev
+// server's own reload script, so it never becomes interactive here.)
+test("logging out with no signal says it may not have, and keeps no copy; with signal it logs out", async ({
+  page,
+  context,
+}) => {
+  await logIn(page, "07700 900113", "+447700900113");
+  await expect.poll(() => hasCopy(page), { timeout: 15_000 }).toBe(true);
+
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Log out" }).click();
+  const said = page.getByText(
+    "No signal. You may still be logged in. Your shifts are no longer kept on this phone. Try again when you have signal.",
+  );
+  await expect(said).toBeVisible();
+  await page.waitForTimeout(3_000); // nothing replaces it
+  await expect(said).toBeVisible();
+  await expect(page).toHaveURL(`${acme}/`);
+  expect(await hasCopy(page)).toBe(false);
+  await expect(page.getByRole("button", { name: "Log out" })).toBeEnabled();
+
+  // Signal again: still logged in (My shifts opens), and now Log out works and clears the cookie.
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(/\/login\?out=1/);
+  const cookies = await context.cookies(acme);
+  expect(cookies.map((c) => c.name)).not.toContain("__Host-sd_session");
+  // The session really ended: My shifts sends you to log in.
+  await page.goto(`${acme}/`);
+  await expect(page).toHaveURL(/\/login/);
+});
+
+// Log out is a plain address now (audit L92: a page kept from a later build can still use it); it
+// takes requests from the firm's own pages only, not another firm's (same site, other subdomain).
+test("the logout address takes requests from the firm's own pages only", async ({ request }) => {
+  for (const origin of ["http://evil.example", "http://northline.localhost:3100"]) {
+    const refused = await request.post(`${acme}/api/logout`, {
+      data: { kind: "worker" },
+      headers: { origin },
+    });
+    expect(refused.status(), origin).toBe(403);
+  }
+  const unsaid = await request.post(`${acme}/api/logout`, { data: { kind: "worker" } });
+  expect(unsaid.status()).toBe(403);
+  const wrong = await request.post(`${acme}/api/logout`, {
+    data: { kind: "admin" },
+    headers: { origin: acme },
+  });
+  expect(wrong.status()).toBe(400);
+  const ok = await request.post(`${acme}/api/logout`, {
+    data: { kind: "office" },
+    headers: { origin: acme },
+  });
+  expect(await ok.json()).toEqual({ status: "done" });
 });
 
 test("the web app manifest names the firm, in its colour", async ({ page }) => {

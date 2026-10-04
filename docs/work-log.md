@@ -8002,7 +8002,7 @@ accounts-to-create list). Until then, the tests show it:
 - **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=9e917f199bbba895 e2e=true` (2,911 tests, 51 browser tests).
 - The independent auditor said `VERDICT: DONE`: every claim PROVEN, no fakes found.
 - Audit findings fixed: M3, M17, L45.
-- Committed and pushed to `build/overnight`.
+- Commit `051f918`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

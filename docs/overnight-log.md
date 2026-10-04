@@ -7225,4 +7225,4 @@ ownership, what `--disable` should do) were noted as parked with reasons.
 
 **Hours:** 0.9 (00:19 to 01:11 UTC). Phase 10 so far: 8.7 h of its 30–45 h estimate.
 
-**Commit:** see the next "Log commit and push" commit.
+**Commit:** `051f918`, pushed to `build/overnight`. CI: `gh` isn't installed, so not checked.

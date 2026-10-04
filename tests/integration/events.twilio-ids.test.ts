@@ -10,10 +10,11 @@ import type { MessagingTransport } from "@/lib/messaging/transport";
 import { runFirmChangeNotice } from "@/lib/notices/firm-change";
 import { runPayQueryUpdate } from "@/lib/notices/pay-query-update";
 import { runRequestUpdate } from "@/lib/notices/request-update";
+import { runShiftConfirmed } from "@/lib/notices/shift-confirmed";
 import { runOfficeOffer } from "@/lib/offers/office-offer";
 import { runOfferWave } from "@/lib/offers/waves";
 import { sortPayQueries } from "@/lib/office/pay-sort";
-import { cancelBookingByOffice } from "@/lib/office/quick-actions";
+import { assignWorker, cancelBookingByOffice } from "@/lib/office/quick-actions";
 import type { PushTransport } from "@/lib/push/transport";
 import { runShiftReminders } from "@/lib/reminders/send";
 import { resolveRequest } from "@/lib/requests/resolve";
@@ -213,6 +214,34 @@ describe("every sender logs a Twilio-shaped message id as it is", () => {
     );
     expect(t.ids).toHaveLength(1);
     expect(await loggedIds(f.firmId, "shift.change_notice_sent")).toEqual(t.ids);
+  });
+
+  it("the office booked them (shift.booked_notice_sent)", async () => {
+    const f = await bookingFirm(su, withFirm, {});
+    const workerId = await f.worker({ first: "Ada" });
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30) });
+    const officeUserId = await f.office("resourcer");
+    expect(
+      await assignWorker(
+        { firm: { id: f.firmId }, officeUserId, run: withFirm, clock },
+        shiftId,
+        workerId,
+        null,
+      ),
+    ).toMatchObject({ status: "booked" });
+    const { rows } = await su.query<{ data: Record<string, unknown> }>(
+      "select data from pgboss.job where name = 'shift-confirmed' and data ->> 'firmId' = $1",
+      [f.firmId],
+    );
+    const t = twilio();
+    await runShiftConfirmed(rows[0]?.data as Parameters<typeof runShiftConfirmed>[0], withFirm, {
+      transport: t.transport,
+      push: noPush,
+      baseDomain: "localhost:3000",
+      clock,
+    });
+    expect(t.ids).toHaveLength(1);
+    expect(await loggedIds(f.firmId, "shift.booked_notice_sent")).toEqual(t.ids);
   });
 
   it("a request's answer (request.update_sent)", async () => {

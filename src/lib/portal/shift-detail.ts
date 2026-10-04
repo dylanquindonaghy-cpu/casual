@@ -16,7 +16,7 @@ import type { MyShift, PortalContext } from "./my-shifts";
 //   the instructions. Only a booked worker sees a shift's instructions.
 // - cancelled, started: nothing to take. filled: no place left (or the office closed it).
 // - open: the rules say yes (previewBooking: no locks, no pass; taking it re-checks everything).
-// - held: fair rotation holds it for workers with fewer hours this week until opensAt.
+// - held: fair rotation holds it for workers with fewer hours that week (the shift's own week) until opensAt.
 // - blocked: the rules say no, with their reasons in plain English, and the worker's review
 //   request for it if one is waiting (askForReview in review.ts).
 // - missing: not in this firm, a draft, or not a shift id.

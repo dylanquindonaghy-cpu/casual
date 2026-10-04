@@ -61,6 +61,21 @@ describe("the firm's data export", () => {
            ${table === "events" ? "and action <> 'firm.data_exported'" : ""}`,
         [t.firmId],
       );
+      if (table === "events") {
+        // Numbered within the file (1, 2, 3… as they happened), never by the counter every firm
+        // shares (the reviews of Phase 10 task 19): the same events, by what each says.
+        const { rows: logged } = await su.query<{ action: string; entity: string | null }>(
+          `select action, entity_id::text as entity from events
+            where firm_id = $1 and action <> 'firm.data_exported' order by id`,
+          [t.firmId],
+        );
+        const byNumber = [...rows].sort((a, b) => Number(a.id) - Number(b.id));
+        expect(byNumber.map((r) => r.id)).toEqual(logged.map((_, i) => i + 1));
+        expect(byNumber.map((r) => [r.action, r.entityId])).toEqual(
+          logged.map((e) => [e.action, e.entity]),
+        );
+        continue;
+      }
       expect(rows.map((r) => String(r.id)).sort(), table).toEqual(inDb.map((r) => r.id).sort());
       expect(rows.length, table).toBeGreaterThan(0);
       for (const row of rows) expect(Object.keys(row), table).not.toContain("firmId");

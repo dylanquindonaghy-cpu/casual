@@ -169,6 +169,23 @@ describe("office login, start to finish", () => {
       expect((await requestOfficeLoginLink(ctx(T), address)).status).toBe("sent");
     expect(await requestOfficeLoginLink(ctx(T), address)).toMatchObject({ status: "rate_limited" });
   });
+
+  it("10 links per address a day (audit L49)", async () => {
+    const T = await createTenant(su);
+    const address = await officeEmail(T);
+    const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    for (let i = 0; i < 10; i++) {
+      // Three to a 15-minute window, so only the daily cap can stop them.
+      const when = later(Math.floor(i / 3) * 15);
+      expect((await requestOfficeLoginLink(ctx(T, when), address)).status).toBe("sent");
+    }
+    expect(await requestOfficeLoginLink(ctx(T, later(60)), address)).toMatchObject({
+      status: "rate_limited",
+    });
+    expect(await requestOfficeLoginLink(ctx(T, later(24 * 60)), address)).toMatchObject({
+      status: "sent",
+    });
+  });
 });
 
 describe("office rate limits", () => {
@@ -230,6 +247,7 @@ describe("office rate limits", () => {
     );
     expect(rows.map((r) => r.bucket.replace(/:[A-Za-z0-9_-]{32}$/, "")).sort()).toEqual([
       "office:email",
+      "office:email_day",
       "office:ip",
     ]);
     for (const r of rows) {

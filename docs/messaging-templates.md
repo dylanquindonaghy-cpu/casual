@@ -50,13 +50,13 @@ it.
 
 | Name | Category | Body (variables in braces) |
 |---|---|---|
-| `login_link` | Utility | "Here's your {firm} shifts link: {link}. It works for 15 minutes and only for you. — {firm} Shift Team" ({link} is `https://<portal>/l#<token>`; one per login request, so it is exempt from the once-a-day rule) |
+| `login_link` | Utility | "Here's your {firm} shifts link. It works for 15 minutes and only for you: {link} — {firm} Shift Team" (the link last, with a space after it, never a full stop, which a phone can take into the link: Phase 10 task 19; {link} is `https://<portal>/l#<token>`; one per login request, so it is exempt from the once-a-day rule) |
 | `login_code` | Utility | "Your {firm} code is {code}. It works for 10 minutes. Don't share it with anyone. — {firm} Shift Team" (pay-page step-up; one per request, exempt from the once-a-day rule. Meta's authentication category has fixed wording without a sign-off, and Meta usually requires it for one-time codes: decide at submission) |
 | `office_login_link` | Email | Subject "Your {firm} office login link". Body: "Here's your link to the {firm} office dashboard: {link}. It works for 15 minutes, once, and only for you. If you didn't ask for it, you can ignore this email. — {firm} Shift Team" (console transport in Phase 1; SES later) |
 | `shift_offer` | Utility | "Shift available: {date} {start}–{end} at {site} ({role}). Tap to take it: {link}. First to accept gets it. — {firm} Shift Team" ({date} is "Sat 7 Nov"; "at {site}" left out when there's none. Sent when the office offers a shift that isn't urgent to one worker, `src/lib/offers/office-offer.ts`; an urgent shift gets `shift_urgent`) |
 | `shift_urgent` | Utility | "URGENT: we need a {role} at {site} {day} {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" ({day} is "today", "tomorrow" or "on Sat 7 Nov": an urgent shift isn't always today; "at {site}" is left out when the shift has no site; "an" before a vowel. Sent by the offer waves, `src/lib/offers/waves.ts`) |
 | `shift_filled` | Utility | "Thanks for replying. That shift on {date} at {site} has now been filled. Open shifts: {link}. — {firm} Shift Team" |
-| `shift_confirmed` | Utility | "Confirmed: {date} {start}–{end} at {site} ({role}). Details and instructions: {link}. — {firm} Shift Team" |
+| `shift_confirmed` | Utility | "Confirmed: {date} {start}–{end} at {site} ({role}). Details and instructions: {link}. — {firm} Shift Team" ("at {site}" left out when there's none. Sent when the office books a worker onto a shift ("Assign"), `src/lib/notices/shift-confirmed.ts`, Phase 10 task 19; a worker who takes a shift themselves sees it on screen instead. Quiet hours hold it unless the shift starts within the urgent window) |
 | `shift_reminder_24h` | Utility | "Reminder: {day} {start}–{end} at {site}. Details: {link}. Can't make it? Cancel in the app as early as you can. — {firm} Shift Team" ({day} is "tomorrow", or "today" for a reminder that went late; "at {site}" is left out when the shift has no site. Sent by `src/lib/reminders/send.ts` 24 hours before the start) |
 | `shift_reminder_2h` | Utility | "Your shift at {site} starts at {start}. Meeting point and instructions: {link}. — {firm} Shift Team" ("at {site}" left out when there's no site. Sent 2 hours before the start) |
 | `cancellation_ack` | Utility | "We've recorded your cancellation of {date} {start} at {site} (ref {ref}). — {firm} Shift Team" |
@@ -153,6 +153,8 @@ line is answered like a WhatsApp (the instant replies above), by text.
 - Shift changed: "Shift changed" / "{date}: {change}. Tap to see it." Shift cancelled: "Shift
   cancelled" / "{date} {start} was cancelled by the office." (built: `firmChangePush()`, with the
   office's change notices)
+- Booked: "Shift booked" / "{date} {start} at {site}. Tap for details." (built: `bookedPush()`, with
+  `shift_confirmed` when the office books a worker; tapping opens the shift)
 - Request update: "Request {status}" / "{type} — tap to view." (built: `requestUpdatePush()`, with
   the office's answer; {type} as the list names it, "Time change"; tapping opens My requests)
 - Pay query update: "Pay query sorted" / "Payroll has answered. Open your pay page to see it."

@@ -42,8 +42,24 @@ export function createProxy(
       });
     }
 
+    // Our messages end sentences after a link ("Details: …/shifts/<id>."). A phone that takes the
+    // full stop into the link would open a page that doesn't exist: no path of ours ends with
+    // punctuation, so go to the same address without it (Phase 10 task 19, audit L10).
+    const trimmed = path.replace(TRAILING_PUNCTUATION, "");
+    if (trimmed !== path && trimmed.length > 0) {
+      const to = request.nextUrl.clone();
+      to.pathname = trimmed;
+      const redirect = NextResponse.redirect(to, 308);
+      redirect.headers.set("x-request-id", requestId);
+      return redirect;
+    }
+
     const response = NextResponse.next({ request: { headers } });
     response.headers.set("x-request-id", requestId);
     return response;
   };
 }
+
+// A full stop, comma or other sentence punctuation at the very end of a path, as a message puts
+// after a link (including its percent-encoded forms for quotes).
+const TRAILING_PUNCTUATION = /(?:[.,;:!?)\]]|%22|%27|%E2%80%99|%E2%80%9D)+$/i;

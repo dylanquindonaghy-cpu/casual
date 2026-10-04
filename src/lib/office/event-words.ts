@@ -130,7 +130,17 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const fields = Array.isArray(d.fields)
         ? d.fields.map((f) => FIELD_WORDS[String(f)] ?? String(f))
         : [];
-      const what = fields.length > 0 ? `Changed the ${list(fields)}.` : "Changed.";
+      // A cancellation because the client needs fewer staff took a place away (Phase 10 task 19):
+      // how many, and why.
+      const from = (d.from as { headcount?: unknown } | undefined)?.headcount;
+      const to = (d.to as { headcount?: unknown } | undefined)?.headcount;
+      const why = typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
+      const what =
+        typeof from === "number" && typeof to === "number"
+          ? `Changed the places from ${from} to ${to}.${why}`
+          : fields.length > 0
+            ? `Changed the ${list(fields)}.`
+            : "Changed.";
       return e.actorType === "office" ? `${officeName}: ${what}` : what;
     }
     case "shift.assigned": {
@@ -194,10 +204,29 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return d.afterStart
         ? `Telling ${worker} waits for quiet hours to end, after the start: phone them.`
         : `Telling ${worker} waits for quiet hours to end.`;
+    case "shift.booked_notice":
+      return `Telling ${worker} they're booked.`;
+    case "shift.booked_notice_sent":
+      return `${worker} was told they're booked.`;
+    case "shift.booked_notice_failed":
+      return `Telling ${worker} they're booked failed.`;
+    case "shift.booked_notice_held":
+      return d.afterStart
+        ? `Telling ${worker} they're booked waits for quiet hours to end, after the start: phone them.`
+        : `Telling ${worker} they're booked waits for quiet hours to end.`;
+    case "shift.booked_notice_skipped":
+      if (d.reason === "erased") return "A deleted worker wasn't told about a booking (no number).";
+      if (d.reason === "ended") return `${worker} wasn't told they're booked: the shift is over.`;
+      return d.reason === "cancelled"
+        ? `${worker} wasn't told they're booked: the booking was cancelled first.`
+        : `${worker} wasn't told they're booked: it was already marked as worked or not attended.`;
     case "shift.change_notice_skipped":
       if (d.reason === "erased") return "A deleted worker wasn't told about a change (no number).";
+      if (d.reason === "not_told") {
+        return `${worker} wasn't told about the change: they hadn't been told about the booking yet (that message gives the shift as it is).`;
+      }
       return d.reason === "unchanged"
-        ? `${worker} wasn't told: the shift is back to what they knew.`
+        ? `${worker} wasn't told: the shift is as they last heard it.`
         : `${worker} wasn't told about an older change (there's a newer one, or they're not booked).`;
     case "shift.marked_urgent":
       return d.cause === "office"
@@ -271,6 +300,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return d.withheld
         ? "Someone rang the shifts line from a withheld number."
         : "Someone rang the shifts line. A login link was asked for (it goes only to your staff's numbers).";
+    case "call.answered":
+      return d.link === "sent"
+        ? "The caller was told a link is on its way (if theirs is a staff number)."
+        : "The caller was told a link can't be sent just now.";
     case "message.replied":
       if (d.reply === "sms_stopped") return `${worker} was told by text that texts are off.`;
       if (d.reply === "sms_started") return `${worker} was told by text that texts are back on.`;
@@ -407,6 +440,12 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const n = Array.isArray(d.keys) ? d.keys.length : 0;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
     }
+    case "firm.shifts_line_changed":
+      return d.change === "cleared"
+        ? "The firm's shifts line (its WhatsApp and text number) was removed."
+        : d.change === "replaced"
+          ? "The firm's shifts line (its WhatsApp and text number) was changed to a new number."
+          : "The firm's shifts line (its WhatsApp and text number) was set.";
     case "firm.domain_changed":
       switch (d.change) {
         case "set":

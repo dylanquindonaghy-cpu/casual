@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { BASELINE_KEYS } from "@/lib/metrics/definitions";
 import { firmReadiness, readinessText, type ReadinessItem } from "@/lib/onboarding/readiness";
 import { addOfficeUser, createFirm } from "../../scripts/firm-create-owner";
 import { readFirmSettings, setFirmSettings } from "../../scripts/firm-settings-owner";
@@ -208,7 +209,7 @@ describe("a firm's settings", () => {
     expect(await readFirmSettings(urls.admin, "no-such-firm")).toEqual({ status: "no_firm" });
   });
 
-  it("saves values the app would use, logs the keys (never the values)", async () => {
+  it("saves values the app would use, and logs the keys with their old and new values (settings, never personal data)", async () => {
     const f = await created();
     const result = await setFirmSettings(urls.admin, f.slug, [
       ["allocation_mode", "fair_rotation"],
@@ -358,13 +359,22 @@ describe("the onboarding checklist from a firm's data", () => {
       "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'STEWARD_L2')",
       [f.firmId, steward],
     );
-    // A baseline figure the admin entered (baseline figures always say who).
-    await su.query(
-      `insert into metrics_daily (firm_id, day, kind, metric, value, recorded_by)
-       select $1, '2026-10-05', 'baseline', 'emails', 60, o.id from office_users o
-        where o.firm_id = $1`,
-      [f.firmId],
+    // Baseline figures the admin entered (baseline figures always say who): one, then all 8.
+    const baseline = (metrics: readonly string[]) =>
+      su.query(
+        `insert into metrics_daily (firm_id, day, kind, metric, value, recorded_by)
+         select $1, '2026-10-05', 'baseline', m, 60, o.id from office_users o, unnest($2::text[]) m
+          where o.firm_id = $1`,
+        [f.firmId, metrics],
+      );
+    await baseline(["emails_per_day"]);
+    const partial = await withFirm(f.firmId, (tx) => firmReadiness(tx));
+    // One of the 8 isn't a baseline (audit L40): the pilot is compared against each.
+    expect(byItem(partial)["Baseline numbers recorded"]).toBe("todo");
+    expect(partial.find((i) => i.item === "Baseline numbers recorded")?.detail).toBe(
+      "1 of 8 baseline figures saved. Still to enter: Calls per day; WhatsApp messages per day; Shift queries unanswered after 24 hours (%); Time to refill a cancellation (median, in minutes); No-shows per week; Resourcer hours on staff admin per week; Short-notice cancellations per week (firm and worker). The office's Pilot figures page, Baseline week.",
     );
+    await baseline(BASELINE_KEYS.filter((k) => k !== "emails_per_day"));
     const items = await withFirm(f.firmId, (tx) => firmReadiness(tx));
     const states = byItem(items);
     expect(states["Firm branding and sign-off"]).toBe("done");
@@ -381,6 +391,18 @@ describe("the onboarding checklist from a firm's data", () => {
       "2 active workers, 1 credential; 1 active worker has no credential on file.",
     );
     expect(readinessText("x", items)).not.toMatch(/Pat|Checker|\+447700900301|\+447700900302/);
+
+    // A sign-off stored past firm:brand's check (a direct edit) that breaks golden rule 8 isn't
+    // used in messages, and the checklist says so (audit L31).
+    await su.query(
+      "update firms set settings = jsonb_set(settings, '{sign_off}', to_jsonb('Sarah'::text)) where id = $1",
+      [f.firmId],
+    );
+    const after = await withFirm(f.firmId, (tx) => firmReadiness(tx));
+    expect(byItem(after)["Firm branding and sign-off"]).toBe("todo");
+    expect(after.find((i) => i.item === "Firm branding and sign-off")?.detail).toContain(
+      `isn't "… Shift Team", so it isn't used`,
+    );
   });
 
   it("a rota sheet: connected and never synced, then failing, in plain words", async () => {

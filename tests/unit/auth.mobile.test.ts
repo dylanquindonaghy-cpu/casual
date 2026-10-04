@@ -73,9 +73,32 @@ describe("the login message", () => {
   it("follows the login_link template and ends with the firm's sign-off, never a person's name", () => {
     const voice = { name: "Acme Events", signOff: signOffFor("Acme Events", undefined) };
     expect(loginLinkMessage(voice, "http://acme.localhost:3000/l#abc")).toBe(
-      "Here's your Acme Events shifts link: http://acme.localhost:3000/l#abc. It works for 15 minutes and only for you. — Acme Events Shift Team",
+      "Here's your Acme Events shifts link. It works for 15 minutes and only for you: http://acme.localhost:3000/l#abc — Acme Events Shift Team",
     );
+    // Phase 10 task 19 (audit L10): never a full stop or comma straight after the link.
+    expect(loginLinkMessage(voice, "LINK")).toMatch(/LINK (?![.,;:])/);
     expect(signOffFor("Acme Events", "  ")).toBe("Acme Events Shift Team");
     expect(signOffFor("Acme Events", "Acme Shift Team")).toBe("Acme Shift Team");
+  });
+
+  // Golden rule 8, checked where every message gets its sign-off (audit L31): one stored that breaks
+  // it (a direct database edit, a settings screen built later) is never used.
+  it.each([
+    ["Sarah"],
+    ["Sarah from Acme"],
+    ["Acme Shift Team\nCall Sarah"],
+    ["Shift Team"],
+    ["Call 07700 900123 Shift Team!"],
+    [`${"A".repeat(49)} Shift Team`],
+    [42],
+  ])("a stored sign-off that isn't '… Shift Team' (%j) isn't used: the default is", (stored) => {
+    expect(signOffFor("Acme Events", stored)).toBe("Acme Events Shift Team");
+  });
+
+  it("a firm's own shortened one is used, trimmed", () => {
+    expect(signOffFor("Acme Events Ltd", "  Acme Shift Team ")).toBe("Acme Shift Team");
+    expect(signOffFor("Acme Events Ltd", "St. John's & Co-op 2 Shift Team")).toBe(
+      "St. John's & Co-op 2 Shift Team",
+    );
   });
 });

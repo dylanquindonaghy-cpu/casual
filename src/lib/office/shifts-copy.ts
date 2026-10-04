@@ -129,8 +129,8 @@ export function assignResultText(result: BookingResult | Common, name: string): 
   switch (result.status) {
     case "booked":
       return result.overridden.length > 0
-        ? `${name} is booked on this shift. The override is in the log, and your reason is kept with the booking.`
-        : `${name} is booked on this shift.`;
+        ? `${name} is booked on this shift. They'll get a message to say so. The override is in the log, and your reason is kept with the booking.`
+        : `${name} is booked on this shift. They'll get a message to say so.`;
     case "not_eligible":
       return `${name} can't be booked: ${result.reasons.join(" ")}`;
     case "filled":
@@ -221,8 +221,17 @@ export function cancelBookingResultText(
   name: string,
 ): string {
   switch (result.status) {
-    case "cancelled":
-      return `Cancelled ${name}'s booking with ${noticeText(result.noticeHours)}. They'll be told.`;
+    case "cancelled": {
+      const done = `Cancelled ${name}'s booking with ${noticeText(result.noticeHours)}. They'll be told.`;
+      // "The client needs fewer staff": the place went too (Phase 10 task 19).
+      if (!("placesNow" in result) || result.placesNow === undefined) return done;
+      const n = result.placesNow;
+      return `${done} The shift now needs ${n} ${n === 1 ? "person" : "people"}.`;
+    }
+    case "keeps_place":
+      return result.why === "last_place"
+        ? "This is the shift's only place, so it can't go. To drop it, cancel the whole shift. Nothing was changed."
+        : "This shift's places come from your rota sheet, so change them there. Nothing was changed.";
     case "not_assigned":
       return `${name} isn't booked on this shift any more.`;
     case "ended":

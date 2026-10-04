@@ -9,6 +9,7 @@ import { roleLabel } from "../portal/format";
 import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { eventWords } from "./event-words";
+import { decodeLogCursor, encodeLogCursor, isLogCursor } from "./log-cursor";
 import { isLogType, LOG_TYPES, logTypeLabel, type LogType } from "./log-types";
 
 // The office's action log (docs/screens.md `/office/log`; golden rule 5; product spec "every action
@@ -22,7 +23,8 @@ import { isLogType, LOG_TYPES, logTypeLabel, type LogType } from "./log-types";
 // - type: one of the plain groups (log-types.ts);
 // - from / to: whole days in the firm's time zone. Default: the last 7 days, or, with a shift and
 //   no dates, all of that shift's events. At most 92 days (a longer range keeps its last 92).
-// Newest first, 100 at a time; `before` (an event id) continues after the last one shown.
+// Newest first, 100 at a time; `before` continues after the last one shown: the page's link carries
+// it as an opaque cursor (src/lib/office/log-cursor.ts, audit L44), never the event's number.
 
 export const LOG_PAGE = 100;
 export const LOG_DEFAULT_DAYS = 7;
@@ -50,7 +52,7 @@ export interface ActionLog {
   filters: LogFilters;
   clamped: boolean; // the range was cut to 92 days
   entries: LogEntry[];
-  older: number | null; // `before` for the next page
+  older: number | null; // `before` for the next page (the event id: officeActionLog hides it)
   workers: { id: string; name: string }[]; // for the filter
   shifts: { id: string; label: string }[]; // shifts in the chosen dates, for the filter
 }
@@ -76,7 +78,6 @@ export function parseLogQuery(query: Record<string, string | string[] | undefine
     const v = query[key];
     return typeof v === "string" ? v.trim() : "";
   };
-  const before = Number(one("before"));
   return {
     // Lower case, as the database writes ids (and as events hold them in their data).
     worker: uuid.safeParse(one("worker")).success ? one("worker").toLowerCase() : null,
@@ -84,10 +85,18 @@ export function parseLogQuery(query: Record<string, string | string[] | undefine
     type: isLogType(one("type")) ? (one("type") as LogType) : null,
     from: day(one("from")),
     to: day(one("to")),
-    before: Number.isSafeInteger(before) && before > 0 ? before : null,
+    before: isLogCursor(one("before")) ? one("before") : null, // read in officeActionLog
   };
 }
 export type LogQuery = ReturnType<typeof parseLogQuery>;
+
+// What the page gets: no event numbers (audit L44: one counter shared by every firm). The next
+// page's cursor instead of the last one's id, and the lines without theirs.
+export type OfficeLogEntry = Omit<LogEntry, "id">;
+export type OfficeActionLog = Omit<ActionLog, "older" | "entries"> & {
+  older: string | null;
+  entries: OfficeLogEntry[];
+};
 
 type Row = {
   id: string | number;
@@ -151,7 +160,13 @@ export function eventsAboutWorker(w: string): SQL {
            where o.firm_id = e.firm_id and ss.worker_id = ${w}::uuid)))`;
 }
 
-export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Promise<ActionLog> {
+// `before`: the event id to continue before (the cursor, read), or null for the first page.
+export async function loadActionLog(
+  tx: FirmTx,
+  query: LogQuery,
+  now: Date,
+  before: number | null = null,
+): Promise<ActionLog> {
   const [firm] = await tx
     .select({ timezone: firms.timezone })
     .from(firms)
@@ -165,7 +180,7 @@ export async function loadActionLog(tx: FirmTx, query: LogQuery, now: Date): Pro
   if (days.start && days.end) {
     where.push(sql`e.created_at >= ${days.start} and e.created_at < ${days.end}`);
   }
-  if (query.before) where.push(sql`e.id < ${query.before}`);
+  if (before) where.push(sql`e.id < ${before}`);
   if (query.type) {
     const actions = [...LOG_TYPES[query.type].actions];
     where.push(
@@ -393,9 +408,17 @@ export async function officeActionLog(
   ctx: AuthContext,
   token: string,
   query: LogQuery,
-): Promise<ActionLog | null> {
+): Promise<OfficeActionLog | null> {
   const me = await currentOfficeUser(ctx, token);
   if (!me || !canAccess(me.officeUser.role, "log")) return null;
-  const { run, now } = authParts(ctx);
-  return run(ctx.firm.id, (tx) => loadActionLog(tx, query, now));
+  const { run, now, secret } = authParts(ctx);
+  const firmId = ctx.firm.id;
+  // A cursor from another firm, or altered, is ignored: the first page.
+  const before = query.before ? decodeLogCursor(query.before, firmId, secret) : null;
+  const log = await run(firmId, (tx) => loadActionLog(tx, query, now, before));
+  return {
+    ...log,
+    entries: log.entries.map((e) => ({ at: e.at, type: e.type, words: e.words, shift: e.shift })),
+    older: log.older === null ? null : encodeLogCursor(log.older, firmId, secret),
+  };
 }

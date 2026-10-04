@@ -41,7 +41,12 @@ export async function requestOfficeLoginLink(
     ctx.firm.id,
     [
       { limit: LIMITS.officeLoginPerIp, value: ip },
-      ...(email ? [{ limit: LIMITS.officeLoginPerEmail, value: email }] : []),
+      ...(email
+        ? [
+            { limit: LIMITS.officeLoginPerEmail, value: email },
+            { limit: LIMITS.officeLoginPerEmailDaily, value: email },
+          ]
+        : []),
     ],
     { now, secret, entityType: "login_request" },
   );

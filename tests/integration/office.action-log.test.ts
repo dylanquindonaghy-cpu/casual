@@ -81,8 +81,8 @@ async function logFirm() {
     );
   // The fixture's own setup logs one event (the credential pack) at the real time, long after
   // LOG_NOW, so it's outside every range these tests look at.
-  const log = (query: Record<string, string> = {}, now = LOG_NOW) =>
-    withFirm(f.firmId, (tx) => loadActionLog(tx, parseLogQuery(query), now));
+  const log = (query: Record<string, string> = {}, now = LOG_NOW, before: number | null = null) =>
+    withFirm(f.firmId, (tx) => loadActionLog(tx, parseLogQuery(query), now, before));
   return {
     f,
     resourcer,
@@ -337,9 +337,60 @@ describe("the action log", () => {
     expect(first.entries).toHaveLength(100);
     expect(first.entries[0]?.id).toBe(ids[104]);
     expect(first.older).toBe(ids[5]);
-    const second = await t.log({ before: String(first.older) });
+    const second = await t.log({}, LOG_NOW, first.older);
     expect(second.entries.map((e) => e.id)).toEqual(ids.slice(0, 5).reverse());
     expect(second.older).toBeNull();
+  });
+
+  // Audit L44: event numbers are shared by every firm, so the page's link never shows one.
+  it("the Older link carries an opaque cursor, never an event number; another firm's or an altered one is ignored", async () => {
+    const page = async (t: Awaited<ReturnType<typeof logFirm>>, before?: string) => {
+      const token = (
+        await withFirm(t.f.firmId, (tx) =>
+          createSession(tx, { kind: "office", subjectId: t.resourcer, now: LOG_NOW }),
+        )
+      ).token;
+      const log = await officeActionLog(
+        { firm: { id: t.f.firmId }, run: withFirm, clock: { now: () => LOG_NOW } },
+        token,
+        parseLogQuery(before === undefined ? {} : { before }),
+      );
+      if (!log) throw new Error("no log");
+      return log;
+    };
+    // The page gets no event ids, so its lines are told apart by their times (each its own).
+    const fill = async (t: Awaited<ReturnType<typeof logFirm>>) => {
+      const ids: number[] = [];
+      const times: number[] = [];
+      for (let i = 0; i < 105; i++) {
+        times.push(at(-100 + i / 2).getTime());
+        ids.push(
+          await t.event({ action: "shift.changed", at: at(-100 + i / 2), entityId: t.shiftId }),
+        );
+      }
+      return { ids, times };
+    };
+    const t = await logFirm();
+    const other = await logFirm();
+    const { ids, times } = await fill(t);
+    await fill(other);
+
+    const first = await page(t);
+    expect(first.older).toMatch(/^[A-Za-z0-9_-]{48}$/);
+    expect(first.older).not.toContain(String(ids[5]));
+    // No event number reaches the page at all (a list key would put it in the page's source).
+    expect(first.entries[0]).not.toHaveProperty("id");
+    expect(Object.keys(first.entries[0] ?? {}).sort()).toEqual(["at", "shift", "type", "words"]);
+    const second = await page(t, first.older ?? "");
+    expect(second.entries.map((e) => e.at.getTime())).toEqual(times.slice(0, 5).reverse());
+    expect(second.older).toBeNull();
+
+    // Another firm's cursor, one altered, or a bare event number: the first page.
+    const theirs = (await page(other)).older ?? "";
+    const altered = `${(first.older ?? "").slice(0, 20)}${(first.older ?? "").charAt(20) === "A" ? "B" : "A"}${(first.older ?? "").slice(21)}`;
+    for (const before of [theirs, altered, String(ids[5])]) {
+      expect((await page(t, before)).entries[0]?.at.getTime(), before).toBe(times[104]);
+    }
   });
 
   it("only this firm's events, whatever the filters say; nonsense filters are ignored", async () => {

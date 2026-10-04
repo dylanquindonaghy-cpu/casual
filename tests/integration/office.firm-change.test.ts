@@ -214,6 +214,163 @@ describe("the office cancelling one booking", () => {
     expect(await noticeJobs(t.f.firmId)).toHaveLength(1);
   });
 
+  // Phase 10 task 19 (audit L20): "The client needs fewer staff" means the place itself goes. Before,
+  // it reopened and, near the start, went out as an urgent offer that might then need cancelling
+  // at short notice too.
+  async function soonShift(headcount: number) {
+    const t = await changeFirm();
+    const shiftId = await t.f.shift({ startsAt: hoursFromNow(6), headcount });
+    const people = [t.ann, t.ben, await t.f.worker({ first: "Cal" })].slice(0, headcount);
+    const bookings = [];
+    for (const [i, w] of people.entries())
+      bookings.push(await t.f.booking(w, shiftId, "confirmed", i + 1));
+    await su.query("update shifts set status = 'filled' where id = $1", [shiftId]);
+    return { ...t, shiftId, people, bookings };
+  }
+  const shiftRow = async (id: string) =>
+    (
+      await su.query<{ headcount: number; status: string; is_urgent: boolean }>(
+        "select headcount, status, is_urgent from shifts where id = $1",
+        [id],
+      )
+    ).rows[0];
+  // The live rows within the shift's places (rows above them don't count).
+  const liveSlots = async (id: string) =>
+    (
+      await su.query<{ slot: number; worker_id: string | null }>(
+        `select a.slot, a.worker_id::text from assignments a join shifts s on s.id = a.shift_id
+          where a.shift_id = $1 and a.status not in ('cancelled_worker', 'cancelled_firm')
+            and a.slot <= s.headcount order by a.slot`,
+        [id],
+      )
+    ).rows;
+  const waveJobs = async (shiftId: string) =>
+    Number(
+      (
+        await su.query<{ n: string }>(
+          "select count(*) as n from pgboss.job where name = 'offer-wave' and data->>'shiftId' = $1",
+          [shiftId],
+        )
+      ).rows[0]?.n ?? 0,
+    );
+
+  it("'the client needs fewer staff': the place goes (one fewer), nobody else is offered it, even close to the start", async () => {
+    const t = await soonShift(3);
+    // The first place's booking: the third moves down into its slot, so every booking still counts.
+    await cancelBookingByOffice(t.ctx(), t.shiftId, t.people[0] ?? "", "fewer_staff");
+    expect(await shiftRow(t.shiftId)).toEqual({ headcount: 2, status: "filled", is_urgent: false });
+    expect(await liveSlots(t.shiftId)).toEqual([
+      { slot: 1, worker_id: t.people[2] },
+      { slot: 2, worker_id: t.people[1] },
+    ]);
+    expect(await waveJobs(t.shiftId)).toBe(0);
+    expect(await eventsOf(t.f.firmId, "shift.marked_urgent")).toEqual([]);
+    const changed = (await eventsOf(t.f.firmId, "shift.changed")).filter(
+      (e) => e.entity_id === t.shiftId,
+    );
+    expect(changed.map((e) => e.data)).toEqual([
+      {
+        by: "firm",
+        fields: ["headcount"],
+        from: { headcount: 3 },
+        to: { headcount: 2 },
+        reason: "The client needs fewer staff",
+        // Cal's booking moved from the third place into the first (the guardrails review).
+        moved: { assignmentId: t.bookings[2], fromSlot: 3, toSlot: 1 },
+      },
+    ]);
+    // The worker is still told, with notice recorded (golden rule 12).
+    expect(await assignment(t.bookings[0] ?? "")).toMatchObject({ status: "cancelled_firm" });
+  });
+
+  it("any other reason still reopens the place and, close to the start, offers it out", async () => {
+    const t = await soonShift(3);
+    await cancelBookingByOffice(t.ctx(), t.shiftId, t.people[0] ?? "", "weather");
+    expect(await shiftRow(t.shiftId)).toEqual({ headcount: 3, status: "open", is_urgent: true });
+    expect(await liveSlots(t.shiftId)).toContainEqual({ slot: 1, worker_id: null });
+    expect(await waveJobs(t.shiftId)).toBeGreaterThan(0);
+  });
+
+  // The reviews of task 19: leaving the place open let anyone take it from Open shifts.
+  it("'fewer staff' on the last place: refused, nothing changed (cancel the shift for that)", async () => {
+    const t = await soonShift(1);
+    expect(
+      await cancelBookingByOffice(t.ctx(), t.shiftId, t.people[0] ?? "", "fewer_staff"),
+    ).toEqual({ status: "keeps_place", why: "last_place" });
+    expect(await shiftRow(t.shiftId)).toEqual({ headcount: 1, status: "filled", is_urgent: false });
+    expect(await assignment(t.bookings[0] ?? "")).toMatchObject({ status: "confirmed" });
+    expect(await waveJobs(t.shiftId)).toBe(0);
+    expect(await noticeJobs(t.f.firmId)).toEqual([]);
+  });
+
+  it("'fewer staff' on a rota sheet's shift: refused, nothing changed (the sheet sets its places)", async () => {
+    const t = await soonShift(3);
+    await su.query(
+      "update shifts set source = 'sheets', external_ref = 'row-fewer' where id = $1",
+      [t.shiftId],
+    );
+    expect(
+      await cancelBookingByOffice(t.ctx(), t.shiftId, t.people[0] ?? "", "fewer_staff"),
+    ).toEqual({ status: "keeps_place", why: "sheet" });
+    expect(await shiftRow(t.shiftId)).toEqual({ headcount: 3, status: "filled", is_urgent: false });
+    expect(await assignment(t.bookings[0] ?? "")).toMatchObject({ status: "confirmed" });
+    expect(await noticeJobs(t.f.firmId)).toEqual([]);
+  });
+
+  it("'fewer staff' on the highest place: nothing moves; the result and the log say how many now", async () => {
+    const t = await soonShift(3);
+    const result = await cancelBookingByOffice(
+      t.ctx(),
+      t.shiftId,
+      t.people[2] ?? "",
+      "fewer_staff",
+    );
+    expect(result).toMatchObject({ status: "cancelled", placesNow: 2 });
+    expect(await liveSlots(t.shiftId)).toEqual([
+      { slot: 1, worker_id: t.people[0] },
+      { slot: 2, worker_id: t.people[1] },
+    ]);
+    const changed = (await eventsOf(t.f.firmId, "shift.changed")).filter(
+      (e) => e.entity_id === t.shiftId,
+    );
+    expect(changed.map((e) => e.data.moved)).toEqual([undefined]);
+    // The freed place's open row is parked above the places: never one of Open shifts' places.
+    const { rows } = await su.query(
+      `select slot, status from assignments
+        where shift_id = $1 and worker_id is null order by slot`,
+      [t.shiftId],
+    );
+    expect(rows).toEqual([{ slot: 4, status: "open" }]);
+  });
+
+  it("'fewer staff' with an empty place above: the empty one stays, the booked one moves into the gap, and the shift stays open", async () => {
+    const t = await soonShift(3);
+    // Cal cancelled their own booking earlier: an open place at the top (offered out, being soon).
+    expect(
+      await cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: t.shiftId,
+          workerId: t.people[2] ?? "",
+          reason: "Unwell",
+          by: { type: "worker", id: t.people[2] ?? "" },
+        },
+        { clock: { now: () => NOW } },
+      ),
+    ).toMatchObject({ status: "cancelled" });
+    expect(
+      await cancelBookingByOffice(t.ctx(), t.shiftId, t.people[0] ?? "", "fewer_staff"),
+    ).toMatchObject({ status: "cancelled", placesNow: 2 });
+    // Slot 3 (open) moved down into slot 1; Ben keeps slot 2.
+    expect(await liveSlots(t.shiftId)).toEqual([
+      { slot: 1, worker_id: null },
+      { slot: 2, worker_id: t.people[1] },
+    ]);
+    // Still open, and still urgent from Cal's dropout: "fewer staff" changes neither.
+    expect(await shiftRow(t.shiftId)).toEqual({ headcount: 2, status: "open", is_urgent: true });
+  });
+
   it("a worker's own cancellation: their free-text reason stays off the log, and no notice", async () => {
     const t = await changeFirm();
     await cancelBooking(
@@ -542,7 +699,8 @@ describe("telling the worker (the firm-change-notice job)", () => {
     const night = hoursFromNow(14); // Monday 23:00
     const t = await changeFirm();
     const n = await notices(t);
-    const tonight = await t.f.shift({ startsAt: hoursFromNow(11) }); // Monday 20:00, under way
+    // Monday 20:00, under way. Two places: "fewer staff" can't take a shift's last place.
+    const tonight = await t.f.shift({ startsAt: hoursFromNow(11), headcount: 2 });
     const zoe = await t.f.worker({ first: "Zoe" });
     await t.f.booking(zoe, tonight, "confirmed", 1);
     expect(

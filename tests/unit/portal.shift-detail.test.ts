@@ -93,7 +93,7 @@ describe("ShiftView", () => {
       render({ state: "held", shift: summary, opensAt: new Date("2026-11-02T09:15:00Z") }),
     );
     expect(words).toContain(
-      "Offered first to people with fewer hours this week. You can take it from 09:15.",
+      "Offered first to people with fewer hours that week. You can take it from 09:15.",
     );
     expect(words).not.toContain("Take shift");
   });

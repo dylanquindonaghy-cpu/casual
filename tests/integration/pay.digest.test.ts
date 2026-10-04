@@ -500,14 +500,14 @@ describe("the payroll digest", () => {
     const ai = createFakeAi((request) => {
       asked.push(request);
       return asked.length === 1
-        ? "2 queries: last week still paid at £12.50."
+        ? "2 queries about the week of Mon 26 Oct, paid at £12.50."
         : "You should pay £99.";
     });
     const { transport, sent } = captureTransport();
     await digest(t.f.firmId, key("2026-11-02"), deps(transport, ai));
     const body = emails(sent)[0]?.body ?? "";
     expect(body).toContain(
-      "- 2 queries: wrong rate, the week of Mon 26 Oct, paid at £12.50.\n  AI summary: 2 queries: last week still paid at £12.50. (written by AI)\n- 1 query: hours missing",
+      "- 2 queries: wrong rate, the week of Mon 26 Oct, paid at £12.50.\n  AI summary: 2 queries about the week of Mon 26 Oct, paid at £12.50. (written by AI)\n- 1 query: hours missing",
     );
     // A line that fails the check adds nothing.
     expect(body).not.toContain("£99");
@@ -516,7 +516,9 @@ describe("the payroll digest", () => {
       expect(request.prompt).not.toMatch(/Ann|Ben|Cal|Booker|should be £13/);
     }
     // The list's group column is the app's line, never the AI's.
-    expect(emails(sent)[0]?.attachments?.[0]?.content).not.toContain("last week still paid");
+    expect(emails(sent)[0]?.attachments?.[0]?.content).not.toContain(
+      "queries about the week of Mon 26 Oct",
+    );
 
     // The AI failing: the same email as with no AI.
     const u = await digestFirm();

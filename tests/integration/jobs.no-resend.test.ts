@@ -11,9 +11,10 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
 import { runFirmChangeNotice } from "@/lib/notices/firm-change";
 import { runRequestUpdate } from "@/lib/notices/request-update";
+import { runShiftConfirmed } from "@/lib/notices/shift-confirmed";
 import { runOfficeOffer } from "@/lib/offers/office-offer";
 import { runEscalation } from "@/lib/offers/waves";
-import { cancelBookingByOffice } from "@/lib/office/quick-actions";
+import { assignWorker, cancelBookingByOffice } from "@/lib/office/quick-actions";
 import type { PushTransport } from "@/lib/push/transport";
 import { resolveRequest } from "@/lib/requests/resolve";
 import { tokenFrom } from "../helpers/auth";
@@ -317,6 +318,36 @@ describe("a job that fails after its message is sent never sends it again, and l
     const payload = rows[0]?.data as Parameters<typeof runFirmChangeNotice>[0];
     const sent = await failThenRetry((run, transport) =>
       runFirmChangeNotice(payload, run, {
+        transport,
+        push: noPush,
+        baseDomain: "localhost:3000",
+        clock,
+      }),
+    );
+    expect(sent).toHaveLength(1);
+  });
+
+  it("telling a worker the office booked them", async () => {
+    const f = await bookingFirm(su, withFirm, {});
+    const workerId = await f.worker({ first: "Ada" });
+    const shiftId = await f.shift({ startsAt: hoursFromNow(30) });
+    const officeUserId = await f.office("resourcer");
+    expect(
+      await assignWorker(
+        { firm: { id: f.firmId }, officeUserId, run: withFirm, clock },
+        shiftId,
+        workerId,
+        null,
+      ),
+    ).toMatchObject({ status: "booked" });
+    const { rows } = await su.query<{ data: Record<string, unknown> }>(
+      "select data from pgboss.job where name = 'shift-confirmed' and data ->> 'firmId' = $1",
+      [f.firmId],
+    );
+    expect(rows).toHaveLength(1);
+    const payload = rows[0]?.data as Parameters<typeof runShiftConfirmed>[0];
+    const sent = await failThenRetry((run, transport) =>
+      runShiftConfirmed(payload, run, {
         transport,
         push: noPush,
         baseDomain: "localhost:3000",

@@ -270,7 +270,7 @@ describe("AI failure falls back cleanly", () => {
     // A client that answers a plain value (not a promise), or throws at once: still handled.
     const plain: AiClient = {
       name: "plain",
-      complete: (() => "2 queries: still paid at £12.50.") as unknown as AiClient["complete"],
+      complete: (() => "2 queries: paid at £12.50.") as unknown as AiClient["complete"],
     };
     expect(await summarisePayGroup(facts, plain)).toMatchObject({ byAi: true });
     const throwsAtOnce: AiClient = {
@@ -281,9 +281,9 @@ describe("AI failure falls back cleanly", () => {
     };
     expect(await summarisePayGroup(facts, throwsAtOnce)).toEqual({ text: CODE_LINE, byAi: false });
     // An answer within the timeout is still used.
-    const quick = createFakeAi(() => "2 queries: still paid at £12.50.");
+    const quick = createFakeAi(() => "2 queries: paid at £12.50.");
     expect(await summarisePayGroup(facts, quick, { timeoutMs: 1000 })).toEqual({
-      text: "2 queries: still paid at £12.50.",
+      text: "2 queries: paid at £12.50.",
       byAi: true,
     });
   });
@@ -349,8 +349,7 @@ describe("AI failure falls back cleanly", () => {
       advice: createFakeAi(() => "Payroll should pay them the difference."),
       // A good line (it would pass the check) that comes after the 50 ms timeout.
       "a good answer, too late": createFakeAi(
-        () =>
-          new Promise<string>((r) => setTimeout(() => r("2 queries: still paid at £12.50."), 150)),
+        () => new Promise<string>((r) => setTimeout(() => r("2 queries: paid at £12.50."), 150)),
       ),
     };
     for (const [why, ai] of Object.entries(failures)) {
@@ -392,12 +391,12 @@ describe("AI failure falls back cleanly", () => {
     let calls = 0;
     const flaky = createFakeAi(() => {
       calls += 1;
-      if (calls === 1) return "2 queries: last week still paid at £12.50.";
+      if (calls === 1) return "2 queries about the week of Mon 26 Oct, paid at £12.50.";
       throw new Error("rate limited");
     });
     const got = await run(flaky);
     expect(got.body).toContain(
-      "- 2 queries: wrong rate, the week of Mon 26 Oct, paid at £12.50.\n  AI summary: 2 queries: last week still paid at £12.50. (written by AI)\n- 1 query: hours missing, the week of Mon 26 Oct, at Riverside Arena.\n\n",
+      "- 2 queries: wrong rate, the week of Mon 26 Oct, paid at £12.50.\n  AI summary: 2 queries about the week of Mon 26 Oct, paid at £12.50. (written by AI)\n- 1 query: hours missing, the week of Mon 26 Oct, at Riverside Arena.\n\n",
     );
     expect(got.body.match(/AI summary/g)).toHaveLength(1);
   });

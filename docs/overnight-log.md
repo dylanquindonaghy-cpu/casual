@@ -8037,3 +8037,166 @@ the handover told Dylan to find them with `grep "Dylan to"`, which catches about
 **Hours:** 0.7 (07:16 to 08:00 UTC). Phase 10 so far: 15.2 of the 30–45 h estimate.
 
 **Commit:** `94d475c`, pushed to `build/overnight`.
+
+## 2026-10-04 08:03 UTC — Phase 10, task 19: walkthrough polish
+
+**Task:** Walkthrough polish: the low findings a walkthrough would hit (L7, L8, L10, L15, L18, L20,
+L22, L28, L31, L32, L40, L44, L47, L49, L79, L82, L83). This includes: an office-placed worker is
+told they're booked; login links aren't followed by a full stop; an office cancellation for "the
+client needs fewer staff" doesn't re-offer the place; `npm run build` logs no brand errors; the
+action log shows per-firm numbers. Also the masker fix moved here from task 16 (a date with a
+time-zone offset glued to a phone number).
+
+**Plan (one line each; root causes are written as each is read):**
+- L7 `.gitignore` `.env*` (keeping `.env.example`).
+- L8 `.env.example` names every setting the code reads, with a test that keeps it so.
+- L10 login links on their own line, and the link page ignores trailing punctuation.
+- L15 "that week" everywhere.
+- L18 the fair-rotation tie-break varies per shift, not by worker id.
+- L20 "The client needs fewer staff" lowers the places instead of re-offering one.
+- L22 an office-placed worker gets the `shift_confirmed` message (a firm job, claim → send →
+  record).
+- L28 a repeated call gets the answer the first one gave.
+- L31 a stored sign-off that isn't "… Shift Team" falls back to the firm's.
+- L32 the test's name.
+- L40 the baseline is done only with all 8 figures.
+- L44 the action log's paging cursor no longer shows global event ids.
+- L47 the AI pay-line check refuses pay conclusions.
+- L49 a daily cap on login links per number and per email.
+- L79 `firm:line` logs an event.
+- L82 `firm:line` reads the slug like the others and prints its usage on a bad option.
+- L83 the brand lookup lets Next's own build signal through (no error lines in `npm run build`).
+- The masker: a time-zone offset is only a real one.
+
+**Root causes and what was done (in order):**
+- **L7:** `.gitignore` had `.env` and `.env.*`, which miss `.envrc` or `.env-prod`. Now `.env*` with
+  `!.env.example` kept.
+- **L8:** `.env.example` was written before `CONSOLE_OUTBOX_FILE`, `PUSH_TRANSPORT`,
+  `HEALTH_CHECK_URL` and `WORKER_HEARTBEAT_FILE` existed, and nothing compared the two. Added (the
+  server-only ones commented out), and `tests/unit/env.example.test.ts` now fails if any setting
+  the app, worker or owner schemas read is missing (only `E2E_TEST_PAGES`, a test-only switch, is
+  left out on purpose).
+- **L10:** the login message put a full stop straight after the link. The token sits after `#`,
+  so a phone that takes the dot into the link sends a 44-character token, which is refused. Three
+  fixes: the message now ends "…only for you: {link} — {firm} Shift Team" (a space after the
+  link); the link page drops trailing punctuation from the token (`src/lib/auth/link-fragment.ts`);
+  and any page address ending in punctuation (`/shifts/abc.` from the other messages, whose
+  links are still followed by a full stop) is redirected to the address without it
+  (`src/lib/http/proxy.ts`, a 308 that keeps the query).
+- **L15:** the shift page said "this week" for the fair-rotation hold, which is about the shift's
+  own week. Now "that week" everywhere, in the code and `docs/screens.md`.
+- **L18:** the last tie-break in fair rotation was the worker id, so among equals the same person
+  always won. Now a hash of the shift, the wave and the worker (`rankForFairRotation(…, seed)`):
+  fixed for one wave (a retry picks the same people), different from shift to shift. The worker id
+  stays as the very last tie-break.
+- **L20:** `cancelInTransaction` marked the shift urgent after any cancellation, the office's
+  "fewer staff" included. Now that reason removes the place (`removeFreedPlace`): the freed slot's
+  open row is parked above every slot (the app role can't delete bookings: NO_DELETE), the highest
+  live place moves down into the gap, headcount drops by one, `shift.changed` is logged
+  {fields: ["headcount"], from, to, reason}, and no waves start. The last place and a sheet's shift
+  keep the place but aren't offered out.
+- **L22:** `bookShift` with `by: office` logged `shift.assigned` and stopped; no job existed. Now
+  it queues a `shift-confirmed` job (`src/lib/notices/shift-confirmed.ts`), built like the change
+  notices: claim under a lock (`shift.booked_notice`), send `shift_confirmed` by the worker's
+  channel from the firm's line, then push and `shift.booked_notice_sent`/`_failed`. Skipped and
+  logged when the booking was cancelled first, the shift is over or the worker was deleted; held
+  for quiet hours unless the shift is within the urgent window. The office's confirmation now says
+  "They'll get a message to say so."
+- **L28:** a repeated call (same CallSid) set `link = "sent"` whenever there was a number, because
+  the first call's answer wasn't kept. Now the first logs `call.answered {link}` and a repeat says
+  that again; a repeat with nothing logged (the first stopped part-way) says "not now".
+- **L31:** `signOffFor` used any stored sign-off. The rule (`… Shift Team`, letters, digits and
+  & ' . - only) now lives in `src/lib/tenancy/sign-off.ts`, the owner script uses the same rule,
+  and a stored sign-off that breaks it is never used (the firm's default is). `firm:check` shows it
+  as to do.
+- **L32:** the onboarding test's name said settings changes log "never the values"; they log the
+  keys with old and new values (settings, never personal data). Renamed.
+- **L40:** the baseline checklist item counted any baseline row. Now it's done only when all 8
+  `BASELINE_KEYS` are saved, and otherwise names the ones still to enter. `docs/baseline-tally.md`
+  and the PLAN.md step say so.
+- **L44:** the Older link carried `before=<event id>`, from one counter shared by all firms. Now
+  an opaque cursor: the id encrypted with AES-256-GCM (a key derived from SESSION_SECRET with HKDF,
+  for this use only), the firm's id as associated data, a random IV each time; exactly 48
+  characters. Another firm's cursor, an altered one or a bare number gives the first page.
+- **L47:** the AI pay-line check only blocked a few advice words. It now also refuses verdicts
+  ("correct", "underpaid", "owed", "refund", "nothing", "fine"…) and promises ("will", "going
+  to"); the code's line is used instead. Erring wide is safe.
+- **L49:** only 3 links per number every 15 minutes (288 a day). Now also 10 per number a day,
+  and 10 per office email a day.
+- **L79:** `setShiftsLine` changed the number without an event. It now logs
+  `firm.shifts_line_changed {change: "set" | "replaced" | "cleared"}` in the same transaction,
+  never the number.
+- **L82:** `firm:line` passed the slug as typed and let `parseArgs` throw. It now finds the firm
+  whatever the case and prints the usage line (exit 2) on a bad option, tested by running it.
+- **L83:** the brand lookup's catch caught Next's own build-time signal. `unstable_rethrow(err)`
+  comes first now (Next's documented fix); a unit test throws a real `notFound()` signal through it.
+- **Masker:** the date pattern took any `+dd` after a time as a time-zone offset, so
+  `2026-11-02T09:00:00+447700900123` hid "+4477" as an offset and left 8 digits unmasked. Offsets
+  are now real ones only (+00 to +14, minutes 00–59, no digit after), and fractions of a second at
+  most 9 digits.
+
+**Decisions Dylan would normally approve:**
+
+| Decision | Why | Considered |
+|---|---|---|
+| Only an office placement sends `shift_confirmed`; a worker's own booking doesn't | They see "Booked" on screen; a message would cost a WhatsApp each time | Message every booking |
+| `shift_confirmed` describes the shift as it is when sent | One message, current facts | Skip it if the shift moved first (the worker would then hear nothing until the change notice) |
+| "Fewer staff" removes the place (headcount − 1) | The audit: re-offering a place the client doesn't want leads to a second short-notice cancellation | Leave the place open but not urgent |
+| Daily cap 10 links per number and per office email | Bounds cost and nuisance (was 288 a day); a normal login lasts 30 days | 5 a day; an alert on repeated hits (parked) |
+| Fair-rotation tie-break seeded per shift and wave | Fair across shifts, stable within a wave (retries agree) | A true random draw (retries would disagree) |
+| The AI pay line: a word list, erring wide | Rule 9; a refused line just shows the code's facts line | A fixed template only (no AI line at all) |
+| The log cursor encrypted, not signed | A signature would still show the number | Paging by time (ties at the same moment need the id anyway) |
+
+**Reviews (guardrails reviewer and an adversarial reviewer, in parallel).** Guardrails: nothing new
+breaks a golden rule; one FIX FIRST, an older masker gap on the line this task edits. Adversarial:
+11 findings (5 medium). All checked against the code; what was done:
+
+| Finding | Root cause | Fix |
+|---|---|---|
+| FIX FIRST: a number written like a date (`07700-90-01-23`, `+447700-90-0123`) wasn't masked | The date pattern had no digit boundary and took any `dddd-dd-dd` | A real date only: year 1900–2099, month 01–12, day 01–31, no digit either side; a fraction can't run on into digits; times can't be glued to digits. 5 new cases |
+| L44 half closed: event ids still in the page source | React list keys (`key={e.id}`, `key={r.eventId}`) go into the page's data | The office pages get no event ids at all (the types leave them out) and key by position; tests check the office functions return none |
+| "Fewer staff" on a shift's last place or a sheet shift left the place open and takeable | The early return only skipped the waves | Refused before anything changes (`keeps_place`), with copy telling the office what to do; the e2e now sees the refusal first |
+| Booking message and change notice could cross (both held for the night) | Nothing linked the two jobs | The booking message's claim share-locks the shift, then the booking; a change notice skips a booking the worker hasn't been told about yet (`not_told`), and counts the booking message as what they last heard |
+| The AI pay line still let verdicts through ("paid too little", "short-paid") | A block list can't list every verdict | An allow-list: after the facts' own phrases, only plain neutral words; the code's own line passes for every kind of group |
+| A percent-encoded quote after a login link still failed | `location.hash` is percent-encoded | Decoded first (bad encoding read as it is) |
+| Daily login cap can lock a worker out until midnight UTC | Inherent in any per-number cap | Kept, and put to Dylan as a decision (Office 10), with an office "send them a link" button parked |
+| A no-show or worked booking's message logged as "cancelled first" | One reason for every non-confirmed status | Reasons split (`cancelled`, `not_booked`), "ended" checked first |
+| "Fewer staff" moved another booking's slot without a record; restarted fair rotation's hold | The move wasn't logged; the hold reads the last cancellation time | `moved: {assignmentId, fromSlot, toSlot}` in the event; the hold ignores "fewer staff" cancellations (test fails without it) |
+| The log line said only "Changed the places." | Words ignored the counts | "Changed the places from 3 to 2. Reason: …" |
+| Sign-off comment said "never a person's name" | The rule can't know a name | Comment corrected |
+| Weak tests | — | A real wave checked against the shift's hash (fails without the seed); the held message's start time; the top slot, an open top slot and the parked row; Next's real dynamic-rendering error |
+| CSV re-import can put a removed place back (LOW) | An import may raise places | Parked |
+
+Mutation checks on the fixes (each broken on purpose, then restored): the not-told skip, the
+booking-message baseline, the wave seed, the allow-list, the hold exclusion: all caught.
+`npm run build`: 0 "brand: couldn't read" lines and 0 error lines; all 47 routes still dynamic.
+
+**Focused re-review of those fixes (guardrails reviewer): FIX FIRST, 3 items; all fixed.** The
+verify run that had started was stopped (files were about to change) and is run again below.
+
+| Finding | Root cause | Fix |
+|---|---|---|
+| A rota sheet's booking was never told of an office cancellation | The not-told check took any `shift.assigned` "by the firm", and the sheet sync logs those too, with no booking message | The office's booking marks its event `bookingMessage: true`; only those wait for the booking message. Test: a sheet booking cancelled by the office is told (fails with the old check) |
+| The pay line still let verdicts through ("No hours missing at …", "They have been paid") | "no", "paid", "all", "still", "been", "have" were plain words; the issue's name ("Hours missing") was taken out, leaving "no" | Those words removed; the code's own fact phrases ("paid at £12.50", "no pay line imported for the day") taken out whole instead. Two tests' sample AI lines used "still" and were reworded (what they check is unchanged: the line is used, and no timer is left) |
+| Event numbers still in the firm and worker data downloads (and inside event data) | The exports copied `events.id` and `data` as stored | Each export numbers its events 1, 2, 3… in order; `changeEventId` / `assignedEventId` point at the new numbers (or are dropped when outside the file). Unit tests, and both export tests now check the same events by content and order |
+| Other: the booking message's claim could lose a deadlock with the sheet sync or a deletion | They lock bookings before shifts | The claim is retried (`retryAborted`), as they are |
+| Other: a "…" or "«" after a login link still broke it | Only listed punctuation was trimmed | The token's 43 characters are read from the front |
+| Other: contrived date-shaped numbers ("0770 090 2012-11-23") | — | Left: no real number is written that way |
+
+**Verify run 1 (after the re-review fixes): NOT VERIFIED, 5 of 3,243 failed.** Root causes: (1)
+`booking.test.ts` checks the office booking's event field by field, and it now carries the new
+`bookingMessage: true` marker (intended): added to the expectation. (2) Four pay tests
+(`pay.digest`, `pay.grouping` ×2, `pay.query-groups`) used the sample AI line "2 queries: last
+week still paid at £12.50.", which the stricter check now refuses on purpose ("still paid" implies
+a verdict; "last" isn't a fact word): reworded to "2 queries about the week of Mon 26 Oct, paid at
+£12.50." What each test checks (where the AI line goes, the fallbacks) is unchanged.
+
+**Verify run 2:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=7f05cb5e2e839a03 e2e=true`
+(3,243 tests, 60 browser tests).
+
+**Auditor:** `VERDICT: DONE` ("nothing — all 17 findings plus the 5 highlighted acceptance bullets
+… are PROVEN with real code and passing, genuine tests on the currently verified tree"; fakes found:
+none; it ran `npm run build` itself: 0 brand errors, every route dynamic).
+
+**Hours:** 2.0 (08:03 to 10:05 UTC). Phase 10 so far: 17.2 of the 30–45 h estimate.
+

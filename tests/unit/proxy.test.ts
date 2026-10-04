@@ -179,3 +179,33 @@ describe("IP rate-limit keys", () => {
     }
   });
 });
+
+// Phase 10 task 19 (audit L10): a link from a message, opened with the sentence's full stop.
+describe("a link opened with punctuation after it", () => {
+  const handle = createProxy(createLogger({ write: () => undefined }), () => BASE);
+  const open = (url: string) =>
+    handle(new NextRequest(url, { headers: { host: "acme.localhost:3000" } }));
+
+  it("goes to the same address without it, keeping the query", () => {
+    for (const [from, to] of [
+      [
+        "/shifts/0f8fad5b-d9cb-469f-a165-70867728950e.",
+        "/shifts/0f8fad5b-d9cb-469f-a165-70867728950e",
+      ],
+      ["/shifts/open,", "/shifts/open"],
+      ["/requests).", "/requests"],
+      ["/office/today%E2%80%99", "/office/today"],
+    ] as const) {
+      const res = open(`http://acme.localhost:3000${from}?view=past`);
+      expect(res.status, from).toBe(308);
+      expect(new URL(res.headers.get("location") ?? "").pathname, from).toBe(to);
+      expect(new URL(res.headers.get("location") ?? "").search, from).toBe("?view=past");
+    }
+  });
+
+  it("leaves every other address alone (files with extensions included)", () => {
+    for (const path of ["/", "/shifts/open", "/manifest.webmanifest", "/sw.js", "/l"]) {
+      expect(open(`http://acme.localhost:3000${path}`).status, path).toBe(200);
+    }
+  });
+});

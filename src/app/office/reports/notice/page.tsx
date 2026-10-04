@@ -15,7 +15,7 @@ import {
   shiftWords,
   spanWords,
   whenWords,
-  type NoticeReport,
+  type OfficeNoticeReport as NoticeReport,
   type ReportKind,
 } from "@/lib/office/notice-report";
 import { noticeText } from "@/lib/portal/cancel-reasons";
@@ -159,8 +159,9 @@ export default async function NoticeReportPage({
               </tr>
             </thead>
             <tbody>
-              {report.rows.map((r) => (
-                <tr key={r.eventId}>
+              {/* Keyed by position: event numbers are shared by every firm (audit L44). */}
+              {report.rows.map((r, i) => (
+                <tr key={i}>
                   <td className={cell}>{whenWords(r.at, tz, report.thisYear)}</td>
                   <td className={cell}>{KIND_WORDS[r.kind]}</td>
                   <td className={cell}>{INITIATOR_WORDS[r.initiator]}</td>

@@ -3,6 +3,8 @@ import { firms, rosterSources } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
+import { BASELINE_KEYS, BASELINE_METRICS } from "../metrics/definitions";
+import { ownSignOff } from "../tenancy/sign-off";
 import { effectiveSettings } from "./settings";
 
 // The pilot onboarding checklist (docs/go-to-market.md; docs/runbooks.md "Onboarding a pilot
@@ -45,7 +47,6 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
     workers_without_credentials: number;
     credentials: number;
     rules: number;
-    baseline: number;
   }>(sql`
     select
       (select count(*)::int from office_users where status = 'active' and role = 'admin') as admins,
@@ -55,9 +56,15 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
       (select count(*)::int from workers w where w.status = 'active'
           and not exists (select 1 from credentials c where c.worker_id = w.id)) as workers_without_credentials,
       (select count(*)::int from credentials) as credentials,
-      (select count(*)::int from credential_rules) as rules,
-      (select count(*)::int from metrics_daily where kind = 'baseline') as baseline
+      (select count(*)::int from credential_rules) as rules
   `);
+  // The baseline's figures saved so far (each of BASELINE_KEYS, once or more).
+  const { rows: baselineRows } = await tx.execute<{ metric: string }>(sql`
+    select distinct metric from metrics_daily where kind = 'baseline'
+  `);
+  const saved = new Set(baselineRows.map((r) => r.metric));
+  const missing = BASELINE_KEYS.filter((k) => !saved.has(k));
+  const have = BASELINE_KEYS.length - missing.length;
   const c = countRows[0];
   if (!c) throw new Error("the counts came back empty");
 
@@ -86,10 +93,17 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
   const settings = effectiveSettings(firm.settings)
     .map((s) => `${s.key} ${String(s.value)}${s.source === "default" ? " (default)" : ""}`)
     .join("; ");
+  // As messages use it: a stored one that breaks golden rule 8 is never used (audit L31).
+  const own = ownSignOff(firm.settings.sign_off);
+  const badSignOff =
+    own === null &&
+    typeof firm.settings.sign_off === "string" &&
+    firm.settings.sign_off.trim() !== "";
   const signOff =
-    typeof firm.settings.sign_off === "string"
-      ? firm.settings.sign_off
-      : `${firm.name} Shift Team (default)`;
+    own ??
+    (badSignOff
+      ? `${firm.name} Shift Team (the default: the one stored isn't "… Shift Team", so it isn't used)`
+      : `${firm.name} Shift Team (default)`);
   const source = sheet[0];
 
   const items: ReadinessItem[] = [
@@ -102,8 +116,8 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
     },
     {
       item: "Firm branding and sign-off",
-      state: firm.colour ? "done" : "todo",
-      detail: `Colour ${firm.colour ?? "not set"}, logo ${firm.logo ? "set" : "not set"}, signed "${signOff}".${firm.colour ? "" : " Set them: npm run firm:brand."}${firm.domain ? ` Own domain ${firm.domain} (${firm.domainVerified ? "verified" : "not verified yet"}).` : ""}`,
+      state: firm.colour && !badSignOff ? "done" : "todo",
+      detail: `Colour ${firm.colour ?? "not set"}, logo ${firm.logo ? "set" : "not set"}, signed "${signOff}".${firm.colour && !badSignOff ? "" : " Set them: npm run firm:brand."}${firm.domain ? ` Own domain ${firm.domain} (${firm.domainVerified ? "verified" : "not verified yet"}).` : ""}`,
     },
     {
       item: "Office users",
@@ -166,11 +180,15 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
     },
     {
       item: "Baseline numbers recorded",
-      state: c.baseline > 0 ? "done" : "todo",
+      // All of them (audit L40): the pilot is compared against each one (Gate C), so a partial
+      // baseline isn't done.
+      state: missing.length === 0 ? "done" : "todo",
       detail:
-        c.baseline > 0
-          ? `${plural(c.baseline, "baseline figure", "baseline figures")} saved.`
-          : "None yet: the office's Pilot figures page, Baseline week.",
+        missing.length === 0
+          ? `All ${BASELINE_KEYS.length} baseline figures saved.`
+          : have === 0
+            ? "None yet: the office's Pilot figures page, Baseline week."
+            : `${have} of ${BASELINE_KEYS.length} baseline figures saved. Still to enter: ${missing.map((k) => BASELINE_METRICS[k].label).join("; ")}. The office's Pilot figures page, Baseline week.`,
     },
   ];
   return items;

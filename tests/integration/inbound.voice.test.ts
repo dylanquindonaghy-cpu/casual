@@ -211,6 +211,14 @@ describe("the voice webhook", () => {
         entity_id: callRow[0]?.id, // the stored call
         data: { linkRequested: true, withheld: false },
       },
+      // What the caller was told (audit L28), so a repeat says the same.
+      {
+        action: "call.answered",
+        actor_type: "system",
+        entity_type: "call",
+        entity_id: callRow[0]?.id,
+        data: { link: "sent" },
+      },
     ]);
     expect(JSON.stringify(calls)).not.toContain(fields.CallSid);
 
@@ -219,7 +227,39 @@ describe("the voice webhook", () => {
     expect(await again.text()).toBe(spoken(t, "sent"));
     expect(await t.messageRows()).toHaveLength(1);
     expect(await t.jobsOf(SEND_PORTAL_LINK_QUEUE)).toHaveLength(1);
-    expect(await t.eventsOf("call.%")).toHaveLength(1);
+    expect(await t.eventsOf("call.%")).toHaveLength(2);
+  });
+
+  it("a repeat of a call that was told 'not now' hears 'not now' again, and asks for nothing (audit L28)", async () => {
+    const t = await lineFirm();
+    let asked = 0;
+    const failing = {
+      ...voiceDeps(),
+      requestLink: async (): Promise<{ status: string }> => {
+        asked += 1;
+        throw new Error("connection reset");
+      },
+    };
+    const fields = callFields(t, t.mobile);
+    const first = await handleTwilioVoice(signed(URLS.voice, fields), failing);
+    expect(await first.text()).toBe(spoken(t, "not_now"));
+    // Asking would work now, but a repeat asks nothing and says what the first said.
+    const again = await handleTwilioVoice(signed(URLS.voice, fields), voiceDeps());
+    expect(await again.text()).toBe(spoken(t, "not_now"));
+    expect(asked).toBe(1);
+    expect(await t.jobsOf(SEND_PORTAL_LINK_QUEUE)).toEqual([]);
+    expect((await t.eventsOf("call.answered")).map((e) => e.data)).toEqual([{ link: "not_now" }]);
+
+    // A repeat with no answer logged (the first stopped part-way) can't promise a link.
+    const half = callFields(t, t.mobile);
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164, handled_at)
+       values ($1, 'in', 'voice', $2, $3, $4, now())`,
+      [t.f.firmId, half.CallSid, t.mobile, t.line],
+    );
+    const repeat = await handleTwilioVoice(signed(URLS.voice, half), voiceDeps());
+    expect(await repeat.text()).toBe(spoken(t, "not_now"));
+    expect(await t.jobsOf(SEND_PORTAL_LINK_QUEUE)).toEqual([]);
   });
 
   it("a number that isn't a worker's hears exactly the same, and nobody is sent anything (the login page's answer)", async () => {

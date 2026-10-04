@@ -6,7 +6,11 @@ import { Client } from "pg";
 // for the owner too, so the change runs with the firm set for its transaction only, like the
 // seed's firm provisioning. This is an owner-only operations script, kept out of src/ on purpose:
 // the app itself never sets the firm outside withFirm (scripts/invariants.sh, invariant 5).
-// One number belongs to one firm (a unique column).
+// One number belongs to one firm (a unique column). Every change is logged in the firm's action log
+// (Phase 10, audit L79: golden rule 5), in the same transaction: firm.shifts_line_changed {change:
+// "set", "replaced" or "cleared"}, never the number itself (the log holds no phone numbers).
+
+const LINE_CHANGED = "firm.shifts_line_changed";
 
 export type SetLineResult =
   | { status: "set"; number: string; before: string | null }
@@ -39,9 +43,10 @@ export async function setShiftsLine(
   const owner = new Client({ connectionString: adminUrl });
   await owner.connect();
   try {
+    // The slug as firms keep it (lower case), however it was typed (audit L82).
     const { rows } = await owner.query<{ id: string; line: string | null }>(
       "select id::text as id, shifts_line_e164 as line from firms where slug = $1",
-      [slug],
+      [slug.trim().toLowerCase()],
     );
     const firm = rows[0];
     if (!firm) return { status: "no_firm" };
@@ -57,6 +62,12 @@ export async function setShiftsLine(
         number,
       ]);
       if (updated.rowCount !== 1) throw new Error("the firm's row wasn't updated");
+      const change = number === null ? "cleared" : firm.line === null ? "set" : "replaced";
+      await owner.query(
+        `insert into events (firm_id, actor_type, action, entity_type, entity_id, data)
+         values ($1, 'system', $2, 'firm', $1, $3)`,
+        [firm.id, LINE_CHANGED, JSON.stringify({ change })],
+      );
       await owner.query("commit");
     } catch (err) {
       // The first error is the one that matters, even if the rollback fails too.

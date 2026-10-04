@@ -211,6 +211,8 @@ describe("bookShift: the office placing someone", () => {
           overridden: ["rest"],
           // The office's words are about a person: never in the append-only log (audit L23, L85).
           reasonGiven: true,
+          // A message tells them they're booked (Phase 10 task 19).
+          bookingMessage: true,
         },
       },
     ]);

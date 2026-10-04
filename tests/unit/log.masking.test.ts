@@ -145,6 +145,18 @@ describe("the logger", () => {
     expect(maskText(text)).toBe(text);
   });
 
+  it("leaves dates with real time-zone offsets and fractions alone", () => {
+    for (const text of [
+      "at 2026-11-02T09:00:00+01:00",
+      "at 2026-11-02T09:00:00-0500",
+      "at 2026-11-02T09:00:00+14:00 then",
+      "at 2026-11-02T09:00:00.123456789Z",
+      "at 2026-11-02 09:00:00.5+05:30",
+    ]) {
+      expect(maskText(text), text).toBe(text);
+    }
+  });
+
   it("masks any bare run of 10+ digits (a UK mobile without its 0 is 10 digits)", () => {
     expect(maskText("ref 7700900123")).toBe("ref *******123");
   });
@@ -164,6 +176,16 @@ describe("the logger", () => {
     ["a job number right before the number", "job 12345 07700 900123"],
     ["a long digit run ending in the number", "1695812345447700900123"],
     ["two numbers run together", "447700900123447700900456"],
+    // Phase 10 task 19: a date's time-zone offset took the number's +44 and next digits.
+    ["a number glued to a date-time (+44 isn't an offset)", "2026-11-02T09:00:00+447700900123"],
+    ["a number after a real offset", "2026-11-02T09:00:00+01007700900123"],
+    ["a number glued to the seconds", "2026-11-02T09:00:00.447700900123"],
+    // The guardrails review: a number written in date-shaped groups was taken for a date.
+    ["a number in date-shaped groups", "/shifts/07700-90-01-23"],
+    ["a +44 number in date-shaped groups", "+447700-90-0123"],
+    ["a spaced +44 number in date-shaped groups", "+44 7700-90-0123"],
+    ["a number glued to a fraction of a second", "2026-11-02T09:00:00.07700 900123"],
+    ["a number glued to the seconds' digits", "2026-11-02 09:00:07700900123"],
   ])("masks %s", (_label, text) => {
     expect(maskText(text).replace(/\D/g, "")).not.toContain("7700900");
   });

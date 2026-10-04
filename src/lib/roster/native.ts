@@ -275,6 +275,63 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
   };
 }
 
+// One place fewer on a shift, after the office cancelled a booking because the client needs fewer
+// staff (Phase 10 task 19, audit L20): the place the cancellation just reopened goes, rather than
+// being offered to someone else. Its new open row is parked above every slot (rows above the
+// headcount are ignored, as after the office lowers the places; booking rows are never deleted),
+// the highest live slot moves down into its number (so every booked place stays within the
+// headcount), and the headcount drops by one.
+// Not for a rota-sheet shift (the sheet owns its places), the last place (cancel the shift
+// instead), or a slot that wasn't reopened (the shift had started). Inside the caller's transaction,
+// with the shift already locked. Returns the old and new headcount, or null when nothing changed.
+export async function removeFreedPlace(
+  tx: FirmTx,
+  shiftId: string,
+  freedSlot: number,
+  now: Date,
+): Promise<{
+  from: number;
+  to: number;
+  moved: { assignmentId: string; fromSlot: number; toSlot: number } | null;
+} | null> {
+  const [shift] = await tx
+    .select({ headcount: shifts.headcount, source: shifts.source })
+    .from(shifts)
+    .where(eq(shifts.id, shiftId));
+  if (!shift || shift.source === "sheets" || shift.headcount <= 1) return null;
+  const top = shift.headcount;
+  const [highest] = await tx
+    .select({ slot: sql<number>`max(${assignments.slot})` })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.shiftId, shiftId),
+        notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
+      ),
+    );
+  const parked = Math.max(Number(highest?.slot ?? 0), top) + 1;
+  const freed = await tx.execute(sql`
+    update assignments set slot = ${parked}
+     where shift_id = ${shiftId} and slot = ${freedSlot} and worker_id is null and status = 'open'
+  `);
+  if (freed.rowCount !== 1) return null; // not reopened: nothing to take away
+  let moved: { assignmentId: string; fromSlot: number; toSlot: number } | null = null;
+  if (freedSlot < top) {
+    const { rows } = await tx.execute<{ id: string }>(sql`
+      update assignments set slot = ${freedSlot}
+       where shift_id = ${shiftId} and slot = ${top} and status not in ${CANCELLED}
+      returning id::text as id
+    `);
+    if (rows[0]) moved = { assignmentId: rows[0].id, fromSlot: top, toSlot: freedSlot };
+  }
+  await tx
+    .update(shifts)
+    .set({ headcount: top - 1 })
+    .where(eq(shifts.id, shiftId));
+  await refreshShiftStatus(tx, shiftId, now);
+  return { from: top, to: top - 1, moved };
+}
+
 // Keeps an open or filled shift's status true to its slots after its headcount changed (a sheet
 // sync, an import): filled when every place within the headcount is held, else open. Draft and
 // cancelled shifts are left alone. Inside the caller's withFirm transaction.

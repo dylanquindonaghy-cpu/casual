@@ -44,4 +44,5 @@ with it automatically. Counts only: no names or numbers on the sheet.
 8. **Short-notice cancellations per week (firm and worker):** cancellations with less notice than
    the firm's short-notice threshold (48 hours unless it chose another: `npm run firm:settings`).
 
-Then `npm run -s firm:check -- --firm <slug>` shows "[x] Baseline numbers recorded".
+Then `npm run -s firm:check -- --firm <slug>` shows "[x] Baseline numbers recorded" once all 8
+are saved. With fewer it shows "[ ]" and names the ones still to enter.

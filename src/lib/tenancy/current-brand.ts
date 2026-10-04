@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 import { errorCode } from "../jobs/firm-job";
 import { log } from "../log";
@@ -17,6 +18,10 @@ export const getCurrentBrand = cache(async (): Promise<Brand | null> => {
     if (!firm) return null;
     return (await firmBrand({ firm })) ?? null;
   } catch (err) {
+    // Next's own signals (a page rendered at build time reading the request's headers, a redirect,
+    // a not-found) aren't failures: they go back to Next (audit L83; each `next build` used to log
+    // about 30 of these as errors).
+    unstable_rethrow(err);
     log.error("brand: couldn't read the firm's brand", {
       firmId: firm?.id ?? null,
       code: errorCode(err),

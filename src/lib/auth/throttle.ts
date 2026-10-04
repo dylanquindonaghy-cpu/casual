@@ -16,14 +16,19 @@ export interface Limit {
 }
 
 export const LIMITS = {
-  // Login links: 3 per number and 10 per IP every 15 minutes. Each link costs a message.
+  // Login links: 3 per number and 10 per IP every 15 minutes, and 10 per number a day (Phase 10,
+  // audit L49: 3 every 15 minutes alone allowed 288 messages a day to one number, each billed to
+  // the firm, and the IP limit is easy to spread). Each link costs a message.
   loginPerNumber: { name: "login:mobile", max: 3, windowMs: 15 * MINUTE },
+  loginPerNumberDaily: { name: "login:mobile_day", max: 10, windowMs: 24 * 60 * MINUTE },
   loginPerIp: { name: "login:ip", max: 10, windowMs: 15 * MINUTE },
   // Using links: 20 failed attempts (expired, used, junk) per IP. Successful logins don't count,
   // so a whole crew logging in on one venue Wi-Fi isn't locked out by its own success.
   linkFailuresPerIp: { name: "link_fail:ip", max: 20, windowMs: 15 * MINUTE },
-  // Office login links by email: 3 per address and 10 per IP every 15 minutes.
+  // Office login links by email: 3 per address and 10 per IP every 15 minutes, and 10 per address
+  // a day (audit L49).
   officeLoginPerEmail: { name: "office:email", max: 3, windowMs: 15 * MINUTE },
+  officeLoginPerEmailDaily: { name: "office:email_day", max: 10, windowMs: 24 * 60 * MINUTE },
   officeLoginPerIp: { name: "office:ip", max: 10, windowMs: 15 * MINUTE },
   // Pay-page codes: 3 per worker every 15 minutes and 10 a day (each costs a message and gives
   // 5 guesses, so the daily cap bounds guessing over a long, noisy attack).

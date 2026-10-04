@@ -104,14 +104,15 @@ export function escalateHours(settings: Record<string, unknown>): number {
 }
 
 // Who this wave goes to (pure): fair rotation's order, the firm's wave size; first come, first
-// served: everyone.
+// served: everyone. `seed` (the shift and wave) fixes how ties are broken (rankForFairRotation).
 export function pickWave<C extends WaveCandidate>(
   candidates: C[],
   mode: "first_come_first_served" | "fair_rotation",
   waveSize: number,
+  seed?: string,
 ): C[] {
   if (mode === "first_come_first_served") return [...candidates];
-  return rankForFairRotation(candidates).slice(0, waveSize);
+  return rankForFairRotation(candidates, seed).slice(0, waveSize);
 }
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
@@ -367,7 +368,7 @@ export async function runOfferWave(
     settings.mode === "fair_rotation"
       ? Math.max(0, settings.groupSize - already)
       : candidates.length;
-  const chosen = pickWave(candidates, settings.mode, room);
+  const chosen = pickWave(candidates, settings.mode, room, `${shift.id}:${payload.wave}`);
   // Fair rotation: the next wave after the firm's minutes, if anyone is left after this one. Queued
   // once whichever copy of this wave gets here (a pg-boss singleton key on the shift and wave, in
   // pg-boss's day-long slot), so a retried or doubled wave doesn't start a second chain; a duplicate

@@ -12,13 +12,17 @@ export function maskPhone(e164: string): string {
 const WITHHELD = "[withheld]";
 
 // UUIDs, ISO dates/times and Twilio ids are cut out before phone matching so their digits aren't
-// mistaken for a phone number, and so a date next to a phone number can't shield it. A Twilio id
+// mistaken for a phone number, and so a date next to a phone number can't shield it. A date is only
+// a real one (Phase 10 task 19): a year 1900–2099, a month 01–12, a day 01–31, with no digit either
+// side; a time-zone offset +00 to +14; a fraction of a second at most 9 digits and not running on
+// into more digits. Anything that fails is checked as a phone number instead, so a number written
+// like a date (07700-90-01-23) or glued to one (…09:00:00+447700900123) is masked. A Twilio id
 // (a message SM…, a call CA…, a recording RE…) is two capital letters then exactly 32 lowercase hex
 // characters, standing alone: about 1 in 12 has a run of 10 or more digits, which would otherwise
 // be masked as a phone number (and the action log would refuse an event holding one: audit finding
 // M12). Matched case-sensitively, so a person's typed number can't pass for one.
 const PROTECTED =
-  /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}(?::?\d{2})?)?)?|(?<![A-Za-z0-9])[A-Z]{2}[0-9a-f]{32}(?![A-Za-z0-9])/g;
+  /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|(?<!\d)(?:19|20)\d\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:[Tt ]\d{2}:\d{2}(?!\d)(?::\d{2}(?!\d)(?:\.\d{1,9}(?![\s().-]{0,3}\d))?)?(?:[Zz]|[+-](?:0\d|1[0-4])(?::?[0-5]\d)?(?!\d))?)?(?!\d)|(?<![A-Za-z0-9])[A-Z]{2}[0-9a-f]{32}(?![A-Za-z0-9])/g;
 // Anything that looks like a phone number as people type it: an optional + or 00, then 10 or
 // more digits with up to 3 spaces, dots, hyphens or brackets between each (07700 900123,
 // +44 (0)7700 900123, 0044-7700-900123), even when glued to letters (Mob07700900123). No upper

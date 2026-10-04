@@ -40,6 +40,20 @@ describe("pickWave", () => {
     ]);
   });
 
+  // Phase 10 task 19 (audit L18): with the wave's seed, ties are a shuffle fixed by the shift and
+  // wave, not the lowest ids every time.
+  it("fair rotation's last tie break: fixed for a given shift and wave, different across shifts", () => {
+    const tied = ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => candidate(id, 8));
+    const order = (seed: string) =>
+      pickWave(tied, "fair_rotation", 10, seed).map((c) => c.workerId);
+    expect(order("shift-1:1")).toEqual(order("shift-1:1"));
+    const firsts = new Set(Array.from({ length: 20 }, (_, i) => order(`shift-${i}:1`)[0]));
+    expect(firsts.size).toBeGreaterThan(3);
+    // Hours and last offer still come first: the tie break only orders the tied.
+    const mixed = [candidate("z", 0), ...tied.slice(0, 3)];
+    expect(pickWave(mixed, "fair_rotation", 10, "shift-1:1")[0]?.workerId).toBe("z");
+  });
+
   it("first come, first served: everyone at once", () => {
     expect(pickWave(people, "first_come_first_served", 2)).toHaveLength(5);
   });

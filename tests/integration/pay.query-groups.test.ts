@@ -174,13 +174,15 @@ describe("grouping pay queries", () => {
     // checked line beneath the code's heading; a line that fails the check adds nothing.
     let n = 0;
     const ai = createFakeAi(() =>
-      n++ === 0 ? "2 queries: last week still paid at £12.50." : "You should pay them £99.",
+      n++ === 0
+        ? "2 queries about the week of Mon 26 Oct, paid at £12.50."
+        : "You should pay them £99.",
     );
     const withAi = await summariseGroups(groups, ai);
     expect(withAi.map((g) => [g.heading, g.aiLine])).toEqual([
       [
         "2 queries: wrong rate, the week of Mon 26 Oct, paid at £12.50.",
-        "2 queries: last week still paid at £12.50.",
+        "2 queries about the week of Mon 26 Oct, paid at £12.50.",
       ],
       ["1 query: hours missing, the week of Mon 26 Oct, at Other Stadium.", null],
     ]);

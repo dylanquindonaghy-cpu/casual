@@ -30,7 +30,7 @@ export interface OpenShift {
   endsAt: Date;
   placesLeft: number;
   site: (NonNullable<MyShift["site"]> & { id: string }) | null;
-  // Fair rotation: held for workers with fewer hours this week until then (null: takeable now).
+  // Fair rotation: held for workers with fewer hours that week (the shift's own Monday-to-Sunday week) until then (null: takeable now).
   opensAt: Date | null;
   isUrgent: boolean; // marked urgent (src/lib/roster/urgent.ts)
 }

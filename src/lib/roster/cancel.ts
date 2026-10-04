@@ -8,6 +8,7 @@ import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
 import type { CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
+import { removeFreedPlace } from "./native";
 import { markUrgentAfterDropout } from "./urgent";
 import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES, firmReasonWords } from "./firm-reasons";
 
@@ -45,7 +46,13 @@ export type CancelBookingResult =
   // The office asking after the shift ended: that's a no-show or a completed shift (attendance.ts).
   | { status: "ended" }
   // The office user can't cancel staff (disabled, or payroll).
-  | { status: "not_allowed" };
+  | { status: "not_allowed" }
+  // "The client needs fewer staff" takes the place away, which can't be done for a shift's last
+  // place (that's cancelling the shift) or a rota sheet's shift (the sheet sets its places).
+  // Refused, so the place isn't left open for someone else to take; nothing is changed.
+  | { status: "keeps_place"; why: "last_place" | "sheet" }
+  // A "fewer staff" cancellation: the shift needs this many now.
+  | (CancelResult & { status: "cancelled"; placesNow?: number });
 
 export async function cancelBooking(
   run: WithFirm,
@@ -71,7 +78,12 @@ async function cancelInTransaction(
   // Locked (the same shift-first order as every booking), so its times can't change before the
   // plug's own lock.
   const [shift] = await tx
-    .select({ source: shifts.source, startsAt: shifts.startsAt, endsAt: shifts.endsAt })
+    .select({
+      source: shifts.source,
+      startsAt: shifts.startsAt,
+      endsAt: shifts.endsAt,
+      headcount: shifts.headcount,
+    })
     .from(shifts)
     .where(eq(shifts.id, shiftId))
     .for("no key update");
@@ -80,6 +92,9 @@ async function cancelInTransaction(
     return { status: "started" };
   }
   if (shift.endsAt.getTime() <= now.getTime()) return { status: "ended" };
+  const fewerStaff = by.type === "office" && reason === FIRM_CHANGE_REASONS.fewer_staff;
+  if (fewerStaff && shift.source === "sheets") return { status: "keeps_place", why: "sheet" };
+  if (fewerStaff && shift.headcount <= 1) return { status: "keeps_place", why: "last_place" };
 
   const initiator = by.type === "worker" ? "worker" : "firm";
   const cancelled = await plugFor(tx, shift.source, now).markCancelled(shiftId, workerId, {
@@ -109,6 +124,35 @@ async function cancelInTransaction(
   // The firm cancelled someone's booking: they're told (golden rule 12).
   if (initiator === "firm") {
     await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });
+  }
+  // The client needs fewer staff: the place goes rather than being offered to someone else, who
+  // might then need cancelling at short notice too (Phase 10 task 19, audit L20).
+  if (fewerStaff) {
+    const [row] = await tx
+      .select({ slot: assignments.slot })
+      .from(assignments)
+      .where(eq(assignments.id, cancelled.assignmentId));
+    const lowered = row ? await removeFreedPlace(tx, shiftId, row.slot, now) : null;
+    if (lowered) {
+      await recordEvent(tx, {
+        actorType: by.type,
+        actorId: by.id,
+        action: "shift.changed",
+        entityType: "shift",
+        entityId: shiftId,
+        data: {
+          by: "firm",
+          fields: ["headcount"],
+          from: { headcount: lowered.from },
+          to: { headcount: lowered.to },
+          reason: FIRM_CHANGE_REASONS.fewer_staff,
+          // The highest place's booking moved down into the freed one (its slot changed).
+          ...(lowered.moved ? { moved: lowered.moved } : {}),
+        },
+      });
+      return { ...cancelled, placesNow: lowered.to };
+    }
+    return cancelled;
   }
   // A place reopened close to the start: the shift is urgent (golden rule 5: logged too).
   await markUrgentAfterDropout(tx, { shiftId, now });

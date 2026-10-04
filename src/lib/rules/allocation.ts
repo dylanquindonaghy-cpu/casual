@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 // Allocation mode (docs/api-and-jobs.md, "Offer-wave ranking"; docs/product-spec.md P1-6): per
 // firm, first come, first served, or fair rotation (fewest confirmed hours this week first).
 // Pure functions: the loader (src/lib/roster/allocation-input.ts) reads the numbers, these decide.
@@ -37,19 +39,31 @@ export function allocationGate(input: {
 }
 
 // The order the offer waves (Phase 4) will send in under fair rotation: fewest hours this week,
-// then longest since their last offer (never offered first), then a stable tie break by id.
+// then longest since their last offer (never offered first), then a tie break. With a `seed` (the
+// waves pass the shift and wave), the tie break is a shuffle fixed by that seed: the same wave
+// always gives the same order, but which of the tied workers comes first changes from shift to
+// shift, so the lowest ids don't always win (Phase 10 task 19, audit L18; the spec said "random").
+// Without one, it's by worker id.
 export interface RotationCandidate {
   workerId: string;
   hoursThisWeek: number;
   lastOfferedAt: Date | null;
 }
 
-export function rankForFairRotation<C extends RotationCandidate>(candidates: C[]): C[] {
+export function rankForFairRotation<C extends RotationCandidate>(
+  candidates: C[],
+  seed?: string,
+): C[] {
   const offered = (c: C) => c.lastOfferedAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const draw = (c: C) =>
+    seed === undefined
+      ? c.workerId
+      : createHash("sha256").update(`${seed}:${c.workerId}`).digest("hex");
   return [...candidates].sort(
     (a, b) =>
       a.hoursThisWeek - b.hoursThisWeek ||
       offered(a) - offered(b) ||
+      draw(a).localeCompare(draw(b)) ||
       a.workerId.localeCompare(b.workerId),
   );
 }

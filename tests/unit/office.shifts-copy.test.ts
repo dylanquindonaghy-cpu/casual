@@ -30,6 +30,21 @@ describe("a shift's history", () => {
     expect(
       ev("shift.changed", { by: "firm", fields: ["startsAt", "headcount"] }, "office", "o1"),
     ).toBe("Sam Rota: Changed the start and places.");
+    // A booking cancelled because the client needs fewer staff took its place away.
+    expect(
+      ev(
+        "shift.changed",
+        {
+          by: "firm",
+          fields: ["headcount"],
+          from: { headcount: 3 },
+          to: { headcount: 2 },
+          reason: "The client needs fewer staff",
+        },
+        "office",
+        "o1",
+      ),
+    ).toBe("Sam Rota: Changed the places from 3 to 2. Reason: The client needs fewer staff.");
     expect(ev("shift.assigned", { by: "worker", workerId: "w1" }, "worker", "w1")).toBe(
       "Ann Booker took it.",
     );
@@ -110,7 +125,7 @@ describe("a shift's history", () => {
       "Ann Booker was told about the change.",
     );
     expect(ev("shift.change_notice_skipped", { workerId: "w1", reason: "unchanged" })).toBe(
-      "Ann Booker wasn't told: the shift is back to what they knew.",
+      "Ann Booker wasn't told: the shift is as they last heard it.",
     );
     expect(ev("shift.completed", { workerId: "w1", from: "confirmed" }, "office", "o1")).toBe(
       "Sam Rota marked Ann Booker as worked.",
@@ -210,14 +225,14 @@ describe("the shift screens' words", () => {
   it("assigning", () => {
     expect(
       assignResultText({ status: "booked", assignmentId: "a", slot: 1, overridden: [] }, "Ann"),
-    ).toBe("Ann is booked on this shift.");
+    ).toBe("Ann is booked on this shift. They'll get a message to say so.");
     expect(
       assignResultText(
         { status: "booked", assignmentId: "a", slot: 1, overridden: ["rest"] },
         "Ann",
       ),
     ).toBe(
-      "Ann is booked on this shift. The override is in the log, and your reason is kept with the booking.",
+      "Ann is booked on this shift. They'll get a message to say so. The override is in the log, and your reason is kept with the booking.",
     );
     expect(assignResultText({ status: "invalid_reason" }, "Ann")).toBe(
       "Give a reason for the override (no phone numbers or email addresses).",

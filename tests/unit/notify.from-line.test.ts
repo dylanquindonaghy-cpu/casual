@@ -66,6 +66,7 @@ describe("messages go from the firm's shifts line", () => {
       "src/lib/notices/firm-change.ts",
       "src/lib/notices/pay-query-update.ts",
       "src/lib/notices/request-update.ts",
+      "src/lib/notices/shift-confirmed.ts",
       "src/lib/offers/office-offer.ts",
       "src/lib/offers/waves.ts",
       "src/lib/reminders/send.ts",
@@ -83,7 +84,7 @@ describe("messages go from the firm's shifts line", () => {
         (m) => ({ path: f.path, args: m[2] ?? "" }),
       ),
     );
-    expect(calls).toHaveLength(7);
+    expect(calls).toHaveLength(8);
     // Never a hard-coded value: always the worker's, read with their channel.
     for (const c of calls) expect(c.args, c.path).toMatch(/\bsmsAllowed: \w+\.smsAllowed,/);
     // Where each reads it: the worker row's sms_opted_out_at.
@@ -92,6 +93,7 @@ describe("messages go from the firm's shifts line", () => {
       "src/lib/notices/firm-change.ts",
       "src/lib/notices/pay-query-update.ts",
       "src/lib/notices/request-update.ts",
+      "src/lib/notices/shift-confirmed.ts",
       "src/lib/offers/candidates.ts", // the offer waves' and the office offer's workers
       "src/lib/reminders/send.ts",
     ]) {

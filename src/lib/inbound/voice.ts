@@ -133,8 +133,10 @@ export async function handleTwilioVoice(
   if (!firm) return twiml(`${say(CALL_NOT_IN_USE)}<Hangup/>`);
   const from = callerNumber(parsed.data.From);
 
-  // The call, once (by its CallSid; a withheld number's is stored without one).
-  const first = await (deps.run ?? withFirm)(firm.id, async (tx) => {
+  const run = deps.run ?? withFirm;
+  // The call, once (by its CallSid; a withheld number's is stored without one): its id when this
+  // is the first delivery, null for a repeat.
+  const callId = await run(firm.id, async (tx) => {
     const [row] = await tx
       .insert(messages)
       .values({
@@ -149,7 +151,7 @@ export async function handleTwilioVoice(
       })
       .onConflictDoNothing({ target: [messages.firmId, messages.providerMessageId] })
       .returning({ id: messages.id });
-    if (!row) return false;
+    if (!row) return null;
     // Whether the link was asked for; the login flow logs what came of it (auth.link_requested,
     // or auth.rate_limited).
     await recordEvent(tx, {
@@ -159,12 +161,16 @@ export async function handleTwilioVoice(
       entityId: row.id,
       data: { linkRequested: from !== null, withheld: from === null },
     });
-    return true;
+    return row.id;
   });
 
-  // The link (a repeat of the call was already answered: the same words, nothing asked again).
-  let link: CallLink = from ? "sent" : "withheld";
-  if (first && from) {
+  // The link. The first delivery asks for it and logs what the caller was told (call.answered
+  // {link}); a repeat of the call asks nothing again and says the same (audit L28: it used to say
+  // "sent" even when the first said "not now"). A repeat that finds no answer logged (the first is
+  // still running, or stopped part-way) can't promise a link: "not now".
+  let link: CallLink = "withheld";
+  if (from && callId) {
+    link = "sent";
     try {
       if ((await deps.requestLink(firm, from)).status !== "sent") link = "not_now";
     } catch (err) {
@@ -175,8 +181,38 @@ export async function handleTwilioVoice(
       });
       link = "not_now";
     }
+    const told = link;
+    try {
+      await run(firm.id, (tx) =>
+        recordEvent(tx, {
+          actorType: "system",
+          action: "call.answered",
+          entityType: "call",
+          entityId: callId,
+          data: { link: told },
+        }),
+      );
+    } catch (err) {
+      // Still answered; a repeat of this call would then say "not now".
+      logger.error("twilio voice webhook: logging the answer failed", {
+        firmId: firm.id,
+        code: errorCode(err),
+      });
+    }
+  } else if (from) {
+    link = await run(firm.id, async (tx) => {
+      const { rows } = await tx.execute<{ link: string }>(sql`
+        select e.data ->> 'link' as link from events e
+          join messages m on m.firm_id = e.firm_id and m.id = e.entity_id
+         where m.provider_message_id = ${parsed.data.CallSid} and m.channel = 'voice'
+           and e.action = 'call.answered'
+         order by e.id
+         limit 1
+      `);
+      return rows[0]?.link === "sent" ? "sent" : "not_now";
+    });
   }
-  logger.info("twilio voice webhook: call", { firmId: firm.id, repeat: !first });
+  logger.info("twilio voice webhook: call", { firmId: firm.id, repeat: callId === null });
   return twiml(
     callTwiml(firm, { link, transcriptionUrl: deps.transcriptionUrl, doneUrl: deps.doneUrl }),
   );

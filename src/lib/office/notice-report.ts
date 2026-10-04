@@ -366,7 +366,7 @@ export const CSV_HEADER = [
   "Note",
 ];
 
-export function noticeReportCsv(report: NoticeReport): string {
+export function noticeReportCsv(report: OfficeNoticeReport): string {
   const tz = report.timeZone;
   const lines = [CSV_HEADER.map(csvCell).join(",")];
   for (const r of report.rows) {
@@ -397,7 +397,7 @@ export function noticeReportCsv(report: NoticeReport): string {
 }
 
 // The file's "Note" column: anything a reader needs to read the row right.
-function noteOf(r: NoticeRow): string {
+function noteOf(r: OfficeNoticeRow): string {
   const notes: string[] = [];
   if (r.moved?.siteChanged) notes.push("The site changed");
   if (r.noticeHours !== null && r.noticeHours < 0) notes.push("After the start");
@@ -405,15 +405,35 @@ function noteOf(r: NoticeRow): string {
   return notes.join(". ");
 }
 
+// What the office's page and file get: no event numbers. They come from one counter shared by every
+// firm, so a firm could count the others' activity between them (Phase 10 task 19, audit L44).
+export type OfficeNoticeRow = Omit<NoticeRow, "eventId">;
+export type OfficeNoticeReport = Omit<NoticeReport, "rows"> & { rows: OfficeNoticeRow[] };
+
 // The report for the logged-in office user, or null (logged out, or a role without it).
 export async function officeNoticeReport(
   ctx: AuthContext,
   token: string,
   query: NoticeQuery,
   limit: number = REPORT_PAGE_ROWS,
-): Promise<NoticeReport | null> {
+): Promise<OfficeNoticeReport | null> {
   const me = await currentOfficeUser(ctx, token);
   if (!me || !canAccess(me.officeUser.role, "reports")) return null;
   const { run, now } = authParts(ctx);
-  return run(ctx.firm.id, (tx) => loadNoticeReport(tx, query, now, limit));
+  const report = await run(ctx.firm.id, (tx) => loadNoticeReport(tx, query, now, limit));
+  return {
+    ...report,
+    rows: report.rows.map((r): OfficeNoticeRow => ({
+      at: r.at,
+      kind: r.kind,
+      initiator: r.initiator,
+      worker: r.worker,
+      shift: r.shift,
+      moved: r.moved,
+      noticeHours: r.noticeHours,
+      noticeFromCurrentStart: r.noticeFromCurrentStart,
+      shortNotice: r.shortNotice,
+      reason: r.reason,
+    })),
+  };
 }

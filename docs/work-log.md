@@ -8779,3 +8779,128 @@ searching for "Dylan to", which finds only some. Now there's one list:
 ### How to see it
 
 Open `PLAN.md` and find "## Decisions waiting for Dylan". Start with "When each one matters".
+
+## 2026-10-04 — Phase 10, task 19: walkthrough polish
+
+- **Time spent:** 2.0 hours (started 08:03 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=7f05cb5e2e839a03 e2e=true`
+  (3,243 tests, 60 browser tests).
+- The independent auditor said `VERDICT: DONE`: all 17 findings PROVEN, no fakes found. It also
+  ran `npm run build` itself: no brand errors.
+- Audit findings fixed: L7, L8, L10, L15, L18, L20, L22, L28, L31, L32, L40, L44, L47, L49, L79,
+  L82, L83, and the log masker's date problem moved here from task 16.
+- Three review rounds before the check: two reviewers side by side, then a focused second look
+  at the fixes. Every finding was fixed or put to you.
+- Commit: see the next commit on `build/overnight` (the hash goes in the decision log).
+
+### What was built, in plain words
+
+These are the small things you'd have tripped over on your walkthrough.
+
+- **A worker the office books is told.** Before, when someone in the office pressed "Assign", the
+  worker heard nothing until the 24-hour reminder. Now they get a WhatsApp (or text): "Confirmed:
+  Sat 7 Nov 08:00–16:00 at Riverside Arena (steward). Details and instructions: …". The office
+  sees "They'll get a message to say so." It goes through a **job** (a task the background worker
+  runs): it is sent at most once, waits for the morning if it's night and the shift isn't soon, and
+  is logged. A worker who books themselves sees it on screen and gets no message.
+- **It never crosses the office's other messages.** If the office books someone at night and
+  then cancels or moves the shift, the worker gets one message that's true, not "you're booked"
+  plus "your shift was cancelled" for a booking they never heard about.
+- **Login links survive punctuation.** A phone can take the full stop after a link into the link,
+  and the link then "expired". The message now has a space after the link, and the link page
+  ignores anything after the code.
+- **"The client needs fewer staff" means one place fewer.** Before, cancelling someone for that
+  reason opened the place up again and, close to the start, offered it to others. Now the shift
+  needs one person fewer and nobody is offered it. On a shift's only place it's refused: the
+  office is told to cancel the whole shift instead. On a rota-sheet shift it's refused too: the
+  places are set in the sheet.
+- **A repeated phone call hears the same answer.** If Twilio sends the same call twice, the second
+  time used to say "We've just sent a link" even if the first said "not now". It now says what the
+  first said.
+- **The sign-off is checked every time.** Messages end "{Firm} Shift Team". A sign-off that breaks
+  that rule (a person's first name typed straight into the database, say) is never used, and the
+  onboarding check (`firm:check`) shows it as still to do.
+- **The baseline counts all 8 figures.** The onboarding check marked "Baseline numbers recorded"
+  done after one figure. Now it needs all 8, and names the missing ones.
+- **No firm can count other firms' activity.** Every action-log entry has a number from one counter
+  shared by all firms. Seeing those numbers would let a firm guess how busy its competitors are. They
+  no longer appear anywhere a firm sees: not in the log's "Older" link (that's now a scrambled code),
+  not in the page's hidden data, and not in the data downloads (each file numbers its own entries
+  1, 2, 3…).
+- **The AI's pay line can only restate facts.** Payroll's email can carry one line written by AI
+  per group of pay queries (no AI is connected yet). Golden rule 9 says pay disputes never get an AI
+  answer. The check now allows only the facts and a short list of plain words, so "paid correctly",
+  "underpaid" or "no hours missing" can't get through; the code's own line is used instead.
+- **At most 10 login links a day per number** (and per office email). Before, someone could make
+  the system send one number 288 messages a day, each one billed to the firm.
+- **Smaller ones:**
+  - `.gitignore` covers every `.env…` file;
+  - `.env.example` lists every setting, with a test that keeps it that way;
+  - "that week" wording on held shifts;
+  - fair rotation's tie-break shuffles per shift (before, the same worker always won a tie);
+  - `npm run firm:line` logs each change and accepts the firm name in any case;
+  - `npm run build` no longer prints false "brand" errors;
+  - a test's misleading name was fixed;
+  - the log **masker** (it hides phone numbers in the server's logs) no longer mistakes a phone
+    number written like a date, or glued to one, for a date.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Only office bookings send "Confirmed" | A worker's own booking is on their screen; each message costs | Message every booking |
+| "Fewer staff" refused on the last place or a sheet shift | Leaving the place open let anyone take it | Leave it open but not offered |
+| Daily cap of 10 links | Bounds cost; a login lasts 30 days | No cap; 5 a day |
+| The AI pay line: an allow-list | A block list can't list every way to judge | No AI line at all |
+| A scrambled "Older" code, and downloads numbered per file | The shared numbers must never reach a firm | Paging by time |
+
+### What the new tests prove
+
+- **`tests/integration/office.booked-notice.test.ts`:** the "Confirmed" message:
+  - exact words, sent once;
+  - a push to their phone;
+  - held at night unless the shift is soon;
+  - skipped and logged when cancelled first, the shift is over or the worker was deleted;
+  - never crossing a move or cancellation;
+  - a rota-sheet booking still told of a cancellation;
+  - no other firm's booking.
+- **`tests/integration/office.firm-change.test.ts`, `tests/integration/allocation.test.ts`:** "fewer
+  staff":
+  - one place fewer;
+  - no offers;
+  - the refusals;
+  - the logged move of a booking;
+  - fair rotation's hold isn't restarted.
+- **`tests/unit/auth.link-fragment.test.ts`, `tests/unit/proxy.test.ts`:** links with punctuation
+  after them still work.
+- **`tests/integration/office.action-log.test.ts`, `tests/unit/office.log-cursor.test.ts`,
+  `tests/unit/gdpr.event-numbers.test.ts`:** no shared numbers reach a firm; another firm's or an
+  altered "Older" code is ignored.
+- **Others:**
+  - the AI pay line refuses 24 verdicts (23 in one list, plus "No hours missing"), and the code's
+    own line passes for every kind of group;
+  - the daily caps;
+  - the repeated call;
+  - the sign-off and the baseline;
+  - `firm:line` run for real.
+- **The tests catch the bugs:** each fix was broken on purpose, and its test failed.
+
+### Parked, open, and things that need Dylan
+
+- **Decide (in PLAN.md, "Decisions waiting for Dylan"):**
+  - Office 10: the daily cap's trade-off. Someone who knows a worker's number can use up its 10
+    links for the day, and that worker then can't get a new link until midnight (UTC). A phone
+    already logged in keeps working.
+  - Messages 27: confirmation messages.
+  - Pay 9: the AI line.
+- **Parked:**
+  - an alert when someone keeps hitting the login limits;
+  - an office "send them a login link" button;
+  - a CSV re-import that puts back a place the office took away.
+
+### How to see it working
+
+With `npm run dev` running: log in to the office at `http://acme.localhost:3000/office`, open a
+shift, choose someone under "Assign someone", then "Assign". The terminal where `npm run dev` runs
+prints the "Confirmed: …" message within a few seconds (at night it waits for the morning unless
+the shift is within 24 hours), and the shift's History says "{name} was told they're booked."

@@ -414,7 +414,17 @@ describe("the notice and cancellation report", () => {
         )
       ).token;
     const q = parseNoticeQuery({});
-    expect(await officeNoticeReport(ctx, await sessionFor(t.resourcer), q)).not.toBeNull();
+    // One line in the report's range.
+    await t.event({
+      action: "offer.sent",
+      at: hoursFromNow(-1),
+      data: { shiftId: t.shiftId, workerId: t.ben, offeredBy: t.resourcer },
+    });
+    const report = await officeNoticeReport(ctx, await sessionFor(t.resourcer), q);
+    expect(report).not.toBeNull();
+    // No event numbers reach the office (audit L44: one counter shared by every firm).
+    expect(report?.rows.length).toBeGreaterThan(0);
+    for (const row of report?.rows ?? []) expect(row).not.toHaveProperty("eventId");
     expect(
       await officeNoticeReport(ctx, await sessionFor(await t.f.office("admin")), q),
     ).not.toBeNull();

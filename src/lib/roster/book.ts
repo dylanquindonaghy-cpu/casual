@@ -6,6 +6,7 @@ import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { retryAborted } from "../db/retry";
 import { maskText } from "../log/mask";
+import { queueShiftConfirmed } from "../notices/shift-confirmed";
 import { acceptOwnOffer, closeOffersIfFilled } from "../offers/close";
 import {
   checkEligibility,
@@ -85,7 +86,8 @@ export type BookingResult =
   | { status: "not_eligible"; reasons: string[]; codes: RuleCode[] }
   // Our copy of the firm's sheet is too old to confirm against: try again shortly.
   | { status: "source_stale" }
-  // Fair rotation: the place is held for workers with fewer hours this week until opensAt.
+  // Fair rotation: the place is held for workers with fewer hours that week (the shift's own week)
+  // until opensAt.
   | { status: "not_yet"; opensAt: Date }
   // The office user can't place staff (disabled, or payroll).
   | { status: "not_allowed" }
@@ -280,7 +282,7 @@ async function bookInTransaction(
       .set({ overrideReason: reason })
       .where(eq(assignments.id, assigned.assignmentId));
   }
-  await recordEvent(tx, {
+  const assignedEventId = await recordEvent(tx, {
     actorType: by.type,
     actorId: by.id,
     action: "shift.assigned",
@@ -294,12 +296,23 @@ async function bookInTransaction(
       noticeHours: noticeHours(check.startsAt, now),
       ...(result.overridden.length > 0 ? { overridden: result.overridden } : {}),
       ...(reason ? { reasonGiven: true } : {}),
+      // The office's booking queues a message to tell them (below); a change notice waits for it
+      // (src/lib/notices/firm-change.ts). A sheet's or a worker's own booking doesn't.
+      ...(by.type === "office" ? { bookingMessage: true } : {}),
     },
   });
   // A worker booked onto a shift they were offered (they took it, or the office placed them) has
   // answered that offer. Full now: every other offer still waiting is closed (src/lib/offers/close.ts).
   await acceptOwnOffer(tx, shiftId, workerId, now);
   await closeOffersIfFilled(tx, shiftId, now);
+  // Placed by the office: the worker is told by message (audit L22; src/lib/notices/shift-confirmed.ts).
+  // One who took it themselves sees it on screen.
+  if (by.type === "office") {
+    await queueShiftConfirmed(tx, {
+      eventId: assignedEventId,
+      assignmentId: assigned.assignmentId,
+    });
+  }
   return {
     status: "booked",
     assignmentId: assigned.assignmentId,

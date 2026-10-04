@@ -7,6 +7,7 @@ import { METRICS_ROLLUP_QUEUE, METRICS_ROLLUP_TICK_QUEUE } from "../../lib/metri
 import { INBOUND_MESSAGE_QUEUE } from "../../lib/inbound/job";
 import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
+import { SHIFT_CONFIRMED_QUEUE } from "../../lib/notices/shift-confirmed";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
 import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
 import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
@@ -65,6 +66,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   SHIFT_REMINDERS_QUEUE,
   OFFICE_OFFER_QUEUE,
   FIRM_CHANGE_NOTICE_QUEUE,
+  SHIFT_CONFIRMED_QUEUE,
   REQUEST_UPDATE_QUEUE,
   METRICS_ROLLUP_QUEUE,
   PAY_DIGEST_QUEUE,

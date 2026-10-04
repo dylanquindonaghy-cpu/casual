@@ -60,7 +60,15 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
   expect(name).not.toBe("");
   await page.getByRole("button", { name: `Assign ${name}` }).click();
   await expect(page.getByText(`${name} is booked on this shift.`)).toBeVisible();
-  await page.reload();
+  // The e2e worker process tells them they're booked (Phase 10 task 19), or holds it for quiet
+  // hours if this runs at night.
+  const booked = new RegExp(
+    `${name} was told they're booked\\.|Telling ${name} they're booked waits for quiet hours to end`,
+  );
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByText(booked).first()).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
 
   // Move it: a reason is required.
   await expect(page.getByRole("heading", { name: "Move, shorten or cancel" })).toBeVisible();
@@ -82,21 +90,33 @@ test("move a booked shift with a reason, see the notice logged, then cancel the 
     ),
   ).toBeVisible();
 
-  // The e2e worker process tells them (or holds it for quiet hours, if this runs at night).
+  // The e2e worker process tells them. At night their booking message is still held, so the
+  // change isn't sent separately: that message will give the new times.
   const told = new RegExp(
-    `${name} was told about the change\\.|Telling ${name} waits for quiet hours to end`,
+    `${name} was told about the change\\.|${name} wasn't told about the change: they hadn't been told about the booking yet`,
   );
   await expect(async () => {
     await page.reload();
     await expect(page.getByText(told).first()).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 20_000 });
 
-  // Cancel the booking, with a reason.
+  // Cancel the booking, with a reason. "The client needs fewer staff" would take the place away,
+  // and this shift has only the one: refused, nothing changed (Phase 10 task 19).
   await page.getByText(`Cancel ${name}'s booking`, { exact: true }).click();
   await page
     .locator("details[open]")
     .getByLabel("Why?")
     .selectOption({ label: "The client needs fewer staff" });
+  await page.getByRole("button", { name: `Yes, cancel ${name}'s booking` }).click();
+  await expect(
+    page.getByText(
+      "This is the shift's only place, so it can't go. To drop it, cancel the whole shift. Nothing was changed.",
+    ),
+  ).toBeVisible();
+  await page
+    .locator("details[open]")
+    .getByLabel("Why?")
+    .selectOption({ label: "Weather or safety" });
   await page.getByRole("button", { name: `Yes, cancel ${name}'s booking` }).click();
   await expect(
     page.getByText(

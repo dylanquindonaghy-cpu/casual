@@ -43,7 +43,12 @@ export async function requestWorkerLoginLink(
     ctx.firm.id,
     [
       { limit: LIMITS.loginPerIp, value: ip },
-      ...(mobile ? [{ limit: LIMITS.loginPerNumber, value: mobile }] : []),
+      ...(mobile
+        ? [
+            { limit: LIMITS.loginPerNumber, value: mobile },
+            { limit: LIMITS.loginPerNumberDaily, value: mobile },
+          ]
+        : []),
     ],
     { now, secret, entityType: "login_request" },
   );

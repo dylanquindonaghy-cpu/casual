@@ -50,6 +50,37 @@ describe("per number", () => {
     expect(await request(T, mobile, { ms: 15 * MINUTE })).toEqual({ status: "sent" });
   });
 
+  // Audit L49: 3 every 15 minutes alone allowed 288 messages a day to one number.
+  it("10 links per number a day: the 11th is refused until the next day, from any IP", async () => {
+    const T = await createTenant(su);
+    const mobile = await mobileOf(su, T.workerId);
+    // 3, 3, 3 and 1 across four 15-minute windows (09:00 to 09:45 UTC).
+    for (const [window, count] of [
+      [0, 3],
+      [1, 3],
+      [2, 3],
+      [3, 1],
+    ] as const) {
+      for (let i = 0; i < count; i++) {
+        expect(await request(T, mobile, { ms: window * 15 * MINUTE })).toEqual({ status: "sent" });
+      }
+    }
+    // 10:00: a fresh 15-minute window, but the day's 10 are used: the wait is until midnight UTC.
+    expect(await request(T, mobile, { ms: 60 * MINUTE })).toEqual({
+      status: "rate_limited",
+      retryAfterMinutes: 14 * 60,
+    });
+    expect(
+      (
+        await su.query(
+          "select data from events where firm_id = $1 and action = 'auth.rate_limited'",
+          [T.firmId],
+        )
+      ).rows,
+    ).toEqual([{ data: { limit: "login:mobile_day" } }]);
+    expect(await request(T, mobile, { ms: 15 * 60 * MINUTE })).toEqual({ status: "sent" });
+  });
+
   it("the limit looks exactly the same for a worker's number and an unknown one", async () => {
     const T = await createTenant(su);
     const known = await mobileOf(su, T.workerId);
@@ -199,6 +230,7 @@ describe("counting", () => {
     expect(rows.map((r) => r.bucket.replace(/:[A-Za-z0-9_-]{32}$/, "")).sort()).toEqual([
       "login:ip",
       "login:mobile",
+      "login:mobile_day",
     ]);
     for (const r of rows) {
       expect(r.bucket).not.toContain(mobile.slice(3));

@@ -48,7 +48,10 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 // Out of date: a later change to the same booking supersedes this one, and only the latest is
 // sent, describing the shift as the worker last knew it (from their last notice) and as it is now.
 // A move notice for someone no longer booked, or for a shift moved back to what they knew, isn't
-// sent. All are logged (shift.change_notice_skipped {reason}).
+// sent. Nor is any notice for a booking the office made that the worker hasn't been told about yet
+// (its shift_confirmed message, src/lib/notices/shift-confirmed.ts, gives the shift as it is when it
+// goes, and isn't sent for a booking cancelled first): the reviews of Phase 10 task 19 found the two
+// crossing. All are logged (shift.change_notice_skipped {reason}).
 
 export const FIRM_CHANGE_NOTICE_QUEUE = "firm-change-notice";
 
@@ -84,7 +87,10 @@ export type NoticeResult =
   | { status: "failed" }
   | { status: "held"; until: Date }
   | { status: "already" }
-  | { status: "skipped"; reason: "superseded" | "not_booked" | "unchanged" | "erased" } // logged
+  | {
+      status: "skipped";
+      reason: "superseded" | "not_booked" | "unchanged" | "erased" | "not_told";
+    } // logged
   | { status: "gone" }; // no such change for this booking
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -170,7 +176,9 @@ async function claimNotice(
   if (!row) return { status: "gone" };
   const tz = row.timezone;
 
-  const skip = async (reason: "superseded" | "not_booked" | "unchanged" | "erased") => {
+  const skip = async (
+    reason: "superseded" | "not_booked" | "unchanged" | "erased" | "not_told",
+  ) => {
     await recordEvent(tx, {
       actorType: "system",
       action: "shift.change_notice_skipped",
@@ -192,18 +200,35 @@ async function claimNotice(
   if (change.action !== "shift.cancelled" && row.bookingStatus !== "confirmed") {
     return skip("not_booked");
   }
+  // Placed by the office with a booking message queued (shift.assigned {bookingMessage: true}; a
+  // rota sheet's booking has none), and that message not yet claimed (still to go, or held for
+  // quiet hours). Its claim locks the shift and the booking, so it either came before this change
+  // (and is seen here) or reads the shift after it.
+  const { rows: booked } = await tx.execute<{ placed: boolean; told: boolean }>(sql`
+    select exists (select 1 from events where entity_id = ${payload.assignmentId}
+                    and action = 'shift.assigned'
+                    and data ->> 'bookingMessage' = 'true') as placed,
+           exists (select 1 from events where entity_id = ${payload.assignmentId}
+                    and action = 'shift.booked_notice') as told
+  `);
+  if (booked[0]?.placed && !booked[0].told) return skip("not_told");
 
   // What the worker was last told: the "as it was" of the earliest move on this booking since the
-  // last notice they were sent (moves after it were skipped as superseded and never reached them).
-  // With none, the shift as it stands (a cancellation doesn't change its times). So one message
-  // takes them from what they know to what's true now.
+  // last notice they were sent (moves after it were skipped as superseded and never reached them),
+  // or since their booking message (it gave the shift as it was then). With none, the shift as it
+  // stands (a cancellation doesn't change its times). So one message takes them from what they know
+  // to what's true now.
   const { rows: unsent } = await tx.execute<{ data: Record<string, unknown> }>(sql`
     select e.data from events e
      where e.entity_id = ${payload.assignmentId} and e.id <= ${payload.eventId}
        and e.action in ('shift.moved', 'shift.curtailed')
-       and e.id > coalesce((select max((c.data ->> 'changeEventId')::bigint) from events c
-                             where c.entity_id = ${payload.assignmentId}
-                               and c.action = 'shift.change_notice'), 0)
+       and e.id > greatest(
+             coalesce((select max((c.data ->> 'changeEventId')::bigint) from events c
+                        where c.entity_id = ${payload.assignmentId}
+                          and c.action = 'shift.change_notice'), 0),
+             coalesce((select max(b.id) from events b
+                        where b.entity_id = ${payload.assignmentId}
+                          and b.action = 'shift.booked_notice'), 0))
      order by e.id
      limit 1
   `);

@@ -333,16 +333,16 @@ describe("a worker's data export", () => {
     expect(idsIn(s.messages).sort()).toEqual(
       [t.ids.inbound, t.ids.reply, t.ids.early, t.ids.earlyReply].sort(),
     );
-    // Every row the action log's Worker filter finds, those not naming them included.
-    expect(idsIn(s.actionLog).sort()).toEqual(
-      [
-        t.events.added,
-        t.events.assigned,
-        t.events.login,
-        t.events.answered,
-        t.events.warned,
-      ].sort(),
+    // Every row the action log's Worker filter finds, those not naming them included: the same
+    // events, by what each says, numbered within the file (1, 2, 3… as they happened), never by the
+    // counter every firm shares (the reviews of Phase 10 task 19).
+    const { rows: logged } = await su.query<{ action: string; entity: string | null }>(
+      "select action, entity_id::text as entity from events where id = any($1::bigint[]) order by id",
+      [[t.events.added, t.events.assigned, t.events.login, t.events.answered, t.events.warned]],
     );
+    const log = s.actionLog as { id: unknown; action: string; entityId: string | null }[];
+    expect(log.map((r) => [r.action, r.entityId])).toEqual(logged.map((e) => [e.action, e.entity]));
+    expect(idsIn(s.actionLog)).toEqual(logged.map((_, i) => String(i + 1)));
     expect(s.logins).toHaveLength(1);
     expect(s.loginLinks).toHaveLength(1);
     expect(s.phoneNotifications).toHaveLength(1);
@@ -686,7 +686,8 @@ describe("offers written after the list was read", () => {
 describe("a change notice queued before an erasure", () => {
   it("is skipped and logged as erased; nothing is sent", async () => {
     const t = await everything();
-    const soon = await t.b.shift({ startsAt: hoursFromNow(30) });
+    // Two places: "fewer staff" can't take a shift's last place (Phase 10 task 19).
+    const soon = await t.b.shift({ startsAt: hoursFromNow(30), headcount: 2 });
     await t.b.booking(t.worker, soon, "confirmed");
     expect(
       await cancelBookingByOffice(ctx(t.b, t.admin), soon, t.worker, "fewer_staff"),

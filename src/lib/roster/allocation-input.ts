@@ -13,6 +13,7 @@ import { weekOf } from "../rules/eligibility";
 import { urgentWindowHoursSchema } from "../rules/urgent";
 import { localDateOf } from "../time/zoned";
 import { BOOKED_STATUSES } from "./eligibility-input";
+import { FIRM_CHANGE_REASONS } from "./firm-reasons";
 
 // Reads what the allocation gate (src/lib/rules/allocation.ts) needs for one worker and one shift,
 // inside the caller's withFirm transaction, and asks it. Only reads; the gate decides.
@@ -105,7 +106,10 @@ export async function loadAllocationGate(
     mine: boolean;
   }>(sql`
     select (select max(cancelled_at) from assignments
-             where shift_id = ${request.shiftId} and cancelled_at is not null) as last_cancel,
+             where shift_id = ${request.shiftId} and cancelled_at is not null
+               -- The office's "fewer staff" took its place away: no place opened (Phase 10 task 19).
+               and not (status = 'cancelled_firm'
+                        and cancel_reason = ${FIRM_CHANGE_REASONS.fewer_staff})) as last_cancel,
            exists (select 1 from assignments
                     where shift_id = ${request.shiftId} and worker_id = ${request.workerId}
                       and status not in (${CANCELLED})) as mine

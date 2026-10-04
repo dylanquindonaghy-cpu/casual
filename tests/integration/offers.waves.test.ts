@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MINUTE } from "@/lib/auth/clock";
@@ -620,5 +621,41 @@ describe("wiring", () => {
     const names = QUEUES.map((q) => q.name);
     expect(names).toContain(OFFER_WAVE_QUEUE);
     expect(names).toContain(ESCALATE_SHIFT_QUEUE);
+  });
+});
+
+// Phase 10 task 19 (audit L18; the reviews asked for the wave itself to be checked): among workers
+// tied on hours and last offer, the wave's picks follow the shift's own shuffle, not their ids.
+describe("fair rotation's tie-break in a real wave", () => {
+  it("picks the tied workers in the order of the shift and wave's hash", async () => {
+    const f = await bookingFirm(su, withFirm, {
+      settings: { allocation_mode: "fair_rotation", wave_size: 2, wave_minutes: 15 },
+    });
+    const tied: string[] = [];
+    for (const first of ["Ada", "Bo", "Cy", "Di", "Ed", "Flo"])
+      tied.push(await f.worker({ first }));
+    const shiftId = await f.shift({ startsAt: hoursFromNow(10) });
+    await su.query("update shifts set is_urgent = true where id = $1", [shiftId]);
+    const { transport, sent } = captureTransport();
+    const push: PushTransport = {
+      name: "none",
+      async send() {
+        return { status: "skipped" };
+      },
+    };
+    await runOfferWave({ firmId: f.firmId, idempotencyKey: "t:1", shiftId, wave: 1 }, withFirm, {
+      transport,
+      push,
+      baseDomain: "localhost:3000",
+      clock: { now: () => NOW },
+    });
+    const { rows } = await su.query<{ worker_id: string }>(
+      "select worker_id::text from offers where shift_id = $1 order by worker_id",
+      [shiftId],
+    );
+    const draw = (id: string) => createHash("sha256").update(`${shiftId}:1:${id}`).digest("hex");
+    const expected = [...tied].sort((a, b) => draw(a).localeCompare(draw(b))).slice(0, 2);
+    expect(rows.map((r) => r.worker_id)).toEqual([...expected].sort());
+    expect(sent).toHaveLength(2);
   });
 });

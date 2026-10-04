@@ -20,8 +20,10 @@ import {
   reminderPush,
   requestUpdateMessage,
   requestUpdatePush,
+  bookedPush,
   shiftCancelledByFirmMessage,
   shiftChangedByFirmMessage,
+  shiftConfirmedMessage,
   shiftEscalationEmail,
   shiftOfferMessage,
   shiftOfferSms,
@@ -137,6 +139,7 @@ describe("the doc's templates table", () => {
     "credential_expired",
     "shift_changed_by_firm",
     "shift_cancelled_by_firm",
+    "shift_confirmed",
     "request_update",
     "pay_query_update",
     "voicemail_received",
@@ -144,7 +147,6 @@ describe("the doc's templates table", () => {
   ];
   const NOT_BUILT: Record<string, string> = {
     shift_filled: "a reply to an offer: inbound WhatsApp (Phase 7)",
-    shift_confirmed: "booking confirmations are on screen; by message with notify (parked)",
     cancellation_ack: "cancellation confirmations are on screen; by message with notify (parked)",
   };
   it("every template is built or waiting for a named task", () => {
@@ -198,6 +200,21 @@ describe("the code says what the doc says", () => {
     );
     expect(shiftCancelledByFirmMessage(docVoice, { ...cancelled, site: null })).toBe(
       docBody("shift_cancelled_by_firm").replace(" at {site}", ""),
+    );
+  });
+
+  it("shift_confirmed, with and without a site", () => {
+    const shift = {
+      role: "{role}",
+      site: "{site}",
+      date: "{date}",
+      start: "{start}",
+      end: "{end}",
+      link: "{link}",
+    };
+    expect(shiftConfirmedMessage(docVoice, shift)).toBe(docBody("shift_confirmed"));
+    expect(shiftConfirmedMessage(docVoice, { ...shift, site: null })).toBe(
+      docBody("shift_confirmed").replace(" at {site}", ""),
     );
   });
 
@@ -509,6 +526,7 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
       shiftCancelledByFirmMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" }),
     ],
     ["shift_offer", shiftOfferMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
+    ["shift_confirmed", shiftConfirmedMessage(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_offer (SMS)", shiftOfferSms(voice, { ...shift, date: "Sat 7 Nov", link: "L" })],
     ["shift_urgent", shiftUrgentMessage(voice, { ...shift, link: "L" })],
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
@@ -557,6 +575,14 @@ describe("the pushes", () => {
     });
   });
 
+  it("the office booked them", () => {
+    const [title, body] = quotes(push, "Booked:");
+    expect(bookedPush({ site: "{site}", date: "{date}", start: "{start}" })).toEqual({
+      title,
+      body,
+    });
+  });
+
   it("request update", () => {
     const [title, body] = quotes(push, "Request update:");
     expect(requestUpdatePush({ type: "{type}", status: "{status}" })).toEqual({ title, body });
@@ -595,6 +621,7 @@ describe("every template function is checked here", () => {
         "credentialExpiringMessage",
         "credentialMarkedExpiredMessage",
         "credentialWeeklyListEmail",
+        "bookedPush",
         "changeWords",
         "firmChangePush",
         "loginCodeMessage",
@@ -609,6 +636,7 @@ describe("every template function is checked here", () => {
         "requestUpdatePush",
         "shiftCancelledByFirmMessage",
         "shiftChangedByFirmMessage",
+        "shiftConfirmedMessage",
         "shiftEscalationEmail",
         "shiftOfferMessage",
         "shiftOfferSms",
@@ -682,6 +710,24 @@ describe("the WhatsApp submission pack", () => {
         start: ex("shift_offer", "start"),
         end: ex("shift_offer", "end"),
         link: ex("shift_offer", "link"),
+      }),
+    shift_confirmed: () =>
+      shiftConfirmedMessage(voice("shift_confirmed"), {
+        role: ex("shift_confirmed", "roleName").replace(/ /g, "_"),
+        site: ex("shift_confirmed", "site"),
+        date: ex("shift_confirmed", "date"),
+        start: ex("shift_confirmed", "start"),
+        end: ex("shift_confirmed", "end"),
+        link: ex("shift_confirmed", "link"),
+      }),
+    shift_confirmed_no_site: () =>
+      shiftConfirmedMessage(voice("shift_confirmed_no_site"), {
+        role: ex("shift_confirmed_no_site", "roleName").replace(/ /g, "_"),
+        site: null,
+        date: ex("shift_confirmed_no_site", "date"),
+        start: ex("shift_confirmed_no_site", "start"),
+        end: ex("shift_confirmed_no_site", "end"),
+        link: ex("shift_confirmed_no_site", "link"),
       }),
     shift_offer_no_site: () =>
       shiftOfferMessage(voice("shift_offer_no_site"), {

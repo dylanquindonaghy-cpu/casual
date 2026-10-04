@@ -39,6 +39,7 @@ import { inboundMessageFirmTask } from "../../lib/inbound/reply";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
+import { shiftConfirmedTask, type ShiftConfirmedPayload } from "../../lib/notices/shift-confirmed";
 import { officeOfferTask, type OfficeOfferPayload } from "../../lib/offers/office-offer";
 import {
   PAY_DIGEST_TICK_CRON,
@@ -92,6 +93,7 @@ export interface JobDeps {
   };
   reminders?: FirmTask<ShiftRemindersPayload>;
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
+  shiftConfirmed?: FirmTask<ShiftConfirmedPayload>;
   requestUpdates?: FirmTask<RequestUpdatePayload>;
   payDigest?: FirmTask<PayDigestPayload>;
   payQueryUpdates?: FirmTask<PayQueryUpdatePayload>;
@@ -145,6 +147,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmTask(boss, deps.offers?.office ?? officeOfferTask);
   // Telling workers the office changed or cancelled their booked shift (golden rule 12).
   await registerFirmTask(boss, deps.firmChangeNotices ?? firmChangeNoticeTask);
+  // Telling a worker the office booked them onto a shift (audit L22).
+  await registerFirmTask(boss, deps.shiftConfirmed ?? shiftConfirmedTask);
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
   // Telling a worker payroll has sorted their pay query.
   await registerFirmTask(boss, deps.payQueryUpdates ?? payQueryUpdateTask);

@@ -225,6 +225,39 @@ describe("setting a firm's shifts line (npm run firm:line)", () => {
       before: line,
     });
     expect(await firmShiftsLine({ firm: { id: t.f.firmId }, run: withFirm })).toBeNull();
+    // Each change is in the firm's action log, without the number (audit L79); the refusals
+    // changed nothing and logged nothing.
+    const { rows: logged } = await su.query<{
+      actor_type: string;
+      entity_id: string;
+      data: object;
+    }>(
+      `select actor_type, entity_id::text, data from events
+        where firm_id = $1 and action = 'firm.shifts_line_changed' order by id`,
+      [t.f.firmId],
+    );
+    expect(logged.map((e) => e.data)).toEqual([
+      { change: "set" },
+      { change: "replaced" },
+      { change: "replaced" },
+      { change: "cleared" },
+    ]);
+    expect(logged.every((e) => e.actor_type === "system" && e.entity_id === t.f.firmId)).toBe(true);
+    expect(JSON.stringify(logged)).not.toMatch(/\+?44|7700/);
+    const { rows: theirs } = await su.query(
+      "select 1 from events where firm_id = $1 and action = 'firm.shifts_line_changed'",
+      [other.f.firmId],
+    );
+    expect(theirs).toEqual([]);
+  });
+
+  it("finds the firm however its slug is typed (audit L82)", async () => {
+    const t = await lineFirm(null);
+    const line = await freshLine();
+    expect(await setShiftsLine(urls.admin, `  ${t.slug.toUpperCase()} `, line)).toMatchObject({
+      status: "set",
+    });
+    expect(await firmShiftsLine({ firm: { id: t.f.firmId }, run: withFirm })).toBe(line);
   });
 
   it("reads UK numbers written the usual ways", () => {

@@ -15,14 +15,14 @@ const button = "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover
 const field = "rounded border border-slate-400 px-2 py-1";
 
 // The link to the next page: the same filters, continuing after the last line shown.
-function olderHref(filters: LogFilters, before: number): string {
+function olderHref(filters: LogFilters, before: string): string {
   const q = new URLSearchParams();
   if (filters.worker) q.set("worker", filters.worker);
   if (filters.shift) q.set("shift", filters.shift);
   if (filters.type) q.set("type", filters.type);
   if (filters.from) q.set("from", filters.from);
   if (filters.to) q.set("to", filters.to);
-  q.set("before", String(before));
+  q.set("before", before);
   return `/office/log?${q.toString()}`;
 }
 
@@ -125,8 +125,10 @@ export default async function ActionLogPage({
         <p className="mt-4">Nothing logged for these choices.</p>
       ) : (
         <ul className="mt-4 divide-y">
-          {log.entries.map((e) => (
-            <li key={e.id} className="py-3">
+          {/* Keyed by position, not the event's number: event numbers are shared by every firm and
+              a key reaches the page's source (audit L44). */}
+          {log.entries.map((e, i) => (
+            <li key={i} className="py-3">
               <p className="text-base text-slate-600">
                 {timeOnDay(e.at, log.timeZone)} · {e.type}
               </p>

@@ -6,6 +6,7 @@ import * as schema from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeUserMay, parts, type OfficeContext } from "../office/office-context";
+import { renumberEvents } from "./event-numbers";
 
 // A firm's own data, all of it, as one JSON file (docs/compliance.md "Firms can export their data
 // any time"; docs/runbooks.md "Offboarding a firm"). Every firm table, every column as stored
@@ -50,10 +51,12 @@ export async function collectFirmData(tx: FirmTx, now: Date): Promise<FirmExport
       Object.entries(getTableColumns(table)).filter(([key]) => key !== "firmId"),
     );
     const order = [columns.createdAt, columns.id].filter((c) => c !== undefined).map((c) => asc(c));
-    tables[getTableName(table)] = await tx
+    const rows = await tx
       .select(columns)
       .from(table)
       .orderBy(...order);
+    // The action log's own numbers stay out of the file (src/lib/gdpr/event-numbers.ts).
+    tables[getTableName(table)] = table === schema.events ? renumberEvents(rows) : rows;
   }
   return { exportedAt: now, firm: firm ?? {}, tables };
 }

@@ -320,7 +320,7 @@ every step works.
       `docs/overnight-log.md`, `docs/compliance.md` and `docs/privacy-notice.md`), grouped, with the
       safe default now in force. The Parking lot steps say who does each step (Dylan, or Claude
       after Dylan), and stale references are fixed. (M26, L13, L36, L37, L59, L60, L89)
-- [ ] Walkthrough polish: the low findings a walkthrough would hit (L7, L8, L10, L15, L18, L20,
+- [x] Walkthrough polish: the low findings a walkthrough would hit (L7, L8, L10, L15, L18, L20,
       L22, L28, L31, L32, L40, L44, L47, L49, L79, L82, L83). This includes: an office-placed worker
       is told they're booked; login links aren't followed by a full stop; an office cancellation
       for "the client needs fewer staff" doesn't re-offer the place; `npm run build` logs no brand
@@ -451,7 +451,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 4 | The 3-offers-a-day cap: fixed, or per firm; urgent offers count towards it | Fixed; urgent ones count | Parking lot (offer cap items) |
 | 5 | Re-offer to workers whose earlier offers became "filled elsewhere" when the office reopens a shift? | No | Parking lot |
 | 6 | A wave held by quiet hours past the shift's start | Stops as "started"; only the escalation tells the office | "Connect Twilio", last paragraph |
-| 7 | Any cancellation that reopens a place inside the urgent window starts waves (the office's too); someone who cancelled is never offered it again. "The client needs fewer staff" will stop re-offering in Phase 10 task 19: lower the places instead? | As stated | log, Phase 4; Parking lot; Phase 10 task 19 |
+| 7 | Any cancellation that reopens a place inside the urgent window starts waves (the office's too); someone who cancelled is never offered it again. The office's "The client needs fewer staff" removes the place instead (one fewer needed, nobody offered it; a shift's last place stays) | As stated (fewer staff: since Phase 10 task 19) | log, Phase 4 and Phase 10 task 19 |
 | 8 | The escalation email: 3 hours before the start, to admins and resourcers, once per shift (not per gap) | As stated | Parking lot "Offer waves follow-ups" |
 | 9 | A message that fails isn't retried (at most once: lost, never doubled) | As stated | log, Phases 4 and 10 |
 | 10 | Reminders at 24 hours and 2 hours, held by quiet hours (a 2-hour one before 07:00 is skipped); no opt-out | As stated | Parking lot "Shift reminders follow-ups" |
@@ -470,7 +470,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 23 | **When you create the accounts (Twilio):** a firm with no shifts line yet: a shared ShiftDesk number, or nothing until its line is live | No sending number set | "Connect Twilio" step 8 |
 | 24 | **When you create the accounts (Twilio):** voicemail transcription: Twilio's basic one, or Amazon Transcribe later | Twilio's | "Connect Twilio" step 10 |
 | 25 | **When you create the accounts (Meta):** service messages over 1,000 a month per number are charged (from 1 October 2026: a payment method on file or they stop); each firm needs Meta business verification (days) | Not connected | compliance.md |
-| 26 | A firm may shorten its sign-off ("Acme Shift Team"), never a person's name | Allowed | log, Phase 8 branding |
+| 26 | A firm may shorten its sign-off ("Acme Shift Team"), never a person's name | Allowed (checked again as each message is built: one stored that breaks the rule isn't used) | log, Phase 8 branding and Phase 10 task 19 |
+| 27 | A worker the office places on a shift ("Assign") gets a `shift_confirmed` message (a billed WhatsApp, held by quiet hours unless the shift is soon); one who takes a shift themselves only sees it on screen | As stated | log, Phase 10 task 19 |
 
 ### Rota sheets and imports
 
@@ -504,6 +505,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 6 | The pay query form: behind the pay code; 8 weeks of shifts or 90 days back; details only for "Something else" | As stated | Parking lot |
 | 7 | Payroll sorts a whole group with one note; no "declined" status | As stated | log, Phase 6 |
 | 8 | The pay area is for payroll and admins only | As stated | log, Phase 6 |
+| 9 | The AI's one line under each group in payroll's digest is used only if it restates the facts: apart from the facts' own phrases, only a short list of plain words ("staff", "queries", "the week", "rate"…), so no verdict ("paid correctly", "underpaid", "no hours missing") or promise gets through; otherwise the code's line only. Keep the AI line like this, or drop it and show only the code's line? | Allow-list; no AI connected | log, Phase 10 task 19 (audit L47) |
 
 ### Office and access
 
@@ -518,7 +520,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 7 | The office's "make inactive" beats the sheet and files; "Bookings to check" on Today, with nothing escalating one left unanswered as the shift gets close (mark it urgent, or email the office?) | As stated | log, Phase 10 task 7; Parking lot |
 | 8 | The pilot metrics' definitions and default period (the last 7 complete days) | As stated | Parking lot; log, Phase 9 |
 | 9 | The action log: last 7 days by default, 92 days per search, no export; Today: no email about a new worker request | As stated | log, Phase 5 |
-| 10 | **Before a pilot:** login limits at a briefing on venue Wi-Fi (one internet address for everyone): raise, or per firm? | 10 per address and 3 per number every 15 minutes | Parking lot |
+| 10 | **Before a pilot:** login limits at a briefing on venue Wi-Fi (one internet address for everyone): raise, or per firm? And the daily cap's trade-off: anyone who knows a worker's number can use up its 10 links for the day, and that worker then can't get a new link until midnight (UTC; a phone already logged in keeps working, and the office has no "send them a link" button yet: parked). Keep it, raise it, or drop it? | 10 per address and 3 per number every 15 minutes; at most 10 links per number (or office email) a day | Parking lot; log, Phase 10 task 19 |
 | 11 | Workers can't change their own contact details (the office does) | As stated | log, Phase 3 profile |
 
 ### Deploy, servers and security
@@ -1072,7 +1074,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   2. They fill it in for one normal week (and a busy one if they can).
   3. Work out the 8 figures (the sheet says how) and enter them on the office's Pilot figures page,
      "Baseline (week 0)".
-  4. `npm run -s firm:check -- --firm <slug>` shows "[x] Baseline numbers recorded". Tick the task.
+  4. `npm run -s firm:check -- --firm <slug>` shows "[x] Baseline numbers recorded" (only once all 8
+     are saved; with fewer it names the ones still to enter). Tick the task.
 - **Pre-pilot checks on the server** (the Phase 9 "Pre-pilot checklist in `docs/testing.md` all
   ticked" task is blocked on them: 5 of its 7 items need outside services). Two are ticked from
   the local e2e run (the load smoke, log masking); the rest, in order, once each thing exists:
@@ -1918,6 +1921,14 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - With the accounts: L26 (payroll digest email) with "Connect Amazon SES", L27 (real Twilio
     sample payloads) and L34 (call-to-text by SMS) with "Connect Twilio", L35 with "Connect the real
     web push".
+- **Walkthrough polish follow-ups (Phase 10 task 19):**
+  - An alert to Dylan when a number or email keeps hitting the login limits (the audit's L49 asked
+    for one; the daily cap is built, the alert isn't): count `auth.rate_limited` in the ops alerts.
+  - An office "Send them a login link" button on a worker's page, so a worker locked out by the
+    daily cap (10 links a day per number) can be helped without waiting for midnight.
+  - A CSV re-import of an older file can put back a place the office took away with "The client
+    needs fewer staff" (an import may raise a shift's places). Nobody is told; decide whether an
+    import should skip a shift whose places the office lowered.
 
 ## Hours log
 
@@ -2013,3 +2024,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-04 | 10 | 0.9 | Logs are safe and checked: every log string cut to 2,000 characters and request paths to 512 before masking, never leaving part of a number, email or token at the cut; every masking pattern a single pass (the old email and URL patterns took 30–60 s on a 200,000-character string; 31 timing attacks now well under a second); the e2e scan also catches numbers by a full stop, glued, dotted or tabbed, glued emails and login tokens (outside the console transport's own prints, which now end with their own line); the teardown fails on any unexpected server error, with the web app's uncaught errors and the worker's failed ticks now logged as JSON; "The destination stream closed early" explained (the connection closed mid-page) and logged as a warning; regression tests for the search address and Next's logging; two reviews' findings fixed; 3103 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.9 | Deploy and runbooks work as written: `deploy.sh` applies `.env` changes and starts a newly turned-on worker (same image: no migration; it says "Applied the settings in .env"), tested by running the real script against a stand-in docker; the worker has a sign of life and a health check, so a crashing one fails the deploy; images carry their commit, printed as "Deployed … (commit <SHA>)"; the Caddyfile checked by Caddy itself (validate and its JSON) and sending HSTS; database TLS on in production (`sslmode=verify-full` against Amazon's bundle in the image; the app refuses a production database address without it); the runbook trial after Twilio and SES with a test firm, rollback from the image list with the timer stopped, and other steps matched to the scripts; two reviews' findings fixed (the image build had broken: caught and guarded); 3126 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 0.7 | Every decision waiting for Dylan in one place: a "Decisions waiting for Dylan" section (130 decisions in 10 groups, each listed once with the default in force and where to read more, plus 13 checks and to-dos), with a "when each one matters" list built from each row's deadline (before any real data, when you create the accounts, before submitting the WhatsApp templates, before a pilot…); every "Connect …" step says You or Claude, and that each service's sender is still to be written; stale references fixed across the plan, the ADRs, the rules and compliance docs and the work log; a fact-checker (about 140 claims) and a completeness critic found 17 things to fix (all done); 3126 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
+| 2026-10-04 | 10 | 2.0 | Walkthrough polish: an office-placed worker gets a "Confirmed: …" message (a `shift-confirmed` job, claim → send → record, never crossing a change notice); login links survive a full stop or quote after them; "The client needs fewer staff" takes the place away (refused on the last place or a sheet shift); a repeated call hears the first answer; the sign-off rule checked as messages are built; the baseline needs all 8 figures; no shared event numbers in the log, the notice report or the data downloads; the AI pay line may only restate facts (an allow-list); 10 login links a day per number or email; `firm:line` logged and guarded; no brand errors in `npm run build`; the masker's dates are real ones; three review rounds (2 + 1 focused), all findings fixed; 3243 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |

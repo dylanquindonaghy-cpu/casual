@@ -29,6 +29,7 @@ import { officeUserMay, parts, type OfficeContext } from "../office/office-conte
 import { eventsAboutWorker } from "../office/action-log";
 import { csvCell } from "../office/notice-report";
 import { rosterId } from "../roster/book";
+import { renumberEvents } from "./event-numbers";
 
 // A worker's data, for a subject access request (docs/runbooks.md "GDPR requests"; UK GDPR: send
 // it within a month). Everything this firm holds about one worker: their details, credentials,
@@ -242,7 +243,8 @@ export async function collectWorkerData(
       payRecords: payLines,
       payQueries: payQuestions,
       messages: messageRows,
-      actionLog: logRows,
+      // Numbered within this file, not by the counter every firm shares (event-numbers.ts).
+      actionLog: renumberEvents(logRows),
       logins,
       loginLinks,
       phoneNotifications: phones,

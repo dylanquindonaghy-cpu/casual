@@ -93,7 +93,8 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    compared in constant time. A correct code opens the pay pages for 30 minutes
    (`sessions.stepped_up_until`).
 6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 10 link
-   requests per IP (anything typed, junk included) and 3 per number; 20 failed link uses per IP
+   requests per IP (anything typed, junk included) and 3 per number, plus at most 10 per number a
+   day (Phase 10, audit L49: each link is a billed message); 20 failed link uses per IP
    (successful logins don't count). Checked IP first, stopping at the first refusal, so a refused
    IP can't use up a worker's allowance. Link requests are counted in their own transaction before
    the real work (a request that fails still counts), with one conditional upsert (parallel
@@ -111,7 +112,7 @@ Same flow as workers (`src/lib/auth/office-login.ts`, shared parts in `link-logi
 email → the same answer whether or not it's known → `send-portal-link` emails a one-time link to
 `/office/l#<token>` (15 minutes, single use, hashed) → a 30-day session in the `__Host-sd_office`
 cookie (a worker and an office session can exist side by side; neither works as the other).
-Limits: 3 links per address and 10 per IP every 15 minutes. Each office area lists the roles
+Limits: 3 links per address and 10 per IP every 15 minutes, and 10 per address a day. Each office area lists the roles
 that may use it (`src/lib/auth/roles.ts`); pages check with `requireOfficeArea()` and a role
 without access gets the not-found page. An admin can turn someone's office access off or back on,
 change their role, or log them out on every device (the office team page, or `firm:office-user`;

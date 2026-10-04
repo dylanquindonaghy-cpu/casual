@@ -13,19 +13,29 @@ import { setShiftsLine } from "./shifts-line-owner";
 //   npm run firm:line -- --firm acme --number "+44 7700 900111" --replace
 //   npm run firm:line -- --firm acme --clear
 
-const { values } = parseArgs({
-  options: {
-    firm: { type: "string" },
-    number: { type: "string" },
-    clear: { type: "boolean", default: false },
-    replace: { type: "boolean", default: false },
-  },
-});
+const USAGE =
+  'Usage: npm run firm:line -- --firm <slug> (--number "+44 7700 900000" [--replace] | --clear)';
 
+// An unknown or malformed option gets the usage line, not a stack trace (audit L82).
+function readArgs() {
+  try {
+    return parseArgs({
+      options: {
+        firm: { type: "string" },
+        number: { type: "string" },
+        clear: { type: "boolean", default: false },
+        replace: { type: "boolean", default: false },
+      },
+    }).values;
+  } catch {
+    console.error(USAGE);
+    process.exit(2);
+  }
+}
+
+const values = readArgs();
 if (!values.firm || (!values.number && !values.clear) || (values.number && values.clear)) {
-  console.error(
-    'Usage: npm run firm:line -- --firm <slug> (--number "+44 7700 900000" [--replace] | --clear)',
-  );
+  console.error(USAGE);
   process.exit(2);
 }
 

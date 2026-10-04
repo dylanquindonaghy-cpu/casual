@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import { isBrandColour, safeLogoUrl } from "../src/lib/tenancy/brand-values";
+import { SIGN_OFF_RULE } from "../src/lib/tenancy/sign-off";
 
 // Setting a firm's brand (Phase 8, `npm run firm:brand`, scripts/firm-brand.ts): its name, logo
 // address, colour and sign-off. As the owner, like the shifts line (scripts/shifts-line-owner.ts):
@@ -21,10 +22,9 @@ export type SetBrandResult =
   | { status: "no_firm" }
   | { status: "bad"; field: "name" | "colour" | "logo" | "signOff" };
 
-// Golden rule 8: messages are signed "[Firm name] Shift Team". A firm may shorten the name part
-// ("Acme Shift Team" for "Acme Events Ltd"), in letters, digits, spaces and & ' . - ; the rest is
-// fixed, so it's never a person's name.
-const SIGN_OFF = /^[\p{L}\p{N}&'.\- ]{1,48} Shift Team$/u;
+// Golden rule 8: messages are signed "[Firm name] Shift Team". A firm may shorten the name part;
+// the rule (src/lib/tenancy/sign-off.ts) is the one every message is checked against too.
+const SIGN_OFF = SIGN_OFF_RULE;
 const NAME = /^[^\p{Cc}]{2,80}$/u;
 
 // Spaces around trimmed and runs of spaces made one; checked after, so a new line or tab (a

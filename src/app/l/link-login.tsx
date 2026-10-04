@@ -8,6 +8,7 @@ import { forgetThisPhonesPush } from "@/lib/portal/push-client";
 import { TooManyTries } from "../too-many-tries";
 import { consumeLoginLinkAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
+import { tokenFromFragment } from "@/lib/auth/link-fragment";
 
 // The login link is /l#<token>. The token stays in the fragment, which browsers never send to
 // the server; this reads it, clears it from the address bar and history, and sends it only
@@ -40,8 +41,8 @@ export function LinkLogin({
   const router = useRouter();
 
   useEffect(() => {
-    const fromHash = window.location.hash.replace(/^#/, "");
-    if (fromHash) window.history.replaceState(null, "", window.location.pathname);
+    const fromHash = tokenFromFragment(window.location.hash);
+    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname);
     // Keep the first value read: in development React runs this effect twice, and the second run
     // finds the fragment already cleared. Reading the fragment is only possible in the browser.
     // eslint-disable-next-line react-hooks/set-state-in-effect

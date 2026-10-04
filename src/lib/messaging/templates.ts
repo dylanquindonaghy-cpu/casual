@@ -6,9 +6,10 @@ export interface FirmVoice {
   signOff: string;
 }
 
-// login_link (WhatsApp, utility)
+// login_link (WhatsApp, utility). The link comes last, with a space after it, never a full stop: a
+// full stop straight after the link can end up in the link a phone opens (audit L10).
 export function loginLinkMessage(firm: FirmVoice, link: string): string {
-  return `Here's your ${firm.name} shifts link: ${link}. It works for 15 minutes and only for you. — ${firm.signOff}`;
+  return `Here's your ${firm.name} shifts link. It works for 15 minutes and only for you: ${link} — ${firm.signOff}`;
 }
 
 // login_code (WhatsApp, utility): the pay pages' 6-digit step-up code.
@@ -195,6 +196,23 @@ export function shiftCancelledByFirmMessage(
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
   return `Your shift on ${shift.date} ${shift.start}–${shift.end}${at} has been cancelled by the office. Open shifts: ${shift.link}. — ${firm.signOff}`;
+}
+
+// shift_confirmed (WhatsApp or SMS, utility): the office booked the worker onto a shift ("Assign",
+// src/lib/notices/shift-confirmed.ts). A worker who takes a shift themselves sees it on screen.
+export function shiftConfirmedMessage(
+  firm: FirmVoice,
+  shift: {
+    role: string;
+    site: string | null;
+    date: string;
+    start: string;
+    end: string;
+    link: string;
+  },
+): string {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return `Confirmed: ${shift.date} ${shift.start}–${shift.end}${at} (${shift.role.replace(/_/g, " ")}). Details and instructions: ${shift.link}. — ${firm.signOff}`;
 }
 
 // request_update (WhatsApp or SMS, utility): the office answered a worker's request. {type} is the
@@ -497,6 +515,15 @@ export function firmChangePush(
         title: "Shift cancelled",
         body: `${change.date} ${change.start} was cancelled by the office.`,
       };
+}
+
+// Push (title / body), docs/messaging-templates.md "Push": the office booked the worker onto a shift.
+export function bookedPush(shift: { site: string | null; date: string; start: string }): {
+  title: string;
+  body: string;
+} {
+  const at = shift.site ? ` at ${shift.site}` : "";
+  return { title: "Shift booked", body: `${shift.date} ${shift.start}${at}. Tap for details.` };
 }
 
 // Push (title / body): the office answered a request. {Type} is the kind as the list names it

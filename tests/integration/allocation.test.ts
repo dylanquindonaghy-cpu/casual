@@ -5,6 +5,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { bookShift } from "@/lib/roster/book";
 import { cancelBooking } from "@/lib/roster/cancel";
+import { FIRM_CHANGE_REASONS } from "@/lib/roster/firm-reasons";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -130,6 +131,36 @@ describe("fair rotation", () => {
         )
       ).status,
     ).toBe("booked");
+  });
+});
+
+describe("fair rotation and the office's 'fewer staff'", () => {
+  // The reviews of Phase 10 task 19: that cancellation takes its place away, so no place opened,
+  // and the shift's other open place isn't held again.
+  it("taking a place away doesn't restart the hold on the place still open", async () => {
+    const { f, target, ann, ben, cal } = await fairFirm();
+    await su.query("update shifts set created_at = $1 where id = $2", [
+      later(-2 * 24 * 60),
+      target,
+    ]);
+    expect((await book(f, target, ann, later(-10))).status).toBe("booked");
+    expect((await book(f, target, ben, later(-10))).status).toBe("booked");
+    const resourcer = await f.office("resourcer");
+    expect(
+      await cancelBooking(
+        withFirm,
+        f.firmId,
+        {
+          shiftId: target,
+          workerId: ann,
+          reason: FIRM_CHANGE_REASONS.fewer_staff,
+          by: { type: "office", id: resourcer },
+        },
+        { clock: at(later(-1)) },
+      ),
+    ).toMatchObject({ status: "cancelled", placesNow: 2 });
+    // Cal (16 hours) takes the one open place at once: nobody's held.
+    expect((await book(f, target, cal)).status).toBe("booked");
   });
 });
 

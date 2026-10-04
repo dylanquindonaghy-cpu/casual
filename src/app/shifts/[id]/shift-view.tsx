@@ -76,7 +76,7 @@ export function ShiftView({
         <>
           <Heading shift={page.shift} timeZone={timeZone} />
           <p className="mt-4 font-semibold">
-            Offered first to people with fewer hours this week. You can take it from{" "}
+            Offered first to people with fewer hours that week. You can take it from{" "}
             {soonLabel(page.opensAt, now, timeZone)}.
           </p>
         </>

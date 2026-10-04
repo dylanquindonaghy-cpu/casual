@@ -8791,7 +8791,7 @@ Open `PLAN.md` and find "## Decisions waiting for Dylan". Start with "When each 
   L82, L83, and the log masker's date problem moved here from task 16.
 - Three review rounds before the check: two reviewers side by side, then a focused second look
   at the fixes. Every finding was fixed or put to you.
-- Commit: see the next commit on `build/overnight` (the hash goes in the decision log).
+- Commit `11db2e3`, pushed to `build/overnight`.
 
 ### What was built, in plain words
 

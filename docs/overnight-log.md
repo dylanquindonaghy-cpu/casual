@@ -8200,3 +8200,4 @@ none; it ran `npm run build` itself: 0 brand errors, every route dynamic).
 
 **Hours:** 2.0 (08:03 to 10:05 UTC). Phase 10 so far: 17.2 of the 30–45 h estimate.
 
+**Commit:** `11db2e3`, pushed to `build/overnight`. (`gh` isn't installed, so CI wasn't checked.)

@@ -9,7 +9,7 @@ import { consumeWorkerLoginLink, requestWorkerLoginLink } from "@/lib/auth/worke
 import { withFirm, type WithFirm } from "@/lib/db/scoped";
 import { captureTransport, eventMark, eventsFor, mobileOf, tokenFrom } from "../helpers/auth";
 import { superuserPool } from "../helpers/db";
-import { fulfilled, race } from "../helpers/race";
+import { barrier, fulfilled, race } from "../helpers/race";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 
 // Login rate limits: 3 links per number and 10 per IP every 15 minutes, 20 link uses per IP.
@@ -197,11 +197,15 @@ describe("counting", () => {
     const T = await createTenant(su);
     const now = new Date(t0.getTime() + MINUTE);
 
+    // Control: all ten read the count before any writes (a barrier forces it; without it, on a
+    // slow machine some read after others wrote), so each writes the same count and hits are lost.
+    const allRead = barrier(10);
     const naive = await race(10, T.firmId, async (tx) => {
       const bucket = "naive:bucket";
       const { rows } = await tx.execute<{ hits: number }>(
         sql`select hits from auth_throttle where bucket = ${bucket} and window_start = ${t0}`,
       );
+      await allRead();
       const hits = (rows[0]?.hits ?? 0) + 1;
       await tx.execute(sql`
         insert into auth_throttle (firm_id, bucket, window_start, hits)

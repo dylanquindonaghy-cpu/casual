@@ -17,7 +17,7 @@ import { withFirm } from "@/lib/db/scoped";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { captureTransport, eventMark, eventsFor, mobileOf, quietLogger } from "../helpers/auth";
 import { superuserPool } from "../helpers/db";
-import { fulfilled, race } from "../helpers/race";
+import { barrier, fulfilled, race } from "../helpers/race";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 
 // The pay pages' step-up: a 6-digit code by WhatsApp, 10 minutes, 5 tries, 30 minutes of access.
@@ -147,12 +147,16 @@ describe("tries", () => {
     const T = await createTenant(su);
     const now = new Date(t0.getTime() + MINUTE);
 
+    // Control: all ten read the count before any writes (a barrier forces it; without it, on a
+    // slow machine some read after others wrote), then each writes its own count + 1.
     const naiveSession = await loggedIn(T);
     await codeAt(T, naiveSession.id, 0);
+    const allRead = barrier(10);
     const naive = await race(10, T.firmId, async (tx) => {
       const { rows } = await tx.execute<{ id: string; attempts: number }>(
         sql`select id, attempts from otp_codes where session_id = ${naiveSession.id} and consumed_at is null`,
       );
+      await allRead();
       const row = rows[0];
       if (!row || row.attempts >= 5) return false;
       await tx.execute(

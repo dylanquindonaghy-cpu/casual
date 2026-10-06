@@ -9193,3 +9193,20 @@ Nothing new for this task.
 
 Separately, GitHub's check on the previous run's log commit failed on one more test that fails
 at random (a login race test). That's next, in its own commit (see the next entry).
+
+## 2026-10-06 — GitHub's checks again: four more race tests
+
+- **Time spent:** 0.3 hours (16:36 to 16:52 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=8953bec54d3a0cdf e2e=true`.
+- **Why:** GitHub's check on the earlier log commit failed on one more test that fails at random:
+  a login-link race test.
+
+Some tests prove a safety rule by also running the *wrong* way on purpose. This one sends ten
+taps of the same login link at once, and expects the wrong way to let more than one person in.
+That only shows if the ten taps really overlap. On GitHub's slower machines they sometimes
+didn't, so the wrong way looked right and the test failed. It's the same fault as the session
+tests fixed earlier today.
+
+Four tests had this shape (login links, office login links, pay-page codes and the rate limit).
+Each now makes all ten requests read first and only then write, every time. The halves that test
+the real code are unchanged.

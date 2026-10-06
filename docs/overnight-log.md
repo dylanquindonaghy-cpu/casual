@@ -8666,4 +8666,27 @@ Fakes found: none. No `.only`, `.skip` or `.todo` in the touched tests, and inva
 To reach DONE: nothing.
 ```
 
-**Ticked** in `PLAN.md` at 16:37 UTC. **Hours:** 0.6 (16:02 to 16:37).
+**Ticked** in `PLAN.md` at 16:36 UTC. **Hours:** 0.6 (16:02 to 16:36).
+**Committed** as `69c6fd9` and pushed (`a00157f..69c6fd9`).
+
+## 2026-10-06 16:37 UTC — CI again: four more race "controls" (one failed in run 37492221771)
+
+**Why:** step 7: the previous run's log commit (`a00157f`, docs only) failed CI on
+`auth.magic-link` "10 taps at the same moment: exactly one logs in (control: a read-then-write
+version lets several in)": `expected 1 to be greater than 1`. The CI-fix commit itself
+(`40a7590`) passed.
+
+**Root cause:** the same as the session controls fixed earlier today. A control shows the naive
+read-then-write version acting more than once only if the reads overlap. `race()` lines up only
+the start of each statement, so on a slow CI machine one request can commit before the others
+read. Four controls have this shape: `auth.magic-link:103`, `auth.office:416`, `auth.otp:146`
+and `auth.rate-limit:196`.
+
+**Fix (tests only):** a barrier right after each control's read, so all ten read before any
+writes, as `auth.session` and `auth.magic-link:170` already do. Each control then acts ten times
+every run (10 > 1, 10 > 5, 10 > 3). The real halves are one atomic statement each, with the same
+answer in any order, and are unchanged. Every other `race()` in the suite tests the real code.
+The four files together passed 4 runs of 4.
+
+**Verify:** `VERIFIED tree=8953bec54d3a0cdf e2e=true`. **Hours:** 0.3 (16:36 to 16:52). CI for
+`69c6fd9` (Phase 11 task 2): passed (run 37496985381).

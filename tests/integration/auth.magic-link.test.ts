@@ -105,12 +105,16 @@ describe("single use", () => {
     const now = new Date();
 
     // Canary: check-then-update, the bug this test exists to catch, lets more than one through.
+    // A barrier makes all ten look before any writes (without it, on a slow machine one can
+    // commit before the others look, and then nothing collides).
     const naiveToken = await linkAt(T, now);
+    const allLooked = barrier(10);
     const naive = await race(10, T.firmId, async (tx) => {
       const [link] = await tx
         .select({ id: magicLinks.id })
         .from(magicLinks)
         .where(and(eq(magicLinks.tokenHash, hashToken(naiveToken)), isNull(magicLinks.usedAt)));
+      await allLooked();
       if (!link) return null;
       await tx.update(magicLinks).set({ usedAt: now }).where(eq(magicLinks.id, link.id));
       return link.id;

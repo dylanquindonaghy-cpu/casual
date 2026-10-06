@@ -26,7 +26,7 @@ import {
   quietLogger,
 } from "../helpers/auth";
 import { superuserPool } from "../helpers/db";
-import { fulfilled, race } from "../helpers/race";
+import { barrier, fulfilled, race } from "../helpers/race";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 
 // Office login: work email -> one-time link by email -> 30-day session with a role.
@@ -416,13 +416,16 @@ describe("office links: 15 minutes, used once, only for an active user", () => {
   it("10 taps at the same moment: exactly one logs in (control: a read-then-write version lets several in)", async () => {
     const T = await createTenant(su);
 
-    // Canary: check-then-update on an office link lets more than one through.
+    // Canary: check-then-update on an office link lets more than one through. A barrier makes all
+    // ten look before any writes (without it, one can commit before the others look).
     const naive = await officeLinkFor(T);
+    const allLooked = barrier(10);
     const naiveResults = await race(10, T.firmId, async (tx) => {
       const [link] = await tx
         .select({ id: magicLinks.id })
         .from(magicLinks)
         .where(and(eq(magicLinks.tokenHash, hashToken(naive.token)), isNull(magicLinks.usedAt)));
+      await allLooked();
       if (!link) return null;
       await tx.update(magicLinks).set({ usedAt: NOW }).where(eq(magicLinks.id, link.id));
       return link.id;

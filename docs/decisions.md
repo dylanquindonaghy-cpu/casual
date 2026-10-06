@@ -20,6 +20,8 @@ agreement + DPA.
 
 ## ADR-002: AWS London — Lightsail + managed Postgres + pg-boss + Bedrock + SES
 
+**Status:** superseded by ADR-021 (2026-10-06) for hosting, the database, AI and email; the pg-boss
+decision stands.
 **Context:** Want fewest sign-ups, UK data residency, low cost, low ops.
 **Decision:** One AWS account (eu-west-2). Lightsail 4 GB (~$24) + managed Postgres (~$15) ≈
 £29/month. Jobs and timers in pg-boss (Postgres). Claude via Bedrock EU profile. SES for email.
@@ -134,6 +136,10 @@ directory role (needs role memberships the managed master user may not be able t
 by name without them). `pg_dump` as the owner sees no firm rows under forced RLS: backups use
 Lightsail snapshots, firm exports go through the app. Local dev databases from Phase 0 need a
 one-time `npm run db:reset`.
+**Amended 2026-10-06 (ADR-021, no AWS):** read "Lightsail master" as the host's managed-Postgres
+admin user (also not a superuser, so the same reasoning holds). Backups are the host's own
+snapshots; with Postgres in Compose (a host with no managed Postgres), a `pg_dump` run as the
+`postgres` superuser, because the owner still sees no firm rows under forced RLS.
 **Revisit when:** a second service needs database access, or pg-boss changes its table layout
 (the `rls.every-table` test checks the `job_common` policies still exist).
 
@@ -383,4 +389,52 @@ despite a rule was in the append-only log at first; since Phase 10 task 13 it's 
 replaced by an erasure and cleared by the nightly purge.) **Revisit when:** the 2027 rules set how long
 notice records are kept (then decide the log's purge: it needs a delete policy on events, which a
 pinned test forbids today).
+
+## ADR-021: No AWS: email over SMTP, Claude through the Anthropic API, any UK or EU Docker host
+
+**Context:** Dylan, 2026-10-06: "only thing im against atm is aws services". ADR-002 put hosting
+(Lightsail), the database (Lightsail Postgres), AI (Bedrock) and email (SES) in one AWS account.
+None of it had run: the Lightsail scripts (`deploy/lightsail.sh`, `alarms.sh`, `restore-drill.sh`)
+were written and tested but never run, and Bedrock and SES were never built (the app has `noAi` and
+a console email sender). Nothing AWS is in `package.json`; the image fetches Amazon's RDS
+certificate bundle.
+**Decision:** supersedes ADR-002 for hosting, the database, AI and email; pg-boss stays. No AWS
+means no AWS account, SDK or AWS-branded service. Whether a provider that itself runs on AWS (see
+its sub-processor list: some email providers and Docker hosts, and parts of Anthropic's own
+infrastructure) is acceptable is Dylan's call when the accounts are chosen (PLAN.md Deploy 8 and
+9).
+- **Email:** one SMTP sender (nodemailer) behind `MessagingTransport`, email only, switched on by
+  `EMAIL_TRANSPORT=smtp`. Any provider with SMTP credentials and a verified sending domain works;
+  which one is chosen when the accounts are created (PLAN.md Deploy 8). Console stays the default
+  in development and tests and is refused in production.
+- **AI:** Claude through the Anthropic API (the official `@anthropic-ai/sdk`) behind `AiClient`,
+  switched on by `AI_TRANSPORT=anthropic`, the model from `AI_MODEL` (Haiku by default). Off by
+  default. The 5-second limit, the checks on every answer and the code's fallback are unchanged
+  (ADR-005).
+- **Hosting:** Docker Compose (web, worker, Caddy) on any UK or EU Docker host. Postgres 16 is the
+  host's managed database (checked TLS, its CA file mounted at `/app/db-ca.pem`; backups are the
+  host's snapshots) or, if the host has none, Postgres in Compose over a Unix socket (backups a
+  `pg_dump` as the `postgres` superuser: ADR-011 as amended). Which host is chosen later (PLAN.md
+  Deploy 9).
+- **Removed** (Phase 12 task 12X.1): the three Lightsail scripts and their tests, and the RDS
+  bundle in the image. A test fails if an AWS SDK, endpoint, command, setting (`AWS_*`,
+  `BEDROCK_*`) or name (Lightsail, Bedrock, the RDS bundle) comes back in the code, the image, the
+  deploy files, the env examples or CLAUDE.md.
+**Options considered:**
+| Option | Verdict |
+|---|---|
+| Keep ADR-002 (AWS) | Ruled out by Dylan |
+| One email provider's own HTTP API or SDK | Ties us to that provider; SMTP works with all of them |
+| Plain `fetch` to the Anthropic API | Works, but the official SDK gives typed errors and timeouts and can switch retries off, for one dependency |
+| Claude on another cloud (Google Vertex AI, Microsoft Foundry) for EU-only processing | Another cloud account; revisit if a firm requires it |
+| Postgres only in Compose | One bill, but backups and restores become ours; only if the host has no managed Postgres |
+**Consequences:** three accounts (the host, the email provider, Anthropic) instead of one, each
+replaceable on its own and each a sub-processor (PLAN.md Legal 2). Anthropic's API may process
+requests outside the UK, and its processing-region option doesn't cover every model, so before AI
+is switched on its data processing agreement and UK transfer terms are checked and the privacy
+notice's "runs in the EU" wording changes. The host's billing alert and an outside uptime check
+replace the AWS budget and the Lightsail alarms. Phase 12 builds the SMTP sender and the AI client
+(12X.2, 12X.3); real use waits for "Connect an email provider (SMTP)" and "Connect the Anthropic
+API" (PLAN.md Parking lot). **Revisit when:** a firm requires UK- or EU-only AI processing, or 5+
+paying firms (server size).
 

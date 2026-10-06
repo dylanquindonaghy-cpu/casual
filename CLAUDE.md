@@ -66,10 +66,13 @@ The product sits alongside whatever the firm already uses. It never forces staff
 - **Jobs and timers:** pg-boss (queue lives in Postgres, survives restarts).
 - **Worker:** separate Node process (`src/worker/index.ts`) sharing the same codebase.
 - **Messaging:** Twilio (UK numbers, SMS, WhatsApp). Web push via `web-push` (VAPID).
-- **AI:** Claude on Amazon Bedrock, EU inference profile (Haiku for sorting, Sonnet only where needed).
-- **Email:** Amazon SES (outbound now, inbound in Stage 2).
-- **Hosting:** AWS London (eu-west-2): Lightsail instance (Docker Compose: web, worker, caddy)
-  + Lightsail managed Postgres. Caddy handles HTTPS, including customer custom domains.
+- **AI:** Claude through the Anthropic API (`@anthropic-ai/sdk`) behind `AiClient` (Haiku for
+  sorting, Sonnet only where needed); off unless `AI_TRANSPORT=anthropic`. No AWS (ADR-021).
+- **Email:** any provider over SMTP (nodemailer, `EMAIL_TRANSPORT=smtp`); console in dev and tests.
+  Outbound now, inbound in Stage 2.
+- **Hosting:** any UK or EU Docker host (chosen later): Docker Compose (web, worker, caddy) +
+  Postgres 16 (the host's managed one, or in Compose). Caddy handles HTTPS, including customer
+  custom domains.
 - **Tests:** Vitest (unit/integration against a real Postgres in Docker), Playwright (key flows).
 
 ## Repo layout (target)
@@ -85,7 +88,7 @@ src/
     roster/            # RosterPlug interface + adapters (native, sheets, csv)
     messaging/         # transport interface: console (dev) | twilio (prod); templates
     notify/            # web push + WhatsApp/SMS fallback ordering
-    ai/                # Bedrock client, prompts, zod-validated outputs
+    ai/                # AI client (Anthropic API), prompts, zod-validated outputs
     events/            # append-only action log writer
   worker/              # pg-boss job handlers (offer waves, syncs, digests)
 tests/

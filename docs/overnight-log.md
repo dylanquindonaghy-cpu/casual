@@ -8601,3 +8601,69 @@ files, done below. Rule checks all PASS. No test weakened. Lesser notes went to 
 then the walkthrough's 3). **Hours:** 0.9 (15:06 to 16:00).
 **Committed** as `40a7590` and pushed (`1b6f1c3..40a7590`). Its CI run is checked at the start of
 the next run (step 7).
+
+## 2026-10-06 16:02 UTC — Phase 11, task 2: close "Office shell and menu"
+
+**Task:** Office shell and menu: `src/app/office/layout.tsx` puts every logged-in office page in
+one shell. The menu is grouped, shows only what the role can open (`canAccess`), marks the current
+page (`aria-current`), and is a sideways-scrolling row on a phone. The footer holds the name,
+role, the one "Log out" and the session keeper. An office not-found page keeps the menu. Tab
+titles read "{page} · {firm} shifts". (`tests/unit/office.shell.test.ts`)
+
+**Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh` on the
+current files, then the `claims-auditor` with only the task text and Phase 11's "Done when". Fix
+only a gap it names. No schema, auth, tenancy, messaging, jobs or rules change, so no
+`guardrails-reviewer`. CI: the CI-fix commits' runs (37492192024, 37492221771) were still running
+at the start; checked at the end of this run.
+
+**Verify, round 1:** `VERIFIED tree=65bc565973cd7831 e2e=true`.
+
+**Audit round 1: NOT DONE.** Proven: the grouped menu, role filtering with the real `canAccess`,
+`aria-current`, and the footer's name, role and one "Log out". No test for four claims: the
+not-found page keeping the menu, the "{page} · {firm} shifts" tab titles, the menu row scrolling
+sideways on a phone, and the session keeper in the footer.
+
+**Fix (just those gaps; no product code changed):**
+- `tests/e2e/office.shifts.spec.ts`, inside two tests that already log in (each office address
+  gets only 3 login links every 15 minutes, so no new logins):
+  - the resourcer's Shifts page: the tab reads "Shifts · Acme Events shifts", and the menu row is
+    `display: flex`, `flex-wrap: nowrap`, `overflow-x: auto`, and wider than the screen;
+  - payroll's not-found page: the "Office menu" nav, a menu link, and exactly one "Log out".
+  These only add checks; nothing existing was loosened.
+- New `tests/unit/office.titles.test.ts`: every office page's own title equals the list in
+  `docs/screens.md`, and only the pages the doc names keep the firm's plain title.
+- New `tests/unit/office.shell-footer.test.ts`: the session keeper is in the footer once, after
+  "Log out", given the office's refresh and the session's `rotationDue`. With the keeper removed
+  on purpose it fails; the file was restored.
+- `docs/screens.md`: names the new checks.
+- Separately found: CI run 37492221771 (the CI-fix log commit) failed on another control race
+  test, `auth.magic-link` "10 taps at the same moment" (same fault as the session controls). It,
+  `auth.office`, `auth.otp` and `auth.rate-limit` have that shape. Fixed after this task closes,
+  in its own commit.
+
+**Verify, round 2:** `VERIFIED tree=6b73024cb4dd294c e2e=true` (203 files, 3,399 tests, 0 skipped;
+e2e 60, then the walkthrough's 3).
+
+**Audit round 2 verdict (verbatim):**
+
+```
+VERDICT: DONE
+
+Verify gate: `.claude/state/verified.json` has ok=true, e2e=true, tree=6b73024cb4dd294c, and `./.claude/hooks/tree-hash.sh` prints the same hash, so the stamp is on the current files. test.log shows 3399 of 3399 passed with none skipped. The e2e log shows 60 passed in the first run and 3 in the walkthrough. lint has 0 errors. typecheck.log is empty.
+
+Claims:
+- layout.tsx puts every logged-in office page in one shell — PROVEN — `src/app/office/layout.tsx:11-24` wraps children in `OfficeShell` whenever `getOfficeSession()` returns a session. The only other `OfficeShell` or `officeMenu` use is the guide page, which reuses `officeMenu` for its content. Test: `office.shell.test.ts` "the shell: menu, then the page inside #main, then the name and one Log out" (test.log).
+- Menu is grouped — PROVEN — `office-shell.tsx:25-62`. Test: "admins see every link, in groups" asserts the six groups.
+- Menu shows only what the role can open (`canAccess`) — PROVEN — `officeMenu()` at `office-shell.tsx:66-80` calls the real `canAccess`. Tests: "resourcers don't see pay or admin links", and "payroll gets Home ... pay and the guide".
+- Marks the current page with aria-current — PROVEN — `office-nav.tsx:25-47,172`. Tests: the `it.each` blocks for `currentHref` and `ariaCurrent`, and "plain links with one marked current". The markup tests assert exactly one `aria-current` attribute, with the right value, on the right href.
+- Sideways-scrolling row on a phone — PROVEN — `office-nav.tsx:~150` sets `flex gap-2 overflow-x-auto ... lg:block`. Evidence: `tests/e2e/office.shifts.spec.ts:36-43` asserts computed `overflow-x:auto`, `display:flex`, `flex-wrap:nowrap` and `scrollWidth > clientWidth` on the Pixel 7 project. It passed (e2e.log:37). `hiddenEdges` also has unit tests.
+- Footer holds name, role, the one "Log out" and the session keeper — PROVEN — `office-shell.tsx:~115-135`. Tests: `office.shell.test.ts` asserts the footer text is exactly "Sam Admin Admin Log out" and `>Log out<` occurs once. `office.shell-footer.test.ts` asserts the keeper sits once in the footer, after Log out, with the office refresh action and `rotationDue`. No other `LogoutButton` or `SessionKeeper` use exists under `src/app/office`.
+- An office not-found page keeps the menu — PROVEN — `src/app/office/not-found.tsx` renders inside the office layout. Test: `office.shifts.spec.ts:128-130`, payroll opening `/office/shifts`, checks the "Office menu" nav is visible, a menu link is visible, and "Log out" appears once. It passed (e2e.log:39).
+- Tab titles read "{page} · {firm} shifts" — PROVEN — the root template `src/app/layout.tsx:19-20` is `%s · ${title}`, and the pages set `metadata.title`, with Today/Home from `generateMetadata` at `office/page.tsx:17-21`. Tests: `office.titles.test.ts` (2 tests, test.log:3587-3588) holds every page's title to the `docs/screens.md:105-110` list. `office.shifts.spec.ts:34` asserts the real tab "Shifts · Acme Events shifts". It passed.
+
+Fakes found: none. No `.only`, `.skip` or `.todo` in the touched tests, and invariants.log confirms this. The mocks (`next/navigation`, session-actions, and `SessionKeeper` as a placement marker in the footer test) stand in for things the tests are not checking. Uncommitted changes are test and doc additions only, with no product code changed. The e2e diff only adds assertions. `office.titles.test.ts` is a source scan of page files rather than a render, and the one real tab title is covered by e2e. That is acceptable.
+
+To reach DONE: nothing.
+```
+
+**Ticked** in `PLAN.md` at 16:37 UTC. **Hours:** 0.6 (16:02 to 16:37).

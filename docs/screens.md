@@ -100,12 +100,14 @@ open it.
   old or mistyped.", "Back to the office" (→ `/office`). Never "404". An address that matches no
   page at all gets the staff not-found page. Checked in the browser
   (`tests/e2e/office.shifts.spec.ts`, payroll opening `/office/shifts`): those words, the link to
-  `/office`, no "Go to my shifts" and no "404".
+  `/office`, no "Go to my shifts" and no "404", and the office menu and its one "Log out" still
+  there.
 - Browser tab titles read "{page} · {firm} shifts": "Today" (payroll: "Home"), "Shifts", "New
   shift", "Shifts for an event", "Import shifts from a file", "Offer this shift", "Requests",
   "Workers", "Action log", "Notice and cancellation report", "Pilot metrics", "Pay queries",
   "Import pay records", "Office team", "Data requests", "How-to guide". A shift's, a worker's and a
-  worker's data page keep "{firm} shifts".
+  worker's data page keep "{firm} shifts". `tests/unit/office.titles.test.ts` holds the pages to
+  this list; the browser test checks "Shifts · Acme Events shifts".
 
 | Route | Screen | What's on it |
 |---|---|---|

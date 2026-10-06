@@ -30,6 +30,17 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   await officeLogin(page, "acme.resourcer@example.com");
   await page.getByRole("link", { name: "Shifts", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Shifts", exact: true })).toBeVisible();
+  // The tab names the page first (src/app/layout.tsx's template).
+  await expect(page).toHaveTitle("Shifts · Acme Events shifts");
+  // On a phone the menu is one row that scrolls sideways, not a wrapped block.
+  const menuRow = page
+    .getByRole("navigation", { name: "Office menu" })
+    .locator(":scope > div")
+    .first();
+  await expect(menuRow).toHaveCSS("overflow-x", "auto");
+  await expect(menuRow).toHaveCSS("display", "flex");
+  await expect(menuRow).toHaveCSS("flex-wrap", "nowrap");
+  expect(await menuRow.evaluate((row) => row.scrollWidth > row.clientWidth)).toBe(true);
   await page.getByRole("link", { name: "New shift" }).click();
   await page.getByLabel("Date").fill(dayFromNow(12));
   await page.getByLabel("Role").fill("steward");
@@ -114,4 +125,8 @@ test("payroll doesn't get the shift screens", async ({ page }) => {
   );
   await expect(page.getByRole("link", { name: "Go to my shifts" })).toHaveCount(0);
   await expect(page.getByText("404")).toHaveCount(0);
+  // It keeps the office shell: the menu, and the one "Log out".
+  await expect(page.getByRole("navigation", { name: "Office menu" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Pay queries" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log out" })).toHaveCount(1);
 });

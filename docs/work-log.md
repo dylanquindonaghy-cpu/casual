@@ -9147,3 +9147,49 @@ is called **flaky**.
 
 Open https://github.com/dylanquindonaghy-cpu/casual/actions while logged in to GitHub. The newest
 run on `build/overnight` should be green (a tick).
+
+## 2026-10-06 — Phase 11, task 2: closing "Office shell and menu"
+
+- **Time spent:** 0.6 hours (started 16:02 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=6b73024cb4dd294c e2e=true`
+  (203 test files, 3,399 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its second round. Every claim was PROVEN, and
+  it found no fakes.
+
+### What this task was
+
+The **office shell** is the frame around every office page once someone has logged in:
+- the menu, grouped, showing only the pages your role can open, with the current page marked;
+- on a phone, the menu is one row you scroll sideways;
+- the footer, with your name, your role, the one "Log out" and the **session keeper** (a hidden
+  piece that renews your login once a day while you use the office).
+
+Phase 11 built it in your desktop session. This run had to prove it and get the auditor to agree.
+
+### What happened
+
+The first audit said NOT DONE. Most of it was proven, but four claims had no test:
+1. a "page not found" in the office still shows the menu;
+2. each browser tab reads "{page} · {firm} shifts", for example "Shifts · Acme Events shifts";
+3. on a phone the menu row scrolls sideways;
+4. the session keeper is in the footer.
+
+I added tests for each, with no change to the product:
+- **Two existing browser tests check more.** One checks the tab title and that the menu row is
+  wider than the phone's screen and scrolls. The other checks that the not-found page still has
+  the menu and one "Log out". I added to tests that already log in on purpose: each office email
+  can only get 3 login links every 15 minutes, so new logins could trip that limit.
+- **A new test checks every office page's title** against the list in `docs/screens.md`. A page
+  can't lose its title, or get one the doc doesn't list, without the test failing.
+- **A new test checks the footer.** It swaps the invisible session keeper for a visible marker,
+  then checks the marker sits in the footer, once, after "Log out". I took the keeper out on
+  purpose and the test failed, then put it back.
+
+The second audit said DONE.
+
+### What needs you
+
+Nothing new for this task.
+
+Separately, GitHub's check on the previous run's log commit failed on one more test that fails
+at random (a login race test). That's next, in its own commit (see the next entry).

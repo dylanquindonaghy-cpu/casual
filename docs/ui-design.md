@@ -136,7 +136,8 @@ session the login page sends you on to `/office` as before.
   sections on office pages, 32px on staff pages.
 - **Lists:** a `<ul>` or `<ol>` whose bullets are styled away (Tailwind's default) gets
   `role="list"`, because Safari stops announcing it as a list otherwise. Lists that keep their
-  bullets (`list-disc`) don't need it.
+  bullets (`list-disc`) don't need it. `tests/unit/ui.office-pages.test.ts` holds every office
+  file to this, and every office page to opening with `PageHeader`.
 - **Action card:** for items with buttons (urgent shifts, requests, bookings to check, pay query
   groups). White card, status chip on the first line, the title link, meta lines, then the
   actions with the main one first.

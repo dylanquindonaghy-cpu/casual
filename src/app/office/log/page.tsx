@@ -150,7 +150,7 @@ export default async function ActionLogPage({
       {log.entries.length === 0 ? (
         <p className={`${card} mt-3 text-ink-muted`}>Nothing logged for these choices.</p>
       ) : (
-        <ul className={`${rows} mt-3`}>
+        <ul role="list" className={`${rows} mt-3`}>
           {/* Keyed by position, not the event's number: event numbers are shared by every firm and
               a key reaches the page's source (audit L44). */}
           {log.entries.map((e, i) => (

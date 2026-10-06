@@ -77,7 +77,7 @@ export default async function PayQueriesPage() {
                 AI summary: {g.aiLine} <span className="text-ink-muted">(written by AI)</span>
               </p>
             )}
-            <ul className="mt-4 divide-y divide-line border-t border-line">
+            <ul role="list" className="mt-4 divide-y divide-line border-t border-line">
               {g.queries.map((q) => (
                 <li key={q.id} className="py-3">
                   <p className="font-semibold">

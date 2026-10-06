@@ -9236,3 +9236,40 @@ test `tests/e2e/office.today.spec.ts` goes through Today in Chrome.
 
 The auditor suggested one optional extra (a check of the card and row styles by name). It's not
 needed for DONE, so I didn't add it.
+
+## 2026-10-06 — Phase 11, task 4: closing "Office screens restyled"
+
+- **Time spent:** 0.6 hours (17:10 to 17:43 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=f0a1ef023e547486 e2e=true`
+  (204 test files, 3,401 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its second round. Every claim was PROVEN, and
+  it found no fakes.
+
+### What this task was
+
+Every office screen (shifts, requests, workers, the action log, the reports, pay queries, the
+pay import, the office team, data requests and the office login) was restyled in your desktop
+session to the rules in `docs/ui-design.md`. Each opens with the same page header, uses the
+shared buttons and fields, and shows status words in their colour with an icon.
+
+### What happened
+
+The first audit found one real slip and one gap:
+- **Four lists missed a small accessibility label.** A list with its bullets styled away needs
+  `role="list"` in the code, or Safari's screen reader stops saying "list, 5 items". The action
+  log, pay queries, the find-a-worker results and a worker's site blocks didn't have it. Added;
+  nothing looks different.
+- **No test checked the pages themselves**, only the shared pieces they use. A new test,
+  `tests/unit/ui.office-pages.test.ts`, reads every office page's code. It checks that each one
+  opens with the shared page header, and that every bare list has the label. With one label
+  removed on purpose, it failed and named the file; then I put it back.
+
+The second audit said DONE.
+
+### Notes
+
+The auditor made two small notes; neither is needed for DONE:
+- the "Pay queries" page has its own "Import pay records" button, the same words as a menu link.
+  `docs/screens.md` already records that as on purpose.
+- a comment in the new test names a design-doc section by the wrong title. It will be corrected
+  in the next run, inside that run's verify.

@@ -8724,3 +8724,63 @@ To reach DONE: nothing for this task. Optional hardening: add an assertion that 
 ```
 
 **Ticked** in `PLAN.md` at 17:08 UTC. **Hours:** 0.2 (16:54 to 17:08).
+**Committed** as `0965674` and pushed (`69e4c37..0965674`).
+
+## 2026-10-06 17:10 UTC — Phase 11, task 4: close "Office screens restyled"
+
+**Task:** Office screens restyled to `docs/ui-design.md`: shifts (list, new, event, import, one
+shift, offer), requests, workers, action log, notice report, pilot metrics, pay queries, import
+pay records, office team, data requests, office login
+
+**Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh`, then
+the `claims-auditor` with only the task text and Phase 11's "Done when". Fix only a gap it names.
+No schema, auth, tenancy, messaging, jobs or rules change. CI for `0965674` was still running at
+the start.
+
+**Verify, round 1:** `VERIFIED tree=18e2758b7a791e4c e2e=true`. CI for `0965674`: passed (run
+37501223953).
+
+**Audit round 1: NOT DONE.** All 12 listed pages use the shared `PageHeader` (the office login uses
+the login card, as the doc allows), status words have their tones, and no existing test was
+weakened. But four bullet-free lists had no `role="list"`, against `docs/ui-design.md`'s list rule
+(`log/page.tsx:153`, `pay-queries/page.tsx:80`, `find-worker-form.tsx:103`, used by Workers and
+Data requests, and `workers/[id]/access-forms.tsx:254`). And no test checked the pages themselves.
+
+**Fix (just those gaps):**
+- `role="list"` on those four lists. Markup only: the words and the look are unchanged.
+- New `tests/unit/ui.office-pages.test.ts`:
+  - every office `page.tsx` opens with `PageHeader`, itself or through its folder's `-view.tsx`,
+    apart from login, the link page and the `/office/today` redirect;
+  - every `<ul>`/`<ol>` in `src/app/office` without real bullets carries `role="list"`.
+  With one of the four put back on purpose it failed, naming the file and the tag; restored.
+- `docs/ui-design.md`'s list rule names the test.
+
+**Verify, round 2:** `VERIFIED tree=f0a1ef023e547486 e2e=true` (204 files, 3,401 tests, 0 skipped;
+e2e 60, then the walkthrough's 3).
+
+**Audit round 2 verdict (verbatim):**
+
+```
+VERDICT: DONE
+Gate: `.claude/state/verified.json` is {"ok":true,"tree":"f0a1ef023e547486","e2e":true,"at":"2026-10-06T17:39:42Z"}. `tree-hash.sh` prints f0a1ef023e547486, so it matches. The working tree is exactly the 6 modified files plus the new `tests/unit/ui.office-pages.test.ts`, all of which were written before the stamp. I could not re-run vitest because `node` is not on PATH in this shell, so the results below come from the logs on disk.
+Claims:
+- All 12 listed screens (shifts list, new, event, import, one shift, offer; requests; workers; action log; notice report; pilot metrics; pay queries; import pay records; office team; data requests) open with the shared `PageHeader` naming the page. PROVEN. `<PageHeader` is in every one of those pages or their `-view.tsx` (`src/app/office/offer/[shiftId]/offer-view.tsx`, `shifts/[id]/page.tsx`, `data/page.tsx` and others). `tests/unit/ui.office-pages.test.ts:28-44` checks this from source and allows only login, `/office/l` and the `/office/today` redirect. Both of its tests are in `test.log` (lines 4-5) as passing.
+- Office login is restyled to the login-card pattern. PROVEN. `src/app/office/login/page.tsx` uses `page.login`, `loginCard` and `loginTitle`, with one `<h1>`. `office-login-form.tsx` uses `staffBtn`, `staffField`, `label` and tokens. Covered by `login.office.spec.ts` (e2e.log) and `walkthrough.spec.ts`.
+- Status words carry tone and icon. PROVEN. `StatusChip` has four tones, each with its own icon (`src/app/ui/status-chip.tsx`, tested in `ui.design-system.test.ts:102`). The pages use it with the tones from the `docs/ui-design.md` table:
+  - `shifts/page.tsx:168-180`, `shifts/[id]/page.tsx:103-158` and `:287` (via `shift-tones.ts`)
+  - `offer-view.tsx:100-105`, `requests/page.tsx:88,123,143`, `team/page.tsx:47-49`
+  - `workers/[id]/page.tsx:34`, `find-worker-form.tsx:117`, `pay-queries/page.tsx:92`, `reports/notice/page.tsx:250`
+  The page-level tone mapping is not unit-tested, only the chip component is; I judged that enough.
+- Round-1 gap closed: four bullet-free lists now have `role="list"`. PROVEN. The diffs are at `log/page.tsx:153`, `pay-queries/page.tsx:80`, `find-worker-form.tsx:103` and `workers/[id]/access-forms.tsx:254`. My grep of `src/app/office` found no other `<ul>` or `<ol>` without `role="list"` or real bullets (`guide-view.tsx:90` has it on the next line). The new test asserts this over all office files and expects more than 10 lists (there are 32).
+- Every existing test passes unchanged. PROVEN. `test.log` reports 3401 passed, 0 failed, 0 skipped, 0 todo (204 files). The only edits to existing tests since Phase 11 started (`b3f3627`) add assertions or a toHaveEnabled wait, or add a plain-language screen entry; none is weakened. e2e.log: 60 passed on mobile-chrome, plus 3 walkthrough tests passed on desktop. `invariants.log` is clean. lint has 1 pre-existing warning and 0 errors; typecheck.log is empty.
+- `RUN_E2E=1` `scripts/verify.sh` VERIFIED on the current files. PROVEN, per the stamp above (`e2e:true`).
+Fakes found: none. No `.only`, `.skip` or `.todo` in tests, no TODO or "not implemented" in `src/app/office` or `src/app/ui`. The new test reads real source with real assertions and does not mock the thing under test.
+To reach DONE: nothing. Non-blocking notes, not needed for DONE:
+1. `docs/ui-design.md` ("Test rules the shell must keep") says nothing else on a page may repeat a menu link's name. `pay-queries/page.tsx:44-46` has a header link "Import pay records", which is also a menu link name. `docs/screens.md:132-133` records this as deliberate, it existed before Phase 11, and no test hits it.
+2. The comment in `tests/unit/ui.office-pages.test.ts` cites a `docs/ui-design.md` "Login pages" section that does not exist; the login pattern is described under the `classes.ts` bullet.
+Scope: only this task was audited. The staff screens, the two guides and the docs tasks are separate, unticked tasks.
+```
+
+**Ticked** in `PLAN.md` at 17:43 UTC. **Hours:** 0.6 (17:10 to 17:43). The auditor's note 2 (a
+test comment naming a "Login pages" section that doesn't exist) is fixed at the start of the next
+run, so it is verified with that run's files.

@@ -100,7 +100,7 @@ export function FindWorkerForm({
         <p className="mt-4">Nobody matches &ldquo;{searched}&rdquo;.</p>
       )}
       {matches.length > 0 && (
-        <ul className="mt-4 divide-y divide-line border-t border-line">
+        <ul role="list" className="mt-4 divide-y divide-line border-t border-line">
           {matches.map((m) => (
             <li
               key={m.id}

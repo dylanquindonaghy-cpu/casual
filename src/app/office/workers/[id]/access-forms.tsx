@@ -251,7 +251,7 @@ export function SiteBlocks({
       {blocks.length === 0 ? (
         <p className="mt-2 text-ink-muted">None.</p>
       ) : (
-        <ul className="mt-3 divide-y divide-line border-y border-line">
+        <ul role="list" className="mt-3 divide-y divide-line border-y border-line">
           {blocks.map((b) => (
             <li key={b.siteId} className="py-4">
               <p className="font-semibold">{b.site}</p>

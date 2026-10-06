@@ -8690,3 +8690,37 @@ The four files together passed 4 runs of 4.
 
 **Verify:** `VERIFIED tree=8953bec54d3a0cdf e2e=true`. **Hours:** 0.3 (16:36 to 16:52). CI for
 `69c6fd9` (Phase 11 task 2): passed (run 37496985381).
+**Committed** as `69e4c37` and pushed (`69c6fd9..69e4c37`).
+
+## 2026-10-06 16:54 UTC — Phase 11, task 3: close "Today"
+
+**Task:** Today: a summary of counts at the top, each a link to its section; the sections in the
+order things need doing; urgent shifts as action cards, long lists as compact rows
+(`tests/unit/office.today-summary.test.ts`)
+
+**Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh`, then
+the `claims-auditor` with only the task text and Phase 11's "Done when". Fix only a gap it names.
+No schema, auth, tenancy, messaging, jobs or rules change. CI for `69e4c37` was still running at
+the start.
+
+**Verify:** `VERIFIED tree=77366fb18fe3408a e2e=true` (3,399 tests; e2e 60, then the walkthrough's
+3). CI for `69e4c37`: passed (run 37499066023).
+
+**Audit round 1 verdict (verbatim):**
+
+```
+VERDICT: DONE
+Precheck: `.claude/state/verified.json` is `{"ok":true,"tree":"77366fb18fe3408a","e2e":true,...}`. `tree-hash.sh` prints `77366fb18fe3408a`, so the stamp matches the current files and includes e2e. `vitest.json` shows 3399 of 3399 passed, 0 skipped, 0 todo. `invariants.log` agrees. `e2e.log` shows 60 passed, then the walkthrough 3 passed.
+Claims:
+- Summary of counts at the top of Today — PROVEN — `Summary` is the first thing `TodayContent` renders (`/home/dylan/shiftdesk-starter/src/app/office/today-view.tsx:146-170, 215-217`). It makes one tile per section with a count, and "50+" when a list stops at 50. The page renders it (`src/app/office/page.tsx`). Tests: `office.today-summary.test.ts` "has a tile for each section...", "with nothing to do, every tile says 0...", "every list that stops at 50 says so on its own tile with a +". All three pass (test.log:1721-1727).
+- Each count is a link to its section — PROVEN — each tile is `<a href="#id">` and each section has an `<h2 id>` plus `aria-labelledby` (today-view.tsx:152, 179-203). Test "each tile goes to its section's heading, and says the heading's words" matches tile ids and words to the rendered headings (test.log:1722).
+- Tone and icon on tiles (docs/ui-design.md and docs/screens.md) — PROVEN — `TILE_TONE` and `TONE_PATHS` give red, amber, plain and calm-with-a-check (today-view.tsx:84-130). Tests: "a tile is red while urgent things wait, amber...", "a tile at 0 is calm, with a check...", "a tile at 0 is calm while the others keep their colour". The tests check border, background, number colour and icon path, and all pass.
+- Sections in the order things need doing — PROVEN — the JSX order is urgent, to-check, from-sheet, requests, gaps, to-mark, cancelled, unknown, expiring. This matches `docs/ui-design.md:155-157` and `docs/screens.md:122`. Test "come in the order things need doing" pins the nine headings in order (test.log:1728).
+- Urgent shifts as action cards — PROVEN — each urgent shift is an `<article className={card ... border-l-4 border-l-urgent}>` with an Urgent chip, places, title, times, wave line and `ShiftActions` (today-view.tsx:221-253). Test "an urgent shift says Urgent and its places first, then the shift" passes. The existing `office.today-view.test.ts` pins the quick actions (lines 295-316).
+- Long lists as compact rows — PROVEN (structure) — gaps, who worked, cancelled, unknown and expiring all use the `rows`/`row` classes (today-view.tsx:327-480; `src/app/ui/classes.ts:55-57`). Tests: "each gap is an article with its own Offer to someone", "each Who worked? row has exactly one link", and "no link repeats a menu link's name...". Caveat: no test asserts the `rows`/`row` class names, only the markup structure. I checked the styling by reading the code.
+- Named test file exists and runs — PROVEN — `tests/unit/office.today-summary.test.ts` has 12 tests and 23 `expect` calls. It renders the real `TodayContent`. Only `next/navigation` and the server actions are mocked. All 12 passed in `vitest.json`.
+Fakes found: none. No `.skip`, `.only` or `.todo` in the Today test files, no TODO or not-implemented stubs on the code path, and no hard-coded returns. The browser spec `tests/e2e/office.today.spec.ts` exercises the Today sections, a gap's "Offer to someone", and payroll not seeing Today.
+To reach DONE: nothing for this task. Optional hardening: add an assertion that the urgent block uses the `card` class and the long lists use the `rows` class. Phase 11's other checkboxes are still open, and I did not audit them. The Phase "Done when" items outside this task were also out of scope: restyled screens, the guides and `/help`.
+```
+
+**Ticked** in `PLAN.md` at 17:08 UTC. **Hours:** 0.2 (16:54 to 17:08).

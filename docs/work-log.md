@@ -9210,3 +9210,29 @@ tests fixed earlier today.
 Four tests had this shape (login links, office login links, pay-page codes and the rate limit).
 Each now makes all ten requests read first and only then write, every time. The halves that test
 the real code are unchanged.
+
+## 2026-10-06 — Phase 11, task 3: closing "Today"
+
+- **Time spent:** 0.2 hours (16:54 to 17:08 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=77366fb18fe3408a e2e=true`
+  (3,399 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round. Every claim was PROVEN,
+  and it found no fakes. Nothing needed fixing.
+
+### What this task was
+
+**Today** is the office's first page. It now opens with a row of **tiles**, one per section, each
+showing a count (red while urgent things wait, amber when someone needs to act, calm with a tick
+at 0). Each tile is a link down to its section. The nine sections come in the order things need
+doing: urgent shifts first, as full cards with their buttons, then the shorter jobs; long lists
+are compact rows.
+
+### What proves it
+
+`tests/unit/office.today-summary.test.ts` (12 tests) renders the real Today page with made-up
+data. It checks that each tile links to its own section and uses the same words, the tile
+colours and icons, the "50+" when a list stops at 50, and the order of the sections. The browser
+test `tests/e2e/office.today.spec.ts` goes through Today in Chrome.
+
+The auditor suggested one optional extra (a check of the card and row styles by name). It's not
+needed for DONE, so I didn't add it.

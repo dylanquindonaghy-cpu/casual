@@ -243,7 +243,16 @@ describe("setting a firm's shifts line (npm run firm:line)", () => {
       { change: "cleared" },
     ]);
     expect(logged.every((e) => e.actor_type === "system" && e.entity_id === t.f.firmId)).toBe(true);
-    expect(JSON.stringify(logged)).not.toMatch(/\+?44|7700/);
+    // No number in any form. The firm's id (pinned above) is a random UUID that holds "44" about
+    // one run in nine, so the pattern reads everything but the id, and the whole rows, id
+    // included, are checked for both numbers as stored and as written in the UK.
+    const withoutId = logged.map((e) => ({ actor_type: e.actor_type, data: e.data }));
+    expect(JSON.stringify(withoutId)).not.toMatch(/\+?44|7700/);
+    for (const n of [line, second]) {
+      for (const form of [n.slice(1), `0${n.slice(3)}`]) {
+        expect(JSON.stringify(logged)).not.toContain(form);
+      }
+    }
     const { rows: theirs } = await su.query(
       "select 1 from events where firm_id = $1 and action = 'firm.shifts_line_changed'",
       [other.f.firmId],

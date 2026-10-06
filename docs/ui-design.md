@@ -59,9 +59,16 @@ AI-boundary and client-boundary tests (they import nothing from `src/lib/`).
   small inline SVG icon that is `aria-hidden`. The word is the existing word from the copy module.
 - `page-header.tsx`: `<PageHeader eyebrow title meta actions>`. Restyles the page's one `<h1>`;
   never adds a second heading.
-- `icons.tsx`: the few inline SVG icons the menu and chips use, and the menu row's edge arrow
-  (`chevron`), which is also the arrow on each link of the office guide's contents below 1280px
-  (no icon library; inline SVG also works offline in the service worker's kept copy).
+- `icons.tsx`: the few inline SVG icons the office menu, the office guide and the staff home's
+  "Log out" use, and the menu row's edge arrow (`chevron`), which is also the arrow on each link
+  of the office guide's contents below 1280px (no icon library; inline SVG also works offline in
+  the service worker's kept copy). The status chips draw their own four icons in
+  `status-chip.tsx`.
+
+`tests/unit/ui.design-system.test.ts` holds these: the tokens match the table above, the focus
+ring and the file-input button exist, every colour class in `src/app/ui/` is a token or one of
+Tailwind's own colours, each status tone has its own colours and icon, the tap-target heights,
+and no hooks, client directive or package code in `src/app/ui/`.
 
 Status tones for existing words:
 

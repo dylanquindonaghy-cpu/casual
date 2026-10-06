@@ -8442,3 +8442,89 @@ log entry says otherwise.
 - Write it as usual: done, hours against estimates, blocked and why, and what needs Dylan, in
   numbered beginner steps.
 - Add one line on how far Phase 12 got (task id) and where the next run starts.
+
+## 2026-10-06 14:19 UTC — Phase 11, task 1: close "Design tokens and shared components"
+
+**Task:** Design tokens and shared components: the colour tokens, focus ring and file-input button
+in `src/app/globals.css`; `src/app/ui/` (`classes.ts` for buttons, fields, cards, rows, chips and
+tables; `StatusChip`; `PageHeader`; `Icon`), dependency-free and hook-free
+
+**Plan (per the 2026-10-06 handoff: close, don't rebuild):**
+- No new code. The work is in b3f3627.
+- Run `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh` on the current files (the last
+  stamp, `99cee7832eadbe17`, predates the three docs-only commits after b3f3627, so it no longer
+  matches), then the `claims-auditor` with only the task text and Phase 11's "Done when".
+- Tick only on DONE. If the auditor finds a gap, fix just that gap.
+- No schema, auth, tenancy, messaging, jobs or rules change, so no `guardrails-reviewer` run.
+
+**Problem met (root cause):** the first verify run printed NOT VERIFIED with every step failing
+as `CMD.EXE … 'tsc' is not recognized`. This session's shell isn't interactive, so `~/.bashrc`
+returns before it loads nvm, the Linux Node 22 in `~/.nvm` is never on `PATH`, and WSL's Windows
+`PATH` supplies the Windows npm (`/mnt/c/nvm4w/nodejs/npm`), which runs under CMD.EXE with a
+`\\wsl.localhost` folder it can't use. Not a code fault. Fix: every command in this session puts
+`$HOME/.nvm/versions/node/v22.23.3/bin` first on `PATH`. No file in the repo changed for it.
+
+**Verify, round 1:** `VERIFIED tree=ce0a5e0a5aed7d15 e2e=true` (typecheck, lint, test, e2e and
+invariants ok; 200 files, 3,387 tests, 0 skipped).
+
+**Audit round 1: NOT DONE.** The auditor found every piece on disk and in use, and no fakes. But
+nothing proved the colour tokens, the focus ring, the file-input button, the tones' colours, the
+icons or "hook-free and dependency-free". Its "To reach DONE": one unit test for those, then the
+optional tap-target and icon checks, and a doc slip (`docs/ui-design.md` said the chips' icons
+live in `icons.tsx`; they are drawn in `status-chip.tsx`).
+
+**Fix (just that gap):**
+- New `tests/unit/ui.design-system.test.ts` (8 tests):
+  - the `@theme` colours equal `docs/ui-design.md`'s token table, both ways (a parity check, so
+    12A.1's new tokens change the doc and the CSS together rather than a pinned list);
+  - the `:focus-visible` ring (2px ink, 2px offset) and the file-input button rules exist;
+  - every colour utility in `src/app/ui/` names a token or one of Tailwind's own colours (white,
+    slate-700);
+  - office buttons and fields carry `min-h-11`, staff ones `min-h-14`;
+  - each `StatusChip` tone has its own classes and its own icon;
+  - every `Icon` renders a hidden, drawn SVG;
+  - no "use client", no `use…(` hook call and no value import from outside `src/app/ui/`.
+- Checked that it bites: a misspelt `bg-urgnt-soft`, a changed token value and a planted hook
+  each failed it (3 of 8 failed); the files were restored with `git checkout`.
+- `docs/ui-design.md`: the icons line corrected, and a line naming the new test.
+- No product code changed.
+
+**Verify, round 2: NOT VERIFIED.** Two causes, neither in product code:
+- **Lint:** the new test file wasn't in Prettier's format. Fixed with `prettier --write`.
+- **A test that failed at random:** `tests/integration/shifts-line.test.ts:246` checked the logged
+  rows for a phone number with `/\+?44|7700/` over the whole rows, and those include the firm's
+  random UUID. This run's id was `8ed173dc-224a-4dcf-8b2f-7cf44beb3828`, which holds "44". A random
+  UUID does that about one run in nine. Root cause: the pattern read the random id. Fix, at least
+  as strong: the rows' `data` is already pinned exactly, and the id is pinned to the firm's own
+  id on the line before. So the pattern now reads every field except the id, and the whole rows,
+  id included, are checked for both test numbers as stored (`447700900…`) and as written in the
+  UK (`07700900…`). It passes on its own (16 of 16 with the new unit test).
+
+**Verify, round 3:** `VERIFIED tree=c9c8f11123521d3f e2e=true` (typecheck, lint, test, e2e and
+invariants ok; 201 files, 3,395 tests, 0 skipped; e2e 60, then the walkthrough's 3).
+
+**Audit round 2 verdict (verbatim):**
+
+```
+VERDICT: DONE
+Preconditions: .claude/state/verified.json = {"ok":true,"tree":"c9c8f11123521d3f","e2e":true,"at":"2026-10-06T15:04:15Z"}; ./.claude/hooks/tree-hash.sh prints c9c8f11123521d3f (match). test.log: 201 files, 3395 passed, 0 failed, 0 skipped/todo. lint.log: 0 errors, 1 old warning in tests/unit/inbound.signature.test.ts. typecheck.log is empty. invariants.log is all ok. e2e.log: 60 passed, plus the walkthrough's 3 passed.
+Claims:
+- Colour tokens in src/app/globals.css (@theme, lines 4-23) — PROVEN — test "colour tokens > match docs/ui-design.md's table, both ways" (tests/unit/ui.design-system.test.ts:55, test.log:3112). It compares the CSS @theme block to the doc's token table in both directions.
+- Focus ring (globals.css:27, 2px ink outline, 2px offset, :focus-visible) — PROVEN — "one focus ring…" (test.log:3113).
+- File-input button (globals.css:44-62, ::file-selector-button plus hover and disabled) — PROVEN — "a file input shows a real button, bordered with a token" (test.log:3114).
+- src/app/ui/classes.ts holds buttons, fields, cards, rows, chips and tables — PROVEN — btn/staffBtn, field/staffField, card, rows/row, chip and table are all exported (classes.ts:15-105). Tests: "tap targets" (44px office, 56px staff), "every colour class names a token or a built-in colour" (the test checks more than 20 classes). test.log:3115-3116.
+- StatusChip — PROVEN — status-chip.tsx has 4 tones, each with its own class and its own aria-hidden icon. Tests: "StatusChip: each tone has its own colours and its own icon" (test.log:3117), and tests/unit/office.shell.test.ts "StatusChip: its text is exactly the word" (test.log:2614 region). The chip is used in about 19 views, for example today-view.tsx and office/shifts/page.tsx.
+- PageHeader — PROVEN — page-header.tsx renders one h1, an eyebrow, meta lines and actions, and adds no words. The test is tests/unit/office.shell.test.ts:219 "PageHeader: the one <h1>…" (test.log:2614). It is used in 31 files.
+- Icon — PROVEN — icons.tsx exports Icon and IconName. "Icon: every icon is a drawn, hidden SVG" renders every icon (test.log:3118).
+- Dependency-free and hook-free — PROVEN — "stay hook-free and dependency-free" (ui.design-system.test.ts:127, test.log:3119). It checks every file in src/app/ui for no client directive, no use[A-Z]() call, and value imports only from "./". I read the five files and the imports are only "react" types and "./classes".
+Fakes found: none. The new test file has real assertions, no .only/.skip, and no mocks. It renders the real components and reads the real CSS and doc.
+Flag for the human (not a failure of this task): the working tree changes the existing test tests/integration/shifts-line.test.ts (+11/-1). The old line `JSON.stringify(logged)` not matching /\+?44|7700/ also scanned the firm's random UUID entity_id, which holds "44" about one run in nine. The new code checks the regex on rows without the id, and checks the whole rows (id included) for each number as stored (E.164 with the "+" stripped) and as written in the UK. This looks like a root-cause flake fix and not a weakening, and it passed in the verified run. The Phase 11 "Done when" says "every existing test passes unchanged", so Dylan should accept this edit knowingly when the phase closes.
+To reach DONE: nothing
+Files: /home/dylan/shiftdesk-starter/src/app/globals.css, /home/dylan/shiftdesk-starter/src/app/ui/{classes.ts,status-chip.tsx,page-header.tsx,icons.tsx}, /home/dylan/shiftdesk-starter/tests/unit/ui.design-system.test.ts (untracked), /home/dylan/shiftdesk-starter/tests/unit/office.shell.test.ts, /home/dylan/shiftdesk-starter/docs/ui-design.md
+```
+
+**Ticked** in `PLAN.md` at 15:05 UTC. **Hours:** 0.8 (14:19 to 15:05). Phase 11 has no hours
+estimate in `PLAN.md`, so there's nothing to compare against.
+**For Dylan (morning summary):** the random-failure fix to `tests/integration/shifts-line.test.ts`
+changes an existing test; Phase 11's "Done when" says existing tests pass unchanged. Accept it
+knowingly.

@@ -8988,3 +8988,82 @@ accounts.
 
 Follow `docs/walkthrough.md`. Or, to watch the test do it: stop `npm run dev`, then run
 `npm run e2e:walkthrough`. It takes a few minutes: it builds the app first.
+
+## 2026-10-06 — Phase 11, task 1: closing "Design tokens and shared components"
+
+- **Time spent:** 0.8 hours (started 14:19 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=c9c8f11123521d3f e2e=true`
+  (201 test files, 3,395 tests, 0 skipped; browser tests: 60, then the walkthrough's 3 on a
+  production build).
+- The independent auditor said `VERDICT: DONE` on its second round. Every claim was PROVEN, and
+  it found no fakes.
+- Committed and pushed to `build/overnight` (the commit is named in `docs/overnight-log.md`).
+
+### What this task was
+
+Phase 11 was built in your desktop session (commit b3f3627). This run only had to **close** its
+first task: prove it with the full check, then have the independent auditor agree. Nothing was
+rebuilt.
+
+The task covers the app's **design tokens** and **shared pieces**:
+- A **design token** is one named colour, such as `urgent` (red, "act now") or `ink` (the main
+  text colour). Pages use the name, never the colour code, so the look can change in one place.
+- The **focus ring** is the outline that shows where you are when you move round a page with the
+  keyboard.
+- The **shared pieces** are small building blocks every page uses: button and field styles, the
+  coloured status "chips" (such as "Open" or "Filled"), the page header and the menu icons.
+
+### What happened
+
+1. **The first check failed for a reason outside the code.** Every step said `'tsc' is not
+   recognized`. The shell this session runs in skips the part of your setup that loads the Linux
+   Node.js (through a tool called **nvm**), so Windows' own npm answered instead, and Windows
+   can't run the project from the Ubuntu folder. Fix: each command now puts the Linux Node first.
+   No project file changed for it.
+2. **The check then passed, but the auditor said NOT DONE.** Everything was there and in use, but
+   no test proved the colours, the focus ring, the file button, the chip colours or that the
+   shared pieces stay simple (no **hooks**: React features that only work in the browser).
+3. **One new test file fixed that.** Then the check failed once more, on two things:
+   - the new file's layout wasn't in the project's standard format (fixed by the formatter);
+   - an older test failed **at random** (explained below).
+4. **The third check passed and the auditor said DONE.**
+
+### The test that failed at random
+
+`tests/integration/shifts-line.test.ts` makes sure a firm's WhatsApp number never lands in the
+action log. It searched the logged rows for "44" or "7700". But each row also holds the firm's
+**UUID**, a random id like `8ed173dc-…-7cf44beb3828`, and about one random id in nine contains
+"44". So the test failed now and then for no real reason. The fix keeps the search on everything
+except that id (the test already checks the id is the firm's own). It also searches the whole
+rows, id included, for both test numbers in both ways of writing them. It's at least as strict as
+before, and it no longer fails by chance.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Check the colours against `docs/ui-design.md`'s table both ways | Task 12A.1 will change the colours (dark mode); this way the doc and the code must change together | Writing every colour code into the test |
+| Fix the random failure at its cause | Re-running until it passes hides a fault | Re-running the check |
+| Put the Linux Node first in each command | Your setup is right for a normal terminal; only this kind of session misses it | Changing your `.bashrc` (not mine to change) |
+
+### What the new tests prove
+
+`tests/unit/ui.design-system.test.ts` (8 tests):
+- the colours in `src/app/globals.css` are exactly the ones in the doc's table;
+- the keyboard focus ring and the file-input button exist as described;
+- every colour a shared piece uses really exists, so a misspelt name can't quietly show no
+  colour;
+- office buttons and fields are at least 44 pixels tall, and staff ones at least 56 (easy to tap);
+- each of the four status chip tones has its own colours and its own icon;
+- every menu icon draws something and is hidden from screen readers (the words beside it are
+  what gets read out);
+- the shared pieces have no hooks and use no outside code.
+
+Before relying on it, I broke three things on purpose (a misspelt colour name, a changed colour
+code and a planted hook). The test failed on each, and then the files were put back.
+
+### What needs you
+
+Phase 11's finish line says "every existing test passes unchanged". The random-failure fix
+changed one existing test (above). The auditor called it a fix at the cause, not a weakening, but
+said you should know about it when the phase closes.

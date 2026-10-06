@@ -41,6 +41,7 @@ const { default: GlobalError } = await import("@/app/global-error");
 const { tryAgainText } = await import("@/lib/portal/copy");
 const { PushSetting } = await import("@/app/profile/push-setting");
 const { PushSettingView } = await import("@/app/profile/push-setting-view");
+const { HelpView } = await import("@/app/help/help-view");
 
 // Words a worker shouldn't have to know. Whole words, any case.
 const JARGON = [
@@ -563,6 +564,7 @@ const SCREENS: [string, ReactElement][] = [
     createElement(ErrorBody, { online: false, ready: true, retry: () => undefined }),
   ],
   ["The whole page failed", createElement(GlobalError)],
+  ["Help", createElement(HelpView, { firmName: "Acme Events" })],
 ];
 
 describe("every staff screen and state is in plain words", () => {

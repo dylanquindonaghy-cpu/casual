@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn, field, label } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { signOutResultText, siteBlockResultText, statusResultText } from "@/lib/office/worker-copy";
 import {
@@ -18,15 +19,20 @@ import {
   unblockFromSiteAction,
 } from "../actions";
 
-const button =
-  "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100 disabled:opacity-60";
-const input = "mt-1 rounded border border-slate-400 px-2 py-2 font-normal";
 // The browser's request failed: the server may have made the change, so don't say it didn't.
 const failed = { status: "unknown" as const };
+// A reason (or site) list beside its button: it grows to 384px, and the button wraps under it
+// when there isn't room.
+const fieldBox = "flex min-w-0 grow basis-56 flex-col gap-1 sm:max-w-sm";
+// A choice and its button on one line, or the button under it on a phone.
+const fieldRow = "flex flex-wrap items-end gap-3";
 
 // The worker's page in the office (docs/screens.md `/office/workers/[id]`). Each change has a
 // reason from a fixed list; the server checks everything again. The confirmation shows in place,
-// and the page refreshes under it to show the change.
+// and the page refreshes under it to show the change. Changes that take something away look
+// destructive (red outline, then a solid red "Yes, …"; "Block from this site", which blocks at
+// once, is solid red); undoing them is a main or plain button. The choices and buttons wait for
+// the page (docs/ui-design.md "Forms wait for the page").
 
 function useChange() {
   const router = useRouter();
@@ -42,12 +48,12 @@ function useChange() {
       setMessage(text(result));
       if (result.status === "done" || result.status === "unchanged") router.refresh();
     });
-  return { off: !ready || pending, message, setMessage, run };
+  return { ready, off: !ready || pending, message, setMessage, run };
 }
 
 function Reasons({
   id,
-  label,
+  label: words,
   list,
   value,
   onChange,
@@ -58,18 +64,25 @@ function Reasons({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const ready = useHydrated();
   return (
-    <div className="flex flex-col">
-      <label htmlFor={id} className="font-semibold">
-        {label}
+    <div className={fieldBox}>
+      <label htmlFor={id} className={label}>
+        {words}
       </label>
-      <select id={id} className={input} value={value} onChange={(e) => onChange(e.target.value)}>
+      <select
+        id={id}
+        className={`${field} w-full`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!ready}
+      >
         <option value="" disabled>
           Choose a reason
         </option>
-        {Object.entries(list).map(([code, words]) => (
+        {Object.entries(list).map(([code, text]) => (
           <option key={code} value={code}>
-            {words}
+            {text}
           </option>
         ))}
       </select>
@@ -79,7 +92,7 @@ function Reasons({
 
 function Status({ message }: { message: string | null }) {
   return message ? (
-    <p role="status" className="mt-2 font-semibold">
+    <p role="status" className="mt-3 font-semibold">
       {message}
     </p>
   ) : null;
@@ -115,7 +128,7 @@ export function StatusForm({
       : kind === "reactivate"
         ? REACTIVATE_REASONS
         : UNBLOCK_REASONS;
-  const label = {
+  const words = {
     deactivate: "Make inactive",
     reactivate: "Make active again",
     unblock: "Unblock",
@@ -125,40 +138,21 @@ export function StatusForm({
       () => changeWorkerStatusAction(workerId, { kind, reason }),
       (r) => statusResultText(r),
     );
+  const asking = kind === "deactivate" && confirming;
   return (
-    <div className="mt-3 flex flex-col gap-2">
-      <Reasons
-        id={`status-${workerId}`}
-        label="Why?"
-        list={list}
-        value={reason}
-        onChange={setReason}
-      />
-      {kind === "deactivate" && confirming ? (
-        <div className="rounded-lg border border-slate-400 p-3">
-          <p>
-            Make {name} inactive? They&apos;re logged out at once, can&apos;t log in or take shifts,
-            and get no reminders. Their bookings ahead go on Today to cancel or keep.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className={button} disabled={off} onClick={go}>
-              Yes, make {name} inactive
-            </button>
-            <button
-              type="button"
-              className={button}
-              disabled={off}
-              onClick={() => setConfirming(false)}
-            >
-              Keep them active
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div>
+    <div className="mt-4">
+      <div className={fieldRow}>
+        <Reasons
+          id={`status-${workerId}`}
+          label="Why?"
+          list={list}
+          value={reason}
+          onChange={setReason}
+        />
+        {!asking && (
           <button
             type="button"
-            className={button}
+            className={kind === "deactivate" ? btn.danger : btn.primary}
             disabled={off}
             onClick={() => {
               if (!reason) return setMessage("Choose a reason.");
@@ -167,8 +161,29 @@ export function StatusForm({
               else go();
             }}
           >
-            {label}
+            {words}
           </button>
+        )}
+      </div>
+      {asking && (
+        <div className="mt-4 rounded-lg border-2 border-urgent bg-urgent-soft p-4">
+          <p className="max-w-prose">
+            Make {name} inactive? They&apos;re logged out at once, can&apos;t log in or take shifts,
+            and get no reminders. Their bookings ahead go on Today to cancel or keep.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button type="button" className={btn.dangerSolid} disabled={off} onClick={go}>
+              Yes, make {name} inactive
+            </button>
+            <button
+              type="button"
+              className={btn.secondary}
+              disabled={off}
+              onClick={() => setConfirming(false)}
+            >
+              Keep them active
+            </button>
+          </div>
         </div>
       )}
       <Status message={message} />
@@ -180,10 +195,10 @@ export function StatusForm({
 export function SignOutButton({ workerId }: { workerId: string }) {
   const { off, message, run } = useChange();
   return (
-    <div className="mt-4">
+    <div className="mt-5 border-t border-line pt-5">
       <button
         type="button"
-        className={button}
+        className={btn.secondary}
         disabled={off}
         onClick={() => run(() => signOutWorkerAction(workerId), signOutResultText)}
       >
@@ -206,7 +221,7 @@ export function SiteBlocks({
   blocks: { siteId: string; site: string; line: string }[];
   otherSites: { id: string; name: string }[];
 }) {
-  const { off, message, setMessage, run } = useChange();
+  const { ready, off, message, setMessage, run } = useChange();
   const [unblockReasons, setUnblockReasons] = useState<Record<string, string>>({});
   const [siteId, setSiteId] = useState("");
   const [reason, setReason] = useState("");
@@ -234,14 +249,14 @@ export function SiteBlocks({
   return (
     <div>
       {blocks.length === 0 ? (
-        <p className="mt-2">None.</p>
+        <p className="mt-2 text-ink-muted">None.</p>
       ) : (
-        <ul className="mt-2 flex flex-col gap-3">
+        <ul className="mt-3 divide-y divide-line border-y border-line">
           {blocks.map((b) => (
-            <li key={b.siteId} className="rounded-lg border border-slate-300 p-3">
+            <li key={b.siteId} className="py-4">
               <p className="font-semibold">{b.site}</p>
-              <p>{b.line}</p>
-              <div className="mt-2 flex flex-col gap-2">
+              <p className="text-ink-muted">{b.line}</p>
+              <div className={`${fieldRow} mt-3`}>
                 <Reasons
                   id={`unblock-${b.siteId}`}
                   label="Why?"
@@ -249,56 +264,60 @@ export function SiteBlocks({
                   value={unblockReasons[b.siteId] ?? ""}
                   onChange={(v) => setUnblockReasons((all) => ({ ...all, [b.siteId]: v }))}
                 />
-                <div>
-                  <button
-                    type="button"
-                    className={button}
-                    disabled={off}
-                    onClick={() => unblock(b)}
-                  >
-                    Unblock from {b.site}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className={btn.secondary}
+                  disabled={off}
+                  onClick={() => unblock(b)}
+                >
+                  Unblock from {b.site}
+                </button>
               </div>
             </li>
           ))}
         </ul>
       )}
       {otherSites.length > 0 && (
-        <div className="mt-4 flex flex-col gap-2">
-          <h3 className="text-xl font-semibold">Block from a site</h3>
-          <div className="flex flex-col">
-            <label htmlFor={`site-${workerId}`} className="font-semibold">
-              Site
-            </label>
-            <select
-              id={`site-${workerId}`}
-              className={input}
-              value={chosen}
-              onChange={(e) => setSiteId(e.target.value)}
-            >
-              <option value="" disabled>
-                Choose a site
-              </option>
-              {otherSites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+        <div className="mt-5 border-t border-line pt-5">
+          <h3 className="text-lg font-semibold">Block from a site</h3>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="flex min-w-0 flex-col gap-1">
+              <label htmlFor={`site-${workerId}`} className={label}>
+                Site
+              </label>
+              <select
+                id={`site-${workerId}`}
+                className={`${field} w-full`}
+                value={chosen}
+                onChange={(e) => setSiteId(e.target.value)}
+                disabled={!ready}
+              >
+                <option value="" disabled>
+                  Choose a site
                 </option>
-              ))}
-            </select>
+                {otherSites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Reasons
+              id={`block-${workerId}`}
+              label="Why?"
+              list={SITE_BLOCK_REASON_WORDS}
+              value={reason}
+              onChange={setReason}
+            />
           </div>
-          <Reasons
-            id={`block-${workerId}`}
-            label="Why?"
-            list={SITE_BLOCK_REASON_WORDS}
-            value={reason}
-            onChange={setReason}
-          />
-          <div>
-            <button type="button" className={button} disabled={off} onClick={block}>
-              Block from this site
-            </button>
-          </div>
+          <button
+            type="button"
+            className={`${btn.dangerSolid} mt-4`}
+            disabled={off}
+            onClick={block}
+          >
+            Block from this site
+          </button>
         </div>
       )}
       <Status message={message} />

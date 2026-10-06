@@ -1,3 +1,5 @@
+import { page, staffBtn } from "./ui/classes";
+
 // What the error page says (src/app/error.tsx decides whether the browser is online).
 // "Try again" is Next's retry(): it fetches the page from the server again, then draws it (reset()
 // would only redraw the failure the browser already has). "Go to my shifts" is a plain link, a
@@ -16,8 +18,10 @@ export function ErrorBody({
   retry: () => void;
 }) {
   return (
-    <main className="mx-auto max-w-md p-6">
-      <h1 className="text-3xl font-bold">{online ? "Something went wrong" : "No signal"}</h1>
+    <main className={page.staff}>
+      <h1 className="text-3xl font-bold tracking-tight text-balance text-ink">
+        {online ? "Something went wrong" : "No signal"}
+      </h1>
       {online ? (
         <>
           <p className="mt-2">It&apos;s not you. Try again in a moment.</p>
@@ -30,15 +34,12 @@ export function ErrorBody({
         type="button"
         onClick={retry}
         disabled={!ready || !online}
-        className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
+        className={`${staffBtn.primary} mt-6`}
       >
         Try again
       </button>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full load on purpose */}
-      <a
-        href="/"
-        className="mt-3 block w-full rounded-xl border-2 border-slate-900 px-4 py-4 text-center text-lg font-semibold"
-      >
+      <a href="/" className={`${staffBtn.secondary} mt-3`}>
         Go to my shifts
       </a>
     </main>

@@ -79,6 +79,9 @@ test("several shifts for an event, and a file import checked first", async ({ pa
 
   await page.goto(`${acme}/office/shifts/import`);
   const [y, m, d] = dayFromNow(14).split("-");
+  // The file field waits for the page (docs/ui-design.md "Forms wait for the page"): a file chosen
+  // before then would be lost.
+  await expect(page.getByLabel("Your file (.csv or .xlsx)")).toBeEnabled();
   await page.getByLabel("Your file (.csv or .xlsx)").setInputFiles({
     name: "shifts.csv",
     mimeType: "text/csv",
@@ -101,4 +104,14 @@ test("payroll doesn't get the shift screens", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Shifts", exact: true })).toHaveCount(0);
   const response = await page.goto(`${acme}/office/shifts`);
   expect(response?.status()).toBe(404);
+  // The office's own not-found page (src/app/office/not-found.tsx): plain words, and the way back
+  // leads to the office, not to the staff app.
+  await expect(page.getByRole("heading", { name: "We can't find that page." })).toBeVisible();
+  await expect(page.getByText("The link may be old or mistyped.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to the office" })).toHaveAttribute(
+    "href",
+    "/office",
+  );
+  await expect(page.getByRole("link", { name: "Go to my shifts" })).toHaveCount(0);
+  await expect(page.getByText("404")).toHaveCount(0);
 });

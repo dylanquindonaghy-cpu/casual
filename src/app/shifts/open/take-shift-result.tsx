@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
 import { tryAgainText } from "@/lib/portal/copy";
+import { staffBtn } from "../../ui/classes";
 
 // What the worker sees after tapping "Take shift" (docs/screens.md copy rules: plain words, and a
 // confirmation they can screenshot: what, when, a reference, signed by the firm).
@@ -14,21 +15,18 @@ export function TakeShiftResult({
   switch (outcome.status) {
     case "booked":
       return (
-        <div role="status" className="rounded-xl border-2 border-green-700 bg-green-50 p-4">
-          <p className="text-xl font-bold">You&apos;re booked.</p>
-          {outcome.when && <p className="mt-1 font-semibold">{outcome.when}</p>}
+        <div role="status" className="rounded-xl border-2 border-done bg-done-soft p-4">
+          <p className="text-xl font-bold text-done-ink">You&apos;re booked.</p>
+          {outcome.when && <p className="mt-2 font-semibold tabular-nums">{outcome.when}</p>}
           {outcome.role && (
             <p>
               {outcome.role}
               {outcome.siteName ? ` at ${outcome.siteName}` : ""}
             </p>
           )}
-          <p className="mt-2">Reference: {outcome.ref}</p>
-          <p className="mt-2 text-base">— {outcome.signOff}</p>
-          <Link
-            href="/"
-            className="mt-3 block w-full rounded-xl bg-slate-900 px-4 py-3 text-center font-semibold text-white"
-          >
+          <p className="mt-2 font-semibold tabular-nums">Reference: {outcome.ref}</p>
+          <p className="mt-2 text-base text-ink-muted">— {outcome.signOff}</p>
+          <Link href="/" className={`${staffBtn.primary} mt-4`}>
             See my shifts
           </Link>
         </div>
@@ -43,10 +41,7 @@ export function TakeShiftResult({
       return (
         <div role="status">
           <p className="font-semibold">You&apos;re already booked on this shift.</p>
-          <Link
-            href="/"
-            className="mt-3 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center font-semibold"
-          >
+          <Link href="/" className={`${staffBtn.secondary} mt-3`}>
             See my shifts
           </Link>
         </div>
@@ -59,19 +54,16 @@ export function TakeShiftResult({
       );
     case "not_eligible":
       return (
-        <div role="alert">
-          <p className="font-semibold">You can&apos;t take this shift:</p>
-          <ul className="mt-1 list-disc pl-5">
+        <div role="alert" className="rounded-xl border-2 border-urgent bg-urgent-soft p-4">
+          <p className="font-semibold text-urgent-ink">You can&apos;t take this shift:</p>
+          <ul className="mt-1 list-disc pl-5 text-urgent-ink">
             {outcome.reasons.map((reason, i) => (
               <li key={i}>{reason}</li>
             ))}
           </ul>
           <p className="mt-2 text-base">If you think this is wrong, ask the office to review it.</p>
           {reviewHref && (
-            <Link
-              href={reviewHref}
-              className="mt-3 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center font-semibold"
-            >
+            <Link href={reviewHref} className={`${staffBtn.secondary} mt-3`}>
               Ask the office to review
             </Link>
           )}
@@ -92,7 +84,7 @@ export function TakeShiftResult({
       );
     case "error":
       return (
-        <p role="alert" className="font-semibold text-red-700">
+        <p role="alert" className="font-semibold text-urgent">
           {tryAgainText()}
         </p>
       );

@@ -334,6 +334,45 @@ every step works.
       `walkthrough.spec.ts`, runs every step, with the office at desktop size. (L16, L25, L58, L66,
       L88)
 
+## Phase 11 — UI clarity and how-to guides
+
+Added 2026-10-05 at Dylan's request: "the UI needs to be worked on a lot … make it a lot easier to
+see and understand where everything is; also put in a how-to guide page to learn the basics."
+Layout, hierarchy, colour and two guide pages only. Every existing word on every screen stays as
+it is (tests pin them); new words are listed in `docs/screens.md`. No schema, auth, rules or
+messaging changes.
+Docs: `docs/ui-design.md`, `docs/screens.md`
+Done when: every logged-in office page sits in one shell with the same menu and the current page
+marked; every page opens with a header that names it; status words carry their tone and an icon;
+Today opens with counts, its sections in the order things need doing; `/office/guide` and `/help`
+explain the basics; every existing test passes unchanged; `scripts/verify.sh` with `RUN_E2E=1`
+prints VERIFIED.
+
+- [ ] Design tokens and shared components: the colour tokens, focus ring and file-input button in
+      `src/app/globals.css`; `src/app/ui/` (`classes.ts` for buttons, fields, cards, rows, chips and
+      tables; `StatusChip`; `PageHeader`; `Icon`), dependency-free and hook-free
+- [ ] Office shell and menu: `src/app/office/layout.tsx` puts every logged-in office page in one
+      shell. The menu is grouped, shows only what the role can open (`canAccess`), marks the current
+      page (`aria-current`), and is a sideways-scrolling row on a phone. The footer holds the name,
+      role, the one "Log out" and the session keeper. An office not-found page keeps the menu. Tab
+      titles read "{page} · {firm} shifts". (`tests/unit/office.shell.test.ts`)
+- [ ] Today: a summary of counts at the top, each a link to its section; the sections in the order
+      things need doing; urgent shifts as action cards, long lists as compact rows
+      (`tests/unit/office.today-summary.test.ts`)
+- [ ] Office screens restyled to `docs/ui-design.md`: shifts (list, new, event, import, one shift,
+      offer), requests, workers, action log, notice report, pilot metrics, pay queries, import pay
+      records, office team, data requests, office login
+- [ ] Staff screens restyled: My shifts ("See open shifts" always on the page, a "Help" link, the
+      Upcoming / Past 30 days switch looks like a switch), open shifts, the urgent board, one shift,
+      cancel, requests, pay, pay query, profile, login and the error pages
+- [ ] `/office/guide` ("How-to guide" in the menu): the everyday jobs step by step, in the order of
+      a working day, showing only the parts the user's role can open (`tests/unit/guides.test.ts`)
+- [ ] `/help` for workers: how it works in plain words, readable without logging in, checked by
+      `tests/unit/copy.plain-language.test.ts`. No shifts-line number or privacy notice link yet
+      (both in the Parking lot)
+- [ ] Docs: `docs/ui-design.md`; `docs/screens.md` (the office shell, Today, both guides, every new
+      string); `docs/walkthrough.md` (where the office's "Log out" is now)
+
 ---
 
 ## Stage 2 (after 3 paying firms) — not now
@@ -1931,6 +1970,15 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - A CSV re-import of an older file can put back a place the office took away with "The client
     needs fewer staff" (an import may raise a shift's places). Nobody is told; decide whether an
     import should skip a shift whose places the office lowered.
+- /help privacy notice link: needs a per-firm privacy notice URL setting (Dylan decides; schema
+  change). Until then `/help` tells workers to ask the office for a copy.
+- UI follow-ups (Phase 11):
+  - Tab titles for one shift (office and staff) and for My shifts: the shift page would load the
+    shift twice, and `/` shares its file with the platform's home page.
+  - The guides' "On this page" list could mark the section being read (needs JavaScript).
+  - Shared class strings for the bordered answer rows (new request, pay query, notifications),
+    the pay-code field, the answer boxes on the shift page and locked fields, in
+    `src/app/ui/classes.ts`.
 
 ## Hours log
 

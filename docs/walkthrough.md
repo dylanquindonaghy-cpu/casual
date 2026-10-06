@@ -93,7 +93,8 @@ work for 15 minutes, once.
 ## Part 2: as a worker
 
 "Log out" is at the bottom of My shifts (`http://acme.localhost:3000/`); for the office, at the
-bottom of Today. The worker's side is made for phones. In Chrome you can see it as a phone: press
+bottom of the office menu (on the left on a laptop, at the end of the page on a phone). "Help",
+at the bottom of My shifts, explains the worker's pages in plain words. The worker's side is made for phones. In Chrome you can see it as a phone: press
 F12, then Ctrl+Shift+M (press them again to go back). Each worker below is a made-up person from
 the demo.
 
@@ -137,16 +138,18 @@ the demo.
 ## Part 3: as the office
 
 The office is made for a laptop or desktop: if you switched Chrome to a phone view, press F12
-again to go back.
+again to go back. Every office page has the same menu on the left, with the page you're on
+marked; "How-to guide", near its bottom, explains each job step by step.
 
 20. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev
     window an email ("Your Acme Events office login link") has the link: open it, then click "Log
     me in". You see "Today".
-21. **Today.** It shows Saturday's gaps ("Gaps in the next 7 days"), "4 requests waiting: 2 time
-    changes, 1 swap, 1 review of a refused shift." (Sam's and the demo's time changes, the demo's
-    swap, Maya's review), "Who worked?" (yesterday's 5 bookings, not marked yet), and what was
-    cancelled in the last 24 hours (Zoe's).
+21. **Today.** The numbers at the top count what's in each section; click one to jump to it. It
+    shows "4 requests waiting: 2 time changes, 1 swap, 1 review of a refused shift." (Sam's and
+    the demo's time changes, the demo's swap, Maya's review), Saturday's gaps ("Gaps in the next 7
+    days"), "Who worked?" (yesterday's 5 bookings, not marked yet), and what was cancelled in the
+    last 24 hours (Zoe's).
 22. **Offer a gap.** Under "Gaps in the next 7 days", on a shift, click "Offer to someone", then
     "Send offer to …" on the first person. It says "Offer on its way to …", and the offer appears
     in the dev window. Click "Back to Today".

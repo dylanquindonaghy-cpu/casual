@@ -2,13 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn, field, labelStack } from "@/app/ui/classes";
 import { assignResultText } from "@/lib/office/shifts-copy";
 import type { OverridableCode } from "@/lib/rules/eligibility";
 import { useHydrated } from "@/app/use-hydrated";
+import { resultBox } from "../shift-tones";
 import { assignAction } from "../actions";
-
-const button =
-  "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100 disabled:opacity-60";
 
 // "Assign {name}", or "Assign anyway" with a reason when the only "no"s are ones the office may
 // override. The server checks everything again.
@@ -47,26 +46,32 @@ export function AssignButton({
       }
     });
   return (
-    <div className="mt-2 flex flex-col gap-2">
+    <div className="mt-4 flex flex-col gap-3">
       {overrides && !done && (
-        <label className="flex flex-col">
-          <span className="font-semibold">Why is it all right? (kept with the booking)</span>
+        <label className={labelStack}>
+          <span>Why is it all right? (kept with the booking)</span>
           <textarea
-            className="rounded border border-slate-400 px-2 py-1"
+            className={`${field} w-full`}
             rows={2}
             maxLength={500}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
+            disabled={!ready}
           />
         </label>
       )}
       {!done && (
-        <button type="button" className={button} disabled={pending || !ready} onClick={assign}>
+        <button
+          type="button"
+          className={`${btn.primary} self-start`}
+          disabled={pending || !ready}
+          onClick={assign}
+        >
           {overrides ? "Assign anyway" : `Assign ${name}`}
         </button>
       )}
       {message && (
-        <p role="status" className="font-semibold">
+        <p role="status" className={resultBox}>
           {message}
         </p>
       )}

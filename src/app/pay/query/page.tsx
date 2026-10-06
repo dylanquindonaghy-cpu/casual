@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { page, staffBtn } from "@/app/ui/classes";
+import { PageHeader } from "@/app/ui/page-header";
 import { requireWorker, steppedUpWorker } from "@/lib/auth/current-worker";
 import { StepUpRequiredError } from "@/lib/portal/pay";
 import { payQueryShifts, type PayQueryShift } from "@/lib/portal/pay-queries";
@@ -8,8 +11,7 @@ import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
 import { PayQueryForm } from "./pay-query-form";
 
-const secondary =
-  "mt-6 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center text-lg font-semibold";
+export const metadata: Metadata = { title: "Raise a pay query" };
 
 // "Raise a pay query" (docs/screens.md `/pay/query`): behind the pay code, like the pay figures.
 // Without a code from the last 30 minutes, it points back to the pay page for one.
@@ -24,25 +26,23 @@ export default async function PayQueryPage() {
       })
     : null;
   return (
-    <main className="mx-auto max-w-md p-6">
+    <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <p className="text-base text-slate-600">{firm.name}</p>
-      <h1 className="text-3xl font-bold">Raise a pay query</h1>
+      <PageHeader eyebrow={firm.name} title="Raise a pay query">
+        {shifts ? (
+          <p>Payroll will look at it. You&apos;ll see its status on your pay page.</p>
+        ) : null}
+      </PageHeader>
       {shifts ? (
-        <>
-          <p className="mt-2">
-            Payroll will look at it. You&apos;ll see its status on your pay page.
-          </p>
-          <PayQueryForm
-            shifts={shifts.map((s) => ({ shiftId: s.shiftId, label: s.label }))}
-            today={today}
-            earliest={addDays(today, -PAY_QUERY_DAYS_BACK)}
-          />
-        </>
+        <PayQueryForm
+          shifts={shifts.map((s) => ({ shiftId: s.shiftId, label: s.label }))}
+          today={today}
+          earliest={addDays(today, -PAY_QUERY_DAYS_BACK)}
+        />
       ) : (
         <>
-          <p className="mt-4">To keep your pay private, enter your pay code first.</p>
-          <Link href="/pay" className={secondary}>
+          <p>To keep your pay private, enter your pay code first.</p>
+          <Link href="/pay" className={`${staffBtn.primary} mt-6`}>
             Go to your pay
           </Link>
         </>

@@ -2,12 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { sendNowText } from "@/lib/office/pay-digest-copy";
 import { sendDigestNowAction } from "./actions";
 
-const button =
-  "rounded-lg border border-slate-400 px-4 py-3 font-semibold hover:bg-slate-100 disabled:opacity-60";
 const failed = { status: "error" as const };
 
 // Sends the new pay queries to payroll now, rather than waiting for the digest time.
@@ -23,8 +22,8 @@ export function SendDigestButton() {
       if (result.status === "queued") router.refresh();
     });
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3">
-      <button type="button" className={button} disabled={pending || !ready} onClick={send}>
+    <div className="flex max-w-prose flex-col items-start gap-3">
+      <button type="button" className={btn.secondary} disabled={pending || !ready} onClick={send}>
         Send the digest now
       </button>
       {message && (

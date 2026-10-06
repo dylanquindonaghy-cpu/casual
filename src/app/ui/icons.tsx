@@ -1,0 +1,144 @@
+import type { ReactNode } from "react";
+
+// The few icons the office menu and the office guide use: 20px line drawings in the text colour,
+// hand-written (no icon library; inline SVG also works in the offline copy). Always beside words
+// or purely visual cues, so hidden from screen readers. Hook-free: safe in server and client
+// components.
+
+const PATHS = {
+  // Today, and payroll's Home: a house.
+  home: (
+    <>
+      <path d="M3.5 10.5 12 3.5l8.5 7" />
+      <path d="M5.5 9v11.5h13V9" />
+      <path d="M10 20.5v-6h4v6" />
+    </>
+  ),
+  // Shifts: a calendar.
+  shifts: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+      <path d="M3.5 10h17" />
+      <path d="M8 3v4" />
+      <path d="M16 3v4" />
+    </>
+  ),
+  // Requests: an inbox tray.
+  requests: (
+    <>
+      <path d="M3.5 13.5h5l1.5 3h4l1.5-3h5" />
+      <path d="M6 5h12l2.5 8.5v5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-5L6 5Z" />
+    </>
+  ),
+  // Workers: two people.
+  workers: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c.6-3.5 3.2-5.5 6.5-5.5s5.9 2 6.5 5.5" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M17 14.5c2.2.2 3.8 1.7 4.3 4.5" />
+    </>
+  ),
+  // Action log: a list.
+  log: (
+    <>
+      <path d="M9 6h11.5" />
+      <path d="M9 12h11.5" />
+      <path d="M9 18h11.5" />
+      <path d="M4 6h.01" />
+      <path d="M4 12h.01" />
+      <path d="M4 18h.01" />
+    </>
+  ),
+  // Notice report: a page with lines.
+  notice: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
+    </>
+  ),
+  // Pilot metrics: a bar chart.
+  pilot: (
+    <>
+      <path d="M4 3.5v17h16.5" />
+      <path d="M8.5 16.5v-5" />
+      <path d="M13 16.5v-9" />
+      <path d="M17.5 16.5v-3" />
+    </>
+  ),
+  // Pay queries: a banknote.
+  pay: (
+    <>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M6 9.5v.01" />
+      <path d="M18 14.5v.01" />
+    </>
+  ),
+  // Import pay records: an upload arrow into a tray.
+  import: (
+    <>
+      <path d="M12 15V3.5" />
+      <path d="m7 8 5-4.5L17 8" />
+      <path d="M4 14.5v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+    </>
+  ),
+  // Office team: a shield with a tick.
+  team: (
+    <>
+      <path d="M12 3 19.5 6v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6L12 3Z" />
+      <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  // Data requests: a database.
+  data: (
+    <>
+      <ellipse cx="12" cy="5.5" rx="7.5" ry="2.5" />
+      <path d="M4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13" />
+      <path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5" />
+    </>
+  ),
+  // How-to guide: an open book.
+  guide: (
+    <>
+      <path d="M2.5 5.5c3-1.2 6.2-1 9.5 1 3.3-2 6.5-2.2 9.5-1v13c-3-1.2-6.2-1-9.5 1-3.3-2-6.5-2.2-9.5-1v-13Z" />
+      <path d="M12 6.5v13" />
+    </>
+  ),
+  // Log out: an arrow leaving a door.
+  logout: (
+    <>
+      <path d="M9.5 20.5H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h3.5" />
+      <path d="m15.5 16.5 4.5-4.5-4.5-4.5" />
+      <path d="M20 12H9.5" />
+    </>
+  ),
+  // More this way: an arrow head pointing right (`rotate-180` points it left). The phone menu
+  // row's "more links" cue, and the arrow on each link in the office guide's contents (below
+  // 1280px).
+  chevron: <path d="m9 5.5 6.5 6.5L9 18.5" />,
+} satisfies Record<string, ReactNode>;
+
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, className }: { name: IconName; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0${className ? ` ${className}` : ""}`}
+    >
+      {PATHS[name]}
+    </svg>
+  );
+}

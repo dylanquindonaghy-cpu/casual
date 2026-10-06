@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { btn, card, page } from "@/app/ui/classes";
+import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { FindWorkerForm } from "../find-worker-form";
 import { findWorkersAction } from "./actions";
+
+export const metadata: Metadata = { title: "Workers" };
 
 // Workers (docs/screens.md `/office/workers`): find someone to change their access (they've left,
 // they're back, a site they can't work at, a lost phone). Admins and resourcers (checked here and
@@ -10,21 +15,25 @@ import { findWorkersAction } from "./actions";
 export default async function OfficeWorkersPage() {
   const { firm } = await requireOfficeArea("workers");
   return (
-    <main className="mx-auto max-w-2xl p-6 text-lg">
-      <p className="text-base text-slate-600">{firm.name} office</p>
-      <h1 className="text-3xl font-bold">Workers</h1>
-      <p className="mt-2">
-        Find someone to make them inactive when they leave, active again when they&apos;re back,
-        keep them off a site, or log them out when they lose their phone.
+    <main className={page.officeForm}>
+      <PageHeader eyebrow={<>{firm.name} office</>} title="Workers">
+        <p>
+          Find someone to make them inactive when they leave, active again when they&apos;re back,
+          keep them off a site, or log them out when they lose their phone.
+        </p>
+      </PageHeader>
+      <div className={card}>
+        <FindWorkerForm
+          find={findWorkersAction}
+          hrefBase="/office/workers"
+          notAllowed="You can't change workers' access."
+        />
+      </div>
+      <p className="mt-10">
+        <Link href="/office" className={btn.link}>
+          Back to Today
+        </Link>
       </p>
-      <FindWorkerForm
-        find={findWorkersAction}
-        hrefBase="/office/workers"
-        notAllowed="You can't change workers' access."
-      />
-      <Link href="/office" className="mt-8 inline-block underline">
-        Back to Today
-      </Link>
     </main>
   );
 }

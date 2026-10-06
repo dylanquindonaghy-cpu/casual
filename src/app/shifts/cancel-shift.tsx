@@ -8,18 +8,21 @@ import {
   OTHER_REASON,
   type CancelShiftOutcome,
 } from "@/lib/portal/cancel-reasons";
+import { labelStack, staffBtn, staffField } from "../ui/classes";
+import { useHydrated } from "@/app/use-hydrated";
 import { cancelShiftAction } from "./actions";
 import { CancelShiftResult } from "./cancel-shift-result";
 
 type Shown = Exclude<CancelShiftOutcome, { status: "logged_out" | "invalid_reason" }>;
 
-const bigButton = "mt-3 w-full rounded-xl px-4 py-4 text-lg font-semibold disabled:opacity-60";
-
 // "Cancel this shift" → why (a quick reason, or "Something else" with a short note) → "Confirm
 // cancellation" or "Keep this shift" → the confirmation, in place. Then "Back to my shifts"
-// reloads the list without the cancelled shift.
+// reloads the list without the cancelled shift. The opener and the confirm look destructive
+// (red outline, then red fill); "Keep this shift" is the plain way out. The opener and the choices
+// wait for the page (docs/ui-design.md "Forms wait for the page").
 export function CancelShift({ shiftId }: { shiftId: string }) {
   const router = useRouter();
+  const ready = useHydrated();
   const [asking, setAsking] = useState(false);
   const [choice, setChoice] = useState("");
   const [note, setNote] = useState("");
@@ -50,13 +53,13 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
     // After an error, the same reason is sent again; otherwise back to the (reloaded) list.
     const retry = outcome.status === "error";
     return (
-      <div className="mt-4">
+      <div className="flex flex-col gap-3">
         <CancelShiftResult outcome={outcome} />
         <button
           type="button"
           disabled={pending}
           onClick={retry ? confirm : () => router.refresh()}
-          className={`${bigButton} border-2 border-slate-900`}
+          className={staffBtn.secondary}
         >
           {retry ? "Try again" : "Back to my shifts"}
         </button>
@@ -67,43 +70,46 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
     return (
       <button
         type="button"
+        disabled={!ready}
         onClick={() => setAsking(true)}
-        className={`${bigButton} border-2 border-slate-400 text-slate-900`}
+        className={staffBtn.danger}
       >
         Cancel this shift
       </button>
     );
   }
   return (
-    <fieldset className="mt-4 rounded-xl border-2 border-slate-300 p-4">
-      <legend className="px-1 font-semibold">Why can&apos;t you make it?</legend>
+    <fieldset className="rounded-xl border-2 border-line-strong p-4">
+      <legend className="px-1 text-lg font-bold">Why can&apos;t you make it?</legend>
       {[...CANCEL_REASONS, OTHER_REASON].map((reason) => (
-        <label key={reason} className="flex min-h-12 items-center gap-3 py-3">
+        <label key={reason} className="flex min-h-12 items-center gap-3 py-2">
           <input
             type="radio"
             name={`reason-${shiftId}`}
             value={reason}
             checked={choice === reason}
             onChange={() => setChoice(reason)}
-            className="h-6 w-6"
+            disabled={!ready}
+            className="h-6 w-6 shrink-0 accent-ink"
           />
           <span>{reason}</span>
         </label>
       ))}
       {choice === OTHER_REASON && (
-        <label className="mt-2 block">
-          <span className="font-semibold">Tell the office why</span>
+        <label className={`${labelStack} mt-2`}>
+          <span>Tell the office why</span>
           <input
             type="text"
             value={note}
             maxLength={MAX_NOTE_LENGTH}
             onChange={(e) => setNote(e.target.value)}
-            className="mt-1 block w-full rounded-lg border-2 border-slate-300 px-3 py-3"
+            disabled={!ready}
+            className={staffField}
           />
         </label>
       )}
       {problem && (
-        <p role="alert" className="mt-2 text-red-700">
+        <p role="alert" className="mt-3 font-semibold text-urgent">
           {problem}
         </p>
       )}
@@ -111,7 +117,7 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
         type="button"
         disabled={pending}
         onClick={confirm}
-        className={`${bigButton} bg-slate-900 text-white`}
+        className={`${staffBtn.dangerSolid} mt-4`}
       >
         {pending ? "Cancelling…" : "Confirm cancellation"}
       </button>
@@ -122,7 +128,7 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
           setAsking(false);
           setProblem(null);
         }}
-        className={`${bigButton} border-2 border-slate-900`}
+        className={`${staffBtn.secondary} mt-3`}
       >
         Keep this shift
       </button>

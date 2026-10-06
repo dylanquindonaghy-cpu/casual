@@ -1,7 +1,9 @@
+import { muted, staffBtn } from "@/app/ui/classes";
 import type { PushState } from "@/lib/portal/push-state";
 
 // What "Notifications on this phone" says in each state (push-setting.tsx decides the state).
-// `justTurnedOff` adds the confirmation after "Turn off notifications".
+// `justTurnedOff` adds the confirmation after "Turn off notifications". A part of "How we reach
+// you" under its own line; its buttons are secondary there ("Save settings" is the card's main one).
 export function PushSettingView({
   state,
   firmName,
@@ -19,11 +21,10 @@ export function PushSettingView({
   onTurnOn?: () => void;
   onTurnOff?: () => void;
 }) {
-  const button = "mt-3 w-full rounded-xl px-4 py-4 text-lg font-semibold disabled:opacity-60";
-  const note = "mt-1 text-base text-slate-600";
+  const note = `mt-1 ${muted}`;
   return (
-    <div className="mt-6">
-      <h3 className="font-semibold">Notifications on this phone</h3>
+    <div className="mt-6 border-t border-line pt-5">
+      <h3 className="text-lg font-bold text-ink">Notifications on this phone</h3>
       {state === "no_key" && (
         <p className={note}>
           Phone notifications aren&apos;t switched on for {firmName} yet. You&apos;ll get messages
@@ -61,7 +62,7 @@ export function PushSettingView({
             type="button"
             disabled={pending}
             onClick={onTurnOn}
-            className={`${button} bg-slate-900 text-white`}
+            className={`${staffBtn.secondary} mt-3`}
           >
             Turn on notifications
           </button>
@@ -76,14 +77,14 @@ export function PushSettingView({
             type="button"
             disabled={pending}
             onClick={onTurnOff}
-            className={`${button} border-2 border-slate-900`}
+            className={`${staffBtn.secondary} mt-3`}
           >
             Turn off notifications
           </button>
         </>
       )}
       {problem && (
-        <p role="alert" className="mt-2 text-red-700">
+        <p role="alert" className="mt-2 font-semibold text-urgent">
           {problem}
         </p>
       )}

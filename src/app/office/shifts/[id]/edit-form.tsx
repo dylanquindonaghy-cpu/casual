@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn, card, field, headingGap, labelStack } from "@/app/ui/classes";
+import { useHydrated } from "@/app/use-hydrated";
 import { editResultText } from "@/lib/office/shifts-copy";
+import { resultBox } from "../shift-tones";
 import { editShiftAction } from "../actions";
 
-const input = "rounded border border-slate-400 px-2 py-1";
-const button =
-  "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100 disabled:opacity-60";
+// Fields fill their grid cell; locked ones (people booked) look locked.
+const input = `${field} w-full disabled:cursor-not-allowed disabled:bg-quiet-soft disabled:text-ink-muted`;
 
 export interface EditDefaults {
   date: string;
@@ -20,7 +22,8 @@ export interface EditDefaults {
 }
 
 // "Edit this shift". With people booked, only places and instructions can change (the server
-// says so if anything else was changed).
+// says so if anything else was changed). Every field and the button wait for the page
+// (docs/ui-design.md "Forms wait for the page").
 export function EditShiftForm({
   shiftId,
   defaults,
@@ -36,8 +39,10 @@ export function EditShiftForm({
   const [values, setValues] = useState(defaults);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const ready = useHydrated();
   const set = (patch: Partial<EditDefaults>) => setValues((v) => ({ ...v, ...patch }));
   const lockTimes = booked > 0;
+  const locked = lockTimes || !ready;
   const save = () =>
     startTransition(async () => {
       const result = await editShiftAction(shiftId, values).catch(() => ({
@@ -48,63 +53,63 @@ export function EditShiftForm({
     });
   return (
     <form
-      className="mt-3 flex flex-col gap-3"
+      className={`${card} ${headingGap} flex max-w-2xl flex-col gap-5 sm:p-6`}
       onSubmit={(e) => {
         e.preventDefault();
         save();
       }}
     >
       {lockTimes && (
-        <p>
+        <p className="rounded-lg bg-quiet-soft px-3 py-2 text-quiet-ink">
           People are booked on this shift, so only the places and instructions can change here. To
           move or shorten it, use &quot;Move, shorten or cancel&quot; below.
         </p>
       )}
-      <div className="flex flex-wrap gap-3">
-        <label className="flex flex-col">
-          <span>Date</span>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
+        <label className={`${labelStack} col-span-2`}>
+          Date
           <input
             type="date"
             className={input}
-            disabled={lockTimes}
+            disabled={locked}
             value={values.date}
             onChange={(e) => set({ date: e.target.value })}
           />
         </label>
-        <label className="flex flex-col">
-          <span>Start</span>
+        <label className={`${labelStack} sm:col-span-2`}>
+          Start
           <input
             type="time"
             className={input}
-            disabled={lockTimes}
+            disabled={locked}
             value={values.start}
             onChange={(e) => set({ start: e.target.value })}
           />
         </label>
-        <label className="flex flex-col">
-          <span>Finish</span>
+        <label className={`${labelStack} sm:col-span-2`}>
+          Finish
           <input
             type="time"
             className={input}
-            disabled={lockTimes}
+            disabled={locked}
             value={values.end}
             onChange={(e) => set({ end: e.target.value })}
           />
         </label>
-        <label className="flex flex-col">
-          <span>Role</span>
+        <label className={`${labelStack} col-span-2`}>
+          Role
           <input
             className={input}
-            disabled={lockTimes}
+            disabled={locked}
             value={values.role}
             onChange={(e) => set({ role: e.target.value })}
           />
         </label>
-        <label className="flex flex-col">
-          <span>Site</span>
+        <label className={`${labelStack} col-span-2 sm:col-span-3`}>
+          Site
           <select
             className={input}
-            disabled={lockTimes}
+            disabled={locked}
             value={values.siteId}
             onChange={(e) => set({ siteId: e.target.value })}
           >
@@ -116,32 +121,34 @@ export function EditShiftForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col">
-          <span>Places</span>
+        <label className={labelStack}>
+          Places
           <input
             type="number"
             min={1}
             max={1000}
-            className={`${input} w-24`}
+            className={input}
             value={values.headcount}
             onChange={(e) => set({ headcount: e.target.value })}
+            disabled={!ready}
           />
         </label>
       </div>
-      <label className="flex flex-col">
-        <span>Instructions</span>
+      <label className={labelStack}>
+        Instructions
         <textarea
           className={input}
           rows={3}
           value={values.instructions}
           onChange={(e) => set({ instructions: e.target.value })}
+          disabled={!ready}
         />
       </label>
-      <button type="submit" className={button} disabled={pending}>
+      <button type="submit" className={`${btn.primary} self-start`} disabled={pending || !ready}>
         Save changes
       </button>
       {message && (
-        <p role="status" className="font-semibold">
+        <p role="status" className={resultBox}>
           {message}
         </p>
       )}

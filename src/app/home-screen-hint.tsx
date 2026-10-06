@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { HOME_SCREEN_HINT_KEY, shouldShowHomeScreenHint } from "@/lib/portal/home-screen";
+import { staffBtn } from "./ui/classes";
 
 // "Put your shifts on your home screen", on an iPhone or iPad only (Safari has no install
 // button, so it says how). Decided in the browser after the page loads; renders nothing on the
@@ -33,11 +34,8 @@ export function HomeScreenHint() {
 
   if (!show) return null;
   return (
-    <section
-      aria-labelledby="home-screen-heading"
-      className="mt-6 rounded-xl border-2 border-slate-300 bg-slate-50 p-4"
-    >
-      <h2 id="home-screen-heading" className="font-semibold">
+    <section aria-labelledby="home-screen-heading" className="mt-8 rounded-xl bg-quiet-soft p-4">
+      <h2 id="home-screen-heading" className="text-lg font-bold">
         Put your shifts on your home screen
       </h2>
       <p className="mt-1">
@@ -54,7 +52,7 @@ export function HomeScreenHint() {
           }
           setShow(false);
         }}
-        className="mt-3 w-full rounded-xl border-2 border-slate-900 px-4 py-3 font-semibold"
+        className={`${staffBtn.secondary} mt-3`}
       >
         Don&apos;t show again
       </button>

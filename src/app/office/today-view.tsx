@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { TodayShift, TodayView } from "@/lib/office/today";
 import {
   placesText,
@@ -14,207 +15,457 @@ import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import { dayLabel } from "@/lib/rules/reasons";
 import { lineWords } from "@/lib/tenancy/shifts-line";
+import {
+  btn,
+  card,
+  count,
+  h2,
+  headingGap,
+  meta,
+  row,
+  rows,
+  sectionGap,
+  textLink,
+  textLinkInGroup,
+} from "../ui/classes";
+import { StatusChip } from "../ui/status-chip";
 import { BookingToCheckActions } from "./keep-booking";
 import { ShiftActions } from "./shift-actions";
 
-// The office's Today view (docs/screens.md `/office/today`). Pure: the page loads the data.
+// The office's Today view (docs/screens.md `/office/today`; layout: docs/ui-design.md "Today").
+// Pure: the page loads the data. A summary of counts first (each a link to its section), then the
+// sections in the order things need doing. Urgent shifts and bookings to check are action cards;
+// the other lists are compact rows inside one card.
 
 // A message from a number we don't know shows its first 300 characters (the rest is stored).
 const UNKNOWN_TEXT_MAX = 300;
 
-const section = "mt-8";
-const heading = "text-2xl font-bold";
-const card = "mt-3 rounded-xl border border-slate-300 p-4";
+// Each section's heading: the same words label its summary tile. The keys are the headings' ids
+// (the summary's links and each section's aria-labelledby).
+const HEADINGS = {
+  urgent: "Urgent shifts",
+  "to-check": "Bookings to check",
+  "from-sheet": "From your rota sheet",
+  requests: "Requests",
+  gaps: "Gaps in the next 7 days",
+  "to-mark": "Who worked?",
+  cancelled: "Cancelled in the last 24 hours",
+  unknown: "Messages from numbers we don't know",
+  expiring: "Credentials expiring this week",
+} as const;
+type SectionId = keyof typeof HEADINGS;
 
-function ShiftHeading({ shift, timeZone }: { shift: TodayShift; timeZone: string }) {
+// A shift's title link ("Steward at Acme Demo Arena") and every other link in a line here: the
+// shared inline link (grey underline, darker on hover), as on every office page.
+const titleLink = textLink;
+// A title link whose click area covers its whole block (`relative group`, with no other link or
+// button in it), so the target is big while the words stay the link's name; hovering anywhere on
+// the block darkens its underline.
+const block = "group relative";
+const stretched = `${textLinkInGroup} after:absolute after:inset-0`;
+
+function ShiftTitle({
+  shift,
+  stretch = false,
+}: {
+  shift: Pick<TodayShift, "shiftId" | "role" | "site">;
+  stretch?: boolean;
+}) {
   return (
-    <>
-      <p className="text-lg font-semibold">
-        <Link href={`/office/shifts/${shift.shiftId}`} className="underline">
-          {roleLabel(shift.role)}
-          {shift.site ? ` at ${shift.site}` : ""}
-        </Link>
-      </p>
-      <p>{shiftWhen(shift.startsAt, shift.endsAt, timeZone)}</p>
-      <p>{placesText(shift.placesLeft, shift.headcount)}</p>
-    </>
+    <Link href={`/office/shifts/${shift.shiftId}`} className={stretch ? stretched : titleLink}>
+      {roleLabel(shift.role)}
+      {shift.site ? ` at ${shift.site}` : ""}
+    </Link>
   );
+}
+
+// "50" / "50+" (the list stops at 50).
+const shown = (n: number, more: boolean) => (more ? `${n}+` : String(n));
+
+// --- Summary ---------------------------------------------------------------------------------
+
+// How a tile looks: red when urgent things are waiting, amber when someone needs to act, plain
+// for information, and calm with a check at 0. The number and the words always say it too.
+type TileTone = "urgent" | "attention" | "quiet" | "calm";
+
+const TILE =
+  "flex h-full flex-col justify-between gap-2 rounded-xl border-2 p-3 shadow-sm hover:border-ink sm:min-h-24 sm:gap-3 sm:p-4";
+const TILE_TONE: Record<TileTone, { tile: string; number: string; icon: string }> = {
+  urgent: { tile: "border-urgent bg-urgent-soft", number: "text-urgent", icon: "text-urgent" },
+  attention: {
+    tile: "border-attention bg-attention-soft",
+    number: "text-attention-ink",
+    icon: "text-attention",
+  },
+  quiet: { tile: "border-line-strong bg-white", number: "text-ink", icon: "text-quiet-ink" },
+  calm: { tile: "border-line bg-white", number: "text-ink-muted", icon: "text-done" },
+};
+
+// The tone icons (the same drawings as the status chips'): decorative, beside words.
+const TONE_PATHS: Record<TileTone, ReactNode> = {
+  urgent: (
+    <>
+      <path d="M12 3.5 2.5 20h19L12 3.5Z" />
+      <path d="M12 10v4" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  attention: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  quiet: <path d="M6 12h12" />,
+  calm: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+};
+
+function ToneIcon({ tone, size = 20 }: { tone: TileTone; size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${TILE_TONE[tone].icon}`}
+    >
+      {TONE_PATHS[tone]}
+    </svg>
+  );
+}
+
+type Tile = { id: SectionId; n: number; more: boolean; tone: Exclude<TileTone, "calm"> };
+
+// One tile per section on the page, in the page's order. "Bookings to check" and "From your rota
+// sheet" only exist when there's something in them.
+function summaryTiles(view: Omit<TodayView, "officeUser">): Tile[] {
+  const tiles: (Tile | false)[] = [
+    { id: "urgent", n: view.urgent.length, more: false, tone: "urgent" },
+    view.toCheck.length > 0 && {
+      id: "to-check",
+      n: view.toCheck.length,
+      more: view.toCheckMore,
+      tone: "urgent",
+    },
+    view.fromSheet.length > 0 && {
+      id: "from-sheet",
+      n: view.fromSheet.length,
+      more: view.fromSheetMore,
+      tone: "attention",
+    },
+    { id: "requests", n: view.requests.total, more: false, tone: "attention" },
+    { id: "gaps", n: view.gaps.length, more: view.gapsMore, tone: "attention" },
+    { id: "to-mark", n: view.toMark.length, more: view.toMarkMore, tone: "attention" },
+    { id: "cancelled", n: view.cancellations.length, more: false, tone: "quiet" },
+    { id: "unknown", n: view.unknownMessages.length, more: view.unknownMore, tone: "attention" },
+    { id: "expiring", n: view.expiring.length, more: false, tone: "attention" },
+  ];
+  return tiles.filter((t): t is Tile => t !== false);
+}
+
+function Summary({ view }: { view: Omit<TodayView, "officeUser"> }) {
+  return (
+    <nav aria-label="Summary">
+      <ul role="list" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {summaryTiles(view).map((t) => {
+          const tone: TileTone = t.n === 0 ? "calm" : t.tone;
+          return (
+            <li key={t.id}>
+              <a href={`#${t.id}`} className={`${TILE} ${TILE_TONE[tone].tile}`}>
+                <span className="flex items-start justify-between gap-2">
+                  <span
+                    className={`text-3xl leading-none font-bold tabular-nums ${TILE_TONE[tone].number}`}
+                  >
+                    {shown(t.n, t.more)}
+                  </span>
+                  <ToneIcon tone={tone} />
+                </span>{" "}
+                <span className="text-sm leading-snug font-semibold text-ink">
+                  {HEADINGS[t.id]}
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+// --- Sections --------------------------------------------------------------------------------
+
+// A section: its heading (the summary's links land on it), a count beside it when there are any,
+// then the content.
+function Section({
+  id,
+  n = 0,
+  more = false,
+  children,
+}: {
+  id: SectionId;
+  n?: number;
+  more?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section className={sectionGap.office} aria-labelledby={id}>
+      <div className="flex items-center">
+        <h2 id={id} className={`${h2} scroll-mt-6`}>
+          {HEADINGS[id]}
+        </h2>
+        {n > 0 && <span className={count}>{shown(n, more)}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// "No urgent shifts.": nothing to do here, with a check.
+function Nothing({ children }: { children: ReactNode }) {
+  return (
+    <p className={`${headingGap} flex items-center gap-2 text-ink-muted`}>
+      <ToneIcon tone="calm" size={18} />
+      {children}
+    </p>
+  );
+}
+
+// "Showing the first 50." under a list.
+function More({ children }: { children: ReactNode }) {
+  return <p className={`mt-2 ${meta}`}>{children}</p>;
+}
+
+// "From your Google Sheet": its status is changed in the sheet (so it has no "Mark as filled").
+function SheetChip({ shift }: { shift: TodayShift }) {
+  return shift.fromSheet ? <StatusChip tone="quiet">From your Google Sheet</StatusChip> : null;
 }
 
 export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) {
   const tz = view.timeZone;
   return (
     <>
-      <section className={section} aria-labelledby="urgent">
-        <h2 id="urgent" className={heading}>
-          Urgent shifts
-        </h2>
-        {view.urgent.length === 0 ? (
-          <p className="mt-2">No urgent shifts.</p>
-        ) : (
-          view.urgent.map((u) => (
-            <article key={u.shiftId} className={card}>
-              <ShiftHeading shift={u} timeZone={tz} />
-              <p className="mt-2">{waveText(u)}</p>
-              {stoppedText(u) && <p>{stoppedText(u)}</p>}
-              {u.escalated && <p>The office was emailed about it.</p>}
-              <ShiftActions shiftId={u.shiftId} isUrgent fromSheet={u.fromSheet} />
-            </article>
-          ))
-        )}
-      </section>
+      <Summary view={view} />
 
-      <section className={section} aria-labelledby="gaps">
-        <h2 id="gaps" className={heading}>
-          Gaps in the next 7 days
-        </h2>
-        {view.gaps.length === 0 ? (
-          <p className="mt-2">No gaps in the next 7 days.</p>
+      <Section id="urgent" n={view.urgent.length}>
+        {view.urgent.length === 0 ? (
+          <Nothing>No urgent shifts.</Nothing>
         ) : (
-          view.gaps.map((g) => (
-            <article key={g.shiftId} className={card}>
-              <ShiftHeading shift={g} timeZone={tz} />
-              <ShiftActions shiftId={g.shiftId} isUrgent={false} fromSheet={g.fromSheet} />
-            </article>
-          ))
+          <div className={`${headingGap} flex flex-col gap-3`}>
+            {view.urgent.map((u) => (
+              <article
+                key={u.shiftId}
+                className={`${card} flex flex-col gap-4 border-l-4 border-l-urgent lg:flex-row lg:items-start lg:justify-between lg:gap-6`}
+              >
+                <div className={`${block} min-w-0`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusChip tone="urgent">Urgent</StatusChip>
+                    <StatusChip tone="attention">
+                      {placesText(u.placesLeft, u.headcount)}
+                    </StatusChip>
+                    <SheetChip shift={u} />
+                  </div>
+                  <h3 className="mt-2 text-lg font-semibold">
+                    <ShiftTitle shift={u} stretch />
+                  </h3>
+                  <p className="tabular-nums">{shiftWhen(u.startsAt, u.endsAt, tz)}</p>
+                  <p className={`mt-2 ${meta} tabular-nums`}>{waveText(u)}</p>
+                  {stoppedText(u) && <p className="text-sm font-semibold">{stoppedText(u)}</p>}
+                  {u.escalated && <p className={meta}>The office was emailed about it.</p>}
+                </div>
+                <ShiftActions
+                  shiftId={u.shiftId}
+                  isUrgent
+                  fromSheet={u.fromSheet}
+                  className="lg:shrink-0"
+                />
+              </article>
+            ))}
+          </div>
         )}
-        {view.gapsMore && <p className="mt-2">Showing the first 50.</p>}
-      </section>
+      </Section>
 
       {view.toCheck.length > 0 && (
-        <section className={section} aria-labelledby="to-check">
-          <h2 id="to-check" className={heading}>
-            Bookings to check
-          </h2>
-          <p className="mt-2">
+        <Section id="to-check" n={view.toCheck.length} more={view.toCheckMore}>
+          <p className={`${headingGap} max-w-prose text-ink-muted`}>
             These people are booked, but can&apos;t work these shifts as things stand. Cancel the
             booking (they&apos;re told), or keep it.
           </p>
-          <ul>
+          <ul role="list" className={`${headingGap} flex flex-col gap-3`}>
             {view.toCheck.map((b) => (
               <li key={`${b.shiftId}-${b.workerId}`} className={card}>
                 <p className="font-semibold">{toCheckText(b)}</p>
-                <p>
-                  <Link href={`/office/shifts/${b.shiftId}`} className="underline">
-                    {roleLabel(b.role)}
-                    {b.site ? ` at ${b.site}` : ""}
-                  </Link>
-                  , {shiftWhen(b.startsAt, b.endsAt, tz)}
+                <p className="mt-1">
+                  <ShiftTitle shift={b} />
+                  <span className="tabular-nums">, {shiftWhen(b.startsAt, b.endsAt, tz)}</span>
                 </p>
-                <Link href={`/office/workers/${b.workerId}`} className="underline">
-                  {b.worker}&apos;s page
-                </Link>
+                <p className="mt-1">
+                  <Link href={`/office/workers/${b.workerId}`} className={titleLink}>
+                    {b.worker}&apos;s page
+                  </Link>
+                </p>
                 <BookingToCheckActions shiftId={b.shiftId} workerId={b.workerId} name={b.worker} />
               </li>
             ))}
           </ul>
-          {view.toCheckMore && <p className="mt-2">Showing the first 50.</p>}
-        </section>
+          {view.toCheckMore && <More>Showing the first 50.</More>}
+        </Section>
       )}
 
       {view.fromSheet.length > 0 && (
-        <section className={section} aria-labelledby="from-sheet">
-          <h2 id="from-sheet" className={heading}>
-            From your rota sheet
-          </h2>
-          <p className="mt-2">Your rota sheet asks for these, but the app couldn&apos;t do them.</p>
-          <ul>
+        <Section id="from-sheet" n={view.fromSheet.length} more={view.fromSheetMore}>
+          <p className={`${headingGap} max-w-prose text-ink-muted`}>
+            Your rota sheet asks for these, but the app couldn&apos;t do them.
+          </p>
+          <ul role="list" className={`${headingGap} ${rows}`}>
             {view.fromSheet.map((i) => (
-              <li key={i.shiftId} className={card}>
-                <p className="text-lg font-semibold">
-                  <Link href={`/office/shifts/${i.shiftId}`} className="underline">
-                    {roleLabel(i.role)}
-                    {i.site ? ` at ${i.site}` : ""}
-                  </Link>
-                </p>
-                <p>{shiftWhen(i.startsAt, i.endsAt, tz)}</p>
-                {i.change && <p className="mt-2">{sheetChangeText(i.change)}</p>}
-                {i.names.map((n, k) => (
-                  <p key={`${n.name}-${k}`} className="mt-2">
-                    {sheetNameText(n)}
+              <li key={i.shiftId} className={row}>
+                <div className={block}>
+                  <p className="font-semibold">
+                    <ShiftTitle shift={i} stretch />
                   </p>
-                ))}
+                  <p className={`${meta} tabular-nums`}>{shiftWhen(i.startsAt, i.endsAt, tz)}</p>
+                </div>
+                <div className="mt-2 flex max-w-prose flex-col gap-2">
+                  {i.change && <p>{sheetChangeText(i.change)}</p>}
+                  {i.names.map((n, k) => (
+                    <p key={`${n.name}-${k}`}>{sheetNameText(n)}</p>
+                  ))}
+                </div>
               </li>
             ))}
           </ul>
-          {view.fromSheetMore && <p className="mt-2">Showing the first 50.</p>}
-        </section>
+          {view.fromSheetMore && <More>Showing the first 50.</More>}
+        </Section>
       )}
 
-      <section className={section} aria-labelledby="cancelled">
-        <h2 id="cancelled" className={heading}>
-          Cancelled in the last 24 hours
-        </h2>
-        {view.cancellations.length === 0 ? (
-          <p className="mt-2">No cancellations in the last 24 hours.</p>
-        ) : (
-          <ul>
-            {view.cancellations.map((c) => (
-              <li key={c.assignmentId} className={card}>
-                <p className="font-semibold">
-                  {c.byFirm ? `The office cancelled ${c.worker}` : `${c.worker} cancelled`}
-                </p>
-                <p>
-                  {roleLabel(c.role)}
-                  {c.site ? ` at ${c.site}` : ""}, {shiftWhen(c.startsAt, c.endsAt, tz)}
-                </p>
-                <p>
-                  {noticeText(c.noticeHours).replace(/^./, (ch) => ch.toUpperCase())}. Recorded at{" "}
-                  {timeOnDay(c.cancelledAt, tz)}.
-                </p>
-                {c.reason && <p>Reason: {c.reason}</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <Section id="requests" n={view.requests.total}>
+        <div
+          className={`${headingGap} ${card} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+        >
+          {view.requests.total === 0 ? (
+            <p className="flex items-center gap-2 text-ink-muted">
+              <ToneIcon tone="calm" size={18} />
+              {requestsText(view.requests)}
+            </p>
+          ) : (
+            <p className="font-semibold">{requestsText(view.requests)}</p>
+          )}
+          <Link
+            href="/office/requests"
+            className={`${view.requests.total > 0 ? btn.primary : btn.secondary} self-start sm:shrink-0 sm:self-auto`}
+          >
+            See requests
+          </Link>
+        </div>
+      </Section>
 
-      <section className={section} aria-labelledby="to-mark">
-        <h2 id="to-mark" className={heading}>
-          Who worked?
-        </h2>
+      <Section id="gaps" n={view.gaps.length} more={view.gapsMore}>
+        {view.gaps.length === 0 ? (
+          <Nothing>No gaps in the next 7 days.</Nothing>
+        ) : (
+          <div className={`${headingGap} ${rows}`}>
+            {view.gaps.map((g) => (
+              <article
+                key={g.shiftId}
+                className={`${row} flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6`}
+              >
+                <div className={`${block} min-w-0 lg:py-0.5`}>
+                  <p className="font-semibold">
+                    <ShiftTitle shift={g} stretch />
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <p className={`${meta} tabular-nums`}>{shiftWhen(g.startsAt, g.endsAt, tz)}</p>
+                    <StatusChip tone="attention">
+                      {placesText(g.placesLeft, g.headcount)}
+                    </StatusChip>
+                    <SheetChip shift={g} />
+                  </div>
+                </div>
+                <ShiftActions
+                  shiftId={g.shiftId}
+                  isUrgent={false}
+                  fromSheet={g.fromSheet}
+                  className="lg:shrink-0"
+                />
+              </article>
+            ))}
+          </div>
+        )}
+        {view.gapsMore && <More>Showing the first 50.</More>}
+      </Section>
+
+      <Section id="to-mark" n={view.toMark.length} more={view.toMarkMore}>
         {view.toMark.length === 0 ? (
-          <p className="mt-2">Nothing to mark from the last 7 days.</p>
+          <Nothing>Nothing to mark from the last 7 days.</Nothing>
         ) : (
-          <ul>
+          <ul role="list" className={`${headingGap} ${rows}`}>
             {view.toMark.map((t) => (
-              <li key={t.shiftId} className={card}>
-                <p className="text-lg font-semibold">
-                  <Link href={`/office/shifts/${t.shiftId}`} className="underline">
-                    {roleLabel(t.role)}
-                    {t.site ? ` at ${t.site}` : ""}
-                  </Link>
+              <li
+                key={t.shiftId}
+                className={`${block} ${row} hover:bg-quiet-soft first:rounded-t-xl last:rounded-b-xl lg:grid lg:grid-cols-[minmax(0,1fr)_14rem_15rem] lg:items-center lg:gap-4`}
+              >
+                <p className="font-semibold">
+                  <ShiftTitle shift={t} stretch />
                 </p>
-                <p>{shiftWhen(t.startsAt, t.endsAt, tz)}</p>
-                <p>{toMarkText(t.unmarked)}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 lg:contents">
+                  <p className={`${meta} tabular-nums`}>{shiftWhen(t.startsAt, t.endsAt, tz)}</p>
+                  <p>
+                    <StatusChip tone="attention">{toMarkText(t.unmarked)}</StatusChip>
+                  </p>
+                </div>
               </li>
             ))}
           </ul>
         )}
-        {view.toMarkMore && <p className="mt-2">Showing the first 50.</p>}
-      </section>
+        {view.toMarkMore && <More>Showing the first 50.</More>}
+      </Section>
 
-      <section className={section} aria-labelledby="requests">
-        <h2 id="requests" className={heading}>
-          Requests
-        </h2>
-        <p className="mt-2">{requestsText(view.requests)}</p>
-        <Link href="/office/requests" className="mt-1 inline-block underline">
-          See requests
-        </Link>
-      </section>
-
-      <section className={section} aria-labelledby="unknown">
-        <h2 id="unknown" className={heading}>
-          Messages from numbers we don&apos;t know
-        </h2>
-        {view.unknownMessages.length === 0 ? (
-          <p className="mt-2">None in the last 7 days.</p>
+      <Section id="cancelled" n={view.cancellations.length}>
+        {view.cancellations.length === 0 ? (
+          <Nothing>No cancellations in the last 24 hours.</Nothing>
         ) : (
-          <ul className="mt-2 divide-y">
+          <ul role="list" className={`${headingGap} ${rows}`}>
+            {view.cancellations.map((c) => (
+              <li
+                key={c.assignmentId}
+                className={`${row} flex flex-col gap-1 lg:flex-row lg:justify-between lg:gap-6`}
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    {c.byFirm ? `The office cancelled ${c.worker}` : `${c.worker} cancelled`}
+                  </p>
+                  <p className={`${meta} tabular-nums`}>
+                    {roleLabel(c.role)}
+                    {c.site ? ` at ${c.site}` : ""}, {shiftWhen(c.startsAt, c.endsAt, tz)}
+                  </p>
+                </div>
+                <div className="min-w-0 lg:max-w-sm lg:text-right">
+                  <p className={`${meta} tabular-nums`}>
+                    {noticeText(c.noticeHours).replace(/^./, (ch) => ch.toUpperCase())}. Recorded at{" "}
+                    {timeOnDay(c.cancelledAt, tz)}.
+                  </p>
+                  {c.reason && <p className="text-sm text-ink">Reason: {c.reason}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section id="unknown" n={view.unknownMessages.length} more={view.unknownMore}>
+        {view.unknownMessages.length === 0 ? (
+          <Nothing>None in the last 7 days.</Nothing>
+        ) : (
+          <ul role="list" className={`${headingGap} ${rows}`}>
             {view.unknownMessages.map((u) => (
-              <li key={u.messageId} className="py-2">
-                <p className="font-semibold">
+              <li key={u.messageId} className={row}>
+                <p className="font-semibold tabular-nums">
                   {u.from ? lineWords(u.from) : "Number withheld"}
                   {u.formerWorker
                     ? ` (${u.formerWorker}${u.formerWorkerActive ? "" : ", not active"})`
@@ -222,7 +473,7 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
                   · {timeOnDay(u.receivedAt, view.timeZone)}
                   {u.channel === "voice" ? " · Voicemail" : u.channel === "sms" ? " · Text" : ""}
                 </p>
-                <p>
+                <p className="mt-1 max-w-prose break-words">
                   {u.text
                     ? `“${u.text.length > UNKNOWN_TEXT_MAX ? `${u.text.slice(0, UNKNOWN_TEXT_MAX)}…` : u.text}”`
                     : u.channel === "voice"
@@ -233,25 +484,22 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
             ))}
           </ul>
         )}
-        {view.unknownMore && <p className="mt-2">Showing the newest 50.</p>}
-      </section>
+        {view.unknownMore && <More>Showing the newest 50.</More>}
+      </Section>
 
-      <section className={section} aria-labelledby="expiring">
-        <h2 id="expiring" className={heading}>
-          Credentials expiring this week
-        </h2>
+      <Section id="expiring" n={view.expiring.length}>
         {view.expiring.length === 0 ? (
-          <p className="mt-2">Nothing expires in the next 7 days.</p>
+          <Nothing>Nothing expires in the next 7 days.</Nothing>
         ) : (
-          <ul className="mt-2 list-disc pl-6">
+          <ul role="list" className={`${headingGap} ${rows}`}>
             {view.expiring.map((e, i) => (
-              <li key={`${e.worker}-${e.credential}-${i}`}>
+              <li key={`${e.worker}-${e.credential}-${i}`} className={row}>
                 {e.worker}: {e.credential}, expires {dayLabel(e.expiresOn)}
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Section>
     </>
   );
 }

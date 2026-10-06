@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { staffBtn } from "@/app/ui/classes";
 import { clearOfflineCopy } from "@/lib/portal/offline";
 import { forgetThisPhonesPush } from "@/lib/portal/push-client";
 import { TooManyTries } from "../too-many-tries";
@@ -54,11 +55,8 @@ export function LinkLogin({
   if (token === null || rejected) {
     return (
       <div role="alert" className="mt-6">
-        <p className="text-xl">This link has expired or was already used.</p>
-        <Link
-          href={newLink}
-          className="mt-4 block w-full rounded-xl bg-slate-900 px-4 py-4 text-center text-lg font-semibold text-white"
-        >
+        <p className="text-xl font-semibold">This link has expired or was already used.</p>
+        <Link href={newLink} className={`${staffBtn.primary} mt-4`}>
           Send me a new link
         </Link>
       </div>
@@ -70,7 +68,7 @@ export function LinkLogin({
       <p>{prompt}</p>
       {waitMinutes !== null && <TooManyTries minutes={waitMinutes} />}
       {failed && (
-        <p role="alert" className="mt-4 text-red-700">
+        <p role="alert" className="mt-4 font-semibold text-urgent">
           {tryAgainText()}
         </p>
       )}
@@ -96,7 +94,7 @@ export function LinkLogin({
             }
           })
         }
-        className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
+        className={`${staffBtn.primary} mt-4`}
       >
         {pending ? "Logging in…" : "Log me in"}
       </button>

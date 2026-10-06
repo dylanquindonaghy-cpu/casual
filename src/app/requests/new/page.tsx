@@ -1,10 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { z } from "zod";
+import { page, staffBtn } from "@/app/ui/classes";
+import { PageHeader } from "@/app/ui/page-header";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { requestableShifts } from "@/lib/portal/requests";
 import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
 import { RequestForm } from "./request-form";
+
+export const metadata: Metadata = { title: "New request" };
 
 // New request (docs/screens.md, `/requests/new`): for one of the worker's upcoming shifts
 // (?shift=<id> preselects it, when it's theirs).
@@ -19,19 +24,15 @@ export default async function NewRequestPage({
   const preselected =
     asked.success && shifts.some((s) => s.shiftId === asked.data) ? asked.data : null;
   return (
-    <main className="mx-auto max-w-md p-6">
+    <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <p className="text-base text-slate-600">{firm.name}</p>
-      <h1 className="text-3xl font-bold">New request</h1>
+      <PageHeader eyebrow={firm.name} title="New request" />
       {shifts.length === 0 ? (
-        <p className="mt-6">You have no upcoming shifts to ask about.</p>
+        <p>You have no upcoming shifts to ask about.</p>
       ) : (
         <RequestForm shifts={shifts} preselected={preselected} />
       )}
-      <Link
-        href="/requests"
-        className="mt-8 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center text-lg font-semibold"
-      >
+      <Link href="/requests" className={`${staffBtn.secondary} mt-8`}>
         Back to my requests
       </Link>
     </main>

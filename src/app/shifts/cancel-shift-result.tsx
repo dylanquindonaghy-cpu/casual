@@ -11,9 +11,9 @@ export function CancelShiftResult({
   switch (outcome.status) {
     case "cancelled":
       return (
-        <div role="status" className="rounded-xl border-2 border-slate-900 bg-slate-50 p-4">
+        <div role="status" className="rounded-xl border-2 border-line-strong bg-quiet-soft p-4">
           <p className="text-xl font-bold">We&apos;ve recorded your cancellation.</p>
-          {outcome.when && <p className="mt-1 font-semibold">{outcome.when}</p>}
+          {outcome.when && <p className="mt-2 font-semibold tabular-nums">{outcome.when}</p>}
           {outcome.role && (
             <p>
               {outcome.role}
@@ -22,8 +22,8 @@ export function CancelShiftResult({
           )}
           <p className="mt-2">You gave {noticeText(outcome.noticeHours)}.</p>
           <p>Recorded at {outcome.recordedAt}.</p>
-          <p className="mt-2">Reference: {outcome.ref}</p>
-          <p className="mt-2 text-base">— {outcome.signOff}</p>
+          <p className="mt-2 font-semibold tabular-nums">Reference: {outcome.ref}</p>
+          <p className="mt-2 text-base text-ink-muted">— {outcome.signOff}</p>
         </div>
       );
     case "started":
@@ -41,7 +41,7 @@ export function CancelShiftResult({
       );
     case "error":
       return (
-        <p role="alert" className="font-semibold text-red-700">
+        <p role="alert" className="font-semibold text-urgent">
           {tryAgainText()}
         </p>
       );

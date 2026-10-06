@@ -1,28 +1,53 @@
 import Link from "next/link";
+import { muted, nums, row, rows, staffBtn } from "@/app/ui/classes";
+import { PageHeader } from "@/app/ui/page-header";
+import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import { KIND_NAMES, STATUS_WORDS } from "@/lib/portal/request-kinds";
 import type { MyRequest } from "@/lib/portal/requests";
 import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
 
-// My requests (docs/screens.md, `/requests`): each request's kind, its shift, its status in plain
-// words, when it was sent and its reference; "New request".
-export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; timeZone: string }) {
+// Each status word's colour (docs/ui-design.md "Status tones"): still waiting, done, or closed.
+const TONES: Record<string, StatusTone> = {
+  open: "attention",
+  escalated: "attention",
+  approved: "done",
+  declined: "quiet",
+  auto_resolved: "done",
+};
+
+// My requests (docs/screens.md, `/requests`): each request's status first, then its kind and
+// shift, the office's note, when it was sent and its reference; "New request" at the top.
+export function RequestsList({
+  requests,
+  timeZone,
+  eyebrow,
+}: {
+  requests: MyRequest[];
+  timeZone: string;
+  eyebrow?: string; // the firm's name above the heading
+}) {
   return (
     <>
-      <h1 className="text-3xl font-bold">My requests</h1>
-      <Link
-        href="/requests/new"
-        className="mt-4 block w-full rounded-xl bg-slate-900 px-4 py-4 text-center text-lg font-semibold text-white"
-      >
-        New request
-      </Link>
+      <PageHeader
+        eyebrow={eyebrow}
+        title="My requests"
+        actions={
+          <Link href="/requests/new" className={staffBtn.primary}>
+            New request
+          </Link>
+        }
+      />
       {requests.length === 0 ? (
-        <p className="mt-6">No requests yet.</p>
+        <p>No requests yet.</p>
       ) : (
-        <ul className="mt-6 divide-y">
+        <ul className={rows}>
           {requests.map((r) => (
-            <li key={r.ref} className="py-3">
-              <p className="font-semibold">
+            <li key={r.ref} className={row}>
+              <StatusChip tone={TONES[r.status] ?? "quiet"}>
+                {STATUS_WORDS[r.status] ?? r.status}
+              </StatusChip>
+              <p className="mt-2 font-semibold">
                 {KIND_NAMES[r.type] ?? r.type}
                 {r.shift ? `: ${r.shift.when}` : ""}
               </p>
@@ -32,21 +57,15 @@ export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; ti
                   {r.shift.siteName ? ` at ${r.shift.siteName}` : ""}
                 </p>
               )}
-              <p className="mt-1">
-                <span className="font-semibold">{STATUS_WORDS[r.status] ?? r.status}</span>
-              </p>
-              {r.note && <p>The office says: {r.note}</p>}
-              <p className="text-base text-slate-600">
+              {r.note && <p className="mt-2">The office says: {r.note}</p>}
+              <p className={`mt-2 ${muted} ${nums}`}>
                 Sent {dayLabel(localDateOf(r.createdAt, timeZone))} · Reference {r.ref}
               </p>
             </li>
           ))}
         </ul>
       )}
-      <Link
-        href="/"
-        className="mt-8 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center text-lg font-semibold"
-      >
+      <Link href="/" className={`${staffBtn.secondary} mt-8`}>
         Back to my shifts
       </Link>
     </>

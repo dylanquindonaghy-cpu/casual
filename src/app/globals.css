@@ -1,1 +1,61 @@
 @import "tailwindcss";
+
+/* Design tokens (docs/ui-design.md). Each colour becomes utilities: bg-ink, text-ink-muted,
+   border-line, bg-urgent-soft and so on. Status colours always travel with their word. */
+@theme {
+  --color-ink: #0f172a; /* main text, primary buttons, the current menu item */
+  --color-ink-muted: #475569; /* secondary text, meta lines, eyebrows (7.6:1 on white) */
+  --color-line: #e2e8f0; /* dividers and card borders (decorative only) */
+  --color-line-strong: #64748b; /* input and secondary button borders (4.8:1) */
+  --color-canvas: #f8fafc; /* office page background behind cards */
+
+  --color-urgent: #b91c1c; /* act now */
+  --color-urgent-soft: #fef2f2;
+  --color-urgent-ink: #7f1d1d;
+  --color-attention: #b45309; /* someone needs to act */
+  --color-attention-soft: #fffbeb;
+  --color-attention-ink: #78350f;
+  --color-done: #15803d; /* fine, finished */
+  --color-done-soft: #f0fdf4;
+  --color-done-ink: #14532d;
+  --color-quiet-soft: #f1f5f9; /* information, closed */
+  --color-quiet-ink: #334155;
+}
+
+@layer base {
+  /* One focus ring everywhere, shown for keyboard use. */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  /* Things you can click look clickable (Tailwind's reset gives buttons an arrow). */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* A file input shows a real "choose" button (the reset strips its border and background). */
+  input[type="file"]::file-selector-button {
+    margin-inline-end: 0.75rem;
+    border: 2px solid var(--color-line-strong);
+    border-radius: 0.5rem;
+    background-color: #ffffff;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    cursor: pointer;
+  }
+  input[type="file"]:not(:disabled)::file-selector-button:hover {
+    background-color: var(--color-quiet-soft);
+  }
+  input[type="file"]:disabled::file-selector-button {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}

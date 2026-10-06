@@ -18,6 +18,7 @@ export const OFFICE_AREAS = {
   pay: ["admin", "payroll"], // pay queries, grouped by likely cause
   data: ["admin"], // GDPR: a worker's data (download, delete) and the firm's own download
   workers: ["admin", "resourcer"], // a worker's access: inactive, active, unblock, site blocks
+  guide: ["admin", "resourcer", "payroll"], // the how-to guide (it shows each role its own parts)
 } as const satisfies Record<string, readonly OfficeRole[]>;
 
 export type OfficeArea = keyof typeof OFFICE_AREAS;

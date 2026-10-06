@@ -36,6 +36,9 @@ test("payroll checks and imports a pay file; the worker sees the line", async ({
     `07700 900111,${name},${ukDate(-9)},${ukDate(-3)},12.5,19.87,248.38,${ukDate(-1)}`,
     `07700 900999,Nobody Here,${ukDate(-9)},${ukDate(-3)},8,13.00,,`,
   ].join("\n");
+  // The file field waits for the page (docs/ui-design.md "Forms wait for the page"): a file chosen
+  // before then would be lost.
+  await expect(page.getByLabel("Your file (.csv or .xlsx)")).toBeEnabled();
   await page.getByLabel("Your file (.csv or .xlsx)").setInputFiles({
     name: "pay.csv",
     mimeType: "text/csv",

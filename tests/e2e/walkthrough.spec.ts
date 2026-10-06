@@ -110,7 +110,7 @@ async function officeLogin(page: Page, email: string, base = acme) {
   await expect(page).toHaveURL(`${base}/office`);
 }
 
-// "Log out" is at the bottom of My shifts, and of the office's Today.
+// "Log out" is at the bottom of My shifts, and at the bottom of the office menu.
 async function logOut(page: Page, home: string) {
   await page.goto(home);
   await page.getByRole("button", { name: "Log out" }).click();

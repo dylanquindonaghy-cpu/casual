@@ -1,5 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  btn,
+  card,
+  field,
+  h2,
+  headingGap,
+  labelStack,
+  meta,
+  page,
+  rows,
+  sectionGap,
+  textLinkInGroup,
+} from "@/app/ui/classes";
+import { PageHeader } from "@/app/ui/page-header";
+import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeShiftList, SHIFT_LIST_DAYS } from "@/lib/office/shift-pages";
@@ -9,15 +25,41 @@ import { dayLabel } from "@/lib/rules/reasons";
 import { parseSheetDate } from "@/lib/roster/sheets/parse";
 import { systemClock } from "@/lib/auth/clock";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "@/lib/time/zoned";
+import { SHIFT_TONE } from "./shift-tones";
 
-const button = "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100";
+export const metadata: Metadata = { title: "Shifts" };
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (d: Date, tz: string) => {
   const w = wallTimeOf(d, tz);
   return `${pad(w.hour)}:${pad(w.minute)}`;
 };
 
-// The office's shifts (docs/screens.md `/office/shifts`): 4 weeks from a chosen day.
+// A small arrow beside "Earlier" and "Later" (decorative: the word says it).
+function Arrow({ back }: { back?: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+    >
+      <path d={back ? "m14.5 6-6 6 6 6" : "m9.5 6 6 6-6 6"} />
+    </svg>
+  );
+}
+
+// The office's shifts (docs/screens.md `/office/shifts`): 4 weeks from a chosen day. Each day is
+// one card of compact rows: the time and "{Role} at {site}" (the link), then how many are booked
+// and the status words as coloured chips, lined up on the right on a desktop so open and urgent
+// shifts stand out in a long day.
 export default async function ShiftsPage({
   searchParams,
 }: {
@@ -43,66 +85,101 @@ export default async function ShiftsPage({
     days.set(key, [...(days.get(key) ?? []), s]);
   }
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <p className="text-base text-slate-600">{firm.name} office</p>
-      <h1 className="text-3xl font-bold">Shifts</h1>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link href="/office/shifts/new" className={button}>
-          New shift
-        </Link>
-        <Link href="/office/shifts/event" className={button}>
-          Shifts for an event
-        </Link>
-        <Link href="/office/shifts/import" className={button}>
-          Import from a file
-        </Link>
+    <main className={page.office}>
+      <PageHeader
+        eyebrow={`${firm.name} office`}
+        title="Shifts"
+        actions={
+          <>
+            <Link href="/office/shifts/new" className={btn.primary}>
+              New shift
+            </Link>
+            <Link href="/office/shifts/event" className={btn.secondary}>
+              Shifts for an event
+            </Link>
+            <Link href="/office/shifts/import" className={btn.secondary}>
+              Import from a file
+            </Link>
+          </>
+        }
+      />
+
+      <div className={`${card} flex flex-wrap items-end justify-between gap-x-6 gap-y-3`}>
+        <form className="flex flex-wrap items-end gap-3" method="get">
+          <label className={labelStack}>
+            Show 4 weeks from
+            <input type="date" name="from" defaultValue={fromDate} className={field} />
+          </label>
+          <button type="submit" className={btn.secondary}>
+            Show
+          </button>
+        </form>
+        <p className="flex items-center gap-3">
+          <Link
+            href={`/office/shifts?from=${addDays(fromDate, -SHIFT_LIST_DAYS)}`}
+            className={btn.link}
+          >
+            <Arrow back />
+            Earlier
+          </Link>{" "}
+          <span className="text-ink-muted">·</span>{" "}
+          <Link
+            href={`/office/shifts?from=${addDays(fromDate, SHIFT_LIST_DAYS)}`}
+            className={btn.link}
+          >
+            Later
+            <Arrow />
+          </Link>
+        </p>
       </div>
-      <form className="mt-6 flex flex-wrap items-end gap-2" method="get">
-        <label className="flex flex-col">
-          <span className="font-semibold">Show 4 weeks from</span>
-          <input
-            type="date"
-            name="from"
-            defaultValue={fromDate}
-            className="rounded border px-2 py-1"
-          />
-        </label>
-        <button type="submit" className={button}>
-          Show
-        </button>
-      </form>
-      <p className="mt-2">
-        <Link
-          href={`/office/shifts?from=${addDays(fromDate, -SHIFT_LIST_DAYS)}`}
-          className="underline"
-        >
-          Earlier
-        </Link>{" "}
-        ·{" "}
-        <Link
-          href={`/office/shifts?from=${addDays(fromDate, SHIFT_LIST_DAYS)}`}
-          className="underline"
-        >
-          Later
-        </Link>
-      </p>
+
       {list.shifts.length === 0 ? (
-        <p className="mt-6">No shifts in these 4 weeks.</p>
+        <p className={`${card} ${sectionGap.office} text-ink-muted`}>No shifts in these 4 weeks.</p>
       ) : (
         [...days.entries()].map(([day, dayShifts]) => (
-          <section key={day} className="mt-6" aria-label={dayLabel(day)}>
-            <h2 className="text-xl font-bold">{dayLabel(day)}</h2>
-            <ul>
+          <section key={day} className={sectionGap.office} aria-label={dayLabel(day)}>
+            <h2 className={h2}>{dayLabel(day)}</h2>
+            <ul role="list" className={`${rows} ${headingGap}`}>
               {dayShifts.map((s) => (
-                <li key={s.shiftId} className="mt-2 rounded-xl border border-slate-300 p-3">
-                  <Link href={`/office/shifts/${s.shiftId}`} className="font-semibold underline">
-                    {hhmm(s.startsAt, tz)} to {hhmm(s.endsAt, tz)} · {roleLabel(s.role)}
-                    {s.site ? ` at ${s.site}` : ""}
+                <li
+                  key={s.shiftId}
+                  className="flex flex-col gap-1 px-4 py-1.5 md:grid md:grid-cols-[minmax(0,1fr)_19rem] md:items-center md:gap-6"
+                >
+                  <Link
+                    href={`/office/shifts/${s.shiftId}`}
+                    className="group flex min-h-11 min-w-0 items-center font-semibold text-ink"
+                  >
+                    <span>
+                      <span className="tabular-nums">
+                        {hhmm(s.startsAt, tz)} to {hhmm(s.endsAt, tz)}
+                      </span>{" "}
+                      ·{" "}
+                      <span className={textLinkInGroup}>
+                        {roleLabel(s.role)}
+                        {s.site ? ` at ${s.site}` : ""}
+                      </span>
+                    </span>
                   </Link>
-                  <p>
-                    {s.booked} of {s.headcount} booked · {SHIFT_STATUS_WORDS[s.status]}
-                    {s.isUrgent ? " · Urgent" : ""}
-                    {s.fromSheet ? " · From your Google Sheet" : ""}
+                  <p className="pb-1 text-sm leading-7 text-ink-muted md:pb-0">
+                    <span className="tabular-nums">
+                      {s.booked} of {s.headcount} booked
+                    </span>{" "}
+                    ·{" "}
+                    <StatusChip tone={SHIFT_TONE[s.status]}>
+                      {SHIFT_STATUS_WORDS[s.status]}
+                    </StatusChip>
+                    {s.isUrgent && (
+                      <>
+                        {" "}
+                        · <StatusChip tone="urgent">Urgent</StatusChip>
+                      </>
+                    )}
+                    {s.fromSheet && (
+                      <>
+                        {" "}
+                        · <StatusChip tone="quiet">From your Google Sheet</StatusChip>
+                      </>
+                    )}
                   </p>
                 </li>
               ))}
@@ -110,10 +187,12 @@ export default async function ShiftsPage({
           </section>
         ))
       )}
-      {list.more && <p className="mt-4">Showing the first 200.</p>}
-      <Link href="/office" className="mt-8 inline-block underline">
-        Back to Today
-      </Link>
+      {list.more && <p className={`${meta} mt-4`}>Showing the first 200.</p>}
+      <p className={sectionGap.office}>
+        <Link href="/office" className={btn.link}>
+          Back to Today
+        </Link>
+      </p>
     </main>
   );
 }

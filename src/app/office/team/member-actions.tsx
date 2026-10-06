@@ -2,16 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn, field } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { ROLE_LABELS, type OfficeRole } from "@/lib/auth/roles";
 import { teamResultText, type TeamActionResult } from "@/lib/office/team-copy";
 import { changeOfficeAccessAction } from "./actions";
 
-const button =
-  "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100 disabled:opacity-60";
 // The request itself failed: the server may have made the change, so don't say it didn't.
 const failed = { status: "unknown" as const };
 const ROLES = Object.keys(ROLE_LABELS) as OfficeRole[];
+// A second "Yes" before a change: red for taking access away, grey for making someone an admin.
+const confirmPanel = "rounded-lg border-2 p-4";
 
 type Change =
   | { change: "disable" }
@@ -22,7 +23,8 @@ type Change =
 // One person's access on the office team page: change their role (making someone an admin after a
 // second "Yes"), log them out on every device, turn their access off (after a second "Yes") or back
 // on. The server checks everything again. The confirmation shows in place, and the page refreshes
-// under it to show the new role or access.
+// under it to show the new role or access. "Turn off access" looks destructive (red outline) and
+// its "Yes" is solid red.
 export function MemberActions(props: {
   officeUserId: string;
   name: string;
@@ -53,15 +55,16 @@ export function MemberActions(props: {
   const off = !ready || pending;
   const roleId = `role-${props.officeUserId}`;
   return (
-    <div className="mt-3 flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-2">
-        <label htmlFor={roleId} className="flex flex-col font-semibold">
+    <div className="mt-4 flex flex-col gap-4 border-t border-line pt-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <label htmlFor={roleId} className="flex flex-col gap-1 font-semibold text-ink">
           Role
           <select
             id={roleId}
-            className="mt-1 rounded border border-slate-400 px-2 py-2 font-normal"
+            className={`${field} w-44`}
             value={role}
             onChange={(e) => setPicked(e.target.value as OfficeRole)}
+            disabled={!ready}
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>
@@ -72,7 +75,7 @@ export function MemberActions(props: {
         </label>
         <button
           type="button"
-          className={button}
+          className={btn.secondary}
           disabled={off || role === props.role || confirming !== null}
           onClick={() => {
             if (role === "admin") {
@@ -85,10 +88,10 @@ export function MemberActions(props: {
         </button>
       </div>
       {props.active ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            className={button}
+            className={btn.secondary}
             disabled={off}
             onClick={() => run({ change: "sign_out" })}
           >
@@ -97,7 +100,7 @@ export function MemberActions(props: {
           {confirming === null && (
             <button
               type="button"
-              className={button}
+              className={btn.danger}
               disabled={off}
               onClick={() => {
                 setMessage(null);
@@ -112,7 +115,7 @@ export function MemberActions(props: {
         <div>
           <button
             type="button"
-            className={button}
+            className={btn.secondary}
             disabled={off}
             onClick={() => run({ change: "enable" })}
           >
@@ -121,15 +124,15 @@ export function MemberActions(props: {
         </div>
       )}
       {confirming === "admin" && (
-        <div className="rounded-lg border border-slate-400 p-3">
+        <div className={`${confirmPanel} border-line-strong bg-quiet-soft`}>
           <p>
             Make {props.name} an admin? Admins can change the office team and download or delete
             workers&apos; data.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-3">
             <button
               type="button"
-              className={button}
+              className={btn.primary}
               disabled={off}
               onClick={() => run({ change: "role", role: "admin" })}
             >
@@ -137,7 +140,7 @@ export function MemberActions(props: {
             </button>
             <button
               type="button"
-              className={button}
+              className={btn.secondary}
               disabled={off}
               onClick={() => {
                 setConfirming(null);
@@ -150,15 +153,15 @@ export function MemberActions(props: {
         </div>
       )}
       {confirming === "disable" && props.active && (
-        <div className="rounded-lg border border-slate-400 p-3">
-          <p>
+        <div className={`${confirmPanel} border-urgent bg-urgent-soft`}>
+          <p className="text-urgent-ink">
             Turn off {props.name}&apos;s access? They&apos;re logged out at once and can&apos;t log
             in until it&apos;s turned back on.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-3">
             <button
               type="button"
-              className={button}
+              className={btn.dangerSolid}
               disabled={off}
               onClick={() => run({ change: "disable" })}
             >
@@ -166,7 +169,7 @@ export function MemberActions(props: {
             </button>
             <button
               type="button"
-              className={button}
+              className={btn.secondary}
               disabled={off}
               onClick={() => setConfirming(null)}
             >

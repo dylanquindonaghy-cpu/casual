@@ -8,7 +8,10 @@ export function waitText(minutes: number): string {
 
 export function TooManyTries({ minutes }: { minutes: number }) {
   return (
-    <p role="alert" className="mt-4 text-red-700">
+    <p
+      role="alert"
+      className="mt-4 rounded-lg border-2 border-urgent bg-urgent-soft p-3 font-semibold text-urgent-ink"
+    >
       Too many tries. Try again in {waitText(minutes)}.
     </p>
   );

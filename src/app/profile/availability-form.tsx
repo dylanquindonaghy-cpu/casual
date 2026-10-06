@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { btn, labelStack, muted, staffBtn, staffField } from "@/app/ui/classes";
+import { useHydrated } from "@/app/use-hydrated";
 import type { AvailabilityOutcome } from "@/lib/portal/profile-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 import { setUnavailableAction } from "./actions";
@@ -25,6 +27,8 @@ export function AvailabilityForm({
   const [message, setMessage] = useState<{ text: string; alert: boolean } | null>(null);
   const [pending, startTransition] = useTransition();
   const sending = useRef(false);
+  // The day field and the buttons wait for the page (docs/ui-design.md "Forms wait for the page").
+  const ready = useHydrated();
 
   const change = (target: string, on: boolean) => {
     if (sending.current) return;
@@ -45,55 +49,56 @@ export function AvailabilityForm({
   };
 
   return (
-    <div className="mt-3">
-      <label className="block">
-        <span className="font-semibold">A day you can&apos;t work</span>
+    <div className="mt-4">
+      <label className={labelStack}>
+        <span>A day you can&apos;t work</span>
         <input
           type="date"
           value={day}
           min={min}
           max={max}
           onChange={(e) => setDay(e.target.value)}
-          className="mt-1 block w-full rounded-lg border-2 border-slate-300 px-3 py-3"
+          className={staffField}
+          disabled={!ready}
         />
       </label>
       <button
         type="button"
-        disabled={pending}
+        disabled={pending || !ready}
         onClick={() => change(day, true)}
-        className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
+        className={`${staffBtn.primary} mt-3`}
       >
         Mark as unavailable
       </button>
       {message && (
         <div
           role={message.alert ? "alert" : "status"}
-          className={`mt-3 ${message.alert ? "text-red-700" : ""}`}
+          className={`mt-3 rounded-xl border-2 p-3 ${message.alert ? "border-urgent bg-urgent-soft font-semibold text-urgent-ink" : "border-done bg-done-soft"}`}
         >
           <p>{message.text}</p>
-          {!message.alert && <p className="mt-1 text-base">— {signOff}</p>}
+          {!message.alert && <p className={`mt-1 ${muted}`}>— {signOff}</p>}
         </div>
       )}
       {days.length === 0 ? (
-        <p className="mt-4 text-base text-slate-600">No days marked.</p>
+        <p className={`mt-4 ${muted}`}>No days marked.</p>
       ) : (
-        <ul className="mt-4 divide-y">
+        <ul className="mt-4 divide-y divide-line border-t border-line">
           {days.map((d) => (
-            <li key={d.day} className="flex items-center justify-between gap-3 py-2">
+            <li key={d.day} className="flex items-center justify-between gap-3 py-3">
               <span>
                 <span className="font-semibold">{dayLabel(d.day)}</span>
                 {d.booked && (
-                  <span className="block text-base text-slate-600">
+                  <span className={`block ${muted}`}>
                     You&apos;re booked that day. Marking it doesn&apos;t cancel that shift.
                   </span>
                 )}
               </span>
               <button
                 type="button"
-                disabled={pending}
+                disabled={pending || !ready}
                 onClick={() => change(d.day, false)}
                 aria-label={`Remove ${dayLabel(d.day)}`}
-                className="min-h-12 rounded-xl border-2 border-slate-900 px-4 font-semibold disabled:opacity-60"
+                className={`${btn.secondary} shrink-0`}
               >
                 Remove
               </button>

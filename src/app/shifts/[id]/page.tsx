@@ -4,6 +4,7 @@ import { requireWorker } from "@/lib/auth/current-worker";
 import { shiftForWorker } from "@/lib/portal/shift-detail";
 import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
+import { page as pageWidth, staffBtn } from "../../ui/classes";
 import { ShiftView } from "./shift-view";
 
 export default async function ShiftPage({ params }: { params: Promise<{ id: string }> }) {
@@ -12,14 +13,10 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   const now = systemClock.now();
   const page = await shiftForWorker({ firm, clock: { now: () => now } }, worker.id, id);
   return (
-    <main className="mx-auto max-w-md p-6">
+    <main className={pageWidth.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <p className="text-base text-slate-600">{firm.name}</p>
-      <ShiftView page={page} timeZone={firm.timezone} now={now} />
-      <Link
-        href="/"
-        className="mt-8 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center text-lg font-semibold"
-      >
+      <ShiftView page={page} timeZone={firm.timezone} now={now} eyebrow={firm.name} />
+      <Link href="/" className={`${staffBtn.secondary} mt-8`}>
         Back to my shifts
       </Link>
     </main>

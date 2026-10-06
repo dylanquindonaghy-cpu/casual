@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { label, labelStack, staffBtn, staffField } from "@/app/ui/classes";
+import { useHydrated } from "@/app/use-hydrated";
 import {
   KIND_LABELS,
   MAX_REQUEST_NOTE,
@@ -16,10 +18,13 @@ import { RequestResult } from "../request-result";
 
 type Shown = Exclude<CreateRequestOutcome, { status: "logged_out" }>;
 
-const field = "mt-1 block w-full rounded-lg border-2 border-slate-300 px-3 py-3";
+// One answer to pick from, as a big bordered row; the picked one is outlined in ink.
+const choice =
+  "flex min-h-14 items-center gap-3 rounded-xl border-2 border-line-strong bg-white px-4 py-3 font-normal has-checked:border-ink has-checked:bg-quiet-soft";
 
 // New request: which shift, what kind (change the times, or swap), a short form, "Send request".
-// The answer replaces the form.
+// The answer replaces the form. The fields and the button wait for the page (docs/ui-design.md
+// "Forms wait for the page").
 export function RequestForm({
   shifts,
   preselected,
@@ -35,6 +40,7 @@ export function RequestForm({
   const [outcome, setOutcome] = useState<Shown | null>(null);
   const [pending, startTransition] = useTransition();
   const sending = useRef(false);
+  const ready = useHydrated();
   const set = (name: string) => (e: { target: { value: string } }) =>
     setFields((f) => ({ ...f, [name]: e.target.value }));
 
@@ -65,11 +71,16 @@ export function RequestForm({
     return <RequestResult outcome={outcome} />;
   }
   return (
-    <div className="mt-6 space-y-4">
+    <div className="space-y-6">
       {shifts.length > 1 || !preselected ? (
-        <label className="block">
-          <span className="font-semibold">Which shift?</span>
-          <select value={shiftId} onChange={(e) => setShiftId(e.target.value)} className={field}>
+        <label className={labelStack}>
+          <span>Which shift?</span>
+          <select
+            value={shiftId}
+            onChange={(e) => setShiftId(e.target.value)}
+            disabled={!ready}
+            className={staffField}
+          >
             {shifts.map((s) => (
               <option key={s.shiftId} value={s.shiftId}>
                 {s.label}
@@ -78,76 +89,90 @@ export function RequestForm({
           </select>
         </label>
       ) : (
-        <p className="font-semibold">{shifts.find((s) => s.shiftId === shiftId)?.label}</p>
+        <p className="rounded-xl border border-line bg-quiet-soft p-4 font-semibold tabular-nums">
+          {shifts.find((s) => s.shiftId === shiftId)?.label}
+        </p>
       )}
       <fieldset>
-        <legend className="font-semibold">What would you like?</legend>
-        {WORKER_REQUEST_KINDS.map((k) => (
-          <label key={k} className="flex min-h-12 items-center gap-3 py-3">
-            <input
-              type="radio"
-              name="kind"
-              value={k}
-              checked={kind === k}
-              onChange={() => setKind(k)}
-              className="h-6 w-6"
-            />
-            <span>{KIND_LABELS[k]}</span>
-          </label>
-        ))}
+        <legend className={label}>What would you like?</legend>
+        <div className="mt-2 space-y-2">
+          {WORKER_REQUEST_KINDS.map((k) => (
+            <label key={k} className={choice}>
+              <input
+                type="radio"
+                name="kind"
+                value={k}
+                checked={kind === k}
+                onChange={() => setKind(k)}
+                disabled={!ready}
+                className="h-6 w-6 shrink-0 accent-ink"
+              />
+              <span>{KIND_LABELS[k]}</span>
+            </label>
+          ))}
+        </div>
       </fieldset>
       {kind === "time_change" && (
         <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="font-semibold">New start</span>
+          <label className={labelStack}>
+            <span>New start</span>
             <input
               type="time"
               value={fields.start ?? ""}
               onChange={set("start")}
-              className={field}
+              disabled={!ready}
+              className={`${staffField} tabular-nums`}
             />
           </label>
-          <label className="block">
-            <span className="font-semibold">New finish</span>
-            <input type="time" value={fields.end ?? ""} onChange={set("end")} className={field} />
+          <label className={labelStack}>
+            <span>New finish</span>
+            <input
+              type="time"
+              value={fields.end ?? ""}
+              onChange={set("end")}
+              disabled={!ready}
+              className={`${staffField} tabular-nums`}
+            />
           </label>
         </div>
       )}
       {kind === "swap" && (
-        <label className="block">
-          <span className="font-semibold">Who could take it? (optional)</span>
+        <label className={labelStack}>
+          <span>Who could take it? (optional)</span>
           <input
             type="text"
             value={fields.swapWith ?? ""}
             maxLength={MAX_SWAP_WITH}
             onChange={set("swapWith")}
-            className={field}
+            disabled={!ready}
+            className={staffField}
           />
         </label>
       )}
       {kind && (
-        <label className="block">
-          <span className="font-semibold">Anything else the office should know? (optional)</span>
+        <label className={labelStack}>
+          <span>Anything else the office should know? (optional)</span>
           <textarea
             value={fields.note ?? ""}
             maxLength={MAX_REQUEST_NOTE}
             onChange={set("note")}
+            disabled={!ready}
             rows={3}
-            className={field}
+            className={staffField}
           />
         </label>
       )}
       {problem && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="font-semibold text-urgent">
           {problem}
         </p>
       )}
       {outcome && <RequestResult outcome={outcome} />}
       <button
         type="button"
-        disabled={pending}
+        disabled={pending || !ready}
         onClick={send}
-        className="w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
+        className={staffBtn.primary}
       >
         {pending ? "Sending…" : "Send request"}
       </button>

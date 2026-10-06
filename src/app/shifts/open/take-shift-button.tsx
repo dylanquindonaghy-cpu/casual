@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
+import { staffBtn } from "../../ui/classes";
 import { takeShiftAction } from "./actions";
 import { ReviewForm } from "../[id]/review-form";
 import { TakeShiftResult } from "./take-shift-result";
@@ -43,7 +44,7 @@ export function TakeShiftButton({
     const refresh =
       outcome.status === "filled" || outcome.status === "gone" || outcome.status === "not_yet";
     return (
-      <div className="mt-3">
+      <div className="mt-4">
         <TakeShiftResult
           outcome={outcome}
           reviewHref={onShiftPage ? undefined : `/shifts/${shiftId}`}
@@ -54,7 +55,7 @@ export function TakeShiftButton({
             type="button"
             disabled={pending}
             onClick={retry ? take : () => router.refresh()}
-            className="mt-3 w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-lg font-semibold disabled:opacity-60"
+            className={`${staffBtn.secondary} mt-3`}
           >
             {retry ? "Try again" : onShiftPage ? "Reload this shift" : "See other open shifts"}
           </button>
@@ -63,12 +64,7 @@ export function TakeShiftButton({
     );
   }
   return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={take}
-      className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
-    >
+    <button type="button" disabled={pending} onClick={take} className={`${staffBtn.primary} mt-4`}>
       {pending ? "Booking…" : "Take shift"}
     </button>
   );

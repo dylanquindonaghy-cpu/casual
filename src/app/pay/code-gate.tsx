@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn, card, label, staffBtn } from "@/app/ui/classes";
+import { useHydrated } from "@/app/use-hydrated";
 import { TooManyTries } from "../too-many-tries";
 import { requestCodeAction, verifyCodeAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
@@ -14,8 +16,10 @@ type Notice =
   | { kind: "wait"; minutes: number }
   | { kind: "error" };
 
-const button =
-  "mt-4 w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white disabled:opacity-60";
+// The code field: the staff field made bigger, with spaced-out digits that line up. Red edge
+// while the code isn't right.
+const codeField =
+  "mt-2 min-h-14 w-full rounded-xl border-2 border-line-strong bg-white px-4 py-3 text-2xl font-normal tracking-widest text-ink tabular-nums aria-invalid:border-urgent";
 
 // "To see your pay, we'll send you a 6-digit code." Plain words throughout (no "OTP").
 // codeWaiting: a code sent earlier still works, so the code field shows straight away (a reload
@@ -26,6 +30,8 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
   const [notice, setNotice] = useState<Notice>({ kind: "none" });
   const [code, setCode] = useState("");
   const [pending, startTransition] = useTransition();
+  // The code field and the buttons wait for the page (docs/ui-design.md "Forms wait for the page").
+  const ready = useHydrated();
 
   const sendCode = () =>
     startTransition(async () => {
@@ -59,7 +65,7 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
     <>
       {notice.kind === "wait" && <TooManyTries minutes={notice.minutes} />}
       {notice.kind === "error" && (
-        <p role="alert" className="mt-2 text-red-700">
+        <p role="alert" className="mt-3 font-semibold text-urgent">
           {tryAgainText()}
         </p>
       )}
@@ -68,16 +74,21 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
 
   if (!hasCode) {
     return (
-      <div className="mt-6">
+      <div className={card}>
         {notice.kind === "stopped" ? (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="font-semibold text-urgent">
             This code has stopped working.
           </p>
         ) : (
           <p>To see your pay, we&apos;ll send you a 6-digit code.</p>
         )}
         {alerts}
-        <button type="button" disabled={pending} onClick={sendCode} className={button}>
+        <button
+          type="button"
+          disabled={pending || !ready}
+          onClick={sendCode}
+          className={`${staffBtn.primary} mt-4`}
+        >
           {pending
             ? "Sending…"
             : notice.kind === "stopped"
@@ -90,14 +101,14 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
 
   return (
     <form
-      className="mt-6"
+      className={card}
       onSubmit={(e) => {
         e.preventDefault();
         checkCode();
       }}
     >
       <p>We&apos;ve sent a 6-digit code by WhatsApp. It works for 10 minutes.</p>
-      <label htmlFor="code" className="mt-4 block font-semibold">
+      <label htmlFor="code" className={`${label} mt-4`}>
         Your code
       </label>
       <input
@@ -108,24 +119,31 @@ export function CodeGate({ codeWaiting }: { codeWaiting: boolean }) {
         maxLength={7}
         value={code}
         onChange={(e) => setCode(e.target.value)}
-        className="mt-2 w-full rounded-xl border-2 border-slate-400 px-4 py-3 text-2xl tracking-widest"
+        aria-invalid={notice.kind === "wrong" || notice.kind === "invalid"}
+        className={codeField}
+        disabled={!ready}
       />
       {notice.kind === "wrong" && (
-        <p role="alert" className="mt-2 text-red-700">
+        <p role="alert" className="mt-2 font-semibold text-urgent">
           That code isn&apos;t right. You have {notice.attemptsLeft}{" "}
           {notice.attemptsLeft === 1 ? "try" : "tries"} left.
         </p>
       )}
       {notice.kind === "invalid" && (
-        <p role="alert" className="mt-2 text-red-700">
+        <p role="alert" className="mt-2 font-semibold text-urgent">
           Enter the 6-digit code from your message.
         </p>
       )}
       {alerts}
-      <button type="submit" disabled={pending} className={button}>
+      <button type="submit" disabled={pending || !ready} className={`${staffBtn.primary} mt-4`}>
         {pending ? "Checking…" : "Check code"}
       </button>
-      <button type="button" disabled={pending} onClick={sendCode} className="mt-4 w-full underline">
+      <button
+        type="button"
+        disabled={pending || !ready}
+        onClick={sendCode}
+        className={`${btn.link} mt-2 w-full justify-center`}
+      >
         Send me a new code
       </button>
     </form>

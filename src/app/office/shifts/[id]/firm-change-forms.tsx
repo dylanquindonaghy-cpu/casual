@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn, field, labelStack } from "@/app/ui/classes";
 import {
   cancelBookingResultText,
   cancelShiftResultText,
@@ -13,12 +14,15 @@ import {
   type FirmChangeReason,
 } from "@/lib/roster/firm-reasons";
 import { useHydrated } from "@/app/use-hydrated";
+import { resultBox } from "../shift-tones";
 import { cancelBookingAction, cancelShiftAction, moveShiftAction } from "../actions";
+import { Chevron, summaryButton } from "./chevron";
 
-const input = "rounded border border-slate-400 px-2 py-1";
-const button =
-  "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100 disabled:opacity-60";
+const input = `${field} w-full`;
 const failed = { status: "error" as const };
+
+// A "Cancel …" opener: a <details> summary that looks like a destructive button.
+const opener = `${btn.danger} ${summaryButton}`;
 
 // Why the office is changing it (golden rule 12): required, from the fixed list.
 function ReasonSelect({
@@ -32,10 +36,18 @@ function ReasonSelect({
   id: string;
   forBooking?: boolean; // one person's booking: its own reasons too
 }) {
+  // Every field here waits for the page (docs/ui-design.md "Forms wait for the page").
+  const ready = useHydrated();
   return (
-    <label className="flex flex-col" htmlFor={id}>
-      <span className="font-semibold">Why?</span>
-      <select id={id} className={input} value={value} onChange={(e) => onChange(e.target.value)}>
+    <label className={labelStack} htmlFor={id}>
+      <span>Why?</span>
+      <select
+        id={id}
+        className={input}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!ready}
+      >
         <option value="" disabled>
           Choose a reason
         </option>
@@ -79,46 +91,50 @@ export function MoveShiftForm({
     });
   return (
     <form
-      className="mt-3 flex flex-col gap-3"
+      className="mt-4 flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
         save();
       }}
     >
-      <div className="flex flex-wrap gap-3">
-        <label className="flex flex-col">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
+        <label className={`${labelStack} col-span-2`}>
           <span>New date</span>
           <input
             type="date"
             className={input}
             value={values.date}
             onChange={(e) => set({ date: e.target.value })}
+            disabled={!ready}
           />
         </label>
-        <label className="flex flex-col">
+        <label className={`${labelStack} sm:col-span-2`}>
           <span>New start</span>
           <input
             type="time"
             className={input}
             value={values.start}
             onChange={(e) => set({ start: e.target.value })}
+            disabled={!ready}
           />
         </label>
-        <label className="flex flex-col">
+        <label className={`${labelStack} sm:col-span-2`}>
           <span>New finish</span>
           <input
             type="time"
             className={input}
             value={values.end}
             onChange={(e) => set({ end: e.target.value })}
+            disabled={!ready}
           />
         </label>
-        <label className="flex flex-col">
+        <label className={`${labelStack} col-span-2 sm:col-span-4`}>
           <span>Site</span>
           <select
             className={input}
             value={values.siteId}
             onChange={(e) => set({ siteId: e.target.value })}
+            disabled={!ready}
           >
             <option value="">No site</option>
             {sites.map((s) => (
@@ -130,14 +146,14 @@ export function MoveShiftForm({
         </label>
       </div>
       <ReasonSelect id="move-reason" value={values.reason} onChange={(reason) => set({ reason })} />
-      <button type="submit" className={button} disabled={pending || !ready}>
+      <button type="submit" className={`${btn.primary} self-start`} disabled={pending || !ready}>
         Move for everyone booked
       </button>
       {lines.length > 0 && (
-        <div role="status">
-          <p className="font-semibold">{lines[0]}</p>
+        <div role="status" className={resultBox}>
+          <p>{lines[0]}</p>
           {lines.length > 1 && (
-            <ul className="list-disc pl-6">
+            <ul className="mt-1 list-disc pl-6 font-normal">
               {lines.slice(1).map((l) => (
                 <li key={l}>{l}</li>
               ))}
@@ -164,29 +180,32 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
       if (result.status === "cancelled") router.refresh();
     });
   return (
-    <details className="mt-3 rounded-lg border border-slate-300 px-3 py-2">
-      <summary className="cursor-pointer font-semibold">Cancel this shift</summary>
-      <p className="mt-2">
-        {booked === 0
-          ? "Nobody is booked on it."
-          : `${booked === 1 ? "1 person is" : `${booked} people are`} booked: each is told, and the notice they had is logged.`}
-      </p>
-      <div className="mt-2">
-        <ReasonSelect id="cancel-reason" value={reason} onChange={setReason} />
-      </div>
-      <button
-        type="button"
-        className={`${button} mt-2`}
-        disabled={pending || !ready}
-        onClick={cancel}
-      >
-        Yes, cancel this shift
-      </button>
-      {message && (
-        <p role="status" className="mt-2 font-semibold">
-          {message}
+    <details className={booked > 0 ? "group mt-6 border-t border-line pt-6" : "group"}>
+      <summary className={opener}>
+        Cancel this shift
+        <Chevron />
+      </summary>
+      <div className="mt-4 flex flex-col gap-4 rounded-lg border-2 border-urgent bg-urgent-soft p-4">
+        <p>
+          {booked === 0
+            ? "Nobody is booked on it."
+            : `${booked === 1 ? "1 person is" : `${booked} people are`} booked: each is told, and the notice they had is logged.`}
         </p>
-      )}
+        <ReasonSelect id="cancel-reason" value={reason} onChange={setReason} />
+        <button
+          type="button"
+          className={`${btn.dangerSolid} self-start`}
+          disabled={pending || !ready}
+          onClick={cancel}
+        >
+          Yes, cancel this shift
+        </button>
+        {message && (
+          <p role="status" className={resultBox}>
+            {message}
+          </p>
+        )}
+      </div>
     </details>
   );
 }
@@ -226,9 +245,16 @@ export function CancelBookingForm({
       }
     });
   return (
-    <details className="ml-2 inline-block" open={done || undefined}>
-      <summary className="cursor-pointer underline">Cancel {name}&apos;s booking</summary>
-      <div className="mt-2 flex flex-col gap-2">
+    <details className="group" open={done || undefined}>
+      <summary className={opener}>
+        Cancel {name}&apos;s booking
+        <Chevron />
+      </summary>
+      <div
+        className={`mt-3 flex max-w-md flex-col gap-3 ${
+          done ? "" : "rounded-lg border-2 border-urgent bg-urgent-soft p-4"
+        }`}
+      >
         {!done && (
           <>
             <ReasonSelect
@@ -237,13 +263,18 @@ export function CancelBookingForm({
               onChange={setReason}
               forBooking
             />
-            <button type="button" className={button} disabled={pending || !ready} onClick={cancel}>
+            <button
+              type="button"
+              className={`${btn.dangerSolid} self-start`}
+              disabled={pending || !ready}
+              onClick={cancel}
+            >
               Yes, cancel {name}&apos;s booking
             </button>
           </>
         )}
         {message && (
-          <p role="status" className="font-semibold">
+          <p role="status" className={resultBox}>
             {message}
           </p>
         )}

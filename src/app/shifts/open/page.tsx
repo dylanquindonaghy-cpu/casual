@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import { z } from "zod";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
+import { page } from "../../ui/classes";
 import { openShiftsFor, type OpenShiftFilters } from "@/lib/portal/open-shifts";
 import { OpenShiftsView } from "./open-shifts-view";
+
+export const metadata: Metadata = { title: "Open shifts" };
 
 // Filters come from the address (?day=&site=&role=); anything that doesn't look right is ignored.
 const filtersSchema = z.object({
@@ -37,10 +41,15 @@ export default async function OpenShiftsPage({
   const filters: OpenShiftFilters = { day: parsed.day, siteId: parsed.site, role: parsed.role };
   const list = await openShiftsFor({ firm }, worker.id, filters);
   return (
-    <main className="mx-auto max-w-md p-6">
+    <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <p className="text-base text-slate-600">{firm.name}</p>
-      <OpenShiftsView list={list} filters={filters} timeZone={firm.timezone} now={new Date()} />
+      <OpenShiftsView
+        list={list}
+        filters={filters}
+        timeZone={firm.timezone}
+        now={new Date()}
+        eyebrow={firm.name}
+      />
     </main>
   );
 }

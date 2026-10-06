@@ -6,12 +6,16 @@ import { useRef, useState, useTransition } from "react";
 import { MAX_REQUEST_NOTE, type ReviewOutcome } from "@/lib/portal/request-kinds";
 import { askForReviewAction } from "./actions";
 import { tryAgainText } from "@/lib/portal/copy";
+import { labelStack, staffBtn, staffField } from "../../ui/classes";
+import { useHydrated } from "@/app/use-hydrated";
 
 type Shown = Exclude<ReviewOutcome, { status: "logged_out" }>;
 
 // "Ask the office to review": an optional note, one button, then the answer in place of the form.
+// The note and the button wait for the page (docs/ui-design.md "Forms wait for the page").
 export function ReviewForm({ shiftId }: { shiftId: string }) {
   const router = useRouter();
+  const ready = useHydrated();
   const [note, setNote] = useState("");
   const [outcome, setOutcome] = useState<Shown | null>(null);
   const [pending, startTransition] = useTransition();
@@ -38,7 +42,7 @@ export function ReviewForm({ shiftId }: { shiftId: string }) {
           <button
             type="button"
             onClick={() => router.refresh()}
-            className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white"
+            className={`${staffBtn.primary} mt-3`}
           >
             Show the shift
           </button>
@@ -48,26 +52,27 @@ export function ReviewForm({ shiftId }: { shiftId: string }) {
   }
   return (
     <div className="mt-4">
-      <label className="block">
-        <span className="font-semibold">Anything the office should know? (optional)</span>
+      <label className={labelStack}>
+        <span>Anything the office should know? (optional)</span>
         <textarea
           value={note}
           maxLength={MAX_REQUEST_NOTE}
           rows={3}
           onChange={(e) => setNote(e.target.value)}
-          className="mt-1 block w-full rounded-lg border-2 border-slate-300 px-3 py-3"
+          disabled={!ready}
+          className={staffField}
         />
       </label>
       <button
         type="button"
-        disabled={pending}
+        disabled={pending || !ready}
         onClick={send}
-        className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-4 text-lg font-semibold text-white disabled:opacity-60"
+        className={`${staffBtn.primary} mt-4`}
       >
         {pending ? "Sending…" : "Ask the office to review"}
       </button>
       {outcome && (
-        <p role="alert" className="mt-3 font-semibold text-red-700">
+        <p role="alert" className="mt-3 font-semibold text-urgent">
           {outcome.status === "invalid"
             ? `Keep your note to ${MAX_REQUEST_NOTE} characters or fewer.`
             : tryAgainText()}
@@ -84,22 +89,19 @@ export function ReviewResult({
   outcome: Exclude<Shown, { status: "invalid" } | { status: "error" }>;
 }) {
   const myRequests = (
-    <Link
-      href="/requests"
-      className="mt-3 block w-full rounded-xl border-2 border-slate-900 px-4 py-3 text-center font-semibold"
-    >
+    <Link href="/requests" className={`${staffBtn.secondary} mt-4`}>
       See my requests
     </Link>
   );
   switch (outcome.status) {
     case "created":
       return (
-        <div role="status" className="rounded-xl border-2 border-green-700 bg-green-50 p-4">
-          <p className="text-xl font-bold">We&apos;ve sent this to the office.</p>
+        <div role="status" className="rounded-xl border-2 border-done bg-done-soft p-4">
+          <p className="text-xl font-bold text-done-ink">We&apos;ve sent this to the office.</p>
           <p className="mt-1">They&apos;ll look at why you can&apos;t take this shift.</p>
           <p className="mt-2">Sent at {outcome.sentAt}.</p>
-          <p>Reference: {outcome.ref}</p>
-          <p className="mt-2 text-base">— {outcome.signOff}</p>
+          <p className="font-semibold tabular-nums">Reference: {outcome.ref}</p>
+          <p className="mt-2 text-base text-ink-muted">— {outcome.signOff}</p>
           {myRequests}
         </div>
       );

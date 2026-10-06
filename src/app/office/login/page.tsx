@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
+import { loginCard, loginTitle, page } from "@/app/ui/classes";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 import { OfficeLoginForm } from "./office-login-form";
 
+// The office login (docs/screens.md `/office/login`). Outside the office shell (nobody is logged
+// in yet): the same layout as the worker login (/login): the brand bar's 448px column, so its words
+// start under the firm's name, and a card framed from 640px up (on a phone the page is the card,
+// with the same 24px edge as the bar). The firm's name in the heading, the email field, one button.
 export default async function OfficeLoginPage({
   searchParams,
 }: {
@@ -12,14 +17,19 @@ export default async function OfficeLoginPage({
   if (await getOfficeSession()) redirect("/office");
   const { out } = await searchParams;
   return (
-    <main className="mx-auto max-w-md p-6">
-      <h1 className="text-3xl font-bold">Office login for {firm.name}</h1>
-      {out === "1" && (
-        <p role="status" className="mt-4 rounded-xl bg-slate-100 p-4">
-          You&apos;re logged out.
-        </p>
-      )}
-      <OfficeLoginForm firmName={firm.name} signOff={firm.signOff} />
+    <main className={page.login}>
+      <div className={loginCard}>
+        <h1 className={loginTitle}>Office login for {firm.name}</h1>
+        {out === "1" && (
+          <p
+            role="status"
+            className="mt-4 rounded-lg border border-line bg-quiet-soft p-4 text-quiet-ink"
+          >
+            You&apos;re logged out.
+          </p>
+        )}
+        <OfficeLoginForm firmName={firm.name} signOff={firm.signOff} />
+      </div>
     </main>
   );
 }

@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { refreshSessionAction } from "../session-actions";
 import { SessionKeeper } from "../session-keeper";
+import { page } from "../ui/classes";
 import { UrgentView } from "./urgent-view";
+
+export const metadata: Metadata = { title: "Urgent shifts" };
 
 export default async function UrgentPage() {
   const { firm, worker, session } = await requireWorker();
@@ -11,10 +15,9 @@ export default async function UrgentPage() {
     urgent: true,
   });
   return (
-    <main className="mx-auto max-w-md p-6">
+    <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <p className="text-base text-slate-600">{firm.name}</p>
-      <UrgentView list={list} timeZone={firm.timezone} now={now} />
+      <UrgentView list={list} timeZone={firm.timezone} now={now} eyebrow={firm.name} />
     </main>
   );
 }

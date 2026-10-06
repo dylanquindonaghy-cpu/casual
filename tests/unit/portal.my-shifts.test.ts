@@ -203,6 +203,76 @@ describe("My shifts page body", () => {
     expect(text(render({ view: "past" }))).toContain("No shifts in the last 30 days.");
   });
 
+  it("ends with every other page, once each, in the spec's order, Help last (→ /help)", () => {
+    const booked = shift({
+      startsAt: at("2026-11-07T14:00:00Z"),
+      endsAt: at("2026-11-07T22:00:00Z"),
+    });
+    const worked = shift({
+      startsAt: at("2026-10-31T14:00:00Z"),
+      endsAt: at("2026-10-31T22:00:00Z"),
+      status: "completed",
+    });
+    const views = {
+      empty: render({}),
+      booked: render({ shifts: [booked] }),
+      pastEmpty: render({ view: "past" }),
+      past: render({ view: "past", shifts: [worked] }),
+    };
+    const pages = [
+      ["/shifts/open", "See open shifts"],
+      ["/requests", "My requests"],
+      ["/pay", "See your pay"],
+      ["/profile", "My profile"],
+      ["/help", "Help"],
+    ];
+    for (const [view, html] of Object.entries(views)) {
+      // The page links are the last list on the page.
+      const bottom = html.slice(html.lastIndexOf("<ul"));
+      const links = [...bottom.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g)];
+      expect(
+        links.map((m) => [m[1], m[2]]),
+        view,
+      ).toEqual(pages);
+      for (const [href] of pages)
+        expect(html.split(`href="${href}"`), `${view} ${href}`).toHaveLength(2);
+    }
+  });
+
+  it("names the later list 'Coming up', with its count beside the heading, not in it", () => {
+    const html = render({
+      shifts: [
+        shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") }),
+        shift({ startsAt: at("2026-11-08T14:00:00Z"), endsAt: at("2026-11-08T22:00:00Z") }),
+        shift({ startsAt: at("2026-11-09T14:00:00Z"), endsAt: at("2026-11-09T22:00:00Z") }),
+      ],
+    });
+    // The section is named by the heading's words alone; the 2 sits right after the </h2>.
+    expect(html).toContain('aria-labelledby="later-heading"');
+    expect(html).toMatch(/<h2 id="later-heading"[^>]*>Coming up<\/h2><span[^>]*>2<\/span>/);
+  });
+
+  it("gives every bullet-free list role=list, so Safari still announces it as a list", () => {
+    const later = shift({
+      startsAt: at("2026-11-08T14:00:00Z"),
+      endsAt: at("2026-11-08T22:00:00Z"),
+    });
+    const now = shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") });
+    const worked = shift({
+      startsAt: at("2026-10-31T14:00:00Z"),
+      endsAt: at("2026-10-31T22:00:00Z"),
+      status: "completed",
+    });
+    for (const html of [
+      render({ shifts: [now, later] }),
+      render({ view: "past", shifts: [worked] }),
+    ]) {
+      const lists = [...html.matchAll(/<ul\b[^>]*>/g)].map((m) => m[0]);
+      expect(lists.length).toBeGreaterThanOrEqual(2);
+      for (const tag of lists) expect(tag).toContain('role="list"');
+    }
+  });
+
   it("warns about credentials expiring soon or expired, in the firm's voice", () => {
     const html = render({
       notices: [

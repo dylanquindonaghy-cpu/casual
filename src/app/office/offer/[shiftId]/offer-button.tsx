@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { btn } from "@/app/ui/classes";
 import { offerResultText } from "@/lib/office/today-copy";
+import { resultBox } from "../../shifts/shift-tones";
 import { offerShiftAction } from "../../today-actions";
 
-// "Send offer" to one worker; the answer shows in place.
+// "Send offer" to one worker; the answer shows in place. One per row, so a plain (secondary)
+// button.
 export function OfferButton({
   shiftId,
   workerId,
@@ -26,20 +29,20 @@ export function OfferButton({
       if (["queued", "already_offered", "failed_before"].includes(result.status)) setSent(true);
     });
   return (
-    <div>
+    <div className="flex flex-col items-start gap-2 sm:items-end">
       {!sent && (
         <button
           type="button"
           disabled={pending}
           onClick={send}
           aria-label={`Send offer to ${name}`}
-          className="rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100 disabled:opacity-60"
+          className={btn.secondary}
         >
           Send offer
         </button>
       )}
       {message && (
-        <p role="status" className="mt-1 font-semibold">
+        <p role="status" className={resultBox}>
           {message}
         </p>
       )}

@@ -2,16 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { btn } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import { attendanceResultText, restWorkedResultText } from "@/lib/office/shifts-copy";
+import { resultBox } from "../shift-tones";
 import { markAttendanceAction, markRestWorkedAction } from "../actions";
+import { Chevron, summaryButton } from "./chevron";
 
-const button =
-  "rounded-lg border border-slate-400 px-3 py-2 font-semibold hover:bg-slate-100 disabled:opacity-60";
 const failed = { status: "error" as const };
 
 // Once the shift has started: "Mark as worked" / "Mark as didn't attend" for someone booked, or
 // "Change to …" for someone already marked. The server checks everything again and logs it.
+// One pair per person, so both are plain (secondary) buttons.
 export function AttendanceButtons({
   shiftId,
   workerId,
@@ -36,11 +38,11 @@ export function AttendanceButtons({
   const worked = status === "confirmed" ? "Mark as worked" : "Change to worked";
   const absent = status === "confirmed" ? "Mark as not attended" : "Change to not attended";
   return (
-    <div className="mt-1 mb-2 flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3">
       {status !== "completed" && (
         <button
           type="button"
-          className={button}
+          className={btn.secondary}
           disabled={pending || !ready}
           aria-label={`${worked}: ${name}`}
           onClick={() => mark("completed")}
@@ -51,7 +53,7 @@ export function AttendanceButtons({
       {status !== "no_show" && (
         <button
           type="button"
-          className={button}
+          className={btn.secondary}
           disabled={pending || !ready}
           aria-label={`${absent}: ${name}`}
           onClick={() => mark("no_show")}
@@ -60,7 +62,7 @@ export function AttendanceButtons({
         </button>
       )}
       {message && (
-        <p role="status" className="font-semibold">
+        <p role="status" className={resultBox}>
           {message}
         </p>
       )}
@@ -83,25 +85,28 @@ export function MarkRestWorked({ shiftId, count }: { shiftId: string; count: num
     });
   const people = count === 1 ? "the 1 person" : `the ${count} people`;
   return (
-    <div className="mt-3 flex flex-col gap-2">
+    <div className="mt-4 flex flex-col gap-3">
       {count > 0 && (
-        <details className="rounded-lg border border-slate-300 px-3 py-2">
-          <summary className="cursor-pointer font-semibold">
+        <details className="group">
+          <summary className={`${btn.secondary} ${summaryButton}`}>
             Mark {people} not marked yet as worked
+            <Chevron />
           </summary>
-          <p className="mt-2">Only if they all worked it. You can change anyone afterwards.</p>
-          <button
-            type="button"
-            className={`${button} mt-2`}
-            disabled={pending || !ready}
-            onClick={mark}
-          >
-            Yes, mark them as worked
-          </button>
+          <div className="mt-3 flex max-w-md flex-col gap-3 rounded-lg border border-line bg-white p-4">
+            <p>Only if they all worked it. You can change anyone afterwards.</p>
+            <button
+              type="button"
+              className={`${btn.primary} self-start`}
+              disabled={pending || !ready}
+              onClick={mark}
+            >
+              Yes, mark them as worked
+            </button>
+          </div>
         </details>
       )}
       {message && (
-        <p role="status" className="font-semibold">
+        <p role="status" className={`${resultBox} self-start`}>
           {message}
         </p>
       )}

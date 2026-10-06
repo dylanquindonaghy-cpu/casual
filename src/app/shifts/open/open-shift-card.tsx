@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { roleLabel, shiftWhen, siteAddress, soonLabel } from "@/lib/portal/format";
 import type { OpenShift } from "@/lib/portal/open-shifts";
+import { btn, card, muted } from "../../ui/classes";
+import { StatusChip } from "../../ui/status-chip";
 import { TakeShiftButton } from "./take-shift-button";
 
-// One shift on Open shifts or the urgent board: when, role, site and address, places left, an
-// "Urgent" label when marked urgent, then "Take shift" (or, under fair rotation, when it opens).
+// One shift on Open shifts or the urgent board: an "Urgent" label (and a red edge) when marked
+// urgent, then when, role, site and address, places left, then "Take shift" (or, under fair
+// rotation, when it opens).
 export function OpenShiftCard({
   shift: s,
   timeZone,
@@ -18,30 +21,30 @@ export function OpenShiftCard({
 }) {
   const address = s.site ? siteAddress(s.site) : null;
   return (
-    <li className="rounded-2xl border-2 border-slate-300 p-4">
+    <li className={`${card}${s.isUrgent ? " border-l-4 border-l-urgent" : ""}`}>
       {s.isUrgent && (
-        <p className="mb-1 inline-block rounded-full bg-red-700 px-3 py-1 text-base font-bold text-white">
-          Urgent
-        </p>
+        <div className="mb-2 flex">
+          <StatusChip tone="urgent">Urgent</StatusChip>
+        </div>
       )}
-      <p className="text-xl font-bold">{shiftWhen(s.startsAt, s.endsAt, timeZone)}</p>
-      <p className="mt-1">{roleLabel(s.role)}</p>
+      <p className="text-xl font-bold tabular-nums">{shiftWhen(s.startsAt, s.endsAt, timeZone)}</p>
+      <p className="mt-1 font-semibold">{roleLabel(s.role)}</p>
       {s.site && (
         <p className="mt-1">
-          <span className="font-semibold">{s.site.name}</span>
-          {address && <span className="block text-base text-slate-700">{address}</span>}
+          <span>{s.site.name}</span>
+          {address && <span className={`block ${muted}`}>{address}</span>}
         </p>
       )}
-      <p className="mt-1 text-base text-slate-600">
+      <p className={`mt-1 ${muted}`}>
         {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
       </p>
       {s.opensAt ? (
-        <div className="mt-3 rounded-xl bg-slate-100 p-3">
+        <div className="mt-4 rounded-xl bg-quiet-soft p-3">
           <p>
             Offered first to people with fewer hours that week. You can take it from{" "}
             {soonLabel(s.opensAt, now, timeZone)}.
           </p>
-          <Link href={checkAgainHref} className="mt-1 inline-block py-2 font-semibold underline">
+          <Link href={checkAgainHref} className={btn.link}>
             Check again
           </Link>
         </div>

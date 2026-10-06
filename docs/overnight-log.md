@@ -8349,3 +8349,96 @@ a person, so every phase came in well under):
 4. **Then the accounts**, when you're happy with the walkthrough. Follow PLAN.md's "Connect …"
    steps (AWS first for the server). `build/overnight` isn't merged into `main`: that's yours to do
    when you deploy (Deploy 1 in the decisions list).
+
+## 2026-10-06 — Handoff from Dylan's desktop session: close Phase 11, then build Phase 12
+
+Read this whole section before the next `/overnight` run picks a task. It stays true until a later
+log entry says otherwise.
+
+**Where things are**
+- `build/overnight` was fast-forwarded from c6500f5 to c41d1c3. No merge was needed: the work was
+  done on `ui/clarity-and-guides`, which started from c6500f5. It brings three commits:
+  - b3f3627 "Phase 11: UI clarity overhaul and how-to guides". This is built. `RUN_E2E=1
+    ./scripts/verify.sh` printed `VERIFIED tree=99cee7832eadbe17 e2e=true` on 2026-10-06 before
+    the commit. The claims-auditor has not run, so Phase 11's 8 tasks are unticked.
+  - 560d3b2 "Plan Phase 12".
+  - c41d1c3 "Revise Phase 12: lean, planner API + webhooks, no AWS". Phase 12 has 32 tasks, and
+    the spec is `docs/office-v2.md`.
+- Nothing has been pushed since c6500f5. The next `/overnight` push sends all of it.
+
+**Order of work**
+1. **Phase 11 (8 tasks): close them, don't rebuild them.** For each task, run `/close-task`
+   exactly as written (verify, then the claims-auditor with only the task text and Phase 11's
+   "Done when"). Tick only on DONE. If the auditor finds a gap, fix just that gap. Phase 11's
+   code is in b3f3627; `docs/ui-design.md` and `docs/screens.md` describe it.
+2. **Phase 12 (32 tasks), in `PLAN.md` order.** It opens with 12A.0, then 12X.1–12X.3 (removing
+   AWS), then the look, events and sessions, cancellations and strikes, travel, qualifications and
+   photos, enquiries, the dashboard, the planner API and webhooks, the casual app, the seed,
+   guides and docs, and verify. `docs/office-v2.md` is the spec: "§" in a task means a section of
+   it, and §9 has each task's row.
+
+**Dylan's decisions on 2026-10-06 (binding; also written into PLAN.md and docs/office-v2.md)**
+- **Decisions:** D1–D8 take the recommended defaults in `docs/office-v2.md` §8. The exceptions:
+  - D5 is replaced by the planner API and webhooks.
+  - D6 (booking by replying a number) is deferred to the Parking lot.
+- **Database changes:** S1–S11 are approved, including S11 (the API-key login, the `api_keys`
+  and webhook tables). `/overnight`'s standing decisions already pre-approve schema, auth and
+  tenancy work. Still run the `guardrails-reviewer` on every such task.
+- **No AWS for now (ADR-021):**
+  - no SES, Bedrock, Lightsail, S3 or `@aws-sdk`;
+  - email goes through an SMTP transport, with the console transport in dev and tests;
+  - AI goes through the Anthropic API behind `AiClient`. It is off by default and never called
+    in tests;
+  - hosting is any UK or EU Docker host.
+- **No new rota-sheet features.** Planners connect plug-and-play through the REST API with
+  per-firm keys (12J.1) and signed webhooks (12J.2). The webhooks replace the sheet write-back
+  and the daily planner email, which are both cut.
+- **"Debloat, not pro bloat."**
+  - Build exactly what each task says. Don't add features beyond its acceptance criteria.
+  - New ideas go to the Parking lot, one line each.
+  - The cut list is in the Parking lot under "Phase 12 cuts (2026-10-06, Dylan: debloat)". Don't
+    bring those items back.
+
+**The look**
+- The visual source of truth is the approved mock-up at `.dev/handoff/office-v2-mockup.html`.
+  It's a single HTML file with made-up data only.
+  - Open it in a browser, or read it.
+  - 12A.0 copies it to `docs/mockups/office-v2.html` with its made-up-data test.
+  - `docs/office-v2.md` §1.1 describes it in words.
+- **Wording:** keep the mock-up's words where the spec doesn't override them. For example, use
+  "Urgent shifts not filled", never "Urgently looking for".
+- **Themes:** dark and light are both required. Dark is navy (D7).
+- **Golden rule 7, extra:** the mock-up's look is modelled on a tool from Dylan's employer.
+  - Never put that employer's name, logo, venues, staff or email addresses in the repo, the seed,
+    the tests or the docs.
+  - The strikes-team email is a per-firm setting. Demo and test addresses use reserved example
+    domains.
+
+**Outside accounts** (none exist; the existing hard limits apply)
+- This covers the SMTP provider, the Anthropic API key and the TravelTime key.
+- Build the interface, the fake or console adapter and the tests.
+- Write the "Connect …" step in the Parking lot, and record a task as blocked only if its "Done
+  when" truly needs the real service.
+
+**Environment**
+- **Docker Desktop must be running** (`docker info`).
+  - If Docker Desktop crashed with "The file cannot be accessed by the system", remove the stale
+    socket files while it is stopped, from Ubuntu:
+    `rm -f /mnt/c/Users/dylan/AppData/Local/Docker/run/* /mnt/c/Users/dylan/AppData/Local/docker-secrets-engine/engine.sock`
+  - Then Dylan restarts Docker Desktop.
+  - You can't start it from WSL. Record that and stop the loop.
+- **Nothing else should be on port 3000.** Dylan's desktop session stopped its dev server. Never
+  run two test runs at once.
+- **Local helper scripts** in `.dev/` (gitignored; for looking, not for tests):
+  - `.dev/shots/shoot.mjs` screenshots every screen at desktop and phone width. It needs
+    `npm run dev` started with `CONSOLE_OUTBOX_FILE=.dev/dev-outbox.jsonl`.
+  - `.dev/shots/viewport.mjs` takes a single screenshot.
+  - `.dev/controlled-scan.sh` lists client forms with controlled fields. Every such field must be
+    disabled until the page is ready (`tests/unit/forms.hydration.test.ts`).
+  - `.dev/snapshot/build.mjs` builds the static clickable preview Dylan views at work. The
+    desktop session republishes it, so overnight runs don't need it.
+
+**Morning summary**
+- Write it as usual: done, hours against estimates, blocked and why, and what needs Dylan, in
+  numbered beginner steps.
+- Add one line on how far Phase 12 got (task id) and where the next run starts.

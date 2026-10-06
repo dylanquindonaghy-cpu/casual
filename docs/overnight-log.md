@@ -8904,3 +8904,41 @@ To reach DONE: nothing. Scope: only this task was audited. The `/help` and docs 
 ```
 
 **Ticked** in `PLAN.md` at 18:33 UTC. **Hours:** 0.2 (18:19 to 18:33).
+**Committed** as `efe55b5` and pushed (`c2ca7e2..efe55b5`).
+
+## 2026-10-06 18:35 UTC — Phase 11, task 7: close "`/help` for workers"
+
+**Task:** `/help` for workers: how it works in plain words, readable without logging in, checked by
+`tests/unit/copy.plain-language.test.ts`. No shifts-line number or privacy notice link yet (both
+in the Parking lot)
+
+**Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh`, then
+the `claims-auditor` with only the task text and Phase 11's "Done when". Fix only a gap it names.
+No schema, auth, tenancy, messaging, jobs or rules change. CI for `efe55b5` was still running at
+the start.
+
+**Verify:** `VERIFIED tree=35884488b896e888 e2e=true` (3,404 tests; e2e 60, then the walkthrough's
+3). CI for `efe55b5`: passed (run 37512279872).
+
+**Audit round 1 verdict (verbatim):**
+
+```
+VERDICT: DONE
+Gate: `.claude/state/verified.json` is `{"ok":true,"tree":"35884488b896e888","e2e":true}`. `tree-hash.sh` prints the same hash, so the passing verify (with e2e) is on the current files. `test.log` shows 205 files and 3404 tests passed, 0 failed, 0 skipped. `e2e.log` shows its last run passing.
+Claims:
+- `/help` exists for workers, with how it works in plain words (11 topics: how it works, your shifts, taking a shift, urgent, can't make it, changes, pay, profile, no signal, lost phone, your details). PROVEN. Code is `/home/dylan/shiftdesk-starter/src/app/help/help-view.tsx` (SECTIONS at l.26-38) and `page.tsx`. Tests: `guides.test.ts` "has one heading 1, contents links that land, and short sentences" (test.log l.2208, expects 11 contents links) and "opens with the shared page header" (l.2209).
+- Readable without logging in. PROVEN, with one weakness. `src/app/help/page.tsx` calls only `getCurrentFirm()`, which gives not-found on a non-firm host. `src/proxy.ts` and `src/lib/http/proxy.ts` do no login gate. `src/app/layout.tsx` has no session check. Test: `guides.test.ts` "opens without logging in" (test.log l.2212). It is a source-text check: it asserts `page.tsx` has no `requireWorker`, `getWorkerSession` or `readSessionToken`. No e2e test requests `/help` (grep of `tests/e2e` finds none). Not blocking, because the code is plainly public.
+- Checked by `tests/unit/copy.plain-language.test.ts`. PROVEN. The `["Help", createElement(HelpView, ...)]` entry sits at l.567 of that file. The test renders it and asserts the jargon list, raw codes, `[object` and sentences over 25 words all come back empty. It passed (test.log l.2392). The checker's own self-test ("the check itself catches what it's meant to") also passes.
+- The help text matches the real screens. PROVEN. I grepped every button or heading name it quotes ("Log me in", "Send me a link", "See open shifts", "Show shifts", "Check again", "Ask the office to review", "See urgent shifts", "Confirm cancellation", "Keep this shift", "Ask for a change", "Change the times", "Swap with someone", "Send request", "See your pay", "Send me a code", "Check code", "Raise a pay query", "Send pay query", "Mark as unavailable", "Save settings" and the rest). Each exists in `src/` outside the guide files. Facts match the code:
+  - 15-minute link: `src/lib/auth/magic-links.ts:9`.
+  - 10-minute code and 30-minute pay window: `src/lib/auth/step-up.ts:17,19`.
+  - Last 8 weeks: `src/lib/portal/pay.ts:18`.
+  - 90 days: `src/lib/portal/pay-query-kinds.ts:87`.
+- No shifts-line number and no privacy notice link, both in the Parking lot. PROVEN. `guides.test.ts` "keeps back the shifts line number and invents no buttons" (l.2211) asserts no `+44`, `07xxx` or "shifts line", no `href` containing "privacy", and no button, form or input. The Parking lot has both entries: PLAN.md l.2496-2499 (shifts line) and l.2683-2684 (privacy notice link). The page says "Ask the office for a copy."
+- "Help" link on My shifts leads here. PROVEN. `src/app/my-shifts-view.tsx:145` and `tests/unit/portal.my-shifts.test.ts:206-227`.
+Fakes found: none. No `skip`, `only`, `TODO` or "not implemented" in the help files or the two tests. The assertions are real.
+To reach DONE: nothing. Optional hardening, not required: one request-level check (e2e or route test) that `/help` returns 200 with no cookie.
+Not audited, because it is outside this task: PLAN.md's separate unticked item "Docs: `docs/ui-design.md`; `docs/screens.md`; `docs/walkthrough.md`". The `/help` row is already in `docs/screens.md` l.26 and the Guides section is in `docs/ui-design.md`.
+```
+
+**Ticked** in `PLAN.md` at 18:49 UTC. **Hours:** 0.2 (18:35 to 18:49).

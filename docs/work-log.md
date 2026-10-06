@@ -9336,3 +9336,32 @@ mentions really exists on a screen (all 79 do).
 
 The auditor noted, without needing it for DONE, that no browser test opens the guide itself. The
 unit tests draw the real page, which is a thin wrapper.
+
+## 2026-10-06 — Phase 11, task 7: closing `/help` for workers
+
+- **Time spent:** 0.2 hours (18:35 to 18:49 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=35884488b896e888 e2e=true`
+  (3,404 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round. Every claim was PROVEN, and
+  it found no fakes. Nothing needed fixing.
+
+### What this task was
+
+`/help` explains the app to workers in plain words, in 11 short topics: how it works, your
+shifts, taking a shift, urgent shifts, when you can't make it, changes, pay, your profile, no
+signal, a lost phone, and your details. Anyone can read it without logging in. As planned, it
+doesn't show the shifts-line number or a privacy notice link yet. Both wait in the Parking lot
+until they exist.
+
+### What proves it
+
+- `tests/unit/copy.plain-language.test.ts` reads the page and fails on jargon, codes or any
+  sentence over 25 words.
+- `tests/unit/guides.test.ts` checks the page header, the contents links, that the page needs no
+  login, and that there's no phone number, no privacy link and no buttons.
+- The auditor checked by hand that every button the page names exists on a real screen, and that
+  every time it states matches the code (the 15-minute link, the 10-minute code, 30 minutes on
+  pay, the last 8 weeks of pay, and pay queries up to 90 days back).
+
+The auditor noted, without needing it for DONE, that no browser test loads `/help` with no
+login; the unit test checks the page's code instead.

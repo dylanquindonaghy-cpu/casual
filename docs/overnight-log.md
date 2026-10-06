@@ -8853,3 +8853,54 @@ Scope: only this task was audited. `/office/guide`, `/help` and the docs task ar
 ```
 
 **Ticked** in `PLAN.md` at 18:16 UTC. **Hours:** 0.5 (17:44 to 18:16).
+**Committed** as `c2ca7e2` and pushed (`635d821..c2ca7e2`).
+
+## 2026-10-06 18:19 UTC — Phase 11, task 6: close "`/office/guide`"
+
+**Task:** `/office/guide` ("How-to guide" in the menu): the everyday jobs step by step, in the
+order of a working day, showing only the parts the user's role can open
+(`tests/unit/guides.test.ts`)
+
+**Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh`, then
+the `claims-auditor` with only the task text and Phase 11's "Done when". Fix only a gap it names.
+No schema, auth, tenancy, messaging, jobs or rules change. CI for `c2ca7e2` was still running at
+the start.
+
+**Verify:** `VERIFIED tree=30fa6a8c9c095cd0 e2e=true` (3,404 tests; e2e 60, then the walkthrough's
+3). CI for `c2ca7e2`: passed (run 37510115413).
+
+**Audit round 1 verdict (verbatim):**
+
+```
+VERDICT: DONE
+
+Verify gate: `.claude/state/verified.json` is `{"ok":true,"tree":"30fa6a8c9c095cd0","e2e":true,...}`. `tree-hash.sh` prints the same hash, so the stamp covers the current files. `test.log` shows 3404 passed, 0 failed, 0 skipped. `e2e.log` shows 60 passed plus 3 walkthrough tests passed. `invariants.log` shows no `.only`, `.skip` or `.todo` in tests.
+
+Claims:
+- `/office/guide` exists and is "How-to guide" in the menu. PROVEN.
+  - The page is `/home/dylan/shiftdesk-starter/src/app/office/guide/page.tsx`, titled "How-to guide" and gated by `requireOfficeArea("guide")`.
+  - The menu entry is `src/app/office/office-shell.tsx:63`, and `roles.ts` gives the `guide` area to all three roles.
+  - `office.shell.test.ts` checks the menu ("Help" → "How-to guide" for every role) and that `/office/guide` is marked `aria-current=page`. Both passed in `test.log` (2615, 2642).
+- It covers the everyday jobs step by step, in the order of a working day. PROVEN.
+  - `SECTIONS` in `src/app/office/guide/guide-view.tsx:25-68` runs Getting around, Today, Fill a gap, Add shifts, Change or cancel, After a shift, Requests, Workers, Records, Pay, Admin, What workers see.
+  - `guides.test.ts` "admins get every part, in the order of a working day" asserts that exact order and passed (`test.log:2095`).
+  - Steps and button names are real. I checked all 79 `<Name>` strings in the guide against the other source files. Every one is on a real screen. The one miss is a curly-apostrophe difference ("can’t", `&rsquo;` on the screen).
+  - Every `GoTo` link points at a page that exists.
+- It shows only the parts the user's role can open. PROVEN.
+  - `guideSections(role)` filters by `canAccess(role, area)` (`guide-view.tsx:70-72`). Inside sections, Records and Admin check `canAccess` per part, and Fill a gap checks the role.
+  - Each linked page uses the same area as its section: shifts, requests, workers, log, reports, pilot, pay, team, data.
+  - Tests: resourcer gets all but Pay and Admin, with no "Mark as sorted and tell them" and no "Change role" (`test.log:2096`).
+  - Payroll gets only Getting around, Pay and What workers see, with no `/office/shifts` link and "Home" in place of "Today" (`test.log:2097`).
+  - Also asserted per role: one h1, contents links that land, arrows, `role="list"` and no sentence over 25 words (`test.log:2098-2100`). Wording is pinned against what the screens allow (`test.log:2101`).
+- `tests/unit/guides.test.ts` exists and covers the above. PROVEN. All 13 cases pass (`test.log:2095-2107`, `vitest.json`). The 8 office-guide cases render the real `GuideView` and make real assertions. The other 5 cover `/help`, which is a separate task.
+
+Fakes found: none. No skips, `.only`, TODO or "not implemented" in the guide code or the test. No hard-coded returns. Nothing under test is mocked except `next/navigation` and the session action, which are not the behaviour under test.
+
+Minor, not blocking:
+- The "opened through its own area" test checks the page source text for `requireOfficeArea("guide")`, not behaviour. The role gating itself is covered by the `canAccess` tests and `roles.ts`.
+- No browser e2e opens `/office/guide`. The unit tests render the real component and the page is a thin wrapper.
+
+To reach DONE: nothing. Scope: only this task was audited. The `/help` and docs tasks are separate, and I did not rate them.
+```
+
+**Ticked** in `PLAN.md` at 18:33 UTC. **Hours:** 0.2 (18:19 to 18:33).

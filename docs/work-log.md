@@ -9310,3 +9310,29 @@ Nothing a worker sees changed.
 - Two places still name a red colour directly instead of the "urgent" colour token.
 - Phase 12 redoes these screens (12A.1 removes every directly named colour; 12H.1 to 12H.3 build
   the casual app), so they'll be handled there.
+
+## 2026-10-06 — Phase 11, task 6: closing the office how-to guide
+
+- **Time spent:** 0.2 hours (18:19 to 18:33 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=30fa6a8c9c095cd0 e2e=true`
+  (3,404 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round. Every claim was PROVEN, and
+  it found no fakes. Nothing needed fixing.
+
+### What this task was
+
+`/office/guide`, "How-to guide" in the office menu, walks through the everyday jobs step by step,
+in the order of a working day: getting around, Today, filling a gap, adding shifts, changes and
+cancellations, after a shift, requests, workers, records, pay, admin, and what workers see. Each
+person sees only the parts their role can open: payroll gets getting around, pay and what
+workers see.
+
+### What proves it
+
+`tests/unit/guides.test.ts` draws the real guide for each role. It checks the order of the parts,
+which parts each role gets, one main heading, contents links that land on their parts, and no
+sentence over 25 words. The auditor also checked by hand that every button name the guide
+mentions really exists on a screen (all 79 do).
+
+The auditor noted, without needing it for DONE, that no browser test opens the guide itself. The
+unit tests draw the real page, which is a thin wrapper.

@@ -9239,7 +9239,7 @@ needed for DONE, so I didn't add it.
 
 ## 2026-10-06 — Phase 11, task 4: closing "Office screens restyled"
 
-- **Time spent:** 0.6 hours (17:10 to 17:43 UTC).
+- **Time spent:** 0.5 hours (17:10 to 17:42 UTC).
 - **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=f0a1ef023e547486 e2e=true`
   (204 test files, 3,401 tests; browser tests: 60, then the walkthrough's 3).
 - The independent auditor said `VERDICT: DONE` on its second round. Every claim was PROVEN, and
@@ -9273,3 +9273,40 @@ The auditor made two small notes; neither is needed for DONE:
   `docs/screens.md` already records that as on purpose.
 - a comment in the new test names a design-doc section by the wrong title. It will be corrected
   in the next run, inside that run's verify.
+
+## 2026-10-06 — Phase 11, task 5: closing "Staff screens restyled"
+
+- **Time spent:** 0.5 hours (17:44 to 18:16 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=dafb7e66ae2532a1 e2e=true`
+  (205 test files, 3,404 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its second round. Every claim was PROVEN, and
+  it found no fakes.
+
+### What this task was
+
+The workers' screens (My shifts, open shifts, the urgent board, one shift, cancelling, requests,
+pay, a pay query, the profile, logging in and the error pages) were restyled in your desktop
+session. My shifts always shows "See open shifts" and a "Help" link, and its "Upcoming / Past 30
+days" control looks like a two-sided switch.
+
+### What happened
+
+The first audit found the same thing as for the office screens:
+- **Five lists missed the `role="list"` label** that Safari's screen reader needs (requests, two on
+  pay, two on the profile). A sixth, the pay query's list of problems, had been marked as an
+  "alert" instead, which hides that it's a list. Now the alert is a box around the list, so a
+  screen reader still reads the problems out at once, *and* knows it's a list.
+- **No test checked the staff pages themselves.** A new test,
+  `tests/unit/ui.staff-pages.test.ts`, checks every staff page opens with the shared header (or,
+  for logging in and the error pages, one main heading) and that every bare list has its label.
+  It failed when I took one label off on purpose, then passed when I put it back.
+
+Nothing a worker sees changed.
+
+### Notes for later (not needed for DONE)
+
+- "Log out" on My shifts and "Show shifts" on Open shifts use the office's 44-pixel buttons, not
+  the bigger 56-pixel staff ones.
+- Two places still name a red colour directly instead of the "urgent" colour token.
+- Phase 12 redoes these screens (12A.1 removes every directly named colour; 12H.1 to 12H.3 build
+  the casual app), so they'll be handled there.

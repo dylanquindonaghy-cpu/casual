@@ -8781,6 +8781,75 @@ To reach DONE: nothing. Non-blocking notes, not needed for DONE:
 Scope: only this task was audited. The staff screens, the two guides and the docs tasks are separate, unticked tasks.
 ```
 
-**Ticked** in `PLAN.md` at 17:43 UTC. **Hours:** 0.6 (17:10 to 17:43). The auditor's note 2 (a
+**Ticked** in `PLAN.md` at 17:42 UTC. **Hours:** 0.5 (17:10 to 17:42; corrected from 0.6 in the next run). The auditor's note 2 (a
 test comment naming a "Login pages" section that doesn't exist) is fixed at the start of the next
 run, so it is verified with that run's files.
+**Committed** as `635d821` and pushed (`0965674..635d821`).
+
+## 2026-10-06 17:44 UTC — Phase 11, task 5: close "Staff screens restyled"
+
+**Carried over (inside this run's verify):** the auditor's note 2 on task 4 (the comment in
+`tests/unit/ui.office-pages.test.ts` named a "Login pages" section; now it points at `loginTitle`),
+and task 4's hours corrected to 0.5 (17:10 to 17:42).
+
+**Task:** Staff screens restyled: My shifts ("See open shifts" always on the page, a "Help" link,
+the Upcoming / Past 30 days switch looks like a switch), open shifts, the urgent board, one shift,
+cancel, requests, pay, pay query, profile, login and the error pages
+
+**Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh`, then
+the `claims-auditor` with only the task text and Phase 11's "Done when". Fix only a gap it names.
+No schema, auth, tenancy, messaging, jobs or rules change. CI for `635d821` was still running at
+the start.
+
+**Verify, round 1:** `VERIFIED tree=85629e1dc6e97f54 e2e=true`. CI for `635d821`: passed (run
+37505644259).
+
+**Audit round 1: NOT DONE.** Proven: My shifts' "See open shifts" always there and the "Help" link,
+the cancel step's buttons, and the login and error pages. Every staff page uses `PageHeader` and
+the shared buttons and chips in code, but no test holds them. And five staff lists had no
+`role="list"`, against the same rule the office was held to: `requests-list.tsx:44`,
+`pay-view.tsx:18` and `:71`, `profile-view.tsx:79` and `availability-form.tsx:85`. The pay query's
+problem list had `role="alert"`, which replaces the list role.
+
+**Fix (just those gaps):**
+- `role="list"` on the five lists. The pay query's problems are now a `<div role="alert">` around a
+  `<ul role="list">`, so screen readers still announce the problems and the list keeps its role.
+  Markup only: no words or looks changed.
+- New `tests/unit/ui.staff-pages.test.ts`:
+  - every staff `page.tsx` opens with `PageHeader`, itself or through a file it imports from its
+    own folder; the two login pages use the login card's one `<h1>`; the three error pages have
+    one `<h1>`;
+  - every bare `<ul>`/`<ol>` outside the office, the shared pieces and the API keeps
+    `role="list"`.
+  With one role taken off on purpose it failed, naming the file; restored.
+- `docs/ui-design.md`'s list rule names both tests and the alert-box pattern.
+- Not in "To reach DONE", so left as they are, with no change: "Log out" on My shifts and "Show
+  shifts" on Open shifts use the office's 44px button and field classes, not the 56px staff ones;
+  two raw `red-700` classes (`logout-button.tsx:62`, `profile-view.tsx:87`). 12A.1 removes every
+  hard-coded colour, and Phase 12's casual app (12H.1–12H.3) restyles these screens.
+
+**Verify, round 2:** `VERIFIED tree=dafb7e66ae2532a1 e2e=true` (205 files, 3,404 tests, 0 skipped;
+e2e 60, then the walkthrough's 3).
+
+**Audit round 2 verdict (verbatim):**
+
+```
+VERDICT: DONE
+Stamp: `.claude/state/verified.json` has ok=true, e2e=true, tree=dafb7e66ae2532a1. `tree-hash.sh` prints the same hash, so the pass covers the current files, including the uncommitted staff-screen fixes. Logs: `invariants.log` shows 3404/3404 tests passed with no .only/.skip/.todo; `e2e.log` shows 60 passed plus the walkthrough's 3.
+Claims:
+- My shifts: "See open shifts" is always on the page — PROVEN — `src/app/my-shifts-view.tsx:140-164` (`PAGES`, first entry, main button when nothing is booked). `tests/unit/portal.my-shifts.test.ts:223-247` ("ends with every other page, once each…") renders empty, booked, past-empty and past views and asserts the link appears exactly once in each. The test passed (`test.log:2557`).
+- My shifts: a "Help" link — PROVEN — `my-shifts-view.tsx:145` goes to `/help`, last in the list. The same test pins it (`portal.my-shifts.test.ts:227`), and `src/app/help/page.tsx` exists, so the link does not 404.
+- Upcoming / Past 30 days switch looks like a switch — PROVEN, with a caveat — `my-shifts-view.tsx:84-98,117-135` is a two-cell segmented control (`grid-cols-2`, frame, divider, current half shaded and bold with an underline, `aria-current`). `portal.my-shifts.test.ts:107,202` pin `aria-current="page"` on each half. No test pins the visual styling itself (see note 3).
+- Open shifts, urgent board, one shift, cancel, requests, pay, pay query, profile restyled — PROVEN — each opens with `PageHeader` and uses `staffBtn`/`staffField`/`StatusChip`/`rows`/`card`: `open-shifts-view.tsx:33`, `urgent-view.tsx:24`, `shift-view.tsx:29,64,73`, `requests-list.tsx:32`, `pay/page.tsx:38`, `pay/query/page.tsx:31`, `profile-view.tsx:57`. Cancel uses `staffBtn.danger` then `dangerSolid` (`cancel-shift.tsx:96,141`). The new `tests/unit/ui.staff-pages.test.ts` (3 tests passed, `test.log:4-6`) holds every staff `page.tsx` to `PageHeader` and every bare `<ul>/<ol>` to `role="list"`. The five lists the round-1 audit named now have it (`requests-list.tsx:44`, `pay-view.tsx:18,71`, `profile-view.tsx:79`, `availability-form.tsx:85`). The pay-query problem list is now a `<div role="alert">` around `<ul role="list">` (`pay-query-form.tsx:155-163`). Behaviour tests also passed: `portal.open-shifts`, `portal.urgent`, `portal.shift-detail`, `portal.cancel-shift`, `portal.requests`, `portal.pay` and the e2e specs.
+- Login and error pages — PROVEN — `login/page.tsx:20-22` and `l/page.tsx:14-16` use `page.login`, `loginCard` and `loginTitle`. `error-body.tsx:22`, `not-found.tsx:9` and `global-error.tsx:15` have one `<h1>` and use `staffBtn`. `ui.staff-pages.test.ts` test 2 pins the single `<h1>` on each.
+- Status words carry tone and icon on staff screens — PROVEN — `StatusChip` is used in requests, pay queries, credentials, past shifts, open-shift cards and one shift. `ui.design-system.test.ts` ("StatusChip: each tone has its own colours and its own icon") passed.
+Fakes found: none. I ran `ui.staff-pages.test.ts` on a scratch copy of the source (the repo was not touched). Removing `role="list"` from `requests-list.tsx` and replacing `PageHeader` on `pay/page.tsx` made two of its three tests fail, each naming the file. The new test has real assertions and no skips. The only edit to an existing test is a comment in `tests/unit/ui.office-pages.test.ts`.
+To reach DONE: nothing.
+Non-blocking notes:
+1. Two raw `red-700` classes remain (`src/app/logout-button.tsx:62`, `src/app/profile/profile-view.tsx:90`). Same value as the `urgent` token; the log says Phase 12's task 12A.1 will remove them.
+2. "Log out" on My shifts and "Show shifts" on Open shifts use the 44px office `btn.secondary`, not the 56px `staffBtn`. Intentional and logged; the open-shifts filter button is the only place `btn.*` sits in a staff form.
+3. Nothing pins the segmented switch's styling; only its `aria-current` and links are tested. A screenshot test would be needed to pin it.
+Scope: only this task was audited. `/office/guide`, `/help` and the docs task are separate unticked tasks. The task is not ticked in `PLAN.md`; `/close-task` does that.
+```
+
+**Ticked** in `PLAN.md` at 18:16 UTC. **Hours:** 0.5 (17:44 to 18:16).

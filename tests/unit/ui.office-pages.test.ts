@@ -33,7 +33,7 @@ describe("office pages", () => {
     });
     expect(without.map(rel).sort()).toEqual(
       [
-        // Outside the shell, with the login card's own title (docs/ui-design.md "Login pages").
+        // Outside the shell, with the login card's own title (docs/ui-design.md, `loginTitle`).
         "src/app/office/login/page.tsx",
         "src/app/office/l/page.tsx",
         // Only sends you on to /office.

@@ -152,11 +152,14 @@ export function PayQueryForm({
       />
 
       {problems.length > 0 && (
-        <ul className="mt-4 space-y-1 font-semibold text-urgent" role="alert">
-          {problems.map((p) => (
-            <li key={p}>{PROBLEM_WORDS[p]}</li>
-          ))}
-        </ul>
+        // The alert is the box around the list, so the list keeps its own role.
+        <div role="alert">
+          <ul role="list" className="mt-4 space-y-1 font-semibold text-urgent">
+            {problems.map((p) => (
+              <li key={p}>{PROBLEM_WORDS[p]}</li>
+            ))}
+          </ul>
+        </div>
       )}
       {outcome?.status === "already_open" && (
         <p className="mt-4 font-semibold" role="alert">

@@ -82,7 +82,7 @@ export function AvailabilityForm({
       {days.length === 0 ? (
         <p className={`mt-4 ${muted}`}>No days marked.</p>
       ) : (
-        <ul className="mt-4 divide-y divide-line border-t border-line">
+        <ul role="list" className="mt-4 divide-y divide-line border-t border-line">
           {days.map((d) => (
             <li key={d.day} className="flex items-center justify-between gap-3 py-3">
               <span>

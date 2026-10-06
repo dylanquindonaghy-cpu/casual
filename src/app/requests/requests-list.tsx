@@ -41,7 +41,7 @@ export function RequestsList({
       {requests.length === 0 ? (
         <p>No requests yet.</p>
       ) : (
-        <ul className={rows}>
+        <ul role="list" className={rows}>
           {requests.map((r) => (
             <li key={r.ref} className={row}>
               <StatusChip tone={TONES[r.status] ?? "quiet"}>

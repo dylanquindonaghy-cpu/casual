@@ -76,7 +76,10 @@ export function ProfileView({
           <p className={headingGap}>None on file. Send yours to the office to be checked.</p>
         ) : (
           // Rows run to the card's edges; one that stops you working is red, with a red edge.
-          <ul className={`${headingGap} -mx-4 -mb-4 divide-y divide-line border-t border-line`}>
+          <ul
+            role="list"
+            className={`${headingGap} -mx-4 -mb-4 divide-y divide-line border-t border-line`}
+          >
             {profile.credentials.map((c, i) => {
               const blocked = c.expired || c.status === "suspended";
               return (

@@ -15,7 +15,7 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
   return (
     <>
       <p className={muted}>The last 8 weeks, from {firmName}&apos;s payroll.</p>
-      <ul className={`${rows} ${headingGap} ${nums}`}>
+      <ul role="list" className={`${rows} ${headingGap} ${nums}`}>
         {lines.map((line) => (
           <li key={`${line.periodStart}:${line.periodEnd}:${line.ratePence}`} className={row}>
             <p className="font-semibold">
@@ -68,7 +68,7 @@ export function PayQueries({
       {queries.length === 0 ? (
         <p className={headingGap}>None in the last 90 days.</p>
       ) : (
-        <ul className={`${rows} ${headingGap}`}>
+        <ul role="list" className={`${rows} ${headingGap}`}>
           {queries.map((q) => (
             <li key={q.ref} className={row}>
               <StatusChip tone={q.sortedOn ? "done" : (TONES[q.status] ?? "quiet")}>

@@ -8599,3 +8599,5 @@ files, done below. Rule checks all PASS. No test weakened. Lesser notes went to 
 
 **Verify:** `VERIFIED tree=f420a29b18fd8877 e2e=true` (201 files, 3,396 tests, 0 skipped; e2e 60,
 then the walkthrough's 3). **Hours:** 0.9 (15:06 to 16:00).
+**Committed** as `40a7590` and pushed (`1b6f1c3..40a7590`). Its CI run is checked at the start of
+the next run (step 7).

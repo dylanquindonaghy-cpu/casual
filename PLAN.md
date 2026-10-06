@@ -373,6 +373,552 @@ prints VERIFIED.
 - [ ] Docs: `docs/ui-design.md`; `docs/screens.md` (the office shell, Today, both guides, every new
       string); `docs/walkthrough.md` (where the office's "Log out" is now)
 
+## Phase 12 — Compact office and casual app v2
+
+Added 2026-10-06 at Dylan's request: a compact office that sits beside each firm's own planner and
+CRM instead of copying them, built to the approved mock-up ("ShiftDesk Office Mock-up"), and "give
+the casuals a status of their qualifications too and if anything needs updating and their staff
+picture last time uploaded … shifts available to them need to be limited by their location … so if
+'zoe' sees she has shifts she can apply for urgently or not it shows how far it is from her AND how
+long it'll take via car or public transport". The spec is `docs/office-v2.md`: each task names its
+sections ("§" in a task always means a section of that file, and the id at the end, such as
+"12A.1", is its row in the file's §9), and §1.1 describes the mock-up in words because builders
+can't open it. S1 to S10 are the database changes in §5.1, each a row in "Decisions waiting for
+Dylan" ("How the build is run" 9 to 18). A task marked "(needs Dylan: …)" waits for Dylan's OK on
+what it names. Every task that touches schema, auth or tenancy also waits for Dylan's OK on its
+short plan (CLAUDE.md "How to work each task" step 2), even where its S number is approved; only a
+task that touches none of those and names just a decision (Legal 16, Rules 14…) goes ahead on that
+decision's default. Each task adds the demo-seed rows its own screens and tests need (made-up data
+only, golden rule 7), keeps every test green (a task that moves a page or menu link updates the
+specs and walkthrough steps that use it) and updates the docs it changes.
+Some tests change because the product changes (the menu, Today, Requests, Workers): each is listed
+with its task and reason in `docs/office-v2.md` §10; none is weakened to get green. Close Phase
+11's tasks first (built in b3f3627, not yet audited), because this phase replaces the shell and
+Today they pin. Real strike emails, AI sorting and WhatsApp still wait for "Connect Amazon SES",
+"Connect Bedrock" and "Connect Twilio" (Parking lot).
+Docs: `docs/office-v2.md`, plus `docs/screens.md`, `docs/ui-design.md`, `docs/data-model.md`,
+`docs/messaging-templates.md`, `docs/rules-and-credentials.md`, `docs/compliance.md`,
+`docs/api-and-jobs.md` as each task names them
+Done when: every logged-in office page sits in the v2 shell (sidebar, icon strip or drawer; light
+and dark) with each role's menu as in `docs/office-v2.md` §3.1; no casual's screen, reply or offer
+shows a hidden event or session, or a shift outside their travel area (a direct link still opens);
+every shift a casual sees (Home, Open, Booked, `/urgent`, the shift page, shifts-line replies and
+offer messages) shows the distance and the time by car and by public transport, or says why it
+can't; a casual's cancellation under the firm's strike notice records the strike in the same
+transaction as the cancellation, with the warning they saw; casuals see a status on every
+qualification (on today's screens from 12F.1) and on their staff photo; every new table has
+isolation tests; `scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED and `npm run e2e:walkthrough`
+passes on the production build. A task still waiting for a database change stays unticked, with the
+reason in the Parking lot.
+
+- [ ] (needs Dylan: Checks 17, his OK to commit the copy) The mock-up in the repo:
+      `docs/mockups/office-v2.html`, the approved mock-up with made-up data only and its
+      role-switch control labelled "mock-up only"; §1.1 stays as its description in words, so no
+      later task waits for this one. Tests: a unit test that the file holds no email address
+      outside the reserved example domains and no postcode outside `ZZ` (an employer's name can't
+      be tested for without writing it into the repo, so a person checks that once) (12A.0)
+- [ ] Colours and theme: light and dark colour tokens in `src/app/globals.css` with the contrast
+      fixes in §3.1 (dark theme navy, Product 10); no hard-coded colours left (29 `bg-white` in 16
+      files under `src/` today); an `sd-theme` cookie (system, light or dark) read in
+      `src/app/layout.tsx` into `data-theme` on `<html>`, so nothing flashes on load, plus
+      `<meta name="color-scheme">` and a `prefers-color-scheme` block for "System" (there is no
+      dark mode today); Plus Jakarta Sans self-hosted with `next/font` (nothing fetched from Google
+      while running); one type scale, fixed-width digits. Tests: new
+      `tests/unit/ui.contrast.test.ts` (every token pair meets its ratio in both themes), a
+      theme-cookie test; `tests/e2e/brand.spec.ts` unchanged. Docs: `docs/ui-design.md` (12A.1)
+- [ ] Office shell and menu (§3.1): one server-rendered `<nav>` of real links: a 272px sidebar at
+      1200px and wider, an icon strip at 861–1199px (names still read out; a tooltip on hover and
+      focus), a drawer behind a "Menu" button at 860px and narrower (a modal dialog: focus moves in
+      and back, Escape and the dimmed background close it, a closed drawer can't be tabbed into,
+      no `menu` roles); the collapse choice kept in a cookie; the v2 groups (Operations, Pay,
+      Records, Configuration, Help) holding today's pages, each later task adding its own link;
+      the current page and its parent marked (`aria-current`); badge counts outside the link's
+      name; the top bar's own items: the Menu button on phones, ShiftDesk's own mark with the
+      firm's name under it (no reference-portal logo or colours), the moon/sun button with a
+      visible tooltip that sets `sd-theme`, and the account button (initials avatar, name, role)
+      opening the account menu (Theme, How-to guide, Log out); "Data requests" renamed. Tests:
+      `tests/unit/office.shell.test.ts` rewritten (the phone row's edge-arrow tests go with the
+      row), `tests/unit/office.roles.test.ts`, new e2e `office.shell.spec.ts` (drawer focus in and
+      back, Escape, no tabbing into it closed, the icon strip, works without JavaScript; the theme
+      button switches the theme and keeps it after a reload with no flash; the account button
+      shows the name and role; the spec runs in both themes), and a `menuLink(page, name)` helper
+      in `tests/e2e/fixtures.ts` used by every spec in §10 that clicks the menu. Docs:
+      `docs/screens.md` office shell (12A.2)
+- [ ] Pay dashboard (§3.8; Pay 10): `/office/pay` with its four counts and four sections, and
+      payroll's home (`/office` sends payroll there); `nextDigestAt()` beside `digestDueOn()` in
+      `src/lib/pay/digest-schedule.ts`; a pay calendar (`src/lib/pay/calendar.ts`,
+      `pay_calendar.*` settings) behind the top bar's pay-week pill ("Week 41 · 5 Oct – 11 Oct ·
+      Pay Fri 16 Oct · Current"); payroll's floating pill ("10 pay queries waiting · oldest 3
+      days") and the Pay queries menu badge; `pay_digest` and `pay_calendar.*` in `SETTING_KEYS`
+      and `firm:settings`; payroll still never sees strikes; resourcers never see pay record
+      figures (Office 2), though session pay rates show to them on event cards and records
+      (§3.8). Tests: unit tests for `nextDigestAt()` and the pay calendar (ISO weeks, a 53-week
+      year, the clock change), a loader integration test, new e2e `office.pay-dashboard.spec.ts`
+      replacing the payroll placeholder check in `tests/e2e/office.today.spec.ts`. Docs:
+      `docs/screens.md`, `docs/data-model.md` settings (12A.3)
+- [ ] (needs Dylan: OK on its migration plan, CLAUDE.md step 2; S1's core is already approved)
+      Events (S1's core: the `shift_events` table, `shifts.event_id` and the event's showing
+      switch; §3.3, §5.1): the migration (`npm run db:generate`, then `db:migrate`), RLS,
+      `TABLE_ACCESS` and isolation fixtures; an optional "Event" column in the rota sheet's
+      mapping and in imports; rows without one grouped by date and site into an automatic event
+      ("Acme Demo Arena · Sat 10 Oct"), so every session has an event; "Shifts for an event"
+      creates the event row; events are never deleted, only hidden; the switch is ShiftDesk's
+      own, never read from or written to the planner. Tests: isolation; parse, import
+      and sync tests for the Event column and automatic events; a sync never changes the switch;
+      `guardrails-reviewer`. Docs: `docs/data-model.md` (12B.1)
+- [ ] (needs Dylan: S2) Session fields (§3.3, §5.1): `pay_rate_pence`, `post`, `meeting_point`,
+      `uniform`, `required_credentials` and the session's own showing switch on `shifts`; optional
+      rota-sheet and import columns Pay rate, Post, Meeting point, Uniform, Requires and Postcode
+      (the site's); the office shift editor (`src/lib/office/shift-editor.ts`) and "Shifts for an
+      event" gain the fields, and the editor's `shift.changed` entry names the changed fields in
+      §6.1's shape (`requirements`, never a field name holding "credential", which the log masker
+      refuses). Tests: parse, import and sync tests for each new column (pay in whole pence; "12 50"
+      still refused); the session switch is never synced; a `shift.changed` entry for every new
+      field passes the log check; isolation; `guardrails-reviewer`. Docs: `docs/data-model.md`,
+      `docs/screens.md` (12B.2)
+- [ ] (needs Dylan: S2) Session requirements and CSAS (§3.3): a session's `required_credentials`
+      are checked on top of the role's, each valid until the session ends
+      (`src/lib/roster/eligibility-input.ts`, `src/lib/rules/eligibility.ts`); CSAS and manual
+      handling qualification types and a `csas_officer` role in the security pack
+      (`src/lib/rules/packs.ts`). Tests: rules unit tests (an extra requirement refuses a casual
+      without it and allows one with it; one expiring mid-session refuses), the rules-doc parity
+      test, `tests/unit/credential.packs.test.ts`; `guardrails-reviewer` (rules). Docs:
+      `docs/rules-and-credentials.md`, including that CSAS accreditation belongs to the firm's own
+      scheme (§3.7) (12B.3)
+- [ ] The event switch respected everywhere (S1's core, approved, so it doesn't wait for S2; §3.3
+      "What a switch does"): a `setShowing()` action for admins and resourcers on an event; a
+      hidden event's sessions leave open shifts, the urgent board, the home page count, offer
+      waves and dropout waves (personal replies use the same filter when 12D.2 lands); their pages
+      say they aren't available; `bookShift` refuses a casual (the office can still assign); booked
+      casuals keep their bookings; `event.shown` and `event.hidden` logged with who, with words in
+      `log-types.ts` and `event-words.ts` (`src/lib/portal/open-shifts.ts`, `shift-detail.ts`,
+      `src/lib/roster/book.ts`, `src/lib/offers/`, `src/lib/roster/urgent.ts`). Tests: an
+      integration test per path for a hidden event (open shifts, the urgent board, the home
+      count, the shift page, `bookShift`, no wave starts, a booked casual keeps the shift, the
+      office can still assign); the whole-log words test; `guardrails-reviewer` (12B.4a)
+- [ ] (needs Dylan: S2) The session switch respected everywhere: the same paths for one hidden
+      session inside a showing event; `session.shown` and `session.hidden` logged with who. Tests:
+      the same integration tests for a hidden session; the whole-log words test (12B.4b)
+- [ ] Events & sessions pages (§3.3; S1's core, so it doesn't wait for S2: session pay, post,
+      requirement chips and session switches appear as 12B.2 and 12B.4b land): `/office/events`
+      (tabs as links: All, Showing, Hidden, Urgent, not filled) and `/office/events/[id]`
+      (sessions, booked casuals, "Mark who worked"); event cards with the event switch and a
+      uniquely labelled switch per session, one status tag, and "Hidden from casuals. Booked
+      casuals keep their shifts. Undo." after switching off; each session row shows role,
+      start–end, "Urgent" on an urgent gap, a chip per requirement (SIA DS, CSAS, First aid), "N/M
+      filled", £/hour, post and specifics (meeting point, uniform); the "…" menu reaching today's
+      offer, assign, urgent, change and cancel forms; "Add shifts" and "Import shifts" for firms
+      without a planner sync; "Events & sessions" replaces "Shifts" in the menu (the shift routes
+      stay). Tests: unit tests for card text and switch labels; a session row's text with every
+      field and with only today's fields; a resourcer sees a session's £/hour but never a pay
+      record's amount; new e2e `office.events.spec.ts` (switching an event off hides it from a
+      casual's open shifts; Undo brings it back); `office.shifts.spec.ts` follows the menu change
+      (12B.5)
+- [ ] (needs Dylan: S1's extras) The star and event notes (§3.3, §5.1 S1): `pinned` (a star that
+      pins an event for the whole office: starred events first, a "Starred events" menu group
+      while any is starred, a 44px target) and `public_notes` (up to 2,000 characters casuals see
+      on each session's page, such as parking); both changes logged. Tests: isolation; starred
+      order; the notes' length limit; notes shown only to casuals who can see the session
+      (12B.6)
+- [ ] (needs Dylan: S10) Rules & settings and Planner connection (§3.10, §5.2): an owner-run
+      database function, `app_set_firm_setting(key, value)`, the only way the app may change
+      `firms.settings`: it accepts only Phase 12's keys (`strikes.*`, `credentials.expiring_days`,
+      `photo.renewal_months`, `travel.*`, `pay_calendar.*`, `enquiries.*`,
+      `planner.changes_email*`), refuses `retention.*` and every other key, and clears an
+      address's confirmed time whenever the address changes; `/office/settings` (admin only,
+      checked on the server) for those keys, with the short-notice threshold and the other
+      owner-set settings shown read-only; each change logged `firm.settings_changed` (the existing
+      entry) with the keys and their old and new values, but the key only for the two addresses
+      and their confirmed times (§6.1); the strikes-team address confirmed by a signed (HMAC) link
+      valid for 7 days that signs the firm id, the address and the expiry, and evidence only ever
+      to a confirmed address; `/office/settings/planner` (source, last sync, the read-only
+      mapping, the Cancellations column switch, site postcodes editable with a location status,
+      the planner-changes address confirmed the same way); `firm:settings` and `firm:sheet`
+      updated. Tests: only admins can write; the app's login can't change
+      `retention.message_days`, `retention.hold_until` or any key outside the list, directly or
+      through the function; every change logged, and every entry passes the log check; a
+      tampered or expired link is refused; a link sent for one address doesn't confirm a later
+      one; isolation; `guardrails-reviewer` (auth). Docs: `docs/data-model.md`,
+      `docs/compliance.md` (retention still owner-only), `docs/runbooks.md` onboarding (12B.7)
+- [ ] (needs Dylan: S3 and S4) Strike decision (§3.5; Legal 16): the migration (`cancel_via` and
+      the warning columns on `assignments`; the `strikes` table; an owner-run
+      `app_purge_old_strikes()`, like `app_purge_old_messages()` in migration 0034, because the
+      app can't delete strike rows); a pure `strikeDecision()` in `src/lib/strikes/decide.ts` (by
+      the office or sheet: none; notice of at least `strikes.notice_hours`, measured from
+      `toldAt`: none; within `strikes.grace_minutes` of booking, booked by the office ("Assign"),
+      changed by the office after booking, or booked over a rules override: exempt with the
+      reason; otherwise a strike, flagged for review for "I'm unwell", "Family or caring" or a
+      session taken inside 48 hours); `toldAt` is the cancellation time, or earlier when the
+      casual's shifts-line message got the cancel reply naming this booking and they then
+      cancelled it (§3.5; read from 12D.2's log entry once it lands); issued inside
+      `cancelBooking()`'s transaction (`src/lib/roster/cancel.ts`); `strike.issued` logged (ids,
+      codes and hours only, §6.1); the query for casuals at `strikes.alert_at` live strikes (shown
+      by 12E.2); the retention job purges strikes at `strikes.keep_months`, never during
+      `retention.hold_until`; nothing else automatic. Before strikes are switched on for a real
+      firm: a DPIA for strikes, `docs/dpia-strikes.md`, with a template for firms (§6.3). Tests: a
+      table test of every `strikeDecision()` case and boundary (an office-assigned booking; told
+      by message at 50 hours, cancelled at 46; "Family or caring" flagged); integration (an office
+      cancellation gives none; one strike per booking; a rolled-back cancellation leaves no strike
+      row; the purge at 12 months; no purge during a hold); isolation; `guardrails-reviewer`
+      (12C.1)
+- [ ] (needs Dylan: S3 and S4) The casual's cancel step (§4.5, §5.7 item 5): the summary, the
+      warning box in its five versions (under the threshold, grace period, booked by the office,
+      office changed it, over the threshold) with the casual's live strike count, the four reasons
+      (the same four as today, `src/lib/portal/cancel-reasons.ts`; a note of up to 200
+      characters for "Something else"), "Confirm cancellation" and "Keep this shift", the footer,
+      then the reference, whether a strike was recorded and until when, and "Tell us what
+      happened"; the warning's version and time stored on the booking. Tests: a unit test per
+      warning version; e2e: a cancellation under 48 hours shows the warning and records a strike,
+      one over 48 hours records none. Docs: `docs/screens.md` (12C.2)
+- [ ] (needs Dylan: S2, S3 and S4) Cancellation records (§3.4): `/office/cancellations` (the
+      week's counts; views All, Under 48 hours, Strikes issued, By casuals, By the office, as
+      links; list and record side by side from 1100px, the record on its own page below that) and
+      `/office/cancellations/[ref]` with every field in §3.4's table and "what happened next" (its
+      times, and the refill times in the counts, from the bookings' own times: the cancellation,
+      the replacement's confirmation; the log only says what happened); a PDF per record
+      (`pdf-lib` with `@pdf-lib/fontkit` and an embedded font, Noto Sans or the self-hosted Plus
+      Jakarta Sans, so names such as Łukasz, Ştefan or Gülşen and "✓" print;
+      `src/lib/pdf/record.ts`) and a CSV of the chosen view (§3.4's columns, at most 20,000 rows,
+      the casual's own note never in it); in both, every quick reason a casual gave reads
+      "Casual's own reason (see ShiftDesk)", office reasons keep their fixed words, and the real
+      reason stays on screen for admins and resourcers only; each download logged
+      `export.downloaded`; office cancellations keep their expected pay in the log entry's data
+      and show it in the notice report; the menu's Cancellations link. Tests: the loader, the
+      "what happened next" builder, CSV columns and escaping, the PDF holds the reference; the
+      record page and PDF show the session's role, date, start–end, post, pay rate, requirements
+      and meeting point; a PDF for a casual named "Łukasz Ştefan"; "unwell" and "health" never in
+      the CSV or PDF; downloads logged; isolation; new e2e `office.cancellations.spec.ts` (12C.3)
+- [ ] (needs Dylan: S4; the address is set by the owner command until 12B.7 lands) Evidence email
+      to the strikes team (§5.6): an `SesEmailTransport` (`@aws-sdk/client-sesv2`,
+      `EMAIL_TRANSPORT=ses`; console stays the default) and PDF allowed as an attachment
+      (`src/lib/messaging/transport.ts`: the content becomes bytes or base64 with a limit per file
+      type, still at most 3; today it is CSV text only, up to 6,000,000 bytes); a
+      `strikes.evidence_email` job (ids only, `firmJobEnvelope`) that claims the send first and
+      then sends, like the other notices (`src/lib/notices/request-update.ts`): retried only on an
+      error that proves nothing was sent, otherwise `failed`, a Needs attention item and "Resend";
+      sent only to a confirmed `strikes.email` (no default), otherwise `not_set_up`; until 12B.7
+      the owner sets and confirms it with `firm:settings strikes.email <address> --confirm`
+      (writes the address and `strikes.email_verified_at`, logged `firm.settings_changed` with the
+      key only); `strike.evidence_sent` and `strike.evidence_failed` logged; §5.6's subject, body
+      and PDF, with "Casual's own reason (see ShiftDesk)" for every quick reason. Real sending
+      waits for "Connect Amazon SES". Tests: with a fake transport: nothing sent before the owner
+      command confirms the address, evidence sent after it; an unclear failure is never resent on
+      its own; "unwell" and "health" never in the subject, body or PDF; the SES transport against
+      a fake client; a unit test that fails on any email address in `src/`, `drizzle/`, `tests/`
+      or the seed outside the reserved example domains (`.example`, `example.com`, `example.org`,
+      `.test`, `.invalid`, `.localhost`, with a short reviewed allow-list for strings that only
+      look like one); `guardrails-reviewer` (messaging) (12C.4)
+- [ ] (needs Dylan: S4) Strikes page and the casual's strikes (§3.5, §4.6): `/office/strikes`
+      (admins and resourcers; filters Live, Needs review, Withdrawn, Expired; stacked cards on a
+      phone; a CSV; no menu badge); "Withdraw strike…" with a reason (1–500 characters, kept on the
+      strike row, not in the log) and "Mark reviewed" with an outcome; the casual's "Tell us what
+      happened" (up to 1,000 characters, seen by the office); the `strike_issued` send job (claims
+      the message first, then sends it; held by quiet hours; by text when WhatsApp refuses;
+      `casual_notified_at` set; logged); templates `strike_issued` and `strike_withdrawn` (§5.7
+      items 6–7) in `templates.ts`, `whatsapp-templates.ts` and `docs/messaging-templates.md`;
+      erasing a casual clears a strike's free text (their account, the withdrawal reason, the
+      review outcome), as it does for cancellation notes (`src/lib/gdpr/worker-erase.ts`). Tests:
+      withdrawing needs a reason, is logged and tells the casual; the strike message goes once,
+      never again after an unclear failure, and waits for quiet hours; erasure clears the free
+      text; "unwell" and "health" never in the strikes CSV; payroll can't open the page or see a
+      strike anywhere; `tests/unit/copy.templates-doc.test.ts`; `guardrails-reviewer` (messaging)
+      (12C.5)
+- [ ] (needs Dylan: S2 to S4, through 12C.3; the address is set by the owner command until 12B.7
+      lands) Cancellations back to the planner (§5.3; Sheets 16): an optional "Cancellations"
+      column in the rota sheet's mapping, found by the parser and written by the sync with the
+      same re-read check as the Assigned cell ("CANCELLATION · {name} · {day} {start} · {n} h
+      notice · ref {ref}", newest first, never the reason; the Status column never touched),
+      turned on by the owner with `firm:sheet` and logged `planner.cancellation_written`; for
+      other firms, an optional daily "changes for your planner" email with the CSV attached, only
+      to a confirmed `planner.changes_email` (set and confirmed with `firm:settings
+      planner.changes_email <address> --confirm` until 12B.7). Tests: the sync writes the cell,
+      re-reads before writing, refuses when the cell changed, and leaves Status alone; the email
+      goes once a day, and only after the owner command confirms the address; "unwell" and
+      "health" never in the CSV. Docs: `docs/architecture.md` (write-back) (12C.6)
+- [ ] (needs Dylan: S5) Enquiries pages (§3.6): the migration; a loader joining messages, their
+      replies and office questions (`src/lib/office/enquiries.ts`); `/office/enquiries` (the
+      summary strip, views and filters as links, text search by POST) and
+      `/office/enquiries/[id]` (the conversation as the casual saw it, "How it was answered" from
+      logged facts only, with a casual's home area shown as the district at most, "Considered but
+      not offered"); "Need a person" worked out with no new table (§3.6 "Data"); outcome labels
+      from code only; the banner "AI sorting isn't connected yet: messages without a keyword go to
+      a person." while the reply job uses `noAi`; the menu's Enquiries link. Tests: the join
+      (including failed replies and the text fallback); each outcome label from its logged facts;
+      no office page or loader output holds more of a casual's postcode than the district;
+      isolation; new e2e `office.enquiries.spec.ts`; the walkthrough's unknown-numbers step
+      (12D.1)
+- [ ] (needs Dylan: S2, through 12B.4b) Personal replies (§3.6, §5.7 items 1, 3 and 4): the
+      shifts and cancel replies built in `src/lib/inbound/personal-reply.ts` from `openShiftsFor()`
+      with the casual app's filters (eligibility and the showing switches; the travel area and
+      travel lines come with 12G.4); at most 5 shifts, urgent first, inside a character budget
+      (names cut to set lengths, fewer shifts until it fits, then "+ N more: {link}"; never over
+      1,600 characters); the booked line and day words only when §5.7 says; "from your home area",
+      never the postcode, in replies; "Automatic reply. Send OFFICE to reach a person." before
+      every instant reply's sign-off; `checkEligibility()` also returns `checks: { code, passed,
+      detail }[]` for every check it ran (credential and expiry, role, overlap, rest gap in hours,
+      weekly hours used and cap, days off, blocked site), with `ok`, `reasons` and `codes`
+      unchanged (`src/lib/rules/eligibility.ts`); `enquiry.checks` logged in §6.1's shape (the
+      rules version from a new `src/lib/rules/version.ts`, each check, the offered session ids in
+      order, at most 50 not-offered sessions with reason codes and a count of the rest, the
+      bookings a cancel reply named, the template and version, travel as minutes only) and the AI
+      fallback reason in the event data. Tests: only eligible, showing sessions listed; a session
+      is left out, and appears in not-offered with its reason, for each of: missing or expired
+      credential, a credential expiring mid-session, a clash with a booking, under the rest gap,
+      over the weekly cap, a day off, a blocked site, a hidden event or session; each listed line
+      has role · event, site, date, start–end, £/h and post; every check appears with its data on
+      a pass and a fail, and `ok` is unchanged for every existing rules case; CSAS only to
+      holders; five shifts with every field at its longest stay within 1,600 characters on
+      WhatsApp and by text; the cancel reply names the booking, has the strike sentence only under
+      the threshold, and adds "Your other shifts" only with two or more bookings ahead; every
+      `enquiry.checks` sample passes the check `recordEvent` uses; the pay reply never gets list
+      text; the text-message version; `tests/unit/ai.boundary.test.ts` still passes; the
+      rules-doc parity test; `copy.templates-doc`; `guardrails-reviewer` (messaging, rules)
+      (12D.2)
+- [ ] (needs Dylan: D6 as an auth change, Messages 28; S2, through 12B.4b) Booking by number (§5.7
+      item 2): on WhatsApp only (its sender is verified; a text's sender can be faked, so texts
+      get links only), a reply of just "1" or "2" to the last list sent to that number within 2
+      hours books that session through `bookShift` with the full rules check (first yes wins),
+      then sends "You're booked: …" with the strike sentence; the list is read from the latest
+      `enquiry.checks` entry for that worker (its offered session ids in order, and whether its
+      reply was sent; no new column); "can't book" uses the existing plain refusal reasons; an
+      older list gets "That list is more than 2 hours old…"; `shift.assigned` records that the
+      booking came by reply number (§6.1). Tests: first yes wins (two casuals, one place); the
+      number maps to the session in that entry's order; a newer list replaces the older one; a
+      failed reply's list can't be used; a list older than 2 hours; a number with no list; a "1"
+      by text never books; ineligible since the list was sent; a number not on the list; a hidden
+      session; logged like an app booking; `guardrails-reviewer` (auth) (12D.3)
+- [ ] (needs Dylan: S5) Enquiries that need a person (§3.6): the reply box stores the office's reply
+      as an outgoing `messages` row with `reply_to` (free text inside WhatsApp's 24-hour window,
+      the `request_update` template outside it, with the countdown shown), and a reply to an
+      unknown number stored the same way; "Close without a reply" with a reason code from a fixed
+      list (dealt with by phone, not for us, duplicate, spam, other), logged `enquiry.closed`,
+      never typed text; the reply timer (grey, amber from 75% of `enquiries.reply_target_minutes`,
+      red after it); requests from the app as their own view, "approved/declined" becoming
+      "answered" for questions (stored `approved`, shown "Answered": no migration;
+      `src/lib/office/request-queue.ts`, `src/app/office/requests/answer-form.tsx`,
+      `src/lib/notices/request-update.ts`); `/office/requests` redirects there; the top bar's
+      speech bubble, the Enquiries menu badge and the floating pill ("2 enquiries need a person ·
+      oldest 3 h 35 min", anchored to the content column). Tests: the stored reply row; an unknown
+      number's message leaves Need a person when replied to or closed with a reason, and the log
+      entry holds no typed text; the window maths at exactly 24 hours; the timer colours at their
+      boundaries; the redirect; the request-update wording; the specs that used Requests or pin
+      the old replies (§10) (12D.4)
+- [ ] (needs Dylan: S5, through 12D.1) The review loop (§3.6): "Right answer" / "Wrong answer: tell
+      us" (the right topic from the fixed list; no typed note, because typed text never goes in
+      the log) on each automatic answer, logged `enquiry.reviewed`; a "To review" filter with
+      every AI-sorted or passed-to-a-person enquiry plus a random 5% of the rest each week;
+      corrections kept as test cases for the sorter, never used to retrain it silently. Tests: the
+      log entry holds the topic only; the weekly sample is the same every time for a given week
+      and firm (12D.5)
+- [ ] (needs Dylan: S2 to S5, through the sections it shows) Dashboard (§3.2): `/office` for admins
+      and resourcers, with "Sync with planner" (sheet firms; logged) and the freshness line, the
+      four counts (labelled exactly "Urgent shifts not filled", "Events showing to casuals",
+      "Cancellations today" and "Enquiries today"; each a link to its filtered list, the first
+      tinted and larger; "today" is the London calendar day) and the four sections in order, with
+      their empty and error words; each urgent card's line written by code ("Re-offered: {n}
+      qualified casuals have it within their travel area", counted with 12G.4's filter, and before
+      that "Re-offered to {n} qualified casuals"; or "Offers stopped: nobody else can take it."); a
+      hidden event with an urgent gap warns "Hidden from casuals: nobody can see this gap.";
+      `src/lib/office/dashboard.ts` reusing `today.ts`'s queries. Tests: count definitions, empty
+      and error wording, no dashboard link repeating a menu link's name; each card line from its
+      data; the hidden warning; dashboard tests replace `tests/unit/office.today-summary.test.ts`
+      and `office.today-view.test.ts`; new e2e `office.dashboard.spec.ts` (the four count labels
+      exactly, and the section headings "Urgent shifts not filled", "Showing to casuals",
+      "Cancellations", "Enquiries" in that order) replaces `office.today.spec.ts` and the
+      walkthrough's Today steps; `tests/unit/copy.plain-language.test.ts` fails on "urgently
+      looking for" anywhere in `src/` (the wording Dylan turned down) (12E.1)
+- [ ] (needs Dylan: S4, for the strike items) Needs attention, the bell and search (§3.9, §3.1):
+      `/office/attention` with Today's to-do parts (bookings to check, from your rota sheet, who
+      worked?) and the new items (strike alert level, evidence email failed or the strikes address
+      not confirmed, qualifications expired on a booked session, planner sync failing; uploads to
+      check join with 12F.2), and payroll's own version; the bell's count; search by POST to
+      `/office/search` (this firm only, names never in the address); `/office/today` redirects to
+      `/office`. Tests: the "Who worked?" check (`tests/e2e/office.attendance.spec.ts`) and the
+      "Bookings to check" check (`office.workers.spec.ts`) move to this page; each item links to
+      where it's dealt with; search never puts a name in the URL and never crosses firms (12E.2)
+- [ ] Qualification statuses, shown now (§4.6, §3.7; no database change): pure
+      `qualificationStatus()` and `needsUpdating()` in `src/lib/credentials/status.ts` (Valid,
+      Expiring soon, Expired, Missing, Applied for and Suspended from today's data; "Being
+      checked", "Not accepted" and "Applied for, due {date}" come with S6 in 12F.2); which
+      qualifications are listed (§4.6: every type her roles need, and right to work; a session's
+      extra types join with 12B.3, the travel area's limit with 12G.4; a listed type with no
+      record is Missing); §4.2's order; the "needed for N shifts" count; one set of reminder
+      timings shared by the expiry job, the office and the My shifts banner
+      (`src/lib/credentials/expiry.ts`, `src/lib/portal/{profile,my-shifts}.ts`); and shown now on
+      today's screens: `/profile` lists every qualification with its status, date line and what
+      it means; My shifts shows the Needs updating card in §4.2's order (photo rows join with
+      12F.3); `/office/workers/[id]` shows the same status words (12F.5 restyles it). Tests: a
+      full status table with boundary dates; Missing for a role's type, and a type nothing needs
+      isn't listed; the card's order; new e2e `casual.app.spec.ts` (Profile statuses for Zoe: one
+      Valid, one Expiring soon, one Missing, each from today's data); the office page shows the
+      same words; `tests/unit/portal.profile.test.ts` and `portal.my-shifts.test.ts` updated for
+      the new status words (12F.1)
+- [ ] (needs Dylan: S6 and S7) Uploads and the check queue (§3.7, §5.5; Data 20): the migration;
+      photo and certificate uploads (resized on the phone to 1,600px JPEG; on the server: the type
+      checked from its first bytes, re-encoded with `sharp`, which drops location data, refused
+      over 1 MB; the Dockerfile checked for sharp's library); `/files/[id]` serving only to the
+      casual and their firm's admins and resourcers (`Cache-Control: private, no-store`, never in
+      the offline copy); `/office/casuals/uploads`, oldest first: approve (expiry and number as
+      read by a person) or reject with a reason; only checked, in-date items count in the rules;
+      CSAS can't be uploaded by a casual: the office records it after confirming it's under this
+      firm's own scheme (§3.7); `upload.received`, `upload.approved` and `upload.rejected` logged
+      in §6.1's shape (ids and codes; a type under `qualificationType`, never a field name holding
+      "credential"); erase and export include uploads, but the casual's and the firm's JSON
+      exports carry each upload's details only (kind, date, status, a fingerprint), never the image
+      bytes (`firmExportTables()` in `src/lib/gdpr/firm-export.ts` picks up every firm table on its
+      own), and the images come as a separate streamed zip or one download per file; the Needs
+      attention item and the "Uploads to check" badge. Tests: type checked from bytes; the size
+      limit; location data gone; another firm's or casual's file refused; the rules ignore
+      unchecked items; erase and export; the JSON exports have no bytes column and stay under a
+      set size with seeded uploads; isolation; `guardrails-reviewer` (12F.2)
+- [ ] (needs Dylan: S7) Staff photo (§4.6, §5.5; Data 20): the current photo and its renewal date
+      worked out from the latest approved photo (`photo.renewal_months`, default 36; "Due soon" 30
+      days before); statuses Up to date, Due soon, Overdue, Missing, Waiting for the office to
+      check; "Upload a new photo" opens the front camera with the SIA photo guidance; a replaced
+      photo deleted 30 days after the new one is approved, rejected uploads after 30 days (the
+      retention job). Tests: the status changes at each boundary date; a waiting photo never
+      replaces the approved one; the purge (12F.3)
+- [ ] (needs Dylan: S6 and S7) The SIA register check and reminders (§3.7, §5.7 items 8–11): "I
+      checked the SIA register" (result, expiry date, the GOV.UK link) logged
+      `credential.register_checked` (data `qualificationType`, `result`, `expiresOn`, §6.1) and
+      shown to the casual ("checked on the SIA register 1 Oct"); `credential_expiring` and
+      `credential_expired` changed, `photo_due` and `upload_rejected` new (WhatsApp versions and
+      the doc too); reminders once per window (`src/lib/credentials/scan.ts`). Tests: the register
+      check logged (the entry passes the log check) and shown; each reminder once per window,
+      never twice on a retry; `copy.templates-doc`; `guardrails-reviewer` (messaging) (12F.4)
+- [ ] (needs Dylan: S6 and S7) Casuals pages (§3.7): `/office/casuals` (counts, views as links, the
+      table, stacked cards on a phone; the travel area column once 12G.2 lands) and
+      `/office/casuals/[id]` (needs updating, qualifications with evidence and history, the staff
+      photo, travel area, strikes, bookings ahead, "What {first name} can see now" from the same
+      code as the enquiry replies, and the access controls moved from `/office/workers/[id]`);
+      "Send reminders" after a confirm screen, at most once a day; the `/office/workers` routes
+      redirect; the `casuals` area in `roles.ts`; staff-facing words say "qualifications", never
+      "credential". Tests: `tests/e2e/office.workers.spec.ts` follows the rename (Workers →
+      Casuals); the reminders' confirm and once-a-day rule; "What … can see now" matches the
+      casual's own open shifts; isolation (12F.5)
+- [ ] Travel providers and site locations (§5.4; Product 9): `TravelProvider` (fake and
+      TravelTime) and `Geocoder` (fake and postcodes.io) interfaces in `src/lib/travel/`, chosen
+      by `TRAVEL_PROVIDER` (a server setting, never per firm), responses parsed with zod; site
+      postcodes looked up into the existing `sites.lat` and `lng` (no migration); only a postcode
+      or coordinates with meaningless ids ever leave the server; fixed fake answers for the
+      made-up ZZ postcodes. Tests: contract tests against the fake and against recorded TravelTime
+      and postcodes.io responses (never the network in tests); an unknown postcode; nothing
+      personal in a request (12G.1)
+- [ ] (needs Dylan: S8) The casual's travel area (§4.6, §5.4; Rules 14, Data 21): the migration;
+      `/profile/travel` (start-from postcode; Car, Public transport or Both; 30, 45, 60 or 90
+      minutes; the line saying the office sees only the district), looked up on save and logged
+      `travel.profile_changed` (which settings changed and the time limit, never the postcode or
+      coordinates, §6.1); the office sees the district only ("ZZ1"); deleted when the office makes
+      the casual inactive as "They've left" (`DEACTIVATE_REASONS.left`,
+      `src/lib/office/worker-reasons.ts`) or the casual is erased; in the casual's export. Before
+      it is switched on for a real firm: the legitimate-interests balancing test and the DPIA for
+      the travel area, `docs/dpia-travel.md`, with a template for firms (Data 21). Tests:
+      isolation; the erased-worker check unchanged; erase and export; deleted on "They've left";
+      the office never gets more than the district; the change is logged without the postcode
+      (12G.2)
+- [ ] (needs Dylan: S9) The travel job (§5.4): one provider search per session and way of
+      travelling (arrive by the start minus `travel.check_in_buffer_minutes`, up to 2,000
+      postcodes a search, a 90-minute ceiling, distance by car, the route by public transport)
+      plus the trip home after the end; queued at once when a session is created, imported,
+      synced or marked urgent, when its time or site changes, when a casual's postcode or ways of
+      travelling change, and when a site's postcode changes; nightly for every session in the
+      open-shifts window (`OPEN_WINDOW_DAYS`, 28 days, `src/lib/portal/open-shifts.ts:23`);
+      purged 7 days after the session; pages never call the provider; with the provider down,
+      straight-line miles labelled "(straight line)" and "Travel time not known yet". Tests:
+      batching at 2,000; arrive-by maths across the clock change; a newly synced session gets
+      estimates without waiting for the nightly run; an urgent session created with under 24
+      hours to go gets them before its first wave; a session 20 days ahead has estimates; the
+      nightly window equals `OPEN_WINDOW_DAYS`; the fallback; the purge; isolation (12G.3)
+- [ ] (needs Dylan: S8 and S9) Filtering, order and the travel line (§4.3, §5.4, §5.7; Rules 14):
+      the area filter inside the open-shifts query before the 50-row cap
+      (`src/lib/portal/open-shifts.ts`), and on the urgent board, Home, offer waves (outside the
+      area: no offer; an unknown estimate: offered, labelled "distance not known"; travel time
+      breaks ties, `src/lib/offers/candidates.ts`) and the enquiry replies (their travel lines, and
+      "nothing … within 45 minutes of your home area"); urgent first, then the nearest, then the
+      date; "Distance not known yet" shown, never hidden; no home area: everything shown, with the
+      prompt; a shift opened from a direct link stays bookable; Booked rows carry the travel line
+      too; both times always shown, whichever ways she chose (her choice only drives the filter);
+      the travel words in every offer: `shift_urgent` and `shift_offer` (§5.7 items 12 and 12b,
+      with their `_no_pay` versions; the travel part never empty), `shiftOfferSms`,
+      `shiftUrgentSms`, `urgentPush` and `offerPush`; the office may still offer a shift outside a
+      casual's area (a person's choice), and its offer page warns "Outside {first name}'s travel
+      area (about 52 min by car)". Tests: a near shift is never cut off by the cap; out-of-area
+      casuals get no wave offers; in the area when any chosen way is within the limit (car 40 min,
+      public transport 50 min, limit 45: in for Both and Car, out for Public transport only);
+      `/urgent` and Home are filtered; unknown distance shown as "Distance not known yet"; no home
+      area: unfiltered, with the prompt; a direct link outside the area still books; both times
+      shown whichever ways she chose; Booked rows' travel line; the "N more shifts are further than
+      you travel" count; each offer, text and push carries the travel words or their fallback; the
+      office offer page warns outside the area; the replies' travel lines; `copy.templates-doc`
+      (12G.4)
+- [ ] Casual app tab bar and Home (§4.1–§4.2; no database change of its own: it builds what
+      today's data supports, and each part that needs S2, S4 or S6 to S9 (session fields,
+      strikes, uploads, the photo, travel) lands with the task that brings that change): a bottom
+      tab bar (Home, Shifts, Pay, Profile; a dot on Profile when something needs updating), the
+      firm's bar kept, the theme following the phone with a Profile override; Booked moves to
+      `/shifts` (Upcoming / Past 30 days, `?view=past` as today; `/?view=past` redirects there);
+      the offline copy covers Home's next shift and Booked; Log out is the last item on Profile;
+      "My requests" (`/requests`) linked from Profile and from "Ask for a change"; Home with
+      "Hello {first name}", Needs updating (one action per row, in §4.2's order), the urgent
+      shifts she can take with their travel lines, her next shift in full (post, pay and
+      estimate, report to, bring, getting there, "Open in maps", "Ask for a change", "Cancel this
+      shift") and the top 3 shifts she can apply for, with "N more shifts are further than you
+      travel. Change how far". Tests: `tests/e2e/login.worker.spec.ts` counts and its Booked
+      route updated; the offline copy still renders the next shift; Log out from Profile;
+      `/requests` reachable from Profile; `tests/unit/portal.my-shifts.test.ts`; the
+      plain-language test; `casual.app.spec.ts` (Home) (12H.1)
+- [ ] (needs Dylan: S2, S8 and S9, through what it shows) Shifts list and shift page (§4.3–§4.4):
+      Open (day, role and urgent filters) and Booked at `/shifts` (Upcoming / Past 30 days); each
+      Open row: role · event, date and time, £/hour, post, requirement chips, places left, then
+      the travel line, urgent or not; `/urgent` as the urgent-only view; the shift page's chips,
+      facts, "Getting there" (miles, car, public transport with the route and a leave-by time, the
+      trip home after a late finish, "Open in maps"), "What it needs" with her status for each,
+      "Take shift" or the plain reasons, and the strike note. Tests: `casual.app.spec.ts` (Zoe
+      sees the Arena shift with "3.1 miles · 12 min by car · 24 min by public transport"); the
+      shift page shows pay with the estimate, meet (place and time), post, uniform and places
+      left; an Open row shows role · event, date and time, £/hour and post; each requirement
+      status; the no-public-transport-home line (12H.2)
+- [ ] Profile and help (§4.6–§4.7; no database change of its own: the staff photo card lands with
+      12F.3, "Upload a certificate" with 12F.2, Strikes with 12C.5 and Where you work with 12G.2):
+      the staff photo card (72px, "Last uploaded {date} · renew by {date}" and its status), every
+      qualification with its status, date line and what it means, "Upload a certificate", right
+      to work as a status only ("Not checked yet: ask the office" when there's none; Rules 15),
+      Where you work (→ `/profile/travel`), Strikes (the count, each strike, "Tell us what
+      happened"), Days you can't work, Appearance, Help, "My requests", Log out; `/help` gains
+      "Cancelling and strikes", "Your travel area" and "Qualifications and photos". Tests:
+      `tests/unit/copy.plain-language.test.ts`; `portal.profile.test.ts` (the right-to-work words);
+      `casual.app.spec.ts` (Profile) (12H.3)
+- [ ] Demo seed, after every task above (§9 "Demo seed"): the mock-up's made-up story with dates
+      relative to now (Acme Events and its confirmed `strikes@acme-events.example`; the six
+      events, Hillside Christmas Market switched off; Zoe, Kieran, Ben, Priya, Leah, Jamal, Mo and
+      Tom with their qualifications, photos, strikes and travel areas; the five cancellations;
+      the enquiries built with the real template functions and their log entries; fixed fake
+      travel times; uploads waiting), fixed ids from `seedId()` avoiding the demo-login workers
+      0–4; no real employer, venue, staff or address; every time a page shows (refill times, reply
+      times, cancellation timelines) comes from row times the seed sets (bookings' confirmed and
+      cancelled times, the replacement's confirmed time, messages' times), because log entries
+      can't be backdated (`src/lib/db/admin/seed-saturday.ts:20-21`). Tests: the seed run twice
+      changes nothing; every walkthrough step has its data; the shown figures (the median refill,
+      reply times) match the seed's story (12I.1)
+- [ ] Guides, after every task above: `/office/guide` rewritten for the new menu and pages
+      ("Getting around" describes the drawer and where Log out is now), `/help` as 12H.3. Tests:
+      `tests/unit/guides.test.ts` (the new section titles) (12I.2)
+- [ ] Docs (§10 "Docs to update"): `CLAUDE.md` lines 13–25 (the office is planner-first; the
+      dashboard and Enquiries replace Today and Requests), `docs/screens.md`,
+      `docs/ui-design.md`, `docs/data-model.md`, `docs/architecture.md`, `docs/api-and-jobs.md`,
+      `docs/rules-and-credentials.md`, `docs/messaging-templates.md`, `docs/compliance.md`
+      (TravelTime and postcodes.io as sub-processors, no biometrics, the travel and strikes DPIAs
+      from 12G.2 and 12C.1, strike cautions, the UK GDPR Article 9 condition firms rely on for "I'm
+      unwell" (employment: DPA 2018 Schedule 1 paragraph 1) and the appropriate policy document it
+      needs, the retention schedule with strike log entries kept as long as the action log),
+      `docs/privacy-notice.md`, `docs/testing.md`, `docs/decisions.md` (ADRs for D1, D3, D5, D7
+      and the theme cookie), `docs/runbooks.md` (travel provider outage, SES bounce, strikes
+      address change); fact-checked by the `doc-fact-checker` agent (12I.3)
+- [ ] Verify and the walkthrough: `docs/walkthrough.md` and `tests/e2e/walkthrough*` cover the
+      menu, Log out and every new page; `scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED;
+      `npm run e2e:walkthrough` passes on the production build; the `claims-auditor` checks the
+      phase against its "Done when" (12I.4)
+
 ---
 
 ## Stage 2 (after 3 paying firms) — not now
@@ -399,7 +945,9 @@ Every decision still waiting for you, listed once, grouped (Phase 10 task 18, fr
 decision tables in `docs/overnight-log.md`, `docs/compliance.md`, `docs/privacy-notice.md` and
 `docs/decisions.md`). **Default now** is what the app does today. A row that starts with a bold
 **When …** or **Before …** has to be settled by then; any other can stay as it is until you want it
-changed. **Where** says where the details are (Parking lot items are in this file; "log" is
+changed. Rows added for Phase 12 on 2026-10-06 (`docs/office-v2.md`, its D and S numbers in
+brackets) say "Not built" and what Phase 12 builds unless you say otherwise; a database change
+("How the build is run" 9 to 18) is never built until you OK it. **Where** says where the details are (Parking lot items are in this file; "log" is
 `docs/overnight-log.md`). To decide one, tell Claude: it changes the code if needed, then strikes
 the line here. (The old way of finding these, `grep "Dylan to" PLAN.md`, misses many: use this
 list.) After the decisions, a short table of checks and to-dos that aren't choices.
@@ -409,14 +957,18 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
    Checks 1.
 2. **When you create the accounts:** Messages 20, 23, 24 and 25; Deploy 2; Checks 2 and 3.
 3. **Before submitting the WhatsApp templates** (Meta's approval is the slow step; changing approved
-   words means submitting again): Messages 11 to 17.
+   words means submitting again): Messages 11 to 17 and 29.
 4. **Before the first real import:** Sheets 11; Checks 9.
-5. **Before a pilot:** Data 1, 3, 6, 7, 8 and 13; Rules 3 and 8 (a security firm); Messages 1 and
-   3; Pay 4; Office 10; Product 2 and 7; Checks 6, 7 and 8.
+5. **Before a pilot:** Data 1, 3, 6, 7, 8, 13 and 21; Rules 3 and 8 (a security firm); Messages 1
+   and 3; Pay 4; Office 10; Product 2 and 7; Checks 6, 7, 8, 14 and 15.
 6. **Before any Sheets firm** (if the pilot keeps its rota in a Google Sheet): Sheets 1 to 3.
 7. **When you deploy:** Deploy 1; Checks 4.
 8. **Before any firm uses its own address:** Checks 5.
 9. **Before the pilot's data is a year old:** Data 2.
+10. **Before the Phase 12 task the row names** (`docs/office-v2.md`): How the build is run 9 to 18
+    (each database change, one by one); Legal 16; Data 20; Rules 14 and 15; Messages 28; Sheets
+    16; Pay 10; Product 9 and 10; Checks 17 and 18.
+11. **Before any Northern Ireland firm:** Checks 16.
 
 ### Legal and compliance
 
@@ -437,6 +989,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 13 | A change notice goes at night (urgent) when the shift starts within the urgent window or is under way; otherwise it waits for the morning | As stated | Parking lot "Firm-initiated changes follow-ups" |
 | 14 | The notice report's CSV: at most 20,000 rows; downloads aren't logged | As stated | log, Phase 5 notice report |
 | 15 | What an AI may see: the pay summary gets a group's facts only; the message sorter gets the worker's own words and may only return a label | No AI connected | log, Phases 6 and 7; "Connect Bedrock" |
+| 16 | **Before Phase 12 task 12C.1:** the strike rules (D4): the notice that avoids a strike, the exemptions, how long a strike counts and is kept, when the office is told, and health reasons | Not built. Phase 12 builds: 48 hours (`strikes.notice_hours`, separate from Legal 5's threshold), counted from when the casual first told us by message if they then cancelled that booking; no strike within 15 minutes of booking, on a booking the office made ("Assign": they never accepted it), after the office changed the shift, or when the office booked them over a rest or hours check; "I'm unwell", "Family or caring" or a session taken inside 48 hours still gets a strike, flagged for a person to review (in emails, PDFs and CSVs every casual's reason reads "Casual's own reason (see ShiftDesk)"); a strike counts 90 days and its record is deleted at 12 months (not during a hold); its log entries stay as long as the action log (Data 2); the office is told at 3 live strikes and nothing else happens automatically; casuals see their strikes and can reply; a DPIA for strikes before a real firm uses them | `docs/office-v2.md` §3.5, §6.2; Checks 15 |
 
 ### Data and retention (GDPR)
 
@@ -459,8 +1012,10 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 15 | The phone keeps an offline copy of My shifts (with shift instructions) for up to 14 days | As stated | log, Phase 3 and Phase 10 task 12 |
 | 16 | Resourcers see the "Data requests and deletion" group in the action log | Visible | Parking lot "GDPR follow-ups" |
 | 17 | A deleted worker's sheet staff ID stays on shifts still ahead (the sheet merge needs it) | As stated | log, Phase 10 task 13 |
-| 18 | The firm export is one JSON file of every firm table; every export is logged | As stated | log, Phase 8 GDPR |
-| 19 | A shift's site and address show to every worker in the firm; its instructions only to those booked | As stated | log, Phase 3 |
+| 18 | The firm export is one JSON file of every firm table; every export is logged | As stated (Phase 12 leaves upload image bytes out of it: the images come as a separate download, 12F.2) | log, Phase 8 GDPR |
+| 19 | A shift's site and address show to every worker in the firm; its instructions only to those booked | As stated | log, Phase 3; Phase 12's S2 (How the build is run 10) would show meeting point and uniform to every casual who can see the session |
+| 20 | **Before Phase 12 task 12F.2:** where staff photos and certificate images are kept, and how often a photo is renewed (D3) | Not built. Phase 12 builds: in Postgres (S7), re-encoded, 1 MB at most, never face-matched or read by AI; only items the office has checked count; a photo renewed every 3 years (`photo.renewal_months` 36; the mock-up said 2), "Due soon" 30 days before; a replaced photo deleted 30 days after the new one is approved, rejected uploads after 30 days | `docs/office-v2.md` §5.5 |
+| 21 | **Before a pilot:** the travel area's personal data | Not built. Phase 12 builds: legitimate interests (not consent), with the balancing test and the DPIA written before it's switched on for a real firm (`docs/dpia-travel.md`, 12G.2; neither exists yet); the postcode and its central point only (no house number, GPS or movement history); the office sees the district only, and replies say "your home area"; never in the action log; TravelTime gets coordinates and meaningless ids, postcodes.io a postcode only; estimates purged 7 days after the session; the start point deleted when the office makes the casual inactive as "They've left" or they are erased | `docs/office-v2.md` §5.4, §6.3; Checks 14 |
 
 ### Rules, eligibility and credentials
 
@@ -479,6 +1034,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 11 | Days off: from today to 180 days ahead, at most 60; marking one doesn't cancel bookings | As stated | log, Phase 3 profile |
 | 12 | Fair rotation's priority window (ADR-015): a place held 15 minutes for the 4 with fewest hours | Only when a firm chooses fair rotation (default first come, first served) | Parking lot "Dylan to confirm: fair rotation…"; decisions.md |
 | 13 | No-shows push a worker back in fair rotation? | No (a no-show lowers their hours, so moves them up) | Parking lot "Marking who worked follow-ups" |
+| 14 | **Before Phase 12 task 12G.4:** how a casual's travel area limits what they see and are offered (D2). A preference, not a rules-engine check | Not built. Phase 12 builds: a hard filter on open shifts, the urgent board, Home, offer waves and enquiry replies; in the area if any way they travel gets there within their limit (30, 45, 60 or 90 minutes; the firm's default 45); no "a bit further" for urgent shifts; a shift opened from a direct link stays bookable; an unknown distance is shown, labelled; no home area: everything shown, with a prompt; offer waves skip casuals outside their area, still offer when the estimate isn't known yet (labelled), and use travel time as a tie-breaker; the office may still offer outside a casual's area, with a warning | `docs/office-v2.md` §4.3, §5.4; Data 21 |
+| 15 | **Before Phase 12 task 12H.3:** right to work: enforce it in the rules (every role needs a right-to-work check: a rules-data change through the pack apply, with checks that have no expiry), or keep it as a status only | Not enforced: no role needs `RTW` (`src/lib/rules/packs.ts:36`, `69-72`), so a casual with no check can be booked. Phase 12 shows it as a status only, with "Not checked yet: ask the office" (not "you can't be booked", which would be untrue) | `docs/office-v2.md` §4.6 |
 
 ### Offers, reminders and messages
 
@@ -511,6 +1068,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 25 | **When you create the accounts (Meta):** service messages over 1,000 a month per number are charged (from 1 October 2026: a payment method on file or they stop); each firm needs Meta business verification (days) | Not connected | compliance.md |
 | 26 | A firm may shorten its sign-off ("Acme Shift Team"), never a person's name | Allowed (checked again as each message is built: one stored that breaks the rule isn't used) | log, Phase 8 branding and Phase 10 task 19 |
 | 27 | A worker the office places on a shift ("Assign") gets a `shift_confirmed` message (a billed WhatsApp, held by quiet hours unless the shift is soon); one who takes a shift themselves only sees it on screen | As stated | log, Phase 10 task 19 |
+| 28 | **Before Phase 12 task 12D.3:** "Reply 1 or 2 to take one", as in the approved mock-up (D6), or links only. Today every booking needs a logged-in session ("Take shift") or the office; booking because a phone number sent "1" is a new way of proving who the casual is (an auth change), so it waits for your explicit OK | Not built. If you OK it, Phase 12 builds it on WhatsApp only (its sender is verified; a text's sender can be faked, so texts get links only): through `bookShift` with the full rules check; only the last list sent to that number counts, for 2 hours; every booking confirmed by message and logged as booked by reply number | `docs/office-v2.md` §5.7 items 1–2; Parking lot "Office v2 later items" (by text) |
+| 29 | **Before submitting the WhatsApp templates:** Phase 12's words: new `strike_issued`, `strike_withdrawn`, `photo_due` and `upload_rejected`; changed `credential_expiring`, `credential_expired`, `shift_urgent` (pay and travel added) and `shift_offer` (pay and travel added), each with `_no_pay` versions (and their `_no_site` combinations) for sessions with no pay rate, since WhatsApp refuses an empty value; the text and push versions of both offers gain the travel time; "Automatic reply. Send OFFICE to reach a person." before the sign-off of every instant reply | Not built; written out in `docs/office-v2.md` §5.7 | `docs/office-v2.md` §5.7; "Submit the WhatsApp templates" |
 
 ### Rota sheets and imports
 
@@ -531,6 +1090,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 13 | Imports can't change booked or started shifts | Skipped | log, Phase 2 |
 | 14 | Web imports up to about 1 MB (the terminal 5 MB) | As stated | Parking lot "Dylan to confirm: new shifts are open at once…" |
 | 15 | A shift of 24 hours or more is refused (sheet, imports, editor) | Refused | log, Phase 10 task 11 |
+| 16 | **Before Phase 12 task 12C.6:** writing cancellations back to planners that aren't a Google Sheet (D5). (A Google Sheet gets a "Cancellations" column the owner turns on, never the reason) | Not built. Phase 12 builds: a PDF per record, the CSV export and an optional daily "changes for your planner" email to a confirmed address; a webhook or API feed later, when a firm asks (Parking lot "Office v2 later items") | `docs/office-v2.md` §5.3 |
 
 ### Pay and payroll
 
@@ -545,13 +1105,14 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 7 | Payroll sorts a whole group with one note; no "declined" status | As stated | log, Phase 6 |
 | 8 | The pay area is for payroll and admins only | As stated | log, Phase 6 |
 | 9 | The AI's one line under each group in payroll's digest is used only if it restates the facts: apart from the facts' own phrases, only a short list of plain words ("staff", "queries", "the week", "rate"…), so no verdict ("paid correctly", "underpaid", "no hours missing") or promise gets through; otherwise the code's line only. Keep the AI line like this, or drop it and show only the code's line? | Allow-list; no AI connected | log, Phase 10 task 19 (audit L47) |
+| 10 | **Before Phase 12 task 12A.3:** the pay week number and pay day in the office's top bar (D8) | Not built. Phase 12 builds: ISO weeks, Monday to Sunday, paid the Friday after the week ends ("Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct"); a firm setting (`pay_calendar.*`; UK tax-week numbering available) | `docs/office-v2.md` §3.1, §5.2 |
 
 ### Office and access
 
 | # | Decision | Default now | Where |
 |---|---|---|---|
-| 1 | An office settings screen (notice threshold, urgent window, quiet hours, waves, sign-off, digest time, retention, domain, and the rules settings: rest 11 hours, weekly cap 48, travel buffer 0)? It needs a new permission on `firms` | Owner-only commands (`firm:settings` and others); the rules settings can't be changed at all, so every firm runs on those defaults | Parking lot; compliance.md; rules-and-credentials.md |
-| 2 | What payroll and resourcers see (payroll: no Today, notice report or log; resourcers: that a pay record changed, never the amount) | As stated | Parking lot; `src/lib/auth/roles.ts` |
+| 1 | An office settings screen (notice threshold, urgent window, quiet hours, waves, sign-off, digest time, retention, domain, and the rules settings: rest 11 hours, weekly cap 48, travel buffer 0)? It needs a new permission on `firms` | Owner-only commands (`firm:settings` and others); the rules settings can't be changed at all, so every firm runs on those defaults | Parking lot; compliance.md; rules-and-credentials.md; Phase 12 plans a first version for Phase 12's own settings only (task 12B.7) once you OK its owner-run settings function (How the build is run 18); retention and the rest stay owner-only |
+| 2 | What payroll and resourcers see (payroll: no Today, notice report or log; resourcers: that a pay record changed, never the amount) | As stated. Phase 12 also shows resourcers each session's pay rate (£/hour) and an office cancellation's expected pay (rate × hours), never a pay record's figures | Parking lot; `src/lib/auth/roles.ts`; `docs/office-v2.md` §3.8 |
 | 3 | "Mark as filled" records who and when, not how | As stated | Parking lot |
 | 4 | New shifts are open at once (no draft step) | As stated | Parking lot |
 | 5 | Answering requests: a note to decline, optional to approve; approving changes nothing else | As stated | Parking lot |
@@ -586,6 +1147,16 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 6 | Golden rule 3's wording: message ids are unique per firm, not across all firms | Per firm | log, Phase 7 |
 | 7 | Schema, auth and tenancy changes made overnight without waiting (your standing instruction), to look over once: migrations 0019 to 0034 (`drizzle/`), notably a worker's mobile may be empty once deleted, with owner-run delete and purge functions (0026); `otp_codes.request_id` (0027); the firm's agreement date (0032); the override reason on the booking (0033); per-firm retention read by the database (0034) | Done on `build/overnight` | log (each task's Decisions) |
 | 8 | A database rule for "one waiting request per worker, shift and kind" (a schema change) | Held by a lock in code | Parking lot |
+| 9 | **Before Phase 12 task 12B.6:** S1's two extras on the new `shift_events` table: `pinned` (the office-wide star) and `public_notes` (up to 2,000 characters of event-wide details casuals see, such as parking). S1's core (the table, `shifts.event_id`, the event's switch) is recorded as approved in the plan Dylan approved on 2026-10-06 | Not built; 12B.1 builds S1's core only | `docs/office-v2.md` §5.1 S1 |
+| 10 | **Before Phase 12 task 12B.2:** S2, on `shifts`: `pay_rate_pence`, `post`, `meeting_point`, `uniform`, `required_credentials` (extra qualification codes, all required on top of the role's: the rules engine's input changes) and a per-session showing switch. Meeting point and uniform become visible to every casual who can see the session (changes Data 19 for those two fields only) | Not built; 12B.2 to 12B.5 wait | `docs/office-v2.md` §5.1 S2 |
+| 11 | **Before Phase 12 task 12C.1:** S3, on `assignments`: `cancel_via` (app, office, sheet or import), `strike_warning_version`, `strike_warning_shown_at` | Not built; 12C.1 and 12C.2 wait | `docs/office-v2.md` §5.1 S3 |
+| 12 | **Before Phase 12 task 12C.1:** S4, a new `strikes` table (one strike per booking; withdrawals, reviews, the casual's own account, the evidence email's status; the app can't delete rows), plus an owner-run `app_purge_old_strikes()` like migration 0034's messages purge (deletes strikes at 12 months, never during a hold) | Not built; 12C.1 to 12C.5 wait | `docs/office-v2.md` §5.1 S4 |
+| 13 | **Before Phase 12 task 12D.1:** S5: `requests.message_id` as a real link to `messages` (cleared when the message is deleted at 90 days), and an index on `messages (firm_id, reply_to)` | Not built; the message id stays in the request's data; 12D.1, 12D.4 and 12D.5 wait | `docs/office-v2.md` §5.1 S5 |
+| 14 | **Before Phase 12 task 12F.2:** S6, on `credentials`: `check_state`, `rejected_reason`, `evidence_upload_id`, `due_on`, `issuer` (and start filling `verified_at` and `verified_by`); on `credential_types`: `warn_days`, `needs_evidence`, `register_check` | Not built; 12F.2, 12F.4 and 12F.5 wait | `docs/office-v2.md` §5.1 S6 |
+| 15 | **Before Phase 12 task 12F.2:** S7, a new `uploads` table (photo and certificate images stored in Postgres; in deletion and export) | Not built; 12F.2 to 12F.5 wait | `docs/office-v2.md` §5.1 S7; Data 20 |
+| 16 | **Before Phase 12 task 12G.2:** S8, a new `worker_travel` table (start postcode and its central point, ways of travelling, time limit; a separate table so the erased-worker check is unchanged; in deletion and export) | Not built; 12G.2 and 12G.4 wait | `docs/office-v2.md` §5.1 S8; Data 21 |
+| 17 | **Before Phase 12 task 12G.3:** S9, a new `travel_estimates` table (keyed by postcode and site, not by person; purged 7 days after the session) | Not built; 12G.3 and 12G.4 wait | `docs/office-v2.md` §5.1 S9 |
+| 18 | **Before Phase 12 task 12B.7:** S10, for the Rules & settings page (Office 1): an owner-run database function, `app_set_firm_setting(key, value)`, the only way the app may change `firms.settings`. It accepts Phase 12's keys only (strikes, qualifications and photos, travel, pay calendar, enquiries, the planner-changes address) and refuses `retention.*` and the rest, so the promise that the app can't shorten retention or lift a hold (migration 0034, `docs/compliance.md`) still holds. (A grant on the whole column couldn't be limited to some keys) | Not built; settings stay owner-only (`firm:settings`), which is also how the strikes-team and planner-changes addresses are set and confirmed until then (12C.4, 12C.6) | `docs/office-v2.md` §5.1 S10, §3.10; Office 1 |
 
 ### Product and scope
 
@@ -599,6 +1170,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 6 | "Similar shifts" on a filled shift's page (not built) | Not built | Parking lot "Blocked-shift follow-ups" |
 | 7 | **Before a pilot:** settings to agree with each pilot firm: urgent window, wave size, escalation time, quiet hours, allocation mode, sign-off | 24 h; 4; 3 h; 22:00–07:00; first come, first served; "[Firm] Shift Team" | go-to-market.md |
 | 8 | Later: the next sector, an AI phone line, a firm's own copy of the system, location check-in | Not now | decisions.md |
+| 9 | **Before Phase 12 task 12G.1:** the travel-time service and postcode look-up (D1). (Or Google Routes: about $1,450 a month per 300-casual firm, and its results can't be stored) | Not built. Phase 12 builds: TravelTime for car and public transport (its free key for development and the demo only, a fake provider in tests), postcodes.io for postcode to coordinates, and straight-line miles labelled "(straight line)" when the service is down | `docs/office-v2.md` §5.4; Checks 14 |
+| 10 | **Before Phase 12 task 12A.1:** the office's dark theme: navy (your first brief) or graphite (the mock-up) (D7) | Not built (there's no dark theme today). Phase 12 builds navy: page #0f1626, panel #16203a, card #1b2642, raised #22304f, muted text #a3b0c8, switch off #7c8aa8 (a colour-token swap, easy to change) | `docs/office-v2.md` §3.1 |
 
 ### Checks and to-dos (not choices)
 
@@ -617,6 +1190,11 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 11 | Monitoring and alerts as the runbook says (Lightsail alarms, an outside uptime check, the app's alerts to you) | You | runbooks "Monitoring and alerts" |
 | 12 | Fix the flaky test (`sheets.jobs.test.ts`): its fix is written out | Claude | Parking lot |
 | 13 | Capture real Twilio requests for the tests | You, then Claude | "Connect Twilio" step 11 |
+| 14 | **Before a pilot:** a TravelTime production quote (the price isn't published; 12 months minimum; the free key is "not for commercial use") and its data processing agreement; TravelTime and postcodes.io added to the sub-processors (Legal 2) | You (the quote and agreement), Claude (the docs) | `docs/office-v2.md` §5.4; Product 9 |
+| 15 | **Before a pilot:** add the strike and CSAS questions in `docs/office-v2.md` §6.4 to the solicitor's list (Legal 1) | You | `docs/office-v2.md` §6.4; Legal 16 |
+| 16 | **Before any Northern Ireland firm:** Northern Ireland (BT) postcode data needs a separate licence | You | `docs/office-v2.md` §5.4 |
+| 17 | **Before Phase 12 starts:** keep a copy of the approved mock-up in the repo (`docs/mockups/office-v2.html`; made-up data only), because today it is a private claude.ai artifact and a temporary file builders can't open (`docs/office-v2.md` §1.1 describes it in words meanwhile) | Claude, after your OK (task 12A.0) | `docs/office-v2.md` §1.1; Phase 12 task 12A.0 |
+| 18 | **Before Phase 12 starts:** close Phase 11's tasks with `/close-task` (built and verified in b3f3627, not yet audited or ticked); Phase 12 replaces the shell and Today they pin | Claude | Phase 11 |
 
 ## Parking lot
 
@@ -1979,6 +2557,37 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - Shared class strings for the bordered answer rows (new request, pay query, notifications),
     the pay-code field, the answer boxes on the shift page and locked fields, in
     `src/app/ui/classes.ts`.
+- Office v2 later items (Phase 12, 2026-10-06; `docs/office-v2.md` §3.8, §5.1 "Parked", §5.3 and
+  §7). Deliberately left out of Phase 12; most need a database change, so each needs Dylan's OK:
+  - A live cancellations feed for planners that aren't a Google Sheet: outgoing webhooks with a
+    signing secret, and API keys (D5, Sheets 16). Until then: the PDF per record, the CSV and the
+    daily "changes for your planner" email.
+  - Planner adapters (Deputy, Planday, Connecteam, Rotaready), one per firm when a firm asks
+    (their public APIs and webhooks are listed in §5.3).
+  - Ask casuals to confirm they'll attend, and flag those who don't (code flags, a person acts;
+    a confirmation timestamp).
+  - Offer a shift to selected casuals only (a new table).
+  - Pay status per shift for casuals (Worked → Approved → Paid) with `pay_cycles`; payroll's
+    cut-off countdown and a "not ready for payroll" list.
+  - A short-notice payments ledger for the Employment Rights Act, switched off until the 2027
+    regulations exist.
+  - Personal pins for each office user (Phase 12's star is office-wide).
+  - A separate right-to-work checks table (in Phase 12 right to work stays a qualification type).
+  - Recording a cancellation phoned in to the office as the casual's own, with strike handling
+    (today and in Phase 12 it is always the firm's, with notice: Legal 7).
+  - Strikes that wear off early after a run of good shifts.
+  - A third-party SIA licence checker (there's no official SIA API; Phase 12 logs the office's own
+    check of the GOV.UK register).
+  - Self-hosted journey planning, and self-hosting postcodes.io, at volume.
+  - A "bit further" stretch of the travel area for urgent shifts (Rules 14: none in Phase 12).
+  - Booking by reply number by text, with a short code that changes with each list (Phase 12
+    books by number on WhatsApp only, if Dylan OKs it: Messages 28).
+  - Typed notes on "Close without a reply" and "Wrong answer: tell us" (a small table of their
+    own: a database change). Phase 12 uses fixed codes, because typed text never goes in the log.
+  - Strike entries (`strike.issued`, `strike.withdrawn`) stay in the action log after the strike
+    row is deleted at 12 months, until the action log itself has a retention period (Data 2).
+  - The mock-up's grouping of a daily series ("Every evening to 19 Oct"); Phase 12 shows one row
+    per session.
 
 ## Hours log
 

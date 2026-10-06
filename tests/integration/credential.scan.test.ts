@@ -433,9 +433,11 @@ describe("credential-scan: expiry (block on expiry)", () => {
       a.scan(f.firmId, TUESDAY_DATE),
       b.scan(f.firmId, TUESDAY_DATE),
     ]);
-    // Each credential is claimed by one scan or the other (they may share the work).
-    expect(results.reduce((n, r) => n + r.warned + r.expired, 0)).toBe(2);
-    expect(a.sent.length + b.sent.length).toBe(2);
+    // One scan per firm at a time: one does all the work; the other waits for the firm's lock,
+    // then finds everything claimed and logged. (Without the lock they split it, and the later one
+    // logs the other's warning, still being sent, as unconfirmed.)
+    expect(results.map((r) => r.warned + r.expired).sort()).toEqual([0, 2]);
+    expect([a.sent.length, b.sent.length].sort()).toEqual([0, 2]);
     const warnings = await eventsOf(f.firmId, "credential.expiry_warning");
     // This scan's licence warning once (the first aid one is an earlier scan's), and nothing
     // caught up as unconfirmed.
@@ -723,8 +725,9 @@ describe("credential-scan: failures and races", () => {
         now: TUESDAY,
       }),
     );
-    // The renewal finishes while the scan's message is still going out: the scan holds no lock
-    // across a message (before Phase 10 the import waited for it).
+    // The renewal finishes while the scan's message is still going out: the scan holds no row lock
+    // across a message (before Phase 10 the import waited for it), only the firm's scan lock,
+    // which an import never takes.
     const timeout = new Promise<"blocked">((resolve) => setTimeout(() => resolve("blocked"), 5000));
     expect(await Promise.race([renewal, timeout])).toMatchObject({ updated: 1 });
     release();

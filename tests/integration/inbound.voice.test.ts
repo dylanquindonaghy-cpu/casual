@@ -20,7 +20,7 @@ import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transp
 import { loadToday } from "@/lib/office/today";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
-import { appRolePool, superuserPool } from "../helpers/db";
+import { appRolePool, freeNoFirmLine, NO_FIRM_LINE, superuserPool } from "../helpers/db";
 
 // Calls to the shifts line (Phase 7, call-to-text): Twilio's voice, transcription and "done"
 // webhooks (src/lib/inbound/voice.ts) and a voicemail becoming a request for the office
@@ -335,8 +335,9 @@ describe("the voice webhook", () => {
 
   it("a number no firm has: 'not in use', and nothing stored or sent anywhere", async () => {
     const t = await lineFirm();
+    await freeNoFirmLine(su);
     const res = await handleTwilioVoice(
-      signed(URLS.voice, { ...callFields(t, t.mobile), To: "+447700900499" }),
+      signed(URLS.voice, { ...callFields(t, t.mobile), To: NO_FIRM_LINE }),
       voiceDeps(),
     );
     expect(res.status).toBe(200);
@@ -344,7 +345,8 @@ describe("the voice webhook", () => {
       `${XML_HEAD}<Say language="en-GB">Sorry, this number isn&apos;t in use.</Say><Hangup/></Response>`,
     );
     const { rows } = await su.query(
-      "select 1 from messages where to_e164 = '+447700900499' and channel = 'voice'",
+      "select 1 from messages where to_e164 = $1 and channel = 'voice'",
+      [NO_FIRM_LINE],
     );
     expect(rows).toEqual([]);
     expect(await t.jobsOf(SEND_PORTAL_LINK_QUEUE)).toEqual([]);
@@ -538,8 +540,9 @@ describe("the transcription webhook", () => {
         )
       ).status,
     ).toBe(400);
+    await freeNoFirmLine(su);
     const nobody = await handleTwilioTranscription(
-      signed(URLS.transcription, { ...fields, To: "+447700900499" }),
+      signed(URLS.transcription, { ...fields, To: NO_FIRM_LINE }),
       transcriptionDeps(),
     );
     expect(nobody.status).toBe(200);

@@ -16,7 +16,7 @@ import { currentWorker, logoutWorker, refreshWorkerSession } from "@/lib/auth/wo
 import { withFirm } from "@/lib/db/scoped";
 import { eventMark, eventsFor } from "../helpers/auth";
 import { superuserPool } from "../helpers/db";
-import { fulfilled, race } from "../helpers/race";
+import { barrier, fulfilled, race } from "../helpers/race";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 
 // Worker sessions: 30 days from login, token replaced daily with a 60-second overlap, gone at
@@ -91,9 +91,13 @@ describe("daily token rotation", () => {
     const T = await createTenant(su);
     const now = new Date(t0.getTime() + 25 * HOUR);
 
+    // Both requests look before either writes: a barrier forces it. (Without it, one can commit
+    // before the other looks, and then nothing collides.) Control: a plain update by id lets both.
     const naiveSession = await login(T);
+    const bothLookedNaive = barrier(2);
     const naive = await race(2, T.firmId, async (tx) => {
       const s = await findSession(tx, { kind: "worker", token: naiveSession.token, now });
+      await bothLookedNaive();
       if (!s) return null;
       const updated = await tx
         .update(sessions)
@@ -102,14 +106,21 @@ describe("daily token rotation", () => {
         .returning({ id: sessions.id });
       return updated[0] ?? null;
     });
+    expect(naive.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
     expect(fulfilled(naive).filter(Boolean)).toHaveLength(2);
 
+    // The real rotation in the same order: the second update waits for the first, re-checks
+    // rotated_at, finds it moved and changes nothing. (Without the barrier, a request that looks
+    // after the first commits finds the session through the 60-second overlap with rotated_at =
+    // now and rotates again, because this test skips the rotationDue check production makes.)
     const real = await login(T);
+    const bothLooked = barrier(2);
     const results = await race(2, T.firmId, async (tx) => {
       const s = await findSession(tx, { kind: "worker", token: real.token, now });
+      await bothLooked();
       return s ? rotateSession(tx, { session: s, now }) : null;
     });
-    expect(fulfilled(results)).toHaveLength(2);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
     expect(fulfilled(results).filter(Boolean)).toHaveLength(1);
   });
 });
@@ -131,13 +142,18 @@ describe("the end of a session", () => {
     const T = await createTenant(su);
     const now = new Date(t0.getTime() + HOUR);
 
+    // Control, both looking before either writes (a barrier, as above): look-then-update by id
+    // ends it twice.
     const naiveSession = await login(T);
+    const bothLookedNaive = barrier(2);
     const naive = await race(2, T.firmId, async (tx) => {
       const s = await findSession(tx, { kind: "worker", token: naiveSession.token, now });
+      await bothLookedNaive();
       if (!s) return false;
       await tx.update(sessions).set({ revokedAt: now }).where(eq(sessions.id, s.id));
       return true;
     });
+    expect(naive.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
     expect(fulfilled(naive).filter(Boolean)).toHaveLength(2);
 
     const s = await login(T);
@@ -145,6 +161,7 @@ describe("the end of a session", () => {
     const results = await race(2, T.firmId, (tx) =>
       endSession(tx, { kind: "worker", token: s.token, now }),
     );
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
     expect(fulfilled(results).filter(Boolean)).toHaveLength(1);
     const logouts = (await eventsFor(su, T.firmId, since)).filter(
       (e) => e.action === "auth.logout",

@@ -1927,13 +1927,28 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
         booking either way.
     - ~~For Phase 10 task 9, from task 8's review~~: done in task 9 (a site change on the sheet is
       logged per worker with notice; a sheet re-time into the past is refused as "started").
-    - **A flaky test (found in Phase 10 task 9's verify; failed again in task 11's: fix it soon):** `sheets.jobs.test.ts` "queues one
-      sync for each firm that is due" asserts a second tick in the same minute queues nothing.
-      The sync job is de-duplicated by pg-boss's `singletonSeconds: 50` slots, which follow the
-      real clock, not the test's fixed one, so two ticks straddling a slot boundary (a fraction
-      of a second apart, about 1 run in a few hundred) queue two. Fix: de-duplicate on the app's
-      own minute (the job's idempotencyKey, e.g. a firm-scoped `singletonKey` holding the minute)
-      and pin the test to it.
+    - ~~**A flaky test (found in Phase 10 task 9's verify; failed again in task 11's: fix it soon):** `sheets.jobs.test.ts` "queues one
+      sync for each firm that is due" asserts a second tick in the same minute queues nothing.~~
+      Done 2026-10-06 (CI fix after Phase 11 task 1): the singleton key holds the tick's own
+      minute and the slot is pg-boss's largest, so the minute alone decides; a new test pins it
+      (once within a minute, again in the next).
+    - **Same fault as the sheets tick, in the shift reminders (found 2026-10-06, not failing
+      today):** `runShiftReminderTick` (`src/lib/reminders/send.ts`) de-duplicates on a constant
+      key `shift-reminders` with a 240 s slot of the database's clock, while its own 5-minute slot
+      is only in the idempotencyKey. Two ticks either side of a slot edge can both queue. Fix it
+      the same way as `sheets-sync` (the key holding the slot, pg-boss's largest slot).
+    - **"A claim with no outcome means the run stopped" in other senders (found 2026-10-06 by the
+      CI-flake review, not verified by a test):** the credential scan had a race where a second,
+      overlapping run took the first's in-flight claim for a stopped one and logged it as sent,
+      unconfirmed, losing the real outcome (fixed: one scan per firm at a time). The same pattern
+      may exist where a retry can overlap a live run: `src/lib/auth/send-login-code.ts` (the
+      `made` branch, `auth.otp_sent` unconfirmed), `src/lib/auth/send-portal-link.ts`
+      (`auth.link_sent` unconfirmed), `src/lib/offers/waves.ts` (`logUnconfirmedOffers`) and
+      `src/lib/offers/office-offer.ts`. Check each with a two-at-once test.
+    - **Deploy note for the credential scan (2026-10-06):** each firm's scan now holds a
+      write-free transaction (its lock) open for the length of the scan. Don't set the database's
+      `idle_in_transaction_session_timeout` below the longest scan; add this to
+      `docs/runbooks.md` when the host is chosen.
     - **The office blocking a whole worker** (not just from a site): today only a rota sheet or
       file sets "blocked"; the office can unblock, make inactive, or block from a site. Add
       "Block" to the worker's page if a firm asks (Phase 10 task 7 built the rest).
@@ -2851,3 +2866,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-04 | 10 | 2.0 | Walkthrough polish: an office-placed worker gets a "Confirmed: …" message (a `shift-confirmed` job, claim → send → record, never crossing a change notice); login links survive a full stop or quote after them; "The client needs fewer staff" takes the place away (refused on the last place or a sheet shift); a repeated call hears the first answer; the sign-off rule checked as messages are built; the baseline needs all 8 figures; no shared event numbers in the log, the notice report or the data downloads; the AI pay line may only restate facts (an allow-list); 10 login links a day per number or email; `firm:line` logged and guarded; no brand errors in `npm run build`; the masker's dates are real ones; three review rounds (2 + 1 focused), all findings fixed; 3243 tests + 60 e2e; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-04 | 10 | 1.4 | Local walkthrough pack: `docs/walkthrough.md`, 43 numbered steps for Windows + WSL (setup, every screen as a worker and as resourcer, payroll and admin, the fake phone, the production-mode run, a "found a bug" template); a fake phone (`npm run sim:whatsapp`, `sim:sms`, `sim:call`: signed like Twilio, local only); sample import files (`npm run walkthrough:files`); the seed's yesterday event, 10 pay queries and Northline's short-notice firm cancellation; `db:reset` prints the urgent link; `walkthrough.spec.ts` does every step in its own run on a production build, office at desktop size; three reviews, all findings fixed; 3264 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (see docs/work-log.md) |
 | 2026-10-06 | 11 | 0.8 | Closed "Design tokens and shared components" (built in b3f3627): the first audit found nothing tested the tokens, focus ring, file-input button, tones or the hook-free rule, so a new `ui.design-system.test.ts` (8 tests, proven to fail on a misspelt class, a changed token and a planted hook) holds them, the tokens checked against `docs/ui-design.md`'s table both ways; a test that failed at random (a firm's random id holding "44") fixed at its cause; the Windows npm on this shell's PATH found and worked round; 3395 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 2) (see docs/work-log.md) |
+| 2026-10-06 | 11 | 0.9 | GitHub CI fixed first (16 of 23 runs red since 2026-10-04, local always green): 6 tests that failed at random, found from CI's saved logs and checked by 4 investigators and 4 skeptics; two were real product faults: the credential scan's per-firm lock, lost in Phase 10, put back (a write-free lock transaction, waits at most 5 minutes; a dropped lent-out connection now logged, not a crash) and the Sheets tick de-duplicated on its own minute; the rest test faults (forced race order, a reserved "no firm" number, two checks reading random ids); each fix shown to bite; guardrails reviewed; 3396 tests + 60 e2e + the walkthrough's 3; verified (see docs/work-log.md) |

@@ -334,8 +334,9 @@ describe("the onboarding checklist from a firm's data", () => {
     // A drama-range line (Ofcom's fake numbers); lines are unique across firms, so try another if
     // a test firm already has it.
     for (let tries = 0; ; tries += 1) {
-      // 900400-900999: away from the workers' 900301 and 900302 below.
-      const line = `+447700900${400 + Math.floor(Math.random() * 600)}`;
+      // 900500-900999: away from the workers' 900301 and 900302 below, and from NO_FIRM_LINE
+      // (900499).
+      const line = `+447700900${500 + Math.floor(Math.random() * 500)}`;
       const ok = await su
         .query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line])
         .then(() => true)

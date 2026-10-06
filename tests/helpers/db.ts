@@ -19,3 +19,14 @@ export function uniqueSlug(prefix = "t"): string {
     20,
   );
 }
+
+// The shifts-line number tests ask for as "a number no firm has" (07700 900499, Ofcom's drama
+// range). Test firms keep their lines for the whole run (one database, files one after another),
+// so a test frees it first with `freeNoFirmLine()` rather than assuming no earlier file used it.
+// Files that hand out random lines stay off it.
+export const NO_FIRM_LINE = "+447700900499";
+export async function freeNoFirmLine(su: Pool): Promise<void> {
+  await su.query("update firms set shifts_line_e164 = null where shifts_line_e164 = $1", [
+    NO_FIRM_LINE,
+  ]);
+}

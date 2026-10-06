@@ -129,6 +129,20 @@ describe("sheets-sync-tick", () => {
     expect(await queuedFor(neverSynced.firmId)).toHaveLength(1);
   });
 
+  it("the tick's own minute decides: once within a minute, again in the next", async () => {
+    const f = await firm({ source: "enabled" });
+    const minute = Math.floor(NOW.getTime() / 60_000);
+    const tickAt = (d: Date) =>
+      runSheetsTick({ listFirmIds: async () => [f.firmId], run: withFirm, clock: at(d) });
+    expect(await tickAt(NOW)).toEqual({ queued: 1 });
+    expect(await tickAt(NOW)).toEqual({ queued: 0 });
+    expect(await tickAt(new Date(NOW.getTime() + 60_000))).toEqual({ queued: 1 });
+    expect((await queuedFor(f.firmId)).map((j) => j.idempotencyKey).sort()).toEqual([
+      `sheets-sync:${minute}`,
+      `sheets-sync:${minute + 1}`,
+    ]);
+  });
+
   it("backs off while a firm's syncs are failing", async () => {
     const tooSoon = await firm({
       source: "enabled",

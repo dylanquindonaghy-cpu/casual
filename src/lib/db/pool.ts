@@ -16,6 +16,12 @@ export function appPool(): Pool {
     pool = new Pool({ connectionString: appEnv().DATABASE_URL, max: 10 });
     // An idle connection dropping (e.g. the database restarting) must not crash the process.
     pool.on("error", (err) => log.error("database pool error", { error: err }));
+    // Nor one that's checked out but between queries (a transaction waiting on other work, like
+    // the credential scan's lock holder): the pool takes its own listener off while a connection
+    // is lent out. The transaction's next query, or its commit, fails as usual.
+    pool.on("connect", (client) =>
+      client.on("error", (err) => log.error("database connection error", { error: err })),
+    );
   }
   return pool;
 }

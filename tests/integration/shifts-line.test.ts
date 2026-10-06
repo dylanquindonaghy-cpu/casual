@@ -12,7 +12,7 @@ import { sortPayQueries } from "@/lib/office/pay-sort";
 import { firmShiftsLine } from "@/lib/tenancy/shifts-line";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm, NOW } from "../helpers/booking-fixture";
-import { appRolePool, superuserPool, urls } from "../helpers/db";
+import { appRolePool, freeNoFirmLine, NO_FIRM_LINE, superuserPool, urls } from "../helpers/db";
 import { setShiftsLine, toE164 } from "../../scripts/shifts-line-owner";
 
 // A firm's shifts line (Phase 7: firms.shifts_line_e164): the column's rules, finding the firm for
@@ -75,6 +75,7 @@ describe("the firm for an incoming message's number", () => {
     const line = await freshLine();
     const t = await lineFirm(line);
     await lineFirm(null);
+    await freeNoFirmLine(su);
     const byLine = createLineDirectory(app);
     expect(await byLine(line)).toEqual({
       id: t.f.firmId,
@@ -83,7 +84,7 @@ describe("the firm for an incoming message's number", () => {
       timezone: "Europe/London",
       signOff: `${t.name} Shift Team`,
     });
-    expect(await byLine("+447700900499")).toBeNull(); // a drama number no firm here is given
+    expect(await byLine(NO_FIRM_LINE)).toBeNull(); // a valid number no firm has
     // Not E.164 (as Twilio sends a WhatsApp "To": the caller strips "whatsapp:" first): nobody.
     for (const raw of ["", "07700 900000", `whatsapp:${line}`, `${line} `, "+0123"]) {
       expect(await byLine(raw)).toBeNull();

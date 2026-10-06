@@ -64,8 +64,10 @@ afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
 });
 
+// 07700 900450-900498: never NO_FIRM_LINE (900499), and this file's firms keep their line after
+// it ends.
 async function freshLine(): Promise<string> {
-  const line = `+447700900${450 + Math.floor(Math.random() * 50)}`;
+  const line = `+447700900${450 + Math.floor(Math.random() * 49)}`;
   await su.query("update firms set shifts_line_e164 = null where shifts_line_e164 = $1", [line]);
   return line;
 }

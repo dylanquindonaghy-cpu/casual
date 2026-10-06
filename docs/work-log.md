@@ -9067,3 +9067,83 @@ code and a planted hook). The test failed on each, and then the files were put b
 Phase 11's finish line says "every existing test passes unchanged". The random-failure fix
 changed one existing test (above). The auditor called it a fix at the cause, not a weakening, but
 said you should know about it when the phase closes.
+
+## 2026-10-06 — Fixing GitHub's automatic checks (CI)
+
+- **Time spent:** 0.9 hours (15:06 to 16:00 UTC), in the same run as Phase 11 task 1.
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=f420a29b18fd8877 e2e=true`
+  (201 test files, 3,396 tests; browser tests: 60, then the walkthrough's 3).
+- The `guardrails-reviewer` found one thing to fix first (below), now fixed. It found no golden
+  rule broken and no test weakened.
+- Not a PLAN.md task, so there's no tick and no auditor. The overnight rules say a red CI is fixed
+  before the next task.
+
+### What CI is, and what was wrong
+
+**CI** ("continuous integration") is GitHub running the same full check on its own computers
+every time the branch is pushed. It's a second opinion on a clean machine.
+
+This session could read GitHub's results for the first time, using the Windows GitHub tool with
+the repository's name. They showed that **16 of the last 23 runs had failed** since early on
+4 October, even though the check on your computer passed every time.
+
+GitHub keeps the check's logs from each failed run. Six tests were to blame, and they failed only
+**at random**: often on GitHub's slower, busier machines, almost never on yours. That kind of test
+is called **flaky**.
+
+### What each one was, in plain words
+
+1. **The licence-expiry scan (failed in 13 runs). A real fault, now fixed.** Each morning a
+   "scan" warns workers whose licence is about to expire. Phase 10 split it into small steps
+   (claim, send, record), so that nothing is undone after a message has gone. In doing so it
+   accidentally dropped a **lock**: the rule that only one scan per firm runs at a time. If a scan
+   was ever retried while the first was still running, the second could record the first's
+   message as "sent, not confirmed" and lose the real result. A message that failed could even be
+   logged as sent. The lock is back. It's held in a way that writes nothing, so Phase 10's point
+   still stands. A scan now waits at most 5 minutes for another, then gives up and retries later.
+2. **The Google Sheets sync timer (2 runs). A real fault, but asleep until Sheets is
+   connected.** "Only one sync per firm per minute" was really "per 50-second window of the
+   database's clock". So two checks a moment apart could fall either side of a window edge and
+   both start a sync. Now the minute itself decides. This was already in the Parking lot as "fix
+   it soon".
+3. **Two "control" tests for logging out and refreshing a login (6 runs).** They show the *wrong*
+   way to do it fails, by racing two requests. On a slow machine the two didn't always overlap,
+   so the wrong way sometimes looked right. Now the test forces them to overlap every time.
+4. **"A number no firm has" (2 runs).** Three tests use 07700 900499 as a number nobody has. Another
+   test sometimes gave a firm exactly that number at random. Now it's a reserved number: those
+   tests free it first, and the random ones stay off it.
+5. **Two "nothing private in the log" checks (3 runs).** They searched for digits such as "44" or
+   "468" and found them inside random ids, not phone numbers or pay. They now skip the id (which
+   another line already checks exactly) and search the whole row for the real number or amount.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Fix the scan in the product, and put its test back to the stricter pre-Phase-10 version | It's a real fault that could make the log say a worker was warned when they weren't | Only making the test pass |
+| Keep the lock in a separate step that writes nothing | Restores what the code promised, with no database change | A new "claimed at" column |
+| Give up waiting after 5 minutes | A stuck scan can't tie up the worker's database connections | Skip silently if another scan is running |
+| Fix the Sheets timer now | Parked as "fix it soon", and it turned CI red | Leave it parked |
+
+### What the tests prove now
+
+- I broke each fix on purpose and checked the test caught it:
+  - with the scan's lock removed, its test failed 5 runs out of 5 (before: almost never on your
+    computer); with the lock, it passed 8 of 8;
+  - the old Sheets timer fails the new test;
+  - a firm forced onto the reserved number makes the old version fail and the new one pass.
+- The login race tests passed 6 runs in a row.
+- On the database itself, a scan waiting for the lock really is stopped after its time limit.
+
+### Parked (one line each in PLAN.md's Parking lot)
+
+- The shift reminders' timer has the same fault as the Sheets one.
+- Four other senders (login codes, login links, offer waves, the office's offer) may have the
+  same "two runs at once" weakness as the scan. Each needs a two-at-once test.
+- A note for when the server is chosen: the scan's lock is held for the whole scan, so don't set
+  the database's idle-transaction timeout below that.
+
+### How to see it
+
+Open https://github.com/dylanquindonaghy-cpu/casual/actions while logged in to GitHub. The newest
+run on `build/overnight` should be green (a tick).

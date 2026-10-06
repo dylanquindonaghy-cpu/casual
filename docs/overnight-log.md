@@ -8528,3 +8528,74 @@ estimate in `PLAN.md`, so there's nothing to compare against.
 **For Dylan (morning summary):** the random-failure fix to `tests/integration/shifts-line.test.ts`
 changes an existing test; Phase 11's "Done when" says existing tests pass unchanged. Accept it
 knowingly.
+
+**Committed** as `1b6f1c3` and pushed (`c6500f5..1b6f1c3`). CI run 37484605157: verify, e2e and
+docker all passed.
+
+## 2026-10-06 15:10 UTC — Fixing GitHub CI first (tests that failed at random since 2026-10-04)
+
+**Why now:** `/overnight` step 7 says that if an earlier run's CI failed, fix that first. The
+Windows GitHub CLI works from WSL when it's given the repo (`gh.exe … -R
+dylanquindonaghy-cpu/casual`), so CI could be read for the first time. Since 2026-10-04 00:16
+UTC, 16 of the 23 runs on `build/overnight` failed, while local verify passed every time. The
+verify logs saved by 16 of those runs name 6 tests:
+
+| Test | Failed in | Root cause | Kind |
+|---|---|---|---|
+| `credential.scan` "two scans at once for the same firm send each message once" | 13 runs | Phase 10 (bbd3340) split the scan into claim → send → record and dropped the per-firm lock, though the code's comment still promised "one scan per firm at a time". Two overlapping scans could then log the other's in-flight warning as unconfirmed, and the real outcome (its message id, or its failure) was dropped. Phase 10 had also loosened the test's first check to "they may share the work", so locally it almost never failed. | **Product bug** |
+| `auth.session` two "control" cases (logout, rotation) | 5 runs, 1 run | The controls show a naive look-then-update acting twice only if both lookups happen before either write. On a slow CI machine one sometimes commits before the other looks. | Test |
+| `sheets.jobs` "queues one sync for each firm that is due" | 2 runs | Duplicates were blocked by a 50-second slot of the **database's** clock, not the tick's minute, so two ticks either side of a slot edge both queued. Already parked as "fix it soon". | **Product bug** (dormant until Sheets is connected) |
+| `shifts-line` "unknown numbers are nobody" | 2 runs | `inbound.load` gives a firm a random line from 900450–499, so 1 run in 25 a firm held 900499, the number this test (and `inbound.voice`, `inbound.sms`) assumed nobody has. | Test |
+| `shifts-line` "sets, refuses … and clears" | 2 runs | The "no number in the log" pattern read the firm's random UUID (fixed in task 1). | Test |
+| `office.pay-import` "the check saves nothing" | 1 run | Same: the "no amounts" pattern read the payroll user's random UUID ("…b468…"). | Test |
+
+**How it was found:** four read-only investigators (one per hard case) and a skeptic each
+trying to refute them (a workflow, 8 agents). Every skeptic confirmed the mechanism and
+tightened the fix.
+
+**Fixes:**
+- `src/lib/credentials/scan.ts`: `oneScanAtATime()` puts the firm's scan lock back around the
+  warnings and expiries. It's held by a transaction that writes nothing, while the claim, send and
+  record steps keep their own short transactions. So nothing written is ever undone after a
+  message went (Phase 10's point). The Monday list stays outside, because it takes the same lock
+  itself. The lock wait is bounded (`lock_timeout` 5 minutes, then the job fails and pg-boss
+  retries) after the guardrails review: a scan stuck mid-send must not leave every later one
+  holding a connection forever. Checked on Postgres that `lock_timeout` cancels an advisory-lock
+  wait.
+- `src/lib/db/pool.ts`: every connection gets an error listener, so a lent-out connection that
+  drops between queries (the idle lock holder) is logged instead of crashing the worker.
+- `tests/integration/credential.scan.test.ts`: the pre-Phase-10 check is back (one scan does all
+  the work, `[0, 2]`). With the lock removed on purpose it now fails 5 runs of 5 (before, almost
+  never locally); with the lock it passed 8 of 8.
+- `src/lib/roster/sheets/jobs.ts`: the singleton key holds the tick's own minute, and the slot is
+  pg-boss's largest (one slot until 2038), so the minute alone decides. A new test ("the tick's
+  own minute decides") fails on the old code and on a constant key.
+- `auth.session`: a barrier makes both lookups happen before either write, in both controls and
+  in the rotation test's real half. It also checks that no transaction was quietly rejected.
+  Stricter, and the same every run (6 of 6).
+- A shared reserved number `NO_FIRM_LINE` (900499) with `freeNoFirmLine()` in
+  `tests/helpers/db.ts`. `shifts-line`, `inbound.voice` and `inbound.sms` free it before they
+  rely on it, and `inbound.load` and `onboarding` no longer hand it out. Checked with a firm
+  forced onto 900499: the tests pass, and without the free step `shifts-line` fails as in CI.
+- `office.pay-import`: the "no amounts" pattern reads everything but the random id, and the whole
+  rows are checked for the file's figures as written.
+
+**Decisions (Dylan would normally approve):**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| Fix the scan's race in product code, and tighten its test back | A real fault: a failed warning could be logged as sent (golden rule 5) | Only make the test pass |
+| Hold the lock in a write-free transaction | Restores the documented contract with no schema change | A claim timestamp and lease (a migration) |
+| Bound the wait at 5 minutes | No pile-up of connections behind a stuck scan; failing is visible, and pg-boss retries | Try the lock and skip quietly |
+| Fix the sheets tick now | It was parked "fix it soon" and it breaks CI | Leave it parked |
+
+**Guardrails review:** FIX FIRST: (1) the unbounded lock wait, now fixed; (2) verify the final
+files, done below. Rule checks all PASS. No test weakened. Lesser notes went to the Parking lot.
+
+**Parked** (PLAN.md Parking lot): the same slot fault in the shift reminders' tick; the same
+"a claim with no outcome means the run stopped" pattern to check in `send-login-code`,
+`send-portal-link`, offer waves and the office offer; and a deploy note (don't set
+`idle_in_transaction_session_timeout` below the longest scan).
+
+**Verify:** `VERIFIED tree=f420a29b18fd8877 e2e=true` (201 files, 3,396 tests, 0 skipped; e2e 60,
+then the walkthrough's 3). **Hours:** 0.9 (15:06 to 16:00).

@@ -30,8 +30,9 @@ import { expiryAction, isWeeklyListDay, WARNING_DAYS } from "./expiry";
 //   their expiry date, telling the worker. Then, on Mondays, it emails active admins and resourcers
 //   the week's list. Every change writes an event.
 //
-// At most once, like the notices (claim → send → record; never a transaction held across a
-// message). Per credential: (1) a short transaction re-reads and locks the row, decides again, and
+// At most once, like the notices (claim → send → record; no claim or outcome transaction is held
+// across a message: the firm's scan lock is held by one that writes nothing, oneScanAtATime). Per
+// credential: (1) a short transaction re-reads and locks the row, decides again, and
 // claims it (the warning columns set, or the status set to expired with `credential.expired`
 // logged), committed before anything is sent; (2) the WhatsApp, outside any transaction; (3) a
 // short transaction logs credential.expiry_warning / credential.expiry_notice_sent, or
@@ -52,6 +53,8 @@ export const CREDENTIAL_SCAN_TZ = "Europe/London";
 
 const DAY_SECONDS = 24 * 60 * 60;
 const KEY_PREFIX = "credential-scan:";
+// How long a scan waits for another scan of the same firm to finish (oneScanAtATime).
+const SCAN_LOCK_WAIT = "5min";
 // Names in the office list are cut to this length, so the email stays within its size limit.
 const MAX_NAME_LENGTH = 80;
 
@@ -90,11 +93,9 @@ export async function scanCredentials(
   deps: CredentialScanDeps,
 ): Promise<ScanResult> {
   const today = payload.idempotencyKey.slice(KEY_PREFIX.length);
-  const { warned, expired, failed } = await warnAndExpire(
-    run,
-    payload.firmId,
-    today,
-    deps.transport,
+  // The Monday list stays outside: claimWeeklyList takes the same lock in its own transaction.
+  const { warned, expired, failed } = await oneScanAtATime(run, payload.firmId, () =>
+    warnAndExpire(run, payload.firmId, today, deps.transport),
   );
   const weeklyList = isWeeklyListDay(today)
     ? await sendWeeklyList(run, payload.firmId, today, deps.transport)
@@ -108,6 +109,41 @@ async function lockFirmScan(tx: FirmTx): Promise<void> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended('credential-scan:' || app_current_firm_id()::text, 0))`,
   );
+}
+
+// The warnings and expiries hold the firm's scan lock from the first read to the last outcome
+// logged. So a claim with no outcome is only ever one a stopped run left (its connection, and the
+// lock with it, gone), never one another scan is sending right now. (Without it, a second scan
+// could lock a credential the first had claimed but not yet logged and log it as sent,
+// unconfirmed, and the first's real outcome, its message id or its failure, was lost.) The lock is
+// held by a transaction of its own that writes nothing; every claim and outcome still commits in
+// its own short transaction, so nothing written is undone after a message went.
+async function oneScanAtATime<T>(
+  run: WithFirm,
+  firmId: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  let release: () => void = () => undefined;
+  const finished = new Promise<void>((resolve) => (release = resolve));
+  let locked: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => (locked = resolve));
+  const holder = run(firmId, async (tx) => {
+    // A scan stuck mid-send must not leave every later one waiting forever, each holding a
+    // connection: after a few minutes the wait fails (nothing claimed yet), and pg-boss retries.
+    await tx.execute(sql`select set_config('lock_timeout', ${SCAN_LOCK_WAIT}, true)`);
+    await lockFirmScan(tx);
+    locked();
+    await finished;
+  });
+  // The holder failing before it has the lock (the database down, say) fails the scan.
+  await Promise.race([held, holder]);
+  try {
+    // Outside the holder's callback (withFirm can't nest): the work's own short transactions.
+    return await work();
+  } finally {
+    release();
+    await holder;
+  }
 }
 
 async function firmVoice(tx: FirmTx, firmId: string): Promise<FirmVoice & { line: string | null }> {

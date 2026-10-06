@@ -17,8 +17,8 @@ import { syncSheet } from "./sync";
 // - sheets-sync-tick: a cron every minute (no firm). Visits each firm; a firm with an enabled
 //   sheet that is due (cadence.ts) gets one sheets-sync job.
 // - sheets-sync: one firm's sync (sync.ts). A FirmTask, because it calls Google between its
-//   transactions. At most one per firm per minute (a firm-scoped singleton key), and the sync's
-//   lease stops two from overlapping.
+//   transactions. At most one per firm per minute of the tick's own clock (a firm-scoped
+//   singleton key holding that minute), and the sync's lease stops two from overlapping.
 
 export const SHEETS_SYNC_QUEUE = "sheets-sync";
 export const SHEETS_TICK_QUEUE = "sheets-sync-tick";
@@ -26,6 +26,11 @@ export const SHEETS_TICK_CRON = "* * * * *";
 // pg-boss gives up on a job after this long, before the sync's own 5-minute lease runs out, so a
 // stuck sync is never still running when the next one takes the lease (sync.ts SYNC_LEASE_MS).
 export const SHEETS_SYNC_EXPIRE_SECONDS = 4 * 60;
+// pg-boss also puts each singleton in a time slot of the database's own clock (job_now()). With a
+// short slot, two ticks a moment apart could fall either side of a slot edge and both queue, so
+// the slot is pg-boss's largest (one slot from 1970 to 2038) and the key, which holds the tick's
+// minute, alone decides.
+const SYNC_SINGLETON_SECONDS = 2_147_483_647;
 
 export const sheetsSyncJob = { queue: SHEETS_SYNC_QUEUE, schema: firmJobEnvelope };
 
@@ -73,11 +78,12 @@ export async function runSheetsTick(deps: TickDeps): Promise<{ queued: number }>
           eventDay,
         });
         if (!due) return false;
+        const key = `sheets-sync:${minute}`;
         const id = await sendFirmJob(
           tx,
           sheetsSyncJob,
-          { idempotencyKey: `sheets-sync:${minute}` },
-          { singletonKey: "sheets-sync", singletonSeconds: 50 },
+          { idempotencyKey: key },
+          { singletonKey: key, singletonSeconds: SYNC_SINGLETON_SECONDS },
         );
         return id !== null;
       });

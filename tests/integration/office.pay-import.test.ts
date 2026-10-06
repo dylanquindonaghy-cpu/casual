@@ -159,7 +159,18 @@ describe("importing pay records from the office", () => {
         { periodStart: "2026-10-26", periodEnd: "2026-11-01", source: "csv" },
       ],
     ]);
-    expect(JSON.stringify(logged)).not.toMatch(/1250|468|37\.5/);
+    // No amounts in the log. Who did it (pinned above) is a random UUID that can hold "468" or
+    // "1250" by chance, so the pattern reads everything but the id, and the whole rows, id
+    // included, are checked for the file's figures as written (a UUID never holds a ".").
+    const withoutId = logged.map((e) => ({
+      action: e.action,
+      actor_type: e.actor_type,
+      data: e.data,
+    }));
+    expect(JSON.stringify(withoutId)).not.toMatch(/1250|468|37\.5/);
+    for (const figure of ["37.5", "12.50", "12.5", "468.75"]) {
+      expect(JSON.stringify(logged)).not.toContain(figure);
+    }
 
     // The same file again changes nothing; a corrected hours line updates.
     expect(await importPayFile(t.ctx(), FILE, false)).toMatchObject({

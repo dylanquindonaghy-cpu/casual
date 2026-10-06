@@ -13,7 +13,7 @@ import type { MessagingTransport } from "@/lib/messaging/transport";
 import { loadToday } from "@/lib/office/today";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
-import { appRolePool, superuserPool } from "../helpers/db";
+import { appRolePool, freeNoFirmLine, NO_FIRM_LINE, superuserPool } from "../helpers/db";
 
 // Texts to the shifts line (Phase 7): Twilio's SMS webhook (src/lib/inbound/webhook.ts) and STOP
 // and START in the reply job (src/lib/inbound/opt-out.ts), on the real database as the app role.
@@ -218,7 +218,8 @@ describe("the SMS webhook", () => {
     expect((await handleTwilioSms(signed({ ...fields, MessageSid: "SM1" }), deps())).status).toBe(
       400,
     );
-    const nobody = await handleTwilioSms(signed({ ...fields, To: "+447700900499" }), deps());
+    await freeNoFirmLine(su);
+    const nobody = await handleTwilioSms(signed({ ...fields, To: NO_FIRM_LINE }), deps());
     expect(nobody.status).toBe(200);
     expect(await t.messageRows()).toEqual([]);
     expect(await t.jobs()).toEqual([]);

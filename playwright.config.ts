@@ -53,6 +53,10 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   EMAIL_TRANSPORT: "console",
   SMTP_USER: "",
   SMTP_PASS: "",
+  // Never the Anthropic API: the e2e worker doesn't run with NODE_ENV=test, so this pin is what
+  // keeps AI off if .env switches it on (scripts/invariants.sh checks these lines stay).
+  AI_TRANSPORT: "none",
+  ANTHROPIC_API_KEY: "",
 });
 const env = serverEnv(PORT, OUTBOX);
 

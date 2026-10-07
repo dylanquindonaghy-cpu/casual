@@ -9416,3 +9416,115 @@ never-create rule is read from `deploy/docker-compose.yml` itself: each service 
 address mounts the shared `*db-ca` block, and that block has `create_host_path: false`. Both ways of
 breaking it fail the test, checked: the line removed, and web switched to the short form. The
 compose file is unchanged; only the test.
+
+## 2026-10-07 13:03 UTC — Phase 12, task 12X.3: Claude through the Anthropic API
+
+**Task:** Claude through the Anthropic API (§5.8), as written in `PLAN.md` (12X.3).
+
+**What I found first (`@anthropic-ai/sdk` 0.131.0, the latest, read before writing code):**
+- The model id: the `claude-api` skill lists Claude Haiku 4.5 as `claude-haiku-4-5` (alias of
+  `claude-haiku-4-5-20251001`), active. That is the default.
+- The SDK reads the environment by itself when an option isn't given: `ANTHROPIC_API_KEY`,
+  `ANTHROPIC_AUTH_TOKEN` (sent as a second login header), `ANTHROPIC_BASE_URL` (where the request,
+  key included, goes), `ANTHROPIC_LOG` (`debug` logs whole requests and answers through
+  `console`), `ANTHROPIC_CUSTOM_HEADERS`, and a profile and credential chain from files under the
+  home directory when no key is given. Its defaults are a 10-minute timeout and 2 retries.
+- Its own timeout covers the request until the headers arrive; a `signal` passed per request is
+  joined to the request's abort, so reading a slow body stops too.
+
+**Plan:**
+- `src/lib/ai/anthropic.ts`: `AnthropicAiClient` (behind `AiClient`) and `getAi(env)` (`noAi`
+  unless `AI_TRANSPORT=anthropic`). Every SDK setting that would otherwise come from the
+  environment is given: the key from the settings (never `process.env` in the file), no bearer
+  token, the API's own address, logging off, no retries, a 5-second timeout, plus
+  `AbortSignal.timeout(5000)` on each request. One call: `messages.create` with `AI_MODEL`, the
+  request's system text, prompt and `maxTokens`. The answer is the text blocks joined; any error,
+  a `refusal` stop, or empty text is `AiUnavailableError` with a fixed reason. One log line per
+  call with only purpose, model, input and output tokens and the stop reason (on a failure, the
+  stop reason says why: `timeout`, `http_429` and so on). Under `NODE_ENV=test` the client
+  refuses to run unless a test gave it a fake `fetch` (as the SMTP sender refuses a non-local
+  server).
+- Settings (`src/lib/env.ts`, worker only): `AI_TRANSPORT` (`none` by default; `anthropic`
+  refused when `NODE_ENV=test`, and needing `ANTHROPIC_API_KEY`), `ANTHROPIC_API_KEY` (a secret),
+  `AI_MODEL` (default `claude-haiku-4-5`, checked to look like a Claude model id). Empty means
+  not set, as for email.
+- Wiring: `inboundMessageFirmTask` (`src/lib/inbound/reply.ts`) and `payDigestFirmTask`
+  (`src/lib/pay/digest.ts`) use `getAi(env)` instead of `noAi`. Nothing else changes: `askAi()`'s
+  5-second race and the classifier and pay-summary checks and fallbacks stay as they are.
+- Pins: `AI_TRANSPORT=none` and `ANTHROPIC_API_KEY=""` in `tests/setup/env.ts` and `serverEnv()`
+  (the e2e worker runs without `NODE_ENV=test`, so there the pin is what keeps AI off), and the
+  same two pins added to `scripts/invariants.sh` check 6 (adding a check, as in 12X.2).
+  `deploy/docker-compose.yml` gives the AI settings to the worker only (a test holds that the
+  web app, Caddy and migrate never see the key); `deploy/env.example` lists them (off).
+- Tests (new `tests/unit/ai.anthropic.test.ts`, a fake `fetch`, no network): a text answer; 429,
+  500, a timeout, a refusal and empty content each throw `AiUnavailableError`, with exactly one
+  request each (no retries, even when the answer says to retry); the request carries `AI_MODEL`,
+  the system text, the prompt and `max_tokens`, and goes to the API's own address with the
+  settings' key even when the `ANTHROPIC_*` variables say otherwise; nothing logged beyond purpose,
+  model, tokens and stop reason (and the SDK's own logging off even with `ANTHROPIC_LOG=debug`);
+  the settings checks; `getAi`. `tests/unit/ai.boundary.test.ts`: the AI code's files listed
+  (with `anthropic.ts`), only `anthropic.ts` imports the SDK, and still no SDK outside
+  `src/lib/ai/`; its importer lists unchanged.
+- Docs: `docs/architecture.md` (AI use), `deploy/env.example`, `.env.example`'s comment, CLAUDE.md's
+  pins line, the Parking lot's "Connect the Anthropic API" wording. `guardrails-reviewer` (AI,
+  jobs).
+- New dependency: `@anthropic-ai/sdk` 0.131.0, pinned exactly (as nodemailer). `npm audit` shows
+  the same two warnings with and without it (sharp, source-map-js; not from this SDK).
+
+**Built:** as planned, plus what building and the review showed:
+- **The log hides "token" fields:** the logger redacts any field whose name contains "token"
+  (`src/lib/log/mask.ts`), so `inputTokens` came out `[redacted]`. The counts are logged under
+  `usage: { input, output }` (the API's own word) rather than loosening the masker.
+- **The SDK-outside-`src/lib/ai/` check matched the app's own module:** its `/anthropic/` pattern
+  caught `import { getAi } from "../ai/anthropic"` in the reply job and the digest. It now skips only
+  imports that resolve into `src/lib/ai/` (the reviewer's tighter version of my first fix, which
+  skipped every local import); an SDK import in `reply.ts` still fails it (checked).
+- **guardrails-reviewer** (run on the change before verify), verbatim verdict: "**Verdict: SAFE
+  TO COMMIT.** None of the golden rules is broken and there are no MUST FIX items. AI stays off by
+  default, the key goes to the worker only, both test harnesses pin AI off, and every failure path
+  still ends in the code's fallback." Its 3 SHOULD FIX items, all fixed:
+  1. The SDK always reads `ANTHROPIC_CUSTOM_HEADERS` and applies those headers after its own login
+     header, so a value there could replace the key or add a bearer token. The client now sends
+     through its own `fetch`: the Messages API's address only, a fixed list of the SDK's own headers,
+     and the settings' key set last. Tested with the variable set (the key, no `Authorization`, no
+     extra header, the exact header list).
+  2. The boundary check tightened (above).
+  3. Reading the reply moved inside the error handling: a reply without the expected shape is now
+     `AiUnavailableError("error")` with its log line (tested), not a bare TypeError.
+  Its notes: the stale comment in `src/lib/ai/client.ts` fixed; a breaker for the shifts line's AI
+  calls added to the Parking lot ("Connect the Anthropic API"). Not done: `owner` in the compose
+  key check (the compose test renders only web, worker, caddy and migrate; `owner` gets no AI
+  setting); moving the `*FirmTask` wiring into `src/worker/` (the task names `reply.ts` and
+  `digest.ts`; `npm run build` passes with the SDK in the office's server code, no warnings).
+- **Mutation checks** (each protection removed on its own, then restored): no signal, request
+  retries, the SDK's logging, the fixed address, `authToken: null`, the refusal check, the test
+  guard and the pinned fetch each fail at least one test. Removing the client-level `maxRetries: 0`
+  fails only the source check, since the per-request 0 still holds. The guard test now blocks the
+  real `fetch` too, so even a broken guard sends nothing (with the guard removed it first reached
+  the real fetch).
+- `.env.example` already had the AI lines (12X.1); unchanged.
+- The log masker turns a dated model id into stars (`claude-haiku-4-5-20251001` is logged as
+  `claude-haiku-*-*-*****001`: its digits look like a phone number). The default
+  `claude-haiku-4-5` is logged as it is; the masker is left alone.
+- `AI_TIMEOUT_MS` is pinned at 5000 in the test (the first audit noted only the source check held
+  it).
+
+**Verify (first):** `VERIFIED tree=3e1e10cbcfa39179 e2e=true` (13:33 UTC): 209 test files, 3447
+tests; 60 e2e and the walkthrough's 3.
+
+**Audit round 1:** every criterion PROVEN but one: "`guardrails-reviewer` — NOT PROVEN from disk.
+The 12X.3 entry in `docs/overnight-log.md` only plans it". Verdict line, verbatim: "VERDICT: NOT
+DONE (everything else is proven, but the `guardrails-reviewer` record is not on disk; the only
+trace is the indirect "(12X.3 review)" Parking-lot item)". Root cause: I wrote the review's record
+after verify this time, not before. Fixed by this section (and the 5000 pin); verify re-run.
+
+**Verify (final):** `VERIFIED tree=b0d6a148d1b5719d e2e=true` (13:47 UTC): 209 test files, 3447
+tests; 60 e2e and the walkthrough's 3.
+
+**Audit round 2:** "`guardrails-reviewer` — now PROVEN (self-reported), judged from disk"; "5-second
+timeout — now pinned by a test"; no regressions; no fakes. Verdict line, verbatim:
+
+VERDICT: DONE
+
+Ticked; hours row added (0.8); `docs/work-log.md` updated. CI on 939c3f3 (the CI fix) is green
+(run 204), which also covers 12X.2's failed run 203 (the same test only).

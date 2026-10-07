@@ -131,7 +131,7 @@ docs/
 - Dev messaging uses `MESSAGING_TRANSPORT=console` and `EMAIL_TRANSPORT=console` (prints
   outbound messages). Never hit Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a
   planner from tests: the settings refuse each real sender under `NODE_ENV=test`, and
-  `scripts/invariants.sh` checks the test setups' pins (email and Twilio today).
+  `scripts/invariants.sh` checks the test setups' pins (email, AI and Twilio today).
 
 ## How to work each task
 

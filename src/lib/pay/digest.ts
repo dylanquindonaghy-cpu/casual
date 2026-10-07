@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
-import { noAi, type AiClient } from "../ai/client";
+import { getAi } from "../ai/anthropic";
+import type { AiClient } from "../ai/client";
 import { factsPhrase } from "../ai/pay-summary";
 import { events, firms, officeUsers, payQueries } from "../db/schema";
 import { uuidArray } from "../db/arrays";
@@ -367,11 +368,12 @@ export function payDigestTask(deps: () => PayDigestDeps): FirmTask<PayDigestPayl
   return { ...payDigestJob, task: (payload, run) => runPayDigest(payload, run, deps()) };
 }
 
-// The worker's wiring. Deps are read when the job runs. No AI yet: "Connect the Anthropic API"
-// (PLAN.md Parking lot) replaces `noAi` with the Anthropic client.
+// The worker's wiring. Deps are read when the job runs. The AI is Claude once
+// AI_TRANSPORT=anthropic ("Connect the Anthropic API", PLAN.md Parking lot); until then `getAi`
+// gives none, and each group has the app's own line only.
 export const payDigestFirmTask = payDigestTask(() => {
   const env = workerEnv();
-  return { transport: getTransport(env), ai: noAi, baseDomain: env.APP_BASE_DOMAIN };
+  return { transport: getTransport(env), ai: getAi(env), baseDomain: env.APP_BASE_DOMAIN };
 });
 
 export interface PayDigestTickDeps {

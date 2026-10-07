@@ -82,6 +82,11 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # Claude through the Anthropic API (docs/office-v2.md 5.8): the worker alone asks it, so only
+      # it gets the key (a secret; the web app never sees it). Off unless AI_TRANSPORT=anthropic.
+      AI_TRANSPORT: ${AI_TRANSPORT:-none}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,

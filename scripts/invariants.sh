@@ -54,11 +54,12 @@ else echo "ok: only withFirm (and the seed's firm provisioning) set the firm"; f
 pins_missing=""
 has_pin() { grep -F -- "$2" "$1" | grep -qvE '^[[:space:]]*(//|#|\*)'; }
 for pin in 'process.env.EMAIL_TRANSPORT = "console";' 'process.env.SMTP_USER = "";' \
-           'process.env.SMTP_PASS = "";'; do
+           'process.env.SMTP_PASS = "";' 'process.env.AI_TRANSPORT = "none";' \
+           'process.env.ANTHROPIC_API_KEY = "";'; do
   has_pin tests/setup/env.ts "$pin" || pins_missing="$pins_missing tests/setup/env.ts:'$pin'"
 done
 for pin in 'MESSAGING_TRANSPORT: "console",' 'EMAIL_TRANSPORT: "console",' 'SMTP_USER: "",' \
-           'SMTP_PASS: "",'; do
+           'SMTP_PASS: "",' 'AI_TRANSPORT: "none",' 'ANTHROPIC_API_KEY: "",'; do
   has_pin playwright.config.ts "$pin" || pins_missing="$pins_missing playwright.config.ts:'$pin'"
 done
 if [ -n "$pins_missing" ]; then

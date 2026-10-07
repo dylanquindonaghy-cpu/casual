@@ -9600,3 +9600,61 @@ certificate file. Different versions of Compose print that setting differently: 
 out when it has its normal value. The app's setup was right all along (GitHub's Docker build and
 browser tests passed); the test was reading the wrong thing. It now reads the setup file itself,
 and was checked by breaking the file in the two ways that matter (both made it fail).
+
+## 2026-10-07 — Phase 12, task 12X.3: Claude through the Anthropic API
+
+- **Time spent:** 0.8 hours (13:03 to 13:52 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=b0d6a148d1b5719d e2e=true`
+  (3,447 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **second** round. On the first it found
+  everything proven except one thing: the safety review's result wasn't written in the log yet.
+  It is now, and verify was run again.
+
+### What was built, in plain words
+
+The app can now ask Claude (Anthropic's AI) for its two small jobs: sorting an unclear WhatsApp
+message into one of four labels, and writing a one-line summary for each group of pay queries. It
+uses Anthropic's own library. It's switched off until you create an Anthropic account and key
+("Connect the Anthropic API" in PLAN.md). Off or on, nothing the AI writes ever reaches a worker:
+the label only picks one of the app's own fixed replies, and the pay line is checked and shown to
+payroll under the app's own line.
+
+- **Never stuck waiting.** Each question is asked once, never retried, and dropped after 5 seconds.
+  If the AI fails, refuses, says nothing, or answers late, the app does what it does today without
+  AI: unclear messages go to the office, and payroll sees the app's own line.
+- **The key stays put.** The key goes only to the worker (the background program), never the
+  website. Anthropic's library also looks at some settings on the computer by itself, one of which
+  could send the key somewhere else or swap it. The app now fixes each of those itself: it only
+  ever talks to Anthropic's own address, with a fixed set of headers and the key from the settings.
+- **Logs without private words.** Each question writes one log line: what it was for, the model,
+  how many tokens it used (which is what Anthropic charges for), and why it stopped. Never the
+  worker's message, the answer or the key.
+- **Settings:** `AI_TRANSPORT` (`none` until you switch it on, then `anthropic`),
+  `ANTHROPIC_API_KEY` (a secret), `AI_MODEL` (Claude Haiku 4.5, `claude-haiku-4-5`, the cheapest
+  and fastest). Tests refuse the real thing, and both test setups pin AI off.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The app's own `fetch` sends only Anthropic's address, fixed headers and the key | The library always reads `ANTHROPIC_CUSTOM_HEADERS` and adds them after the key header (found by the safety review) | Trusting the server's settings never to set it (they don't today) |
+| Token counts logged as `usage` | The log hides any field with "token" in its name, to protect login tokens | Loosening that rule |
+| No prompt caching | The instructions are a few dozen tokens; Haiku 4.5 only caches 4,096 or more, so it would do nothing | Adding cache markers anyway |
+| Pin the library to exactly 0.131.0 | The tests prove the headers and settings for this version | A range of versions |
+
+### What the new tests prove
+
+A fake Anthropic answers inside the test (no internet). The tests check: an answer comes back; a
+"too many requests" (429), a server error (500, 529), no reply in time, a reply that stalls
+halfway, a refusal, an empty answer and a garbled reply each end in "AI unavailable" after exactly
+one try; the model, instructions, message and limit are what's sent, to Anthropic's own address
+with the settings' key, even when the computer's settings say otherwise; the log has only the
+allowed fields; and when the AI is unavailable, the sorter and the pay summary fall back as
+before. Each protection was switched off on purpose to check a test then fails.
+
+### What needs Dylan
+
+Nothing now. When you're ready for AI: follow "Connect the Anthropic API" in PLAN.md (an account,
+a key in a workspace with a monthly spend limit, and the data-processing checks before switching
+it on). One follow-up is parked there: before switching it on, make the shifts line stop asking
+the AI for a while after a few failures in a row.

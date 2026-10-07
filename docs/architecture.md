@@ -329,8 +329,8 @@ messages anyone twice (the reminders' claim → send → record).
 2. Code assigns grouping keys: the issue and the week, plus the pay line's rate for a wrong
    rate or the site for missing hours (`src/lib/pay/grouping.ts`). Haiku writes a one-line
    summary per group from the group's facts only, checked before use, with the app's own line as
-   the fallback and always shown as the heading (no AI connected yet: the Anthropic API, off
-   unless `AI_TRANSPORT=anthropic`, Phase 12 task 12X.3). The app stops waiting after 5 seconds
+   the fallback and always shown as the heading (the Anthropic client is built, Phase 12 task
+   12X.3, and off until `AI_TRANSPORT=anthropic`). The app stops waiting after 5 seconds
    a group; a failed, late or unusable answer changes nothing else.
 3. Digest to payroll at a set time (built: `src/lib/pay/digest.ts`, the firm's `pay_digest`
    setting, default 09:00 Monday to Friday): the new queries, grouped, emailed to payroll with the
@@ -354,9 +354,9 @@ messages anyone twice (the reminders' claim → send → record).
    off.)
 2. Known worker: keyword match (shifts, cancel, pay, help) → instant reply with the right link.
    Unclear text → Haiku classifies → reply with link or create a request for the office. (Built in
-   Phase 7, `src/lib/inbound/reply.ts`, short of the Anthropic API: the AI only picks one of four
-   labels and the reply is always the app's fixed text; no AI yet, so unclear text goes to the
-   office.)
+   Phase 7, `src/lib/inbound/reply.ts`: the AI only picks one of four labels and the reply is
+   always the app's fixed text. The Anthropic client is built (12X.3) and off until "Connect the
+   Anthropic API", so meanwhile unclear text goes to the office.)
 3. Unknown number → polite reply + office alert. (Built in Phase 7: the first message from a
    number in 24 hours gets `unknown_number` and emails the office's admins and resourcers, without
    the number or the message; a former worker gets no reply, the office is alerted; every such
@@ -416,21 +416,32 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 
 - All model calls go through `src/lib/ai/` with zod-validated JSON outputs and a fallback
   ("send to office") when validation fails or confidence is low.
-- Claude through the Anthropic API (the official `@anthropic-ai/sdk`), behind `AiClient`
-  (`src/lib/ai/client.ts`). Off unless `AI_TRANSPORT=anthropic`: until then `noAi` answers
-  "unavailable" to every request, and the code's fallback runs. Phase 12 task 12X.3 builds the
-  client; real calls wait for "Connect the Anthropic API" (PLAN.md Parking lot).
-- Settings, worker only: `AI_TRANSPORT` (`none`, the default, or `anthropic`; never `anthropic`
-  in tests), `ANTHROPIC_API_KEY` (a secret, only in the server's `.env`), `AI_MODEL` (Haiku by
-  default).
-- The 5-second limit is unchanged: the app stops waiting after 5 seconds (`askAi()` in
-  `src/lib/ai/ask.ts`), whatever the client does. A failed, late or unusable answer means the
-  code's fallback, as before.
+- Claude through the Anthropic API: `AnthropicAiClient` (`src/lib/ai/anthropic.ts`, the official
+  `@anthropic-ai/sdk`, pinned) behind `AiClient` (`src/lib/ai/client.ts`). `getAi(env)` gives
+  `noAi` unless `AI_TRANSPORT=anthropic`; `noAi` answers "unavailable" to every request, and the
+  code's fallback runs. The shifts line's reply job (`src/lib/inbound/reply.ts`) and the payroll
+  digest (`src/lib/pay/digest.ts`) use `getAi`. Built in Phase 12 task 12X.3; real calls wait for
+  "Connect the Anthropic API" (PLAN.md Parking lot).
+- Settings, worker only: `AI_TRANSPORT` (`none`, the default, or `anthropic`, which needs a key and
+  is refused under `NODE_ENV=test`), `ANTHROPIC_API_KEY` (a secret, only in the server's `.env`,
+  given to the worker alone by `deploy/docker-compose.yml`), `AI_MODEL` (`claude-haiku-4-5` by
+  default). The tests and the browser tests' servers pin AI off (`scripts/invariants.sh` checks).
+- Each call is one request: no retries, a 5-second limit (the SDK's timeout, plus an `AbortSignal`
+  that also stops a reply that is slow after its headers). The SDK would read some settings from
+  the environment (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_LOG`); the client sets
+  each in code instead: the API's own address, the settings' key only, the SDK's logging off.
+- An error (a 429, a 5xx, no reply in time), a refusal or an empty answer is `AiUnavailableError`.
+  One log line per call: purpose, model, token counts (under `usage`) and the stop reason (or why
+  there was no answer: `timeout`, `http_429` and so on). Never the prompt, the answer or the key.
+- The 5-second limit in `askAi()` (`src/lib/ai/ask.ts`) is unchanged: the app stops waiting after
+  5 seconds whatever the client does. A failed, late or unusable answer means the code's fallback,
+  as before.
 - Where requests are processed: Anthropic's API may process requests outside the UK. Before AI is
   switched on, its data processing agreement and UK transfer terms are checked, and the privacy
   notice's line on where Anthropic processes requests is filled in (docs/privacy-notice.md,
   ADR-021, docs/compliance.md).
-- Cache system prompts (prompt caching) to cut cost.
+- No prompt caching: the system texts are a few dozen tokens, and Haiku 4.5 only caches a prefix
+  of 4,096 tokens or more (a cache marker would silently do nothing).
 - AI never decides eligibility, assignment or pay.
 
 ## Custom domains and branding

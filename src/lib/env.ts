@@ -185,6 +185,21 @@ export const workerEnvSchema = z
     SMTP_FROM: unsetIfEmpty(
       z.email({ message: "must be the email address mail comes from" }).optional(),
     ),
+    // AI, worker only (docs/office-v2.md 5.8): Claude through the Anthropic API
+    // (src/lib/ai/anthropic.ts). "none" (the default): no AI, and the code's fallback answers.
+    // "anthropic": refused under NODE_ENV=test, so no test can call it. Real calls wait for
+    // "Connect the Anthropic API" (PLAN.md Parking lot).
+    AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
+    // A secret: never logged, never in the repo, never given to the web app.
+    ANTHROPIC_API_KEY: unsetIfEmpty(z.string().max(500).optional()),
+    // Haiku (CLAUDE.md "Stack").
+    AI_MODEL: unsetIfEmpty(
+      z
+        .string()
+        .max(100)
+        .regex(/^claude-[a-z0-9]+(-[a-z0-9.]+)*$/, { message: "must be a Claude model id" })
+        .default("claude-haiku-4-5"),
+    ),
   })
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
@@ -217,6 +232,14 @@ export const workerEnvSchema = z
   .refine((e) => !e.SMTP_USER === !e.SMTP_PASS, {
     path: ["SMTP_PASS"],
     message: "SMTP_USER and SMTP_PASS go together",
+  })
+  .refine((e) => e.NODE_ENV !== "test" || e.AI_TRANSPORT !== "anthropic", {
+    path: ["AI_TRANSPORT"],
+    message: "tests never call the Anthropic API: anthropic is refused when NODE_ENV=test",
+  })
+  .refine((e) => e.AI_TRANSPORT !== "anthropic" || e.ANTHROPIC_API_KEY, {
+    path: ["ANTHROPIC_API_KEY"],
+    message: "AI_TRANSPORT=anthropic needs ANTHROPIC_API_KEY",
   });
 
 export const adminEnvSchema = z

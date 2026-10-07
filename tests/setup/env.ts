@@ -16,3 +16,7 @@ process.env.ALERTS_TRANSPORT = "none";
 process.env.EMAIL_TRANSPORT = "console";
 process.env.SMTP_USER = "";
 process.env.SMTP_PASS = "";
+// Never the Anthropic API, whatever .env says (the settings also refuse anthropic under
+// NODE_ENV=test; scripts/invariants.sh checks these lines stay).
+process.env.AI_TRANSPORT = "none";
+process.env.ANTHROPIC_API_KEY = "";

@@ -161,11 +161,33 @@ describe("AI never answers a dispute", () => {
     );
   });
 
+  it("the AI code is these files, and only anthropic.ts imports the Anthropic SDK (12X.3)", () => {
+    const aiFiles = files.filter(isAi).map(rel).sort();
+    expect(aiFiles).toEqual([
+      "src/lib/ai/anthropic.ts",
+      "src/lib/ai/ask.ts",
+      "src/lib/ai/classify-message.ts",
+      "src/lib/ai/client.ts",
+      "src/lib/ai/pay-summary.ts",
+    ]);
+    const sdk = files
+      .filter((file) =>
+        imports(readFileSync(file, "utf8")).some((spec) => /^@anthropic-ai\//.test(spec)),
+      )
+      .map(rel);
+    expect(sdk).toEqual(["src/lib/ai/anthropic.ts"]);
+  });
+
+  // An import of the app's own src/lib/ai/anthropic.ts is the AI code itself (who may import that
+  // is pinned above), not an SDK; every other import is checked.
   it("no AI SDK is imported outside src/lib/ai/", () => {
     const sdk = files
       .filter((file) => !isAi(file))
       .filter((file) =>
-        imports(readFileSync(file, "utf8")).some((spec) => /bedrock|anthropic|openai/i.test(spec)),
+        imports(readFileSync(file, "utf8")).some((spec) => {
+          const local = resolveLocal(file, spec);
+          return !(local && isAi(local)) && /bedrock|anthropic|openai/i.test(spec);
+        }),
       )
       .map(rel);
     expect(sdk).toEqual([]);

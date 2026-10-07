@@ -488,7 +488,7 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       "Never hit Twilio from tests" widened to "never hit Twilio, an SMTP server, Anthropic,
       TravelTime, postcodes.io or a planner from tests", with the matching check in
       `scripts/invariants.sh` (12X.2)
-- [ ] Claude through the Anthropic API (§5.8): `AnthropicAiClient` in `src/lib/ai/anthropic.ts`
+- [x] Claude through the Anthropic API (§5.8): `AnthropicAiClient` in `src/lib/ai/anthropic.ts`
       (the official `@anthropic-ai/sdk`) behind `AiClient`, and `getAi(env)` returning `noAi`
       unless `AI_TRANSPORT=anthropic`; worker-only settings `AI_TRANSPORT` (`none` by default;
       `anthropic` refused when `NODE_ENV=test`, and `none` with an empty `ANTHROPIC_API_KEY` pinned
@@ -2384,9 +2384,10 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 - **Connect the Anthropic API** (the Phase 6 "Group queries by likely cause … Haiku summarises"
   task is blocked on it: an Anthropic account and money; Bedrock was ruled out on 2026-10-06,
   ADR-021). The grouping is built; only the AI's one-line summary per group waits (the app writes
-  its own line meanwhile). Phase 12 task 12X.3 builds the client (`src/lib/ai/anthropic.ts`, off
+  its own line meanwhile). Phase 12 task 12X.3 built the client (`src/lib/ai/anthropic.ts`, off
   unless `AI_TRANSPORT=anthropic`, a 5-second timeout with an `AbortSignal`, no retries, the call
-  logged without the prompt) and wires it into the digest and the shifts-line reply job.
+  logged without the prompt), wired it into the digest and the shifts-line reply job, and gives
+  the settings to the worker only (`deploy/docker-compose.yml`).
   **Who does what:** steps marked **You** are yours (an account, a console, a decision). Steps
   marked **Claude** are code or docs to write after yours. Tell Claude when your steps are done.
   1. **You:** in the Anthropic Console, create an API key in a workspace with a monthly spend
@@ -2394,8 +2395,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
      retention is available for the model used; check where requests are processed and the UK
      transfer terms (Legal 2). Put `ANTHROPIC_API_KEY` and `AI_TRANSPORT=anthropic` in the
      server's `.env` (never in the repo).
-  2. **Claude:** pass them to the worker only (`deploy/docker-compose.yml`); docs/compliance.md and
-     docs/privacy-notice.md: Anthropic as a sub-processor (AI disclosure; the notice's "runs in
+  2. **Claude:** docs/compliance.md and docs/privacy-notice.md: Anthropic as a sub-processor (AI disclosure; the notice's "runs in
      the EU" wording changes); the pay summary sees only a group's facts (count, issue, week,
      site, rate), no names or workers' words; the sorter sees the worker's own message and may
      only return a label.
@@ -2410,7 +2410,11 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - after the first timeout or "unavailable" in a digest, stop asking for the remaining groups
     (an AI that hangs costs up to 10 × 5 seconds while the queries wait);
   - count fallbacks (timeout / error / failed check) in the log or in `pay_digest.sent`'s data,
-    never the model's text, so an AI that always fails gets noticed.
+    never the model's text, so an AI that always fails gets noticed (since 12X.3 each call logs
+    why it stopped; an answer that fails the check isn't counted yet);
+  - the same for the shifts line, before AI is switched on (12X.3 review): a hung API adds 5
+    seconds to each unclear message, up to 51 calls (about 4 minutes) in one job's catch-up, so
+    skip AI for a while after a few failures in a row, with a test using a hanging fake AI.
 - Pay query grouping follow-ups (Phase 6):
   - **Dylan to confirm the grouping rules:** wrong rate = the week + the rate the worker's pay
     line for the day was paid at; hours missing = the week + the site; paid late = the week;
@@ -2887,3 +2891,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-07 | 12 | 0.7 | Remove AWS (12X.1; Dylan OK'd it in this session): the 3 Lightsail scripts and their 2 test files deleted (cloud-init's 4 tests moved to `deploy.cloud-init.test.ts`); no RDS bundle in the image, the host's CA from `/opt/shiftdesk/secrets/db-ca.pem` mounted read-only at `/app/db-ca.pem` (Docker refuses to start without it); `.env.example`'s AWS lines now the email and AI settings; AWS comments reworded in 9 source files; new `no-aws.test.ts`; runbooks and architecture rewritten for any UK/EU Docker host, 7 smaller docs fixed; guardrails SAFE TO COMMIT (4 small fixes made), 3 fact-checkers (all fixed but one older cost total, parked); 3391 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-07 | 12 | 0.8 | Email over SMTP (12X.2): `SmtpEmailTransport` (nodemailer 10.0.15, pinned) drives the SMTP conversation step by step and watches for DATA itself, because nodemailer labels every timeout "CONN": a failure before DATA is `EmailNotSentError` (safe to retry), from DATA on `EmailMayHaveArrivedError`; 465 TLS, any other port STARTTLS, never plain text, certificates checked; worker-only settings (console refused in production, smtp refused in tests); email routed to SMTP, texts unchanged; CSV and PDF attachments within the size limits; tests with a fake SMTP server; a log line per failed email (no address); runbook "Email not arriving"; the invariant and CLAUDE.md rule on real services; guardrails SAFE TO COMMIT (5 small fixes made); 3424 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-07 | 12 | 0.2 | CI fix: 12X.1's new db-ca mount check read `create_host_path` from `docker compose config`, which Compose versions print differently (CI's leaves the default out); the never-create rule is now read from `deploy/docker-compose.yml` itself, and both ways of breaking it fail the test; compose file unchanged; 3424 tests + 60 e2e + the walkthrough's 3; verified (see docs/work-log.md) |
+| 2026-10-07 | 12 | 0.8 | Claude through the Anthropic API (12X.3): `AnthropicAiClient` (`@anthropic-ai/sdk` 0.131.0, pinned) behind `AiClient`, and `getAi(env)` (no AI unless `AI_TRANSPORT=anthropic`), wired into the shifts-line reply job and the payroll digest; one request per call, no retries, 5 seconds with an `AbortSignal`; the SDK's settings that would come from the environment set in code, and its own `fetch` sends only the Messages API's address, a fixed set of headers and the settings' key; any error, refusal or empty answer is `AiUnavailableError`, so the code's fallback runs; one log line per call (purpose, model, token counts, stop reason); worker-only settings (anthropic refused in tests, pinned off in both test setups and checked by invariants); the key to the worker only; guardrails SAFE TO COMMIT (3 small fixes made); 3447 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 2: round 1 found the review's record missing from the log) (see docs/work-log.md) |

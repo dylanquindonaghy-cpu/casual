@@ -44,6 +44,7 @@
     "ops:test-alert": "node --env-file-if-exists=.env --import tsx scripts/ops-test-alert.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "drizzle-orm": "^0.45.3",
     "next": "^16.3.6",
     "nodemailer": "10.0.15",

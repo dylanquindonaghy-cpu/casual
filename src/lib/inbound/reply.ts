@@ -1,7 +1,8 @@
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
+import { getAi } from "../ai/anthropic";
 import { classifyMessage } from "../ai/classify-message";
-import { noAi, type AiClient } from "../ai/client";
+import type { AiClient } from "../ai/client";
 import { firms, messages, officeUsers, requests, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
@@ -560,9 +561,10 @@ export function inboundMessageTask(deps: () => InboundReplyDeps): FirmTask<Inbou
   return { ...inboundMessageJob, task: (payload, run) => runInboundMessage(payload, run, deps()) };
 }
 
-// The worker's wiring. No AI yet: "Connect the Anthropic API" (PLAN.md Parking lot) replaces
-// `noAi`, and until then every message no keyword matches goes to the office.
+// The worker's wiring. The AI is Claude once AI_TRANSPORT=anthropic ("Connect the Anthropic API",
+// PLAN.md Parking lot); until then `getAi` gives none, and every message no keyword matches goes
+// to the office.
 export const inboundMessageFirmTask = inboundMessageTask(() => {
   const env = workerEnv();
-  return { transport: getTransport(env), ai: noAi, baseDomain: env.APP_BASE_DOMAIN };
+  return { transport: getTransport(env), ai: getAi(env), baseDomain: env.APP_BASE_DOMAIN };
 });

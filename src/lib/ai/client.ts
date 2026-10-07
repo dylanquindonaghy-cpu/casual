@@ -2,9 +2,9 @@
 // Haiku for sorting and summaries). AI only reads, classifies, drafts and summarises; code decides
 // everything else (golden rule 1), and every answer is checked before use.
 //
-// Not connected yet: the Anthropic API is an outside service (PLAN.md Parking lot, "Connect the
-// Anthropic API"). Until then `noAi` answers every request with "unavailable" and callers use their
-// code fallback; tests use a fake. The Anthropic client is added behind this same interface.
+// The Anthropic client (src/lib/ai/anthropic.ts) is behind this interface, off until
+// AI_TRANSPORT=anthropic ("Connect the Anthropic API", PLAN.md Parking lot). Until then `noAi`
+// answers every request with "unavailable" and callers use their code fallback; tests use a fake.
 
 // Everything the AI may be asked to do: a summary line for payroll, and sorting a worker's message
 // on the shifts line into one of four labels (the reply is always the app's own fixed text). Nothing

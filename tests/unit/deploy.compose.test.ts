@@ -118,6 +118,14 @@ describe("deploy/docker-compose.yml", () => {
     for (const name of ["web", "caddy", "migrate"]) {
       expect(keys(name), name).not.toContain("SMTP_PASS");
     }
+    // AI (12X.3): the worker alone asks Claude, so only it gets the Anthropic key.
+    expect(keys("worker")).toEqual(
+      expect.arrayContaining(["AI_TRANSPORT", "ANTHROPIC_API_KEY", "AI_MODEL"]),
+    );
+    expect(services.worker?.environment?.AI_TRANSPORT).toBe("none");
+    for (const name of ["web", "caddy", "migrate"]) {
+      expect(keys(name), name).not.toContain("ANTHROPIC_API_KEY");
+    }
     for (const name of ["web", "worker", "caddy"]) {
       expect(keys(name), name).not.toContain("DATABASE_ADMIN_URL");
     }

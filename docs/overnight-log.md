@@ -8982,3 +8982,11 @@ new string); `docs/walkthrough.md` (where the office's "Log out" is now)
 **Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh`, then
 the `claims-auditor` with only the task text and Phase 11's "Done when". Fix only a gap it names.
 No code change expected. CI for `a164632`: passed (run 37514289670).
+
+**Restarted on `10617f4`:** Dylan added the approved mock-up as `docs/mockups/office-v2.html`
+(`10617f4`) while the first verify ran. That run was stopped before it finished: its stamp would
+have covered a file its lint and test steps never saw. One more cloud note, found in that run: the
+container's browser sends HTTPS through the agent proxy, which refuses the made-up
+`shifts.acme-events.test`, so `custom-domain.spec.ts` failed with `ERR_TUNNEL_CONNECTION_FAILED`.
+Test runs here add `.test` to `no_proxy` (the proxy stays on); the spec's 4 tests then pass.
+Read `docs/mockups/office-v2.html` wherever the handoff says `.dev/handoff/office-v2-mockup.html`.

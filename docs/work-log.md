@@ -9658,3 +9658,55 @@ Nothing now. When you're ready for AI: follow "Connect the Anthropic API" in PLA
 a key in a workspace with a monthly spend limit, and the data-processing checks before switching
 it on). One follow-up is parked there: before switching it on, make the shifts line stop asking
 the AI for a while after a few failures in a row.
+
+## 2026-10-07 — Phase 12, task 12A.1: colours and theme
+
+- **Time spent:** 0.6 hours (13:58 to 14:29 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=4496138f8e10a157 e2e=true`
+  (3,466 tests; browser tests: 63, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round and found no weakened
+  test.
+
+### What was built, in plain words
+
+The app now has a dark mode, a new font and one set of text sizes. Nothing about how it works
+changed.
+
+- **Dark mode (navy).** Every colour now comes from a named "token", with a light value and a dark
+  value. The dark one is the navy you chose (D7). A phone or computer set to dark mode gets it
+  automatically. In the office, a moon/sun button will let people pick (that button comes in the
+  next task); the choice is kept in a cookie and read by the server, so the page arrives in the
+  right colours with no white flash. Light mode looks the same as before.
+- **Readable in both.** A test measures every text-on-background pair in both themes against the
+  accessibility rules (4.5:1 for text, 3:1 for borders and buttons). All pass.
+- **No stray colours.** The 29 places that said "white", and the few that named a fixed grey or red,
+  now use tokens. A test fails if anyone writes a fixed colour again (the firm's own brand colour
+  is the only exception, and the brand bar looks exactly as before).
+- **The font: Plus Jakarta Sans.** It's served from the app itself, so nothing is fetched from
+  Google, and it includes the letters in names like Łukasz or Ștefan.
+- **One set of sizes:** 12, 13, 15, 18, 24 and 30 pixels, and nothing else. Every number lines up
+  (fixed-width digits), which helps with times and pay.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Keep today's light colours, add navy dark values | Light already passed its checks in Phase 11; D7 picked navy | Switching light to the mock-up's palette too (a bigger visual change, not asked for) |
+| Font from its npm package, not Google's loader | Google's loader downloads the font during every build (a network need for each Docker build) | `next/font/google` |
+| Office fields 18px on touch screens | iPhones zoom into any field under 16px; 18 is on the scale | 15px everywhere (zooms), 16px (not on the scale) |
+| Fixed-width digits on the whole page | "Every time, rate and count" is safest as one rule | Adding it to each number by hand |
+| Staff result messages at 24px, headings at 18px | 20px isn't on the scale; results ("You're booked.") are a page's main message | 18px for everything |
+
+### What the new tests prove
+
+The contrast test checks every colour pair in both themes, that every colour has a dark value,
+and that the dark values match your navy choice. A theme test checks the cookie is read correctly
+(only "light" or "dark"), that no page uses a fixed colour or a size outside the scale, and that no
+Google font is used. A browser test checks a dark cookie gives a navy page in the very first HTML
+the server sends, a dark phone gets navy without a cookie, and a "light" cookie wins over a dark
+phone. Screenshots at 375px and 390px in both themes were checked by eye.
+
+### What needs Dylan
+
+Nothing. Have a look in dark mode on your phone if you like: the casual pages follow your phone's
+setting.

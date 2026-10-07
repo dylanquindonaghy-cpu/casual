@@ -35,8 +35,8 @@ function olderHref(filters: LogFilters, before: string): string {
 // on a wide screen); the lines are compact rows, the time and type on the left, the words and the
 // shift on the right (stacked on a phone).
 //
-// Each line's first <p> is "{time} · {type}" and keeps `text-slate-600`, and its second <p> is the
-// words, with one link (the shift) at most: tests/e2e/office.log.spec.ts reads them that way.
+// Each line's first <p> is "{time} · {type}", and its second <p> is the words, with one link (the
+// shift) at most: tests/e2e/office.log.spec.ts reads them that way.
 export default async function ActionLogPage({
   searchParams,
 }: {
@@ -159,7 +159,7 @@ export default async function ActionLogPage({
               className={`${row} grid gap-x-6 gap-y-0.5 sm:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)]`}
             >
               <p
-                className={`text-sm text-slate-600 tabular-nums sm:pt-0.5${e.shift ? " sm:row-span-2" : ""}`}
+                className={`text-sm text-ink-muted tabular-nums sm:pt-0.5${e.shift ? " sm:row-span-2" : ""}`}
               >
                 {timeOnDay(e.at, log.timeZone)} · <span className="font-semibold">{e.type}</span>
               </p>

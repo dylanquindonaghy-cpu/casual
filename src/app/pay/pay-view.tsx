@@ -25,7 +25,7 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
               {hoursText(line.hours)} at {pounds(line.ratePence)} an hour
             </p>
             {line.grossPence !== null && (
-              <p className="mt-1 text-xl font-bold">Gross pay: {pounds(line.grossPence)}</p>
+              <p className="mt-1 text-2xl font-bold">Gross pay: {pounds(line.grossPence)}</p>
             )}
             {line.payDate && <p className="mt-1 text-base">Pay date: {dayLabel(line.payDate)}</p>}
           </li>

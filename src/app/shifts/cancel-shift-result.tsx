@@ -12,7 +12,7 @@ export function CancelShiftResult({
     case "cancelled":
       return (
         <div role="status" className="rounded-xl border-2 border-line-strong bg-quiet-soft p-4">
-          <p className="text-xl font-bold">We&apos;ve recorded your cancellation.</p>
+          <p className="text-2xl font-bold">We&apos;ve recorded your cancellation.</p>
           {outcome.when && <p className="mt-2 font-semibold tabular-nums">{outcome.when}</p>}
           {outcome.role && (
             <p>

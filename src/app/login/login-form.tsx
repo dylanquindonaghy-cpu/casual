@@ -16,7 +16,7 @@ export function LoginForm({ firmName, signOff }: { firmName: string; signOff: st
   if (state.status === "sent") {
     return (
       <div role="status" className="mt-6 rounded-xl border-2 border-done bg-done-soft p-4">
-        <p className="text-xl font-bold">Check your phone.</p>
+        <p className="text-2xl font-bold">Check your phone.</p>
         <p className="mt-2">
           If {firmName} has this number, we&apos;ve sent a link by WhatsApp or text. It works for 15
           minutes.

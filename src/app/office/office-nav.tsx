@@ -69,13 +69,13 @@ export function hiddenEdges(row: {
 // icon; the current one shaded, bold, with a dark bar at the sidebar's edge.
 const LINK =
   "flex min-h-11 shrink-0 items-center gap-3 whitespace-nowrap rounded-full border px-4 text-base lg:rounded-lg lg:border-transparent lg:px-3 lg:py-2 lg:whitespace-normal";
-const IDLE = `${LINK} border-line-strong bg-white font-semibold text-ink hover:bg-quiet-soft lg:bg-transparent lg:font-medium`;
-const ACTIVE = `${LINK} relative border-ink bg-ink font-semibold text-white lg:bg-quiet-soft lg:text-ink lg:before:absolute lg:before:inset-y-1.5 lg:before:-left-3 lg:before:w-1 lg:before:rounded-r-full lg:before:bg-ink`;
+const IDLE = `${LINK} border-line-strong bg-panel font-semibold text-ink hover:bg-quiet-soft lg:bg-transparent lg:font-medium`;
+const ACTIVE = `${LINK} relative border-ink bg-ink font-semibold text-on-ink lg:bg-quiet-soft lg:text-ink lg:before:absolute lg:before:inset-y-1.5 lg:before:-left-3 lg:before:w-1 lg:before:rounded-r-full lg:before:bg-ink`;
 // The "more links this way" arrow: a white band over the row's end, with a line on its inner
 // side. Hidden from screen readers (every link is still in the menu) and lets taps and swipes
 // through to the row. Phone and tablet only; it shows only while links are hidden that way.
 const EDGE =
-  "pointer-events-none absolute inset-y-0 flex items-center bg-white px-2 text-ink-muted lg:hidden";
+  "pointer-events-none absolute inset-y-0 flex items-center bg-panel px-2 text-ink-muted lg:hidden";
 // Room kept beside a link reached with the keyboard: more than the arrow's band (37px) plus the
 // focus ring (4px), so the link is never under the arrow.
 const KEEP_CLEAR = 48;
@@ -147,7 +147,7 @@ export function OfficeNav({ groups }: { groups: MenuGroup[] }) {
       aria-label="Office menu"
       // Desktop: pinned to the top, and never taller than the window less the firm's bar (3.5rem)
       // and the shell's pinned footer (4.5rem), so it never covers "Log out"; it scrolls inside.
-      className="relative border-b border-line bg-white lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:max-h-[calc(100dvh-8rem)] lg:self-start lg:overflow-y-auto lg:border-b-0"
+      className="relative border-b border-line bg-panel lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:max-h-[calc(100dvh-8rem)] lg:self-start lg:overflow-y-auto lg:border-b-0"
     >
       <div
         ref={strip}

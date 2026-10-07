@@ -27,7 +27,7 @@ export function OpenShiftCard({
           <StatusChip tone="urgent">Urgent</StatusChip>
         </div>
       )}
-      <p className="text-xl font-bold tabular-nums">{shiftWhen(s.startsAt, s.endsAt, timeZone)}</p>
+      <p className="text-lg font-bold tabular-nums">{shiftWhen(s.startsAt, s.endsAt, timeZone)}</p>
       <p className="mt-1 font-semibold">{roleLabel(s.role)}</p>
       {s.site && (
         <p className="mt-1">

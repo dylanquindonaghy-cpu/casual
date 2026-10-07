@@ -18,7 +18,7 @@ export function RequestResult({
     case "created":
       return (
         <div role="status" className="rounded-xl border-2 border-done bg-done-soft p-4">
-          <p className="text-xl font-bold">Request sent.</p>
+          <p className="text-2xl font-bold">Request sent.</p>
           <p className="mt-1">
             {KIND_NAMES[outcome.kind]}
             {outcome.when ? ` for ${outcome.when}` : ""}

@@ -3,7 +3,13 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Next compiles its font loader while building; tests get a stand-in (class names only).
+      "next/font/local": fileURLToPath(
+        new URL("./tests/helpers/next-font-local.ts", import.meta.url),
+      ),
+    },
   },
   test: {
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],

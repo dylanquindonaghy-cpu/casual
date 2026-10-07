@@ -59,7 +59,7 @@ export function LogoutButton({
         {pending ? "Logging out…" : "Log out"}
       </button>
       {problem ? (
-        <p role="alert" className="mt-3 text-lg font-semibold text-red-700">
+        <p role="alert" className="mt-3 text-lg font-semibold text-urgent">
           {logoutProblemText(kind, problem.outcome, problem.copyCleared)}
         </p>
       ) : null}

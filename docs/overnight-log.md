@@ -9528,3 +9528,98 @@ VERDICT: DONE
 
 Ticked; hours row added (0.8); `docs/work-log.md` updated. CI on 939c3f3 (the CI fix) is green
 (run 204), which also covers 12X.2's failed run 203 (the same test only).
+
+## 2026-10-07 13:58 UTC — Phase 12, task 12A.1: colours and theme
+
+**Task:** Colours and theme (§3.1; D7 navy), as written in `PLAN.md` (12A.1). No schema, auth or
+tenancy change.
+
+**What I found first:**
+- Hard-coded colours in `src/`: 29 `bg-white` in 16 files (as the task says), plus 8 `text-white`
+  (white on the dark `ink` and `urgent` fills: in a dark theme `ink` turns light, so these need
+  their own "text on a fill" tokens), 2 `text-slate-900`, 2 `text-slate-600`, 2 `bg-slate-700` and
+  2 `border-slate-700` (button hover), 1 `text-red-700` and 1 `border-red-700`. Hex values outside
+  the CSS are brand data only (`src/lib/tenancy/brand*.ts`, the seed) and the web app manifest's
+  splash colour.
+- Every page already renders per request (the root layout reads cookies and the host), so reading
+  the theme cookie there changes nothing about caching.
+- Text sizes in use: `text-xs` … `text-3xl`; `text-xl` (20px, 10 uses: the shared section heading
+  and 9 staff lines) is not in §3.1's scale (12 · 13 · 15 · 18 · 24 · 30). At 15px, an office field
+  would make iPhone Safari zoom in on focus (it zooms on any field under 16px).
+- Chips, switches' tracks and the current menu item already have a visible border, so §3.1's
+  "transparent 1px border for Windows high contrast" fix holds today. §3.1's light chip fixes
+  (#116b33, #9a4f00) are for the mock-up's own chip colours; ours use the darker `*-ink` colours
+  on the soft backgrounds, which already pass (checked in the new test).
+- `next/font/google` downloads the font while building (a network need for every build and the
+  Docker image); `next/font/local` with the font's npm package (`@fontsource-variable/
+  plus-jakarta-sans`, OFL) needs nothing but npm.
+
+**Plan:**
+- `src/app/globals.css`: the light tokens as today (values unchanged), plus `card`, `panel`,
+  `raised`, `on-ink` (text on an `ink` fill), `ink-hover`, `urgent-fill`, `urgent-fill-hover`,
+  `on-urgent` and `switch-off`; navy dark values for every token (D7: page #0f1626, panel #16203a,
+  card #1b2642, raised #22304f, muted text #a3b0c8, switch off #7c8aa8; `urgent-fill` #d92d20 with
+  white, §3.1) in a `[data-theme="dark"]` block and the same values in a `prefers-color-scheme:
+  dark` block guarded by `:not([data-theme="light"])`, each setting `color-scheme`. Picked with a
+  contrast script first: light text ≥ 5.91:1 and controls ≥ 3.81:1; dark text ≥ 4.83:1 and
+  controls ≥ 3.1:1.
+- The type scale as Tailwind's only sizes (`--text-*: initial`, then 12 · 13 · 15 · 18 · 24 · 30);
+  `text-xl` uses move to 18px (the section heading, a card's time) or 24px (a staff page's result
+  message, the pay figure); office fields 18px on touch screens (`pointer-coarse:`), so no zoom.
+  Fixed-width digits on the whole page (`body`), so every time, rate and count has them.
+- `src/app/layout.tsx`: the `sd-theme` cookie (`light` or `dark`, anything else ignored) into
+  `data-theme` on `<html>`; `<meta name="color-scheme" content="light dark">` through `viewport`;
+  Plus Jakarta Sans (latin and latin-ext, for names such as Łukasz) through `next/font/local` from
+  the npm package, as `--font-jakarta` under Tailwind's `font-sans`.
+- Every hard-coded colour above replaced by its token (in light, the same colour as today).
+- Tests: new `tests/unit/ui.contrast.test.ts` (every token pair meets its ratio in both themes,
+  every token has a dark value, the two dark blocks match, D7's and §3.1's values); a new
+  `tests/unit/ui.theme.test.ts` (the cookie's reading, the layout wiring, no hard-coded colours or
+  sizes outside the scale in `src/`, no Google font); a small new e2e `tests/e2e/theme.spec.ts`
+  (the cookie's theme is in the first HTML, so nothing flashes; the device's dark setting; an
+  explicit light cookie wins over it). `ui.design-system.test.ts` (the token table gains a dark
+  column; palette colours no longer allowed in `src/app/ui/`) and `office.today-summary.test.ts`
+  (`bg-white` becomes `bg-card`, §10) change with the product. `brand.spec.ts` unchanged.
+- Docs: `docs/ui-design.md` (tokens with both themes, the theme cookie, the scale, the font).
+
+**Built:** as planned, plus what building it showed:
+- **The latin-ext letters would never have used the font.** next/font gives each face a
+  metric-matched fallback (`local(Arial)` with adjusted sizes) that covers every character. In
+  the stack "jakarta, jakarta Fallback, jakartaExt, …" the "Ł" of a name came from that fallback
+  before the latin-ext face. The latin face now has none of its own
+  (`adjustFontFallback: false`); the built CSS shows `--font-jakarta: "jakarta"` and
+  `--font-jakarta-ext: "jakartaExt", "jakartaExt Fallback"`, so the order is latin, latin-ext,
+  then the fallback.
+- **Tests aren't built by Next,** so importing `next/font/local` failed in the two test files
+  that load the root layout and the error page ("default is not a function"). `vitest.config.ts`
+  maps it to `tests/helpers/next-font-local.ts` (the CSS variable's name as its classes; no file
+  read).
+- **The action log's browser test picked its lines by colour** (`p.text-slate-600`, unique to that
+  `<p>`). It now picks each line's first `<p>`, which the page's comment already promised; as
+  strict as before.
+- `portal.profile.test.ts` counted `border-red-700`; it now counts the same box's
+  `border-l-4 border-urgent bg-urgent-soft` (the same colour, as a token).
+- Checked by mutation: a `bg-white`, a palette text colour, a colour in a class (`bg-[#fff]`), a
+  hex in a component, a dark value with poor contrast, the device's dark block differing from the
+  cookie's, `text-xl` back on a page, and the layout without `data-theme` each fail a test.
+- **Looked at, at 375 and 390px** (and 1280px for the office), light and dark: staff login, "Check
+  your phone.", My shifts, open shifts, profile, office Today and Shifts. Light looks as before
+  with the new font; dark is navy with readable text, buttons and chips; the brand bar is the
+  firm's colour in both; no sideways scrolling.
+- Not changed: the home screen's splash colour in `src/app/manifest.ts` (a manifest can't follow a
+  theme); the error page that replaces the whole page (`global-error.tsx`) follows the device,
+  since it can't read the cookie.
+- No guardrails review: nothing touches schema, auth, tenancy, messaging, jobs or the rules
+  (CLAUDE.md step 4).
+
+**Verify:** `VERIFIED tree=4496138f8e10a157 e2e=true` (14:23 UTC): 3466 tests; 63 e2e (3 new) and
+the walkthrough's 3 on the production build.
+
+**Audit round 1:** every criterion PROVEN; "Changed existing tests (`git diff tests/`): none
+weakened"; no fakes. Its notes: the mock-up's own chip hexes (#116b33, #9a4f00) aren't used, since
+our chips' darker `*-ink` colours already pass (recorded above); no browser test asserts the drawn
+font (checked by eye). Verdict line, verbatim:
+
+VERDICT: DONE
+
+Ticked; hours row added (0.6); `docs/work-log.md` updated.

@@ -20,7 +20,7 @@ type Shown = Exclude<CreateRequestOutcome, { status: "logged_out" }>;
 
 // One answer to pick from, as a big bordered row; the picked one is outlined in ink.
 const choice =
-  "flex min-h-14 items-center gap-3 rounded-xl border-2 border-line-strong bg-white px-4 py-3 font-normal has-checked:border-ink has-checked:bg-quiet-soft";
+  "flex min-h-14 items-center gap-3 rounded-xl border-2 border-line-strong bg-card px-4 py-3 font-normal has-checked:border-ink has-checked:bg-quiet-soft";
 
 // New request: which shift, what kind (change the times, or swap), a short form, "Send request".
 // The answer replaces the form. The fields and the button wait for the page (docs/ui-design.md

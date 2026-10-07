@@ -97,7 +97,7 @@ export function ReviewResult({
     case "created":
       return (
         <div role="status" className="rounded-xl border-2 border-done bg-done-soft p-4">
-          <p className="text-xl font-bold text-done-ink">We&apos;ve sent this to the office.</p>
+          <p className="text-2xl font-bold text-done-ink">We&apos;ve sent this to the office.</p>
           <p className="mt-1">They&apos;ll look at why you can&apos;t take this shift.</p>
           <p className="mt-2">Sent at {outcome.sentAt}.</p>
           <p className="font-semibold tabular-nums">Reference: {outcome.ref}</p>

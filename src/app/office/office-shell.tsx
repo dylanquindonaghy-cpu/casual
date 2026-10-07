@@ -98,13 +98,13 @@ export function OfficeShell({
     <>
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:bg-ink focus:px-4 focus:py-3 focus:text-base focus:font-semibold focus:text-white"
+        className="sr-only focus:not-sr-only focus:bg-ink focus:px-4 focus:py-3 focus:text-base focus:font-semibold focus:text-on-ink"
       >
         Skip to content
       </a>
       <div
         data-shell="office"
-        className="flex flex-1 flex-col bg-white text-base text-ink lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:grid-rows-[1fr_auto]"
+        className="flex flex-1 flex-col bg-panel text-base text-ink lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:grid-rows-[1fr_auto]"
       >
         <OfficeNav groups={menu} />
         <div
@@ -117,7 +117,7 @@ export function OfficeShell({
         {/* On a desktop the footer is pinned to the bottom of the window (one row, 4.5rem tall)
             and the menu above it stops short of it (office-nav.tsx), so on a short laptop screen
             "Log out" is never hidden under the menu. */}
-        <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-line bg-white px-4 py-4 lg:sticky lg:bottom-0 lg:col-start-1 lg:row-start-2 lg:h-[4.5rem] lg:flex-nowrap lg:gap-x-3 lg:py-0">
+        <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-line bg-panel px-4 py-4 lg:sticky lg:bottom-0 lg:col-start-1 lg:row-start-2 lg:h-[4.5rem] lg:flex-nowrap lg:gap-x-3 lg:py-0">
           <div className="min-w-0">
             <p className="font-semibold break-words text-ink lg:truncate" title={name}>
               {name}

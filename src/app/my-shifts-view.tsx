@@ -219,7 +219,7 @@ function NextShift({ shift, timeZone, now }: MyShiftsViewProps & { shift: MyShif
   return (
     <section
       aria-labelledby="next-heading"
-      className="mt-6 rounded-2xl border-2 border-ink bg-white p-4"
+      className="mt-6 rounded-2xl border-2 border-ink bg-card p-4"
     >
       <h2 id="next-heading" className="text-base font-semibold text-ink-muted">
         {isOnNow(shift, now) ? "On now" : "Your next shift"}

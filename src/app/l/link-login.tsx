@@ -55,7 +55,7 @@ export function LinkLogin({
   if (token === null || rejected) {
     return (
       <div role="alert" className="mt-6">
-        <p className="text-xl font-semibold">This link has expired or was already used.</p>
+        <p className="text-2xl font-semibold">This link has expired or was already used.</p>
         <Link href={newLink} className={`${staffBtn.primary} mt-4`}>
           Send me a new link
         </Link>

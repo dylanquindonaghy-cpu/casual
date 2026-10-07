@@ -16,7 +16,7 @@ export function Steps({ children }: { children: ReactNode }) {
 
 export function Step({ children }: { children: ReactNode }) {
   return (
-    <li className="relative min-h-7 pl-10 [counter-increment:step] before:absolute before:top-0 before:left-0 before:flex before:size-7 before:items-center before:justify-center before:rounded-full before:bg-ink before:text-sm before:leading-none before:font-bold before:text-white before:tabular-nums before:content-[counter(step)]">
+    <li className="relative min-h-7 pl-10 [counter-increment:step] before:absolute before:top-0 before:left-0 before:flex before:size-7 before:items-center before:justify-center before:rounded-full before:bg-ink before:text-sm before:leading-none before:font-bold before:text-on-ink before:tabular-nums before:content-[counter(step)]">
       {children}
     </li>
   );

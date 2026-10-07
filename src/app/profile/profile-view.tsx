@@ -87,7 +87,7 @@ export function ProfileView({
                   key={`${c.type}:${i}`}
                   className={
                     blocked
-                      ? "border-l-4 border-red-700 bg-urgent-soft py-3 pr-4 pl-3 text-urgent-ink"
+                      ? "border-l-4 border-urgent bg-urgent-soft py-3 pr-4 pl-3 text-urgent-ink"
                       : "px-4 py-3"
                   }
                 >

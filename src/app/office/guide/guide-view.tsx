@@ -110,7 +110,7 @@ export function GuideView({
               key={s.id}
               id={s.id}
               aria-labelledby={`${s.id}-title`}
-              className="scroll-mt-6 rounded-xl border border-line bg-white p-5 shadow-sm sm:p-6"
+              className="scroll-mt-6 rounded-xl border border-line bg-card p-5 shadow-sm sm:p-6"
             >
               <h2 id={`${s.id}-title`} className={h2}>
                 {s.title}

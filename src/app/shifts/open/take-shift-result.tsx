@@ -16,7 +16,7 @@ export function TakeShiftResult({
     case "booked":
       return (
         <div role="status" className="rounded-xl border-2 border-done bg-done-soft p-4">
-          <p className="text-xl font-bold text-done-ink">You&apos;re booked.</p>
+          <p className="text-2xl font-bold text-done-ink">You&apos;re booked.</p>
           {outcome.when && <p className="mt-2 font-semibold tabular-nums">{outcome.when}</p>}
           {outcome.role && (
             <p>

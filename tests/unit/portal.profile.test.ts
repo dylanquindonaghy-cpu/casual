@@ -111,7 +111,7 @@ describe("ProfileView", () => {
       "SIA close protection licence Suspended · expires 1 Jan 2028 You can't take shifts that need it. Contact the office.",
     );
     // Only the expired and suspended ones are red, and each says what to do.
-    expect(html.match(/border-red-700/g)).toHaveLength(2);
+    expect(html.match(/border-l-4 border-urgent bg-urgent-soft/g)).toHaveLength(2);
     expect(page.match(/Renew it/g)).toHaveLength(1);
     expect(page.match(/Contact the office/g)).toHaveLength(1);
   });

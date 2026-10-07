@@ -21,25 +21,57 @@ Principles, in order:
 
 ## Tokens (`src/app/globals.css`, Tailwind v4 `@theme`)
 
-| Token | Value | Use |
-|---|---|---|
-| `ink` | `#0f172a` | Main text, primary buttons, active menu item |
-| `ink-muted` | `#475569` | Secondary text, meta lines, eyebrows (7.6:1 on white) |
-| `line` | `#e2e8f0` | Dividers and card borders (decorative only) |
-| `line-strong` | `#64748b` | Input and secondary button borders (4.8:1, meets 3:1) |
-| `canvas` | `#f8fafc` | Office page background behind cards |
-| `urgent` / `urgent-soft` / `urgent-ink` | `#b91c1c` / `#fef2f2` / `#7f1d1d` | Act now |
-| `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fffbeb` / `#78350f` | Someone needs to act |
-| `done` / `done-soft` / `done-ink` | `#15803d` / `#f0fdf4` / `#14532d` | Fine, finished |
-| `quiet-soft` / `quiet-ink` | `#f1f5f9` / `#334155` | Information, closed |
+Two themes: light, and a navy dark (D7 in `docs/office-v2.md`). The light values are the `@theme`
+block; the dark values redefine the same tokens. Every pair a page uses meets its contrast in both
+(`tests/unit/ui.contrast.test.ts`).
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `ink` | `#0f172a` | `#e8edf7` | Main text, primary buttons, the current menu item, the focus ring |
+| `ink-muted` | `#475569` | `#a3b0c8` | Secondary text, meta lines, eyebrows (7.6:1 on white; 6.8:1 on the dark card) |
+| `ink-hover` / `on-ink` | `#334155` / `#ffffff` | `#c3cddf` / `#0f1626` | A primary button under the pointer; text on an `ink` fill |
+| `line` | `#e2e8f0` | `#2c3a5c` | Dividers and card borders (decorative only) |
+| `line-strong` | `#64748b` | `#7c8aa8` | Input and secondary button borders (at least 3:1) |
+| `canvas` | `#f8fafc` | `#0f1626` | Office page background behind cards (D7's "page") |
+| `card` | `#ffffff` | `#1b2642` | Cards, fields, and the page behind staff pages |
+| `panel` | `#ffffff` | `#16203a` | The office menu and its footer |
+| `raised` | `#f4f6fa` | `#22304f` | Something lifted off a card |
+| `switch-off` | `#7a8396` | `#7c8aa8` | A switch's track when off (at least 3.5:1) |
+| `urgent` / `urgent-soft` / `urgent-ink` | `#b91c1c` / `#fef2f2` / `#7f1d1d` | `#ff8b80` / `#3d1d26` / `#ffc7c0` | Act now |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#b91c1c` / `#7f1d1d` / `#ffffff` | `#d92d20` / `#b42318` / `#ffffff` | Count badges, urgent chips, the final destructive button (white on `#d92d20`: 4.83:1) |
+| `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fffbeb` / `#78350f` | `#f2a541` / `#36291a` / `#ffd699` | Someone needs to act |
+| `done` / `done-soft` / `done-ink` | `#15803d` / `#f0fdf4` / `#14532d` | `#4ccb83` / `#132f22` / `#b0efca` | Fine, finished |
+| `quiet-soft` / `quiet-ink` | `#f1f5f9` / `#334155` | `#26324f` / `#d0d8e6` | Information, closed |
+
+No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palette shade, no colour
+value in a class or a style): the firm's brand colour, which the brand bar reads from the firm's
+settings, is the one exception (`tests/unit/ui.theme.test.ts`).
+
+**Light or dark.** The `sd-theme` cookie (`light` or `dark`; none, or anything else, means follow
+the device) is read by the root layout (`src/app/layout.tsx`, `src/app/theme.ts`), which writes
+`data-theme` onto `<html>`, so the page arrives in its colours and nothing flashes. With no cookie,
+a `prefers-color-scheme: dark` block gives the dark values, guarded so an explicit
+`data-theme="light"` wins. Each theme sets `color-scheme`, and the page carries `<meta
+name="color-scheme" content="light dark">`, so the browser's own controls and scrollbars match.
+The office's moon/sun button sets the cookie (12A.2); casual pages follow the device. The firm's
+brand bar stays exactly as it is in both.
 
 Focus: every focusable element shows a 2px `ink` outline with a 2px offset on `:focus-visible`.
 Buttons get `cursor: pointer`. File inputs get a visible "choose" button
-(`::file-selector-button`). Numbers that line up (times, counts, money, notice hours) use
-`tabular-nums`.
+(`::file-selector-button`). Every digit on a page is fixed-width (`tabular-nums` on `body`), so
+times, counts, money and notice hours line up.
 
-Type: office pages use 16px body (the shell sets `text-base`), 14px meta, 20px section headings,
-30px page titles. Staff pages keep 18px body and their big buttons.
+**Type.** One scale, and Tailwind offers no other size: 12px (`text-xs`), 13px (`text-sm`), 15px
+(`text-base`), 18px (`text-lg`), 24px (`text-2xl`), 30px (`text-3xl`). Office pages use 15px body
+(the shell sets `text-base`), 13px meta, 18px section headings, 30px page titles. Staff pages keep
+18px body and their big buttons, with 24px for a page's result ("You're booked."). Office fields
+are 18px on a touch screen (`pointer-coarse:text-lg`), because iPhones zoom in on a field under
+16px.
+
+**Font.** Plus Jakarta Sans, self-hosted with `next/font/local` from its npm package
+(`@fontsource-variable/plus-jakarta-sans`, SIL Open Font License), latin and latin-ext (for names
+such as Łukasz; downloaded only when a page has such a letter), then the system's font. Nothing is
+fetched from Google, while building or while running (`src/app/fonts.ts`).
 
 ## Shared components (`src/app/ui/`)
 
@@ -95,11 +127,11 @@ session the login page sends you on to `/office` as before.
   the full width.
 - **Phone and tablet:** the same menu, as one row of links under the brand bar that scrolls
   sideways (the current page is scrolled into view). Every link is visible without opening
-  anything. While links are hidden past an edge, that edge shows an arrow (a chevron on a white
-  band with a thin line on its inner side, over the end of the row; no gradient, no animation),
-  measured when the page opens, on every scroll and on every resize, and gone once you reach that
-  end. The arrows are `aria-hidden` and let taps and swipes through to the row; a link reached
-  with the keyboard is scrolled 48px clear of them. There is no "Menu" button: the browser tests
+  anything. While links are hidden past an edge, that edge shows an arrow (a chevron on a band of
+  the menu's colour with a thin line on its inner side, over the end of the row; no gradient, no
+  animation), measured when the page opens, on every scroll and on every resize, and gone once you
+  reach that end. The arrows are `aria-hidden` and let taps and swipes through to the row; a link
+  reached with the keyboard is scrolled 48px clear of them. There is no "Menu" button: the browser tests
   click menu links at phone width, and a `<details>` menu would add a `group` role that breaks the
   event-shifts page tests.
 - **Menu groups** (labels are words, not headings; links only appear for roles that can open
@@ -141,7 +173,7 @@ session the login page sends you on to `/office` as before.
   opening with `PageHeader` (the login pages and error pages with their one `<h1>`). An alert that
   is a list puts `role="alert"` on a box around it, so the list keeps its own role.
 - **Action card:** for items with buttons (urgent shifts, requests, bookings to check, pay query
-  groups). White card, status chip on the first line, the title link, meta lines, then the
+  groups). A card, status chip on the first line, the title link, meta lines, then the
   actions with the main one first.
 - **Compact row:** for read-only or repeated items (gaps, who worked, shifts list, cancellations,
   log, history, offers). Divided rows inside one card, one line on desktop, two on phone.

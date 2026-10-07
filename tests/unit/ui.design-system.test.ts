@@ -17,28 +17,38 @@ const css = read("src/app/globals.css");
 const UI_DIR = "src/app/ui";
 const uiFiles = readdirSync(join(process.cwd(), UI_DIR)).filter((f) => /\.tsx?$/.test(f));
 
-// `--color-x: #value;` inside the @theme block.
-function themeTokens(): Map<string, string> {
-  const block = css.match(/@theme\s*\{([^}]*)\}/)?.[1] ?? "";
+// `--color-x: #value;` inside a block: the light theme is the @theme block, the dark theme the
+// `:root[data-theme="dark"]` block (tests/unit/ui.contrast.test.ts checks the device's dark block
+// holds the same).
+function colours(block: string): Map<string, string> {
   return new Map(
     [...block.matchAll(/--color-([a-z-]+):\s*([^;]+);/g)].map((m) => [m[1]!, m[2]!.trim()]),
   );
 }
+const themeTokens = () => colours(css.match(/@theme\s*\{([^}]*)\}/)?.[1] ?? "");
+const darkTokens = () => colours(css.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/)?.[1] ?? "");
 
-// The doc's token table: "| `urgent` / `urgent-soft` | `#b91c1c` / `#fef2f2` | Act now |".
-function docTokens(): Map<string, string> {
+// The doc's token table: "| `urgent` / `urgent-soft` | `#b91c1c` / `#fef2f2` | `#ff8b80` /
+// `#3d1d26` | Act now |", the light values then the dark ones.
+function docTokens(): { light: Map<string, string>; dark: Map<string, string> } {
   const doc = read("docs/ui-design.md");
   const section = doc.slice(doc.indexOf("## Tokens"), doc.indexOf("## Shared components"));
-  const tokens = new Map<string, string>();
+  const light = new Map<string, string>();
+  const dark = new Map<string, string>();
   for (const line of section.split("\n")) {
     const cells = line.split("|").map((c) => c.trim());
-    if (cells.length < 4 || !cells[1]!.startsWith("`")) continue;
+    if (cells.length < 5 || !cells[1]!.startsWith("`")) continue;
     const names = [...cells[1]!.matchAll(/`([a-z-]+)`/g)].map((m) => m[1]!);
-    const values = [...cells[2]!.matchAll(/`(#[0-9a-f]{6})`/gi)].map((m) => m[1]!);
-    expect(values, `token row: ${line}`).toHaveLength(names.length);
-    names.forEach((name, i) => tokens.set(name, values[i]!));
+    for (const [column, into] of [
+      [cells[2]!, light],
+      [cells[3]!, dark],
+    ] as const) {
+      const values = [...column.matchAll(/`(#[0-9a-f]{6})`/gi)].map((m) => m[1]!);
+      expect(values, `token row: ${line}`).toHaveLength(names.length);
+      names.forEach((name, i) => into.set(name, values[i]!));
+    }
   }
-  return tokens;
+  return { light, dark };
 }
 
 // The CSS rule for a selector, by its exact text.
@@ -49,10 +59,11 @@ function rule(selector: string): string {
 }
 
 describe("colour tokens (src/app/globals.css)", () => {
-  it("match docs/ui-design.md's table, both ways", () => {
+  it("match docs/ui-design.md's table, both ways, in both themes", () => {
     const fromDoc = docTokens();
-    expect(fromDoc.size).toBeGreaterThan(0);
-    expect(Object.fromEntries(themeTokens())).toEqual(Object.fromEntries(fromDoc));
+    expect(fromDoc.light.size).toBeGreaterThan(0);
+    expect(Object.fromEntries(themeTokens())).toEqual(Object.fromEntries(fromDoc.light));
+    expect(Object.fromEntries(darkTokens())).toEqual(Object.fromEntries(fromDoc.dark));
   });
 
   it("one focus ring: a 2px ink outline with a 2px offset, for keyboard focus", () => {
@@ -75,10 +86,11 @@ describe("the shared pieces (src/app/ui/)", () => {
     /(?<![\w-])(?:[a-z0-9-]+:)*(bg|text|border|divide|decoration|outline|ring)-([a-z0-9-]+)(?:\/\d+)?(?![\w-])/g;
   const NOT_A_COLOUR =
     /^(\d+|[xytblrse](-\d+)?|xs|sm|base|lg|\d?xl|center|left|right|start|end|balance|pretty|wrap|nowrap|collapse|separate|solid|dashed|dotted|none|offset-\d+)$/;
-  // Tailwind's own neutrals: white, and a palette shade such as slate-700.
-  const BUILT_IN = /^(white|black|transparent|current|[a-z]+-(50|[1-9]00|950))$/;
+  // Not colours of their own: see-through, and the text's own colour. Tailwind's white, black
+  // and palette shades are no longer allowed (12A.1: they'd stay the same in the dark theme).
+  const BUILT_IN = /^(transparent|current)$/;
 
-  it("every colour class names a token or a built-in colour (a typo would style nothing)", () => {
+  it("every colour class names a token (a typo would style nothing; a palette colour ignores the theme)", () => {
     const tokens = themeTokens();
     const unknown: string[] = [];
     let checked = 0;

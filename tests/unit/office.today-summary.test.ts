@@ -173,9 +173,9 @@ const LOOKS = {
     number: "text-attention-ink",
     icon: 'r="8.5"',
   },
-  quiet: { tile: ["border-line-strong", "bg-white"], number: "text-ink", icon: 'd="M6 12h12"' },
+  quiet: { tile: ["border-line-strong", "bg-card"], number: "text-ink", icon: 'd="M6 12h12"' },
   calm: {
-    tile: ["border-line", "bg-white"],
+    tile: ["border-line", "bg-card"],
     number: "text-ink-muted",
     icon: 'd="m5 12.5 4.5 4.5L19 7.5"',
   },

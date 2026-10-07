@@ -114,7 +114,7 @@ export function ShiftView({
             aria-labelledby="why-heading"
             className="rounded-xl border-2 border-urgent bg-urgent-soft p-4 text-urgent-ink"
           >
-            <h2 id="why-heading" className="text-xl font-bold">
+            <h2 id="why-heading" className="text-lg font-bold">
               You can&apos;t take this shift:
             </h2>
             <ul className="mt-2 list-disc pl-5">

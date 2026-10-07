@@ -39,7 +39,8 @@ test("filter the action log by type and worker, and follow a shift", async ({ pa
   await expect(page).toHaveURL(/type=cancellations/);
   const lines = page.locator("main li");
   await expect(lines.first()).toBeVisible();
-  for (const kind of await lines.locator("p.text-slate-600").allTextContents()) {
+  // Each line's first <p> is "{time} · {type}" (src/app/office/log/page.tsx).
+  for (const kind of await lines.locator("p:first-child").allTextContents()) {
     expect(kind).toMatch(/ · Cancellations$/);
   }
   // A worker's own cancellation (the demo's dropout, or one another spec made).

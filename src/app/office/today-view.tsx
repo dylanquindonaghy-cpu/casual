@@ -97,8 +97,8 @@ const TILE_TONE: Record<TileTone, { tile: string; number: string; icon: string }
     number: "text-attention-ink",
     icon: "text-attention",
   },
-  quiet: { tile: "border-line-strong bg-white", number: "text-ink", icon: "text-quiet-ink" },
-  calm: { tile: "border-line bg-white", number: "text-ink-muted", icon: "text-done" },
+  quiet: { tile: "border-line-strong bg-card", number: "text-ink", icon: "text-quiet-ink" },
+  calm: { tile: "border-line bg-card", number: "text-ink-muted", icon: "text-done" },
 };
 
 // The tone icons (the same drawings as the status chips'): decorative, beside words.

@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
-// The few icons the office menu and the office guide use: 20px line drawings in the text colour,
-// hand-written (no icon library; inline SVG also works in the offline copy). Always beside words
-// or purely visual cues, so hidden from screen readers. Hook-free: safe in server and client
-// components.
+// The few icons the office's top bar, its menu and the office guide use: 20px line drawings in
+// the text colour, hand-written (no icon library; inline SVG also works in the offline copy).
+// Always beside words or purely visual cues, so hidden from screen readers. Hook-free: safe in
+// server and client components.
 
 const PATHS = {
   // Today, and payroll's Home: a house.
@@ -115,10 +115,28 @@ const PATHS = {
       <path d="M20 12H9.5" />
     </>
   ),
-  // More this way: an arrow head pointing right (`rotate-180` points it left). The phone menu
-  // row's "more links" cue, and the arrow on each link in the office guide's contents (below
-  // 1280px).
+  // More this way: an arrow head pointing right (`rotate-180` points it left, `rotate-90` down).
+  // The arrow on each link in the office guide's contents (below 1280px), and the account button's.
   chevron: <path d="m9 5.5 6.5 6.5L9 18.5" />,
+  // The office's Menu button (phones and tablets): three lines.
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  // Closing the menu drawer: a cross.
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  // The theme button: a moon (switch to dark), a sun (switch to light).
+  moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />,
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+    </>
+  ),
+  // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.
+  mark: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15" rx="3" />
+      <path d="M8 3v4M16 3v4M3.5 10h17M8.5 14.5l2.5 2.5 4.5-5" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

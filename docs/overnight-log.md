@@ -9623,3 +9623,95 @@ font (checked by eye). Verdict line, verbatim:
 VERDICT: DONE
 
 Ticked; hours row added (0.6); `docs/work-log.md` updated.
+
+## 2026-10-07 14:34 UTC — Phase 12, task 12A.2: office shell and menu
+
+**Task:** Office shell and menu (§3.1), as written in `PLAN.md` (12A.2). No schema, auth or
+tenancy change (no area is added or changed in `src/lib/auth/roles.ts`).
+
+**What I found first:**
+- A `<dialog>` that is closed but shown by CSS (the obvious way to make one `<nav>` both the
+  desktop sidebar and the phone drawer) is announced as a "dialog" on desktop: checked in this
+  Chromium (141) with an accessibility snapshot. So the one `<nav>` sits in the sidebar, and on a
+  phone moves into the native `<dialog>` while the drawer is open; there is never more than one
+  `<nav>` on the page.
+- An account menu built with `<details>` would add a `group` role to every office page (Phase 11
+  ruled this out for the menu). The native popover (`popover` / `popovertarget`, typed in this
+  React) adds no role, closes with Escape and a tap outside, and works without scripts.
+- §3.1 keeps the firm's brand bar on staff pages and logged-out office pages; on logged-in office
+  pages the new top bar names the firm under ShiftDesk's mark, so the bar is hidden there.
+- The office guide describes the phone row and the footer's "Log out" ("Getting around"), so its
+  words change with the shell.
+
+**Plan:**
+- `src/app/office/office-shell.tsx` (server): the v2 groups holding today's pages: Operations
+  (Today, Shifts, Requests), Pay (payroll's Home, Pay queries, Import pay records), Records
+  (Workers, Action log, Notice report, Pilot metrics), Configuration (Office team, Data requests),
+  Help (How-to guide); each role sees only what it can open; "Data requests (download or delete)"
+  becomes "Data requests". Menu links can carry a badge count, drawn outside the link's name.
+- A client frame (`office-frame.tsx`): the top bar (a "Menu" button below 1024px, ShiftDesk's
+  mark with "ShiftDesk" and the firm's name, the moon/sun button, the account button with
+  initials, name and role opening How-to guide and Log out); the 272px sidebar from 1024px; below
+  that the drawer, a native `<dialog>` opened with `showModal()` (Escape, the backdrop and a
+  "Close menu" button close it; it closes on moving to another page and on widening to 1024px;
+  focus goes back to the Menu button; closed, it isn't in the page, so nothing in it can be
+  tabbed to). The Menu and theme buttons wait for the page to be ready (`useHydrated`), so a tap
+  is never lost.
+- `theme-button.tsx`: sets the `sd-theme` cookie (a year) and `data-theme` on `<html>` at once;
+  its label says what it switches to; a visible tooltip on hover and focus.
+- `office-nav.tsx`: the links (no list items, headings, regions or `menu` roles), current page
+  and section marked as today (`aria-current`), the current link with a 3px bar and the soft
+  background. The phone row, its edge arrows and `hiddenEdges` go.
+- The brand bar is hidden under the office shell (CSS); the guide's "Getting around" words and
+  its menu map follow the new menu.
+- Tests: `office.shell.test.ts` rewritten (labels per role in v2 groups, current link, markup
+  rules, the badge outside the name, the top bar and its buttons, the drawer's markup, the shell's
+  order); `office.roles.test.ts` (every menu link's area exists, and the menu never offers a role
+  a page it can't open); new e2e `office.shell.spec.ts` (drawer, Escape, focus back, no tabbing
+  into it closed; theme button switches and keeps after a reload with no flash; account button
+  shows name and role; run in both themes); `menuLink(page, name)` in `tests/e2e/fixtures.ts`
+  used by every spec in §10 that clicks the menu, the absence checks opening the menu first, and
+  "Log out" through the account menu (`login.office`, `office.shifts`, the walkthrough).
+- Docs: `docs/screens.md` office shell; `docs/ui-design.md` office shell; `docs/walkthrough.md`
+  (the renamed link, "Log out" in the account menu).
+
+**Built:** as planned, plus what building it showed:
+- **Six logins of one seeded user in a minute hit its login limit** (3 links per email per 15
+  minutes): the new spec's tests each add their own resourcer (`addOfficeUser`), as other specs do.
+- **"Focus never enters the menu" first matched the Today page's own `<nav>`**: the check now
+  looks for the office menu and the drawer by name and id.
+- **The tooltip test hovered on the test phone,** which has no hover (Tailwind's `hover:` only
+  applies where a device can hover); it now checks the words show on keyboard focus.
+- **React writes `popoverTarget`** in the server's HTML (attribute names ignore case, so browsers
+  read it as `popovertarget`); the unit test matches it either way.
+- The menu moved into its own plain module (`office-menu.ts`), so the roles test and the guide
+  load it without the frame's browser code.
+- A hydration warning seen once in a screenshot run (a `style` on the Shifts page's date field)
+  doesn't happen on a normal load: the server sends no `style` there and a fresh load logs no
+  error (checked with a throwaway spec, deleted). Playwright's screenshot touched the page while
+  it hydrated.
+- **Looked at, at 375 and 390px and 1280px, light and dark:** the top bar, the open drawer
+  (groups, the marked page, the dimmed page beside it), the account menu. No sideways scrolling
+  at 375 or 390px (measured).
+- Not done: the firm's brand bar on logged-in office pages is hidden rather than removed from the
+  root layout (the layout can't tell an office page with a session from one without).
+- **The first full verify failed 3 browser tests (NOT VERIFIED), both mine:** (1) `menuLink`
+  called a second time while the drawer was already open found both the menu and the Menu button
+  (still visible behind the open drawer): a strict-mode clash. It now opens the drawer only when
+  the menu isn't already showing. (2) `office.shifts.spec.ts` still checked the old phone row
+  (sideways scrolling, `overflow-x: auto`), which this task removes ("the phone row's … tests go
+  with the row"): it now checks what replaced it, the drawer shut again after choosing a link with
+  "Menu" there to open it. The three specs then passed (12 tests); verify re-run.
+
+**Verify (final):** `VERIFIED tree=9d3423194bb3ef8c e2e=true` (15:13 UTC): 3477 tests; 69 e2e and
+the walkthrough's 3 on the production build; no hydration warning in either server's log.
+
+**Audit round 1:** every criterion PROVEN; "Weakening check (`git diff tests/`): none found"; no
+fakes. Its notes: the 272px width and the 1024px boundary are CSS only (no test pins them); the
+mark is hidden below 640px (the word "ShiftDesk" and the firm's name show); no real badge count
+yet (the pay dashboard task adds the first); the `scrim` token is exempt from the contrast pairs
+as decorative. Verdict line, verbatim:
+
+VERDICT: DONE
+
+Ticked; hours row added (0.8); `docs/work-log.md` updated.

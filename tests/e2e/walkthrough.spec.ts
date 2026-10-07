@@ -7,6 +7,7 @@ import { WALKTHROUGH_OUTBOX, WALKTHROUGH_PORT } from "../../playwright.walkthrou
 import { seedFirms } from "../../src/lib/db/admin/seed-data";
 import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
 import { setFirmSetting } from "./db";
+import { accountMenu, menuLink } from "./fixtures";
 import { emailSentTo, sentTo } from "./outbox";
 
 // docs/walkthrough.md, step by step (Phase 10 task 20): what Dylan does on his own computer, done
@@ -110,10 +111,11 @@ async function officeLogin(page: Page, email: string, base = acme) {
   await expect(page).toHaveURL(`${base}/office`);
 }
 
-// "Log out" is at the bottom of My shifts, and at the bottom of the office menu.
+// "Log out" is at the bottom of My shifts, and in the office's account menu (12A.2).
 async function logOut(page: Page, home: string) {
   await page.goto(home);
-  await page.getByRole("button", { name: "Log out" }).click();
+  const where = home.includes("/office") ? await accountMenu(page) : page;
+  await where.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/(office\/)?login/);
 }
 
@@ -313,7 +315,7 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("23. Answer a request", async () => {
-    await page.getByRole("link", { name: "Requests", exact: true }).click();
+    await (await menuLink(page, "Requests")).click();
     await expect(page).toHaveURL(`${acme}/office/requests`);
     const card = page
       .getByRole("region", { name: "Waiting for an answer" })
@@ -343,7 +345,7 @@ test("Part 3: as the office", async ({ browser }) => {
   let booked = "";
   await test.step("25. Make a shift and book someone", async () => {
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Shifts", exact: true }).click();
+    await (await menuLink(page, "Shifts")).click();
     await page.getByRole("link", { name: "New shift" }).click();
     await page.getByLabel("Date").fill(daysFromToday(9));
     await page.getByLabel("Role").fill("steward");
@@ -400,7 +402,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("27. A whole event, and an import", async () => {
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Shifts", exact: true }).click();
+    await (await menuLink(page, "Shifts")).click();
     await page.getByRole("link", { name: "Shifts for an event" }).click();
     await page.getByLabel("Date").fill(daysFromToday(13));
     const lines = page.getByRole("group");
@@ -431,7 +433,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("28. Workers", async () => {
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Workers", exact: true }).click();
+    await (await menuLink(page, "Workers")).click();
     await page.getByLabel("Name or mobile number").fill("Zoe");
     await page.getByRole("button", { name: "Find" }).click();
     await page.getByRole("link", { name: ZOE.name }).click();
@@ -440,7 +442,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("29. The action log", async () => {
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Action log" }).click();
+    await (await menuLink(page, "Action log")).click();
     await expect(page.getByRole("heading", { name: "Action log" })).toBeVisible();
     await page.getByLabel("Type").selectOption({ label: "Cancellations" });
     await page.getByRole("button", { name: "Show" }).click();
@@ -452,7 +454,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("30. The notice report: the office's cancellation (audit L25) and Zoe's", async () => {
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Notice report" }).click();
+    await (await menuLink(page, "Notice report")).click();
     await expect(
       page.getByRole("heading", { name: "Notice and cancellation report" }),
     ).toBeVisible();
@@ -470,7 +472,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("31. Pilot metrics", async () => {
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Pilot metrics" }).click();
+    await (await menuLink(page, "Pilot metrics")).click();
     const baseline = page.getByRole("region", { name: "Baseline (week 0)" });
     await baseline.getByLabel("Staff emails per day").fill("40");
     await baseline.getByRole("button", { name: "Save the baseline" }).click();
@@ -480,7 +482,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("32. Log in as payroll: the pay queries, and the digest", async () => {
     await officeLogin(page, "acme.payroll@example.com");
-    await page.getByRole("link", { name: "Pay queries" }).click();
+    await (await menuLink(page, "Pay queries")).click();
     await expect(page).toHaveURL(`${acme}/office/pay-queries`);
     await expect(
       page.getByRole("region", { name: /^7 queries: wrong rate, the week of / }),
@@ -526,7 +528,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("34. Import pay records", async () => {
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Import pay records" }).click();
+    await (await menuLink(page, "Import pay records")).click();
     await page.getByLabel("Your file (.csv or .xlsx)").setInputFiles({
       name: "pay.csv",
       mimeType: "text/csv",
@@ -546,13 +548,13 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("35. Log in as the admin: the office team, and Zoe's data", async () => {
     await officeLogin(page, "acme.admin@example.com");
-    await page.getByRole("link", { name: "Office team" }).click();
+    await (await menuLink(page, "Office team")).click();
     await expect(page.getByRole("heading", { name: "Office team" })).toBeVisible();
     for (const name of ["Admin (demo)", "Resourcer (demo)", "Payroll (demo)"]) {
       await expect(page.getByRole("listitem").filter({ hasText: name })).toBeVisible();
     }
     await page.goto(`${acme}/office`);
-    await page.getByRole("link", { name: "Data requests (download or delete)" }).click();
+    await (await menuLink(page, "Data requests")).click();
     await page.getByLabel("Name or mobile number").fill(ZOE.typed);
     await page.getByRole("button", { name: "Find" }).click();
     await page.getByRole("link", { name: ZOE.name }).click();
@@ -567,7 +569,7 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("36. Northline: the short-notice cancellation by the office (audit L25)", async () => {
     await officeLogin(page, "northline.admin@example.com", northline);
-    await page.getByRole("link", { name: "Notice report" }).click();
+    await (await menuLink(page, "Notice report")).click();
     const row = page.getByRole("row").filter({ hasText: "Weather or safety" });
     await expect(row).toHaveCount(1);
     await expect(row).toContainText("Yes"); // short notice
@@ -624,7 +626,7 @@ test("Part 4: the fake phone", async ({ browser }) => {
       asked,
       /^(Thanks for your voicemail\. The office will see it and get back to you\. Ref [0-9A-F]{8}\.)/,
     );
-    await page.getByRole("link", { name: "Requests", exact: true }).click();
+    await (await menuLink(page, "Requests")).click();
     await expect(
       page.getByText("From a voicemail on the shifts line.", { exact: false }).first(),
     ).toBeVisible();

@@ -9710,3 +9710,55 @@ phone. Screenshots at 375px and 390px in both themes were checked by eye.
 
 Nothing. Have a look in dark mode on your phone if you like: the casual pages follow your phone's
 setting.
+
+## 2026-10-07 — Phase 12, task 12A.2: office shell and menu
+
+- **Time spent:** 0.8 hours (14:34 to 15:21 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=9d3423194bb3ef8c e2e=true`
+  (3,477 tests; browser tests: 69, then the walkthrough's 3). The first full run failed 3 browser
+  checks, all from this change (a test helper and an old phone-row check); fixed and re-run.
+- The independent auditor said `VERDICT: DONE` on its **first** round and found no weakened
+  test.
+
+### What was built, in plain words
+
+The office has its new frame, as in the approved mock-up's layout:
+
+- **A top bar** on every office page: ShiftDesk's own mark with the firm's name under it, the
+  moon/sun button (light or dark, remembered), and the person's initials. Tapping the initials
+  opens a small menu with their name and role, the How-to guide and Log out. On logged-in office
+  pages this bar replaces the firm's coloured bar (staff pages and the office login keep it).
+- **The menu in five groups:** Operations (Today, Shifts, Requests), Pay, Records, Configuration
+  and Help. Each role sees only what it can open. Later tasks add their pages here (Events,
+  Cancellations, Enquiries, the pay dashboard, Strikes, Settings).
+- **On a computer** the menu sits on the left. **On a phone** a "Menu" button opens it as a
+  drawer from the side; tapping outside it, the cross, the phone's back gesture (Escape) or a link
+  closes it. Keyboard users land back on "Menu", and nothing in a closed drawer can be reached by
+  mistake.
+- "Data requests (download or delete)" is now just "Data requests".
+- Menu links can show a count (a red badge) without changing the link's name. The first real count
+  (Pay queries) comes with the pay dashboard task.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One menu that moves into the phone drawer while it's open | A drawer that is also the desktop sidebar is announced as a "dialog" to screen readers (checked in the browser) | Two copies of the menu; the drawer always holding the menu |
+| The account menu as a native popover | It adds no extra role to every page (a `<details>` would break other tests), closes with Escape or a tap outside, and works before the page's scripts load | A `<details>` element; a custom script menu |
+| "Home" for payroll at the top of the Pay group | Payroll has no Operations pages; the pay dashboard (next task) becomes their home there | Keeping it in a group of its own |
+| Hide the firm's bar on logged-in office pages | The spec keeps it on staff pages and the office login; the top bar names the firm | Showing both bars |
+
+### What the new tests prove
+
+A new browser test, run with the phone set to light and again to dark, opens and closes the
+drawer every way, checks the focus goes back to "Menu", presses Tab twelve times to prove nothing
+in the closed drawer is reachable, switches the theme and reloads to prove it's kept with no
+flash, and opens the account menu. The unit tests pin each role's menu, the current page marking,
+the badge, the top bar and the account menu. Every browser test that used the old menu now opens
+it the new way, and the checks that a link is missing open the menu first, so they can't pass by
+accident. Screenshots at 375, 390 and 1280px in both themes were checked by eye, with no sideways
+scrolling.
+
+### What needs Dylan
+
+Nothing. Have a look at the office on your phone: the "Menu" button is top left.

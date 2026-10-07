@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { devices, type Page } from "@playwright/test";
 import { addOfficeUser } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // Taking office access away in a real browser (audit M21): an admin turns a resourcer's access
@@ -45,7 +45,7 @@ test("an admin turns a resourcer's access off, back on, and changes their role",
     await expect(lee.getByText("You're logged in as Resourcer.")).toBeVisible();
 
     await officeLogin(page, admin);
-    await page.getByRole("link", { name: "Office team" }).click();
+    await (await menuLink(page, "Office team")).click();
     await expect(page.getByRole("heading", { name: "Office team" })).toBeVisible();
     const me = page.getByRole("listitem").filter({ hasText: admin });
     await expect(me.getByText("To change your own access, ask another admin.")).toBeVisible();

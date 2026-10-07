@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireOfficeArea } from "@/lib/auth/current-office";
-import { officeMenu } from "../office-shell";
+import { officeMenu } from "../office-menu";
 import { GuideView } from "./guide-view";
 
 export const metadata: Metadata = { title: "How-to guide" };

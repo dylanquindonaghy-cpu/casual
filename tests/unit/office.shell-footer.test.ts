@@ -2,9 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-// The office shell's footer holds the session keeper, which replaces the office login's token
-// once a day while the office is in use (src/app/session-keeper.tsx). The keeper draws nothing,
-// so here it stands in as a marker that shows where it sits and what it was given.
+// The office shell holds the session keeper, which replaces the office login's token once a day
+// while the office is in use (src/app/session-keeper.tsx), on every office page. The keeper draws
+// nothing, so here it stands in as a marker that shows where it sits and what it was given. (It
+// sat in the footer until 12A.2; "Log out" is in the account menu now.)
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/office",
@@ -27,22 +28,25 @@ const shell = (rotationDue: boolean) =>
     OfficeShell({
       name: "Sam Admin",
       roleLabel: "Admin",
+      firmName: "Acme Events",
       menu: officeMenu("admin"),
+      theme: undefined,
       rotationDue,
       children: createElement("main", null, "The page"),
     }),
   );
 
-describe("the office shell's footer", () => {
-  it("holds the session keeper once, after Log out, with the office's refresh", () => {
+describe("the office shell's session keeper", () => {
+  it("is there once, outside the page, after Log out, with the office's refresh", () => {
     for (const rotationDue of [true, false]) {
       const html = shell(rotationDue);
-      const footer = html.slice(html.indexOf("<footer"), html.indexOf("</footer>"));
       expect(html.match(/data-session-keeper=/g)).toHaveLength(1);
-      expect(footer).toContain(
+      expect(html).toContain(
         `<i data-session-keeper="${rotationDue}" data-office-refresh="true"></i>`,
       );
-      expect(footer.indexOf("data-session-keeper")).toBeGreaterThan(footer.indexOf(">Log out<"));
+      const keeperAt = html.indexOf("data-session-keeper");
+      expect(keeperAt).toBeGreaterThan(html.indexOf(">Log out<"));
+      expect(keeperAt).toBeGreaterThan(html.indexOf("</main>"));
     }
   });
 });

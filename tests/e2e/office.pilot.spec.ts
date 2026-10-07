@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { addOfficeUser } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The pilot metrics page in a real browser, on the demo seed: enter part of the week-0 baseline,
@@ -27,7 +27,7 @@ test("enter the baseline, update the figures, and see baseline against now", asy
   await addOfficeUser("acme", { email, name: "Pilot Resourcer", role: "resourcer" });
   await officeLogin(page, email);
 
-  await page.getByRole("link", { name: "Pilot metrics" }).click();
+  await (await menuLink(page, "Pilot metrics")).click();
   await expect(page).toHaveURL(`${acme}/office/reports/pilot`);
   await expect(page.getByRole("heading", { name: "Pilot metrics", level: 1 })).toBeVisible();
 

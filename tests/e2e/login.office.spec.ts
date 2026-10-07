@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { accountMenu, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // Office login in a real browser (console mode): a link by email, then the dashboard with the
@@ -40,12 +40,13 @@ test("an admin logs in by email link, sees their role and the office team, and l
   await expect(page).toHaveURL(`${acme}/login`);
 
   await page.goto(`${acme}/office`);
-  await page.getByRole("link", { name: "Office team" }).click();
+  await (await menuLink(page, "Office team")).click();
   await expect(page.getByRole("heading", { name: "Office team" })).toBeVisible();
   await expect(page.getByText("acme.payroll@example.com")).toBeVisible();
 
   await page.goto(`${acme}/office`);
-  await page.getByRole("button", { name: "Log out" }).click();
+  // "Log out" is in the account menu (12A.2).
+  await (await accountMenu(page)).getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(`${acme}/office/login?out=1`);
   await expect(page.getByText("You're logged out.")).toBeVisible();
 });
@@ -53,7 +54,10 @@ test("an admin logs in by email link, sees their role and the office team, and l
 test("a resourcer can use the dashboard but not the admin-only team page", async ({ page }) => {
   await officeLogin(page, "acme.resourcer@example.com");
   await expect(page.getByText("You're logged in as Resourcer.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Office team" })).toHaveCount(0);
+  // Absent from the menu itself (opened first, so the check can't pass just because it's shut).
+  await expect(await menuLink(page, "Shifts")).toBeVisible();
+  await expect(await menuLink(page, "Office team")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   const response = await page.goto(`${acme}/office/team`);
   expect(response?.status()).toBe(404);
 });

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { addOfficeUser } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The notice and cancellation report in a real browser, on the demo seed (its bookings and the
@@ -30,7 +30,7 @@ test("the notice report lists bookings and the dropout, filters, and downloads a
   await addOfficeUser("acme", { email, name: "Reports Resourcer", role: "resourcer" });
   await officeLogin(page, email);
 
-  await page.getByRole("link", { name: "Notice report" }).click();
+  await (await menuLink(page, "Notice report")).click();
   await expect(page).toHaveURL(`${acme}/office/reports/notice`);
   await expect(page.getByRole("heading", { name: "Notice and cancellation report" })).toBeVisible();
   await expect(page.getByText(/^Short notice means under 48 hours/)).toBeVisible();

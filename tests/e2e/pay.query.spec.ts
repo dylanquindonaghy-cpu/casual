@@ -1,6 +1,6 @@
 import { dayLabel } from "../../src/lib/rules/reasons";
 import { addOfficeUser, setFirmSetting } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { codeSentTo, emailSentTo, loginLinkSentTo, sentTo } from "./outbox";
 
 // Raising a pay query in a real browser: behind the pay code, a day, what's wrong and a note, the
@@ -71,7 +71,7 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await sentTo(email, asked2, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await page.getByRole("link", { name: "Pay queries" }).click();
+  await (await menuLink(page, "Pay queries")).click();
   await expect(page).toHaveURL(`${acme}/office/pay-queries`);
   const group = page.getByRole("region", {
     name: /^\d+ quer(y|ies): paid late or not paid, the week of \w{3} \d{1,2} \w{3}\.$/,

@@ -37,6 +37,7 @@ block; the dark values redefine the same tokens. Every pair a page uses meets it
 | `panel` | `#ffffff` | `#16203a` | The office menu and its footer |
 | `raised` | `#f4f6fa` | `#22304f` | Something lifted off a card |
 | `switch-off` | `#7a8396` | `#7c8aa8` | A switch's track when off (at least 3.5:1) |
+| `scrim` | `#0f172a` | `#000000` | Behind the open menu drawer, at half strength (decorative only) |
 | `urgent` / `urgent-soft` / `urgent-ink` | `#b91c1c` / `#fef2f2` / `#7f1d1d` | `#ff8b80` / `#3d1d26` / `#ffc7c0` | Act now |
 | `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#b91c1c` / `#7f1d1d` / `#ffffff` | `#d92d20` / `#b42318` / `#ffffff` | Count badges, urgent chips, the final destructive button (white on `#d92d20`: 4.83:1) |
 | `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fffbeb` / `#78350f` | `#f2a541` / `#36291a` / `#ffd699` | Someone needs to act |
@@ -91,9 +92,9 @@ AI-boundary and client-boundary tests (they import nothing from `src/lib/`).
   small inline SVG icon that is `aria-hidden`. The word is the existing word from the copy module.
 - `page-header.tsx`: `<PageHeader eyebrow title meta actions>`. Restyles the page's one `<h1>`;
   never adds a second heading.
-- `icons.tsx`: the few inline SVG icons the office menu, the office guide and the staff home's
-  "Log out" use, and the menu row's edge arrow (`chevron`), which is also the arrow on each link
-  of the office guide's contents below 1280px (no icon library; inline SVG also works offline in
+- `icons.tsx`: the few inline SVG icons the office's top bar and menu, the office guide and the
+  staff home's "Log out" use, and the arrow (`chevron`) on each link of the office guide's
+  contents below 1280px and on the account button (no icon library; inline SVG also works offline in
   the service worker's kept copy). The status chips draw their own four icons in
   `status-chip.tsx`.
 
@@ -113,50 +114,63 @@ Status tones for existing words:
 
 ## Office shell (`src/app/office/layout.tsx`)
 
-Rendered only when an office session exists (`getOfficeSession()`), so `/office/login` and
-`/office/l` stay plain. Display only: every page and action still checks access itself. Next keeps
-the layout (doesn't redraw it) as you move between office pages, so if the session ends on the
-server (access turned off, "Log out on every device", or it ran out), the next click lands on
-`/office/login` with the old shell still around it. The menu (`office-nav.tsx`) then asks the
-server to redraw the page once (`router.refresh()`), which drops the shell; it only does this on
-arriving at `/office/login` or `/office/l` from another page, so it can't repeat, and with a live
-session the login page sends you on to `/office` as before.
+Rebuilt in Phase 12 task 12A.2 (`docs/office-v2.md` 3.1). Rendered only when an office session
+exists (`getOfficeSession()`), so `/office/login` and `/office/l` stay plain. Display only: every
+page and action still checks access itself. Next keeps the layout (doesn't redraw it) as you move
+between office pages, so if the session ends on the server (access turned off, "Log out on every
+device", or it ran out), the next click lands on `/office/login` with the old frame still around
+it. The frame (`office-frame.tsx`) then asks the server to redraw the page once
+(`router.refresh()`), which drops it; it only does this on arriving at `/office/login` or
+`/office/l` from another page, so it can't repeat, and with a live session the login page sends
+you on to `/office` as before.
 
-- **Desktop (1024px and wider):** a 256px left sidebar with the menu, then the page on the canvas
-  background, content up to 1152px wide. Forms stay within 672px; lists, tables and reports use
-  the full width.
-- **Phone and tablet:** the same menu, as one row of links under the brand bar that scrolls
-  sideways (the current page is scrolled into view). Every link is visible without opening
-  anything. While links are hidden past an edge, that edge shows an arrow (a chevron on a band of
-  the menu's colour with a thin line on its inner side, over the end of the row; no gradient, no
-  animation), measured when the page opens, on every scroll and on every resize, and gone once you
-  reach that end. The arrows are `aria-hidden` and let taps and swipes through to the row; a link
-  reached with the keyboard is scrolled 48px clear of them. There is no "Menu" button: the browser tests
-  click menu links at phone width, and a `<details>` menu would add a `group` role that breaks the
-  event-shifts page tests.
-- **Menu groups** (labels are words, not headings; links only appear for roles that can open
-  them, from `canAccess`):
+- **Top bar** (`office-frame.tsx`), pinned to the top: "Menu" (below 1024px), ShiftDesk's mark
+  with "ShiftDesk" and the firm's name (no reference portal's logo or colours; on logged-in office
+  pages the firm's brand bar is hidden, since this bar names the firm), the moon/sun button
+  (`theme-button.tsx`: sets the `sd-theme` cookie and `data-theme` at once; its name says what it
+  switches to, and the same words show beside it on hover and keyboard focus), and the account
+  button (initials, then the name and role from 640px). The account menu is a native popover
+  (`popover`, opened by the button's `popovertarget`): no role of its own, Escape and a tap
+  elsewhere close it, and it works before the page's scripts load. It holds the name and role,
+  "How-to guide" and the office's one "Log out".
+- **Desktop (1024px and wider):** the menu in a 272px sidebar that stays in view under the top
+  bar, then the page on the canvas background, content up to 1152px wide. Forms stay within
+  672px; lists, tables and reports use the full width.
+- **Phone and tablet:** "Menu" opens the same menu as a drawer from the left: a native `<dialog>`
+  opened with `showModal()`, so the page behind it is shut off and dimmed (`scrim` at half
+  strength). Escape, a tap on the dimmed page, "Close menu" or choosing a link closes it, and the
+  browser puts the focus back on "Menu". The one `<nav>` moves into the drawer while it's open and
+  back to the (hidden) sidebar when it shuts, so a page never has two, and a shut drawer holds
+  nothing that can be tabbed to. (A `<dialog>` can't be the desktop sidebar too: shown by CSS,
+  it's still announced as a dialog.) "Menu" and the theme button stay disabled until the page is
+  ready (`useHydrated`), so a tap is never lost; the drawer also shuts on moving to another page
+  and on widening the window to 1024px.
+- **Menu groups** (`office-menu.ts`; labels are words, not headings; links only appear for roles
+  that can open them, from `canAccess`):
 
   | Group | Links |
   |---|---|
-  | (none) | Today (payroll: Home) |
-  | Shifts and people | Shifts, Requests, Workers |
-  | Records | Action log, Notice report, Pilot metrics |
-  | Pay | Pay queries, Import pay records |
-  | Admin | Office team, Data requests (download or delete) |
+  | Operations | Today, Shifts, Requests |
+  | Pay | Home (payroll only), Pay queries, Import pay records |
+  | Records | Workers, Action log, Notice report, Pilot metrics |
+  | Configuration | Office team, Data requests |
   | Help | How-to guide |
 
-- The current page's link has `aria-current="page"`, bold text and a dark left bar (desktop) or
-  dark fill (phone). On a page inside a section, the section's link looks the same but has
-  `aria-current="true"` (it isn't the page you're on): a shift or a new shift marks Shifts, the
-  offer page marks Today, a worker marks Workers, a worker's data page marks Data requests.
-- **Footer:** the user's name and role, and the one "Log out" button for the office (it moved here
-  from the bottom of Today, so it's on every page). The session keeper moved here too, so a
-  session is kept alive on every office page, not only Today.
+- The current page's link has `aria-current="page"`, bold text on the soft background, a 3px dark
+  bar at the menu's edge and its icon filled in. On a page inside a section, the section's link
+  looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
+  shift marks Shifts, the offer page marks Today, a worker marks Workers, a worker's data page
+  marks Data requests.
+- **Badges:** a link can carry a count. The number sits inside the link but hidden from screen
+  readers, and its words ("3 waiting") follow the link as visually hidden text, so the link's name
+  stays exactly its label.
+- **Session keeper:** in the frame, so a session is kept alive on every office page.
 - **Test rules the shell must keep:** the menu is built from plain links (no list items, headings,
-  regions, `status` or `note` roles, fieldsets or `<details>`); it sits outside `<main>`; link
-  names stay word for word; nothing else on a page may repeat a menu link's name; its
-  `aria-label` ("Office menu") contains no field label used on a page.
+  regions, `status`, `note` or `menu` roles, fieldsets or `<details>`); it sits outside `<main>`;
+  link names stay word for word; nothing else on a page may repeat a menu link's name (the account
+  menu's "How-to guide" is hidden until opened); its `aria-label` ("Office menu") contains no
+  field label used on a page. The browser tests reach menu links through `menuLink(page, name)`
+  and "Log out" through `accountMenu(page)` (`tests/e2e/fixtures.ts`).
 
 ## Page patterns
 
@@ -223,5 +237,4 @@ headings and spacing are the same on every staff page.
   `tests/unit/copy.plain-language.test.ts`. It opens with `PageHeader` like every staff page.
 - Contents ("On this page"): below 1280px, one card of divided rows before the guide, each link
   with an arrow (the shared `chevron` on `/office/guide`), the same on both pages. From 1280px the
-  office guide's contents are a rail beside it, with no arrows. Pills are used only by the office
-  menu, so the contents never look like it.
+  office guide's contents are a rail beside it, with no arrows.

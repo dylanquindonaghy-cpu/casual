@@ -1,0 +1,69 @@
+import { canAccess, type OfficeArea, type OfficeRole } from "@/lib/auth/roles";
+import type { IconName } from "../ui/icons";
+import type { MenuGroup } from "./office-nav";
+
+// The office menu (docs/office-v2.md 3.1): the v2 groups and the links each role sees. Plain
+// data and one function, safe anywhere (the shell, the guide, the roles test).
+
+// `unless`: shown only to a role that can't open that area (payroll's Home, in place of Today).
+type MenuItem = {
+  area: OfficeArea;
+  unless?: OfficeArea;
+  href: string;
+  label: string;
+  icon: IconName;
+};
+
+// The v2 groups (3.1), holding today's pages; each later task adds its own link.
+const MENU: { label: string; items: MenuItem[] }[] = [
+  {
+    label: "Operations",
+    items: [
+      { area: "today", href: "/office", label: "Today", icon: "home" },
+      { area: "shifts", href: "/office/shifts", label: "Shifts", icon: "shifts" },
+      { area: "requests", href: "/office/requests", label: "Requests", icon: "requests" },
+    ],
+  },
+  {
+    label: "Pay",
+    items: [
+      { area: "dashboard", unless: "today", href: "/office", label: "Home", icon: "home" },
+      { area: "pay", href: "/office/pay-queries", label: "Pay queries", icon: "pay" },
+      { area: "pay", href: "/office/pay/import", label: "Import pay records", icon: "import" },
+    ],
+  },
+  {
+    label: "Records",
+    items: [
+      { area: "workers", href: "/office/workers", label: "Workers", icon: "workers" },
+      { area: "log", href: "/office/log", label: "Action log", icon: "log" },
+      { area: "reports", href: "/office/reports/notice", label: "Notice report", icon: "notice" },
+      { area: "pilot", href: "/office/reports/pilot", label: "Pilot metrics", icon: "pilot" },
+    ],
+  },
+  {
+    label: "Configuration",
+    items: [
+      { area: "team", href: "/office/team", label: "Office team", icon: "team" },
+      { area: "data", href: "/office/data", label: "Data requests", icon: "data" },
+    ],
+  },
+  {
+    label: "Help",
+    items: [{ area: "guide", href: "/office/guide", label: "How-to guide", icon: "guide" }],
+  },
+];
+
+// Every area the menu links to (tests/unit/office.roles.test.ts checks each against the roles).
+export const MENU_AREAS: readonly OfficeArea[] = MENU.flatMap((g) => g.items.map((i) => i.area));
+
+// The menu a role sees: only the links it can open, and no empty groups.
+export function officeMenu(role: OfficeRole): MenuGroup[] {
+  return MENU.map((group) => ({
+    label: group.label,
+    links: group.items
+      .filter((item) => canAccess(role, item.area))
+      .filter((item) => !item.unless || !canAccess(role, item.unless))
+      .map((item) => ({ href: item.href, label: item.label, icon: item.icon })),
+  })).filter((group) => group.links.length > 0);
+}

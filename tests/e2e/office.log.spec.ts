@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { addOfficeUser } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The action log in a real browser, on the demo seed (its bookings and the urgent dropout are
@@ -27,7 +27,7 @@ test("filter the action log by type and worker, and follow a shift", async ({ pa
   await addOfficeUser("acme", { email, name: "Log Resourcer", role: "resourcer" });
   await officeLogin(page, email);
 
-  await page.getByRole("link", { name: "Action log" }).click();
+  await (await menuLink(page, "Action log")).click();
   await expect(page).toHaveURL(`${acme}/office/log`);
   await expect(page.getByRole("heading", { name: "Action log" })).toBeVisible();
   // Someone logging in is logged too: this spec's own login is there.

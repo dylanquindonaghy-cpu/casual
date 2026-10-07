@@ -52,8 +52,8 @@ function anchorsLand(html: string) {
 }
 
 // The contents (the page's one <nav>): one link per section, in order, each with its arrow (a
-// drawing hidden from screen readers), like /help's. Never the office menu's pill look: on a phone,
-// pills are the menu.
+// drawing hidden from screen readers), like /help's. Never pills (they'd look like buttons to
+// switch between, not a list of topics).
 function contents(html: string) {
   const nav = html.slice(html.indexOf("<nav"), html.indexOf("</nav>"));
   expect(nav).not.toContain("rounded-full");

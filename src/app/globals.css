@@ -15,6 +15,7 @@
   --color-panel: #ffffff; /* the office menu and its footer */
   --color-raised: #f4f6fa; /* something lifted off a card */
   --color-switch-off: #7a8396; /* a switch's track when off */
+  --color-scrim: #0f172a; /* behind the open menu drawer, at half strength (decorative) */
 
   --color-urgent: #b91c1c; /* act now */
   --color-urgent-soft: #fef2f2;
@@ -74,6 +75,7 @@
   --color-panel: #16203a;
   --color-raised: #22304f;
   --color-switch-off: #7c8aa8;
+  --color-scrim: #000000;
   --color-urgent: #ff8b80;
   --color-urgent-soft: #3d1d26;
   --color-urgent-ink: #ffc7c0;
@@ -104,6 +106,7 @@
     --color-panel: #16203a;
     --color-raised: #22304f;
     --color-switch-off: #7c8aa8;
+    --color-scrim: #000000;
     --color-urgent: #ff8b80;
     --color-urgent-soft: #3d1d26;
     --color-urgent-ink: #ffc7c0;

@@ -2,10 +2,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-// The office shell (src/app/office/office-shell.tsx, office-nav.tsx; docs/ui-design.md "Office
-// shell"): which links each role sees, which one is the current page, and the rules the browser
-// tests need it to keep (plain links outside <main>, one "Log out", no list items or headings).
-// Also the shared pieces in src/app/ui/ that add no words of their own.
+// The office shell (src/app/office/office-shell.tsx, office-frame.tsx, office-nav.tsx,
+// theme-button.tsx; docs/office-v2.md 3.1; docs/ui-design.md "Office shell"): which links each
+// role sees in the v2 groups, which one is the current page, the rules the browser tests need the
+// menu to keep (plain links outside <main>, no list items, headings or roles), badges outside a
+// link's name, and the top bar (Menu, ShiftDesk with the firm's name, the theme button, the
+// account menu with the one "Log out"). tests/e2e/office.shell.spec.ts drives the drawer, the
+// theme and the account menu in a browser. Also the shared pieces in src/app/ui/ that add no
+// words of their own.
 
 const nav = vi.hoisted(() => ({ pathname: "/office" }));
 vi.mock("next/navigation", () => ({
@@ -14,9 +18,11 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/office/session-actions", () => ({ refreshOfficeSessionAction: vi.fn() }));
 
-const { officeMenu, OfficeShell } = await import("@/app/office/office-shell");
-const { ariaCurrent, currentHref, hiddenEdges, OfficeNav, redrawOnArrival } =
-  await import("@/app/office/office-nav");
+const { MENU_AREAS, officeMenu, OfficeShell } = await import("@/app/office/office-shell");
+const { ariaCurrent, currentHref, OfficeNav } = await import("@/app/office/office-nav");
+const { ACCOUNT_MENU_ID, DRAWER_ID, initials, redrawOnArrival } =
+  await import("@/app/office/office-frame");
+const { themeCookie } = await import("@/app/office/theme-button");
 const { PageHeader } = await import("@/app/ui/page-header");
 const { StatusChip } = await import("@/app/ui/status-chip");
 const { LogoutButton } = await import("@/app/logout-button");
@@ -29,34 +35,32 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-describe("the office menu", () => {
+describe("the office menu (v2 groups)", () => {
   it("admins see every link, in groups", () => {
     expect(labels("admin")).toEqual([
-      [null, ["Today"]],
-      ["Shifts and people", ["Shifts", "Requests", "Workers"]],
-      ["Records", ["Action log", "Notice report", "Pilot metrics"]],
+      ["Operations", ["Today", "Shifts", "Requests"]],
       ["Pay", ["Pay queries", "Import pay records"]],
-      ["Admin", ["Office team", "Data requests (download or delete)"]],
+      ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
+      ["Configuration", ["Office team", "Data requests"]],
       ["Help", ["How-to guide"]],
     ]);
   });
 
-  it("resourcers don't see pay or admin links", () => {
+  it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      [null, ["Today"]],
-      ["Shifts and people", ["Shifts", "Requests", "Workers"]],
-      ["Records", ["Action log", "Notice report", "Pilot metrics"]],
+      ["Operations", ["Today", "Shifts", "Requests"]],
+      ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);
   });
 
-  it("payroll gets Home (the dashboard, not Today), pay and the guide", () => {
+  it("payroll gets Home (the dashboard, not Today) at the top of Pay, and the guide", () => {
     expect(labels("payroll")).toEqual([
-      [null, ["Home"]],
-      ["Pay", ["Pay queries", "Import pay records"]],
+      ["Pay", ["Home", "Pay queries", "Import pay records"]],
       ["Help", ["How-to guide"]],
     ]);
     expect(officeMenu("payroll")[0]?.links[0]?.href).toBe("/office");
+    expect(MENU_AREAS).toContain("dashboard");
   });
 
   it("links have no query strings (tests compare the address after a click)", () => {
@@ -113,13 +117,17 @@ describe("the current page in the menu", () => {
 describe("the menu's markup", () => {
   const marked = (html: string, value: "page" | "true") =>
     [...html.matchAll(new RegExp(`<a[^>]*aria-current="${value}"[^>]*>`, "g"))].map((m) => m[0]);
+  const render = (groups = officeMenu("admin")) =>
+    renderToStaticMarkup(createElement(OfficeNav, { groups }));
 
   it("plain links with one marked current, and nothing the page tests count", () => {
     nav.pathname = "/office/shifts/11111111-1111-4111-8111-111111111111";
-    const html = renderToStaticMarkup(createElement(OfficeNav, { groups: officeMenu("admin") }));
-    expect(html).toContain('aria-label="Office menu"');
+    const html = render();
+    expect(html).toMatch(/^<nav aria-label="Office menu"/);
     expect(html).not.toMatch(/<(li|ul|ol|h[1-6]|details|summary|fieldset|section|output)\b/);
     expect(html).not.toMatch(/role="/);
+    // Group names are words, not headings.
+    expect(html).toContain(">Operations</p>");
     // A shift's page is inside Shifts, not the Shifts page itself.
     expect(html.match(/aria-current=/g)).toHaveLength(1);
     expect(marked(html, "page")).toEqual([]);
@@ -127,44 +135,47 @@ describe("the menu's markup", () => {
     expect(marked(html, "true")[0]).toContain('href="/office/shifts"');
   });
 
-  it("the page itself is aria-current=page", () => {
+  it("the page itself is aria-current=page, with the bar and the soft background", () => {
     nav.pathname = "/office/shifts";
-    const html = renderToStaticMarkup(createElement(OfficeNav, { groups: officeMenu("admin") }));
+    const html = render();
     expect(html.match(/aria-current=/g)).toHaveLength(1);
     expect(marked(html, "true")).toEqual([]);
     expect(marked(html, "page")).toHaveLength(1);
     expect(marked(html, "page")[0]).toContain('href="/office/shifts"');
+    expect(marked(html, "page")[0]).toMatch(/bg-quiet-soft.*before:w-\[3px\].*before:bg-ink/);
   });
 
   it("the offer page marks Today as the section it's in", () => {
     nav.pathname = "/office/offer/11111111-1111-4111-8111-111111111111";
-    const html = renderToStaticMarkup(createElement(OfficeNav, { groups: officeMenu("admin") }));
+    const html = render();
     expect(html.match(/aria-current=/g)).toHaveLength(1);
     expect(marked(html, "true")[0]).toContain('href="/office"');
   });
 
-  it("draws no edge arrows on the server (they're measured in the browser)", () => {
+  it("a badge's count sits outside the link's name; its words are read after the link", () => {
     nav.pathname = "/office";
-    const html = renderToStaticMarkup(createElement(OfficeNav, { groups: officeMenu("admin") }));
-    expect(html).not.toContain("m9 5.5 6.5 6.5L9 18.5");
+    const html = render([
+      {
+        label: "Pay",
+        links: [
+          {
+            href: "/office/pay-queries",
+            label: "Pay queries",
+            icon: "pay",
+            badge: { count: 3, words: "3 waiting" },
+          },
+        ],
+      },
+    ]);
+    const link = html.match(/<a\b[^>]*>(.*?)<\/a>/)?.[1] ?? "";
+    // Inside the link, everything but the label is hidden from screen readers.
+    const named = link
+      .replace(/<svg[\s\S]*?<\/svg>/g, "")
+      .replace(/<span aria-hidden="true"[^>]*>[^<]*<\/span>/g, "");
+    expect(text(named)).toBe("Pay queries");
+    expect(link).toMatch(/<span aria-hidden="true"[^>]*>3<\/span>/);
+    expect(html).toMatch(/<\/a><span class="sr-only">3 waiting<\/span>/);
   });
-});
-
-describe("the phone row's edge arrows", () => {
-  it.each([
-    // scrollLeft, clientWidth, scrollWidth → left, right
-    [0, 390, 1400, false, true],
-    [500, 390, 1400, true, true],
-    [1010, 390, 1400, true, false],
-    [1009.5, 390, 1400, true, false], // rounding: within 1px of the end
-    [0.5, 390, 1400, false, true], // rounding: within 1px of the start
-    [0, 256, 256, false, false], // nothing hidden (a desktop sidebar, or a short menu)
-  ])(
-    "scrolled %s of a %s-wide row holding %s: left %s, right %s",
-    (scrollLeft, clientWidth, scrollWidth, left, right) => {
-      expect(hiddenEdges({ scrollLeft, clientWidth, scrollWidth })).toEqual({ left, right });
-    },
-  );
 });
 
 describe("after the session ends on the server", () => {
@@ -186,32 +197,119 @@ describe("after the session ends on the server", () => {
 });
 
 describe("the shell", () => {
-  it("the shell: menu, then the page inside #main, then the name and one Log out", () => {
+  const shell = (theme?: "light" | "dark", role: "admin" | "payroll" = "admin") => {
     nav.pathname = "/office";
     // Hook-free, so it can be called directly.
-    const html = renderToStaticMarkup(
+    return renderToStaticMarkup(
       OfficeShell({
         name: "Sam Admin",
-        roleLabel: "Admin",
-        menu: officeMenu("admin"),
+        roleLabel: role === "admin" ? "Admin" : "Payroll",
+        firmName: "Acme Events",
+        menu: officeMenu(role),
+        theme,
         rotationDue: false,
         children: createElement("main", null, "PAGE"),
       }),
     );
+  };
+
+  it("in order: the skip link, the top bar, the menu, then the page in #main", () => {
+    const html = shell();
     expect(html).toContain('data-shell="office"');
-    expect(html).toContain('href="#main"');
+    const skipAt = html.indexOf('href="#main"');
+    const barAt = html.indexOf("<header");
     const navAt = html.indexOf("<nav");
     const mainAt = html.indexOf('id="main"');
     const pageAt = html.indexOf("<main>PAGE</main>");
-    const footerAt = html.indexOf("<footer");
-    expect(navAt).toBeGreaterThan(0);
+    expect(skipAt).toBeGreaterThan(-1);
+    expect(barAt).toBeGreaterThan(skipAt);
+    expect(navAt).toBeGreaterThan(barAt);
     expect(mainAt).toBeGreaterThan(navAt);
     expect(pageAt).toBeGreaterThan(mainAt);
-    expect(footerAt).toBeGreaterThan(pageAt);
-    // The page's own <main> is the only one.
+    // One <nav>, and the page's own <main> is the only one.
+    expect(html.match(/<nav\b/g)).toHaveLength(1);
     expect(html.match(/<main\b/g)).toHaveLength(1);
     expect(html.match(/>Log out</g)).toHaveLength(1);
-    expect(text(html.slice(footerAt))).toBe("Sam Admin Admin Log out");
+  });
+
+  it("the top bar: Menu (waits for the page), ShiftDesk with the firm's name, theme, account", () => {
+    const html = shell();
+    const bar = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+    expect(bar).toMatch(
+      new RegExp(
+        `<button type="button" aria-controls="${DRAWER_ID}" aria-expanded="false" aria-haspopup="dialog" disabled=""[^>]*>.*Menu</button>`,
+      ),
+    );
+    expect(bar).toContain('<span class="block font-bold text-ink">ShiftDesk</span>');
+    expect(bar).toContain(">Acme Events</span>");
+    expect(bar).toMatch(/<button type="button" aria-label="Switch to dark mode" disabled=""/);
+    // The theme button's words also show beside it (hidden from screen readers: they're its name).
+    expect(bar).toMatch(/<span aria-hidden="true"[^>]*group-hover:block[^>]*>Switch to dark mode</);
+    const account = bar.match(
+      // HTML attribute names ignore case (React writes "popoverTarget").
+      new RegExp(
+        `<button type="button" popovertarget="${ACCOUNT_MENU_ID}"[^>]*>(.*?)</button>`,
+        "i",
+      ),
+    )?.[1];
+    expect(account).toBeDefined();
+    expect(account).toMatch(/<span aria-hidden="true"[^>]*>SA<\/span>/);
+    expect(text((account ?? "").replace(/<span aria-hidden="true"[^>]*>SA<\/span>/, ""))).toBe(
+      "Sam Admin Admin",
+    );
+  });
+
+  it("the account menu: the name and role, How-to guide and the one Log out", () => {
+    const html = shell();
+    const at = html.indexOf(`<div id="${ACCOUNT_MENU_ID}" popover="auto"`);
+    expect(at).toBeGreaterThan(-1);
+    const menu = html.slice(at, html.indexOf("</header>"));
+    expect(text(menu)).toBe("Sam Admin Admin How-to guide Log out");
+    expect(menu).toContain('href="/office/guide"');
+  });
+
+  it("the theme button's words follow the cookie's theme", () => {
+    expect(shell("dark")).toContain('aria-label="Switch to light mode"');
+    expect(shell("light")).toContain('aria-label="Switch to dark mode"');
+  });
+
+  it("the drawer is a native dialog, empty until it's opened; the menu is in the sidebar", () => {
+    const html = shell();
+    const dialog = html.match(new RegExp(`<dialog[^>]*id="${DRAWER_ID}"[^>]*>(.*?)</dialog>`));
+    expect(dialog).not.toBeNull();
+    expect(dialog?.[0]).toContain('aria-label="Menu"');
+    expect(dialog?.[0]).not.toMatch(/\bopen\b=/);
+    expect(dialog?.[1]).toBe("");
+    // The sidebar (hidden on phones) holds the one <nav>.
+    expect(html).toMatch(/<div class="hidden [^"]*lg:block[^"]*"><nav aria-label="Office menu"/);
+  });
+
+  it("payroll's shell: their own menu, the same bar", () => {
+    const html = shell(undefined, "payroll");
+    expect(text(html)).toContain("Pay Home Pay queries Import pay records Help How-to guide");
+    expect(html).not.toContain('href="/office/shifts"');
+  });
+});
+
+describe("the account button's initials and the theme cookie", () => {
+  it.each([
+    ["Sam Rota", "SR"],
+    ["Sam Admin", "SA"],
+    ["Resourcer (demo)", "RD"],
+    ["Zoë Ann-Marie O'Neil", "ZO"],
+    ["Prince", "P"],
+    ["  ", "?"],
+  ])("%s → %s", (name, expected) => {
+    expect(initials(name)).toBe(expected);
+  });
+
+  it("sd-theme for a year, for every page of the address; Secure on https", () => {
+    expect(themeCookie("dark", false)).toBe(
+      "sd-theme=dark; Path=/; Max-Age=31536000; SameSite=Lax",
+    );
+    expect(themeCookie("light", true)).toBe(
+      "sd-theme=light; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
+    );
   });
 });
 

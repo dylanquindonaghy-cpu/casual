@@ -789,8 +789,8 @@ Each change is in the office action log under "Firm settings and office team".
 
 ## GDPR requests
 
-The firm's admin does these on the office dashboard: **Data requests (download or delete)**
-(`/office/data`). Every download and deletion goes in the action log ("Data requests and
+The firm's admin does these in the office: **Data requests** in the menu's "Configuration"
+group (`/office/data`). Every download and deletion goes in the action log ("Data requests and
 deletion").
 
 - **Worker asks for their data:** find them by name or mobile, open them, and press

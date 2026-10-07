@@ -67,32 +67,40 @@ address has no bar.
 
 ## Office dashboard (`/office/...`)
 
-**Office shell** (Phase 11; `src/app/office/layout.tsx`, `office-shell.tsx`, `office-nav.tsx`; the
-layout is in `docs/ui-design.md`). Every office page someone is logged in to sits in the same
-frame; `/office/login` and `/office/l` don't. It only shows the way: each page still checks who can
-open it.
+**Office shell** (Phase 11; rebuilt in Phase 12 task 12A.2 to `docs/office-v2.md` 3.1:
+`src/app/office/layout.tsx`, `office-shell.tsx`, `office-menu.ts`, `office-frame.tsx`,
+`office-nav.tsx`, `theme-button.tsx`; the layout is in `docs/ui-design.md`). Every office page
+someone is logged in to sits in the same frame; `/office/login` and `/office/l` don't. It only
+shows the way: each page still checks who can open it.
 - "Skip to content" first (shown only when reached with the keyboard).
-- The menu ("Office menu" to screen readers): "Today" (payroll: "Home", the same `/office`), then
-  "Shifts and people": "Shifts", "Requests", "Workers"; "Records": "Action log", "Notice report",
-  "Pilot metrics"; "Pay": "Pay queries", "Import pay records"; "Admin": "Office team", "Data
-  requests (download or delete)"; "Help": "How-to guide" (→ `/office/guide`). Each role sees only
-  the links it can open, and a group with none isn't shown. The group words show on a computer
-  only.
-- On a computer the menu is a column on the left that stays in view. On a phone it's one row of
-  links under the firm's bar that scrolls sideways, with the current one scrolled into view. While
-  more links are hidden past an edge of the row, that edge shows an arrow (no words, hidden from
-  screen readers; gone once you reach that end).
-- The page you're on is marked (bold, with a dark bar on a computer, filled dark on a phone). A
-  page inside a section marks it: a shift's page marks "Shifts", an offer "Today", a worker
-  "Workers", a worker's data "Data requests (download or delete)". Screen readers hear "current
+- The top bar, left to right: "Menu" (below 1024px wide), ShiftDesk's mark with "ShiftDesk" and
+  the firm's name under it (on logged-in office pages it takes the place of the firm's bar), the
+  moon/sun button ("Switch to dark mode" / "Switch to light mode", the same words shown beside it
+  on hover and keyboard focus; the choice is kept in the `sd-theme` cookie), and the account button
+  (the person's initials, their name and role; on a phone only the initials show). The account
+  button opens a small menu: the name and role, "How-to guide" (→ `/office/guide`) and "Log out",
+  the office's only one (with no signal: "No signal. You may still be logged in. Try again when
+  you have signal."). Escape or a tap elsewhere closes it.
+- The menu ("Office menu" to screen readers), in groups: "Operations": "Today", "Shifts",
+  "Requests"; "Pay": "Home" (payroll only, the same `/office`), "Pay queries", "Import pay
+  records"; "Records": "Workers", "Action log", "Notice report", "Pilot metrics";
+  "Configuration": "Office team", "Data requests"; "Help": "How-to guide". Each role sees only the
+  links it can open, and a group with none isn't shown. Later Phase 12 tasks add their own links
+  here. A link can carry a count (a badge), which isn't part of the link's name: screen readers
+  hear the count's words after it.
+- On a computer (1024px and wider) the menu is a 272px column on the left that stays in view. On
+  a phone or tablet, "Menu" opens it as a drawer from the left ("Menu" to screen readers), with
+  "Close menu" at its top; Escape, a tap on the dimmed page beside it, "Close menu" or choosing a
+  link closes it, and the focus goes back to "Menu". While it's shut, nothing in it can be reached
+  with the Tab key.
+- The page you're on is marked (bold, on a soft background, with a dark bar at the menu's edge
+  and its icon filled in). A page inside a section marks it: a shift's page marks "Shifts", an
+  offer "Today", a worker "Workers", a worker's data "Data requests". Screen readers hear "current
   page" only on the page itself; a section's link marked from a page inside it is "current".
 - If the login ends while an office page is open (access turned off, "Log out on every device",
-  or it ran out), the next link leads to the office login page, shown plain, without the menu
-  (the page is redrawn once on arriving there).
-- The footer (at the bottom of the menu on a computer, at the end of the page on a phone): the
-  user's name, their role, and "Log out", the office's only one (with no signal: "No signal. You
-  may still be logged in. Try again when you have signal."). It keeps the login alive on every
-  office page.
+  or it ran out), the next link leads to the office login page, shown plain, without the frame
+  (the page is redrawn once on arriving there). The frame keeps the login alive on every office
+  page.
 - Every page opens with "{firm} office" above its title, then a line; status words carry a colour
   and a small icon, never the colour alone.
 - An office page that isn't for this role, or a shift, worker or offer that isn't there
@@ -100,8 +108,8 @@ open it.
   old or mistyped.", "Back to the office" (→ `/office`). Never "404". An address that matches no
   page at all gets the staff not-found page. Checked in the browser
   (`tests/e2e/office.shifts.spec.ts`, payroll opening `/office/shifts`): those words, the link to
-  `/office`, no "Go to my shifts" and no "404", and the office menu and its one "Log out" still
-  there.
+  `/office`, no "Go to my shifts" and no "404", and the office menu and the account menu's one
+  "Log out" still there.
 - Browser tab titles read "{page} · {firm} shifts": "Today" (payroll: "Home"), "Shifts", "New
   shift", "Shifts for an event", "Import shifts from a file", "Offer this shift", "Requests",
   "Workers", "Action log", "Notice and cancellation report", "Pilot metrics", "Pay queries",
@@ -113,7 +121,7 @@ open it.
 |---|---|---|
 | `/office/login` | Office login | "Office login for {firm}". Field "Your work email" → "Send me a link". Then: "Check your email. If {firm} has this address, we've sent a login link. It works for 15 minutes." + sign-off. Same answer whether or not the address is known. Not an address: "Enter your work email address, like name@example.com." Rate-limited: "Too many tries. Try again in {n} minutes." After logout: "You're logged out." |
 | `/office/l#<token>` | Office link login | "Log in to the {firm} office" → "Log me in" → the dashboard. Expired, used or wrong: "This link has expired or was already used." → "Send me a new link". |
-| `/office` | Dashboard | Where everyone lands after logging in. Admins and resourcers: Today (below). Payroll: "Hello {name}" as the title, "You're logged in as Payroll.", "Your dashboard will appear here." (in a card); their menu is "Home", "Pay queries", "Import pay records" (built in Phase 6) and "How-to guide". Everyone (Phase 7, `src/lib/tenancy/shifts-line.ts`), under the title: "Your shifts line: {+44 7700 900000} (WhatsApp, text and calls)." / "No shifts line yet." The links to every other office page ("Workers" from Phase 10; "Office team" and "Data requests (download or delete)" for admins from Phase 8) and "Log out" were on this page until Phase 11; they're in the office shell now (above), on every office page. |
+| `/office` | Dashboard | Where everyone lands after logging in. Admins and resourcers: Today (below). Payroll: "Hello {name}" as the title, "You're logged in as Payroll.", "Your dashboard will appear here." (in a card); their menu is "Home", "Pay queries", "Import pay records" (built in Phase 6) under "Pay", and "How-to guide". Everyone (Phase 7, `src/lib/tenancy/shifts-line.ts`), under the title: "Your shifts line: {+44 7700 900000} (WhatsApp, text and calls)." / "No shifts line yet." The links to every other office page ("Workers" from Phase 10; "Office team" and "Data requests" for admins from Phase 8) and "Log out" were on this page until Phase 11; they're in the office shell now (above), on every office page. |
 | `/office/team` | Office team (admin only) | Everyone with office access (Phase 10, `src/app/office/team/`, changes in `src/lib/office/team.ts`). "Office team", "Everyone who can log in to the office. Someone leaving: turn off their access. A lost laptop or phone: log them out on every device, and turn off their access too if their email is on it, until it's secure." Each person: their name (yours with " (you)"), email, "{Role} · Can log in" or "{Role} · Access off". Yours: "To change your own access, ask another admin." Everyone else's: "Role" (Admin, Resourcer, Payroll) → "Change role" → "{Name} is now {Role}. This applies from their next page." (to Admin, first: "Make {Name} an admin? Admins can change the office team and download or delete workers' data." "Yes, make them an admin" · "Keep their role"); with access: "Log out on every device" → "{Name} has been logged out on every device. They can log in again with a new link." (nobody logged in: "{Name} wasn't logged in anywhere."), and "Turn off access" → "Turn off {Name}'s access? They're logged out at once and can't log in until it's turned back on." "Yes, turn off access" · "Keep their access" → "{Name}'s access is off. They've been logged out everywhere and can't log in until it's turned back on."; with access off: "Turn access back on" → "{Name} can log in again. They'll need a new login link." The page refreshes under the message to show the change (also when someone else had already made it). Other roles get the not-found page. Refusals: the firm's only admin: "{Name} is the only admin. Make someone else an admin first." Already so: "{Name}'s access is already off." / "{Name} can already log in." / "{Name} is already {Role}." Not on this firm's team: "That person isn't on your office team." Not an admin (any more): "Only admins can change the office team." Session over: "Your session has ended. Log in again." A failure: "Something went wrong. Nothing was changed. Try again."; the browser's request failing (the server may have finished): "Something went wrong. Reload the page to see if it changed." |
 | `/office/data` | Data requests (admin only; Phase 8, `src/app/office/data/page.tsx`) | "Data requests": "When someone asks for their data, or asks to be deleted, find them here. Send their data within a month of the request. Every download and deletion goes in the action log." **Find a worker:** "Name or mobile number" (part of a name, or a mobile written any UK way), "Find" (a server action: what's typed never goes in the address, the browser's history or a request log); up to 20 matches, each a link to their page with their mobile and status ("Active", "Not active", "Blocked"; an erased one "Deleted"); none: "Nobody matches "{q}"." **All {firm}'s data:** what's in it, "Login records aren't included.", "Download all your data" (one JSON file, `/office/data/export`). **How long we keep things** (from the firm's own retention settings, `src/lib/office/data-copy.ts` `keepTimeLines`): "Messages to and from your shifts line: {90} days.", "What a worker typed into a request (a note, a colleague's name): {365} days after the request is closed. An open request keeps it.", "The office's typed reason for placing someone despite a rule: {365} days after they were booked.", with a hold "A hold is on until {Wed 31 Mar 2027}: nothing above is deleted until then.", then login links and codes 7 days after they run out; logins 30 days after they end; workers and their licences and cards until you delete them here; shifts, bookings, offers, requests, pay records and the action log kept as the firm's records (deleted workers' without a name), and "To change how long, or to hold everything for a dispute, ask us." Other roles get the not-found page. |
 | `/office/data/workers/[id]` | One worker's data (admin only; Phase 8) | Their name and mobile. **Download their data:** what's in it, "Send it to them within a month of their request.", "Download (JSON)", "Download (CSV, opens in Excel)" (`/office/data/workers/[id]/export?format=json|csv`: one value per line, Section, Record, Field, Value; UTF-8 with a byte order mark; formulas made inert; the file named by id and date, never by name). **Delete their personal details:** what goes and what stays ("This deletes {name}'s name, mobile number, email, licences and cards, days off, messages, notes and logins, and the office's typed reasons on their bookings." "Their shifts, offers, cancellations and pay lines stay, without a name, as {firm}'s records (the notice report needs them)." "Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed."), "If {name} is in your rota sheet or a staff file you import, remove them there too, or the next sync or import adds them back.", a checkbox "I understand this can't be undone", "Delete {name}'s personal details" → "Deleted. {name}'s personal details are gone. Their shift history stays, without a name. Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed." Not ticked: "Tick the box to say you understand this can't be undone." Booked on a shift that hasn't ended: the form is replaced by "{name} is booked on 1 shift that hasn't ended (2 shifts that haven't ended). Cancel those first (with a reason), then come back to delete." Already erased: the heading is "Deleted worker" and "Deleted on {date}. Their shift history stays, without a name. Words other people wrote that name them, like a colleague's swap request or pay query, aren't changed." Errors: "Only an admin can delete a worker's details.", "Log in again, then try again.", "Something went wrong. Reload the page to see if it was deleted." (the browser's request can fail after the server has finished) |

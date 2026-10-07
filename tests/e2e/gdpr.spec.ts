@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { addOfficeUser, addWorker } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // A GDPR request in a real browser (docs/runbooks.md "GDPR requests"): an admin finds a worker by
@@ -46,7 +46,7 @@ test("an admin downloads a worker's data, deletes their details, and downloads t
   });
   await officeLogin(page, email);
 
-  await page.getByRole("link", { name: "Data requests (download or delete)" }).click();
+  await (await menuLink(page, "Data requests")).click();
   await expect(page.getByRole("heading", { name: "Data requests" })).toBeVisible();
   await page.getByLabel("Name or mobile number").fill("07700 900871");
   await page.getByRole("button", { name: "Find" }).click();

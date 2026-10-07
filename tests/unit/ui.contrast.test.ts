@@ -147,10 +147,10 @@ describe("the themes (src/app/globals.css)", () => {
     });
   }
 
-  it("every token but the decorative line is in a checked pair", () => {
+  it("every token but the decorative line and scrim is in a checked pair", () => {
     const checked = new Set([...TEXT, ...CONTROLS].flat());
     const unchecked = [...light.keys()].filter((t) => !checked.has(t));
-    expect(unchecked).toEqual(["line"]);
+    expect(unchecked).toEqual(["line", "scrim"]);
   });
 
   it("the ratio itself: black on white is 21:1, a colour on itself 1:1", () => {

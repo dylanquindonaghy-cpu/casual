@@ -178,7 +178,7 @@ const MENU_WORDS: Record<string, string> = {
   "Pay queries": "Workers' pay queries, grouped by likely cause.",
   "Import pay records": "Load payroll's spreadsheet, so workers see their pay.",
   "Office team": "Who can log in to the office, and their roles.",
-  "Data requests (download or delete)": "Download or delete a worker's data when they ask.",
+  "Data requests": "Download or delete a worker's data when they ask.",
   "How-to guide": "This page.",
 };
 
@@ -186,8 +186,8 @@ function GettingAround({ menu }: { menu: MenuGroup[] }) {
   return (
     <>
       <Para>
-        On a computer, the menu is on the left. On a phone, it&apos;s the row of links under your
-        firm&apos;s name: swipe it sideways to see more. The page you&apos;re on is highlighted.
+        On a computer, the menu is on the left. On a phone, select <Name>Menu</Name> at the top to
+        open it. The page you&apos;re on is highlighted.
       </Para>
       <div className="mt-5 sm:columns-2 sm:gap-8">
         {menu.map((group) => (
@@ -212,8 +212,8 @@ function GettingAround({ menu }: { menu: MenuGroup[] }) {
         ))}
       </div>
       <Para>
-        Your name and <Name>Log out</Name> are at the bottom of the menu on a computer, and at the
-        end of each page on a phone.
+        Your name is at the top right. Select it for this guide and <Name>Log out</Name>. The moon
+        or sun beside it switches between dark and light.
       </Para>
     </>
   );

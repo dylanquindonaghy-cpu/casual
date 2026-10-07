@@ -92,8 +92,9 @@ work for 15 minutes, once.
 
 ## Part 2: as a worker
 
-"Log out" is at the bottom of My shifts (`http://acme.localhost:3000/`); for the office, at the
-bottom of the office menu (on the left on a laptop, at the end of the page on a phone). "Help",
+"Log out" is at the bottom of My shifts (`http://acme.localhost:3000/`); for the office, under
+your name at the top right. The office menu is on the left on a laptop; on a phone, open it with
+"Menu" at the top. "Help",
 at the bottom of My shifts, explains the worker's pages in plain words. The worker's side is made for phones. In Chrome you can see it as a phone: press
 F12, then Ctrl+Shift+M (press them again to go back). Each worker below is a made-up person from
 the demo.
@@ -201,7 +202,7 @@ marked; "How-to guide", near its bottom, explains each job step by step.
 34. **Import pay records.** Click "Import pay records", choose `pay.csv`, click "Check the file",
     then "Import these pay records". Log out.
 35. **Log in as the admin** (`acme.admin@example.com`). Click "Office team": the three demo office
-    users. Click "Data requests (download or delete)", find `07700 900122`, open Zoe Usman, and
+    users. Click "Data requests", find `07700 900122`, open Zoe Usman, and
     click "Download (CSV, opens in Excel)": everything kept about her. (Don't delete her.) Log out.
 36. **Northline.** Go to `http://northline.localhost:3000/office/login` and log in as
     `northline.admin@example.com`. Click "Notice report": tomorrow night's possession at the

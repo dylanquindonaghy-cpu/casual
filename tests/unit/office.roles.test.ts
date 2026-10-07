@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canAccess, OFFICE_AREAS } from "@/lib/auth/roles";
+import { MENU_AREAS, officeMenu } from "@/app/office/office-menu";
+import { canAccess, OFFICE_AREAS, ROLE_LABELS, type OfficeRole } from "@/lib/auth/roles";
 import { OFFICE_ROLES_THAT_PLACE } from "@/lib/roster/book";
 
 // Who sees Today (src/lib/auth/roles.ts) and who may change shifts from it (booking, urgent,
@@ -35,5 +36,33 @@ describe("office roles", () => {
     expect(canAccess("payroll", "pay")).toBe(true);
     expect(canAccess("admin", "pay")).toBe(true);
     expect(canAccess("resourcer", "pay")).toBe(false);
+  });
+
+  it("the office menu (12A.2) links only to real areas, and offers each role only what it can open", () => {
+    for (const area of MENU_AREAS) expect(Object.keys(OFFICE_AREAS)).toContain(area);
+    const AREA_OF_HREF: Record<string, readonly string[]> = {
+      "/office": ["today", "dashboard"],
+      "/office/shifts": ["shifts"],
+      "/office/requests": ["requests"],
+      "/office/workers": ["workers"],
+      "/office/log": ["log"],
+      "/office/reports/notice": ["reports"],
+      "/office/reports/pilot": ["pilot"],
+      "/office/pay-queries": ["pay"],
+      "/office/pay/import": ["pay"],
+      "/office/team": ["team"],
+      "/office/data": ["data"],
+      "/office/guide": ["guide"],
+    };
+    for (const role of Object.keys(ROLE_LABELS) as OfficeRole[]) {
+      for (const link of officeMenu(role).flatMap((g) => g.links)) {
+        const areas = AREA_OF_HREF[link.href];
+        expect(areas, link.href).toBeDefined();
+        expect(
+          areas?.some((a) => canAccess(role, a as keyof typeof OFFICE_AREAS)),
+          `${role}: ${link.href}`,
+        ).toBe(true);
+      }
+    }
   });
 });

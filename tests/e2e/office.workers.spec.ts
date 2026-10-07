@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { addBookedShift, addOfficeUser, addWorker } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // A worker who leaves, and one barred from a site, in a real browser (audit M22, M23, L24): a
@@ -49,7 +49,7 @@ test("a leaver made inactive, their booking cancelled from Today; another kept o
   await officeLogin(page, resourcer);
 
   // Find the leaver and make them inactive (a reason, then "Yes").
-  await page.getByRole("link", { name: "Workers" }).click();
+  await (await menuLink(page, "Workers")).click();
   await expect(page.getByRole("heading", { name: "Workers" })).toBeVisible();
   await page.getByLabel("Name or mobile number").fill(lenaName);
   await page.getByRole("button", { name: "Find" }).click();

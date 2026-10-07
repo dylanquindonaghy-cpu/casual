@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { accountMenu, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // The office's shift screens in a real browser, on the demo seed: a resourcer creates a shift,
@@ -28,19 +28,15 @@ const dayFromNow = (days: number) => {
 
 test("a resourcer creates a shift and assigns someone the rules allow", async ({ page }) => {
   await officeLogin(page, "acme.resourcer@example.com");
-  await page.getByRole("link", { name: "Shifts", exact: true }).click();
+  await (await menuLink(page, "Shifts")).click();
   await expect(page.getByRole("heading", { name: "Shifts", exact: true })).toBeVisible();
   // The tab names the page first (src/app/layout.tsx's template).
   await expect(page).toHaveTitle("Shifts · Acme Events shifts");
-  // On a phone the menu is one row that scrolls sideways, not a wrapped block.
-  const menuRow = page
-    .getByRole("navigation", { name: "Office menu" })
-    .locator(":scope > div")
-    .first();
-  await expect(menuRow).toHaveCSS("overflow-x", "auto");
-  await expect(menuRow).toHaveCSS("display", "flex");
-  await expect(menuRow).toHaveCSS("flex-wrap", "nowrap");
-  expect(await menuRow.evaluate((row) => row.scrollWidth > row.clientWidth)).toBe(true);
+  // On a phone the menu is a drawer (12A.2; it was a sideways row): shut again once a link is
+  // chosen, with "Menu" there to open it (tests/e2e/office.shell.spec.ts drives it fully).
+  await expect(page.getByRole("dialog", { name: "Menu" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Office menu" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "New shift" }).click();
   await page.getByLabel("Date").fill(dayFromNow(12));
   await page.getByLabel("Role").fill("steward");
@@ -112,7 +108,10 @@ test("several shifts for an event, and a file import checked first", async ({ pa
 
 test("payroll doesn't get the shift screens", async ({ page }) => {
   await officeLogin(page, "acme.payroll@example.com");
-  await expect(page.getByRole("link", { name: "Shifts", exact: true })).toHaveCount(0);
+  // Absent from the menu itself (opened first, so the check can't pass just because it's shut).
+  await expect(await menuLink(page, "Pay queries")).toBeVisible();
+  await expect(await menuLink(page, "Shifts")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   const response = await page.goto(`${acme}/office/shifts`);
   expect(response?.status()).toBe(404);
   // The office's own not-found page (src/app/office/not-found.tsx): plain words, and the way back
@@ -125,8 +124,9 @@ test("payroll doesn't get the shift screens", async ({ page }) => {
   );
   await expect(page.getByRole("link", { name: "Go to my shifts" })).toHaveCount(0);
   await expect(page.getByText("404")).toHaveCount(0);
-  // It keeps the office shell: the menu, and the one "Log out".
-  await expect(page.getByRole("navigation", { name: "Office menu" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Pay queries" })).toBeVisible();
+  // It keeps the office shell: the menu, and the account menu's one "Log out".
+  await expect(await menuLink(page, "Pay queries")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect((await accountMenu(page)).getByRole("button", { name: "Log out" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Log out" })).toHaveCount(1);
 });

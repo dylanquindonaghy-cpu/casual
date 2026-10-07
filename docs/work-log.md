@@ -9588,3 +9588,15 @@ and that only the worker gets the password.
 
 Nothing now. When you pick an email company: follow `deploy/env.example`'s email lines and
 `docs/runbooks.md` "Email not arriving" if something doesn't arrive.
+
+## 2026-10-07 — Fixing CI after 12X.1
+
+- **Time spent:** 0.2 hours (12:44 to 12:57 UTC).
+- **Result:** `VERIFIED tree=ff1818814a9e8947 e2e=true`.
+
+GitHub's automatic checks ("CI") failed on one test added in 12X.1. The test asked Docker Compose
+to print the final setup and looked for the setting that stops Docker from creating a missing
+certificate file. Different versions of Compose print that setting differently: GitHub's leaves it
+out when it has its normal value. The app's setup was right all along (GitHub's Docker build and
+browser tests passed); the test was reading the wrong thing. It now reads the setup file itself,
+and was checked by breaking the file in the two ways that matter (both made it fail).

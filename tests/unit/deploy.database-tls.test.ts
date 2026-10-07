@@ -108,10 +108,21 @@ describe("the server's database addresses (deploy/env.example)", () => {
       const ca = services[name]?.volumes?.find((v) => v.target === "/app/db-ca.pem");
       expect(ca, name).toMatchObject({ type: "bind", read_only: true });
       expect(ca?.source, name).toMatch(/\/deploy\/secrets\/db-ca\.pem$/);
-      // Never created: a missing file stops the start instead of mounting an empty folder.
-      expect(ca?.bind?.create_host_path, name).toBe(false);
     }
     expect(services.caddy?.volumes?.some((v) => v.target === "/app/db-ca.pem")).toBe(false);
+    // Never created: a missing file stops the start instead of mounting an empty folder. Read from
+    // the file, not the rendered config: Compose versions print that setting differently (this
+    // one leaves it out of a long-form bind and prints a short one as "bind: {}"). Each of those
+    // services mounts the shared x-db-ca block, and the block never creates the file.
+    const source = readFileSync(join(ROOT, "deploy/docker-compose.yml"), "utf8");
+    const block = (name: string) =>
+      new RegExp(`^  ${name}:\\n((?:(?:    .*)?\\n)*)`, "m").exec(source)?.[1] ?? "";
+    for (const name of withDatabase) {
+      expect(block(name), name).toMatch(/^ {6}- \*db-ca$/m);
+    }
+    expect(source).toMatch(
+      /^x-db-ca: &db-ca\n(?: {2}.*\n)*? {2}bind:\n {4}create_host_path: false$/m,
+    );
   });
 
   it("the image fetches nothing and holds no database certificate (nothing from Amazon)", () => {

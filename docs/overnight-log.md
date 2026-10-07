@@ -9395,3 +9395,24 @@ To reach DONE: nothing
 ```
 
 **Ticked** in `PLAN.md` at 12:43 UTC. **Hours:** 0.8 (11:56 to 12:43).
+
+## 2026-10-07 12:45 UTC — Fix CI: the db-ca mount check read a setting Compose versions print differently
+
+**What failed:** GitHub CI for `0dcd6b5` (12X.1), run 37617387269, job "verify": one test,
+`deploy.database-tls.test.ts` "every service with a database address gets the server's db-ca.pem",
+`migrate: expected undefined to be false` at `ca?.bind?.create_host_path`. The docker build and e2e
+jobs passed. `cdd4208` (12X.2) carries the same test.
+
+**Root cause:** the test read `create_host_path` from `docker compose config`'s output, and Compose
+versions print it differently. This container's (v5.6.0) printed `false` for the long-form bind;
+CI's runner leaves it out, because false is the long form's default. Checked here: v5.6.0 prints a
+long-form bind with no `bind` key once `create_host_path` is left at its default, and a short-form
+mount (which does create the path) as `bind: {}`. So the rendered config can't show the setting the
+same way on every version, and a first fix that treated a missing value as false let a short-form
+mount through (tried on purpose: it passed, so it was rejected).
+
+**Fix:** the rendered config still checks each mount's type, read-only flag and source path; the
+never-create rule is read from `deploy/docker-compose.yml` itself: each service with a database
+address mounts the shared `*db-ca` block, and that block has `create_host_path: false`. Both ways of
+breaking it fail the test, checked: the line removed, and web switched to the short form. The
+compose file is unchanged; only the test.

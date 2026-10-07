@@ -9273,3 +9273,125 @@ Minor notes, not blocking:
 ```
 
 **Ticked** in `PLAN.md` at 11:54 UTC. **Hours:** 0.7 (11:11 to 11:55).
+
+## 2026-10-07 12:00 UTC — Phase 12, task 12X.2: email over SMTP
+
+**Task:** Email over SMTP (§5.8), as written in `PLAN.md` (12X.2).
+
+**What I found first (nodemailer 10.0.15, read in a scratch copy before adding it):** nodemailer
+labels every timeout, socket error and dropped connection with the command `CONN`, whatever step
+the conversation had reached (`smtp-connection` `_onTimeout()`, `_onSocketError`). So a timeout
+while the message itself was going out would look like a connecting failure. Classifying by
+nodemailer's label alone would call a message that may have arrived "not sent, safe to retry".
+
+**Plan:**
+- `src/lib/messaging/smtp.ts`: `SmtpEmailTransport` drives nodemailer's own `SMTPConnection`
+  step by step (connect with EHLO and STARTTLS, then log in, then send), with the message built by
+  nodemailer's `MailComposer`, exactly as nodemailer's SMTP transport builds it. A failure while
+  connecting or logging in is `EmailNotSentError`. During `send()`, the line between "not sent" and
+  "may have arrived" is the `DATA` command: the transport watches the connection's (already
+  encrypted) socket for the `DATA` command being written. Before it (MAIL FROM, RCPT TO), any
+  failure, timeouts included, is `EmailNotSentError`; from it on, `EmailMayHaveArrivedError`. Both
+  have fixed messages with no address in them (the job logs record the error's name), plus the
+  step and the server's reply code. Tests with a fake server that stalls at each step pin this, so a
+  nodemailer upgrade that broke the watch would fail them.
+- Settings (`src/lib/env.ts`, worker only): `EMAIL_TRANSPORT` (`console` by default, refused in
+  production; `smtp` refused when `NODE_ENV=test`, and needing `SMTP_HOST` and `SMTP_FROM`),
+  `SMTP_PORT` (default 587; 465 is TLS from the start, any other port must STARTTLS: never plain
+  text), `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`. The transport's options are one pure function, so
+  the test pins every one: timeouts 10000/10000/30000, `logger` and `debug` false, TLS 1.2 or later
+  with certificates checked.
+- `getTransport()`: with `EMAIL_TRANSPORT=smtp`, email goes to the SMTP sender and WhatsApp and
+  texts to the phone transport, as now.
+- Attachments: CSV and PDF; as text (CSV only, as the payroll digest sends it today), bytes, or
+  base64; CSV up to 6,000,000 bytes, PDF up to 5,000,000, at most 3, at most 7,000,000 in total
+  (decoded; base64 adds a third). `messaging.console.test.ts` stays as it is.
+- Pins: `EMAIL_TRANSPORT=console` and `SMTP_PASS=""` in `tests/setup/env.ts` and `serverEnv()`;
+  the worker alone gets the SMTP settings in `deploy/docker-compose.yml` (a test holds that web
+  never sees `SMTP_PASS`); `deploy/env.example` lists them.
+- CLAUDE.md's "Never hit Twilio from tests" widened as the task words it, and a new check in
+  `scripts/invariants.sh` that the test setup and `serverEnv()` keep those pins (adding a check, not
+  weakening one).
+- `docs/runbooks.md` "Email not arriving". `guardrails-reviewer` (messaging).
+- New dependency: `nodemailer` ^10.0.15 (it ships its own types).
+
+**Built:** as planned, plus what building it showed:
+- **Proof the DATA watch matters:** with it switched off on purpose, exactly the three "may have
+  arrived" tests failed (a stall at DATA, a stall after the message, a refusal or a dropped line
+  after it): nodemailer's `CONN` label would have called each "not sent". Restored; all pass.
+- **A test that was wrong, not the code:** "a server without STARTTLS" first passed the message.
+  Root cause: with `requireTLS`, nodemailer sends STARTTLS even when the server doesn't offer it,
+  and the fake server accepted it anyway, so the message went over TLS. The fake now answers 502
+  like a server without TLS; the sender stops after EHLO and STARTTLS, nothing in plain text.
+- **A log line for each failed email** (`step`, nodemailer's code, the reply code; never the
+  address or the server's words, tested): the action log says only "couldn't be sent", so without
+  it the runbook's "why" had nowhere to look. The errors carry no `cause` for the same reason (the
+  job log prints the whole error).
+- `SMTP_USER` is pinned empty beside `SMTP_PASS` (a user without a password is refused, so a
+  developer's `.env` with a user set would otherwise stop every test's worker settings).
+- An empty `EMAIL_TRANSPORT` counts as unset (`deploy/docker-compose.yml` passes `""` when it isn't
+  in `.env`), so production gets the clear "console email is not allowed" message, not "invalid
+  option".
+- `.env.example`'s `SMTP_FROM=shifts@yourdomain` (written in 12X.1) is now empty with the example in
+  a comment: it isn't an address, and the new check refused it (`env.test.ts` caught it).
+- `tests/integration/pay.digest.test.ts`: two lines now wrap the CSV in `String()`, because an
+  attachment's content may be bytes. The digest still sends text; bytes would turn into digits and
+  fail the same checks, so nothing is weakened.
+- Test counts: `messaging.smtp.test.ts` 15, `messaging.smtp-server.test.ts` 15 (a fake SMTP server
+  on 127.0.0.1 with STARTTLS and a certificate made by `openssl` for the run, as the e2e https
+  front does). Stable over three runs.
+- Proof the new invariant works: with `process.env.SMTP_PASS = "";` removed from
+  `tests/setup/env.ts`, check 6 failed, naming it; restored.
+
+**Guardrails review (messaging), verdict line verbatim:** "Verdict: SAFE TO COMMIT. Nothing is FIX
+FIRST." All five SHOULD FIX items fixed (cheap):
+1. A server that hangs up before its greeting was reported at the next step (`login`), which would
+   send the runbook's reader to the password. The connect step now passes nodemailer's error on;
+   new test "a server that hangs up before its greeting: not sent (connect)" (it failed with the
+   old line, checked).
+2. The DATA watch now matches a `DATA` line anywhere in a write (`/(^|\r\n)DATA\r\n/`), so commands
+   sent together can't hide it (a false match only errs towards "may have arrived"); the fake
+   server now offers PIPELINING and SIZE like real providers; nodemailer is pinned exactly
+   (`10.0.15`), since the watch relies on its socket.
+3. Next would have bundled nodemailer into the web server (the login actions import the link
+   sender). `nodemailer` joins `serverExternalPackages` in `next.config.ts`; `npm run build` passes;
+   a boundary test holds that only `src/lib/messaging/smtp.ts` imports it.
+4. Attachments are always base64 (`contentTransferEncoding`), so the 7 MB decoded limit holds once
+   encoded (nodemailer would otherwise pick quoted-printable for some CSVs, which can triple
+   non-ASCII bytes); the fake-server test pins it.
+5. Under `NODE_ENV=test` the sender itself refuses any server but this machine's (a test that
+   builds it directly can't reach a real one); tested.
+Notes acted on: renamed to `SmtpEmailTransport` (a class), as the task names it; check 6 also pins
+`SMTP_USER` and ignores a commented-out pin (tested); CLAUDE.md says exactly what's checked; the
+test's certificate folder is deleted after the run. Parked: the From display name per firm; the pay
+digest repeating queries after "may have arrived". Noted for 12C.4: `EmailNotSentError` includes
+permanent refusals (535, 550), so a retry there may want to look at `responseCode`.
+
+**Verify:** `VERIFIED tree=352aa266fa01cf4a e2e=true` (3,424 tests, 0 skipped; e2e 60, then the
+walkthrough's 3, whose production build now runs with nodemailer kept external).
+
+**Audit round 1 verdict (verbatim):**
+
+```
+VERDICT: DONE
+Preconditions: `.claude/state/verified.json` has ok:true, e2e:true, tree 352aa266fa01cf4a. `./.claude/hooks/tree-hash.sh` prints the same hash. invariants.log is all ok, and test.log shows 3424 of 3424 passed with none skipped. I also re-ran `tests/unit/messaging.smtp*.test.ts` myself: 33 of 33 passed.
+Claims:
+- `SmtpEmailTransport` in `src/lib/messaging/smtp.ts` (nodemailer, email only) — PROVEN — smtp.ts:112-182 refuses non-email at :128. Test "refuses anything but email" (messaging.smtp.test.ts:260) and the fake-server send test (messaging.smtp-server.test.ts:223).
+- `getTransport()` uses it when `EMAIL_TRANSPORT=smtp`, phone messages unchanged — PROVEN — `src/lib/messaging/index.ts:18-33,47-55` (`routeEmail`). Tests at messaging.smtp.test.ts:233 and :244. Every caller passes the worker env (e.g. `send-login-code.ts:209`, `send-portal-link.ts:234`).
+- Worker-only settings and refusals — PROVEN — `src/lib/env.ts:165-220`, all in `workerEnvSchema`. Covers the console default, console refused in production (:205), smtp refused under test (:209), smtp needs a host and sender (:213), and the port default of 587. Tests at messaging.smtp.test.ts:302-342.
+- Port 465 is implicit TLS, any other port needs STARTTLS, never plain text — PROVEN — smtp.ts:62-77. Test :36-80 covers 587, 2525 and 465. The fake-server test "server without STARTTLS gets nothing in plain text" passes.
+- §5.8 transport settings (10000/10000/30000, logger and debug false, TLS 1.2+, certificates checked) — PROVEN — smtp.ts:52-56,75, with `toEqual` pins at messaging.smtp.test.ts:49-66. Test "a certificate it can't check: not sent" passes.
+- `EmailNotSentError` before acceptance, "may have arrived" during or after DATA — PROVEN — smtp.ts:26-48,184-214. It tracks the DATA step itself because nodemailer labels every timeout "CONN". Fake-server tests (messaging.smtp-server.test.ts:295-321) stall at greeting, ehlo, starttls, auth, mail and rcpt and get `EmailNotSentError`. Stalls at data and body, a 554 after the body, and a hang-up after the body all give `EmailMayHaveArrivedError`. The real timeouts are pinned separately, and the stall tests use shortened ones (300ms).
+- Attachments widened to CSV and PDF (bytes or base64, per-type limit, at most 3, 7 MB total) — PROVEN — `transport.ts:13-92` (CSV 6,000,000, PDF 5,000,000, 3 files, 7,000,000 total). Tests at messaging.smtp.test.ts:154-217. `console.ts` was adapted, and `messaging.console.test.ts` is unchanged (`git diff` is empty) and passes.
+- Pins in `serverEnv()` (`playwright.config.ts:53-55`) and `tests/setup/env.ts:16-18` — PROVEN — `EMAIL_TRANSPORT` "console" and `SMTP_PASS` and `SMTP_USER` empty. The walkthrough config reuses `serverEnv`. Test at messaging.smtp.test.ts:344.
+- Tests with no network — PROVEN — the fake server binds 127.0.0.1 with a test-made certificate. The sender itself refuses non-loopback hosts under `NODE_ENV=test` (smtp.ts:131; test at messaging.smtp.test.ts:254).
+- Message mapping through nodemailer's JSON transport (from, to, subject, body, a CSV and a PDF) — PROVEN — messaging.smtp.test.ts:97-147. The fake-server test also checks the real wire message (base64 CSV attachment, Message-ID).
+- Error mapping, routing and settings tests — PROVEN — messaging.smtp-server.test.ts:276-347 and messaging.smtp.test.ts:220-348.
+- `SMTP_PASS` never given to the web app, pinned on `deploy/docker-compose.yml` — PROVEN — compose:76-84 (worker only). `deploy.compose.test.ts:108-120` asserts web, caddy and migrate lack `SMTP_PASS`. A boundary test also holds that only smtp.ts imports nodemailer, and `next.config.ts` adds it to `serverExternalPackages`.
+- Docs — PROVEN — `docs/runbooks.md:465-496` ("Email not arriving"), `deploy/env.example:38-48`, `.env.example`. CLAUDE.md's convention is widened to "Never hit Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a planner from tests". `scripts/invariants.sh:50-66` check 6 checks the pins and ignores commented-out ones; `invariants.log` says "ok: the test setups keep every real sender off".
+- `guardrails-reviewer` (messaging) — PROVEN, self-reported — `docs/overnight-log.md:9277-9420` quotes the verdict "SAFE TO COMMIT. Nothing is FIX FIRST." and lists five fixes, all visible in the code: the DATA regex, the pinned nodemailer 10.0.15, the loopback guard and base64 attachments.
+Fakes found: none. There are no skip, only or todo tests and no TODOs in `src/lib/messaging`. Nothing mocks the sender: the tests use a real SMTP conversation against a local server. `tests/integration/pay.digest.test.ts` changed only by wrapping the CSV in `String()`, so no assertion was weakened.
+To reach DONE: nothing
+```
+
+**Ticked** in `PLAN.md` at 12:43 UTC. **Hours:** 0.8 (11:56 to 12:43).

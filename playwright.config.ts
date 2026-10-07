@@ -48,6 +48,11 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   GOOGLE_SERVICE_ACCOUNT_JSON_PATH: "",
   // A made-up key, so the e2e run can post signed Twilio webhooks (tests/e2e/whatsapp.inbound.spec.ts).
   TWILIO_AUTH_TOKEN: E2E_TWILIO_AUTH_TOKEN,
+  // Never a real email server: .env may hold a provider's settings for a local try
+  // (scripts/invariants.sh checks these lines stay).
+  EMAIL_TRANSPORT: "console",
+  SMTP_USER: "",
+  SMTP_PASS: "",
 });
 const env = serverEnv(PORT, OUTBOX);
 

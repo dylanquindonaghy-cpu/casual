@@ -461,7 +461,7 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       `pg_dump` as the `postgres` superuser for Postgres in Compose (ADR-011 as amended); monitoring
       as an outside uptime check plus the host's own alerts), `docs/compliance.md`,
       `docs/privacy-notice.md`, `docs/business.md`, `docs/product-spec.md` (12X.1)
-- [ ] Email over SMTP (§5.8): `SmtpEmailTransport` in `src/lib/messaging/smtp.ts` (nodemailer;
+- [x] Email over SMTP (§5.8): `SmtpEmailTransport` in `src/lib/messaging/smtp.ts` (nodemailer;
       email only), which `getTransport()` (`src/lib/messaging/index.ts`) uses for email when
       `EMAIL_TRANSPORT=smtp`, WhatsApp and texts unchanged; worker-only settings
       `EMAIL_TRANSPORT` (`console` by default and refused in production; `smtp` refused when
@@ -2774,6 +2774,9 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 
 - `docs/business.md` "Usage costs": the monthly total (~£60–£110) isn't the sum of its rows (~£45–£120); fix the total or say it's a typical month (found by the 12X.1 fact-check, 2026-10-07).
 
+- Office email's From name: `SMTP_FROM` is one bare address for every firm, so emails don't show "[Firm] Shift Team" as the sender's name (golden rule 8 still holds: no invented name). A per-firm display name when the email provider is connected (12X.2 review, 2026-10-07).
+- Pay digest after "may have arrived": when every send fails, the digest puts its queries back to open, so a digest that may have arrived repeats them in the next one. 12X.2's `EmailMayHaveArrivedError` now tells the two apart if wanted (12X.2 review, 2026-10-07).
+
 ## Hours log
 
 | Date | Phase | Hours | What got done |
@@ -2882,3 +2885,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-07 | 11 | 0.6 | Closed "Docs" (built in b3f3627), resumed in a cloud session after the PC's loop stopped at 18:59 UTC on 2026-10-06 (`host_exit`); most of the time went on making the container match the PC (Node v22.23.3, Postgres and Docker, the browser links, `.test` off the proxy, `*.localhost` in `/etc/hosts`), no repo file changed for it; ui-design, screens and walkthrough checked against the code; nothing to fix; 3404 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-07 | 12 | 0.3 | The mock-up in the repo (12A.0): Dylan's copy (`10617f4`) kept as `docs/mockups/office-v2.html`, its role switch labelled "mock-up only" (words, accessible name and tooltip, the switch's own text when tapped); new `repo.made-up-data.test.ts` (every email address in `src/`, `drizzle/`, `tests/`, `docs/` and the seed on a reserved domain, a 4-entry reviewed allow-list that fails when an entry goes stale, the mock-up's postcodes all `ZZ`, a self-check); one test address moved to a reserved domain; §1.1 and `docs/testing.md` updated; 3409 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-07 | 12 | 0.7 | Remove AWS (12X.1; Dylan OK'd it in this session): the 3 Lightsail scripts and their 2 test files deleted (cloud-init's 4 tests moved to `deploy.cloud-init.test.ts`); no RDS bundle in the image, the host's CA from `/opt/shiftdesk/secrets/db-ca.pem` mounted read-only at `/app/db-ca.pem` (Docker refuses to start without it); `.env.example`'s AWS lines now the email and AI settings; AWS comments reworded in 9 source files; new `no-aws.test.ts`; runbooks and architecture rewritten for any UK/EU Docker host, 7 smaller docs fixed; guardrails SAFE TO COMMIT (4 small fixes made), 3 fact-checkers (all fixed but one older cost total, parked); 3391 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
+| 2026-10-07 | 12 | 0.8 | Email over SMTP (12X.2): `SmtpEmailTransport` (nodemailer 10.0.15, pinned) drives the SMTP conversation step by step and watches for DATA itself, because nodemailer labels every timeout "CONN": a failure before DATA is `EmailNotSentError` (safe to retry), from DATA on `EmailMayHaveArrivedError`; 465 TLS, any other port STARTTLS, never plain text, certificates checked; worker-only settings (console refused in production, smtp refused in tests); email routed to SMTP, texts unchanged; CSV and PDF attachments within the size limits; tests with a fake SMTP server; a log line per failed email (no address); runbook "Email not arriving"; the invariant and CLAUDE.md rule on real services; guardrails SAFE TO COMMIT (5 small fixes made); 3424 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |

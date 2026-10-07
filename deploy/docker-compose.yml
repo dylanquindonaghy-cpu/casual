@@ -74,6 +74,14 @@ services:
       DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
       SESSION_SECRET: ${SESSION_SECRET:?}
       MESSAGING_TRANSPORT: ${MESSAGING_TRANSPORT:-}
+      # Email over SMTP (docs/office-v2.md 5.8): the worker alone sends email, so only it gets the
+      # provider's login (SMTP_PASS is a secret; the web app never sees it).
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,

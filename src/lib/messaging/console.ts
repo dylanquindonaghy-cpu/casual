@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { maskPhone, maskText } from "../log/mask";
-import { outboundMessageSchema, type MessagingTransport, type OutboundMessage } from "./transport";
+import {
+  attachmentBytes,
+  outboundMessageSchema,
+  type MessagingTransport,
+  type OutboundMessage,
+} from "./transport";
 
 type Print = (line: string) => void;
 
@@ -36,7 +41,7 @@ export function createConsoleTransport(
       const files =
         msg.channel === "email"
           ? (msg.attachments ?? []).map(
-              (a) => `\nAttached: ${a.filename} (${Buffer.byteLength(a.content)} bytes)`,
+              (a) => `\nAttached: ${a.filename} (${attachmentBytes(a)} bytes)`,
             )
           : [];
       print(
@@ -44,7 +49,23 @@ export function createConsoleTransport(
       );
       if (outboxFile) {
         await mkdir(dirname(outboxFile), { recursive: true });
-        const line = { at: new Date().toISOString(), providerMessageId, ...msg };
+        // Bytes are kept as base64, so the line stays JSON.
+        const saved =
+          msg.channel === "email" && msg.attachments
+            ? {
+                ...msg,
+                attachments: msg.attachments.map((a) =>
+                  typeof a.content === "string"
+                    ? a
+                    : {
+                        ...a,
+                        content: Buffer.from(a.content).toString("base64"),
+                        encoding: "base64",
+                      },
+                ),
+              }
+            : msg;
+        const line = { at: new Date().toISOString(), providerMessageId, ...saved };
         await appendFile(outboxFile, `${JSON.stringify(line)}\n`);
       }
       return { providerMessageId };

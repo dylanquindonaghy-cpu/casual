@@ -47,4 +47,22 @@ if hits=$(grep -rnF "app.current_firm_id" src | grep -v -e "^src/lib/db/scoped.t
   echo "FAIL: app.current_firm_id used outside src/lib/db/scoped.ts:"; echo "$hits"; fail=1
 else echo "ok: only withFirm (and the seed's firm provisioning) set the firm"; fi
 
+# 6. Tests never reach a real outside service (CLAUDE.md conventions): the Vitest setup and the
+#    browser tests' servers (serverEnv(), the walkthrough's too) pin every real sender off, since
+#    both load .env. A pin only counts on a line that isn't commented out. The settings also refuse
+#    each real sender under NODE_ENV=test.
+pins_missing=""
+has_pin() { grep -F -- "$2" "$1" | grep -qvE '^[[:space:]]*(//|#|\*)'; }
+for pin in 'process.env.EMAIL_TRANSPORT = "console";' 'process.env.SMTP_USER = "";' \
+           'process.env.SMTP_PASS = "";'; do
+  has_pin tests/setup/env.ts "$pin" || pins_missing="$pins_missing tests/setup/env.ts:'$pin'"
+done
+for pin in 'MESSAGING_TRANSPORT: "console",' 'EMAIL_TRANSPORT: "console",' 'SMTP_USER: "",' \
+           'SMTP_PASS: "",'; do
+  has_pin playwright.config.ts "$pin" || pins_missing="$pins_missing playwright.config.ts:'$pin'"
+done
+if [ -n "$pins_missing" ]; then
+  echo "FAIL: a test setup no longer keeps a real sender off:$pins_missing"; fail=1
+else echo "ok: the test setups keep every real sender off"; fi
+
 exit $fail

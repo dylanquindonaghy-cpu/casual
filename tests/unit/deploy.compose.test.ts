@@ -104,6 +104,20 @@ describe("deploy/docker-compose.yml", () => {
       ].sort(),
     );
     expect(keys("worker")).toContain("DATABASE_JOBS_URL");
+    // Email over SMTP (12X.2): the worker alone sends it, so only it gets the provider's login.
+    expect(keys("worker")).toEqual(
+      expect.arrayContaining([
+        "EMAIL_TRANSPORT",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USER",
+        "SMTP_PASS",
+        "SMTP_FROM",
+      ]),
+    );
+    for (const name of ["web", "caddy", "migrate"]) {
+      expect(keys(name), name).not.toContain("SMTP_PASS");
+    }
     for (const name of ["web", "worker", "caddy"]) {
       expect(keys(name), name).not.toContain("DATABASE_ADMIN_URL");
     }

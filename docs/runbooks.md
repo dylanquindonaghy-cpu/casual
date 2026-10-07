@@ -462,6 +462,39 @@ Browsers check for a new one each time the portal opens, at least once a day. **
   template status, quality rating, and Twilio error codes.
 - **Number quality drops:** reduce volume, check opt-outs, make sure offers only go to eligible people.
 
+## Email not arriving
+
+Office emails (login links, escalations, the credential list, the payroll digest, strike evidence)
+are sent by the worker, over SMTP, through the email provider in `.env` (docs/office-v2.md 5.8).
+Each failed one is logged with its reason, and never sent twice by itself.
+
+1. **Is the worker running?** In the server's browser console, `sudo -i`, `cd /opt/shiftdesk`,
+   `docker compose ps`: `worker` should say "healthy". It's off until "Connect Twilio" (then no
+   email goes at all). It refuses to start without the email settings: `docker compose logs --tail
+   50 worker` says which one is missing.
+2. **What happened to it:** the office's action log (Records → Action log) shows that it failed
+   ("A login link to an office user couldn't be sent."). Why: `docker compose logs --since 2h
+   worker | grep -E 'EmailNotSent|EmailMayHave'` shows one line per failed email, with the step
+   (`step`), the provider's reply code (`responseCode`) and never the address. Which kind:
+   - `EmailNotSentError`: it never left. The step says where:
+     - `connect`: the provider's address or port is wrong (`SMTP_HOST`, `SMTP_PORT`: 587, or 465 if
+       it says "SSL/TLS"), the server can't reach it, or it doesn't offer encryption (we never send
+       without it);
+     - `login`: the user name or password is wrong (`SMTP_USER`, `SMTP_PASS`);
+     - `envelope`: the provider refused the sender (`SMTP_FROM` must be an address on a domain it
+       has verified) or the recipient (a typo in the person's address).
+   - `EmailMayHaveArrivedError`: the provider got it, or nearly. Look in its activity page before
+     sending anything again.
+3. **Check the settings** (never print the password): `grep -E
+   '^(EMAIL_TRANSPORT|SMTP_HOST|SMTP_PORT|SMTP_USER|SMTP_FROM)=' .env`. `EMAIL_TRANSPORT` must be
+   `smtp`. To change one: `nano .env`, save once; the deploy timer applies it within 2 minutes.
+4. **The provider's side:** its dashboard's activity or logs page shows whether each message was
+   accepted, delivered, bounced or marked as spam. Ask the person to check their spam folder. If
+   messages land in spam, finish the provider's domain checks (SPF, DKIM and DMARC records at your
+   domain's DNS: the provider gives the exact lines).
+5. **Then send it again from the app:** a login link, ask again on the login page (a new link); the
+   payroll digest, "Send the digest now" on the pay queries page.
+
 ## Google Sheets sync failing
 
 `npm run -s firm:sheet -- --firm <slug>` shows the firm's sheet, when it last synced and why it's

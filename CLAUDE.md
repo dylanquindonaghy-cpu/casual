@@ -128,8 +128,10 @@ docs/
   (`tests/helpers/tenant-rows.ts`). Links between firm tables are composite `(firm_id, x_id)` FKs.
 - App code reaches the database only through `withFirm()` (and `resolveFirmBySlug()` for host
   lookup). Firm jobs extend `firmJobEnvelope`; payloads carry ids only.
-- Dev messaging uses `MESSAGING_TRANSPORT=console` (prints outbound messages). Never hit
-  Twilio from tests.
+- Dev messaging uses `MESSAGING_TRANSPORT=console` and `EMAIL_TRANSPORT=console` (prints
+  outbound messages). Never hit Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a
+  planner from tests: the settings refuse each real sender under `NODE_ENV=test`, and
+  `scripts/invariants.sh` checks the test setups' pins (email and Twilio today).
 
 ## How to work each task
 

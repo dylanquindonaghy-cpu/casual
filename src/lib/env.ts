@@ -15,6 +15,10 @@ type Source = Record<string, string | undefined>;
 const postgresUrl = z.url({ protocol: /^postgres(ql)?$/ });
 const nodeEnv = z.enum(["development", "test", "production"]).default("development");
 
+// An empty value (as the env examples ship them) means not set.
+const unsetIfEmpty = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (v === "" ? undefined : v), schema);
+
 // The user pg will really connect as. As in pg-connection-string: a ?user= parameter overrides
 // the URL's username, the last one wins when repeated, and an empty one falls back.
 export function urlUser(url: string): string {
@@ -153,6 +157,34 @@ export const workerEnvSchema = z
       .string()
       .regex(/^\/tmp\/[\w.-]+$/)
       .optional(),
+    // Email, worker only (the web app sends none; docs/office-v2.md 5.8). "console" prints it
+    // (development and tests; refused in production). "smtp" sends through any provider's SMTP
+    // server (src/lib/messaging/smtp.ts): refused under NODE_ENV=test, so no test can reach one.
+    // Real sending waits for "Connect an email provider (SMTP)" (PLAN.md Parking lot). An empty
+    // value (as the env examples ship them) means not set.
+    EMAIL_TRANSPORT: unsetIfEmpty(z.enum(["console", "smtp"]).default("console")),
+    SMTP_HOST: unsetIfEmpty(
+      z
+        .string()
+        .max(253)
+        .regex(
+          /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*$/,
+          {
+            message: "must be the SMTP server's host name",
+          },
+        )
+        .optional(),
+    ),
+    // 465: TLS from the first byte; any other port (587, or 2525 where offered) must upgrade with
+    // STARTTLS. Never plain text either way.
+    SMTP_PORT: unsetIfEmpty(z.coerce.number().int().min(1).max(65535).default(587)),
+    SMTP_USER: unsetIfEmpty(z.string().max(320).optional()),
+    // A secret: never logged, never in the repo, never given to the web app.
+    SMTP_PASS: unsetIfEmpty(z.string().max(1000).optional()),
+    // The address every email comes from (a domain the provider has verified).
+    SMTP_FROM: unsetIfEmpty(
+      z.email({ message: "must be the email address mail comes from" }).optional(),
+    ),
   })
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
@@ -169,6 +201,22 @@ export const workerEnvSchema = z
   .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "console", {
     path: ["MESSAGING_TRANSPORT"],
     message: "console transport is not allowed when NODE_ENV=production",
+  })
+  .refine((e) => e.NODE_ENV !== "production" || e.EMAIL_TRANSPORT !== "console", {
+    path: ["EMAIL_TRANSPORT"],
+    message: "console email is not allowed when NODE_ENV=production",
+  })
+  .refine((e) => e.NODE_ENV !== "test" || e.EMAIL_TRANSPORT !== "smtp", {
+    path: ["EMAIL_TRANSPORT"],
+    message: "tests never send real email: smtp is refused when NODE_ENV=test",
+  })
+  .refine((e) => e.EMAIL_TRANSPORT !== "smtp" || (e.SMTP_HOST && e.SMTP_FROM), {
+    path: ["SMTP_HOST"],
+    message: "EMAIL_TRANSPORT=smtp needs SMTP_HOST and SMTP_FROM",
+  })
+  .refine((e) => !e.SMTP_USER === !e.SMTP_PASS, {
+    path: ["SMTP_PASS"],
+    message: "SMTP_USER and SMTP_PASS go together",
   });
 
 export const adminEnvSchema = z

@@ -11,3 +11,8 @@ process.env.APP_BASE_DOMAIN = "localhost:3000";
 process.env.SESSION_SECRET = "test-only-secret-not-for-any-real-use-0123";
 // Alerts to the founder go nowhere in tests (tests that check them pass their own transport).
 process.env.ALERTS_TRANSPORT = "none";
+// Never a real email server, whatever .env says (the settings also refuse smtp under
+// NODE_ENV=test; scripts/invariants.sh checks these lines stay).
+process.env.EMAIL_TRANSPORT = "console";
+process.env.SMTP_USER = "";
+process.env.SMTP_PASS = "";

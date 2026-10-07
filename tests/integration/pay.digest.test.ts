@@ -218,7 +218,10 @@ describe("the payroll digest", () => {
     const [file] = email?.attachments ?? [];
     expect(file?.filename).toBe("pay-queries-2026-11-02.csv");
     expect(file?.contentType).toBe("text/csv");
-    const rows = (file?.content ?? "").slice(1).trim().split("\r\n");
+    const rows = String(file?.content ?? "")
+      .slice(1)
+      .trim()
+      .split("\r\n");
     expect(rows).toHaveLength(4);
     expect(rows[0]).toBe(
       "Reference,Worker,Day worked,Shift,Issue,What they wrote,Sent (firm time),Group",
@@ -291,7 +294,12 @@ describe("the payroll digest", () => {
       "1 new pay query since the last digest: paid late or not paid, the week of Mon 26 Oct.",
     );
     expect(second?.body).toContain("3 queries from earlier digests are still waiting.");
-    expect((second?.attachments?.[0]?.content ?? "").slice(1).trim().split("\r\n")).toHaveLength(2);
+    expect(
+      String(second?.attachments?.[0]?.content ?? "")
+        .slice(1)
+        .trim()
+        .split("\r\n"),
+    ).toHaveLength(2);
 
     // Nothing new: no email, and the day's digest is marked done.
     expect(await digest(t.f.firmId, key("2026-11-04"), deps(transport))).toEqual({

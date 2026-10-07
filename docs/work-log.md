@@ -9535,3 +9535,56 @@ sealed boxes called "containers").
   `.env.example` into it.
 - `docs/business.md`'s monthly cost total doesn't add up from its rows; that was so before this
   task, so it's in the Parking lot.
+
+## 2026-10-07 — Phase 12, task 12X.2: email over SMTP
+
+- **Time spent:** 0.8 hours (11:56 to 12:43 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=352aa266fa01cf4a e2e=true`
+  (3,424 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round, re-ran the email tests
+  itself (33 of 33), and found no fakes.
+
+### What was built, in plain words
+
+The app can now send real email. Until today it could only print emails on the screen (the
+"console" sender, for development and tests). The new sender uses SMTP, the standard way programs
+hand email to an email company (the "provider": Gmail, Microsoft and the email services all
+accept it). It sends every office email: login links, the payroll digest, alerts and, later, strike
+evidence. It's switched off until you choose an email company and put its details in the server's
+settings ("Connect an email provider (SMTP)" in PLAN.md).
+
+- **Encrypted, always.** Port 465 starts encrypted; any other port must switch to encryption
+  (STARTTLS) before anything else is said. A server that can't encrypt gets nothing.
+- **Not sent, or maybe sent?** When sending fails, the app needs to know which: if the email never
+  left, it's safe to try again; if it may have arrived, it must never be sent twice. The line is
+  the moment the app says `DATA` ("here comes the message"). The library used (nodemailer) gives
+  every timeout the same label, so it can't tell; the new sender watches for `DATA` itself.
+- **Settings:** `EMAIL_TRANSPORT`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (a password,
+  given only to the worker, never the website), `SMTP_FROM`. Production refuses the printing
+  sender; tests refuse the real one.
+- **Attachments:** the payroll list (CSV) and, later, PDFs, within limits that keep the whole email
+  under providers' size caps.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Watch for `DATA` on the connection | nodemailer's labels can't say whether a timeout came before or after the message started (checked in its code) | Trusting its labels: would call a maybe-delivered email "not sent" |
+| Pin nodemailer to exactly 10.0.15 | The watch relies on how it writes to the connection; the tests prove it for this version | A range of versions |
+| One log line per failed email: the step and codes, never the address | The action log only says "couldn't be sent"; the runbook needs the reason | Logging nodemailer's own message (it can contain the address) |
+| Keep nodemailer out of the website's bundle | The website sends no email | Letting it be bundled |
+
+### What the new tests prove
+
+A fake email server runs on the test computer itself (never a real one), with encryption and a
+certificate made for the run. The tests make it stall, refuse or hang up at every step, and check
+each failure is "not sent" before `DATA` and "may have arrived" from `DATA` on, within the time
+limit. With the `DATA` watch switched off on purpose, exactly those "may have arrived" tests
+failed; switched back on, all pass. Other tests pin every setting, the encryption rules, the email
+as built (from, to, subject, body, a CSV and a PDF), the routing (email to SMTP, texts unchanged),
+and that only the worker gets the password.
+
+### What needs Dylan
+
+Nothing now. When you pick an email company: follow `deploy/env.example`'s email lines and
+`docs/runbooks.md` "Email not arriving" if something doesn't arrive.

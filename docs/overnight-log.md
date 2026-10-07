@@ -8942,3 +8942,43 @@ Not audited, because it is outside this task: PLAN.md's separate unticked item "
 ```
 
 **Ticked** in `PLAN.md` at 18:49 UTC. **Hours:** 0.2 (18:35 to 18:49).
+**Committed** as `a164632` and pushed (`efe55b5..a164632`).
+
+## 2026-10-07 10:12 UTC — The loop stopped at 18:59 UTC; resumed in a cloud session
+
+**What happened:** at 18:51 UTC on 2026-10-06 the run for Phase 11 task 8 ("Docs") wrote its plan
+entry and started `RUN_E2E=1 ./scripts/verify.sh`. At 18:59:47 UTC the session on Dylan's PC
+logged `worker_shutting_down` (reason `host_exit`): the Claude Code process on the PC stopped,
+the verify was killed and the session was archived. A `/loop` lives only as long as its session,
+so nothing ran overnight. That run's plan entry was never committed; this entry replaces it.
+Nothing was lost: `a164632` was the last commit, it was pushed, and its CI passed (run
+37514289670).
+
+**Dylan's decisions on 2026-10-07:** carry on from a Claude Code cloud session, committing and
+pushing to `build/overnight` as before. Dylan is adding the approved mock-up to the repo
+(`.dev/handoff/` is gitignored, so the cloud copy doesn't have it); 12A.0 waits for it.
+
+**Cloud environment notes (for later runs here)**
+- Postgres 16 runs in the container (`pg_ctlcluster 16 main start`; superuser `shiftdesk`, as in
+  `docker-compose.dev.yml`). `.env` is `.env.example` with CI's `SESSION_SECRET`. Docker runs
+  (`dockerd`) for the Caddy tests, with `caddy:2.10` pulled.
+- **Node:** the container's own Node is v22.22.0. On it, `TextDecoder("windows-1252")` reads byte
+  0x8E as U+008E instead of "Ž" (U+017D), so `imports.files.test.ts` "refuses a Mac CSV" fails
+  (`readTable` doesn't see "RenŽe"). That is the old Node, not the code: v22.23.3 (Dylan's PC, and
+  the latest 22 that CI's `.nvmrc` "22" picks up) decodes it as "Ž". Every run here uses Node
+  v22.23.3 from nodejs.org (checksum checked) at `/opt/node-v22.23.3-linux-x64`.
+- **Browsers:** `@playwright/test` 1.63 wants Chromium 153 (build 1243); the container has
+  Chromium 141 (build 1194) and its setup says not to download browsers. `PLAYWRIGHT_BROWSERS_PATH`
+  points at `/root/pw-compat`, which links build 1243's paths to the installed 141. The browser
+  tests run and pass on it, but on an older Chromium than the PC and CI use, so CI's e2e job
+  stays the check on the exact browser.
+- None of this changes the repo: no test, config, script or `.claude/` file was touched.
+
+## 2026-10-07 10:12 UTC — Phase 11, task 8: close "Docs"
+
+**Task:** Docs: `docs/ui-design.md`; `docs/screens.md` (the office shell, Today, both guides, every
+new string); `docs/walkthrough.md` (where the office's "Log out" is now)
+
+**Plan (close, don't rebuild):** `/close-task` as written: `RUN_E2E=1 ./scripts/verify.sh`, then
+the `claims-auditor` with only the task text and Phase 11's "Done when". Fix only a gap it names.
+No code change expected. CI for `a164632`: passed (run 37514289670).

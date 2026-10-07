@@ -8990,3 +8990,48 @@ container's browser sends HTTPS through the agent proxy, which refuses the made-
 `shifts.acme-events.test`, so `custom-domain.spec.ts` failed with `ERR_TUNNEL_CONNECTION_FAILED`.
 Test runs here add `.test` to `no_proxy` (the proxy stays on); the spec's 4 tests then pass.
 Read `docs/mockups/office-v2.html` wherever the handoff says `.dev/handoff/office-v2-mockup.html`.
+
+**Verify, round 1 (10:20–10:31 UTC):** typecheck, lint and all 3,404 tests passed (the Caddy
+tests included, now that Docker runs here), but e2e failed 3 of 60: `offline.worker.spec.ts` (the
+logout address; the manifest) and `push.worker.spec.ts` (the subscribe route), each
+`getaddrinfo ENOTFOUND acme.localhost`. Root cause: those three call the app from Node (Playwright's
+`request`), not from the browser. Chromium maps every `*.localhost` to this machine itself; Node
+asks the system, and Ubuntu with systemd-resolved (the PC's WSL, GitHub's runners) answers
+127.0.0.1, but this container's resolver (`hosts: files dns`) doesn't. The container's
+`/etc/hosts` now maps the firm hostnames the tests use to 127.0.0.1 (RFC 6761: `.localhost` is
+loopback); the two specs' 9 tests then pass. No repo file changed.
+
+**Verify, round 2:** `VERIFIED tree=ed9c4f6cfc509e33 e2e=true` (205 files, 3,404 tests, 0 skipped;
+e2e 60, then the walkthrough's 3).
+
+**Audit round 1 verdict (verbatim):**
+
+```
+VERDICT: DONE
+
+Verify stamp: `.claude/state/verified.json` is `{"ok":true,"tree":"ed9c4f6cfc509e33","e2e":true,...}` and `tree-hash.sh` prints `ed9c4f6cfc509e33`, so it matches. test.log: 205 files and 3404 tests passed. e2e.log: 60 passed, plus the 3 walkthrough tests (Part 2, Part 3 office, Part 4). No `.skip`, `.only` or `xit` in `tests/`. The only "FAIL" hit in test.log is a test named FAILED_QUERY, which passed.
+
+Claims:
+- `docs/ui-design.md` covers the design system and the office shell — PROVEN. `/home/user/casual/docs/ui-design.md` has principles, tokens, shared components, shell, page patterns, forms-wait, staff pages and guides. I checked these against code:
+  - The sidebar is 16rem (256px) and the content max is `max-w-6xl` (1152px): `src/app/office/office-shell.tsx`.
+  - Menu groups and the role filter via `canAccess`: `office-shell.tsx`.
+  - The `router.refresh()` redraw on arrival at login: `office-nav.tsx:131`.
+  - Heading sizes, the 44px and 56px tap targets, and `max-w-md` and `max-w-2xl`: `src/app/ui/classes.ts`.
+  - Status tones: `src/app/office/shifts/shift-tones.ts`, plus the maps in the profile, pay, requests and find-worker views.
+  - Tests that pin it: `tests/unit/ui.design-system.test.ts:30,52` reads the doc and checks the token table both ways. `ui.office-pages`, `ui.staff-pages`, `forms.hydration`, `office.shell` and `office.today-summary` all exist and passed.
+- `docs/screens.md` documents the office shell — PROVEN. The "Office shell" block at lines 70-104 covers the skip link, menu groups and roles, the phone row with edge arrows, `aria-current`, the redraw on login end, the footer with the one "Log out", not-found keeping the shell, and tab titles. All match `office-shell.tsx`, `office-nav.tsx` and `layout.tsx`. `tests/unit/office.titles.test.ts:35-49` reads the doc's tab-title list and holds the pages to it (passed). Line 116 notes that the links and "Log out" moved off `/office`.
+- `docs/screens.md` documents Today — PROVEN. Line 122 describes the summary tiles, the tile colours and icons (including "50+" and calm at 0), the section order, and the "Urgent" and "From your Google Sheet" labels. This matches `src/app/office/today-view.tsx`: the `HEADINGS` order, `summaryTiles()`, `TILE_TONE` (urgent for urgent and to-check, attention, quiet for cancelled, calm at 0) and the `Summary` nav. `tests/unit/office.today-summary.test.ts` passed.
+- `docs/screens.md` documents both guides — PROVEN. Line 134 covers `/office/guide`: 12 topics, role gating (admin sees all twelve, resourcer drops Pay and Admin, payroll sees three), and the quoted button and task titles. Line 26 covers `/help`: 11 topics and the "not on it yet" notes. I spot-checked about 60 quoted strings against `guide-view.tsx` and `help-view.tsx`, and all matched. The topics in `SECTIONS` and `canAccess` filtering (`guide-view.tsx:26-60`) match the doc. `tests/unit/guides.test.ts` and `copy.plain-language.test.ts` passed.
+- `docs/screens.md` documents every new string — PROVEN, with one caveat below. I diffed the Phase 11 changes under `src` (c6500f5..HEAD) for added UI strings and ran a heuristic search for any missing from `docs/screens.md` and `docs/ui-design.md`. Every miss was a sentence inside the guide or `/help`. The doc says those files "hold every sentence", and `guides.test.ts` and `copy.plain-language.test.ts` pin them. The one other hit, `aria-label="Which shifts"` (`src/app/my-shifts-view.tsx:85`), was added in Phase 3 (d174d2f), so it isn't new. Chip words and the staff and office tab titles are documented. The staff page-header pattern is at `screens.md:52`.
+- `docs/walkthrough.md` says where the office's "Log out" is now — PROVEN. Lines 95-96 read "for the office, at the bottom of the office menu (on the left on a laptop, at the end of the page on a phone)". This matches the footer in `office-shell.tsx` (bottom of the sidebar from `lg`, after the page below that). Lines 140-142 say every office page has the same menu on the left, with "How-to guide" near the bottom, which matches the Help group being last. No stale "Log out at the bottom of Today" remains in `docs/`; line 122 of `ui-design.md` mentions it only as history ("moved here from the bottom of Today"). `tests/e2e/walkthrough.spec.ts` Part 3 passed in the e2e run.
+
+Fakes found: none. No skipped or `.only` tests, and the doc-pinning tests read the real files.
+
+Non-blocking notes: the `ui-design.md` status-tone table is "for existing words" and does not list every chip word. Not listed: "Can log in", "Access off", "In a digest", "Offered", "You're booked on this shift". Nothing in the done criteria requires the table to be exhaustive. Phase 11's other boxes are already ticked.
+
+To reach DONE: nothing.
+```
+
+**Ticked** in `PLAN.md` at 10:49 UTC. **Hours:** 0.6 (10:12 to 10:50). Phase 11 is closed: all 8 tasks
+ticked, 4.8 hours in total. PLAN.md gives Phase 11 no estimate, so there is nothing to compare.
+Next: Phase 12, starting with 12A.0 (the mock-up is now in the repo).

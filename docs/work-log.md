@@ -9365,3 +9365,53 @@ until they exist.
 
 The auditor noted, without needing it for DONE, that no browser test loads `/help` with no
 login; the unit test checks the page's code instead.
+
+## 2026-10-07 — Phase 11, task 8: closing the docs
+
+- **Time spent:** 0.6 hours (10:12 to 10:50 UTC). Most of it went on setting up a new place to run
+  the build (below). The 8 minutes the PC spent on this task before it stopped are not counted.
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=ed9c4f6cfc509e33 e2e=true`
+  (3,404 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round. Every claim was PROVEN, and
+  it found no fakes. Nothing needed fixing.
+
+### Why this ran somewhere new
+
+The build loop runs inside a Claude Code session. Last night that session was on Dylan's PC, and
+at 18:59 UTC the program on the PC stopped (the log says `host_exit`). That ended the loop, so
+nothing ran overnight. This morning the work carried on in a **cloud session**: a temporary
+Linux computer (a "container") that Claude Code runs on.
+
+A new computer has to match the old one, or tests fail for reasons that have nothing to do with
+the code. Four things were different, and each was fixed on the container only (no file in the
+repo changed):
+
+| What was different | What it broke | What was done |
+|---|---|---|
+| An older Node (the program that runs JavaScript): v22.22.0 | One test: a Mac CSV file wasn't refused, because that Node reads one byte (0x8E) wrongly | Installed v22.23.3, the same as the PC |
+| No Docker (the tool that runs the test database and Caddy in boxes) | Four Caddy tests were skipped | Started Docker; Postgres runs on the container itself |
+| An older test browser than Playwright (the browser-test tool) expects | Every browser test failed to start | Pointed Playwright at the browser that's there |
+| Network rules: a "proxy" (a middleman for web traffic), and no automatic answer for names ending `.localhost` | The made-up firm domain and three tests that call `acme.localhost` failed | Kept `.test` names off the proxy; listed the firm names as "this computer" |
+
+### What this task was
+
+Phase 11's last task: the three docs that describe the new look had to match the code.
+`docs/ui-design.md` explains the design system and the office menu. `docs/screens.md` describes
+the office shell (the menu around every office page), Today, both guides and the new words.
+`docs/walkthrough.md` says where the office's "Log out" is now: at the bottom of the menu.
+
+### What proves it
+
+The auditor read each doc against the code. It checked sizes, menu groups, the order of Today's
+sections, about 60 quoted words from the two guides, and where "Log out" sits. Tests that read the
+docs also passed: `ui.design-system.test.ts` checks the colour table both ways, and
+`office.titles.test.ts` holds every office page's tab title to the doc.
+
+The auditor noted, without needing it for DONE, that the doc's table of status words lists the
+existing words, not every one ("Can log in", "Access off", "In a digest", "Offered" and "You're
+booked on this shift" aren't in it).
+
+### Phase 11 in total
+
+All 8 tasks are ticked. Phase 11 took 4.8 hours over 10 rows of the Hours log. PLAN.md gave it no
+estimate, so there's nothing to compare it with.

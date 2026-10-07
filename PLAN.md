@@ -371,7 +371,7 @@ prints VERIFIED.
 - [x] `/help` for workers: how it works in plain words, readable without logging in, checked by
       `tests/unit/copy.plain-language.test.ts`. No shifts-line number or privacy notice link yet
       (both in the Parking lot)
-- [ ] Docs: `docs/ui-design.md`; `docs/screens.md` (the office shell, Today, both guides, every new
+- [x] Docs: `docs/ui-design.md`; `docs/screens.md` (the office shell, Today, both guides, every new
       string); `docs/walkthrough.md` (where the office's "Log out" is now)
 
 ## Phase 12 — Compact office and casual app v2
@@ -2874,3 +2874,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-06 | 11 | 0.5 | Closed "Staff screens restyled" (built in b3f3627): the first audit found five staff lists without `role="list"` and the pay query's problem list carrying `role="alert"` in its place, and no test of the staff pages; the lists fixed (markup only; the alert now a box around the list) and a new `ui.staff-pages.test.ts` holds every staff page to `PageHeader` (login and error pages to their one `<h1>`) and every bare list to `role="list"` (shown to fail on one put back); 3404 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 2) (see docs/work-log.md) |
 | 2026-10-06 | 11 | 0.2 | Closed "`/office/guide`" (built in b3f3627): the everyday jobs step by step in the order of a working day, each part shown only to a role that can open it, proven by `guides.test.ts` (8 office-guide cases, real render) and the menu tests; every button name in the guide checked against a real screen; nothing to fix; 3404 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-06 | 11 | 0.2 | Closed "`/help` for workers" (built in b3f3627): 11 topics in plain words, open without logging in, held by `copy.plain-language.test.ts` and `guides.test.ts` (no shifts-line number, no privacy link, no buttons); every button it names and every time it states checked against the code; nothing to fix; 3404 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
+| 2026-10-07 | 11 | 0.6 | Closed "Docs" (built in b3f3627), resumed in a cloud session after the PC's loop stopped at 18:59 UTC on 2026-10-06 (`host_exit`); most of the time went on making the container match the PC (Node v22.23.3, Postgres and Docker, the browser links, `.test` off the proxy, `*.localhost` in `/etc/hosts`), no repo file changed for it; ui-design, screens and walkthrough checked against the code; nothing to fix; 3404 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |

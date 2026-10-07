@@ -38,8 +38,8 @@ import { regroupPayQueries } from "./grouping";
 //      line imported since moves a query to the right group); the oldest 1,000 open queries, marked
 //      in_digest (so a second digest can't send them too), each logged `pay_query.in_digest`, and
 //      the digest logged `pay_digest.sending`;
-//   2. outside any transaction: the AI's line for the biggest groups (none until Bedrock is
-//      connected), then the email to each recipient;
+//   2. outside any transaction: the AI's line for the biggest groups (none until the Anthropic
+//      API is connected), then the email to each recipient;
 //   3. transaction 2, under the same lock and run again if Postgres aborts it (a deadlock): sent
 //      to anyone, `pay_digest.sent`; sent to no one, the queries go back to open for the next
 //      digest (each logged `pay_query.back_to_open`) and `pay_digest.failed`. Any failed send
@@ -261,7 +261,7 @@ export async function runPayDigest(
   const claim = await run(payload.firmId, (tx) => claimDigest(tx, payload, date, actor));
   if (claim.kind === "done") return claim.result;
 
-  // The AI's line for the biggest groups, outside any transaction (none until Bedrock is
+  // The AI's line for the biggest groups, outside any transaction (none until the Anthropic API is
   // connected: every heading stays the code's line).
   const top = await summariseGroups(claim.groups.slice(0, PAY_DIGEST_AI_GROUPS), deps.ai, {
     timeoutMs: deps.aiTimeoutMs,
@@ -367,8 +367,8 @@ export function payDigestTask(deps: () => PayDigestDeps): FirmTask<PayDigestPayl
   return { ...payDigestJob, task: (payload, run) => runPayDigest(payload, run, deps()) };
 }
 
-// The worker's wiring. Deps are read when the job runs. No AI yet: "Connect Bedrock" (PLAN.md
-// Parking lot) replaces `noAi` with the Bedrock client.
+// The worker's wiring. Deps are read when the job runs. No AI yet: "Connect the Anthropic API"
+// (PLAN.md Parking lot) replaces `noAi` with the Anthropic client.
 export const payDigestFirmTask = payDigestTask(() => {
   const env = workerEnv();
   return { transport: getTransport(env), ai: noAi, baseDomain: env.APP_BASE_DOMAIN };

@@ -2,87 +2,122 @@
 
 Short, do-this-now guides. Keep them current.
 
-## Set up AWS (once)
+## Set up the server (once)
 
-Creates the app server and the database in London (`deploy/lightsail.sh`). It costs money from
-then on (about $24 + $15 a month at the time of writing). On your own computer (in WSL):
+Creates the app server and its database at a UK or EU host that runs Docker (ADR-021; which host
+is your choice: PLAN.md Deploy 9, "Connect hosting"). It costs money from then on: check the host's
+monthly prices before you buy (PLAN.md Checks 2). It's mostly done by clicking in the host's control
+panel (steps 2, 7 and 8 also have a few typed commands). Every host names its menus differently,
+so each step says what to look for. (Once the host
+is chosen, Claude adds where each thing is in its control panel.)
 
-1. **An AWS account, made safe first:** sign up at aws.amazon.com. Straight away:
-   - turn on MFA (a code from your phone) for the account's main ("root") login: AWS → your name
-     (top right) → Security credentials → Assign MFA device;
-   - a spending alert before anything costs money: search "Budgets" → Create budget → "Monthly
-     cost budget" → £50 → your email. You get an email if the month's bill heads past £50;
-   - an everyday admin login, so the root login stays in the drawer: IAM (search "IAM") → Users →
-     Create user (e.g. `dylan`) → "Provide user access to the AWS Management Console" → attach
-     `AdministratorAccess` → then open it → Security credentials → Assign MFA device. Log in as that
-     from now on.
-2. **A key for the command line, allowed only Lightsail in London:** IAM → Users → Create user
-   `dylan-cli` (no console access) → "Attach policies directly" → Create policy → the JSON tab →
-   paste this, name it `shiftdesk-lightsail-london`, and attach it:
+1. **An account, made safe first:** sign up with the host. Straight away:
+   - turn on two-step login (MFA: a code from your phone), in the account's security settings;
+   - a spending alert before anything costs money: look for "billing alert", "budget" or "spending
+     limit", set £50 and your email. You get an email if the month's bill heads past £50. (If the
+     host has none, look at its bill once a month.)
+2. **The app server:** create a server (the host may call it a "server", "instance" or "VPS"):
+   - Ubuntu 24.04, 2 CPUs and 4 GB of memory (the cheapest such plan);
+   - a UK or EU region. Write down which: the database goes in the same one;
+   - the name `shiftdesk-app`;
+   - if it asks how you'll log in: an SSH key, never a password. Make one on your own computer (in
+     WSL): `ssh-keygen -t ed25519`, press Enter for the file name, then type a passphrase twice
+     (keep it in your password manager). `cat ~/.ssh/id_ed25519.pub` prints one line starting
+     `ssh-ed25519`: paste that line into the host's box;
+   - its first-boot script: the box called "user data" or "cloud-init" (often under advanced
+     options). Paste the whole of `deploy/cloud-init.sh` into it. On first boot it installs the
+     security updates (and keeps installing them, restarting the server at 02:30 UTC when one needs
+     it), Docker, and a root-only `/opt/shiftdesk`. No such box: step 7 runs it by hand.
+3. **Its firewall, straight away:** in the host's firewall settings for the server (the control
+   panel's, outside the server, so nothing on the server can open a port by mistake):
+   - allow incoming TCP ports 80 and 443 from everywhere (IPv4 and IPv6);
+   - SSH (port 22): closed if the host has a browser console that gets you onto the server (step
+     7). Otherwise allow it only from your own internet address (search "what is my IP" to see it;
+     change the rule if your address changes);
+   - nothing else.
 
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": "lightsail:*",
-         "Resource": "*",
-         "Condition": { "StringEquals": { "aws:RequestedRegion": "eu-west-2" } }
-       }
-     ]
-   }
-   ```
+   Then read the rules back: only 80 and 443 may be open to everywhere (`0.0.0.0/0` and `::/0`, or
+   "All IPv4" and "All IPv6"). Anything else open to everywhere: remove it.
+4. **A fixed IP address:** look for "static", "reserved" or "floating" IP and attach one to the
+   server (some hosts give every server a fixed one: their help pages say so). Write it down: the
+   DNS records point at it.
+5. **The database:** the host's managed Postgres (often "managed database" or "databases"):
+   - Postgres 16, the cheapest plan (one database, not a "high availability" pair);
+   - the same region as the server;
+   - a database named `shiftdesk` and, if it lets you choose the admin user's name,
+     `shiftdesk_owner`. If the host picks either name itself, use its names instead, in `.env`'s
+     three database addresses and in this runbook's commands;
+   - **not public:** only the app server may reach it. Look for "public access" (turn it off),
+     "trusted sources" or "allowed IP addresses" (add only the app server, by name or its private
+     address), or a "private network" shared with the server;
+   - **backups on:** nightly, and "point-in-time restore" too if it offers it. If you can choose
+     when: backups around 01:00 UTC, and upkeep ("maintenance window") early on a Tuesday morning,
+     away from event nights (Friday, Saturday) and event mornings.
 
-   Then open `dylan-cli` → Security credentials → Create access key → "Command Line Interface" →
-   tick "I understand the above recommendation" → Next → Create. Keep both values in your password
-   manager: you can't see the second one again. (Or skip the key entirely: open AWS CloudShell, in
-   London, from the console's top bar, upload the two `deploy/` files, and run the script there.)
-3. **The AWS CLI** (outside the project folder, so nothing lands in the repo):
-   `sudo apt install -y unzip && cd /tmp && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip && unzip -q awscliv2.zip && sudo ./aws/install && rm -rf awscliv2.zip aws && cd -`
-   then `aws --version` should print "aws-cli/2…".
-4. **Log it in:** `aws configure`, paste the two values, region `eu-west-2`, output `json`. Then
-   `aws sts get-caller-identity` should print your account number.
-5. **Create everything:** from the project folder, `bash deploy/lightsail.sh`. It first shows the
-   two plans and their monthly prices and waits for you to type `yes`. Then it prints each step
-   ("== The app server …", "Created.", "Done, and checked.") and waits for the database, which
-   takes 10 to 20 minutes. At the end it prints the static IP, the database's address and what to
-   do next. Run it again any time: it skips what's already there (but it resets the firewall to
-   its own rules).
-6. **DNS:** at the company where you bought the domain, add two A records pointing to the static
+   The control panel shows when it's ready (it can take a while). Then write down its address: in
+   its connection details, the host name to connect from the server (the private one, if it shows
+   two). Use that name exactly: the certificate check compares it with the name on the database's
+   certificate. Write down its port too: 5432 unless the connection details say otherwise. If it
+   isn't 5432, use it in place of `:5432` in `.env`'s three database addresses and in the drill's
+   check.
+6. **The database password:** the control panel shows the admin user's password (or you set it).
+   Put it in your password manager; it goes in the server's `.env` (the deploy steps). Never in
+   the repo. Inside a database address (`postgres://…`) write every character that isn't a letter
+   or a digit percent-encoded: for example `#` is `%23`, `?` is `%3F`, `%` is `%25`, `@` is `%40`,
+   `/` is `%2F` and `:` is `%3A` (ask Claude if unsure). In `.env` put the whole value in single
+   quotes.
+7. **Get onto the server:** the host's browser console (look for "console" or "web console" on
+   the server's page). The runbooks call it "the server's browser console". A host without one:
+   SSH from your own computer instead, `ssh <user>@<the fixed IP>` (the user name the host gives,
+   often `root` or `ubuntu`), and use that wherever the runbooks say "browser console". Then:
+   - if you pasted the first-boot script in step 2, check it finished: `sudo cloud-init status
+     --long` says "done", and `docker --version` prints a version;
+   - if the host had no "user data" box, run the script by hand once: `sudo -i`,
+     `nano /root/cloud-init.sh`, paste the whole of `deploy/cloud-init.sh`, save (Ctrl+O, Enter,
+     Ctrl+X), then `sh /root/cloud-init.sh` (a few minutes of install messages). Then
+     `docker --version` prints a version, and `ls -ld /opt/shiftdesk` starts `drwx------` and
+     shows `root root`.
+8. **The database's CA certificate** (every database connection is checked against it): in the
+   database's connection details, download its CA certificate. It's a text file that starts with
+   `-----BEGIN CERTIFICATE-----`. Open the downloaded file in a text editor (Notepad, or
+   `cat <the file>` in WSL) and copy everything, from the BEGIN line to the END line; if the host
+   shows the certificate as text on the page, copy that instead. On the server, as root
+   (`sudo -i`):
+   `mkdir -p /opt/shiftdesk/secrets`, then `nano /opt/shiftdesk/secrets/db-ca.pem`, paste the
+   whole file (from the BEGIN line to the END line), save (Ctrl+O, Enter, Ctrl+X), then
+   `chmod 644 /opt/shiftdesk/secrets/db-ca.pem` (a public certificate, not a secret: the app runs
+   as an ordinary user and must be able to read it). Check it:
+   `openssl x509 -in /opt/shiftdesk/secrets/db-ca.pem -noout -subject -enddate` prints its name
+   and the date it runs out (an error means the paste is incomplete: do it again). Docker won't
+   start the app without this file, on purpose. If the host offers no CA certificate for the
+   database, ask Claude before going on.
+9. **DNS:** at the company where you bought the domain, add two A records pointing to the fixed
    IP: the domain itself, and `*` (every firm's subdomain).
-7. **The database password:** the script prints the command that shows it. Put it in your
-   password manager; it goes in the server's `.env` (the deploy steps). Never in the repo. AWS may
-   put characters like `#`, `?`, `%` or `$` in it: inside a database address (`postgres://…`) write
-   it percent-encoded (`#` is `%23`, `?` is `%3F`, `%` is `%25`), and in `.env` put the whole value
-   in single quotes.
-8. **Get onto the server:** Lightsail → Instances → `shiftdesk-app` → "Connect using SSH" (a
-   terminal in your browser). SSH from the internet is closed on purpose: only this browser console
-   gets in. Check the first boot finished: `sudo cloud-init status --long` says "done", and
-   `docker --version` prints a version. Then the deploy steps below.
-9. **Put the key away:** once the script has run, IAM → `dylan-cli` → Security credentials →
-   the access key → Deactivate (make it active again next time you need the script). Anyone with
-   that key could change the firewall.
 
-If you'd rather click: the same can be done in the Lightsail console (London, Ubuntu 24.04, the
-4 GB plan, a static IP, the Networking tab's firewall with only HTTP and HTTPS, and a Postgres 16
-database with public mode off), but the script is the checked version.
+Then the deploy steps below.
+
+**If the host has no managed Postgres:** Postgres runs in Docker Compose on the server instead,
+over a Unix socket (no TLS or CA file needed; ADR-021). The compose file doesn't have it yet: skip
+steps 5, 6 and 8, and ask Claude to add it, with its nightly backup, before the first deploy
+(PLAN.md "Connect hosting"). Until then Deploy steps 2 and 5 below don't apply to this case:
+today's compose file won't start without the CA file.
 
 ## Deploy
 
-How it works (Phase 8): deploys **pull**, nothing pushes into the server (SSH is closed to the
-internet). Merging to `main` runs CI; when CI passes, `.github/workflows/deploy.yml` builds the
-image and puts it in GitHub's registry as `ghcr.io/<owner>/<repo>:<commit SHA>` and `:main`. On the
-server, `deploy/deploy.sh` runs every 2 minutes (a systemd timer): if the running containers aren't
-on the chosen image (a new one, or a deploy that failed and needs retrying) it runs the migration
-step (`migrate`, the only service with the owner's database login: it also creates the app and
-jobs roles if missing, forces RLS, applies grants and installs pg-boss), then starts the new version
-and waits until it's healthy. A failed migration stops there and the old version keeps running; a
-new version that doesn't come up healthy shows as a failed run in `journalctl -u shiftdesk-deploy`.
-When the image hasn't changed, each run still applies any change you made to `.env` (Docker
-Compose recreates only the containers whose settings changed, and starts the worker once it's
-turned on), printing "Applied the settings in .env" when something changed (otherwise only
-Docker's own "Pulling … Pulled" lines for the image check).
+How it works (Phase 8): deploys **pull**, nothing pushes into the server (SSH is closed, or open
+only to you: "Set up the server (once)" step 3). Merging to `main` runs CI; when CI passes,
+`.github/workflows/deploy.yml` builds the image and puts it in GitHub's registry as
+`ghcr.io/<owner>/<repo>:<commit SHA>` and `:main`. On the server, `deploy/deploy.sh` runs every 2
+minutes (a systemd timer): if the running containers aren't on the chosen image (a new one, or a
+deploy that failed and needs retrying) it runs the migration step (`migrate`, the only service with
+the owner's database login: it also creates the app and jobs roles if missing, forces RLS, applies
+grants and installs pg-boss), then starts the new version and waits until it's healthy. A failed
+migration stops there and the old version keeps running; a new version that doesn't come up healthy
+shows as a failed run in `journalctl -u shiftdesk-deploy`. When the image hasn't changed, each run
+still applies any change you made to `.env` (Docker Compose recreates only the containers whose
+settings changed, and starts the worker once it's turned on), printing "Applied the settings in
+.env" when something changed (otherwise only Docker's own "Pulling … Pulled" lines for the image
+check).
 **It never deploys between 05:30 and 09:00 UK time on its own** (event mornings): a merge, or a
 change to `.env`, then goes out at 09:00. A fix that can't wait: run `/opt/shiftdesk/deploy.sh
 --now` by hand.
@@ -95,7 +130,8 @@ it's healthy (about a minute), then "Applied the settings in .env", and `docker 
 the worker "healthy". If it fails instead ("No new image, but the app isn't running healthily"),
 `docker compose logs --tail 50 worker` shows why (usually a value missing in `.env`).
 
-**The first time** (after "Set up AWS (once)"), in the server's browser console (`sudo -i` first):
+**The first time** (after "Set up the server (once)"), in the server's browser console (`sudo -i`
+first):
 
 1. Copy six files from the repo's `deploy/` folder into `/opt/shiftdesk`: `docker-compose.yml`,
    `Caddyfile`, `deploy.sh`, `env.example`, `shiftdesk-deploy.service` and `shiftdesk-deploy.timer`
@@ -104,9 +140,13 @@ the worker "healthy". If it fails instead ("No new image, but the app isn't runn
 2. `cd /opt/shiftdesk && cp env.example .env && chmod 600 .env && nano .env`: fill in every value
    (the comments in the file say where each comes from). Generate new secrets with
    `openssl rand -base64 32` (the session secret) and `openssl rand -hex 24` (the app and jobs
-   passwords). Keep the end of the three database addresses as it is
-   (`?sslmode=verify-full&sslrootcert=/app/rds-ca.pem`): the connection is encrypted and the
-   database's certificate checked, and the app won't start in production without it.
+   passwords). The database's address and the owner's password come from "Set up the server
+   (once)" steps 5 and 6. Keep the end of the three database addresses as it is
+   (`?sslmode=verify-full&sslrootcert=/app/db-ca.pem`): the connection is encrypted and the
+   database's certificate checked against the host's CA certificate, `secrets/db-ca.pem` next to
+   the compose file ("Set up the server (once)" step 8: `ls -l /opt/shiftdesk/secrets/db-ca.pem`
+   shows it, `-rw-r--r--`; the app sees it at `/app/db-ca.pem`). The app won't start in production
+   without the ending, and Docker won't start it without the file.
 3. Let the server read GitHub's registry: on GitHub → your picture → Settings → Developer settings →
    Personal access tokens → Tokens (classic) → Generate new token (classic), tick only
    `read:packages`, no expiry or a long one. Then on the server:
@@ -119,8 +159,9 @@ the worker "healthy". If it fails instead ("No new image, but the app isn't runn
    caddy "Up" (and the worker "healthy", once it's turned on after "Connect Twilio"). If the
    migration step stops with a certificate error ("self-signed certificate", "unable to verify",
    "unable to get local issuer certificate", "does not match certificate's altnames"), don't remove
-   the end of the database addresses: tell Claude, with the message (the image's certificate
-   bundle, or the address used, may need changing for Lightsail).
+   the end of the database addresses: tell Claude, with the message (the CA file, or the address
+   used, may need changing). If it stops because `/opt/shiftdesk/secrets/db-ca.pem` isn't there
+   ("bind source path does not exist"), save it first ("Set up the server (once)" step 8).
 6. Turn on the timer: `cp /opt/shiftdesk/shiftdesk-deploy.service /opt/shiftdesk/shiftdesk-deploy.timer
    /etc/systemd/system/`, then `systemctl daemon-reload && systemctl enable --now
    shiftdesk-deploy.timer`. `systemctl list-timers shiftdesk-deploy` shows the next run.
@@ -167,58 +208,85 @@ event is over).
 
 ## Restore the database
 
-1. Lightsail → Databases → snapshots → restore to a new instance. Give it a real name (e.g.
-   `shiftdesk-db-2`), **never** a `…-db-drill` one: the drill script deletes drill databases.
+1. In the host's control panel, the database's backups (or "snapshots"): restore the newest one
+   from before the problem (or, with point-in-time restore, a time just before it) to a **new**
+   database, never over the live one. Give it a real name (e.g. `shiftdesk-db-2`), **never**
+   `shiftdesk-db-drill`: that name is the drill's, and the drill's copy is deleted the same day.
+   Set it up like the first ("Set up the server (once)" step 5): not public, only the app server
+   allowed, backups on. Wait until the control panel shows it ready.
 2. Point the app at it: in the server's browser console, `sudo -i`, `cd /opt/shiftdesk`,
    `nano .env`, and in `DATABASE_URL`, `DATABASE_JOBS_URL` and `DATABASE_ADMIN_URL` replace the old
-   database's address (the part after `@`, before `:5432`) with the new one's (Lightsail →
-   Databases → the new one → "Endpoint"). The user names and passwords stay (a restore keeps them:
-   check this the first time, below). Change all three, save once (the deploy timer applies a saved
-   `.env` within 2 minutes, so don't save part-way), then `docker compose up -d`: it recreates
-   `web` and `worker` with the new values (`docker compose restart` would **not**: it keeps the old
-   ones).
+   database's address (the part after `@`, before the port, `:5432`) with the new one's (its
+   connection details in the control panel, as in "Set up the server (once)" step 5). The user names
+   and passwords stay (a restore of the host's backup should keep them: check this the first time,
+   below). Change all three, save once (the deploy timer applies a saved `.env` within 2 minutes, so
+   don't save part-way), then `docker compose up -d`: it recreates `web` and `worker` with the new
+   values (`docker compose restart` would **not**: it keeps the old ones). Within about a minute
+   `docker compose ps` shows web "healthy". If it doesn't, and `docker compose logs --tail 50 web`
+   shows a certificate error, the new database may have its own CA certificate: move the old file
+   aside (`mv secrets/db-ca.pem secrets/db-ca.pem.old`), save the new database's as in "Set up the
+   server (once)" step 8, then `docker compose up -d --force-recreate` (a replaced file needs this).
+   Still failing: don't remove the end of the addresses; tell Claude, with the message.
 3. Check it's recent: the newest event (the recency check in "Restore drill (monthly)" step 2,
    run against the new database) should be from just before the problem. (Plain counts as the
    owner show nothing: RLS is forced.)
 4. Test a restore once a month even when nothing is wrong ("Restore drill (monthly)", below).
-5. Use snapshots, not `pg_dump`: RLS is forced on every table, so `pg_dump` as the owner fails
-   (or dumps no firm rows with `--enable-row-security`). Firm data exports go through the app.
+5. Use the host's backups, not `pg_dump` as the owner: RLS is forced on every table, so `pg_dump`
+   as the owner fails (or dumps no firm rows with `--enable-row-security`). Firm data exports go
+   through the app.
+
+**Postgres in Compose** (a host with no managed Postgres; ADR-011 as amended): there are no host
+backups to restore, so the backups are ours: a `pg_dump` run as the `postgres` superuser (the owner
+sees no firm rows under forced RLS), with a copy kept off the server. A restore loads the newest
+dump, as `postgres`, into a new database; then step 2 points the app at it and step 3 checks it.
+Not set up yet: Claude adds the database service, its nightly dump and the exact commands here
+first ("Set up the server (once)", the last paragraph).
 
 ## Restore drill (monthly)
 
-Proves the backups can be restored, without touching the real database (`deploy/restore-drill.sh`).
-On your own computer, with the AWS CLI logged in (reactivate the key from "Set up AWS (once)" step
-9, then deactivate it again after):
+Proves the backups can be restored, without touching the real database. It's a few clicks in the
+host's control panel and one check on the server:
 
-1. `bash deploy/restore-drill.sh`. It restores the latest backup to a separate private database,
-   `shiftdesk-db-drill`, waits (10 to 20 minutes) and prints its address.
+1. Restore the newest backup (with point-in-time restore: the latest time it offers) to a new,
+   separate database named `shiftdesk-db-drill`, set up like the real one ("Set up the server
+   (once)" step 5: the same region, not public, only the app server allowed). Only ever to a new
+   database: never a restore that replaces the live one. Wait until the control panel shows it
+   ready, and copy its address from its connection details.
 2. Check it's a recent copy: in the server's browser console (not your own computer: the database
    is only reachable from the server),
    `sudo docker run --rm -it postgres:16-alpine psql "postgres://shiftdesk_owner@<drill address>:5432/shiftdesk"`
-   (it asks for the real owner password: a restore keeps it), then paste:
+   (your admin user's name in place of `shiftdesk_owner`, if the host chose another, and its port
+   in place of `5432` if it's different; it asks for
+   the real owner password: a restore should keep it), then paste:
 
    ```sql
    select set_config('app.current_firm_id', (select id::text from firms order by created_at limit 1), false);
    select max(created_at) from events;
    ```
 
-   The time shown should be minutes before the restore (a backup that's days old shows an old
-   time). `\q` leaves psql. Never point the app at the drill database.
-3. Delete it today: `bash deploy/restore-drill.sh --delete` (it shows when it was made and asks you
-   to type its name; it only ever deletes the drill database). Check Lightsail → Databases shows
-   it "Deleting", then gone. Then `sudo docker image rm postgres:16-alpine` on the server to free the
-   space.
+   The time shown should be just before the time you restored to: minutes ago with point-in-time
+   restore, last night with nightly backups only (a backup that's days old shows an old time).
+   `\q` leaves psql. Never point the app at the drill database.
+3. Delete it today: in the control panel, delete `shiftdesk-db-drill`. Read the name twice before
+   you confirm: never the real database. It costs money while it exists. Check the list of
+   databases no longer shows it. Then `sudo docker image rm postgres:16-alpine` on the server to
+   free the space.
 4. Note the date and "restore drill OK" in the Hours log.
+
+With Postgres in Compose, the drill loads the newest dump into a separate database on the server
+(never the real one), runs step 2's check against it, then removes it. The commands come with the
+database service.
 
 ## Try the runbooks for real (once, before the pilot's data)
 
-Deploy, Rollback and Restore have only been checked against the scripts, never run. Try each once
-on the real server **after "Connect Twilio" and "Connect Amazon SES"** (office logins come by email,
-sent by the worker, which can't run in production before Twilio) and **before any real worker's
-data is imported** (Gate B): the database then holds only a test firm of your own, so a restore that
-goes wrong costs nothing. Allow about two hours on a weekday, outside 05:30–09:00 UK. Write each
-result in the table at the end, and tell Claude anything that was wrong or unclear so the runbook
-gets fixed.
+Deploy, Rollback and Restore have never been run: Deploy and Rollback were checked only against the
+scripts, and Restore is written for any host, not yet yours. Try each once on the real server
+**after "Connect Twilio" and "Connect an email provider (SMTP)"** (office logins come by email, sent
+by the worker, which can't run in production before Twilio) and **before any real worker's data is
+imported** (Gate B): the database then holds only a test firm of your own, so a restore that goes
+wrong costs nothing. Allow about two hours on a weekday, outside 05:30–09:00 UK. Write each result
+in the table at the end, and tell Claude anything that was wrong or unclear so the runbook gets
+fixed.
 
 0. **A test firm** (the live database starts empty: the demo firms are only ever made on your own
    computer). On the server, through the owner service ("Onboarding a pilot firm", running an owner
@@ -238,12 +306,14 @@ gets fixed.
    deployed. Worked if "Deployed …" shows that older SHA, the site still works, and it's still on
    it 5 minutes later (the timer leaves a pin alone). Then step 3 (`SHIFTDESK_TAG=main`): within a
    few minutes "Deployed …" shows the newest SHA again.
-3. **Restore.** Follow "Restore the database" steps 1–3 with the latest snapshot, naming the new
+3. **Restore.** Follow "Restore the database" steps 1–3 with the newest backup, naming the new
    database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the test firm's Today page
-   opens, and the newest event is from just before the snapshot. Also note whether the passwords
-   really were kept (step 2 depends on it). Then point `.env` back at the original database,
-   `docker compose up -d` again, check the site, and delete `shiftdesk-db-2` in Lightsail (it costs
-   money while it exists).
+   opens, and the newest event is from just before the backup. Also note whether the passwords
+   really were kept (step 2 depends on it). Then point `.env` back at the original database and run
+   `docker compose up -d` again (if step 2 moved `secrets/db-ca.pem` aside: first `mv
+   secrets/db-ca.pem.old secrets/db-ca.pem`, then `docker compose up -d --force-recreate` instead),
+   check the site, and delete `shiftdesk-db-2` in the host's control panel (read the name twice:
+   never the original; it costs money while it exists).
 4. **Restore drill.** Run "Restore drill (monthly)" once, all four steps.
 
 | Runbook | Date | Worked? | What was wrong or unclear |
@@ -260,17 +330,23 @@ can be ticked.
 
 ## Monitoring and alerts (once)
 
-Three things tell you when something's wrong, without you watching. First reactivate the CLI key
-("Set up AWS (once)" step 9: IAM → `dylan-cli` → the key → Activate), and deactivate it after.
+Three things tell you when something's wrong, without you watching.
 
-1. **The £50 AWS budget** (from "Set up AWS (once)" step 1): an email if the month's bill heads
-   past £50.
-2. **Lightsail's alarms**, which watch from outside the server:
-   `bash deploy/alarms.sh you@example.com` (your own address). AWS emails you a confirmation
-   first: click its link (run the script again if the email doesn't come: it resends it). Then you
-   get an email when the server is down for 10 minutes, its CPU is above 90% or its burst capacity
-   under 20% for 15 minutes (the plan slows the server once that runs out), the database has
-   under 8 GB free or its CPU is above 90%, and again when each is back to normal.
+1. **The host's £50 billing alert** (from "Set up the server (once)" step 1): an email if the
+   month's bill heads past £50.
+2. **The host's own alerts**, which watch from outside the server: in the control panel, look for
+   "monitoring", "alerts" or "alert policies" on the server's page and the database's page. Set
+   each to email you (the numbers are a suggested starting point, not a rule):
+   - the server down (not answering) for 10 minutes;
+   - the server's CPU above 90% for 15 minutes (and, if its plan has "burstable" CPU, its credits
+     running low: the server slows once they run out);
+   - the server's disk over 80% full;
+   - the database's storage over 80% full, or its CPU above 90%.
+
+   Ask for an email when each is back to normal too, if it offers that. If it can send a test
+   alert, send one: the email should arrive within minutes. A host that doesn't offer some of
+   these: set what it has, and note the missing ones in the Hours log (the uptime check below
+   still tells you when the app stops answering).
 3. **An uptime check that the app itself answers**, from the internet, with a phone app: sign up
    for an uptime service (UptimeRobot, Better Stack and others have free plans: check the plan's
    terms allow business use), add a plain **HTTPS** monitor (not a keyword one) for
@@ -330,11 +406,12 @@ nothing sits in front of Caddy; behind a load balancer or CDN use `trusted_proxi
 
 ## Rotate a secret
 
-Twilio auth token, session secret, AWS keys: after 22:00, rotate in the provider, update `.env` on
-the server (the deploy timer applies a saved `.env` within 2 minutes, so make the edit itself after
-22:00 too), then `docker compose up -d`. Rotating `SESSION_SECRET` doesn't log anyone out
-(sessions are stored as sha256 of their own token); it resets every rate-limit counter and
-cancels one-time codes that are still live.
+Twilio auth token, session secret (and, once they're connected, the SMTP password and the Anthropic
+API key): after 22:00, rotate in the provider, update `.env` on the server (the deploy timer applies
+a saved `.env` within 2 minutes, so make the edit itself after 22:00 too), then
+`docker compose up -d`. Rotating `SESSION_SECRET` doesn't log anyone out (sessions are stored as
+sha256 of their own token); it resets every rate-limit counter and cancels one-time codes that are
+still live.
 
 Database role passwords (`shiftdesk_app`, `shiftdesk_jobs`): `db:migrate` creates these roles
 but never changes an existing password. Rotate by hand as the owner:
@@ -530,8 +607,8 @@ In order (who does it, how, and what done looks like):
 3. **Branding and sign-off** (you, with the firm's logo address and colour): "Setting a firm's
    brand" below. Its own domain, if it wants one: "A firm's own domain" below.
 4. **Office users** (you): the admin from step 2 can log in at `acme.<our domain>/office` once the
-   worker is running and emails go out ("Connect Twilio", "Connect Amazon SES"). Resourcers and
-   payroll: `npm run -s firm:office-user -- --firm acme --role resourcer --email
+   worker is running and emails go out ("Connect Twilio", "Connect an email provider (SMTP)").
+   Resourcers and payroll: `npm run -s firm:office-user -- --firm acme --role resourcer --email
    sam@acme-events.example --name "Sam Rota"` (roles: admin, resourcer, payroll). It says "Added: they can
    now log in to acme's office as resourcer." An email that already has a login is left as it is (it says its role and whether it's active).
 5. **Rota source** (you and the resourcer): a Google Sheet, or none: shifts made in the office or

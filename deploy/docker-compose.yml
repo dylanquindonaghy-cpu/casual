@@ -8,6 +8,19 @@ name: shiftdesk
 
 x-app-image: &app-image ${SHIFTDESK_IMAGE:?set SHIFTDESK_IMAGE in .env (ghcr.io/<owner>/<repo>)}:${SHIFTDESK_TAG:-main}
 
+# The database's CA certificate (the host's: docs/runbooks.md "Set up the server (once)"), saved in
+# secrets/ next to this file (/opt/shiftdesk/secrets/db-ca.pem; a public certificate, so readable:
+# chmod 644), read-only for every service that connects to the database. Every connection is
+# checked against it (sslmode=verify-full&sslrootcert=/app/db-ca.pem in .env). Never created: if
+# the file is missing, Docker refuses to start rather than mounting an empty folder there.
+x-db-ca: &db-ca
+  type: bind
+  source: ./secrets/db-ca.pem
+  target: /app/db-ca.pem
+  read_only: true
+  bind:
+    create_host_path: false
+
 x-logging: &logging
   driver: json-file
   options:
@@ -29,6 +42,8 @@ services:
       # The phones' offline copy of My shifts: "off" switches it off (docs/runbooks.md "A bad service
       # worker").
       OFFLINE_COPY: ${OFFLINE_COPY:-on}
+    volumes:
+      - *db-ca
     healthcheck:
       test:
         - CMD
@@ -87,6 +102,7 @@ services:
     # The Google service account's key file, next to this file in secrets/ (never in the image or
     # the repo), read-only; only the worker reads it.
     volumes:
+      - *db-ca
       - ./secrets:/app/secrets:ro
     logging: *logging
 
@@ -101,6 +117,8 @@ services:
       DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?}
       DATABASE_URL: ${DATABASE_URL:?}
       DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
+    volumes:
+      - *db-ca
     logging: *logging
 
   # One-off, for the owner's commands (docs/runbooks.md "Onboarding a pilot firm"):
@@ -123,6 +141,8 @@ services:
       DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
       DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?}
       SESSION_SECRET: ${SESSION_SECRET:?}
+    volumes:
+      - *db-ca
     logging: *logging
 
   caddy:

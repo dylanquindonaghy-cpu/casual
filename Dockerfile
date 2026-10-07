@@ -12,7 +12,7 @@ WORKDIR /app
 # runtime stage below starts afresh, and the server's .env gives the real values).
 ENV NEXT_TELEMETRY_DISABLED=1 \
     APP_BASE_DOMAIN=build.invalid \
-    DATABASE_URL="postgres://shiftdesk_app:build-only@build.invalid:5432/build?sslmode=verify-full&sslrootcert=/app/rds-ca.pem" \
+    DATABASE_URL="postgres://shiftdesk_app:build-only@build.invalid:5432/build?sslmode=verify-full&sslrootcert=/app/db-ca.pem" \
     SESSION_SECRET=build-only-placeholder-never-used-at-run-time
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -27,11 +27,10 @@ ENV NODE_ENV=production \
 # The whole app with its dependencies (the worker and migrate run TypeScript with tsx), owned by
 # root: the app can't change its own code. Only Next's cache is writable by the app's user.
 COPY --from=build /app /app
-# Amazon's certificates for its managed databases (Lightsail's Postgres among them), readable by
-# the app: every database connection is checked against them (sslmode=verify-full in .env;
-# deploy/env.example). Fetched when GitHub Actions builds the image. (Pin its checksum with ADD
-# --checksum once the image is in use, like the base image's digest.)
-ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /app/rds-ca.pem
+# The database's CA certificate isn't in the image: it's the host's, saved on the server as
+# /opt/shiftdesk/secrets/db-ca.pem and mounted read-only at /app/db-ca.pem by
+# deploy/docker-compose.yml.
+# Every database connection is checked against it (sslmode=verify-full in .env; deploy/env.example).
 RUN mkdir -p /app/.next/cache && chown -R node:node /app/.next/cache
 # Never root.
 USER node

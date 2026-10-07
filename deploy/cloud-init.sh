@@ -1,7 +1,8 @@
 #!/bin/sh
-# First boot of the ShiftDesk app server (given to Lightsail by deploy/lightsail.sh). Runs once,
-# as root, before anyone logs in. Plain POSIX sh on purpose: Lightsail puts its own sh script in
-# front of it, so it runs under dash, which on Ubuntu 24.04 has no "pipefail" (so no pipes here).
+# First boot of the ShiftDesk app server (pasted into the host's "user data" or "cloud-init" box
+# when the server is created: docs/runbooks.md "Set up the server (once)"). Runs once, as root,
+# before anyone logs in. Plain POSIX sh on purpose: some hosts put their own sh script in front of
+# it, so it can run under dash, which on Ubuntu 24.04 has no "pipefail" (so no pipes here).
 #   - security updates now, and automatically from then on (unattended-upgrades), with a reboot at
 #     02:30 UTC when one needs it (the app's containers restart on their own: the deploy task);
 #   - Docker and its compose plugin, from Docker's own repository;

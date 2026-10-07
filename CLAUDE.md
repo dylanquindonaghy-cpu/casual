@@ -86,9 +86,9 @@ src/
     auth/              # magic links, sessions, OTP step-up
     rules/             # eligibility + credential rules (pure functions, heavily tested)
     roster/            # RosterPlug interface + adapters (native, sheets, csv)
-    messaging/         # transport interface: console (dev) | twilio (prod); templates
+    messaging/         # transport interface: console (dev) | twilio for phones, SMTP for email; templates
     notify/            # web push + WhatsApp/SMS fallback ordering
-    ai/                # AI client (Anthropic API), prompts, zod-validated outputs
+    ai/                # Anthropic client behind AiClient, prompts, zod-validated outputs
     events/            # append-only action log writer
   worker/              # pg-boss job handlers (offer waves, syncs, digests)
 tests/

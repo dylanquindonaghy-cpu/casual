@@ -170,8 +170,9 @@ describe("grouping pay queries", () => {
       details: "Paid £12.50, should be £13",
       status: "open",
     });
-    // With an AI client (the digest job, once Bedrock is connected), after the transaction: its
-    // checked line beneath the code's heading; a line that fails the check adds nothing.
+    // With an AI client (the digest job, once the Anthropic API is connected), after the
+    // transaction: its checked line beneath the code's heading; a line that fails the check adds
+    // nothing.
     let n = 0;
     const ai = createFakeAi(() =>
       n++ === 0

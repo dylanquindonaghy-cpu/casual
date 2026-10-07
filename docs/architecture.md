@@ -1,8 +1,10 @@
 # Architecture
 
-One Next.js app and one background worker, from the same codebase, running in Docker on a
-single AWS Lightsail server in London, with a managed Postgres database. Every firm's data is
-in the same database, separated by `firm_id` and Row Level Security.
+One Next.js app and one background worker, from the same codebase, running in Docker Compose on a
+single server at a UK or EU Docker host (chosen later), with the host's managed Postgres 16
+database (or, if the host has none, Postgres in Compose). Every firm's data is in the same
+database, separated by `firm_id` and Row Level Security. Email goes out over SMTP through any
+provider. AI is Claude through the Anthropic API, off until it's switched on. No AWS (ADR-021).
 
 Scale is small (tens to a couple of hundred messages per firm per day, spiking on event
 mornings). Reliability matters far more than scale.
@@ -14,20 +16,26 @@ mornings). Reliability matters far more than scale.
           |                                  |                           |
           | HTTPS (firm domain)              | webhooks                  | sync job (1–2 min)
           v                                  v                           v
- +---------------------------- AWS London (eu-west-2) ---------------------------------+
- |  Lightsail server (Docker Compose)                                                   |
+ +----------------------- A UK or EU Docker host (chosen later) ------------------------+
+ |  Server (Docker Compose)                                                             |
  |   caddy   -> HTTPS for our domain + firm custom domains (on-demand TLS, "ask" check) |
  |   web     -> Next.js: staff portal, office dashboard, /api/webhooks/*                |
  |   worker  -> pg-boss jobs: offer waves, escalations, syncs, digests, AI calls        |
  |                 |                        |                                           |
  |                 v                        v                                           |
- |   Lightsail managed Postgres      Amazon Bedrock (Claude, EU profile)                |
- |   (data + job queue + RLS)        Haiku: sort/summarise. Sonnet: only if needed      |
+ |   The host's managed Postgres 16    Out of the host (listed below):                  |
+ |   (data + job queue + RLS),         the Anthropic API and the email provider         |
+ |   TLS checked against the host's CA file at /app/db-ca.pem.                          |
+ |   If the host has none: Postgres 16 in Compose, over a Unix socket.                  |
  |                                                                                      |
- |   Amazon SES (digests, office emails)       AWS Budgets (alert at £50)               |
+ |   The host's own alerts and its billing alert (£50)                                  |
  +--------------------------------------------------------------------------------------+
           |
      Twilio: UK number per firm, WhatsApp templates, SMS fallback, voice (call-to-text)
+     Anthropic API: Claude, off unless AI_TRANSPORT=anthropic. Haiku: sort/summarise.
+       Sonnet: only if needed
+     Email: any provider over SMTP (digests, office emails); console in dev and tests
+     An outside uptime check on /api/health
      Stage 2: ElevenLabs agent on the same Twilio number (AI phone add-on)
 ```
 
@@ -43,8 +51,9 @@ mornings). Reliability matters far more than scale.
   - `shiftdesk_app` for the web and the worker's data access. No superuser, no BYPASSRLS, owns
     nothing, member of no role, no TRUNCATE, no temp tables.
   - `shiftdesk_jobs` for the worker's pg-boss connection only. It owns the `pgboss` schema.
-  - The owner (Lightsail master user; locally the `shiftdesk_owner` role) runs migrations,
-    `db:seed` and nothing else. The web and worker never hold its credentials.
+  - The owner (in production the host's managed-Postgres admin user, not a superuser either;
+    locally the `shiftdesk_owner` role) runs migrations, `db:seed` and nothing else. The web and
+    worker never hold its credentials.
 - **The scoped client** (`withFirm(firmId, tx => ...)` in `src/lib/db/scoped.ts`) opens a
   transaction and runs `select set_config('app.current_firm_id', $1, true)`: `SET LOCAL` with a
   bound parameter, ended by COMMIT/ROLLBACK so a pooled connection never carries a firm into the
@@ -320,8 +329,9 @@ messages anyone twice (the reminders' claim → send → record).
 2. Code assigns grouping keys: the issue and the week, plus the pay line's rate for a wrong
    rate or the site for missing hours (`src/lib/pay/grouping.ts`). Haiku writes a one-line
    summary per group from the group's facts only, checked before use, with the app's own line as
-   the fallback and always shown as the heading (Bedrock not connected yet). The app stops waiting
-   after 5 seconds a group; a failed, late or unusable answer changes nothing else.
+   the fallback and always shown as the heading (no AI connected yet: the Anthropic API, off
+   unless `AI_TRANSPORT=anthropic`, Phase 12 task 12X.3). The app stops waiting after 5 seconds
+   a group; a failed, late or unusable answer changes nothing else.
 3. Digest to payroll at a set time (built: `src/lib/pay/digest.ts`, the firm's `pay_digest`
    setting, default 09:00 Monday to Friday): the new queries, grouped, emailed to payroll with the
    list attached (names and workers' words only in the attachment), marked `in_digest`. Payroll can
@@ -344,8 +354,9 @@ messages anyone twice (the reminders' claim → send → record).
    off.)
 2. Known worker: keyword match (shifts, cancel, pay, help) → instant reply with the right link.
    Unclear text → Haiku classifies → reply with link or create a request for the office. (Built in
-   Phase 7, `src/lib/inbound/reply.ts`, short of Bedrock: the AI only picks one of four labels and
-   the reply is always the app's fixed text; no AI yet, so unclear text goes to the office.)
+   Phase 7, `src/lib/inbound/reply.ts`, short of the Anthropic API: the AI only picks one of four
+   labels and the reply is always the app's fixed text; no AI yet, so unclear text goes to the
+   office.)
 3. Unknown number → polite reply + office alert. (Built in Phase 7: the first message from a
    number in 24 hours gets `unknown_number` and emails the office's admins and resourcers, without
    the number or the message; a former worker gets no reply, the office is alerted; every such
@@ -405,8 +416,20 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 
 - All model calls go through `src/lib/ai/` with zod-validated JSON outputs and a fallback
   ("send to office") when validation fails or confidence is low.
-- Bedrock EU inference profile keeps processing in EU/UK regions. Anthropic's direct API has no
-  EU option, so we use Bedrock.
+- Claude through the Anthropic API (the official `@anthropic-ai/sdk`), behind `AiClient`
+  (`src/lib/ai/client.ts`). Off unless `AI_TRANSPORT=anthropic`: until then `noAi` answers
+  "unavailable" to every request, and the code's fallback runs. Phase 12 task 12X.3 builds the
+  client; real calls wait for "Connect the Anthropic API" (PLAN.md Parking lot).
+- Settings, worker only: `AI_TRANSPORT` (`none`, the default, or `anthropic`; never `anthropic`
+  in tests), `ANTHROPIC_API_KEY` (a secret, only in the server's `.env`), `AI_MODEL` (Haiku by
+  default).
+- The 5-second limit is unchanged: the app stops waiting after 5 seconds (`askAi()` in
+  `src/lib/ai/ask.ts`), whatever the client does. A failed, late or unusable answer means the
+  code's fallback, as before.
+- Where requests are processed: Anthropic's API may process requests outside the UK. Before AI is
+  switched on, its data processing agreement and UK transfer terms are checked, and the privacy
+  notice's line on where Anthropic processes requests is filled in (docs/privacy-notice.md,
+  ADR-021, docs/compliance.md).
 - Cache system prompts (prompt caching) to cut cost.
 - AI never decides eligibility, assignment or pay.
 
@@ -437,20 +460,32 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   an `<img>` address or a React style colour. The home-screen theme colour follows it. Set by the
   owner: `npm run firm:brand` (name, colour, logo, sign-off), logged `firm.branding_changed`. The
   office settings screen can offer it later: PLAN.md Parking lot.)
-- Office emails can later be sent from the firm's domain via SES (they add DKIM records).
+- Office emails can later be sent from the firm's domain through our email provider (the firm adds
+  the DKIM records the provider shows).
 
 ## Deployment
 
-- Lightsail instance: 2 vCPU, 4 GB, London, static IP (~$24/month).
-- Lightsail managed Postgres (~$15/month), automatic backups, not public.
-  (Written in Phase 8, not run yet: `deploy/lightsail.sh` creates both with the AWS CLI, pinned to
-  eu-west-2: Ubuntu 24.04 on the active 4 GB bundle with `deploy/cloud-init.sh` (automatic security
-  updates, Docker from Docker's repository, a root-only `/opt/shiftdesk`), a static IP, a firewall
-  with only 80 and 443 open to the internet (SSH only from Lightsail's browser console), and
-  Postgres 16 not publicly accessible with nightly backups and an AWS-generated owner password.
-  Steps: docs/runbooks.md "Set up AWS (once)".)
-- Docker Compose: `web`, `worker`, `caddy`. Deploy via GitHub Actions (SSH, pull, up -d). (As
-  built in Phase 8, short of a server: deploys pull. `.github/workflows/deploy.yml` builds the
+- The server: any UK or EU host that runs Docker, chosen later (PLAN.md Deploy 9, Parking lot
+  "Connect hosting"). What it needs: Ubuntu 24.04, 2 CPUs and 4 GB, a static IP, only ports 80 and
+  443 open to the internet, SSH by key only or the host's own console. On a host that takes
+  cloud-init, `deploy/cloud-init.sh` sets it up on first boot: automatic security updates (with a
+  reboot at 02:30 UTC when one needs it), Docker from Docker's repository, and a root-only
+  `/opt/shiftdesk`. Steps: docs/runbooks.md "Set up the server (once)".
+- The database: the host's managed Postgres 16, in the same region, on a private network, not
+  public, with nightly backups and point-in-time restore on. Every connection is encrypted and the
+  database's certificate checked: the three database addresses in `.env` end with
+  `?sslmode=verify-full&sslrootcert=/app/db-ca.pem` (`deploy/env.example`). The CA file is the
+  host's own, saved on the server as `/opt/shiftdesk/secrets/db-ca.pem` (in `secrets/`, next to
+  the compose file; docs/runbooks.md "Set up the server (once)" step 8), readable (`chmod 644`).
+  `deploy/docker-compose.yml` mounts it read-only at `/app/db-ca.pem` into `web`, `worker`,
+  `migrate` and `owner`, and never creates it: if the file is missing, Docker refuses to start. The
+  app refuses a production database address without that ending (`src/lib/env.ts`,
+  `src/lib/db/tls.ts`). Nothing about the database is in the image.
+- If the host has no managed Postgres: Postgres 16 in Compose, reached over a Unix socket (no TLS
+  needed: `src/lib/db/tls.ts` counts a socket as this machine). Backups and restores then become
+  ours (below). Not in `deploy/docker-compose.yml` yet: added only if the chosen host needs it.
+- Docker Compose: `web`, `worker`, `caddy`. GitHub Actions builds the image; the server pulls it
+  and runs `up -d` (no SSH). (As built in Phase 8, short of a server: deploys pull. `.github/workflows/deploy.yml` builds the
   image (`Dockerfile`: one image, non-root, no secrets) after CI passes on `main` and pushes it to
   GitHub's registry; `deploy/deploy.sh`, every 2 minutes on the server (a systemd timer), pulls a
   new image, runs the one-off `migrate` step, then `up -d`, never between 05:30 and 09:00 UK.
@@ -458,15 +493,29 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   it needs (the owner's login only to `migrate`), everything `restart: unless-stopped`, the web
   app's health check `GET /api/health`, the worker behind a profile until the Twilio sender exists.
   Only a push to this repository's `main` that passed CI publishes `:main`, and only while it's the
-  tip. SSH stays closed.)
-- Secrets in a root-only `.env` on the server; move to AWS Secrets Manager later.
-- IAM user for the app with only: `bedrock:InvokeModel`, `ses:SendEmail` (+ S3 read in Stage 2).
-- Unattended security updates; snapshot before schema changes; test a restore monthly.
-  (Written in Phase 8, not run: `deploy/restore-drill.sh` restores the latest backup to a separate
-  private database and deletes only that; `deploy/alarms.sh` sets Lightsail's email alarms for the
-  server being down, CPU and database storage; plus a free outside uptime check on `/api/health`.
-  docs/runbooks.md "Restore drill (monthly)", "Monitoring and alerts (once)".)
-- AWS Budget alert at £50.
+  tip. Nothing SSHes in to deploy: SSH is closed, or open only to the owner's own address
+  (docs/runbooks.md "Set up the server (once)" step 3).)
+- Secrets in a root-only `.env` on the server (`/opt/shiftdesk/.env`, `chmod 600`;
+  `deploy/env.example`), never in the image or the repo. Each service gets only the values it
+  needs.
+- Email: over SMTP, through any provider with SMTP credentials and a verified sending domain
+  (chosen later: PLAN.md Deploy 8). Worker only (the web app sends no email): switched on by
+  `EMAIL_TRANSPORT=smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_FROM`.
+  In development and tests the console sender prints each email instead. Phase 12 task 12X.2
+  builds the SMTP sender; real sending waits for "Connect an email provider (SMTP)" (PLAN.md
+  Parking lot).
+- AI: the Anthropic API, worker only, off unless `AI_TRANSPORT=anthropic` with an
+  `ANTHROPIC_API_KEY` (made in a workspace with a monthly spend limit). See "Where AI is used".
+- Backups: the host's own snapshots of its managed Postgres (nightly, with point-in-time restore);
+  a snapshot before schema changes; a restore tested monthly with the host's backups. A `pg_dump`
+  as the owner is no backup: forced RLS hides every firm's rows from it (ADR-011). With Postgres in
+  Compose, backups are a `pg_dump` run as the `postgres` superuser (ADR-011 as amended). Steps:
+  docs/runbooks.md "Restore the database", "Restore drill (monthly)".
+- Monitoring: an outside uptime check on `/api/health` (a free one, with its phone app), plus the
+  host's own alerts (the server down, CPU, database storage, as far as the host offers them) and
+  its billing alert at £50. Steps: docs/runbooks.md "Monitoring and alerts (once)"; PLAN.md Parking
+  lot "Connect monitoring". The app's own alerts (failing jobs and syncs): docs/runbooks.md "Alerts
+  from the app".
 
 ## Reliability
 
@@ -484,8 +533,10 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - HTTPS everywhere; HSTS. (Phase 10 task 17: Caddy serves only HTTPS, redirecting plain HTTP, and every answer
   carries `Strict-Transport-Security: max-age=31536000` (`deploy/Caddyfile`, checked by Caddy itself
   in `tests/integration/deploy.caddy.test.ts`). The database connection is encrypted and its
-  certificate checked in production (`sslmode=verify-full` against Amazon's bundle in the image;
-  the app refuses to start without it).)
+  certificate checked in production (`sslmode=verify-full` against the host's CA file, mounted
+  read-only at `/app/db-ca.pem`; the app refuses a production database address without the
+  `sslmode=verify-full&sslrootcert=/app/db-ca.pem` ending, and Docker refuses to start without the
+  file).)
 - Verify Twilio signatures on every webhook.
 - Rate limit login and OTP.
 - No personal data in logs (mask phone numbers). (Built: `src/lib/log/mask.ts` masks numbers,
@@ -494,5 +545,6 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   the cut), every pattern a single pass, so a huge request can't stall the web app. Every e2e run
   checks the servers' whole output for numbers, emails, login tokens and unexpected errors:
   `docs/testing.md`.)
-- Least-privilege IAM; MFA on all accounts.
+- Least privilege: three database roles (ADR-011), and each service gets only the secrets it needs.
+  MFA on all accounts.
 - Dependency updates weekly; `npm audit` in CI.

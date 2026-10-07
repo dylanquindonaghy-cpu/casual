@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Deploys a new ShiftDesk image if there is one (Phase 8; docs/runbooks.md "Deploy"). Runs on the
 # server every 2 minutes (deploy/shiftdesk-deploy.timer), from /opt/shiftdesk. Deploys pull rather
-# than push: SSH is closed to the internet, and GitHub Actions only builds the image and puts it in
-# GitHub's registry (.github/workflows/deploy.yml). Each run:
+# than push: SSH is closed (or open only to the owner's own address), and GitHub Actions only
+# builds the image and puts it in GitHub's registry (.github/workflows/deploy.yml). Each run:
 #   - never deploys between 05:30 and 09:00 UK time (event mornings), unless run by hand with --now;
 #   - pulls the app image for SHIFTDESK_TAG (in .env: "main", the latest, or a git SHA to pin one);
 #   - deploys if the running containers aren't on that image (a new one, or a failed deploy to

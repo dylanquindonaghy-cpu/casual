@@ -1,4 +1,4 @@
-# Local development database only. Production uses Lightsail managed Postgres (docs/architecture.md).
+# Local development database only. Production uses the host's managed Postgres (docs/architecture.md).
 services:
   postgres:
     image: postgres:16

@@ -7,13 +7,16 @@ reviewed once by a solicitor before the first pilot.
 
 - **Each firm is the controller.** It decides why staff data is used.
 - **We are the processor.** We only process data on the firm's instructions.
-- **Our sub-processors:** AWS (hosting, database, Bedrock AI, SES email), Twilio (numbers, SMS,
-  WhatsApp, voice), Meta (WhatsApp), ElevenLabs (only if the AI phone add-on is used), Google
-  (only for a firm whose rota is a Google Sheet: our Google Cloud service account reads and writes
-  the sheet the firm shares with it; the sheet itself stays in the firm's own Google account).
-  List them in the DPA. Twilio, Meta, ElevenLabs and Google are US-linked: check each one's DPA
-  and UK transfer terms. **Dylan to confirm** the Google line with the solicitor (added in Phase 10
-  task 10).
+- **Our sub-processors:** the hosting company (servers and the database, in the UK or the EU; chosen
+  when the account is created), the email company (SMTP; chosen when its account is created:
+  "Connect an email provider (SMTP)"), Anthropic (the AI, only once it's switched on; its API may
+  process requests outside the UK, so its data processing agreement and UK transfer terms are
+  checked first: ADR-021), Twilio (numbers, SMS, WhatsApp, voice), Meta (WhatsApp), ElevenLabs (only
+  if the AI phone add-on is used), Google (only for a firm whose rota is a Google Sheet: our Google
+  Cloud service account reads and writes the sheet the firm shares with it; the sheet itself stays
+  in the firm's own Google account). List them in the DPA. Twilio, Meta, ElevenLabs and Google are
+  US-linked: check each one's DPA and UK transfer terms. **Dylan to confirm** the Google line with
+  the solicitor (added in Phase 10 task 10).
 
 ## Data processing agreement (must cover)
 
@@ -40,8 +43,8 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   active worker's is kept in `messages` (the number and their words, the firm's
   `retention.message_days`, 90 by default, with the retention job), shown to the firm's admins and resourcers on Today, and never put in the log, an email or
   the AI. The firm's privacy notice should cover messages to its shifts line.
-- The shifts line (Phase 7): a WhatsApp no keyword matches is sorted by AI (once Bedrock is
-  connected) into one of four labels, from the worker's text alone; the reply is always the app's own
+- The shifts line (Phase 7): a WhatsApp no keyword matches is sorted by AI (once the Anthropic
+  API is connected) into one of four labels, from the worker's text alone; the reply is always the app's own
   fixed words, so the AI never writes to a worker, and a pay question gets the pay link, never an
   answer. The text is kept in `messages` (90 days, with the retention job) and never in the log.
 - Pay disputes always go to a person. Built that way: payroll answers each group of pay queries in
@@ -117,8 +120,9 @@ An admin handles them on `/office/data` (docs/runbooks.md "GDPR requests"):
 
 ## Security baseline
 
-HTTPS everywhere · encryption at rest (managed Postgres) · MFA on every account · least-privilege
-IAM · tested backups · per-firm access control · no personal data in logs · verified webhooks ·
+HTTPS everywhere · encryption at rest (the host's managed Postgres; with Postgres in Compose, check
+the server's disk is encrypted) · MFA on every account · least-privilege access on every account
+and key · tested backups · per-firm access control · no personal data in logs · verified webhooks ·
 rate-limited login. Breach plan: one page, who to tell, within 72 hours.
 
 **On the worker's phone:** so My shifts opens without signal, the browser keeps the last copy

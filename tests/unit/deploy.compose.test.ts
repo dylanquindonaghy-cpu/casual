@@ -109,13 +109,17 @@ describe("deploy/docker-compose.yml", () => {
     }
     expect(keys("web")).not.toContain("DATABASE_JOBS_URL");
     // The Google service account's key: only the worker, read-only, from secrets/ beside the
-    // compose file (never the image).
+    // compose file (never the image). Besides that, web and the worker see only the database's CA
+    // certificate, read-only (tests/unit/deploy.database-tls.test.ts; ADR-021).
     expect(keys("worker")).toContain("GOOGLE_SERVICE_ACCOUNT_JSON_PATH");
     expect(services.worker?.volumes?.map((v) => [v.target, v.read_only, v.type])).toEqual([
+      ["/app/db-ca.pem", true, "bind"],
       ["/app/secrets", true, "bind"],
     ]);
-    expect(services.worker?.volumes?.[0]?.source).toMatch(/\/secrets$/);
-    expect(services.web?.volumes ?? []).toEqual([]);
+    expect(services.worker?.volumes?.[1]?.source).toMatch(/\/secrets$/);
+    expect(services.web?.volumes?.map((v) => [v.target, v.read_only, v.type])).toEqual([
+      ["/app/db-ca.pem", true, "bind"],
+    ]);
     expect(keys("caddy")).toEqual(["ACME_EMAIL", "APP_BASE_DOMAIN"]);
     expect(keys("migrate")).toEqual(
       ["DATABASE_ADMIN_URL", "DATABASE_JOBS_URL", "DATABASE_URL", "NODE_ENV"].sort(),

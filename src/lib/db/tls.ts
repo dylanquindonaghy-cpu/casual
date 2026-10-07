@@ -1,11 +1,13 @@
 import { parse } from "pg-connection-string";
 
-// In production the database is its own server (Lightsail's managed Postgres): the connection must
+// In production the database is its own server (the host's managed Postgres): the connection must
 // be encrypted and the server's certificate checked, name and all (sslmode=verify-full), against
-// Amazon's certificates in the image (sslrootcert=/app/rds-ca.pem: Dockerfile). The address is read
-// as pg reads it (a ?host= elsewhere, or a later repeated parameter, counts), so nothing slips past.
-// Not needed for a database on the same machine (a loopback address or a socket: development and
-// the browser tests' production build). src/lib/env.ts refuses a production address without it.
+// the host's CA certificate (sslrootcert=/app/db-ca.pem, mounted read-only by
+// deploy/docker-compose.yml). The address is read as pg reads it (a ?host= elsewhere, or a later
+// repeated parameter, counts), so nothing slips past. Not needed for a database on the same machine
+// (a loopback address or a socket: development and the browser tests' production build; Postgres in
+// Compose over a socket, if a host has no managed Postgres, would need its own compose file without
+// the CA mount). src/lib/env.ts refuses a production address without it.
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
 

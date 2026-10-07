@@ -1,8 +1,8 @@
 import type { ClientBase } from "pg";
 
-// Login roles for the app and the worker's job queue. Runs as the owner before migrations.
-// Roles are created only when missing. An existing role is never altered here: a non-superuser
-// owner (Lightsail's master user) can't change SUPERUSER/BYPASSRLS anyway, and re-setting the
+// Login roles for the app and the worker's job queue. Runs as the owner before migrations. Roles
+// are created only when missing. An existing role is never altered here: a non-superuser owner (the
+// managed database's admin user) can't change SUPERUSER/BYPASSRLS anyway, and re-setting the
 // password on every deploy could silently lock out running processes. We check it instead.
 
 export async function ensureLoginRole(

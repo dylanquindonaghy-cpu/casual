@@ -9471,3 +9471,67 @@ names, wording) comes from your employer.
 
 Open `docs/mockups/office-v2.html` in a browser. Tap the account button (top right) to switch
 between the three menus.
+
+## 2026-10-07 — Phase 12, task 12X.1: removing AWS from the image and deploy
+
+- **Time spent:** 0.7 hours (11:11 to 11:55 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=304a53bc86b0760f e2e=true`
+  (3,391 tests; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round, and found no fakes.
+- Dylan said yes, in this session, to deleting the tests that only tested the removed scripts (the
+  task asked for that to happen with him around, not overnight).
+
+### What was built, in plain words
+
+On 2026-10-06 Dylan decided against Amazon Web Services (AWS: Amazon's cloud, where the plan
+was to rent the server, the database, the AI and the email sending). Nothing on AWS had ever run.
+This task took every trace of it out of the code and the server setup, so the app can run at any
+UK or EU company that rents servers able to run Docker (Docker: a tool that runs the app in
+sealed boxes called "containers").
+
+- **Deleted:** three scripts that would have created the servers, the alarms and the monthly
+  backup check on Amazon's "Lightsail" service, and the two test files that only tested them.
+  The four tests for the server's first-boot script (`deploy/cloud-init.sh`, which we keep) moved
+  to their own file, checking the same things.
+- **The database's certificate:** every connection to the database is encrypted, and the app
+  checks it's talking to the real database by checking its certificate (a small public file that
+  proves who the server is). The image used to download Amazon's certificates when it was built.
+  Now the server keeps the host's certificate at `/opt/shiftdesk/secrets/db-ca.pem` (the place
+  PLAN.md's "Connect hosting" already told Dylan to put it), and Docker hands it to the app,
+  read-only. If the file is missing, Docker refuses to start, rather than starting with a check
+  that can't work.
+- **Settings:** the AWS settings in `.env.example` (the list of settings with safe example values)
+  became the email (SMTP) and AI (Anthropic) settings that the next two tasks read.
+- **Words:** comments in 9 source files, the setup guides (`docs/runbooks.md`), the architecture
+  description and 7 other docs now describe "any UK or EU Docker host", "an SMTP email provider"
+  and "the Anthropic API", without naming a company we haven't chosen.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The certificate lives in `secrets/` next to the compose file | It's where PLAN.md "Connect hosting" tells Dylan to put it | Beside the compose file; changed after the review found the plan said `secrets/` |
+| Docker must refuse to start without the certificate | Otherwise Docker quietly makes an empty folder in its place, and the app fails later with a confusing error | Letting Docker create it |
+| The guides name no hosting or email company | None is chosen yet (PLAN.md Deploy 8 and 9); each step says what to look for instead | Writing them for one provider |
+| The privacy notice gets bracketed blanks for the host, the email company and where Anthropic processes data | They're filled in when the accounts exist, after checking Anthropic's terms (ADR-021) | Guessing names now |
+| "Postgres in Docker" gets the principle only, not commands | That setup doesn't exist yet; commands for a service that isn't there would mislead | Writing them anyway |
+| The new no-AWS test also checks `scripts/` and `.github/workflows/` | The phase's "Done when" covers "the code" and "the deploy files"; both are clean today | Only the task's list |
+
+### What the new tests prove
+
+- `tests/unit/no-aws.test.ts`: no AWS name, setting, web address, package or command anywhere in
+  the code, the image, the deploy files, the setting examples or CLAUDE.md; the three scripts are
+  gone; and its own patterns catch planted AWS lines (checked by planting one in each kind of file:
+  each failed the test, naming the line, and was removed).
+- `tests/unit/deploy.database-tls.test.ts`: every database address ends with the certificate check;
+  the four services that talk to the database get the certificate read-only, and Caddy doesn't; the
+  image downloads nothing and copies in no certificate.
+- `tests/unit/deploy.compose.test.ts`: the exact list of files each service sees now includes the
+  certificate (still exact, still read-only).
+
+### What's parked or needs Dylan
+
+- Your own `.env` (not in git) still has the old AWS lines. Copy the new email and AI lines from
+  `.env.example` into it.
+- `docs/business.md`'s monthly cost total doesn't add up from its rows; that was so before this
+  task, so it's in the Parking lot.

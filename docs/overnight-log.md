@@ -9126,3 +9126,150 @@ Key files: /home/user/casual/tests/unit/repo.made-up-data.test.ts, /home/user/ca
 **Ticked** in `PLAN.md` at 11:09 UTC. **Hours:** 0.3 (10:51 to 11:10). PLAN.md gives Phase 12 no
 estimate, so there's nothing to compare. Needs Dylan: confirm once that nothing else in the mock-up
 (venue or staff names, wording) comes from his employer.
+
+## 2026-10-07 11:11 UTC — Phase 12, task 12X.1: remove AWS from the image and deploy
+
+**Task:** Remove AWS from the image and deploy (§5.8; ADR-021), as written in `PLAN.md` (12X.1).
+
+**Dylan's OK (2026-10-07, in this session):** the task says to delete the three Lightsail scripts
+and the tests that only test them "in a normal session (not overnight)". Asked in this session
+whether to do it here, Dylan answered "Yes, do it here". Why deleting these tests is not weakening
+one: they test scripts for a hosting provider Dylan cancelled (ADR-021); the scripts go with them.
+Deleted: `deploy/lightsail.sh`, `deploy/alarms.sh`, `deploy/restore-drill.sh`,
+`tests/unit/deploy.monitoring.test.ts` (alarms and restore drill only) and the Lightsail half of
+`tests/unit/deploy.lightsail.test.ts` (9 tests about `lightsail.sh`). Its 3 `cloud-init.sh` tests
+and the cloud-init half of its "no secret" check move, unchanged in what they assert, to
+`tests/unit/deploy.cloud-init.test.ts`.
+
+**Plan:**
+- CLAUDE.md's repo layout first: `ai/  # Anthropic client behind AiClient, prompts, zod-validated
+  outputs`; `messaging/  # transport interface: console (dev) | twilio for phones, SMTP for email;
+  templates`.
+- The image stops fetching Amazon's RDS bundle. The database's CA certificate comes from the host:
+  the server's `/opt/shiftdesk/db-ca.pem`, mounted read-only at `/app/db-ca.pem` by
+  `deploy/docker-compose.yml` into every service that connects to the database (web, worker,
+  migrate, owner; not Caddy). Long-form bind with `create_host_path: false`, so a missing file stops
+  the start with Docker's "bind source path does not exist" instead of Docker quietly making an
+  empty folder there (which would fail later, at the first connection, with a confusing TLS error).
+  `src/lib/env.ts`'s message, `deploy/env.example` and the build-only placeholder name
+  `/app/db-ca.pem`.
+- `.env.example`: the AWS block (`AWS_*`, `BEDROCK_MODEL_*`, `SES_FROM`) and the "Lightsail master
+  user" note replaced by §5.8's settings (`EMAIL_TRANSPORT`, `SMTP_*`, `AI_TRANSPORT`,
+  `ANTHROPIC_API_KEY`, `AI_MODEL`), which 12X.2 and 12X.3 then read.
+- AWS comments in `src/` reworded (the nine files the task lists), `docker-compose.dev.yml:1` and
+  `deploy/cloud-init.sh`'s header.
+- Tests: new `tests/unit/no-aws.test.ts` (the task's regex over its file list, an AWS SDK in
+  `package.json`, an `aws` command; with a self-check); `deploy.database-tls.test.ts` pins
+  `/app/db-ca.pem`, the compose mounts and nothing fetched in the image, with a non-AWS made-up host;
+  `imports.gate-b.test.ts` takes `db.shiftdesk.example`. Two tests change because the product does
+  (§10): `deploy.compose.test.ts`'s exact volume lists for web and the worker now include the
+  read-only `/app/db-ca.pem` (still exact lists, still read-only, still no secrets for web). The
+  two database URLs leave `repo.made-up-data.test.ts`'s allow-list (now 2 entries).
+- Docs (in parallel, one agent per set of files, then a fact-check): `docs/architecture.md`
+  (stack, diagram, deployment), `docs/runbooks.md` ("Set up the server (once)" for any UK/EU Docker
+  host; restore and the restore drill for the host's managed Postgres, or a `pg_dump` as the
+  `postgres` superuser for Postgres in Compose, ADR-011 as amended; monitoring as an outside uptime
+  check plus the host's own alerts), `docs/api-and-jobs.md`, `docs/messaging-templates.md`,
+  `docs/screens.md:138`, `docs/compliance.md`, `docs/privacy-notice.md`, `docs/business.md`,
+  `docs/product-spec.md`.
+- `guardrails-reviewer` on the database TLS change.
+
+**Guardrails review (verbatim verdict line):** "Verdict: SAFE TO COMMIT. Nothing needs fixing
+first. The change does not weaken database TLS, and every way it can fail stops the app from
+starting instead of letting it run unchecked." FIX FIRST: none. SHOULD FIX, all four fixed (cheap):
+1. The new compose check ran `docker compose` with the test runner's environment, so the shell's
+   `DATABASE_URL` or a stray `COMPOSE_PROFILES` overrode the test's file. Now a clean environment
+   and `--profile` flags, as `deploy.compose.test.ts` does; it passes with `COMPOSE_PROFILES=worker`
+   set in the shell.
+2. Nothing said the certificate must be readable by the app's user (the old `ADD --chmod=644` did).
+   `deploy/env.example`, the compose comment and the runbook now say `chmod 644` (a public
+   certificate, not a secret), and to recreate the containers after replacing it.
+3. `PLAN.md` "Connect hosting" tells Dylan to save the certificate at
+   `/opt/shiftdesk/secrets/db-ca.pem`, but this task first mounted `./db-ca.pem`. Decision: follow
+   Dylan's plan. The mount is now `./secrets/db-ca.pem` (the folder that already holds the Google
+   key, never in git: `.gitignore` has `*.pem`), so the plan's step works as written. The plan text
+   above, which says `/opt/shiftdesk/db-ca.pem`, is superseded by this.
+4. `src/lib/db/tls.ts` said "or Postgres in Compose over a socket" as if it worked today. Reworded:
+   that setup would need its own compose file without the CA mount (the mount stays required).
+Notes acted on: the stale "once Bedrock is connected" comment in
+`tests/integration/pay.query-groups.test.ts` reworded; `no-aws.test.ts`'s file-count guard lowered
+from 400 to 200 so deleting files later can't trip it. Left for Dylan: his own `.env` (gitignored)
+still has the old AWS lines; copy the new email and AI lines from `.env.example` before 12X.2 and
+12X.3. Left for 12X.3: `tests/unit/ai.boundary.test.ts:16` mentions Bedrock.
+
+**Docs:** two agents rewrote `docs/runbooks.md` ("Set up the server (once)" in 9 host-neutral
+steps, with the CA certificate at `/opt/shiftdesk/secrets/db-ca.pem`, `chmod 644` and an `openssl`
+check; Deploy; Restore and the monthly drill through the host's control panel; Monitoring as the
+host's £50 billing alert, its own alerts and the outside uptime check, still step 3 as PLAN.md
+expects) and `docs/architecture.md` (stack, diagram, deployment, where AI is used), each touching
+only its own file. I edited the seven small ones: `api-and-jobs.md` (the Stage 2 row is now
+`POST /api/webhooks/email`; "Connect Bedrock" is "Connect the Anthropic API"),
+`messaging-templates.md` ("SES later" is "SMTP later"; Bedrock is the Anthropic API),
+`screens.md` (email (SMTP); the digest's AI line), `compliance.md` (sub-processors: the hosting
+company, the email company, Anthropic once AI is on, with ADR-021's transfer check; "least-privilege
+IAM" is now "least-privilege access on every account and key"), `privacy-notice.md` (bracketed
+placeholders for the host and email company and for where Anthropic processes requests, to fill in
+when the accounts are chosen: no provider invented), `business.md` (Haiku 4.5 through the Anthropic
+API at $1/$5 per million tokens, checked with the `claude-api` skill; the AWS credits line and the
+Bedrock pricing link replaced by Anthropic's pricing page) and `product-spec.md` (the Bedrock open
+question is now the Anthropic DPA and transfer question, before the AI is switched on).
+
+**Fact-check (3 read-only `doc-fact-checker` agents, against the code, ADR-021, ADR-011 and §5.8):**
+one real error, the CA path in `architecture.md` (the brief's first path; all three caught it),
+fixed. Also fixed: the runbook assumed port 5432 (now "5432 unless the connection details say
+otherwise" in the three places); "all done by clicking" (it's mostly clicking); how to copy the
+downloaded certificate; the percent-encoding list (now every non-letter, non-digit, with `@`, `/`
+and `:` as examples); the alert numbers marked as a suggested start; the deploy line ("SSH, pull,
+up -d" is now "the server pulls it and runs `up -d` (no SSH)"), with `deploy/deploy.sh`'s comment
+to match; the privacy notice's sentence order; the email webhook row (no claim every provider
+signs); the hosting cost line flagged as an estimate until a host is chosen;
+`src/lib/ai/client.ts` now cites the doc's real heading, "Where AI is used". Postgres in Compose:
+the runbook keeps the principle (a `pg_dump` as `postgres`) and says the commands come with the
+compose service; writing commands for a service that doesn't exist would mislead, so `PLAN.md`
+"Connect hosting" now says Claude adds them then. Not fixed, outside this task:
+`docs/business.md`'s monthly total (~£60–£110) isn't the sum of its rows (~£45–£120); that was so
+before 12X.1. Parked below.
+
+**Verify:** `VERIFIED tree=304a53bc86b0760f e2e=true` (3,391 tests, 0 skipped: 18 fewer than before,
+the deleted Lightsail and monitoring tests less the new ones; e2e 60, then the walkthrough's 3).
+
+**Audit round 1 verdict (verbatim):**
+
+```
+VERDICT: DONE
+
+The stamp is valid: `.claude/state/verified.json` has ok=true, e2e=true, tree 304a53bc86b0760f, and `tree-hash.sh` prints the same hash. `test.log` shows 3391 passed with 0 skipped, and `invariants.log` shows no `.only`/`.skip`/`.todo`.
+
+Claims:
+- Delete `deploy/lightsail.sh`, `alarms.sh`, `restore-drill.sh` and their tests — PROVEN. `/home/user/casual/deploy/` holds only Caddyfile, cloud-init.sh, deploy.sh, docker-compose.yml, env.example and the systemd service/timer. `deploy.monitoring.test.ts` and `deploy.lightsail.test.ts` are gone. `no-aws.test.ts:75-79` asserts the three scripts don't exist. Nothing outside history docs and PLAN.md references the deleted files.
+- cloud-init tests move to `deploy.cloud-init.test.ts` — PROVEN. `/home/user/casual/tests/unit/deploy.cloud-init.test.ts` has 4 real assertions (sh -n, `set -eu`, apt lock, Docker repo, 0700 `/opt/shiftdesk`, no secret); `test.log:3370-3373` pass. The old file is deleted, so I couldn't diff it, but the overnight-log entry says the 3 tests plus the "no secret" half moved unchanged.
+- Why recorded — PROVEN, but only as the builder's own record. `docs/overnight-log.md:9130-9198` has the 12X.1 entry with the reason (a feature Dylan cancelled, not a weakened test) and a quoted "Yes, do it here" from Dylan. `docs/decisions.md:393-436` (ADR-021) also records it. I can't verify the session claim from disk.
+- Dockerfile stops fetching the RDS bundle, and the CA comes from `/app/db-ca.pem` via a read-only compose mount — PROVEN.
+  - `/home/user/casual/Dockerfile:15,31-34` has no ADD, curl or amazonaws, and the build placeholder uses `sslrootcert=/app/db-ca.pem`.
+  - `deploy/docker-compose.yml:12-21` defines the `x-db-ca` bind (`read_only: true`, `create_host_path: false`), mounted in web, worker, migrate and owner but not Caddy.
+  - `deploy/env.example` uses `/app/db-ca.pem` on all three database addresses. `src/lib/env.ts:34` and the `src/lib/db/tls.ts:3-9` comments say the same.
+- `.env.example` AWS lines replaced by §5.8's email and AI settings — PROVEN. `/home/user/casual/.env.example` has `EMAIL_TRANSPORT`, `SMTP_*`, `AI_TRANSPORT`, `ANTHROPIC_API_KEY` and `AI_MODEL`, and no `AWS_*`, `BEDROCK_*` or Lightsail note. The names match `docs/office-v2.md` §5.8. `src/` doesn't read these settings yet, because 12X.2 and 12X.3 add that; this task asked only for the example file.
+- AWS comments in `src/`, `docker-compose.dev.yml` and `deploy/cloud-init.sh` reworded — PROVEN. The task's regex over `src/`, the compose files, deploy/ and the Dockerfile matches nothing. The reworded comments are in `src/lib/ai/client.ts:1-7`, `src/lib/pay/digest.ts:41,264,370`, `src/lib/inbound/reply.ts:563`, `src/lib/office/pay-query-groups.ts:21,142`, `src/lib/auth/send-portal-link.ts:132`, `src/lib/db/admin/{roles,bootstrap}.ts`, `docker-compose.dev.yml:1` and the `deploy/cloud-init.sh` header.
+- New `tests/unit/no-aws.test.ts` — PROVEN. It scans `.env.example`, `deploy/env.example`, the root `docker-compose*.yml`, the Dockerfile, CLAUDE.md, `deploy/`, `src/`, `scripts/` and `.github/workflows` (a wider scope than asked), using the task's exact regex plus an `aws` command check. It also checks `package.json` for AWS packages and runs a self-check that proves the regexes match what they should and nothing more. `test.log:2788-2791` pass.
+- `deploy.database-tls.test.ts` pins `/app/db-ca.pem`, the compose mounts and nothing fetched from Amazon — PROVEN. `deploy/docker-compose.yml` is run through `docker compose config` and each service's mount is asserted (bind, read_only, create_host_path false, Caddy excluded). The Dockerfile has no ADD, curl, wget, URL or `.pem` COPY. `test.log:2061-2078` pass. The exact volume assertions in `deploy.compose.test.ts:115-122` were updated for the new mount and are still exact and read-only.
+- `imports.gate-b.test.ts` takes a non-AWS example host — PROVEN. `tests/unit/imports.gate-b.test.ts:7` uses `db.shiftdesk.example`; `test.log:3571-3572` pass.
+- `guardrails-reviewer` (database TLS) — PROVEN, self-reported. `docs/overnight-log.md:9143-9180` has the verbatim verdict "SAFE TO COMMIT" and 4 SHOULD-FIX items. The changes they led to are visible on disk: the clean-env compose test, the `chmod 644` note, `./secrets/db-ca.pem`, and the reworded tls.ts comment.
+- `CLAUDE.md` layout lines — PROVEN. `CLAUDE.md:89` and `:91` have the exact wording the task gives, and there is no "Bedrock client".
+- Docs — PROVEN. A grep for aws, ses, bedrock, lightsail, amazon and rds across the current-stack docs finds nothing stale. The remaining mentions are history docs, ADR-002/ADR-021, office-v2.md §5.8 (which describes the removal), and a competitor news URL at `docs/business.md:182`.
+  - `docs/architecture.md:1-7,19-38,419-514`: stack, diagram, SMTP/Anthropic/backups/monitoring deployment.
+  - `docs/api-and-jobs.md:25`: "POST /api/webhooks/email, the chosen provider's inbound webhook".
+  - `docs/messaging-templates.md:96,223`: "the Anthropic API".
+  - `docs/screens.md:138`: "email (SMTP)".
+  - `docs/runbooks.md:5-100`: host-neutral setup; `:207-243` restore through the host's managed Postgres, or `pg_dump` as the `postgres` superuser; `:332-360` outside uptime check plus the host's alerts.
+  - `docs/compliance.md:10-13`, `docs/privacy-notice.md:60-63,113-119`, `docs/business.md:105,120`, `docs/product-spec.md:153`.
+
+Fakes found: none. The new and changed tests have real assertions and nothing is skipped. They exercise real file contents and `docker compose config`, and the no-aws self-check covers its own regexes.
+
+To reach DONE: nothing.
+
+Minor notes, not blocking:
+- `tests/unit/ai.boundary.test.ts:16,168` still mention Bedrock. That is in `tests/` (outside the scanned set), and the overnight log defers it to 12X.3.
+- Dylan's gitignored `.env` still has the old AWS lines; the overnight log flags this for him.
+```
+
+**Ticked** in `PLAN.md` at 11:54 UTC. **Hours:** 0.7 (11:11 to 11:55).

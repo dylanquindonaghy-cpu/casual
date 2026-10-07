@@ -560,8 +560,8 @@ export function inboundMessageTask(deps: () => InboundReplyDeps): FirmTask<Inbou
   return { ...inboundMessageJob, task: (payload, run) => runInboundMessage(payload, run, deps()) };
 }
 
-// The worker's wiring. No AI yet: "Connect Bedrock" (PLAN.md Parking lot) replaces `noAi`, and
-// until then every message no keyword matches goes to the office.
+// The worker's wiring. No AI yet: "Connect the Anthropic API" (PLAN.md Parking lot) replaces
+// `noAi`, and until then every message no keyword matches goes to the office.
 export const inboundMessageFirmTask = inboundMessageTask(() => {
   const env = workerEnv();
   return { transport: getTransport(env), ai: noAi, baseDomain: env.APP_BASE_DOMAIN };

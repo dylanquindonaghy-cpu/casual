@@ -31,7 +31,7 @@ const connectsAs = (role: string) =>
 // In production every database address must ask for checked TLS (databaseTlsOn, src/lib/db/tls.ts;
 // audit L38).
 const DATABASE_TLS_MESSAGE =
-  'in production the database connection must be encrypted and checked: the address needs sslmode=verify-full&sslrootcert=/app/rds-ca.pem (after a "?", or "&" if it already has one; docs/runbooks.md "Deploy")';
+  'in production the database connection must be encrypted and checked: the address needs sslmode=verify-full&sslrootcert=/app/db-ca.pem (after a "?", or "&" if it already has one; docs/runbooks.md "Deploy")';
 const tlsInProduction =
   (...keys: string[]) =>
   (e: Record<string, unknown>, ctx: z.RefinementCtx) => {

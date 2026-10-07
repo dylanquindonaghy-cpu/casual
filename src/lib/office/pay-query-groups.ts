@@ -18,7 +18,8 @@ import { mondayOf } from "../time/zoned";
 // biggest group first, each with its facts, a one-line summary and its queries (the worker, the
 // day, the shift, their details: payroll's to answer; never logged). The heading is the code's line
 // from the facts; summariseGroups() adds an AI line beneath it, outside any transaction (the digest
-// job, once Bedrock is connected). At most 2,000 queries (the newest), and it says when there are more.
+// job, once the Anthropic API is connected). At most 2,000 queries (the newest), and it says when
+// there are more.
 // The payroll digest passes the ids of the queries it is sending, to group just those.
 
 export interface PayQueryItem {
@@ -138,9 +139,9 @@ export async function loadPayQueryGroups(
   return { timeZone, groups, more };
 }
 
-// The AI's line for each group (the digest, once Bedrock is connected), after the groups are
-// loaded: never inside a database transaction (an AI call can take seconds). A line that fails the
-// check, no AI, or no answer within the timeout (5 seconds a group) leaves `aiLine` empty.
+// The AI's line for each group (the digest, once the Anthropic API is connected), after the groups
+// are loaded: never inside a database transaction (an AI call can take seconds). A line that fails
+// the check, no AI, or no answer within the timeout (5 seconds a group) leaves `aiLine` empty.
 export async function summariseGroups(
   groups: PayQueryGroup[],
   ai: AiClient,

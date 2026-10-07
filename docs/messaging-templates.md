@@ -52,7 +52,7 @@ it.
 |---|---|---|
 | `login_link` | Utility | "Here's your {firm} shifts link. It works for 15 minutes and only for you: {link} — {firm} Shift Team" (the link last, with a space after it, never a full stop, which a phone can take into the link: Phase 10 task 19; {link} is `https://<portal>/l#<token>`; one per login request, so it is exempt from the once-a-day rule) |
 | `login_code` | Utility | "Your {firm} code is {code}. It works for 10 minutes. Don't share it with anyone. — {firm} Shift Team" (pay-page step-up; one per request, exempt from the once-a-day rule. Meta's authentication category has fixed wording without a sign-off, and Meta usually requires it for one-time codes: decide at submission) |
-| `office_login_link` | Email | Subject "Your {firm} office login link". Body: "Here's your link to the {firm} office dashboard: {link}. It works for 15 minutes, once, and only for you. If you didn't ask for it, you can ignore this email. — {firm} Shift Team" (console transport in Phase 1; SES later) |
+| `office_login_link` | Email | Subject "Your {firm} office login link". Body: "Here's your link to the {firm} office dashboard: {link}. It works for 15 minutes, once, and only for you. If you didn't ask for it, you can ignore this email. — {firm} Shift Team" (console transport in Phase 1; SMTP later) |
 | `shift_offer` | Utility | "Shift available: {date} {start}–{end} at {site} ({role}). Tap to take it: {link}. First to accept gets it. — {firm} Shift Team" ({date} is "Sat 7 Nov"; "at {site}" left out when there's none. Sent when the office offers a shift that isn't urgent to one worker, `src/lib/offers/office-offer.ts`; an urgent shift gets `shift_urgent`) |
 | `shift_urgent` | Utility | "URGENT: we need a {role} at {site} {day} {start}–{end}. Tap to take it: {link}. — {firm} Shift Team" ({day} is "today", "tomorrow" or "on Sat 7 Nov": an urgent shift isn't always today; "at {site}" is left out when the shift has no site; "an" before a vowel. Sent by the offer waves, `src/lib/offers/waves.ts`) |
 | `shift_filled` | Utility | "Thanks for replying. That shift on {date} at {site} has now been filled. Open shifts: {link}. — {firm} Shift Team" |
@@ -93,7 +93,7 @@ together. Not submitted yet: PLAN.md Parking lot, "Submit the WhatsApp templates
 ## Instant replies on the shifts line (keyword first)
 
 Built in Phase 7 (`shiftsLineReply()`; the job `src/lib/inbound/reply.ts`), short of Twilio and
-Bedrock. Each reply ends "— {firm} Shift Team" and goes from the firm's shifts line, at once (free
+the Anthropic API. Each reply ends "— {firm} Shift Team" and goes from the firm's shifts line, at once (free
 text: within 24 hours of the worker's message WhatsApp needs no template). Keywords are whole words,
 any case, checked in the order below (so "cancel my shift" is a cancel). The AI only picks a row;
 the words are always these.
@@ -220,7 +220,7 @@ reach the same app, which isn't answering.
   queries since the last digest, each about something different."; just one: "1 new pay query
   since the last digest: {facts}."); "Grouped by likely cause, biggest first:" then a line per
   group, "- {k queries}: {facts}." (at most 30, then "- and {n} more groups"), each with "AI
-  summary: {line} (written by AI)" beneath once Bedrock is connected (the 10 biggest groups);
+  summary: {line} (written by AI)" beneath once the Anthropic API is connected (the 10 biggest groups);
   "{n} queries from earlier digests are still waiting." (when some are); "{n} more new queries
   didn't fit in this digest. They're on the pay queries page and will be in the next one." (over
   1,000); "The list is attached ({filename}): each query with the worker, the day, the shift, the

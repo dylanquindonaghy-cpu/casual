@@ -427,7 +427,7 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       `.localhost`, with a short reviewed allow-list for strings that only look like one), and on
       any postcode in the mock-up outside `ZZ` (an employer's name can't be tested for without
       writing it into the repo, so a person checks that once) (12A.0)
-- [ ] Remove AWS from the image and deploy (§5.8; ADR-021): delete `deploy/lightsail.sh`,
+- [x] Remove AWS from the image and deploy (§5.8; ADR-021): delete `deploy/lightsail.sh`,
       `deploy/alarms.sh` and `deploy/restore-drill.sh` and the tests that only test them
       (`tests/unit/deploy.monitoring.test.ts`, and the Lightsail part of
       `tests/unit/deploy.lightsail.test.ts`, whose `cloud-init.sh` tests move to a new
@@ -2027,7 +2027,10 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   **Claude:** the host's own notes in docs/runbooks.md "Set up the server (once)" (Phase 12 task
   12X.1 writes the general steps; `deploy/cloud-init.sh` sets the server up on hosts that take
   cloud-init), then "Connect the deploy". If the host has no managed Postgres: Postgres in Compose
-  over a Unix socket (no TLS needed; backups and restores become ours). Then tick the server task.
+  over a Unix socket (no TLS needed; backups and restores become ours): Claude then adds the compose
+  service (without the CA mount), its nightly `pg_dump` as `postgres` with a copy off the server,
+  and the exact restore and drill commands in docs/runbooks.md (12X.1 wrote the principle only).
+  Then tick the server task.
   **For the deploy task:** the server pulls new images itself (`deploy/deploy.sh` every 2 minutes,
   decided in Phase 8), so nothing needs to SSH in; and the server reboots itself at 02:30 UTC when
   an update needs it, so every compose service needs `restart: unless-stopped`.
@@ -2769,6 +2772,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - ADRs for D5 (ADR-022 covers the planner layer that replaced it), D7 and the theme cookie.
   - The enquiries research seed set (12 enquiries) and staged "AI-sorted" demo rows.
 
+- `docs/business.md` "Usage costs": the monthly total (~£60–£110) isn't the sum of its rows (~£45–£120); fix the total or say it's a typical month (found by the 12X.1 fact-check, 2026-10-07).
+
 ## Hours log
 
 | Date | Phase | Hours | What got done |
@@ -2876,3 +2881,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-06 | 11 | 0.2 | Closed "`/help` for workers" (built in b3f3627): 11 topics in plain words, open without logging in, held by `copy.plain-language.test.ts` and `guides.test.ts` (no shifts-line number, no privacy link, no buttons); every button it names and every time it states checked against the code; nothing to fix; 3404 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-07 | 11 | 0.6 | Closed "Docs" (built in b3f3627), resumed in a cloud session after the PC's loop stopped at 18:59 UTC on 2026-10-06 (`host_exit`); most of the time went on making the container match the PC (Node v22.23.3, Postgres and Docker, the browser links, `.test` off the proxy, `*.localhost` in `/etc/hosts`), no repo file changed for it; ui-design, screens and walkthrough checked against the code; nothing to fix; 3404 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-07 | 12 | 0.3 | The mock-up in the repo (12A.0): Dylan's copy (`10617f4`) kept as `docs/mockups/office-v2.html`, its role switch labelled "mock-up only" (words, accessible name and tooltip, the switch's own text when tapped); new `repo.made-up-data.test.ts` (every email address in `src/`, `drizzle/`, `tests/`, `docs/` and the seed on a reserved domain, a 4-entry reviewed allow-list that fails when an entry goes stale, the mock-up's postcodes all `ZZ`, a self-check); one test address moved to a reserved domain; §1.1 and `docs/testing.md` updated; 3409 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
+| 2026-10-07 | 12 | 0.7 | Remove AWS (12X.1; Dylan OK'd it in this session): the 3 Lightsail scripts and their 2 test files deleted (cloud-init's 4 tests moved to `deploy.cloud-init.test.ts`); no RDS bundle in the image, the host's CA from `/opt/shiftdesk/secrets/db-ca.pem` mounted read-only at `/app/db-ca.pem` (Docker refuses to start without it); `.env.example`'s AWS lines now the email and AI settings; AWS comments reworded in 9 source files; new `no-aws.test.ts`; runbooks and architecture rewritten for any UK/EU Docker host, 7 smaller docs fixed; guardrails SAFE TO COMMIT (4 small fixes made), 3 fact-checkers (all fixed but one older cost total, parked); 3391 tests + 60 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |

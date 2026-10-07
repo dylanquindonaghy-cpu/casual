@@ -57,11 +57,13 @@ Replace the parts in [brackets]. Send both parts.
 > copy more than 14 days old is never shown. [If we show our logo:] Our logo is loaded from our own
 > website, so our website sees your phone's internet address, as it would for any visit.
 >
-> **Who else handles it:** [Our supplier] stores it in the UK (Amazon Web Services, London). It
-> uses Amazon Web Services (hosting, database and email; and, once it's switched on, the AI service
-> above, which runs in the EU), Twilio (texts, WhatsApp and calls) and Meta (WhatsApp) to send and
-> receive messages[, and Google, as we keep our rota in a Google Sheet]. Twilio and Meta may handle your number and messages in
-> the United States, under their data transfer terms.
+> **Who else handles it:** [Our supplier] stores it in [the UK / the EU] ([hosting company], which
+> runs its servers and database). It uses [email company] to send emails, Twilio (texts, WhatsApp
+> and calls) and Meta (WhatsApp) to send and receive messages[, and Google, as we keep our rota in
+> a Google Sheet], and, once the AI service above is switched on, Anthropic [where Anthropic
+> processes it, and the safeguard for any transfer outside the UK: confirmed before the AI is
+> switched on]. Twilio and Meta may handle your number and messages in the United States, under
+> their data transfer terms.
 >
 > **How long:** messages to the shifts line, [90] days. The words typed into a request (a note, a
 > colleague's name) and the reason our office gave for placing you on a shift a rule would have
@@ -108,9 +110,13 @@ Replace the parts in [brackets]. Send both parts.
   follow-ups", for you to confirm).
 - **The Google line** only if the firm's rota is a Google Sheet (onboarding step 5).
 - **The logo line** only if the firm sets a logo (`npm run firm:brand -- --logo …`).
-- **The AI** isn't connected yet ("Connect Bedrock"). The "Automation" paragraph says it "may be
-  used" and the sub-processor line says "once it's switched on", so the notice is true now and
-  stays true when it's connected.
+- **The AI** isn't connected yet ("Connect the Anthropic API"). The "Automation" paragraph says it
+  "may be used" and the sub-processor line says "once it's switched on", so the notice is true now.
+  Before it's switched on, fill in where Anthropic processes requests and the transfer safeguard,
+  after checking its data processing agreement and UK transfer terms (ADR-021): Anthropic's API may
+  process requests outside the UK.
+- **The hosting and email companies** aren't chosen yet ("Connect hosting", "Connect an email
+  provider (SMTP)"). Fill in their names, and the UK or the EU, when the accounts are created.
 - **Deletion keeps pay records** (said in "Your rights"): for you to confirm (PLAN.md "GDPR
   follow-ups"). The office's typed override reasons are deleted with the worker since Phase 10
   (they're on the booking now, not in the append-only log). Some of what colleagues typed (pay

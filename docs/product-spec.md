@@ -150,7 +150,7 @@ fill); product metrics from the events table; resourcer weekly check-in.
 | Where does the pilot firm keep pay data, and can we get a weekly export? | Pilot firm payroll | Before Phase 6 |
 | Final 2027 notice threshold and compensation rules | Government regulations | No, keep threshold configurable |
 | Does CSP want exclusivity if they're first? | CSP | Before signing |
-| Does Haiku have an EU inference profile on Bedrock in London when we deploy? | Engineering | Before Phase 6 |
+| Do Anthropic's data processing agreement and UK transfer terms fit, and where does it process requests (ADR-021)? | Dylan (with the solicitor) | Before the AI is switched on |
 
 ## Timeline considerations
 

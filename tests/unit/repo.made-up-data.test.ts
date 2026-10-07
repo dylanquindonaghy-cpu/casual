@@ -24,18 +24,6 @@ const POSTCODE = /\b[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}\b/g;
 // file doesn't hold it whole. An entry that's no longer found fails, so the list stays short.
 const ALLOWED = [
   {
-    file: "tests/unit/deploy.database-tls.test.ts",
-    local: "pw",
-    domain: "db.abc123.eu-west-2.rds.amazonaws.com",
-    why: "the password@host of a made-up database URL",
-  },
-  {
-    file: "tests/unit/imports.gate-b.test.ts",
-    local: "p",
-    domain: "shiftdesk-db.abc123.eu-west-2.rds.amazonaws.com",
-    why: "the password@host of a made-up database URL",
-  },
-  {
     file: "tests/unit/sheets.google.test.ts",
     local: "shiftdesk-sync",
     domain: "example-project.iam.gserviceaccount.com",

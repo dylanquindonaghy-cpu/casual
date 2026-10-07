@@ -129,7 +129,7 @@ async function claimLink(
     payload.address === "own_domain" && firm.domainVerified ? firm.customDomain : null;
   const portal = ownDomain ? ownDomainUrl(ownDomain) : portalUrl(firm.slug, deps.baseDomain);
   const voice = { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) };
-  // SMS fallback and SES email come with Twilio and SES.
+  // The SMS fallback comes with Twilio, and email with the SMTP sender.
   return {
     magicLinkId: link.id,
     ownDomain: ownDomain !== null,

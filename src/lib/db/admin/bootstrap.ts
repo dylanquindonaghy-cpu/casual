@@ -1,8 +1,8 @@
 import { Client } from "pg";
 
 // Local-only bootstrap, run as the Docker superuser: create the non-superuser owner role and
-// (re)create a local database owned by it. Production never runs this: on Lightsail the master
-// user already exists and owns the database.
+// (re)create a local database owned by it. Production never runs this: on the host's managed
+// Postgres the admin user already exists and owns the database.
 
 // Both helpers connect to the "postgres" maintenance database: the target database may not
 // exist yet (a fresh CI runner, a new e2e database).

@@ -17,7 +17,8 @@ async function officeLogin(page: Page, email: string) {
   await page.goto(link);
   await expect(page).toHaveURL(`${acme}/office/l`);
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page).toHaveURL(`${acme}/office`);
+  // Payroll's home is the pay dashboard: /office sends them on (12A.3).
+  await expect(page).toHaveURL(new RegExp(`^${acme.replace(/\./g, "\\.")}/office(/pay)?$`));
 }
 
 test("an admin logs in by email link, sees their role and the office team, and logs out", async ({
@@ -64,5 +65,7 @@ test("a resourcer can use the dashboard but not the admin-only team page", async
 
 test("payroll logs in with their own role", async ({ page }) => {
   await officeLogin(page, "acme.payroll@example.com");
-  await expect(page.getByText("You're logged in as Payroll.")).toBeVisible();
+  // Their home, the pay dashboard; the account button names their role.
+  await expect(page).toHaveURL(`${acme}/office/pay`);
+  await expect(page.getByRole("button", { name: "Payroll (demo) Payroll" })).toBeVisible();
 });

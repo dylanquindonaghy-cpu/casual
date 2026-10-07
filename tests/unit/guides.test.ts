@@ -118,8 +118,9 @@ describe("the office how-to guide", () => {
     expect(html).not.toContain("Assign anyway");
     expect(html).not.toContain('href="/office/shifts"');
     expect(html).toContain('href="/office/pay-queries"');
-    // The menu map is the role's own menu: Home, not Today.
-    expect(words(html)).toContain("Home");
+    // The menu map is the role's own menu: the pay dashboard (their home, 12A.3), not Today.
+    expect(words(html)).toContain("Pay dashboard");
+    expect(words(html)).not.toContain("Today: What needs doing");
     expect(words(html)).not.toContain("Workers. Find a worker");
   });
 

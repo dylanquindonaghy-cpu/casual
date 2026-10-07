@@ -41,7 +41,8 @@ describe("office roles", () => {
   it("the office menu (12A.2) links only to real areas, and offers each role only what it can open", () => {
     for (const area of MENU_AREAS) expect(Object.keys(OFFICE_AREAS)).toContain(area);
     const AREA_OF_HREF: Record<string, readonly string[]> = {
-      "/office": ["today", "dashboard"],
+      "/office": ["today"],
+      "/office/pay": ["pay"],
       "/office/shifts": ["shifts"],
       "/office/requests": ["requests"],
       "/office/workers": ["workers"],

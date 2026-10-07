@@ -108,13 +108,17 @@ describe("AI never answers a dispute", () => {
         .filter((file) => (graph.get(file) ?? []).some((f) => rel(f) === target))
         .map(rel)
         .sort();
+    // The pay dashboard (12A.3) reads the groups (code's lines only: it never asks for an AI line)
+    // and the digest's status, for admins and payroll.
     expect(importersOf(AI_USERS[0] ?? "")).toEqual([
       "src/app/office/pay-queries/page.tsx",
+      "src/lib/office/pay-dashboard.ts",
       "src/lib/pay/digest-list.ts",
       "src/lib/pay/digest.ts",
     ]);
     expect(importersOf(AI_USERS[1] ?? "")).toEqual([
       "src/app/office/pay-queries/actions.ts",
+      "src/lib/office/pay-dashboard.ts",
       "src/lib/office/pay-digest-copy.ts",
       "src/lib/office/pay-digest-view.ts",
       "src/lib/office/quick-actions.ts",

@@ -9762,3 +9762,53 @@ scrolling.
 ### What needs Dylan
 
 Nothing. Have a look at the office on your phone: the "Menu" button is top left.
+
+## 2026-10-07 — Phase 12, task 12A.3: pay dashboard
+
+- **Time spent:** 0.7 hours (15:23 to 16:05 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=332b172e7f3b7c64 e2e=true`
+  (3,490 tests; browser tests: 71, then the walkthrough's 3). The first full run failed 2 browser
+  tests, both because payroll now lands on a different page; fixed and re-run.
+- The independent auditor said `VERDICT: DONE` on its **first** round and found no weakened
+  test.
+
+### What was built, in plain words
+
+Payroll now has a home page, the **Pay dashboard** (`/office/pay`). It's where payroll lands after
+logging in (admins can open it from the menu too; resourcers can't).
+
+- At the top: the firm's shifts-line number, "Import pay records" and "Send the digest now".
+- **Four counts:** how many pay queries are waiting (and since when), when the next payroll
+  digest email goes (and the last one sent, or any problem), how many were sorted this week, and
+  the next pay date (from the imported pay records, or else the Friday after this week).
+- **Waiting, grouped by likely cause:** the biggest groups, each opening Pay queries. "Pay
+  questions never get an AI answer: they come here."
+- **Recently sorted:** the last 7 days, one line per "Mark as sorted", with who did it, when, and
+  the note the workers got.
+- **In the top bar** (on a computer): "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct", the pay week
+  (Monday to Sunday, paid the Friday after), the same rule for every firm.
+- **In the menu:** "Pay queries" shows a red number when queries are waiting.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| "Pay dashboard" replaces payroll's "Home" in the menu | It is their home now; admins get it too | Keeping "Home" |
+| The pay-week pill only from 1024px wide | On tablets there's no room beside Menu, the name and the account button | Showing it on tablets and squeezing the bar |
+| One row per sorting in "Recently sorted" | "Mark as sorted" handles a whole group at once, with one note | One row per query |
+| Next pay date: imported pay dates first, then the rule | The firm's own dates are the truth when they exist | The rule only |
+
+### What the new tests prove
+
+Unit tests pin the pay week (week 41's label, a 53-week year running into January, today's week
+across the clock change) and the next digest time (later today or the next digest day, 09:00 local
+on both sides of the clock change, none when no day is chosen). An integration test on the real
+database checks every count and section with made-up queries and pay lines, that another firm's
+queries never show, that resourcers get nothing, and the menu badge. A new browser test logs in as
+payroll and lands on the dashboard (with the shifts-line number, the counts and sections, the
+badge, a group opening Pay queries), and checks a resourcer gets "not found".
+
+### What needs Dylan
+
+Nothing for this task. The next one (events and session fields) adds a database migration, so it
+waits for you to see its plan first (CLAUDE.md).

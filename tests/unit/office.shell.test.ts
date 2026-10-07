@@ -39,7 +39,7 @@ describe("the office menu (v2 groups)", () => {
   it("admins see every link, in groups", () => {
     expect(labels("admin")).toEqual([
       ["Operations", ["Today", "Shifts", "Requests"]],
-      ["Pay", ["Pay queries", "Import pay records"]],
+      ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
       ["Configuration", ["Office team", "Data requests"]],
       ["Help", ["How-to guide"]],
@@ -54,13 +54,25 @@ describe("the office menu (v2 groups)", () => {
     ]);
   });
 
-  it("payroll gets Home (the dashboard, not Today) at the top of Pay, and the guide", () => {
+  it("payroll gets the pay dashboard (their home, not Today) at the top of Pay, and the guide", () => {
     expect(labels("payroll")).toEqual([
-      ["Pay", ["Home", "Pay queries", "Import pay records"]],
+      ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Help", ["How-to guide"]],
     ]);
-    expect(officeMenu("payroll")[0]?.links[0]?.href).toBe("/office");
-    expect(MENU_AREAS).toContain("dashboard");
+    expect(officeMenu("payroll")[0]?.links[0]?.href).toBe("/office/pay");
+    expect(MENU_AREAS).not.toContain("dashboard");
+  });
+
+  it("a badge given by address goes on that link only (the layout's Pay queries count)", () => {
+    const badge = { count: 4, words: "4 waiting" };
+    const links = officeMenu("payroll", { "/office/pay-queries": badge }).flatMap((g) => g.links);
+    expect(links.filter((l) => l.badge).map((l) => [l.href, l.badge])).toEqual([
+      ["/office/pay-queries", badge],
+    ]);
+    // A role that can't open the page gets no badge for it.
+    expect(
+      officeMenu("resourcer", { "/office/pay-queries": badge }).flatMap((g) => g.links),
+    ).not.toContainEqual(expect.objectContaining({ href: "/office/pay-queries" }));
   });
 
   it("links have no query strings (tests compare the address after a click)", () => {
@@ -81,6 +93,7 @@ describe("the current page in the menu", () => {
     ["/office/workers/11111111-1111-4111-8111-111111111111", "/office/workers"],
     ["/office/data/workers/11111111-1111-4111-8111-111111111111", "/office/data"],
     ["/office/pay/import", "/office/pay/import"],
+    ["/office/pay", "/office/pay"],
     ["/office/pay-queries", "/office/pay-queries"],
     ["/office/reports/notice", "/office/reports/notice"],
     ["/office/reports/pilot", "/office/reports/pilot"],
@@ -205,6 +218,7 @@ describe("the shell", () => {
         name: "Sam Admin",
         roleLabel: role === "admin" ? "Admin" : "Payroll",
         firmName: "Acme Events",
+        payWeek: "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct",
         menu: officeMenu(role),
         theme,
         rotationDue: false,
@@ -242,6 +256,10 @@ describe("the shell", () => {
     );
     expect(bar).toContain('<span class="block font-bold text-ink">ShiftDesk</span>');
     expect(bar).toContain(">Acme Events</span>");
+    // The pay week, from 1024px (hidden on phones and tablets).
+    expect(bar).toMatch(
+      /<p class="[^"]*hidden[^"]*lg:flex[^"]*">Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct<\/p>/,
+    );
     expect(bar).toMatch(/<button type="button" aria-label="Switch to dark mode" disabled=""/);
     // The theme button's words also show beside it (hidden from screen readers: they're its name).
     expect(bar).toMatch(/<span aria-hidden="true"[^>]*group-hover:block[^>]*>Switch to dark mode</);
@@ -286,7 +304,9 @@ describe("the shell", () => {
 
   it("payroll's shell: their own menu, the same bar", () => {
     const html = shell(undefined, "payroll");
-    expect(text(html)).toContain("Pay Home Pay queries Import pay records Help How-to guide");
+    expect(text(html)).toContain(
+      "Pay Pay dashboard Pay queries Import pay records Help How-to guide",
+    );
     expect(html).not.toContain('href="/office/shifts"');
   });
 });

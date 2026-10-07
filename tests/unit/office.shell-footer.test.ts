@@ -29,6 +29,7 @@ const shell = (rotationDue: boolean) =>
       name: "Sam Admin",
       roleLabel: "Admin",
       firmName: "Acme Events",
+      payWeek: "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct",
       menu: officeMenu("admin"),
       theme: undefined,
       rotationDue,

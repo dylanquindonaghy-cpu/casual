@@ -3,6 +3,7 @@ import {
   DEFAULT_DIGEST_SCHEDULE,
   digestDueOn,
   digestSchedule,
+  nextDigestAt,
   scheduleWords,
 } from "@/lib/pay/digest-schedule";
 
@@ -96,5 +97,38 @@ describe("the schedule in words", () => {
       "at 09:00 on Saturday and Sunday",
     );
     expect(scheduleWords({ time: "09:00", days: [] })).toBeNull();
+  });
+});
+
+describe("the next digest (the pay dashboard, 12A.3)", () => {
+  const weekdays = DEFAULT_DIGEST_SCHEDULE;
+  const at = (iso: string) => nextDigestAt(new Date(iso), LONDON, weekdays)?.toISOString();
+
+  it("later today if today is a digest day and the time hasn't come; otherwise the next day", () => {
+    // Mon 5 Oct 2026: 08:00 summer time → 09:00 that day; 09:30 → Tuesday's.
+    expect(at("2026-10-05T07:00:00Z")).toBe("2026-10-05T08:00:00.000Z");
+    expect(at("2026-10-05T08:30:00Z")).toBe("2026-10-06T08:00:00.000Z");
+    // Exactly at the time it's going now, so the next is the next day's.
+    expect(at("2026-10-05T08:00:00Z")).toBe("2026-10-06T08:00:00.000Z");
+    // Friday after the time → Monday.
+    expect(at("2026-10-09T09:00:00Z")).toBe("2026-10-12T08:00:00.000Z");
+  });
+
+  it("09:00 local on either side of the clock change", () => {
+    // Fri 23 Oct (summer time) → Mon 26 Oct, after the clocks went back: 09:00 is 09:00 UTC.
+    expect(at("2026-10-23T10:00:00Z")).toBe("2026-10-26T09:00:00.000Z");
+    // Fri 27 Mar (winter time) → Mon 30 Mar, after the clocks went forward: 08:00 UTC.
+    expect(at("2026-03-27T10:00:00Z")).toBe("2026-03-30T08:00:00.000Z");
+  });
+
+  it("one day a week: a week ahead once it's passed; no days: none", () => {
+    const sundays = { time: "17:30", days: ["sun" as const] };
+    // Sun 11 Oct 2026, 18:00 summer time: next Sunday 17:30.
+    expect(nextDigestAt(new Date("2026-10-11T17:00:00Z"), LONDON, sundays)?.toISOString()).toBe(
+      "2026-10-18T16:30:00.000Z",
+    );
+    expect(
+      nextDigestAt(new Date("2026-10-11T12:00:00Z"), LONDON, { time: "09:00", days: [] }),
+    ).toBeNull();
   });
 });

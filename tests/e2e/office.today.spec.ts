@@ -18,7 +18,8 @@ async function officeLogin(page: Page, email: string) {
   const link = await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page).toHaveURL(`${acme}/office`);
+  // Payroll's home is the pay dashboard: /office sends them on (12A.3).
+  await expect(page).toHaveURL(new RegExp(`^${acme.replace(/\./g, "\\.")}/office(/pay)?$`));
 }
 
 test("a resourcer sees Today and offers a gap to someone", async ({ page }) => {
@@ -64,7 +65,9 @@ test("/office/today opens Today", async ({ page }) => {
 
 test("payroll doesn't get Today or the offer page", async ({ page }) => {
   await officeLogin(page, "acme.payroll@example.com");
-  await expect(page.getByText("Your dashboard will appear here.")).toBeVisible();
+  // /office sends payroll to their pay dashboard (12A.3; tests/e2e/office.pay-dashboard.spec.ts).
+  await expect(page).toHaveURL(`${acme}/office/pay`);
+  await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Urgent shifts" })).toHaveCount(0);
   const response = await page.goto(`${acme}/office/offer/00000000-0000-4000-8000-000000000000`);
   expect(response?.status()).toBe(404);

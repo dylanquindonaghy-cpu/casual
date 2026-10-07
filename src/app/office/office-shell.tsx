@@ -15,6 +15,7 @@ export function OfficeShell({
   name,
   roleLabel,
   firmName,
+  payWeek,
   menu,
   theme,
   rotationDue,
@@ -23,6 +24,7 @@ export function OfficeShell({
   name: string;
   roleLabel: string;
   firmName: string;
+  payWeek: string;
   menu: MenuGroup[];
   theme: Theme | undefined;
   rotationDue: boolean;
@@ -33,6 +35,7 @@ export function OfficeShell({
       name={name}
       roleLabel={roleLabel}
       firmName={firmName}
+      payWeek={payWeek}
       menu={menu}
       theme={theme}
       rotationDue={rotationDue}

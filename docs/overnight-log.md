@@ -9715,3 +9715,83 @@ as decorative. Verdict line, verbatim:
 VERDICT: DONE
 
 Ticked; hours row added (0.8); `docs/work-log.md` updated.
+
+## 2026-10-07 15:23 UTC — Phase 12, task 12A.3: pay dashboard
+
+**Task:** Pay dashboard (§3.8; D8), as written in `PLAN.md` (12A.3). No database change.
+
+**Plan:**
+- `src/lib/pay/pay-week.ts`: one pure function for the ISO week of a firm-local date (Monday to
+  Sunday; week 1 holds the year's first Thursday) and its pay day (the Friday after), and the
+  label "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct"; today's from `now` in the firm's time zone.
+- `nextDigestAt()` beside `digestDueOn()`: the next scheduled digest after now (the firm's wall
+  time turned into an instant, so the clock change is right), or none when no day is chosen.
+- A loader (`src/lib/office/pay-dashboard.ts`, admins and payroll, checked in the loader too):
+  waiting queries (open and in a digest) with the oldest; the next digest with the last sent and
+  any problem (`loadDigestStatus()`); sorted this week (`resolved_at` from this ISO week's Monday,
+  firm-local); the next pay date (the earliest `pay_records.pay_date` from today on, otherwise this
+  week's pay Friday); the top groups (`loadPayQueryGroups()`); and "Recently sorted": the last 7
+  days' sortings, one per "Mark as sorted" (same person, time and note), with who, when and the
+  note.
+- `/office/pay`: "Pay dashboard", the shifts-line line under it (as on `/office`), "Import pay
+  records" and "Send the digest now"; the four counts; "Waiting, grouped by likely cause" (with
+  "Pay questions never get an AI answer: they come here", each group opening `/office/pay-queries`)
+  and "Recently sorted". `/office` sends payroll there.
+- The menu: "Pay dashboard" (admins and payroll) first in Pay, in place of payroll's "Home"; the
+  "Pay queries" link's badge (the waiting count, its words "{n} waiting"), counted by the layout.
+- The top bar's pay-week pill from `payWeekLabel()`, hidden on phones.
+- Rules kept: the dashboard is the pay area (admins and payroll), so resourcers can't open it;
+  it shows no strike.
+- Tests: `nextDigestAt()` and the pay week (a 53-week year, the clock change) as unit tests; a
+  loader integration test; new e2e `office.pay-dashboard.spec.ts` (payroll lands there; the
+  header with the shifts-line number; the counts and sections; the badge) in place of the payroll
+  placeholder check in `office.today.spec.ts`; the menu and guide tests follow the menu.
+- Docs: `docs/screens.md` (`/office/pay`, `/office` for payroll, the menu).
+
+**Built:** as planned, plus what building it showed:
+- **Payroll's landing moved, so four login helpers changed:** `login.office`, `office.shifts`,
+  `office.today` and the walkthrough checked the address after "Log me in" was exactly `/office`;
+  payroll now goes on to `/office/pay`, so they accept either (the resourcer and admin tests still
+  land on `/office`, checked by their own steps). `login.office`'s payroll test now checks the
+  dashboard address and the account button's role ("Payroll (demo) Payroll") instead of "You're
+  logged in as Payroll." (that line was on the old placeholder page).
+- **The AI-boundary test pins who reads the pay query groups and the digest:** the dashboard
+  (`src/lib/office/pay-dashboard.ts`) is a new reader of both, office-only, and never asks for an
+  AI line (the test's "only the digest asks for it" check still passes). Added to both lists on
+  purpose, as that test asks for any new use.
+- **Payroll's "Home" is gone from the menu**, replaced by "Pay dashboard" (admins see it too), so
+  the menu no longer links the `dashboard` area; the roles and shell tests, the guide's menu words
+  and its test, and `docs/screens.md`'s tab-title list follow ("Today", "Pay dashboard", …).
+- The pay-week pill shows from 1024px: at tablet widths there's no room beside "Menu", the brand,
+  the theme button and the account button (measured: about 820px of content at 768px).
+- `/office` for admins and resourcers is unchanged; a missing Today view (the session ended
+  between checks) is the not-found page rather than an empty page.
+- The integration test passed first time (4 tests: the counts, the next digest, sorted this week,
+  the next pay date from records and from the rule, the groups, "Recently sorted" with one row per
+  sorting, the 7-day cut-off, another firm's queries unseen, role access, the badge).
+- **Looked at, at 390px and 1280px, light and dark:** the dashboard, the drawer with the badge,
+  the pay-week pill. No sideways scrolling at 390px (measured).
+- No guardrails review: no schema, auth, tenancy, messaging, jobs or rules change (a new loader
+  through `withFirm`, behind the existing `pay` area).
+- **The first full verify failed 2 browser tests (NOT VERIFIED), both from payroll's new
+  landing:** (1) `office.pay-import.spec.ts` opened the menu right after "Log me in" while the
+  page was still moving on from `/office` to `/office/pay`; the drawer shuts when the page changes
+  (as designed), so the link vanished. It (and `pay.query.spec.ts`, which passed by luck) now waits
+  for `/office/pay` first, a stronger check. (2) `office.team.spec.ts` expected the old payroll
+  placeholder's "You're logged in as Payroll." after a role change; it now checks the person lands
+  on the pay dashboard with "Payroll" on the account button, and its login helper accepts either
+  landing like the others. The three specs then passed; verify re-run.
+
+**Verify (final):** `VERIFIED tree=332b172e7f3b7c64 e2e=true` (16:00 UTC): 3490 tests; 71 e2e and
+the walkthrough's 3; no hydration warning in either server's log.
+
+**Audit round 1:** every criterion PROVEN; "Weakening check (`git diff tests/`): none is
+weakened"; no fakes. Its notes: the pill is hidden below 1024px (tablets too; documented); the
+e2e badge and group checks run only when queries are waiting (the seed has them). Verdict line,
+verbatim:
+
+VERDICT: DONE
+
+Ticked; hours row added (0.7); `docs/work-log.md` updated. The next task (events and session
+fields, one migration) touches the schema: per CLAUDE.md its plan goes to Dylan first, so the run
+stops here.

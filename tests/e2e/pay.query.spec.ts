@@ -71,6 +71,9 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await sentTo(email, asked2, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
   await page.getByRole("button", { name: "Log me in" }).click();
+  // Payroll's home: the pay dashboard (12A.3). Wait for it before opening the menu, which shuts
+  // when the page changes.
+  await expect(page).toHaveURL(`${acme}/office/pay`);
   await (await menuLink(page, "Pay queries")).click();
   await expect(page).toHaveURL(`${acme}/office/pay-queries`);
   const group = page.getByRole("region", {

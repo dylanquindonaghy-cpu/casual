@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { localDateOf, wallTimeOf } from "../time/zoned";
+import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 
 // When the payroll digest goes (docs/data-model.md "Firm settings", `pay_digest`): a firm-local
 // time on chosen days of the week, default 09:00 Monday to Friday. Pure functions: callers pass the
@@ -52,6 +52,28 @@ export function digestDueOn(now: Date, timeZone: string, schedule: DigestSchedul
   if (!weekday || !schedule.days.includes(weekday)) return null;
   const w = wallTimeOf(now, timeZone);
   return w.hour * 60 + w.minute >= minutes(schedule.time) ? today : null;
+}
+
+// The weekday of a yyyy-mm-dd date.
+const weekdayOf = (day: string): Weekday =>
+  WEEKDAYS[(new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7] ?? "mon";
+
+// When the next scheduled digest goes after `now` (docs/office-v2.md 3.8, the pay dashboard), or
+// null when no day is chosen. The firm's wall time is turned into an instant on that day, so a
+// digest across the clock change still goes at 09:00 local. One that's due but hasn't gone yet
+// (the tick runs every few minutes) isn't "next": it's going now.
+export function nextDigestAt(now: Date, timeZone: string, schedule: DigestSchedule): Date | null {
+  if (schedule.days.length === 0) return null;
+  const today = localDateOf(now, timeZone);
+  const [hour = 0, minute = 0] = schedule.time.split(":").map(Number);
+  for (let i = 0; i <= 7; i++) {
+    const day = addDays(today, i);
+    if (!schedule.days.includes(weekdayOf(day))) continue;
+    const [year = 2000, month = 1, date = 1] = day.split("-").map(Number);
+    const at = zonedToUtc({ year, month, day: date, hour, minute }, timeZone);
+    if (at > now) return at;
+  }
+  return null;
 }
 
 const DAY_NAMES: Record<Weekday, string> = {

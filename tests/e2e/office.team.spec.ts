@@ -20,7 +20,8 @@ async function officeLogin(page: Page, email: string) {
   const link = await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page).toHaveURL(`${acme}/office`);
+  // Payroll's home is the pay dashboard: /office sends them on (12A.3).
+  await expect(page).toHaveURL(new RegExp(`^${acme.replace(/\./g, "\\.")}/office(/pay)?$`));
 }
 
 test("an admin turns a resourcer's access off, back on, and changes their role", async ({
@@ -86,7 +87,9 @@ test("an admin turns a resourcer's access off, back on, and changes their role",
     ).toBeVisible();
     await expect(card.getByText("Payroll · Can log in")).toBeVisible();
     await officeLogin(lee, leaver);
-    await expect(lee.getByText("You're logged in as Payroll.")).toBeVisible();
+    // Payroll's home is the pay dashboard (12A.3), and the account button names the new role.
+    await expect(lee).toHaveURL(`${acme}/office/pay`);
+    await expect(lee.getByRole("button", { name: "Lee Leaver Payroll" })).toBeVisible();
   } finally {
     await theirPhone.close();
   }

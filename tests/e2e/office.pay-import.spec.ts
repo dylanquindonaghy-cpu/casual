@@ -24,6 +24,9 @@ test("payroll checks and imports a pay file; the worker sees the line", async ({
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
   await page.getByRole("button", { name: "Log me in" }).click();
+  // Payroll's home: the pay dashboard (12A.3). Wait for it before opening the menu, which shuts
+  // when the page changes.
+  await expect(page).toHaveURL(`${acme}/office/pay`);
   await (await menuLink(page, "Import pay records")).click();
   await expect(page).toHaveURL(`${acme}/office/pay/import`);
   await expect(page.getByRole("heading", { name: "Import pay records" })).toBeVisible();

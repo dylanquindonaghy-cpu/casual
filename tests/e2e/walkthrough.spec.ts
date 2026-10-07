@@ -108,7 +108,8 @@ async function officeLogin(page: Page, email: string, base = acme) {
   );
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page).toHaveURL(`${base}/office`);
+  // Payroll's home is the pay dashboard: /office sends them on (12A.3).
+  await expect(page).toHaveURL(new RegExp(`^${base.replace(/\./g, "\\.")}/office(/pay)?$`));
 }
 
 // "Log out" is at the bottom of My shifts, and in the office's account menu (12A.2).

@@ -15,8 +15,8 @@ import { ThemeButton } from "./theme-button";
 // docs/ui-design.md "Office shell"), drawn by office-shell.tsx. Display only: every page and
 // action still checks access.
 //
-// The top bar: the Menu button (below 1024px), ShiftDesk's mark with the firm's name, the
-// moon/sun button and the account button (How-to guide, Log out). From 1024px the menu is a
+// The top bar: the Menu button (below 1024px), ShiftDesk's mark with the firm's name, the pay
+// week (from 1024px), the moon/sun button and the account button (How-to guide, Log out). From 1024px the menu is a
 // 272px sidebar. Below that, the Menu button opens it as a drawer, a native <dialog>: the same
 // <nav> moves into it while it's open (so a page never has two), Escape, the dimmed backdrop and
 // "Close menu" close it, and so does moving to another page or widening the window to 1024px.
@@ -53,6 +53,7 @@ export function OfficeFrame({
   name,
   roleLabel,
   firmName,
+  payWeek,
   menu,
   theme,
   rotationDue,
@@ -62,6 +63,7 @@ export function OfficeFrame({
   name: string;
   roleLabel: string;
   firmName: string;
+  payWeek: string; // "Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct" (src/lib/pay/pay-week.ts)
   menu: MenuGroup[];
   theme: Theme | undefined;
   rotationDue: boolean;
@@ -133,6 +135,10 @@ export function OfficeFrame({
               <span className="block truncate text-sm text-ink-muted">{firmName}</span>
             </p>
           </div>
+          {/* The pay week (docs/office-v2.md D8). Not on phones or tablets: no room beside Menu. */}
+          <p className="ml-4 hidden items-center rounded-full border border-line-strong bg-card px-3 py-1 text-sm font-semibold text-ink lg:flex">
+            {payWeek}
+          </p>
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
             <ThemeButton initial={theme} />
             <button

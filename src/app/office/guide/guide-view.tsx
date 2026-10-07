@@ -168,13 +168,14 @@ function Links({ children }: { children: ReactNode }) {
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
   Today: "What needs doing, most urgent first.",
-  Home: "Where you start after logging in.",
+
   Shifts: "Every shift, 4 weeks at a time. Add, change and cancel shifts here.",
   Requests: "Time changes, swaps and reviews workers have asked for.",
   Workers: "Find a worker to change their access.",
   "Action log": "Everything that happened, newest first.",
   "Notice report": "Every offer, booking, move and cancellation, with the notice given.",
   "Pilot metrics": "The pilot's figures against your week-0 baseline.",
+  "Pay dashboard": "Where payroll starts: what's waiting, the next digest and the next pay date.",
   "Pay queries": "Workers' pay queries, grouped by likely cause.",
   "Import pay records": "Load payroll's spreadsheet, so workers see their pay.",
   "Office team": "Who can log in to the office, and their roles.",

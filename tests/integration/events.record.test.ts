@@ -43,7 +43,7 @@ describe("recordEvent refuses personal and secret data", () => {
     ["a number glued to text", { note: "Mob07700900123" }],
     ["a number nested in an array", { changes: [{ from: "x", to: "07700900123" }] }],
     ["an email address", { note: "someone@example.com" }],
-    ["an email address in a nested object", { who: { contact: "a.b@firm.co.uk" } }],
+    ["an email address in a nested object", { who: { contact: "a.b@mail.firm.example" } }],
     ["an ip field", { ip: "203.0.113.9" }],
     ["a clientIp field", { clientIp: "10.0.0.1" }],
     ["a token field", { token: "abc" }],

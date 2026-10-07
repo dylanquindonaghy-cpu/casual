@@ -206,6 +206,12 @@ without breaking a 6am cancellation.
   who holds each come in (one read per sync, columns by header); bookings made here go back in one
   batch write; the three-way merge (office and portal changes at once), sheet names through the
   rules, conflicts, bad rows, failures, leases and deadlock retries; the shared roster contract.
+- `repo.made-up-data.test.ts` — golden rule 7: every email address in `src/`, `drizzle/`,
+  `tests/`, `docs/` and the seed uses a reserved example domain (`.example`, `example.com`,
+  `example.org`, `.test`, `.invalid`, `.localhost`), apart from a short reviewed allow-list of
+  strings that only look like one (an entry no longer found fails); every postcode in the approved
+  mock-up (`docs/mockups/office-v2.html`) is in the made-up `ZZ` area, and its role switch says
+  "mock-up only". A person checks the mock-up for an employer's name, once.
 
 ## Fixtures and the demo seed
 

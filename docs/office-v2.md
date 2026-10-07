@@ -76,11 +76,12 @@ accounts: an email provider, an Anthropic API key, a TravelTime quote and, later
 ### 1.1 The approved mock-up, in words
 
 The visual source of truth is the mock-up Dylan approved on 2026-10-06, "ShiftDesk Office
-Mock-up". It is a private claude.ai artifact that builders can't open (and a temporary file on
-Dylan's machine), so this section describes it. Task 12A.0 keeps a copy in the repo,
-`docs/mockups/office-v2.html` (`PLAN.md` Checks 17, OK'd on 2026-10-06). The mock-up is one page of
-made-up data: switches and buttons work on the page only, and a "tap to switch" control on the
-account button lets a viewer see the Resourcer, Payroll and Admin menus (not a real feature). It
+Mock-up". The repo keeps a copy, `docs/mockups/office-v2.html` (task 12A.0; `PLAN.md` Checks 17,
+OK'd on 2026-10-06): open it in a browser. This section describes it in words, for builders who
+read rather than look. The mock-up is one page of made-up data
+(`tests/unit/repo.made-up-data.test.ts`): switches and buttons work on the page only, and a
+"mock-up only: tap to switch" control on the account button lets a viewer see the Resourcer,
+Payroll and Admin menus (not a real feature). It
 shows more than Phase 12 builds: the list at the end of this section says where v2 differs.
 
 **Shell.** A top bar across the page: a Menu button (phones only), the ShiftDesk mark with "Acme

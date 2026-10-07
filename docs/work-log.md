@@ -9415,3 +9415,59 @@ booked on this shift" aren't in it).
 
 All 8 tasks are ticked. Phase 11 took 4.8 hours over 10 rows of the Hours log. PLAN.md gave it no
 estimate, so there's nothing to compare it with.
+
+## 2026-10-07 — Phase 12, task 12A.0: the mock-up in the repo, and the made-up-data test
+
+- **Time spent:** 0.3 hours (10:51 to 11:10 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=19b05e1debda6435 e2e=true`
+  (3,409 tests in 206 files; browser tests: 60, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round, and found no fakes.
+
+### What was built, in plain words
+
+The approved design for Phase 12 (the "mock-up": one web page with made-up data that shows how
+the new office should look) now lives in the repo at `docs/mockups/office-v2.html`. Dylan added
+the file. This task did two things with it:
+
+- **Labelled the role switch "mock-up only".** The page has a button that flips between the
+  Resourcer, Payroll and Admin menus. That isn't a real feature, so the button now says
+  "mock-up only" in its words, in the name a screen reader reads out, and in a tooltip. On a
+  phone the words are hidden, so the screen-reader name and tooltip matter there.
+- **Added a test that keeps the repo's data made up** (golden rule 7: no real people, no real
+  employer data). `tests/unit/repo.made-up-data.test.ts` reads every file in `src/`, `drizzle/`,
+  `tests/`, `docs/` and the seed, and fails if it finds an email address that isn't on a
+  "reserved" domain. Reserved domains, like `.example` and `example.com`, can never belong to a
+  real person; the internet standards set them aside for examples. It also fails on a UK postcode
+  in the mock-up unless it starts `ZZ` (an area that doesn't exist).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A short "allow-list" of 4 strings that only look like email addresses | Two are the `password@host` part of made-up database web addresses; two are a made-up Google service account in the format Google's key files use | Skipping every database address by a rule. Not taken: the task asks for a reviewed list, and 12X.1 removes the two database ones anyway |
+| The test fails if an allow-list entry is no longer found | So the list can't quietly grow stale | Leaving old entries in |
+| Version tags (`pg-boss@12.35.0`) and IP addresses don't count as emails | A real email's last part (`.com`, `.uk`) is letters only | Listing them on the allow-list |
+| One test's address moved from a real-looking `.co.uk` domain to `a.b@mail.firm.example` | Same check (an email inside nested data is refused), on a reserved domain | Allow-listing it. Not taken: it really is an email address |
+| The test file never holds a flagged address whole | It scans itself too, so its examples are built from two halves | — |
+
+### What the new tests prove
+
+Five checks, all passing: (1) every email address in the scanned folders is on a reserved domain
+or on the allow-list; (2) every allow-list entry is still needed; (3) the mock-up's postcodes are
+all `ZZ` (it has none today); (4) the role switch says "mock-up only"; (5) the checks themselves
+catch a planted real-looking address and real postcodes, and let reserved ones through. Before
+the verify, each of these was broken on purpose (an address added to a doc, a postcode added to
+the mock-up, the label removed, an allow-listed address deleted) and the test failed, naming the
+file. Each file was then put back.
+
+### What needs Dylan
+
+An employer's name can't be tested for without writing it into the repo. The task leaves that to a
+person, once. Dylan removed one comment naming the tool the mock-up was modelled on when he
+committed it. Please confirm nothing else in `docs/mockups/office-v2.html` (venue names, staff
+names, wording) comes from your employer.
+
+### How to see it
+
+Open `docs/mockups/office-v2.html` in a browser. Tap the account button (top right) to switch
+between the three menus.

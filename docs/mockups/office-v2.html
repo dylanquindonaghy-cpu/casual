@@ -1386,9 +1386,17 @@
     aria-label="Switch to light mode"
     data-theme-toggle
   ></button>
-  <button class="me" type="button" aria-label="Your account and view" data-role-cycle>
+  <button
+    class="me"
+    type="button"
+    aria-label="Switch role (mock-up only)"
+    title="Switch role (mock-up only)"
+    data-role-cycle
+  >
     <span class="avatar" aria-hidden="true">SR</span>
-    <span class="who"><b>Sam Rota</b><span data-role-label>Resourcer (tap to switch)</span></span>
+    <span class="who"
+      ><b>Sam Rota</b><span data-role-label>Resourcer (mock-up only: tap to switch)</span></span
+    >
     <svg
       width="18"
       height="18"
@@ -3453,7 +3461,8 @@
     // role switch (mock-up only)
     document.querySelector("[data-role-cycle]").addEventListener("click", function () {
       role = roles[(roles.indexOf(role) + 1) % roles.length];
-      document.querySelector("[data-role-label]").textContent = role + " (tap to switch)";
+      document.querySelector("[data-role-label]").textContent =
+        role + " (mock-up only: tap to switch)";
       document.querySelector(".avatar").textContent =
         role === "Payroll" ? "PP" : role === "Admin" ? "AD" : "SR";
       document.querySelector(".me b").textContent =

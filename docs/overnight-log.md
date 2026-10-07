@@ -9035,3 +9035,94 @@ To reach DONE: nothing.
 **Ticked** in `PLAN.md` at 10:49 UTC. **Hours:** 0.6 (10:12 to 10:50). Phase 11 is closed: all 8 tasks
 ticked, 4.8 hours in total. PLAN.md gives Phase 11 no estimate, so there is nothing to compare.
 Next: Phase 12, starting with 12A.0 (the mock-up is now in the repo).
+
+## 2026-10-07 10:51 UTC — Phase 12, task 12A.0: the mock-up in the repo, and the made-up-data test
+
+**Task:** The mock-up in the repo (Checks 17, OK'd 2026-10-06): `docs/mockups/office-v2.html`, the
+approved mock-up with made-up data only and its role-switch control labelled "mock-up only"; §1.1
+stays as its description in words. Tests: new `tests/unit/repo.made-up-data.test.ts` fails on any
+email address in `src/`, `drizzle/`, `tests/`, `docs/` or the seed outside the reserved example
+domains (`.example`, `example.com`, `example.org`, `.test`, `.invalid`, `.localhost`, with a short
+reviewed allow-list for strings that only look like one), and on any postcode in the mock-up
+outside `ZZ` (an employer's name can't be tested for without writing it into the repo, so a person
+checks that once) (12A.0)
+
+**Plan:**
+- The file is in: Dylan committed it as `10617f4` (Prettier-formatted; one comment naming the tool
+  it was modelled on removed). A scan before building: its only email address is
+  `strikes@acme-events.example`, and it has no postcode at all.
+- Its account button cycles Resourcer, Payroll and Admin and reads "Resourcer (tap to switch)".
+  Label it "mock-up only" in the words on the button and in its accessible name, so nobody takes
+  the role switch for a feature.
+- `tests/unit/repo.made-up-data.test.ts`: reads every text file in `src/`, `drizzle/`, `tests/`,
+  `docs/` and the seed (`scripts/seed*.ts`; the seed's own modules are under `src/`). An email
+  address is a local part, "@" and dotted labels ending in a letters-only label, so version tags
+  (`pg-boss@12.35.0`) and IP addresses (`p@127.0.0.1`) aren't emails at all. Reserved: a domain
+  ending `.example`, `.test`, `.invalid` or `.localhost`, or `example.com` / `example.org` and their
+  subdomains, any case. The allow-list gives file, string and why; an entry that no longer matches
+  fails too, so the list can't go stale. Postcodes: UK postcodes in capitals (the way they're
+  written) in the mock-up must start `ZZ`. A self-check proves both matchers catch what they should.
+- What today's repo has outside the reserved domains (scan above, 2026-10-06 18:51): two database
+  URLs whose `password@host` looks like an email (`deploy.database-tls.test.ts`,
+  `imports.gate-b.test.ts`; 12X.1 replaces both hosts), a made-up Google service-account address
+  (`sheets.google.test.ts`, `sheets.transport.test.ts`: the shape of a Google key file), and
+  an address at `firm.co.uk` in `events.record.test.ts` (a real-looking domain).
+- Decisions: the URLs and the service account go on the allow-list (they only look like a
+  person's address); the `firm.co.uk` address becomes `a.b@mail.firm.example`. Same check: an address
+  with a dotted local part and a nested domain is still refused, so the test isn't weakened.
+  Alternative considered: skipping every `scheme://user:password@host` by rule instead of listing
+  the two URLs. Not taken: the task asks for a reviewed list, and 12X.1 then deletes the entries.
+- §1.1 keeps its description in words; only its "builders can't open it" sentence changes, now
+  that the copy is in the repo. `docs/testing.md` lists the new test.
+- No schema, auth, tenancy, messaging, jobs or rules change, so no `guardrails-reviewer`.
+- The once-only person check for the employer's name is Dylan's: he did it when committing the
+  file (`10617f4`). It stays in the morning summary for him to confirm.
+
+**Built:** the role switch labelled "mock-up only" (`aria-label` and `title` "Switch role (mock-up
+only)", the words "Resourcer (mock-up only: tap to switch)", and the same words when tapped);
+`tests/unit/repo.made-up-data.test.ts` (5 tests); the `firm.co.uk` test address in
+`events.record.test.ts` now `a.b@mail.firm.example`; §1.1's "builders can't open it" sentence
+updated; `docs/testing.md` lists the test. Two things the new test caught while it was being built,
+both in this log's own plan text above: the old test address written out whole, and a description
+of the email pattern that itself looked like an address. Both reworded. Before the verify, each
+check was broken on purpose (a real-looking address in `docs/screens.md`, `SW1A 1AA` in the
+mock-up, the label taken off, an allow-listed address removed) and the test failed, naming the file
+each time; each file was restored. In a browser at 375px and 1280px the switch cycles the roles with
+the new words, there's no sideways scroll and no script error.
+
+**Verify:** `VERIFIED tree=19b05e1debda6435 e2e=true` (206 files, 3,409 tests, 0 skipped; e2e 60,
+then the walkthrough's 3).
+
+**Audit round 1 verdict (verbatim, except one address split at its "@" by me, marked `[split]`, so
+this log passes the new test):**
+
+```
+VERDICT: DONE
+Preconditions: `.claude/state/verified.json` is `{"ok":true,"tree":"19b05e1debda6435","e2e":true}` and `tree-hash.sh` prints `19b05e1debda6435`. The verify is current.
+Claims:
+- The approved mock-up is in the repo at `docs/mockups/office-v2.html` — PROVEN — the file exists (3519 lines), added in commit 10617f4 "Add the approved office v2 mock-up". The test asserts it is in the scan set (`tests/unit/repo.made-up-data.test.ts:90`).
+- The mock-up holds made-up data only — PROVEN for emails and postcodes, plus a one-off human check for the employer's name that I can't verify.
+  - Emails: the only addresses in it are `strikes@acme-events.example` (lines 1623, 3089, 3306).
+  - Postcodes: it has none (my grep for UK postcode shapes found none, upper or lower case).
+  - Names: event names (Northern Lights Live, Riverside Food Festival, and so on) look invented.
+  - Employer's name: the task says a person checks this once. `docs/overnight-log.md:9078` records that Dylan did it at commit 10617f4 and that it stays in the morning summary for him to confirm. This is a log claim, not evidence I can check.
+- The role-switch control is labelled "mock-up only" — PROVEN — `docs/mockups/office-v2.html:1392-1393` (aria-label and title "Switch role (mock-up only)"), line 1398 (`data-role-label` "Resourcer (mock-up only: tap to switch)"), and lines 3464-3465 (the JS sets the same wording). Test: "the mock-up's role switch says it's mock-up only" (`tests/unit/repo.made-up-data.test.ts:109-117`). It passes at `test.log:7`.
+- §1.1 stays as its description in words — PROVEN — `docs/office-v2.md:76-84`. The section is still a prose description of the mock-up, and only its "builders can't open it" sentence was updated. The "mock-up only: tap to switch" wording matches the mock-up.
+- The new test file exists and fails on any email outside the reserved domains — PROVEN.
+  - `tests/unit/repo.made-up-data.test.ts:87-95` scans `src/`, `drizzle/`, `tests/`, `docs/` and `scripts/seed*.ts`. It has size and presence guards: more than 500 files, and `scripts/seed.ts` and the mock-up must be in the set.
+  - Reserved domains: `.example`, `.test`, `.invalid`, `.localhost`, `example.com`, `example.org` (lines 17-18, 52-58).
+  - My own independent scan of 738 files (looser regex, script in the scratchpad) found only the same non-emails the test handles: version tags like `pg-boss@12.35.0`, `@127.0.0.1` password URLs, and the 4 allow-listed strings.
+  - Passing at `test.log:4`.
+- A short reviewed allow-list exists, with a check that entries stay needed — PROVEN — `tests/unit/repo.made-up-data.test.ts:25-50` has 4 entries, each with a `why`. The test "each allow-list entry is still needed" (lines 97-103) fails if an entry is no longer found. Passing at `test.log:5`.
+- It fails on any mock-up postcode outside `ZZ` — PROVEN — test at lines 105-107 with the `POSTCODE` regex at line 21. The self-check test (lines 119-132) feeds it `SW1A 1AA, M1 1AE, ZZ99 3VZ and ZZ1 1ZZ` and expects only the first two flagged. The mock-up currently has no postcodes, so this part passes trivially. That fits the task text. Passing at `test.log:6` and `test.log:8`.
+Fakes found: none. There are no `.skip`, `.only` or `todo` markers in the test file, every test asserts, and nothing mocks the thing under test. One edit to an existing test, `tests/integration/events.record.test.ts:46`, swaps `a.b@ [split] firm.co.uk` for `a.b@mail.firm.example`. It keeps the same shape (dotted local part, nested domain) and still passes (`test.log:2044`), so it is not weakened.
+Notes, not blockers:
+- Two allow-list entries are `.rds.amazonaws.com` password@host strings in `tests/unit/deploy.database-tls.test.ts` and `tests/unit/imports.gate-b.test.ts`. When task 12X.1 removes AWS, the "still needed" test will fail until those entries are deleted. The log at `docs/overnight-log.md:9073` expects this.
+- The work is uncommitted: `tests/unit/repo.made-up-data.test.ts` is untracked, and the mock-up, `docs/office-v2.md`, `docs/testing.md`, `docs/overnight-log.md` and `events.record.test.ts` are modified. The verified tree hash covers these files.
+To reach DONE: nothing. The employer's-name check remains a person's job (Dylan) by the task's own wording.
+Key files: /home/user/casual/tests/unit/repo.made-up-data.test.ts, /home/user/casual/docs/mockups/office-v2.html, /home/user/casual/docs/office-v2.md, /home/user/casual/.claude/state/test.log
+```
+
+**Ticked** in `PLAN.md` at 11:09 UTC. **Hours:** 0.3 (10:51 to 11:10). PLAN.md gives Phase 12 no
+estimate, so there's nothing to compare. Needs Dylan: confirm once that nothing else in the mock-up
+(venue or staff names, wording) comes from his employer.

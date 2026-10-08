@@ -66,7 +66,7 @@ const END = "2026-11-07T17:00:00Z";
 
 describe("shifts", () => {
   const insertShift =
-    "insert into shifts (firm_id, role, starts_at, ends_at, headcount, status, source, external_ref) values ($1, $2, $3, $4, $5, $6, $7, $8)";
+    "insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source, external_ref) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)";
   const shift = (overrides: Partial<Record<string, unknown>> = {}) => {
     const v = {
       role: "steward",
@@ -78,7 +78,17 @@ describe("shifts", () => {
       externalRef: null,
       ...overrides,
     };
-    return [T.firmId, v.role, v.startsAt, v.endsAt, v.headcount, v.status, v.source, v.externalRef];
+    return [
+      T.firmId,
+      T.rows.shift_events,
+      v.role,
+      v.startsAt,
+      v.endsAt,
+      v.headcount,
+      v.status,
+      v.source,
+      v.externalRef,
+    ];
   };
 
   it("accepts a valid shift (control)", async () => {
@@ -132,8 +142,8 @@ describe("shifts", () => {
   it("has one shift per sheet or import row in a firm; other sources and firms are separate", async () => {
     const ref = `row-${Date.now()}`;
     await su.query(
-      "insert into shifts (firm_id, role, starts_at, ends_at, source, external_ref) values ($1, 'steward', $2, $3, 'sheets', $4)",
-      [T.firmId, START, END, ref],
+      "insert into shifts (firm_id, event_id, role, starts_at, ends_at, source, external_ref) values ($1, $2, 'steward', $3, $4, 'sheets', $5)",
+      [T.firmId, T.rows.shift_events, START, END, ref],
     );
     await inT(async (c) => {
       expect(
@@ -147,11 +157,125 @@ describe("shifts", () => {
     const inU = await inFirm(app, U.firmId, (c) =>
       rowCount(
         c,
-        "insert into shifts (firm_id, role, starts_at, ends_at, source, external_ref) values ($1, 'steward', $2, $3, 'sheets', $4)",
-        [U.firmId, START, END, ref],
+        "insert into shifts (firm_id, event_id, role, starts_at, ends_at, source, external_ref) values ($1, $2, 'steward', $3, $4, 'sheets', $5)",
+        [U.firmId, U.rows.shift_events, START, END, ref],
       ),
     );
     expect(inU).toBe(1);
+  });
+});
+
+describe("events and a session's own details (12B.1)", () => {
+  const detail = (columns: string, values: unknown[]): [string, unknown[]] => [
+    `insert into shifts (firm_id, event_id, role, starts_at, ends_at, ${columns})
+     values ($1, $2, 'steward', $3, $4, ${values.map((_, i) => `$${i + 5}`).join(", ")})`,
+    [T.firmId, T.rows.shift_events, START, END, ...values],
+  ];
+
+  it("refuses a shift with no event", async () => {
+    await inT(async (c) => {
+      expect(
+        await refused(
+          c,
+          "insert into shifts (firm_id, role, starts_at, ends_at) values ($1, 'steward', $2, $3)",
+          [T.firmId, START, END],
+        ),
+      ).toMatchObject({ code: "23502", message: expect.stringContaining('"event_id"') });
+    });
+  });
+
+  it("keeps one automatic event per firm, site and day; named events may share a name", async () => {
+    const key = `auto:none:2026-11-${String(10 + (Date.now() % 10)).padStart(2, "0")}`;
+    const event = "insert into shift_events (firm_id, name, planner_ref) values ($1, $2, $3)";
+    await inT(async (c) => {
+      expect(await rowCount(c, event, [T.firmId, "Sat 14 Nov", key])).toBe(1);
+      expect(await refused(c, event, [T.firmId, "Sat 14 Nov", key])).toMatchObject(
+        duplicate("shift_events_auto_key"),
+      );
+      expect(await rowCount(c, event, [T.firmId, "The final", null])).toBe(1);
+      expect(await rowCount(c, event, [T.firmId, "The final", null])).toBe(1);
+    });
+    // Another firm's automatic event with the same key is its own.
+    expect(
+      await inFirm(app, U.firmId, (c) => rowCount(c, event, [U.firmId, "Sat 14 Nov", key])),
+    ).toBe(1);
+  });
+
+  it("names an event with 1 to 200 characters", async () => {
+    const event = "insert into shift_events (firm_id, name) values ($1, $2)";
+    await inT(async (c) => {
+      for (const name of ["", "x".repeat(201)]) {
+        expect(await refused(c, event, [T.firmId, name])).toMatchObject(
+          check("shift_events_name_length"),
+        );
+      }
+      expect(await rowCount(c, event, [T.firmId, "x".repeat(200)])).toBe(1);
+    });
+  });
+
+  it("holds pay in whole pence, never below 0", async () => {
+    await inT(async (c) => {
+      expect(await refused(c, ...detail("pay_rate_pence", [-1]))).toMatchObject(
+        check("shifts_pay_rate_range"),
+      );
+      expect(await refused(c, ...detail("pay_rate_pence", [12.5]))).toMatchObject({
+        code: "22P02",
+      });
+      expect(await rowCount(c, ...detail("pay_rate_pence", [1250]))).toBe(1);
+      expect(await rowCount(c, ...detail("pay_rate_pence", [0]))).toBe(1);
+    });
+  });
+
+  it("limits the post to 200 characters, the meeting point and uniform to 300", async () => {
+    await inT(async (c) => {
+      const cases: [string, number, string][] = [
+        ["post", 200, "shifts_post_length"],
+        ["meeting_point", 300, "shifts_meeting_point_length"],
+        ["uniform", 300, "shifts_uniform_length"],
+      ];
+      for (const [column, max, constraint] of cases) {
+        for (const value of ["", "x".repeat(max + 1)]) {
+          expect(await refused(c, ...detail(column, [value]))).toMatchObject(check(constraint));
+        }
+        expect(await rowCount(c, ...detail(column, ["x".repeat(max)]))).toBe(1);
+      }
+    });
+  });
+
+  it("holds requirements as at most 20 qualification codes", async () => {
+    await inT(async (c) => {
+      const bad = [
+        ["first_aid"],
+        [""],
+        ["FIRST_AID", null],
+        ["A,B"],
+        Array.from({ length: 21 }, (_, i) => `CODE_${i}`),
+      ];
+      for (const codes of bad) {
+        expect(await refused(c, ...detail("required_credentials", [codes]))).toMatchObject(
+          check("shifts_required_credentials_format"),
+        );
+      }
+      expect(await rowCount(c, ...detail("required_credentials", [["FIRST_AID", "SIA_DS"]]))).toBe(
+        1,
+      );
+      const twenty = Array.from({ length: 20 }, (_, i) => `CODE_${i}`);
+      expect(await rowCount(c, ...detail("required_credentials", [twenty]))).toBe(1);
+    });
+  });
+
+  it("shows events and sessions to casuals by default; no requirements by default", async () => {
+    await inT(async (c) => {
+      const id = await insertId(c, ...detail("post", ["Gate A"]));
+      const { rows } = await c.query(
+        `select s.showing_to_casuals as session, e.showing_to_casuals as event,
+                s.required_credentials as requirements
+           from shifts s join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+          where s.id = $1`,
+        [id],
+      );
+      expect(rows[0]).toEqual({ session: true, event: true, requirements: [] });
+    });
   });
 });
 

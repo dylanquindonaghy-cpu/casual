@@ -30,3 +30,15 @@ export async function freeNoFirmLine(su: Pool): Promise<void> {
     NO_FIRM_LINE,
   ]);
 }
+
+// An event for a shift inserted straight into the table: every shift belongs to one
+// (shift_events, docs/office-v2.md 3.3). Inserted as the superuser.
+export async function testEvent(su: Pool, firmId: string, name = "Test event"): Promise<string> {
+  const { rows } = await su.query<{ id: string }>(
+    "insert into shift_events (firm_id, name) values ($1, $2) returning id::text as id",
+    [firmId, name],
+  );
+  const id = rows[0]?.id;
+  if (!id) throw new Error("event insert returned no id");
+  return id;
+}

@@ -9,7 +9,7 @@ import {
   showSheet,
   spreadsheetIdFrom,
 } from "../../scripts/firm-sheet-owner";
-import { appRolePool, superuserPool, uniqueSlug, urls } from "../helpers/db";
+import { appRolePool, superuserPool, testEvent, uniqueSlug, urls } from "../helpers/db";
 import { inFirm, pgError } from "../helpers/rls-probe";
 
 // A firm's Google Sheet is bound to that firm (audit L45). Every firm shares its sheet with the
@@ -222,9 +222,15 @@ describe("npm run firm:sheet: guards", () => {
       [firmId, `+447700${String(Math.floor(Math.random() * 1e6)).padStart(6, "0")}`],
     );
     const { rows: s } = await su.query<{ id: string }>(
-      `insert into shifts (firm_id, role, starts_at, ends_at, source, external_ref)
-       values ($1, 'steward', $2, $3, 'sheets', $4) returning id::text as id`,
-      [firmId, startsAt, new Date(startsAt.getTime() + 8 * 3_600_000), ref],
+      `insert into shifts (firm_id, event_id, role, starts_at, ends_at, source, external_ref)
+       values ($1, $2, 'steward', $3, $4, 'sheets', $5) returning id::text as id`,
+      [
+        firmId,
+        await testEvent(su, firmId),
+        startsAt,
+        new Date(startsAt.getTime() + 8 * 3_600_000),
+        ref,
+      ],
     );
     await su.query(
       `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)

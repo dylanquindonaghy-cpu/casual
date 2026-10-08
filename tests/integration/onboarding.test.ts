@@ -7,7 +7,7 @@ import { firmReadiness, readinessText, type ReadinessItem } from "@/lib/onboardi
 import { addOfficeUser, createFirm } from "../../scripts/firm-create-owner";
 import { readFirmSettings, setFirmSettings } from "../../scripts/firm-settings-owner";
 import { connectSheet } from "../../scripts/firm-sheet-owner";
-import { appRolePool, superuserPool, uniqueSlug, urls } from "../helpers/db";
+import { appRolePool, superuserPool, testEvent, uniqueSlug, urls } from "../helpers/db";
 
 // Onboarding a pilot firm (docs/runbooks.md "Onboarding a pilot firm"): creating it, agreeing its
 // settings, and the checklist from its data.
@@ -450,10 +450,10 @@ describe("the onboarding checklist from a firm's data", () => {
     });
     // A cancelled shift, and one long over, for a role with no rule: not "in use".
     await su.query(
-      `insert into shifts (firm_id, role, starts_at, ends_at, status)
-       values ($1, 'barista', now() + interval '1 day', now() + interval '1 day 8 hours', 'cancelled'),
-              ($1, 'barista', now() - interval '10 days', now() - interval '9 days 16 hours', 'filled')`,
-      [f.firmId],
+      `insert into shifts (firm_id, event_id, role, starts_at, ends_at, status)
+       values ($1, $2, 'barista', now() + interval '1 day', now() + interval '1 day 8 hours', 'cancelled'),
+              ($1, $2, 'barista', now() - interval '10 days', now() - interval '9 days 16 hours', 'filled')`,
+      [f.firmId, await testEvent(su, f.firmId)],
     );
     const items = await withFirm(f.firmId, (tx) => firmReadiness(tx));
     const detail = (item: string) => items.find((i) => i.item === item)?.detail ?? "";

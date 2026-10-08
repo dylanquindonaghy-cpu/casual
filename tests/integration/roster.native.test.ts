@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { nativeRosterPlug } from "@/lib/roster/native";
 import type { RosterPlug } from "@/lib/roster/plug";
-import { appRolePool, superuserPool, uniqueSlug } from "../helpers/db";
+import { appRolePool, superuserPool, testEvent, uniqueSlug } from "../helpers/db";
 import { fulfilled, race } from "../helpers/race";
 import { Rollback } from "../helpers/rls-probe";
 import {
@@ -69,10 +69,11 @@ async function seedScenario(): Promise<{ firmId: string; ids: RosterFixture["ids
   }
   for (const s of SCENARIO.shifts) {
     const shiftId = await insertId(
-      `insert into shifts (firm_id, site_id, role, starts_at, ends_at, headcount, status, instructions)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at, headcount, status, instructions)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         firmId,
+        await testEvent(su, firmId),
         s.siteName ? siteId : null,
         s.role,
         s.startsAt,
@@ -176,10 +177,11 @@ describe("native adapter only", () => {
 
   async function addShift(firmId: string, headcount: number, slotRows: number): Promise<string> {
     const shiftId = await insertId(
-      `insert into shifts (firm_id, role, starts_at, ends_at, headcount)
-       values ($1, 'steward', $2, $3, $4)`,
+      `insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount)
+       values ($1, $2, 'steward', $3, $4, $5)`,
       [
         firmId,
+        await testEvent(su, firmId),
         new Date(NOW.getTime() + 48 * 3_600_000),
         new Date(NOW.getTime() + 56 * 3_600_000),
         headcount,

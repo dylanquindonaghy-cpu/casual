@@ -17,9 +17,15 @@ export interface EventInput {
   data?: Record<string, unknown>;
 }
 
+// The check every entry passes: the log masker would leave it exactly as it is (a test passes each
+// new entry's sample data through it, docs/office-v2.md 6.1).
+export function passesLogCheck(data: Record<string, unknown>): boolean {
+  return JSON.stringify(redact(data)) === JSON.stringify(data);
+}
+
 function eventRow(firmId: string, event: EventInput) {
   const data = event.data ?? {};
-  if (JSON.stringify(redact(data)) !== JSON.stringify(data)) {
+  if (!passesLogCheck(data)) {
     throw new Error(`events.data for ${event.action} holds personal or secret data`);
   }
   return {

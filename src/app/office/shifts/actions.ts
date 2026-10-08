@@ -15,9 +15,12 @@ import {
 import {
   createShifts,
   createShiftsSchema,
+  editDetailsSchema,
   editShift,
+  editShiftDetails,
   editShiftSchema,
   type CreateShiftsResult,
+  type EditDetailsResult,
   type EditShiftResult,
 } from "@/lib/office/shift-editor";
 import { importShiftsFile, type ShiftImportResult } from "@/lib/office/shift-import";
@@ -68,6 +71,18 @@ export async function editShiftAction(
   if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
   if (!input.success) return { status: "invalid", problems: ["bad_form"] };
   return asOffice("edit shift", (ctx) => editShift(ctx, shiftId, input.data));
+}
+
+// A session's own details (pay rate, post, meeting point, uniform, extra requirements), on any
+// shift that hasn't started, a sheet's or a file's too.
+export async function editShiftDetailsAction(
+  shiftId: string,
+  raw: unknown,
+): Promise<EditDetailsResult | Common> {
+  const input = editDetailsSchema.safeParse(raw);
+  if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
+  if (!input.success) return { status: "invalid", problems: ["bad_form"] };
+  return asOffice("edit shift details", (ctx) => editShiftDetails(ctx, shiftId, input.data));
 }
 
 // The file, and "check" (a dry run) or "import".

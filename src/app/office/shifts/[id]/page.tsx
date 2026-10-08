@@ -26,6 +26,7 @@ import type { OverridableCode } from "@/lib/rules/eligibility";
 import { FLAG_TONE, PLACE_TONE, RESPONSE_TONE, SHIFT_TONE, WAITING_TONE } from "../shift-tones";
 import { AssignButton } from "./assign-button";
 import { AttendanceButtons, MarkRestWorked } from "./attendance-forms";
+import { SessionDetailsForm } from "./details-form";
 import { EditShiftForm } from "./edit-form";
 import { CancelBookingForm, CancelShiftForm, MoveShiftForm } from "./firm-change-forms";
 
@@ -323,6 +324,30 @@ export default async function OfficeShiftPage({
             {shift.fromSheet
               ? "Change it in your Google Sheet."
               : "This shift has started or was cancelled, so it can't be changed."}
+          </p>
+        )}
+      </section>
+
+      <section className={section} aria-labelledby="details">
+        <h2 id="details" className={h2}>
+          Session details
+        </h2>
+        {page.details.editable ? (
+          <SessionDetailsForm
+            shiftId={shift.shiftId}
+            qualifications={form.qualifications}
+            requirementsLocked={page.details.requirementsLocked}
+            defaults={{
+              payRate: page.details.payRate,
+              post: page.details.post,
+              meetingPoint: page.details.meetingPoint,
+              uniform: page.details.uniform,
+              requirements: page.details.requirements,
+            }}
+          />
+        ) : (
+          <p className={`${card} ${headingGap} text-ink-muted`}>
+            This shift has started or was cancelled, so its details can&apos;t be changed.
           </p>
         )}
       </section>

@@ -17,7 +17,7 @@ import {
   sheetsSyncTask,
 } from "@/lib/roster/sheets/jobs";
 import { registerJobs } from "@/worker/jobs";
-import { appRolePool, superuserPool, uniqueSlug } from "../helpers/db";
+import { appRolePool, superuserPool, testEvent, uniqueSlug } from "../helpers/db";
 import { FakeSheets, SHIFT_HEADER, STAFF_HEADER } from "../helpers/fake-sheets";
 
 // The Sheets jobs: the once-a-minute tick that queues a sync for each firm that is due (every
@@ -71,8 +71,8 @@ async function firm(opts: {
   if (opts.shiftInHours !== undefined) {
     const start = new Date(NOW.getTime() + opts.shiftInHours * 3_600_000);
     await su.query(
-      "insert into shifts (firm_id, role, starts_at, ends_at) values ($1, 'steward', $2, $3)",
-      [firmId, start, new Date(start.getTime() + 8 * 3_600_000)],
+      "insert into shifts (firm_id, event_id, role, starts_at, ends_at) values ($1, $2, 'steward', $3, $4)",
+      [firmId, await testEvent(su, firmId), start, new Date(start.getTime() + 8 * 3_600_000)],
     );
   }
   return { firmId, sheetId };

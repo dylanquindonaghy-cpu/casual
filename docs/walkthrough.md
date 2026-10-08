@@ -170,8 +170,8 @@ marked; "How-to guide", near its bottom, explains each job step by step.
     "Move for everyone booked". It says "Moved. 1 person booked will be told." Then click "Cancel
     …'s booking", choose "Weather or safety", and click "Yes, cancel …'s booking": "Cancelled
     …'s booking with … notice. They'll be told."
-27. **A whole event, and an import.** Click "Shifts", then "Shifts for an event": pick a date and
-    fill in two lines (for example a steward 08:00 to 16:00 and a door supervisor 20:00 to 04:00),
+27. **A whole event, and an import.** Click "Shifts", then "Shifts for an event": give the event a
+    name (for example "Cup final"), pick a date and fill in two lines (for example a steward 08:00 to 16:00 and a door supervisor 20:00 to 04:00),
     then click "Create these shifts". It says "2 shifts created." Then make the sample files in
     your second Ubuntu window:
 

@@ -9812,3 +9812,88 @@ badge, a group opening Pay queries), and checks a resourcer gets "not found".
 
 Nothing for this task. The next one (events and session fields) adds a database migration, so it
 waits for you to see its plan first (CLAUDE.md).
+
+## 2026-10-08 — Phase 12, task 12B.1: events and session fields
+
+- **Time spent:** 1.2 hours (22:32 to 23:42 UTC), plus about 40 minutes earlier in the day for the
+  planning research (four read-only readers, two draft plans, a merge and two reviews).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=3c827d74879f000f e2e=true`
+  (3,548 tests; browser tests: 71, then the walkthrough's 3). It also passed once before the
+  review's small changes.
+- The independent auditor said `VERDICT: DONE` on its **first** round, found no fakes and no
+  weakened test.
+- Built at Dylan's request to work through the night without questions, so the schema choices
+  below were made here and written down for him to confirm (normally he sees the plan first).
+
+### What was built, in plain words
+
+Shifts now belong to **events**. An event is a job, like "Cup final" or "Acme Demo Arena · Sat 10
+Oct", and its shifts are its **sessions**. Each event and each session has a "show to casuals"
+switch, on by default. (What the switches do for casuals comes in task 12B.4.)
+
+- **A database migration** (a numbered script that changes the database's tables, run once on
+  every database) adds the events table and seven new columns to each shift. It is the first
+  migration that also changes existing data: it puts every shift that's already there into an
+  **automatic event** for its site and day. The day is the shift's start in the firm's own time
+  zone, so a 23:00 night shift belongs to the day it starts.
+- **New rows from the Google Sheet or a file** join the same kind of automatic event. Nothing new
+  is needed in the sheet or the file.
+- **"New shift"** joins the automatic event too. **"Shifts for an event"** now asks for the
+  event's name and makes a new event with it.
+- **Each session's own details:** pay rate (in pounds an hour, saved as whole pence: "12 50" is
+  refused, never read as £1,250, and so is anything over £1,000 an hour), post, meeting point,
+  uniform and **extra requirements** (qualifications needed on top of the role's, picked from the
+  firm's list). On "Shifts for an event", pay rate, post and requirements are per line; the meeting
+  point and uniform are entered once for everyone.
+- **A "Session details" form** on every shift's page sets them, on sheet and file shifts too. The
+  sync and the import never change them. Once someone is booked, the extra requirements are
+  locked (that person was checked against the old list); the other details can still change.
+- **The log** records which details changed, by name: "requirements", never a name with
+  "credential" in it (the log's privacy filter refuses those).
+
+Key facts: on the demo data the migration put 48 shifts into 6 events, the biggest "Acme Demo
+Arena · Sat 10 Oct" with 23. Events can't be deleted by the app, and only their switch can be
+changed.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| An automatic event is found again by a key in its `planner_ref` ("auto:{site}:{day}"), with a database rule allowing one per site and day | The approved column list has no date column; the database rule holds for every writer, even two imports at once | A new date column (beyond what was approved); a lock in the code only |
+| Every shift *must* have an event (the database refuses one without) | "Every session has an event" can't be broken by a later code path | Allowing empty and filling it in every writer |
+| A shift whose date or site changes stays in its first event | The task says "for new rows"; moving it could change what casuals see without anyone touching a switch | Moving it (parked) |
+| One automatic event per site and day, whatever the source | The spec groups by date and site only | One per source |
+| "Shifts for an event" always makes a new event, its name required | The task says it "creates the event row" | An optional name |
+| Pay, post and requirements per session; meeting point and uniform per event on that form | The mock-up: each session keeps its own pay, post and requirements | Every field on every line (a long form on a phone) |
+| Requirements lock once someone is booked | The booked person was checked against the old list | Allowing it |
+| Pay over £1,000 an hour is refused | A rate typed in pence ("1250") would show casuals £1,250 an hour | No upper limit |
+
+### What the new tests prove
+
+A new test builds a throwaway database at the version before this task, fills it with made-up
+shifts (two firms, one in New York; a night shift; a shift at 00:30 on a summer night; the night
+the clocks go back; a shift with no site; a site with a 200-character name; mixed sources; a firm
+with no shifts), runs the new migration and checks every shift landed in the right event with the
+right name. Breaking the migration on purpose made it fail. Other tests prove: the sheet sync and
+the file import put new rows into automatic events, make none on a "check" run or a second run,
+and never change a switch, a session detail or the event even when every column of the row
+changes; two imports making the same event at once end up sharing it; the database refuses a shift
+with no event, a duplicate automatic event, negative pay and over-long text; "Shifts for an event"
+makes a named event; the session details save on native, file and sheet shifts and are logged by
+field name; every new log entry passes the privacy filter; another firm's shifts and events stay
+invisible (the isolation tests now include the events table). The browser tests fill in the event
+name and save a pay rate and post.
+
+### What's parked or needs Dylan
+
+- **Please confirm** the schema choices in the table above (they're in `docs/overnight-log.md` too).
+- **Don't put this on a live server without the next task (12B.3):** extra requirements are saved
+  now but the rules only start checking them in 12B.3, which is next in this run.
+- Parked: moving a session to its new day's event, an "event created" log entry, renaming automatic
+  events with their site, an index for the events pages if needed.
+
+### How to see it
+
+On the demo (`npm run db:reset`, then `npm run dev`), log in to the office as the resourcer, open
+Shifts → "Shifts for an event": there's an "Event name" box and, on each line, Post, Pay rate and
+"Extra requirements". On any shift's page, "Session details" is below "Edit this shift".

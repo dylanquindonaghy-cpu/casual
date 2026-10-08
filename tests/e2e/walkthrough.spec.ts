@@ -405,6 +405,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Shifts")).click();
     await page.getByRole("link", { name: "Shifts for an event" }).click();
+    await page.getByLabel("Event name").fill("Cup final");
     await page.getByLabel("Date").fill(daysFromToday(13));
     const lines = page.getByRole("group");
     await lines.nth(0).getByLabel("Role").fill("steward");

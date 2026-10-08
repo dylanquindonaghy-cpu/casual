@@ -15,6 +15,7 @@ import {
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { refreshShiftStatus } from "../roster/native";
+import { automaticEventId } from "../roster/shift-events";
 import { normaliseRole, parseSheetDate, parseSheetTime } from "../roster/sheets/parse";
 import {
   sameName,
@@ -596,6 +597,14 @@ function rowImporter(
         .insert(shifts)
         .values({
           firmId: sql`app_current_firm_id()`,
+          // A new row joins its site and day's automatic event (no file column for it). Only here:
+          // a re-import never changes the event, a switch or a session detail.
+          shiftEventId: await automaticEventId(tx, {
+            siteId: fields.siteId,
+            startsAt,
+            source: "csv",
+            timeZone: opts.timeZone,
+          }),
           ...fields,
           status: "open",
           source: "csv",

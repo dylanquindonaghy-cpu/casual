@@ -4,6 +4,7 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
+import { SessionDetailsForm } from "@/app/office/shifts/[id]/details-form";
 import { EditShiftForm } from "@/app/office/shifts/[id]/edit-form";
 import { ShiftCreateForm } from "@/app/office/shifts/shift-create-form";
 import { SiteBlocks } from "@/app/office/workers/[id]/access-forms";
@@ -282,14 +283,33 @@ describe("fields React controls wait for the page before taking input", () => {
 // over, so every field in it is disabled. (After that, useHydrated() turns true and they enable.)
 describe("in the server's HTML, before the page is ready, the fields are disabled", () => {
   const sites = [{ id: "site-1", name: "Demo Arena" }];
+  const qualifications = [
+    { code: "FIRST_AID", name: "first aid at work certificate" },
+    { code: "SIA_DS", name: "SIA door supervisor licence" },
+  ];
   const eventForm = createElement(ShiftCreateForm, {
     mode: "event",
     sites,
     roles: ["steward"],
+    qualifications,
     today: "2026-11-02",
   });
   const forms: [string, ReactElement, number][] = [
-    ["Shifts for an event (the date, the site, 4 lines, the instructions)", eventForm, 19],
+    [
+      "Shifts for an event (the name, the date, the site, 4 lines with their details and 2 requirements each, the meeting point, the uniform, the instructions)",
+      eventForm,
+      38,
+    ],
+    [
+      "Session details (pay rate, post, meeting point, uniform, 2 requirements)",
+      createElement(SessionDetailsForm, {
+        shiftId: "shift-1",
+        defaults: { payRate: "", post: "", meetingPoint: "", uniform: "", requirements: [] },
+        qualifications,
+        requirementsLocked: false,
+      }),
+      6,
+    ],
     [
       "Edit this shift, nobody booked (nothing locked)",
       createElement(EditShiftForm, {

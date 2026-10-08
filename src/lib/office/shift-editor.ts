@@ -4,6 +4,7 @@ import { systemClock } from "../auth/clock";
 import {
   assignments,
   CANCELLED_ASSIGNMENT_STATUSES,
+  credentialTypes,
   firms,
   offers,
   shifts,
@@ -12,9 +13,11 @@ import {
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { importPence } from "../imports/import";
 import { officeCanPlace } from "../roster/book";
 import { refreshShiftStatus } from "../roster/native";
 import { normaliseRole } from "../roster/sheets/parse";
+import { automaticEventId, createNamedEvent, EVENT_NAME_MAX } from "../roster/shift-events";
 import { isoDate, timesOn } from "../roster/shift-times";
 import type { OfficeContext } from "./quick-actions";
 
@@ -22,11 +25,19 @@ import type { OfficeContext } from "./quick-actions";
 // several for an event, and editing one. Active admins and resourcers only (checked inside the
 // firm's transaction). Every line is checked at the boundary before anything is written.
 //
-// - createShifts: one date, one site (or none), shared instructions, and 1-12 lines of role,
-//   start, finish and places. A finish before the start is the next day (a night shift); one
-//   equal to it, 24 hours or more, or a time the clocks skip is refused (src/lib/roster/shift-window.ts).
-//   Never in the past. If any line is wrong nothing is saved, and each problem names its line.
-//   Native shifts, open at once, each logged shift.created {by: "firm"}.
+// - createShifts: one date, one site (or none), shared instructions, meeting point and uniform,
+//   and 1-12 lines of role, start, finish, places, pay rate, post and extra requirements. A finish
+//   before the start is the next day (a night shift); one equal to it, 24 hours or more, or a time
+//   the clocks skip is refused (src/lib/roster/shift-window.ts). Never in the past. If any line is
+//   wrong nothing is saved, and each problem names its line. Native shifts, open at once, each
+//   logged shift.created {by: "firm"}. With an event name ("Shifts for an event") they make a new
+//   event of that name; without ("New shift") they join their site and day's automatic event.
+// - editShiftDetails: the session's own details (pay rate, post, meeting point, uniform, extra
+//   requirements; docs/office-v2.md S2) on any shift, from a sheet or a file too: the sync and the
+//   import never write them. Requirements can't change once someone is booked (they were checked
+//   against the old list); the rest can. Logged shift.changed {by: "firm", fields}, the fields
+//   named as in DETAIL_FIELDS: "requirements", never a name holding "credential", which the log
+//   masker would hide (docs/office-v2.md 6.1).
 // - editShift: with nobody booked, anything. With people booked, only the places and the
 //   instructions: new times, role or site are a firm-initiated move (notice per worker, golden
 //   rule 12: the office's move/cancel flow), and places can't drop below a booked place. Never a
@@ -37,6 +48,9 @@ import type { OfficeContext } from "./quick-actions";
 
 export const MAX_EVENT_LINES = 12;
 const MAX_INSTRUCTIONS = 2000;
+const MAX_POST = 200;
+const MAX_PLACE_TEXT = 300; // meeting point, uniform
+export const MAX_REQUIREMENTS = 20;
 const CANCELLED = [...CANCELLED_ASSIGNMENT_STATUSES];
 
 export const SHIFT_PROBLEMS = [
@@ -48,21 +62,36 @@ export const SHIFT_PROBLEMS = [
   "in_past",
   "text_too_long",
   "no_lines",
+  "bad_event_name",
+  "bad_pay",
+  "post_too_long",
+  "details_too_long", // meeting point or uniform
+  "unknown_requirement",
+  "too_many_requirements",
   "bad_form", // the form itself didn't make sense (too many lines, or far too much text)
 ] as const;
 export type ShiftProblem = (typeof SHIFT_PROBLEMS)[number];
+
+const requirementsSchema = z.array(z.string().max(50)).max(50);
 
 const lineSchema = z.strictObject({
   role: z.string().max(100),
   start: z.string().max(10),
   end: z.string().max(10),
   headcount: z.string().max(10),
+  payRate: z.string().max(20).optional(), // pounds an hour, "" for none
+  post: z.string().max(1000).optional(),
+  requirements: requirementsSchema.optional(), // qualification codes
 });
 
 export const createShiftsSchema = z.strictObject({
   date: z.string().max(20),
   siteId: z.string().max(100), // "" for no site
   instructions: z.string().max(10_000),
+  // "Shifts for an event" sends one (required there); "New shift" doesn't.
+  eventName: z.string().max(1000).optional(),
+  meetingPoint: z.string().max(2000).optional(),
+  uniform: z.string().max(2000).optional(),
   lines: z.array(lineSchema).max(MAX_EVENT_LINES),
 });
 export type CreateShiftsInput = z.input<typeof createShiftsSchema>;
@@ -77,7 +106,46 @@ interface CheckedLine {
   startsAt: Date;
   endsAt: Date;
   headcount: number;
+  payRatePence: number | null;
+  post: string | null;
+  requiredCredentials: string[];
 }
+
+// Optional text: trimmed, "" for none, refused over `max` characters.
+const optionalText = (raw: string | undefined, max: number): string | null | false => {
+  const text = (raw ?? "").trim();
+  if (!text) return null;
+  return [...text].length <= max ? text : false;
+};
+
+// Pay in pounds an hour as typed ("12.50", "£12.50"), in whole pence; "" for none. "12 50" and
+// "12,50" are refused, never read as £1,250 (importPence, audit M16), and so is anything over
+// £1,000 an hour (a rate typed in pence, "1250", would otherwise show casuals £1,250 an hour).
+export const MAX_PAY_RATE_PENCE = 100_000;
+const payRateOf = (raw: string | undefined): number | null | false => {
+  const text = (raw ?? "").trim();
+  if (!text) return null;
+  const pence = importPence(text);
+  return pence !== null && pence <= MAX_PAY_RATE_PENCE ? pence : false;
+};
+
+// The firm's own qualification types: a requirement must be one of them.
+async function knownCodes(tx: FirmTx): Promise<Set<string>> {
+  const rows = await tx.select({ code: credentialTypes.code }).from(credentialTypes);
+  return new Set(rows.map((r) => r.code));
+}
+
+// Each code once, in order, so a different order isn't a change. Every one must be the firm's,
+// or already on the session (a type the firm later removed never blocks saving the rest).
+const requirementsOf = (
+  raw: string[] | undefined,
+  known: Set<string>,
+  kept: readonly string[] = [],
+): string[] | "unknown_requirement" | "too_many_requirements" => {
+  const codes = [...new Set((raw ?? []).map((c) => c.trim()).filter(Boolean))].sort();
+  if (!codes.every((c) => known.has(c) || kept.includes(c))) return "unknown_requirement";
+  return codes.length <= MAX_REQUIREMENTS ? codes : "too_many_requirements";
+};
 
 // A line left empty: no role, start or finish (the places box starts at 1, so it doesn't count).
 const blankLine = (l: z.output<typeof lineSchema>) =>
@@ -121,8 +189,20 @@ export async function createShifts(
     if (instructions && instructions.length > MAX_INSTRUCTIONS) {
       problems.push({ line: null, problem: "text_too_long" });
     }
+    const eventName = input.eventName === undefined ? undefined : input.eventName.trim();
+    if (eventName !== undefined && (!eventName || [...eventName].length > EVENT_NAME_MAX)) {
+      problems.push({ line: null, problem: "bad_event_name" });
+    }
+    const meetingPoint = optionalText(input.meetingPoint, MAX_PLACE_TEXT);
+    const uniform = optionalText(input.uniform, MAX_PLACE_TEXT);
+    if (meetingPoint === false || uniform === false) {
+      problems.push({ line: null, problem: "details_too_long" });
+    }
     const lines = input.lines.map((l, i) => ({ l, line: i + 1 })).filter(({ l }) => !blankLine(l));
     if (lines.length === 0) problems.push({ line: null, problem: "no_lines" });
+    const known = lines.some(({ l }) => (l.requirements ?? []).length > 0)
+      ? await knownCodes(tx)
+      : new Set<string>();
     const checked: CheckedLine[] = [];
     for (const { l, line } of lines) {
       const role = normaliseRole(l.role);
@@ -144,22 +224,55 @@ export async function createShifts(
         problems.push({ line, problem: "in_past" });
         continue;
       }
-      if (times) checked.push({ role, headcount, ...times });
+      const payRatePence = payRateOf(l.payRate);
+      if (payRatePence === false) {
+        problems.push({ line, problem: "bad_pay" });
+        continue;
+      }
+      const post = optionalText(l.post, MAX_POST);
+      if (post === false) {
+        problems.push({ line, problem: "post_too_long" });
+        continue;
+      }
+      const requiredCredentials = requirementsOf(l.requirements, known);
+      if (typeof requiredCredentials === "string") {
+        problems.push({ line, problem: requiredCredentials });
+        continue;
+      }
+      if (times)
+        checked.push({ role, headcount, payRatePence, post, requiredCredentials, ...times });
     }
-    if (problems.length > 0) return { status: "invalid", problems };
+    if (problems.length > 0 || meetingPoint === false || uniform === false) {
+      return { status: "invalid", problems };
+    }
 
+    // "Shifts for an event" makes its event; "New shift" joins its site and day's automatic one.
+    const named = eventName ? await createNamedEvent(tx, { name: eventName, siteId }) : null;
     const shiftIds: string[] = [];
     for (const c of checked) {
       const [added] = await tx
         .insert(shifts)
         .values({
           firmId: sql`app_current_firm_id()`,
+          shiftEventId:
+            named ??
+            (await automaticEventId(tx, {
+              siteId,
+              startsAt: c.startsAt,
+              source: "native",
+              timeZone,
+            })),
           siteId,
           role: c.role,
           startsAt: c.startsAt,
           endsAt: c.endsAt,
           headcount: c.headcount,
           instructions,
+          payRatePence: c.payRatePence,
+          post: c.post,
+          meetingPoint,
+          uniform,
+          requiredCredentials: c.requiredCredentials,
           status: "open",
           source: "native",
         })
@@ -303,6 +416,122 @@ export async function editShift(
             }
           : {}),
       },
+    });
+    return { status: "saved", fields };
+  });
+}
+
+export const editDetailsSchema = z.strictObject({
+  payRate: z.string().max(20), // pounds an hour, "" for none
+  post: z.string().max(1000),
+  meetingPoint: z.string().max(2000),
+  uniform: z.string().max(2000),
+  requirements: requirementsSchema, // qualification codes
+});
+export type EditDetailsInput = z.input<typeof editDetailsSchema>;
+
+// The names shift.changed gives each detail (docs/office-v2.md 6.1): never "credential".
+export const DETAIL_FIELDS = {
+  payRatePence: "payRatePence",
+  post: "post",
+  meetingPoint: "meetingPoint",
+  uniform: "uniform",
+  requiredCredentials: "requirements",
+} as const;
+export type DetailField = (typeof DETAIL_FIELDS)[keyof typeof DETAIL_FIELDS];
+
+export type EditDetailsResult =
+  | { status: "saved"; fields: DetailField[] }
+  | { status: "unchanged" }
+  | { status: "invalid"; problems: ShiftProblem[] }
+  | { status: "has_bookings" } // requirements with people booked
+  | { status: "not_open" } // started or cancelled
+  | { status: "not_found" }
+  | { status: "not_allowed" };
+
+export async function editShiftDetails(
+  ctx: OfficeContext,
+  shiftId: string,
+  raw: EditDetailsInput,
+): Promise<EditDetailsResult> {
+  const input = editDetailsSchema.parse(raw);
+  if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
+  const now = (ctx.clock ?? systemClock).now();
+  return (ctx.run ?? withFirm)(ctx.firm.id, async (tx) => {
+    if (!(await officeCanPlace(tx, ctx.officeUserId))) return { status: "not_allowed" };
+    const [shift] = await tx
+      .select({
+        startsAt: shifts.startsAt,
+        status: shifts.status,
+        payRatePence: shifts.payRatePence,
+        post: shifts.post,
+        meetingPoint: shifts.meetingPoint,
+        uniform: shifts.uniform,
+        requiredCredentials: shifts.requiredCredentials,
+      })
+      .from(shifts)
+      .where(eq(shifts.id, shiftId))
+      .for("no key update");
+    if (!shift) return { status: "not_found" };
+    if (shift.status === "cancelled" || shift.startsAt.getTime() <= now.getTime()) {
+      return { status: "not_open" };
+    }
+    const problems: ShiftProblem[] = [];
+    const payRatePence = payRateOf(input.payRate);
+    if (payRatePence === false) problems.push("bad_pay");
+    const post = optionalText(input.post, MAX_POST);
+    if (post === false) problems.push("post_too_long");
+    const meetingPoint = optionalText(input.meetingPoint, MAX_PLACE_TEXT);
+    const uniform = optionalText(input.uniform, MAX_PLACE_TEXT);
+    if (meetingPoint === false || uniform === false) problems.push("details_too_long");
+    const requiredCredentials = requirementsOf(
+      input.requirements,
+      await knownCodes(tx),
+      shift.requiredCredentials,
+    );
+    if (typeof requiredCredentials === "string") problems.push(requiredCredentials);
+    if (
+      problems.length > 0 ||
+      payRatePence === false ||
+      post === false ||
+      meetingPoint === false ||
+      uniform === false ||
+      typeof requiredCredentials === "string"
+    ) {
+      return { status: "invalid", problems };
+    }
+
+    const next = { payRatePence, post, meetingPoint, uniform, requiredCredentials };
+    const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) =>
+      k === "requiredCredentials"
+        ? next[k].join(",") !== [...shift[k]].sort().join(",")
+        : next[k] !== shift[k],
+    );
+    if (changed.length === 0) return { status: "unchanged" };
+
+    if (changed.includes("requiredCredentials")) {
+      const [held] = await tx
+        .select({ n: count() })
+        .from(assignments)
+        .where(
+          and(
+            eq(assignments.shiftId, shiftId),
+            isNotNull(assignments.workerId),
+            notInArray(assignments.status, CANCELLED),
+          ),
+        );
+      if ((held?.n ?? 0) > 0) return { status: "has_bookings" };
+    }
+
+    await tx.update(shifts).set(next).where(eq(shifts.id, shiftId));
+    const fields = changed.map((k) => DETAIL_FIELDS[k]);
+    await recordEvent(tx, {
+      actorType: "office",
+      actorId: ctx.officeUserId,
+      action: "shift.changed",
+      entityType: "shift",
+      entityId: shiftId,
+      data: { by: "firm", fields },
     });
     return { status: "saved", fields };
   });

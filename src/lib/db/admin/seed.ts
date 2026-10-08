@@ -3,10 +3,12 @@ import { Client, Pool } from "pg";
 import { applyCredentialPack } from "../../credentials/apply-pack";
 import { recordEvent } from "../../events/record";
 import { createWithFirm, type FirmTx } from "../scoped";
+import { automaticEventId } from "../../roster/shift-events";
 import {
   CANCELLED_ASSIGNMENT_STATUSES,
   assignments,
   credentials,
+  firms,
   officeUsers,
   payQueries,
   payRecords,
@@ -188,6 +190,29 @@ async function loadFirm(tx: FirmTx, firm: SeedFirm): Promise<void> {
     });
 }
 
+// Each seeded shift joins its site and day's automatic event, as a new sheet or file row does.
+async function withEvents<T extends { siteId: string | null; startsAt: Date }>(
+  tx: FirmTx,
+  rows: T[],
+): Promise<(T & { shiftEventId: string })[]> {
+  const [firm] = await tx
+    .select({ timezone: firms.timezone })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  const timeZone = firm?.timezone ?? "Europe/London";
+  const out: (T & { shiftEventId: string })[] = [];
+  for (const row of rows) {
+    const shiftEventId = await automaticEventId(tx, {
+      siteId: row.siteId,
+      startsAt: row.startsAt,
+      source: "native",
+      timeZone,
+    });
+    out.push({ ...row, shiftEventId });
+  }
+  return out;
+}
+
 // Acme's Saturday: added once (fixed ids, nothing overwritten), and logged once, as the app logs
 // a booking, a cancellation and a request (ids and notice hours only; the reason and the notes
 // stay on their rows).
@@ -201,7 +226,7 @@ async function loadSaturday(
   const newShifts = await tx
     .insert(shifts)
     .values(
-      day.shifts.map((s) => ({
+      (await withEvents(tx, day.shifts)).map((s) => ({
         ...s,
         firmId,
         headcount: 1,
@@ -372,7 +397,7 @@ async function loadExtraShifts(
   const added = await tx
     .insert(shifts)
     .values(
-      extra.shifts.map((s) => ({
+      (await withEvents(tx, extra.shifts)).map((s) => ({
         ...s,
         status: openShifts.has(s.id) ? ("open" as const) : s.status,
         firmId,

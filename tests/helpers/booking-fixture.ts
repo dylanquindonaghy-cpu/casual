@@ -43,8 +43,19 @@ export async function bookingFirm(
     return id;
   };
 
+  // Every shift belongs to an event (shift_events): the firm's one "Fixture event" unless a test
+  // makes its own with event().
+  let fixtureEvent: string | undefined;
+  const event = (o: { name?: string; showing?: boolean } = {}) =>
+    one(`insert into shift_events (firm_id, name, showing_to_casuals) values ($1, $2, $3)`, [
+      firmId,
+      o.name ?? "Fixture event",
+      o.showing ?? true,
+    ]);
+
   return {
     firmId,
+    event,
 
     async worker(
       o: {
@@ -89,15 +100,18 @@ export async function bookingFirm(
         headcount?: number;
         status?: "draft" | "open" | "filled" | "cancelled";
         source?: "native" | "sheets" | "csv";
+        eventId?: string;
       } = {},
     ): Promise<string> {
       const startsAt = o.startsAt ?? hoursFromNow(48);
       const source = o.source ?? "native";
+      fixtureEvent ??= o.eventId ? undefined : await event();
       return one(
-        `insert into shifts (firm_id, role, starts_at, ends_at, headcount, status, source, external_ref)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        `insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source, external_ref)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           firmId,
+          o.eventId ?? fixtureEvent,
           o.role ?? "door_supervisor",
           startsAt,
           new Date(startsAt.getTime() + (o.hours ?? 8) * HOUR),

@@ -36,6 +36,12 @@ const FIELD_WORDS: Record<string, string> = {
   siteId: "site",
   headcount: "places",
   instructions: "instructions",
+  // A session's own details (src/lib/office/shift-editor.ts DETAIL_FIELDS).
+  payRatePence: "pay rate",
+  post: "post",
+  meetingPoint: "meeting point",
+  uniform: "uniform",
+  requirements: "extra requirements",
 };
 
 const CODE_WORDS: Record<string, string> = {

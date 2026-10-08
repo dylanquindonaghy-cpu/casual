@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { markFilled } from "@/lib/office/quick-actions";
-import { createShifts, editShift } from "@/lib/office/shift-editor";
+import { createShifts, editShift, editShiftDetails } from "@/lib/office/shift-editor";
 import { importShiftsFile } from "@/lib/office/shift-import";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -475,5 +475,289 @@ describe("importing a file of shifts", () => {
     });
     const payroll = await t.f.office("payroll");
     expect(await importShiftsFile(t.ctx(payroll), file, true)).toEqual({ status: "not_allowed" });
+  });
+});
+
+describe("events and a session's own details (12B.1)", () => {
+  const eventOf = async (shiftId: string) =>
+    (
+      await su.query<{ id: string; name: string; key: string | null; source: string }>(
+        `select e.id::text as id, e.name, e.planner_ref as key, e.source
+           from shifts s join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+          where s.id = $1`,
+        [shiftId],
+      )
+    ).rows[0];
+  const detailsOf = async (id: string) =>
+    (
+      await su.query(
+        `select pay_rate_pence, post, meeting_point, uniform, required_credentials
+           from shifts where id = $1`,
+        [id],
+      )
+    ).rows[0];
+  const created = (r: Awaited<ReturnType<typeof createShifts>>) =>
+    r.status === "created" ? r.shiftIds : [];
+  const NO_DETAILS = { payRate: "", post: "", meetingPoint: "", uniform: "", requirements: [] };
+
+  it('"New shift" joins its site and day\'s automatic event; "Shifts for an event" makes its own, named', async () => {
+    const t = await editorFirm();
+    const day = { date: "2026-11-07", siteId: t.siteId, instructions: "" };
+    const [a = ""] = created(
+      await createShifts(t.ctx(), { ...day, lines: [line("steward", "08:00", "16:00")] }),
+    );
+    const [b = ""] = created(
+      await createShifts(t.ctx(), { ...day, lines: [line("steward", "18:00", "02:00")] }),
+    );
+    const auto = await eventOf(a);
+    expect(auto).toMatchObject({
+      name: "Riverside Arena · Sat 7 Nov",
+      key: `auto:${t.siteId}:2026-11-07`,
+      source: "native",
+    });
+    expect((await eventOf(b))?.id).toBe(auto?.id);
+
+    const ids = created(
+      await createShifts(t.ctx(), {
+        ...day,
+        eventName: "  Cup final  ",
+        lines: [line("steward", "08:00", "16:00"), line("door supervisor", "12:00", "20:00")],
+      }),
+    );
+    expect(ids).toHaveLength(2);
+    const named = await eventOf(ids[0] ?? "");
+    expect(named).toMatchObject({ name: "Cup final", key: null, source: "native" });
+    expect(named?.id).not.toBe(auto?.id);
+    expect((await eventOf(ids[1] ?? ""))?.id).toBe(named?.id);
+
+    // On that form the name is required, and fits 200 characters.
+    for (const eventName of ["   ", "x".repeat(201)]) {
+      expect(
+        await createShifts(t.ctx(), {
+          ...day,
+          eventName,
+          lines: [line("steward", "08:00", "16:00")],
+        }),
+      ).toEqual({ status: "invalid", problems: [{ line: null, problem: "bad_event_name" }] });
+    }
+  });
+
+  it("saves pay rate, post and requirements per session, and the meeting point and uniform for all", async () => {
+    const t = await editorFirm();
+    const [first = "", second = ""] = created(
+      await createShifts(t.ctx(), {
+        date: "2026-11-07",
+        siteId: t.siteId,
+        instructions: "",
+        eventName: "Cup final",
+        meetingPoint: " Gate C ",
+        uniform: "Black trousers",
+        lines: [
+          {
+            ...line("steward", "08:00", "16:00"),
+            payRate: "£12.50",
+            post: " Gate A ",
+            requirements: ["SIA_DS", "FIRST_AID", "SIA_DS"],
+          },
+          { ...line("door supervisor", "12:00", "20:00"), payRate: "", post: "", requirements: [] },
+        ],
+      }),
+    );
+    expect(await detailsOf(first)).toEqual({
+      pay_rate_pence: 1250,
+      post: "Gate A",
+      meeting_point: "Gate C",
+      uniform: "Black trousers",
+      required_credentials: ["FIRST_AID", "SIA_DS"],
+    });
+    expect(await detailsOf(second)).toEqual({
+      pay_rate_pence: null,
+      post: null,
+      meeting_point: "Gate C",
+      uniform: "Black trousers",
+      required_credentials: [],
+    });
+  });
+
+  it('pay in whole pence ("12 50" and "12,50" refused), known requirements only, text in its limits', async () => {
+    const t = await editorFirm();
+    const count = async () =>
+      (await su.query("select count(*)::int as n from shifts where firm_id = $1", [t.f.firmId]))
+        .rows[0]?.n;
+    const result = await createShifts(t.ctx(), {
+      date: "2026-11-07",
+      siteId: "",
+      instructions: "",
+      meetingPoint: "x".repeat(301),
+      lines: [
+        { ...line("steward", "08:00", "16:00"), payRate: "12 50" },
+        { ...line("steward", "08:00", "16:00"), payRate: "12,50" },
+        { ...line("steward", "08:00", "16:00"), requirements: ["MADE_UP"] },
+        { ...line("steward", "08:00", "16:00"), post: "x".repeat(201) },
+        { ...line("steward", "08:00", "16:00"), payRate: "13", post: "x".repeat(200) },
+      ],
+    });
+    expect(result).toEqual({
+      status: "invalid",
+      problems: [
+        { line: null, problem: "details_too_long" },
+        { line: 1, problem: "bad_pay" },
+        { line: 2, problem: "bad_pay" },
+        { line: 3, problem: "unknown_requirement" },
+        { line: 4, problem: "post_too_long" },
+      ],
+    });
+    expect(await count()).toBe(0);
+  });
+
+  it("session details: set on a native, a file and a sheet session alike, logged by field name", async () => {
+    const t = await editorFirm();
+    for (const source of ["native", "csv", "sheets"] as const) {
+      const id = await t.f.shift({ source });
+      const set = {
+        payRate: "14",
+        post: "Gate B",
+        meetingPoint: "Car park",
+        uniform: "Hi-vis",
+        requirements: ["FIRST_AID"],
+      };
+      expect(await editShiftDetails(t.ctx(), id, set)).toEqual({
+        status: "saved",
+        fields: ["payRatePence", "post", "meetingPoint", "uniform", "requirements"],
+      });
+      expect(await detailsOf(id)).toEqual({
+        pay_rate_pence: 1400,
+        post: "Gate B",
+        meeting_point: "Car park",
+        uniform: "Hi-vis",
+        required_credentials: ["FIRST_AID"],
+      });
+      expect(await editShiftDetails(t.ctx(), id, set)).toEqual({ status: "unchanged" });
+      expect(await editShiftDetails(t.ctx(), id, NO_DETAILS)).toMatchObject({ status: "saved" });
+      expect(await detailsOf(id)).toEqual({
+        pay_rate_pence: null,
+        post: null,
+        meeting_point: null,
+        uniform: null,
+        required_credentials: [],
+      });
+    }
+    const logged = await eventsOf(t.f.firmId, "shift.changed");
+    expect(logged).toHaveLength(6);
+    expect(logged[0]).toMatchObject({
+      actor_type: "office",
+      actor_id: t.resourcer,
+      data: {
+        by: "firm",
+        fields: ["payRatePence", "post", "meetingPoint", "uniform", "requirements"],
+      },
+    });
+  });
+
+  it("requirements can't change once someone is booked; the other details can", async () => {
+    const t = await editorFirm();
+    const id = await t.f.shift({ role: "steward" });
+    await t.f.booking(await t.f.worker(), id);
+    expect(
+      await editShiftDetails(t.ctx(), id, { ...NO_DETAILS, requirements: ["FIRST_AID"] }),
+    ).toEqual({ status: "has_bookings" });
+    expect(await eventsOf(t.f.firmId, "shift.changed")).toEqual([]);
+    expect(await editShiftDetails(t.ctx(), id, { ...NO_DETAILS, payRate: "15.75" })).toEqual({
+      status: "saved",
+      fields: ["payRatePence"],
+    });
+    expect(await detailsOf(id)).toMatchObject({ pay_rate_pence: 1575, required_credentials: [] });
+  });
+
+  it("refused: a started or cancelled session, someone who can't place, bad pay, an unknown code", async () => {
+    const t = await editorFirm();
+    const started = await t.f.shift({ startsAt: hoursFromNow(-1) });
+    const cancelled = await t.f.shift({ status: "cancelled" });
+    const open = await t.f.shift();
+    expect(await editShiftDetails(t.ctx(), started, NO_DETAILS)).toEqual({ status: "not_open" });
+    expect(await editShiftDetails(t.ctx(), cancelled, NO_DETAILS)).toEqual({ status: "not_open" });
+    expect(
+      await editShiftDetails(t.ctx(await t.f.office("payroll")), open, {
+        ...NO_DETAILS,
+        post: "A",
+      }),
+    ).toEqual({ status: "not_allowed" });
+    expect(await editShiftDetails(t.ctx(), open, { ...NO_DETAILS, payRate: "12 50" })).toEqual({
+      status: "invalid",
+      problems: ["bad_pay"],
+    });
+    expect(
+      await editShiftDetails(t.ctx(), open, { ...NO_DETAILS, requirements: ["NOPE"] }),
+    ).toEqual({ status: "invalid", problems: ["unknown_requirement"] });
+    expect(await editShiftDetails(t.ctx(), "not-a-shift", NO_DETAILS)).toEqual({
+      status: "not_found",
+    });
+    // Another firm's session is not found.
+    const other = await editorFirm();
+    expect(await editShiftDetails(other.ctx(), open, { ...NO_DETAILS, post: "A" })).toEqual({
+      status: "not_found",
+    });
+    expect(await detailsOf(open)).toMatchObject({ post: null });
+  });
+});
+
+describe("session details: limits and a removed qualification type (12B.1, review)", () => {
+  const NO_DETAILS = { payRate: "", post: "", meetingPoint: "", uniform: "", requirements: [] };
+
+  it("pay over £1,000 an hour is refused (a rate typed in pence); £1,000 is fine", async () => {
+    const t = await editorFirm();
+    const id = await t.f.shift();
+    for (const payRate of ["1250", "1000.01"]) {
+      expect(await editShiftDetails(t.ctx(), id, { ...NO_DETAILS, payRate })).toEqual({
+        status: "invalid",
+        problems: ["bad_pay"],
+      });
+    }
+    expect(await editShiftDetails(t.ctx(), id, { ...NO_DETAILS, payRate: "1000" })).toMatchObject({
+      status: "saved",
+    });
+  });
+
+  it("more than 20 requirements says so", async () => {
+    const t = await editorFirm();
+    const codes = Array.from({ length: 21 }, (_, i) => `EXTRA_${i}`);
+    await su.query(
+      `insert into credential_types (firm_id, code, name, sector)
+       select $1, c, 'extra card ' || c, 'any' from unnest($2::text[]) c`,
+      [t.f.firmId, codes],
+    );
+    const id = await t.f.shift();
+    expect(await editShiftDetails(t.ctx(), id, { ...NO_DETAILS, requirements: codes })).toEqual({
+      status: "invalid",
+      problems: ["too_many_requirements"],
+    });
+  });
+
+  it("a type the firm removed later never blocks saving, and can be taken off", async () => {
+    const t = await editorFirm();
+    await su.query(
+      "insert into credential_types (firm_id, code, name, sector) values ($1, 'OLD_CARD', 'old card', 'any')",
+      [t.f.firmId],
+    );
+    const id = await t.f.shift();
+    const withOld = { ...NO_DETAILS, requirements: ["OLD_CARD"] };
+    expect(await editShiftDetails(t.ctx(), id, withOld)).toMatchObject({ status: "saved" });
+    await su.query("delete from credential_types where firm_id = $1 and code = 'OLD_CARD'", [
+      t.f.firmId,
+    ]);
+    expect(await editShiftDetails(t.ctx(), id, { ...withOld, post: "Gate A" })).toEqual({
+      status: "saved",
+      fields: ["post"],
+    });
+    // A new session can't be given it any more.
+    const other = await t.f.shift();
+    expect(await editShiftDetails(t.ctx(), other, withOld)).toEqual({
+      status: "invalid",
+      problems: ["unknown_requirement"],
+    });
+    expect(await editShiftDetails(t.ctx(), id, { ...NO_DETAILS, post: "Gate A" })).toEqual({
+      status: "saved",
+      fields: ["requirements"],
+    });
   });
 });

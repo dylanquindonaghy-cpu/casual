@@ -26,6 +26,7 @@ export const EXPECTED_TABLES = [
   "requests",
   "roster_sources",
   "sessions",
+  "shift_events",
   "shift_reminders",
   "shifts",
   "sites",
@@ -154,11 +155,17 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     "insert into credential_types (firm_id, code, name, sector, applied_allowed) values ($1, 'SIA_DS', 'SIA door supervisor licence', 'security', true)",
     [firmId],
   );
+  // An event with no site: the isolation tests delete rows.sites, and its site link has no ON
+  // DELETE action (shift_events_site_fk is tested in FK_CASES).
+  const shiftEventId = await one(su, "insert into shift_events (firm_id, name) values ($1, $2)", [
+    firmId,
+    `Event ${next()}`,
+  ]);
   const [startsAt, endsAt] = shiftTimes();
   const shiftId = await one(
     su,
-    "insert into shifts (firm_id, site_id, role, starts_at, ends_at, headcount) values ($1, $2, 'steward', $3, $4, 2)",
-    [firmId, rosterSiteId, startsAt, endsAt],
+    "insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at, headcount) values ($1, $2, $3, 'steward', $4, $5, 2)",
+    [firmId, shiftEventId, rosterSiteId, startsAt, endsAt],
   );
   const assignmentId = await one(
     su,
@@ -260,6 +267,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       auth_throttle: throttleId,
       credential_rules: credentialRuleId,
       credential_types: credentialTypeId,
+      shift_events: shiftEventId,
       shifts: shiftId,
       assignments: assignmentId,
       requests: requestId,
@@ -334,9 +342,13 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into credential_types (firm_id, code, name, sector) values ($1, $2, 'Probe card', 'rail')",
     values: [firmId, `PROBE_${next()}`],
   }),
+  shift_events: (firmId, p) => ({
+    text: "insert into shift_events (firm_id, name, site_id) values ($1, $2, $3)",
+    values: [firmId, `Probe event ${next()}`, p.rosterSiteId],
+  }),
   shifts: (firmId, p) => ({
-    text: "insert into shifts (firm_id, site_id, role, starts_at, ends_at) values ($1, $2, 'steward', $3, $4)",
-    values: [firmId, p.rosterSiteId, ...shiftTimes()],
+    text: "insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at) values ($1, $2, $3, 'steward', $4, $5)",
+    values: [firmId, p.rows.shift_events, p.rosterSiteId, ...shiftTimes()],
   }),
   assignments: (firmId, p) => ({
     text: "insert into assignments (firm_id, shift_id, slot) values ($1, $2, $3)",
@@ -433,9 +445,17 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: "insert into otp_codes (firm_id, session_id, code_hash, expires_at) values ($1, $2, $3, $4)",
     values: [firmId, other.spareSessionId, hash(), later()],
   }),
-  shifts_site_fk: (firmId, _own, other) => ({
-    text: "insert into shifts (firm_id, site_id, role, starts_at, ends_at) values ($1, $2, 'steward', $3, $4)",
-    values: [firmId, other.rosterSiteId, ...shiftTimes()],
+  shifts_site_fk: (firmId, own, other) => ({
+    text: "insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at) values ($1, $2, $3, 'steward', $4, $5)",
+    values: [firmId, own.rows.shift_events, other.rosterSiteId, ...shiftTimes()],
+  }),
+  shifts_event_fk: (firmId, _own, other) => ({
+    text: "insert into shifts (firm_id, event_id, role, starts_at, ends_at) values ($1, $2, 'steward', $3, $4)",
+    values: [firmId, other.rows.shift_events, ...shiftTimes()],
+  }),
+  shift_events_site_fk: (firmId, _own, other) => ({
+    text: "insert into shift_events (firm_id, name, site_id) values ($1, $2, $3)",
+    values: [firmId, `Probe event ${next()}`, other.rosterSiteId],
   }),
   assignments_shift_fk: (firmId, _own, other) => ({
     text: "insert into assignments (firm_id, shift_id, slot) values ($1, $2, $3)",

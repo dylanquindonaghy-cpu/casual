@@ -5,7 +5,12 @@ import type { BookingResult } from "../roster/book";
 import type { CancelBookingResult, CancelShiftResult } from "../roster/cancel";
 import type { MoveShiftResult } from "../roster/firm-change";
 import { noticeText } from "../portal/cancel-reasons";
-import type { CreateShiftsResult, EditShiftResult, ShiftProblem } from "./shift-editor";
+import type {
+  CreateShiftsResult,
+  EditDetailsResult,
+  EditShiftResult,
+  ShiftProblem,
+} from "./shift-editor";
 import type { ShiftImportResult } from "./shift-import";
 import { AGREEMENT_NEEDED_TEXT, FILE_ERROR_TEXT } from "../imports/messages";
 
@@ -45,6 +50,12 @@ export const SHIFT_PROBLEM_TEXT: Record<ShiftProblem, string> = {
   in_past: "That start time has already passed.",
   text_too_long: "The instructions are too long (2,000 characters at most).",
   no_lines: "Fill in at least one shift.",
+  bad_event_name: "Enter the event's name (200 characters at most).",
+  bad_pay: "Enter the pay rate in pounds an hour, like 12.50 (£1,000 at most).",
+  post_too_long: "The post is too long (200 characters at most).",
+  details_too_long: "The meeting point and the uniform can each be 300 characters at most.",
+  unknown_requirement: "Choose the extra requirements from the list.",
+  too_many_requirements: "Choose at most 20 extra requirements.",
   bad_form: "Check the form and try again.",
 };
 
@@ -97,6 +108,25 @@ export function editResultText(result: EditShiftResult | Common): string {
       return "This shift has started or was cancelled, so it can't be changed.";
     case "sheet":
       return "This shift comes from your Google Sheet. Change it there.";
+    case "not_found":
+      return "We can't find that shift.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+export function detailsResultText(result: EditDetailsResult | Common): string {
+  switch (result.status) {
+    case "saved":
+      return "Saved.";
+    case "unchanged":
+      return "Nothing changed.";
+    case "invalid":
+      return result.problems.map((p) => SHIFT_PROBLEM_TEXT[p]).join(" ");
+    case "has_bookings":
+      return "People are booked on this shift, so its extra requirements can't change. The other details can.";
+    case "not_open":
+      return "This shift has started or was cancelled, so it can't be changed.";
     case "not_found":
       return "We can't find that shift.";
     default:

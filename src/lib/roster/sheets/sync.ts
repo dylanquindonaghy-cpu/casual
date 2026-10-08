@@ -17,6 +17,7 @@ import { retryAborted } from "../../db/retry";
 import { checkBooking } from "../book";
 import { RulesSettingsError } from "../eligibility-input";
 import { refreshShiftStatus, sheetsRosterPlug } from "../native";
+import { automaticEventId } from "../shift-events";
 import { upsertWorker, WorkerIdentityChange, WorkerNameMismatch } from "../workers";
 import { changeNoticeHours, noticeHours } from "../notice";
 import { cellRange, columnRange, tabRange } from "./a1";
@@ -438,6 +439,14 @@ async function mirror(
         .insert(shifts)
         .values({
           firmId: sql`app_current_firm_id()`,
+          // A new row joins its site and day's automatic event (no sheet column for it). Only
+          // here: an update never changes the event, a switch or a session detail.
+          shiftEventId: await automaticEventId(tx, {
+            siteId: fields.siteId,
+            startsAt: fields.startsAt,
+            source: "sheets",
+            timeZone,
+          }),
           ...fields,
           status: sheetStatus ?? "open",
           source: "sheets",

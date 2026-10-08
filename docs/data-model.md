@@ -35,7 +35,8 @@ architecture.md, Tenancy).
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
 | sites | Venues/sites (address; lat/lng kept for Stage 3) | 1 |
-| shifts | Site, role, start/end, headcount, urgent flag, source | 2 |
+| shift_events | Events: the sessions (shifts) of one job, with a "show to casuals" switch. Not `events`, the action log | 12 |
+| shifts | Sessions: site, role, start/end, headcount, urgent flag, source; their event, pay rate, post, meeting point, uniform, extra requirements and "show to casuals" switch (12B.1) | 2 |
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed | 2 |
 | requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
 | offers | Each offer sent (in a wave, or by the office to one worker) and the response (table Phase 2; waves Phase 4; office offers Phase 5) | 2 |
@@ -256,9 +257,37 @@ create table credential_rules (
   unique (firm_id, role)
 );
 
+-- Events (Phase 12, 12B.1; docs/office-v2.md 3.3, S1). Every shift belongs to one. "Shifts for an
+-- event" makes its own (planner_ref empty). The sheet sync, the file import, "New shift" and
+-- migration 0035 put a new shift in its site and day's automatic event: named "Acme Demo Arena ·
+-- Sat 10 Oct" ("Sat 10 Oct" with no site; a long site name is cut to fit 200 characters), the day
+-- being the shift's start in the firm's time zone, and found again by its key in planner_ref,
+-- 'auto:{site id or none}:{yyyy-mm-dd}' (src/lib/roster/shift-events.ts). Migration 0035 grouped
+-- the shifts already there the same way (the first migration that changes data). A shift whose
+-- date or site later changes keeps its event. The switch is ShiftDesk's own, never read from or
+-- written to a planner. Never deleted, only hidden: the app may insert rows and update only
+-- showing_to_casuals (TABLE_ACCESS SELECT, INSERT; COLUMN_UPDATES), so a key, site or firm can't
+-- be rewritten. 'auto:' keys are reserved: S11's planner refs must never start with it.
+create table shift_events (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  name text not null,                    -- 1..200 characters
+  site_id uuid,                          -- (firm_id, site_id) -> sites(firm_id, id)
+  source text not null default 'native', -- native | sheets | csv: who made it (an automatic
+                                         -- event's earliest shift)
+  planner_ref text,                      -- 1..200; an automatic event's 'auto:' key
+  showing_to_casuals boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
+);
+create unique index shift_events_auto_key on shift_events (firm_id, planner_ref)
+  where planner_ref like 'auto:%';       -- one automatic event per firm, site and day
+
 create table shifts (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
+  event_id uuid not null,                -- (firm_id, event_id) -> shift_events(firm_id, id); in
+                                         -- TypeScript shiftEventId (eventId is a log entry's id)
   site_id uuid,                          -- (firm_id, site_id) -> sites(firm_id, id)
   role text not null,                    -- snake_case
   starts_at timestamptz not null,
@@ -275,6 +304,17 @@ create table shifts (
   sheet_issues jsonb,                    -- Sheets only (Phase 10): what the sheet asks for that the last
                                          -- sync couldn't do ({change?: {fields, wanted, reason, workers},
                                          -- names?: [{workerId, codes, dropped?}]}), for Today; null: none
+  -- The session's own details (12B.1, S2): set in ShiftDesk's session editor for every source;
+  -- the sheet sync and the file import never write them, nor the switch.
+  pay_rate_pence int,                    -- whole pence an hour, 0 or more
+  post text,                             -- 1..200 characters
+  meeting_point text,                    -- 1..300; public to casuals who can see the session
+  uniform text,                          -- 1..300; likewise (instructions: booked casuals only)
+  required_credentials text[] not null default '{}', -- qualification codes needed on top of the
+                                         -- role's (all of them), at most 20; the same format check
+                                         -- as credential_rules.required_types. Read by the rules
+                                         -- from 12B.3. Logged as "requirements", never by this name
+  showing_to_casuals boolean not null default true, -- the session's own switch (12B.4 uses it)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, source, external_ref) -- one shift per sheet/import row (NULLs don't collide)
@@ -601,7 +641,8 @@ create policy firm_isolation on workers for all to public
 **Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`
 applies `src/lib/db/admin/access.ts` after the migrations: FORCE on every table and exactly the
 listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS; no DELETE on `events`,
-`shifts`, `assignments`, `requests`, `offers` or `shift_reminders`). A new table without an
+`shift_events`, `shifts`, `assignments`, `requests`, `offers` or `shift_reminders`; on
+`shift_events` only its switch may be updated). A new table without an
 entry there fails the migrate. Adding a table: Drizzle schema + `.enableRLS()` + the tenant
 policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 `tests/helpers/tenant-rows.ts` (the isolation tests fail by name until they exist).

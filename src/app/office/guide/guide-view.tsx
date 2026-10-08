@@ -418,11 +418,13 @@ function AddShifts() {
           <Step>
             Select <Name>Shifts for an event</Name>.
           </Step>
-          <Step>Choose the date and site once.</Step>
+          <Step>Give the event a name, and choose the date and site once.</Step>
           <Step>
-            Fill in one line per role: the role, start, finish and places.{" "}
-            <Name>Add another line</Name> gives you up to 12. Empty lines are left out.
+            Fill in one line per role: the role, start, finish and places, and the pay rate, post
+            and extra requirements if you have them. <Name>Add another line</Name> gives you up to
+            12. Empty lines are left out.
           </Step>
+          <Step>Add the meeting point and uniform for everyone, if you have them.</Step>
           <Step>
             Select <Name>Create these shifts</Name>.
           </Step>

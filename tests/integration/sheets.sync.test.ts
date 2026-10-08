@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { sheetsRosterPlug } from "@/lib/roster/native";
+import { automaticEventName } from "@/lib/roster/shift-events";
 import type { RosterPlug } from "@/lib/roster/plug";
 import { eventsAboutWorker, loadActionLog, parseLogQuery } from "@/lib/office/action-log";
 import { loadToday } from "@/lib/office/today";
@@ -1567,5 +1568,100 @@ describe("sheets.sync: one edit, several changes, in the right order", () => {
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Needed", "3");
     await sync(f);
     expect(await p1(f)).toMatchObject({ role: "track_operative", headcount: 3 });
+  });
+});
+
+describe("sheets.sync: events and a session's own details (12B.1)", () => {
+  const eventOf = async (firmId: string, ref: string) =>
+    (
+      await su.query<{ id: string; name: string; key: string | null; source: string }>(
+        `select e.id::text as id, e.name, e.planner_ref as key, e.source
+           from shifts s join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+          where s.firm_id = $1 and s.external_ref = $2`,
+        [firmId, ref],
+      )
+    ).rows[0];
+  const eventCount = async (firmId: string) =>
+    (
+      await su.query<{ n: number }>(
+        "select count(*)::int as n from shift_events where firm_id = $1",
+        [firmId],
+      )
+    ).rows[0]?.n;
+
+  it("each new row joins its site and day's automatic event, shared by the rows on that site and day", async () => {
+    const f = await northline();
+    await sync(f);
+    const p1 = await eventOf(f.firmId, "P1");
+    expect(p1).toMatchObject({
+      name: automaticEventName("Demo Junction", "2026-11-07"),
+      key: expect.stringMatching(/^auto:[0-9a-f-]{36}:2026-11-07$/),
+      source: "sheets",
+    });
+    expect(p1?.name).toBe("Demo Junction · Sat 7 Nov");
+    // P2 has no site: the day alone.
+    expect(await eventOf(f.firmId, "P2")).toMatchObject({
+      name: automaticEventName(null, "2027-06-14"),
+      key: "auto:none:2027-06-14",
+    });
+    // A row added later on P1's site and day joins P1's event; syncing again makes none.
+    f.fake
+      .tab(f.sheetId, SHIFTS)
+      .push(shiftRow({ ...P1, ref: "P3", start: "08:00", end: "16:00", assigned: "" }));
+    await sync(f, new Date(NOW.getTime() + 60_000));
+    expect((await eventOf(f.firmId, "P3"))?.id).toBe(p1?.id);
+    await sync(f, new Date(NOW.getTime() + 120_000));
+    expect(await eventCount(f.firmId)).toBe(2);
+  });
+
+  it("never changes a switch, a session detail or the event, whatever changes on the sheet", async () => {
+    const f = await northline();
+    await sync(f);
+    const before = await eventOf(f.firmId, "P2");
+    const p2 = await idOf("shifts", f.firmId, "P2");
+    const details = {
+      pay_rate_pence: 1450,
+      post: "Gate B",
+      meeting_point: "Staff car park",
+      uniform: "Hi-vis and boots",
+      required_credentials: ["PTS"],
+      showing_to_casuals: false,
+    };
+    await su.query(
+      `update shifts set pay_rate_pence = $2, post = $3, meeting_point = $4, uniform = $5,
+              required_credentials = $6, showing_to_casuals = $7 where id = $1`,
+      [p2, ...Object.values(details)],
+    );
+    await su.query("update shift_events set showing_to_casuals = false where id = $1", [
+      before?.id,
+    ]);
+    // Every rota field of the row changes: date, times, site, role, places, instructions.
+    for (const [header, value] of [
+      ["Date", "15/06/2027"],
+      ["Start", "10:00"],
+      ["End", "18:00"],
+      ["Site", "Demo Depot"],
+      ["Role", "track operative"],
+      ["Needed", "3"],
+      ["Instructions", "Bring a torch."],
+    ] as const) {
+      f.fake.setCell(f.sheetId, SHIFTS, 3, header, value);
+    }
+    await sync(f, new Date(NOW.getTime() + 60_000));
+    const { rows } = await su.query(
+      `select s.pay_rate_pence, s.post, s.meeting_point, s.uniform, s.required_credentials,
+              s.showing_to_casuals, s.role, s.headcount, s.instructions,
+              e.showing_to_casuals as event_showing, s.event_id::text as event_id
+         from shifts s join shift_events e on e.id = s.event_id where s.id = $1`,
+      [p2],
+    );
+    // The sync applied the rota changes (the control) ...
+    expect(rows[0]).toMatchObject({
+      role: "track_operative",
+      headcount: 3,
+      instructions: "Bring a torch.",
+    });
+    // ... and left ShiftDesk's own fields, both switches and the event as they were.
+    expect(rows[0]).toMatchObject({ ...details, event_showing: false, event_id: before?.id });
   });
 });

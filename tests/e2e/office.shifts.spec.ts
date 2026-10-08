@@ -50,6 +50,15 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
   await expect(page.getByText("0 of 2 booked · Open")).toBeVisible();
   await expect(page.getByText(/Created by /)).toBeVisible(); // the history
 
+  // The session's own details (12B.1): pay in pounds an hour, a post.
+  await page.getByLabel("Pay rate, £ an hour (optional)").fill("12.50");
+  await page.getByLabel("Post (optional)").fill("Gate A");
+  await page.getByRole("button", { name: "Save details" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Pay rate, £ an hour (optional)")).toHaveValue("12.50");
+  await expect(page.getByLabel("Post (optional)")).toHaveValue("Gate A");
+
   // Check people in turn until the rules say yes, then assign them.
   const options = await page
     .getByLabel("Who?")
@@ -74,11 +83,16 @@ test("a resourcer creates a shift and assigns someone the rules allow", async ({
 test("several shifts for an event, and a file import checked first", async ({ page }) => {
   await officeLogin(page, "acme.admin@example.com");
   await page.goto(`${acme}/office/shifts/event`);
+  // The form makes the event, so it needs a name (12B.1); nothing is saved without one.
   await page.getByLabel("Date").fill(dayFromNow(13));
   const lines = page.getByRole("group");
   await lines.nth(0).getByLabel("Role").fill("steward");
   await lines.nth(0).getByLabel("Start").fill("08:00");
   await lines.nth(0).getByLabel("Finish").fill("16:00");
+  await page.getByRole("button", { name: "Create these shifts" }).click();
+  await expect(page.getByText("Enter the event's name (200 characters at most).")).toBeVisible();
+  await page.getByLabel("Event name").fill("Cup final");
+  await lines.nth(0).getByLabel("Pay rate, £ an hour (optional)").fill("13");
   await lines.nth(1).getByLabel("Role").fill("door supervisor");
   await lines.nth(1).getByLabel("Start").fill("20:00");
   await lines.nth(1).getByLabel("Finish").fill("04:00");

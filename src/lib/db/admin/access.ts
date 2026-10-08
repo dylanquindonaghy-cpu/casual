@@ -32,6 +32,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Seeded from a pack; the office may add or rename types (logged as events, applied_allowed
   // changes especially: they change who may work).
   credential_types: CRUD,
+  // Events (docs/office-v2.md 3.3): added, never deleted, only hidden; the app may change only the
+  // casuals switch (COLUMN_UPDATES), so an automatic event's key, site and firm can't be rewritten.
+  shift_events: ["SELECT", "INSERT"],
   shifts: NO_DELETE,
   assignments: NO_DELETE,
   requests: NO_DELETE,
@@ -61,6 +64,7 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
 export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   roster_sources: ["last_synced_at", "last_attempted_at", "last_error_code", "sync_started_at"],
+  shift_events: ["showing_to_casuals"],
 };
 
 export function schemaTableNames(): string[] {

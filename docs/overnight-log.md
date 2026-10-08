@@ -9795,3 +9795,114 @@ VERDICT: DONE
 Ticked; hours row added (0.7); `docs/work-log.md` updated. The next task (events and session
 fields, one migration) touches the schema: per CLAUDE.md its plan goes to Dylan first, so the run
 stops here.
+
+## 2026-10-08 22:32 UTC — Overnight run resumed (Dylan: "complete all you can without asking")
+
+Dylan asked, before going to sleep, for the rest of Phase 12 to be built without questions
+(`/loop /overnight`), so the standing decisions apply: schema, auth and tenancy plans are decided
+here and written down, not sent to him first. Each such decision below says what was chosen, why,
+and the alternative, for him to confirm in the morning.
+
+## 2026-10-08 22:32 UTC — Phase 12, task 12B.1: events and session fields
+
+**Task:** Events and session fields (§3.3, §5.1 S1's core and S2, approved; one migration), as
+written in `PLAN.md` (12B.1).
+
+**Plan** (researched by four read-only readers, two independent drafts, a merge and two reviews;
+the review findings are folded in):
+- **Schema (migration 0035):** a new `shift_events` table (id, firm_id, name 1–200 characters,
+  site_id, source native/sheets/csv, planner_ref, showing_to_casuals default on, created_at; RLS
+  with the tenant policy, `unique (firm_id, id)`, a composite link to `sites`); on `shifts`:
+  `event_id` (NOT NULL, a composite link to `shift_events`), `pay_rate_pence` (0 or more),
+  `post` (≤200), `meeting_point` (≤300), `uniform` (≤300), `required_credentials` (`text[]`, empty
+  by default, codes in the qualification-code format, at most 20) and `showing_to_casuals`
+  (default on). The TypeScript name of `event_id` is `shiftEventId`: `eventId` already means an
+  action-log id across the code.
+- **The backfill, in the same migration:** add the columns with `event_id` empty, then a `DO`
+  block that, firm by firm (setting `app.current_firm_id`, because forced RLS binds the owner too),
+  makes one automatic event per site and firm-local start date and links each shift to it; then
+  `event_id` becomes NOT NULL and the links are added. If any shift were left out, `SET NOT NULL`
+  fails and nothing is applied.
+- **New `src/lib/roster/shift-events.ts`:** the automatic name ("Acme Demo Arena · Sat 10 Oct";
+  no site: "Sat 10 Oct"; a long site name is cut so the name fits 200), its key, and
+  `automaticEventId()` (insert, or find the one already there); `createNamedEvent()`.
+- **Sheet sync and file import:** a new row joins the automatic event for its site and day. Only
+  the insert branch changes, so an update never touches the event, a switch or an S2 field.
+- **Office:** "New shift" joins the automatic event; "Shifts for an event" always creates its own
+  event row, with a required "Event name"; pay rate, post and extra requirements per line
+  (session), meeting point and uniform once for the event. A new "Session details" form on each
+  shift's page sets the S2 fields on native, file and sheet sessions (`editShiftDetails()`), logged
+  `shift.changed {by: "firm", fields: [...]}` with `requirements`, never a "credential" name.
+- **Grants:** `shift_events` SELECT and INSERT, and only `showing_to_casuals` may be updated
+  (`COLUMN_UPDATES`): never deleted, and the key, source, site and firm can't be rewritten.
+- **Tests:** isolation fixtures for `shift_events`; a backfill test on a scratch database migrated
+  to 0034, filled, then migrated on; automatic events from the sync and the import; a sync or
+  import never changes a switch or an S2 field; the editor (pay in whole pence, "12 50" refused,
+  unknown requirement refused, requirements locked once booked, the log fields); a log-check test
+  for every new `shift.changed` field; database checks in `roster.schema.test.ts`.
+- **Docs:** `docs/data-model.md`, `docs/screens.md`.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| The automatic event's key lives in `planner_ref` (`auto:{site id or none}:{yyyy-mm-dd}`), with a partial unique index on `(firm_id, planner_ref)` for `auto:` keys | S1 lists no date column; the index makes the database itself allow one automatic event per site and day for every writer (sync, import, editor, seed, backfill), even two imports at once | A separate `auto_day` column (beyond S1's list), or an advisory lock without an index (code-only) |
+| `shifts.event_id` is NOT NULL | "Every session has an event" becomes a database rule, so a later code path can't make a session that 12B.4's switch never reaches | Nullable with every writer filling it (fewer test helpers to change) |
+| A session whose date or site changes keeps its event | The task says "for new rows"; moving it between events could change what casuals see without anyone touching a switch | Re-group it (parked) |
+| One automatic event per site and day whatever the source | §3.3 groups by date and site only; two "Arena · Sat 10 Oct" cards would confuse the office | One per source |
+| "Shifts for an event" always creates a new event, its name required | The task: it "creates the event row" (a review caught a draft that let it join the automatic event) | An optional name |
+| Pay rate, post and requirements per session; meeting point and uniform once per event on that form | The mock-up: "each session keeps its own role, times, pay rate, post and requirements"; a review caught a draft with requirements once per form | Everything per session (a much longer form on a phone) |
+| Requirements can't change once someone is booked; the other S2 fields can | The planner API's rule in §5.3; a booked casual was checked against the old list | Allow it (booked casuals could fail a new requirement) |
+| Creating an event isn't logged on its own | §6.1 lists no `event.created`; each session's `shift.created` still is | Add `event.created` (parked) |
+
+**Risk noted by the review:** requirements saved now aren't checked until 12B.3 (the rules
+engine), so 12B.1 must not reach a firm with real casuals without 12B.3. 12B.3 is the next task in
+this run.
+
+**Built:** as planned, plus what building it showed:
+- **Tried on the demo data before the tests:** the dev database was built at 0034 with the demo
+  seed (a temporary git worktree of the last commit), then migrated with 0035: its 48 shifts
+  went into 6 events ("Acme Demo Arena · Sat 10 Oct" holding 23 of them, exactly the task's
+  example name), no shift left without one, and re-seeding with the new code added none.
+- **The backfill test can fail:** with the line that clears the firm setting removed from 0035,
+  the test-only migration after it stops the run ("migration 0035 left app.current_firm_id set");
+  the line put back, it passes.
+- **Every shift writer needed an event:** five in the app (the sync, the import, the editor and
+  the seed twice) and sixteen raw inserts in nine test files, now given an event by a small
+  `testEvent()` helper, the booking fixture's per-firm "Fixture event" (or `event()` for a test's
+  own) or the e2e helper's automatic event. The isolation fixtures have an event with no site, so
+  the tests that delete a firm's site are unchanged.
+- **The requirement tick boxes sit behind a button, not `<details>`:** both `<details>` and a
+  nested `<fieldset>` are "group"s, and the browser tests find the form's lines as the page's
+  groups in order. The boxes also wait for the page (the hydration test asked).
+- **The browser tests and the walkthrough fill in the event's name** (the form now makes the
+  event, so a blank name is refused, and the office.shifts spec checks that message first); the
+  first office.shifts test also saves a pay rate and a post on its new shift and reads them back
+  after a reload. `docs/walkthrough.md` step 27 and the how-to guide say to name the event.
+- **Guardrails review: no FIX FIRST** ("SAFE TO COMMIT to build/overnight. Do not merge to main
+  until 12B.3 is VERIFIED"). Its cheaper points, done: the automatic-event look-up now also
+  requires the `auto:` prefix (it uses the partial index and can't match a planner's ref); the
+  page locks the requirements on the same count as the server (any live booking); a type the
+  firm later removes never blocks saving a session's other details (only new codes must be the
+  firm's); more than 20 requirements says so ("Choose at most 20 extra requirements."); pay over
+  £1,000 an hour is refused (a rate typed in pence, "1250", would have shown £1,250 an hour); the
+  seed's and e2e helper's time-zone reads name the firm; new tests for two transactions making the
+  same automatic event (the second waits and gets the same one; after a rollback it makes it), a
+  firm with no shifts and a shift on the night the clocks go back. Left as recorded decisions or
+  for later tasks: moved sessions keep their event (Parking lot), no `event.created` entry
+  (Parking lot), event names can't be renamed yet (S11/12B.5 will need a column grant), and the
+  requirements' rules check, the stale-offer re-check and per-type "applied" allowance are 12B.3's.
+- First full verify: `VERIFIED tree=ec45b4ade0ff0088 e2e=true`; re-run below after the review's
+  changes.
+
+**Verify (final):** `VERIFIED tree=3c827d74879f000f e2e=true` (23:39 UTC): 3548 tests; 71 e2e and
+the walkthrough's 3.
+
+**Audit round 1:** every claim PROVEN (the guardrails review "indirectly": its record is this log,
+with the changes it named on disk); "Fakes found: none"; notes, not blockers: moved sessions keep
+their event (parked), requirements not enforced until 12B.3 (recorded). Verdict line, verbatim:
+
+VERDICT: DONE
+
+Ticked; hours row added (1.2; Phase 12 so far 6.1 h, and the phase has no estimate in `PLAN.md`
+to compare with); `docs/work-log.md` updated.

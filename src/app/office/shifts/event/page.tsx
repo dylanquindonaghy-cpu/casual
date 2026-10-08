@@ -24,6 +24,7 @@ export default async function Page() {
         mode="event"
         sites={form.sites}
         roles={form.roles}
+        qualifications={form.qualifications}
         today={localDateOf(systemClock.now(), form.timeZone)}
       />
       <p className={sectionGap.office}>

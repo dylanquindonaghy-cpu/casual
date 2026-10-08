@@ -159,6 +159,58 @@ export interface SheetIssues {
   names?: { workerId: string; codes: string[]; dropped?: boolean }[];
 }
 
+// The same flat list of qualification codes as credential_rules.required_types: no NULL or blank
+// elements, no nested arrays, no commas inside an element. An empty list means "needs none".
+const qualificationCodes = (column: AnyPgColumn) =>
+  sql`coalesce(array_ndims(${column}), 1) = 1
+    and array_position(${column}, null) is null
+    and (cardinality(${column}) = 0
+      or (array_to_string(${column}, ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'
+        and cardinality(string_to_array(array_to_string(${column}, ','), ','))
+          = cardinality(${column})))`;
+
+// An event: the sessions (shifts) of one job, with one switch for whether casuals see them
+// (docs/office-v2.md 3.3, S1). Not `events`, which is the action log. Every shift belongs to one:
+// "Shifts for an event" creates its own; the sheet sync, the file import, "New shift" and
+// migration 0035 put a shift in its site and day's automatic event, found again by its key in
+// planner_ref (`auto:{site id or none}:{yyyy-mm-dd}`, src/lib/roster/shift-events.ts), unique per
+// firm. The switch is ShiftDesk's own, never read from or written to a planner. Never deleted, only
+// hidden: the app may add rows and change only the switch (TABLE_ACCESS, COLUMN_UPDATES).
+export const shiftEvents = pgTable(
+  "shift_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    name: text("name").notNull(),
+    siteId: uuid("site_id"),
+    source: text("source", { enum: SHIFT_SOURCES }).notNull().default("native"),
+    plannerRef: text("planner_ref"),
+    showingToCasuals: boolean("showing_to_casuals").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("shift_events_firm_id_id_key").on(t.firmId, t.id),
+    // One automatic event per firm, site and day, whoever makes it (two imports at once included).
+    uniqueIndex("shift_events_auto_key")
+      .on(t.firmId, t.plannerRef)
+      .where(sql`${t.plannerRef} like 'auto:%'`),
+    foreignKey({
+      name: "shift_events_site_fk",
+      columns: [t.firmId, t.siteId],
+      foreignColumns: [sites.firmId, sites.id],
+    }),
+    check("shift_events_name_length", sql`char_length(${t.name}) between 1 and 200`),
+    check("shift_events_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check(
+      "shift_events_planner_ref_length",
+      sql`${t.plannerRef} is null or char_length(${t.plannerRef}) between 1 and 200`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
 export const shifts = pgTable(
   "shifts",
   {
@@ -166,6 +218,9 @@ export const shifts = pgTable(
     firmId: uuid("firm_id")
       .notNull()
       .references(() => firms.id),
+    // The event it belongs to (shift_events). `shiftEventId`, because `eventId` means an action-log
+    // entry everywhere else in the code.
+    shiftEventId: uuid("event_id").notNull(),
     siteId: uuid("site_id"),
     role: text("role").notNull(),
     startsAt: timestamptz("starts_at").notNull(),
@@ -185,10 +240,29 @@ export const shifts = pgTable(
     // L12), for Today's "From your rota sheet": a change to a booked or started shift the rules
     // refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
     sheetIssues: jsonb("sheet_issues").$type<SheetIssues>(),
+    // The session's own details (docs/office-v2.md S2), set in ShiftDesk's session editor for
+    // every source: the sheet sync and the file import never write them. Pay is whole pence an
+    // hour; meeting point and uniform are for casuals who can see the session, instructions only
+    // for those booked. requiredCredentials: qualification codes needed on top of the role's.
+    payRatePence: integer("pay_rate_pence"),
+    post: text("post"),
+    meetingPoint: text("meeting_point"),
+    uniform: text("uniform"),
+    requiredCredentials: text("required_credentials")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    // The session's own switch (the event has one too). ShiftDesk's own, never a planner's.
+    showingToCasuals: boolean("showing_to_casuals").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [
     unique("shifts_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "shifts_event_fk",
+      columns: [t.firmId, t.shiftEventId],
+      foreignColumns: [shiftEvents.firmId, shiftEvents.id],
+    }),
     // One shift per row of a sheet or import. NULLs don't collide, so native shifts are free.
     unique("shifts_firm_id_source_external_ref_key").on(t.firmId, t.source, t.externalRef),
     foreignKey({
@@ -202,6 +276,21 @@ export const shifts = pgTable(
     check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
     check("shifts_status_check", sql`${t.status} in ('draft', 'open', 'filled', 'cancelled')`),
     check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check("shifts_pay_rate_range", sql`${t.payRatePence} is null or ${t.payRatePence} >= 0`),
+    check("shifts_post_length", sql`${t.post} is null or char_length(${t.post}) between 1 and 200`),
+    check(
+      "shifts_meeting_point_length",
+      sql`${t.meetingPoint} is null or char_length(${t.meetingPoint}) between 1 and 300`,
+    ),
+    check(
+      "shifts_uniform_length",
+      sql`${t.uniform} is null or char_length(${t.uniform}) between 1 and 300`,
+    ),
+    check(
+      "shifts_required_credentials_format",
+      sql`${qualificationCodes(t.requiredCredentials)}
+        and cardinality(${t.requiredCredentials}) <= 20`,
+    ),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

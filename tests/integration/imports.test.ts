@@ -859,3 +859,84 @@ Cal,Example,07700 900303`;
     expect(rows.every((r) => r.firm_id === r.site_firm)).toBe(true);
   });
 });
+
+describe("imports: events and a session's own details (12B.1)", () => {
+  const FILE = `Shift ID,Date,Start,End,Site,Role,Notes
+E1,Sat 7 Nov 2026,09:00,17:00,Acme Demo Arena,steward,
+E2,Sat 7 Nov 2026,18:00,02:00,Acme Demo Arena,steward,
+E3,Sun 8 Nov 2026,09:00,17:00,Acme Demo Arena,steward,
+E4,Sat 7 Nov 2026,09:00,17:00,,steward,`;
+  const eventsByRef = async (firmId: string) =>
+    Object.fromEntries(
+      (
+        await su.query<{ ref: string; id: string; name: string; key: string; source: string }>(
+          `select s.external_ref as ref, e.id::text as id, e.name, e.planner_ref as key, e.source
+             from shifts s join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+            where s.firm_id = $1`,
+          [firmId],
+        )
+      ).rows.map((r) => [r.ref, r]),
+    );
+  const eventCount = async (firmId: string) =>
+    (
+      await su.query<{ n: number }>(
+        "select count(*)::int as n from shift_events where firm_id = $1",
+        [firmId],
+      )
+    ).rows[0]?.n;
+
+  it("each new row joins its site and day's automatic event; a check makes none; again makes none", async () => {
+    const f = await newFirm();
+    expect(await f.run("shifts", csv(FILE), true)).toMatchObject({ dryRun: true, created: 4 });
+    expect(await eventCount(f.firmId)).toBe(0);
+    expect(await f.run("shifts", csv(FILE))).toMatchObject({ created: 4 });
+    const e = await eventsByRef(f.firmId);
+    expect(e.E1).toMatchObject({ name: "Acme Demo Arena · Sat 7 Nov", source: "csv" });
+    expect(e.E1?.key).toMatch(/^auto:[0-9a-f-]{36}:2026-11-07$/);
+    expect(e.E2?.id).toBe(e.E1?.id); // 18:00 to 02:00: the day it starts
+    expect(e.E3).toMatchObject({ name: "Acme Demo Arena · Sun 8 Nov" });
+    expect(e.E4).toMatchObject({ name: "Sat 7 Nov", key: "auto:none:2026-11-07" });
+    expect(await eventCount(f.firmId)).toBe(3);
+    expect(await f.run("shifts", csv(FILE))).toMatchObject({ created: 0, unchanged: 4 });
+    expect(await eventCount(f.firmId)).toBe(3);
+  });
+
+  it("a re-import never changes a switch, a session detail or the event, whatever changed in the file", async () => {
+    const f = await newFirm();
+    await f.run("shifts", csv(FILE));
+    const before = (await eventsByRef(f.firmId)).E1;
+    const details = {
+      pay_rate_pence: 1325,
+      post: "Gate A",
+      meeting_point: "North entrance",
+      uniform: "Black trousers",
+      required_credentials: ["FIRST_AID"],
+      showing_to_casuals: false,
+    };
+    await su.query(
+      `update shifts set pay_rate_pence = $3, post = $4, meeting_point = $5, uniform = $6,
+              required_credentials = $7, showing_to_casuals = $8
+        where firm_id = $1 and external_ref = $2`,
+      [f.firmId, "E1", ...Object.values(details)],
+    );
+    await su.query("update shift_events set showing_to_casuals = false where id = $1", [
+      before?.id,
+    ]);
+    // Every field of E1 changes: date, times, site, role and notes.
+    const changed = FILE.replace(
+      "E1,Sat 7 Nov 2026,09:00,17:00,Acme Demo Arena,steward,",
+      "E1,Mon 9 Nov 2026,10:00,18:00,Acme Demo Racecourse,door supervisor,Bring ID",
+    );
+    expect(await f.run("shifts", csv(changed))).toMatchObject({ updated: 1 });
+    const { rows } = await su.query(
+      `select s.pay_rate_pence, s.post, s.meeting_point, s.uniform, s.required_credentials,
+              s.showing_to_casuals, s.role, s.instructions, s.event_id::text as event_id,
+              e.showing_to_casuals as event_showing
+         from shifts s join shift_events e on e.id = s.event_id
+        where s.firm_id = $1 and s.external_ref = 'E1'`,
+      [f.firmId],
+    );
+    expect(rows[0]).toMatchObject({ role: "door_supervisor", instructions: "Bring ID" }); // control
+    expect(rows[0]).toMatchObject({ ...details, event_showing: false, event_id: before?.id });
+  });
+});

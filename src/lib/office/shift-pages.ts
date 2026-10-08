@@ -5,6 +5,7 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
 import {
   CANCELLED_ASSIGNMENT_STATUSES,
+  credentialTypes,
   firms,
   officeUsers,
   shifts,
@@ -111,6 +112,8 @@ export interface ShiftFormData {
   timeZone: string;
   sites: { id: string; name: string }[];
   roles: string[]; // roles in use at the firm, for suggestions
+  // The firm's qualification types, for a session's extra requirements (docs/office-v2.md S2).
+  qualifications: { code: string; name: string }[];
 }
 
 async function formData(tx: FirmTx): Promise<ShiftFormData> {
@@ -124,7 +127,16 @@ async function formData(tx: FirmTx): Promise<ShiftFormData> {
     union select unnest(roles) from workers
     order by 1
   `);
-  return { timeZone: await timeZoneOf(tx), sites: siteRows, roles: rows.map((r) => r.role) };
+  const qualifications = await tx
+    .select({ code: credentialTypes.code, name: credentialTypes.name })
+    .from(credentialTypes)
+    .orderBy(asc(credentialTypes.name));
+  return {
+    timeZone: await timeZoneOf(tx),
+    sites: siteRows,
+    roles: rows.map((r) => r.role),
+    qualifications,
+  };
 }
 
 export const officeShiftForm = (ctx: AuthContext, token: string) =>
@@ -156,6 +168,16 @@ export interface ShiftDetail {
     ended: boolean;
   };
   edit: { date: string; start: string; end: string; editable: boolean };
+  // The session's own details (docs/office-v2.md S2), editable on sheet and file shifts too.
+  details: {
+    payRate: string; // pounds an hour, "12.50"; "" for none
+    post: string;
+    meetingPoint: string;
+    uniform: string;
+    requirements: string[]; // qualification codes
+    editable: boolean; // not started or cancelled
+    requirementsLocked: boolean; // someone is booked
+  };
   places: {
     assignmentId: string;
     slot: number;
@@ -209,6 +231,11 @@ export async function officeShiftDetail(
         status: shifts.status,
         isUrgent: shifts.isUrgent,
         source: shifts.source,
+        payRatePence: shifts.payRatePence,
+        post: shifts.post,
+        meetingPoint: shifts.meetingPoint,
+        uniform: shifts.uniform,
+        requiredCredentials: shifts.requiredCredentials,
       })
       .from(shifts)
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
@@ -367,6 +394,16 @@ export async function officeShiftDetail(
         start: hhmm(s.startsAt, tz),
         end: hhmm(s.endsAt, tz),
         editable: !started && s.status !== "cancelled" && s.source !== "sheets",
+      },
+      details: {
+        payRate: s.payRatePence === null ? "" : (s.payRatePence / 100).toFixed(2),
+        post: s.post ?? "",
+        meetingPoint: s.meetingPoint ?? "",
+        uniform: s.uniform ?? "",
+        requirements: s.requiredCredentials,
+        editable: !started && s.status !== "cancelled",
+        // As editShiftDetails counts: any live booking, whatever its slot.
+        requirementsLocked: live.length > 0,
       },
       places: placeRows.map((p) => ({
         assignmentId: p.id,

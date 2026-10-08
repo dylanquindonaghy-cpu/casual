@@ -4,6 +4,7 @@ import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
 import {
   assignments,
+  firms,
   officeUsers,
   requests,
   shifts,
@@ -11,6 +12,8 @@ import {
   workers,
 } from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
+import type { FirmTx } from "../../src/lib/db/scoped";
+import { automaticEventId } from "../../src/lib/roster/shift-events";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
 // dev one) as the app role, inside the seeded firm, exactly as the app would.
@@ -19,6 +22,20 @@ function e2eAppUrl(): string {
   if (!url) throw new Error("DATABASE_URL must be set");
   if (!isLocalHost(url)) throw new Error("e2e rows go to a local database only");
   return withDatabase(url, `${databaseName(url)}_e2e`);
+}
+
+// A shift's event: its site and day's automatic one, as "New shift" and the imports do.
+async function eventFor(tx: FirmTx, siteId: string | null, startsAt: Date): Promise<string> {
+  const [firm] = await tx
+    .select({ timezone: firms.timezone })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  return automaticEventId(tx, {
+    siteId,
+    startsAt,
+    source: "native",
+    timeZone: firm?.timezone ?? "Europe/London",
+  });
 }
 
 // The owner's address for the e2e database (never the dev one), for owner-only changes such as a
@@ -86,11 +103,12 @@ export async function addOpenShift(
     const firmId = seedId(`firm/${slug}`);
     const startsAt = new Date(Date.now() + o.daysAhead * 86_400_000);
     startsAt.setUTCMinutes(0, 0, 0);
-    const [row] = await createWithFirm(pool)(firmId, (tx) =>
+    const [row] = await createWithFirm(pool)(firmId, async (tx) =>
       tx
         .insert(shifts)
         .values({
           firmId,
+          shiftEventId: await eventFor(tx, null, startsAt),
           role: o.role,
           startsAt,
           endsAt: new Date(startsAt.getTime() + (o.hours ?? 8) * 3_600_000),
@@ -156,6 +174,7 @@ export async function addPastBookedShift(
         .insert(shifts)
         .values({
           firmId,
+          shiftEventId: await eventFor(tx, null, startsAt),
           role: o.role,
           startsAt,
           endsAt: new Date(startsAt.getTime() + 8 * 3_600_000),
@@ -302,6 +321,7 @@ export async function addBookedShift(
         .insert(shifts)
         .values({
           firmId,
+          shiftEventId: await eventFor(tx, site.id, startsAt),
           role: "steward",
           siteId: site.id,
           startsAt,

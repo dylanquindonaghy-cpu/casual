@@ -231,11 +231,11 @@ describe("loadToday", () => {
   it("says when there are more than 50 gaps", async () => {
     const f = await bookingFirm(su, withFirm);
     await su.query(
-      `insert into shifts (firm_id, role, starts_at, ends_at, headcount, status, source)
-       select $1, 'steward', $2::timestamptz + (n || ' minutes')::interval,
+      `insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source)
+       select $1, $3, 'steward', $2::timestamptz + (n || ' minutes')::interval,
               $2::timestamptz + (n || ' minutes')::interval + interval '8 hours', 1, 'open', 'native'
          from generate_series(1, 51) as n`,
-      [f.firmId, hoursFromNow(5)],
+      [f.firmId, hoursFromNow(5), await f.event()],
     );
     const view = await withFirm(f.firmId, (tx) => loadToday(tx, NOW));
     expect(view.gaps).toHaveLength(50);

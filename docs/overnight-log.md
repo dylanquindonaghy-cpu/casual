@@ -9906,3 +9906,6 @@ VERDICT: DONE
 
 Ticked; hours row added (1.2; Phase 12 so far 6.1 h, and the phase has no estimate in `PLAN.md`
 to compare with); `docs/work-log.md` updated.
+
+Commit `50f63a4`, pushed to `build/overnight`; CI runs on the push (checked at the start of the
+next task).

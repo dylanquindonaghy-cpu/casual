@@ -109,6 +109,13 @@ const PATHS = {
       <path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5" />
     </>
   ),
+  // Cancellations: a calendar page with a cross.
+  cancel: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+      <path d="M3.5 9.5h17M8 3v4M16 3v4M9.5 12.5l5 5M14.5 12.5l-5 5" />
+    </>
+  ),
   // Settings: two sliders.
   settings: (
     <>

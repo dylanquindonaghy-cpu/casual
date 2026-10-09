@@ -10368,3 +10368,32 @@ and invariants passed there); the second checkpoint (`2e44a6d`) fixed it and CI 
 switch to turn strikes off. Needs Dylan: sign `docs/dpia-strikes.md` before a real firm uses
 strikes. Commit: "Phase 12: Strikes on cancel (12C.1)" (hash in the next entry).
 
+
+(12C.1's commit: `98aee04`, pushed.)
+
+## 2026-10-09 06:16 UTC — Phase 12, task 12C.3: Cancellation records
+
+**Task:** Cancellation records (§3.4), as written in `PLAN.md` (12C.3).
+
+**Plan:** a loader (`src/lib/office/cancellations.ts`: this week's counts, the views All, Under 48
+hours and By the office, one record by its reference, with what happened next read from the log
+and the bookings' own times) and its pure words (`cancellations-copy.ts`: the record's fields, the
+"Then" line, the export reason, the CSV); `/office/cancellations` and `/office/cancellations/[ref]`
+(admins and resourcers), `/[ref]/pdf` (`src/lib/pdf/record.ts`: `pdf-lib` with `@pdf-lib/fontkit`
+and Noto Sans, plus Noto Sans Symbols 2 cut down to "✓" and "✗", since Noto Sans has no "✓") and
+`/export` (CSV, at most 20,000 rows), each download logged `export.downloaded`; the menu link;
+tests (unit, integration, a PDF read back with `pdfjs-dist`, e2e); docs.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| Noto Sans (Regular, Bold), cut down beforehand to Latin, Greek and Cyrillic (about 196 KB each) and embedded whole; "✓" and "✗" from Noto Sans Symbols 2 cut down to just them (6 KB) | fontkit's own subsetting drew most letters of these fonts as blanks (the text still extracted; seen by rendering the PDF to an image); Noto Sans has no "✓"; Plus Jakarta Sans's package has no Greek and only extended Cyrillic (not "Олена"), as web fonts only | Subsetting at run time (broken); Plus Jakarta Sans (fewer scripts); pdf-lib's built-in fonts (throw on "Ł") |
+| The PDF prints in black only (labels in bold) | The theme test allows no colour values outside the app's tokens, and a printed record photocopies better in black | Adding the PDF to the test's allow-list (loosens a test) |
+| Any reason a casual typed or picked reads "Casual's own reason (see ShiftDesk)" outside ShiftDesk; an office reason keeps its words only if it's one of the fixed list (or the rota sheet's two), anything else reads "Office's own reason (see ShiftDesk)" | Office reasons from before the fixed list are free text and can hold health details ("Ann rang: her mum is in hospital") | Every office reason as written |
+| "Under 48 hours" uses the firm's `strikes.notice_hours` (48 unless the owner changed it) | Same line as the strike rule, so the view and the strikes agree | A fixed 48 |
+| "Then": reopened when a later row exists for the place's slot; filled by that slot's next confirmed booking at its own confirmed time; "marked urgent" and "offered to" are log entries after the cancellation's own and before the session's next cancellation | Event ids only grow (no clock comparison); offers are for a session, not a place, so a later dropout's offers go on its own record (found re-reading the SQL; tested, mutation-checked) | Every later entry for the session (inflated the first dropout's count) |
+| "Offered to" is read from the session's `offers` rows and their `offer.sent` entries (indexed), not from the log's JSON | The JSON has no index: a 20,000-row CSV would scan the whole log per row | `events.data ->> 'shiftId'` |
+| A record opens by its reference (first 8 characters) or the booking's full id; a reference two cancellations share lists both to choose from; the PDF link uses the full id; a shared reference's PDF address is refused (409) | A short reference can repeat (about 1 in 90 by 10,000 cancellations); "the newest wins" could hand over the wrong person's record | Newest wins (the first version's comment wrongly said 1 in 4 billion) |
+| The list shows the latest 100; the CSV has every row of the view, refused above 20,000 | A page stays quick on a phone; the task's limit for the CSV | Paging |
+| Each download is logged before the file is handed over (`export.downloaded`: the PDF's booking id, or the CSV's view and row count) | A download that isn't logged never happens | Logging after |

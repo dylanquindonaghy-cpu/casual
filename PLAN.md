@@ -2811,6 +2811,12 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 - Strikes (12C.1): no per-firm switch to turn strikes off; every firm on ShiftDesk records them.
   Add one if a firm doesn't want them (`docs/dpia-strikes.md`).
 
+- Security updates for Next.js, sharp and source-map-js: `npm audit` reports 3 high advisories in
+  these (found 2026-10-09 during 12C.3; they were there before it: 12C.3 added only `pdf-lib`,
+  `@pdf-lib/fontkit` and, for tests, `pdfjs-dist`). `npm audit fix` would change the Next.js
+  version, which needs its own task: read the release notes, run `./scripts/verify.sh`, check the
+  walkthrough.
+
 ## Hours log
 
 | Date | Phase | Hours | What got done |

@@ -15,6 +15,8 @@ import {
 } from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
 import type { FirmTx } from "../../src/lib/db/scoped";
+import { bookShift } from "../../src/lib/roster/book";
+import { cancelBooking } from "../../src/lib/roster/cancel";
 import { automaticEventId, createNamedEvent } from "../../src/lib/roster/shift-events";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
@@ -480,6 +482,67 @@ export async function strikesOn(slug: string, shiftIds: string[]): Promise<strin
     );
     return found.map((r) => r.shiftId);
   } finally {
+    await pool.end();
+  }
+}
+
+// A spec's casual takes its own session and cancels it, through the real code (as the app does),
+// with enough notice that it's no strike. Returns the booking's reference.
+export async function bookAndCancel(
+  slug: string,
+  o: { shiftId: string; workerId: string; reason: string },
+): Promise<{ ref: string; assignmentId: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const run = createWithFirm(pool);
+    const firmId = seedId(`firm/${slug}`);
+    const by = { type: "worker" as const, id: o.workerId };
+    const booked = await bookShift(run, firmId, { shiftId: o.shiftId, workerId: o.workerId, by });
+    if (booked.status !== "booked") throw new Error(`not booked: ${booked.status}`);
+    const cancelled = await cancelBooking(run, firmId, {
+      shiftId: o.shiftId,
+      workerId: o.workerId,
+      reason: o.reason,
+      by: { ...by, warning: { kind: "notice", version: "v1" } },
+    });
+    if (cancelled.status !== "cancelled") throw new Error(`not cancelled: ${cancelled.status}`);
+    const { assignmentId } = cancelled;
+    return { ref: assignmentId.slice(0, 8).toUpperCase(), assignmentId };
+  } finally {
+    await pool.end();
+  }
+}
+
+// Gives booking `id` a new id starting with the same 8 characters as `like`'s, so the two share a
+// reference (a short reference can repeat: 12C.3). The owner's change, in the e2e database only;
+// RLS is forced for the owner too, so it sets the firm first. Returns the new id.
+export async function shareReference(slug: string, o: { id: string; like: string }) {
+  const pool = new Pool({ connectionString: e2eAdminUrl(), max: 1 });
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await client.query("begin");
+    try {
+      await client.query("select set_config('app.current_firm_id', $1, true)", [
+        seedId(`firm/${slug}`),
+      ]);
+      const changed = await client.query<{ id: string }>(
+        `update assignments set id = (left($2::text, 8) || substr(id::text, 9))::uuid
+          where id = $1 returning id::text as id`,
+        [o.id, o.like],
+      );
+      if (changed.rowCount !== 1) throw new Error("booking not found");
+      await client.query("commit");
+      return changed.rows[0]?.id ?? "";
+    } catch (err) {
+      await client.query("rollback");
+      throw err;
+    }
+  } finally {
+    client.release();
     await pool.end();
   }
 }

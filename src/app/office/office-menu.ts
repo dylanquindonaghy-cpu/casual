@@ -15,6 +15,12 @@ const MENU: { label: string; items: MenuItem[] }[] = [
       { area: "today", href: "/office", label: "Today", icon: "home" },
       // The shift pages (/office/shifts/...) stay, inside this section (office-nav.tsx).
       { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
+      {
+        area: "cancellations",
+        href: "/office/cancellations",
+        label: "Cancellations",
+        icon: "cancel",
+      },
       { area: "requests", href: "/office/requests", label: "Requests", icon: "requests" },
     ],
   },

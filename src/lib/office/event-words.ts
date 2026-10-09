@@ -176,6 +176,16 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const reason = byOffice && typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
       return `${who}${notice ? `, with ${notice}` : ""}.${reason}`;
     }
+    case "export.downloaded":
+      if (d.kind === "cancellation_pdf")
+        return `${officeName} downloaded a cancellation record (PDF).`;
+      if (d.kind === "cancellations_csv") {
+        const view =
+          d.view === "under" ? "short notice" : d.view === "office" ? "by the office" : "all";
+        const n = typeof d.rows === "number" ? d.rows : 0;
+        return `${officeName} downloaded the cancellations (${view}, ${n} ${n === 1 ? "row" : "rows"}) as a CSV.`;
+      }
+      return `${officeName} downloaded a file.`;
     case "strike.issued": {
       const notice = hours(d.noticeHours);
       const under =

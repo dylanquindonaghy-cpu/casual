@@ -13,6 +13,7 @@ export const OFFICE_AREAS = {
   today: ["admin", "resourcer"], // gaps, urgent shifts, cancellations, requests, expiries
   shifts: ["admin", "resourcer"], // the shift list, creating, editing, importing, assigning
   requests: ["admin", "resourcer"], // workers' requests: approve or decline with a note
+  cancellations: ["admin", "resourcer"], // cancellation records, their PDFs and the CSV (12C.3)
   log: ["admin", "resourcer"], // the action log, with filters
   reports: ["admin", "resourcer"], // the notice and cancellation report (and its CSV)
   pilot: ["admin", "resourcer"], // pilot metrics: the baseline, weekly tallies, the figures

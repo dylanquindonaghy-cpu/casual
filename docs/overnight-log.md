@@ -10277,3 +10277,94 @@ like `app_purge_old_messages()`); the owner's settings `strikes.notice_hours` (4
 checked again on confirm); the done screen with the strike line and "Tell us what happened" (a
 `review` request with the booking's reference); the nightly purge; `docs/dpia-strikes.md`; tests
 (table, unit, integration, isolation, e2e); docs.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| A booking with no record of who made it counts as the office's (no strike) | A strike needs proof the casual took the shift | Counting it as theirs |
+| "Changed after booking" means a later `shift.moved`, `shift.curtailed`, or `shift.changed` naming the times, role, site or pay, compared by event id | Event ids only grow; no clock to compare (the app's and the database's can differ) | Comparing `created_at` with `confirmed_at` |
+| The warning is worked out when the cancel step opens, and checked again on confirm; a strike is only ever issued against a warning that said so (and of the current version) | What the casual is told is what happens | Trusting the page's warning |
+| `strike_warning_shown_at` is when they confirmed with the warning on screen | The server can't know when a screen was looked at | The time the page was loaded (sent by the browser) |
+| The review reasons ("unwell", "family_or_caring") and even the review flag stay on the strike row, never in the log | Health data in an append-only log would outlive the 12-month row | A `review` flag in `strike.issued` |
+| A strike's row goes at `keep_months`, which `firm:settings` only accepts if it covers the time a strike counts plus 6 months (a month as 28 days: with 90 days, at least 10); the purge also never deletes a strike that stopped counting under 6 months ago, against settings edited by hand (migration 0039) | A firm counting strikes a year with `keep_months` 7 would otherwise lose a strike that still counts; with the settings checked, "deleted at keep_months" stays exactly true | Only the purge's guard (the first audit round found that made "at keep_months" untrue for long counting) |
+| "Tell us what happened" is a `review` request with `payload.cancellation` (the booking's reference), skipped by the shift page's "waiting review" | The task says an existing type, no new columns | A new request type |
+| Strikes are in the casual's data export | They're personal data about the casual | Leaving them out |
+| Settings bounds: notice 1–336 hours, counts 1–365 days, kept 7–72 months | Never inside the 6-month tribunal limit | Unbounded |
+
+**Guardrails review (schema, rules): FIX FIRST, 1 item, fixed; every SHOULD fixed; most NICE.**
+
+- FIX FIRST: a "Tell us what happened" request was taken for a rules review by the shift page
+  (`waitingReview()`), which would then say "You asked the office to review this" and hide the
+  review form. Root cause: both are `review` requests and the look-up didn't tell them apart. Fixed:
+  it skips one naming a cancellation; tested.
+- SHOULD, fixed: only the current warning version is accepted; a worker's cancellation that would
+  be a strike is refused without a warning that said so (tested: none sent, or "v0"); the purge
+  keeps a strike until 6 months after it stopped counting (migration 0039; tested with a firm
+  keeping strikes 7 months and counting them a year); `strike.issued` no longer carries the review
+  flag (tested: its keys are ids and hours only).
+- NICE, fixed: the booking cancelled is asserted to be the one decided on; every firm
+  cancellation's `shift.cancelled` (a whole session, the rota sheet) carries `strike: "by_firm"`;
+  the warning now comes before "Why can't you make it?"; "Keep this shift" while checking; the
+  SQL purge's fallback for an out-of-range `keep_months` tested; the data model's request payload
+  and the spec's wording on the stored time.
+- Not done: a composite key tying a strike to its booking's worker and shift (the one code path
+  keeps them together; it would add an index to `assignments`); the answer's wording to "Tell us
+  what happened" (needs a new WhatsApp template: Parking lot); the JSON `18.0` quirk shared with
+  migration 0034 (only a hand-written edit can store it).
+- Mutation checks: breaking the 48-hour boundary, the change check, who booked it, the warning
+  check, the log's contents or the override code makes a test fail (6 of 6).
+
+**Audit round 1: NOT DONE.** The purge's 6-month guard (added after the review) made "purges
+strikes at `strikes.keep_months`" untrue for long `live_days`, and five docs still described the
+rule before it. Fixed: `firm:settings` now refuses a `keep_months` that doesn't cover the
+counting plus 6 months (tested), so every strike goes at `keep_months`; the guard stays only for
+hand-edited settings; `docs/data-model.md`, `docs/api-and-jobs.md`, `docs/compliance.md`,
+`docs/dpia-strikes.md` and the code comments say so.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=cd9946580807a39e e2e=true` (after audit round 1's fix;
+3,741 tests; 75 browser tests, then the walkthrough's 3). The first full run, before it, also
+printed VERIFIED (`f7606bf3599f0851`).
+
+**Auditor verdict (round 2), verbatim:**
+
+```
+Task 12C.1 (strikes on cancel) audit.
+
+Stamp: `.claude/state/verified.json` has ok:true, e2e:true, tree cd9946580807a39e. `./.claude/hooks/tree-hash.sh` prints cd9946580807a39e, so they match.
+Logs: `test.log` shows 3741/3741 passed, 0 skipped. `e2e.log` shows 75 passed, plus the 3-test walkthrough on the production build. `invariants.log` has no `.only/.skip/.todo`, and schema and migrations are in sync. Lint has 0 errors; its one warning is in an unrelated file (`tests/unit/inbound.signature.test.ts`).
+
+Claims:
+- Migration: S3 columns, `strikes` table, owner-run purge — PROVEN. `drizzle/0038_strikes.sql` adds `cancel_via`, `strike_warning_version` and `strike_warning_shown_at` with checks. It creates `strikes` with a unique key on `(firm_id, assignment_id)`, a composite FK on every link and a `firm_isolation` policy. `app_purge_old_strikes()` is SECURITY DEFINER with a pinned search_path. `src/lib/db/admin/access.ts:64` gives the app SELECT and INSERT only. The delete and update refusals (42501) are tested in `tests/integration/strikes.test.ts` "one strike per booking; the app can't delete…".
+- Pure `strikeDecision()` — PROVEN. `src/lib/strikes/decide.ts` applies the rules in the spec's order: firm cancels, then notice >= threshold, then booked by office (override or not), then changed after booking, then strike with a review flag for unwell or family.
+- Run in `cancelBooking()`'s transaction, code in the `shift.cancelled` entry, row and `strike.issued` only when issued — PROVEN. `src/lib/roster/cancel.ts` (decision about line 125, `strike: decision.code` in the event, `issueStrike` called only when the result is "strike") and `src/lib/strikes/issue.ts`. The office, whole-session and rota-sheet paths record `by_firm` (`cancel.ts` ~line 330, `src/lib/roster/sheets/sync.ts:942`, and `via: "sheet"` at lines 580, 683 and 751). The test asserts the `strike.issued` keys are exactly the ids and hours, and that "unwell" and "family" never appear in any event.
+- Cancel step warning with live count, four reasons, buttons, version and time stored — PROVEN. `src/lib/portal/cancel-warning.ts`, `src/lib/strikes/words.ts`, `src/app/shifts/cancel-shift.tsx` (reasons come from `CANCEL_REASONS` plus "Something else"; "Confirm cancellation" and "Keep this shift"). The sentences match §5.7 item 4 word for word. The integration test checks `strike_warning_version` and `strike_warning_shown_at` on the booking. A strike is refused without a current-version warning that said so.
+- Done screen — PROVEN. `cancel-shift-result.tsx` shows the reference and the strike line. "Tell us what happened" (`src/lib/portal/what-happened.ts`) creates a `review` request with `payload.cancellation` set to the booking reference, using the existing `request-kinds.ts` schema and no new columns. The integration test "Tell us what happened" and the e2e both exercise it.
+- Retention job purges at `keep_months` (12), never during `retention.hold_until` — PROVEN. `purgeExpired` in `src/lib/gdpr/retention.ts:102` calls `app_purge_old_strikes()`. The integration test shows a 13-month strike purged, an 11-month one kept, nothing purged under a hold or with `keep_months` 18, and other firms untouched.
+- Nothing else automatic — PROVEN. `liveStrikeCount` is only used for the warning text; I found no code that blocks, fines or acts on a strike.
+- `docs/dpia-strikes.md` with a firm template — PROVEN. Part 1 covers what is processed, retention, who sees it, proportionality, risks and sign-off. Part 2 is a 10-item firm template. It states that sign-off is pending before a real firm.
+- Table test of every `strikeDecision()` case and boundary — PROVEN. `tests/unit/strikes.test.ts` covers office-assigned, rules override, changed after booking, exactly 48 and 47.99 hours, "Family or caring" and "I'm unwell" flagged, and a session taken inside 48 hours not flagged.
+- Unit test per warning sentence — PROVEN. The strike, exempt and notice sentences are each asserted verbatim, plus the footer and the done-screen text.
+- Integration tests — PROVEN. `tests/integration/strikes.test.ts` has 15 passing tests, covering: office cancellation gives none (booking and whole session); one strike per booking (unique key); rolled-back cancellation leaves no row; purge at 12 months; nothing purged during a hold.
+- Isolation — PROVEN. `strikes` is in `tests/helpers/tenant-rows.ts` (row factory plus all five composite-FK cases), and `tests/integration/rls.every-table.test.ts` passes (201 assertions, including `app_purge_old_strikes` in the app-executable function list).
+- e2e — PROVEN. `tests/e2e/strikes.worker.spec.ts` ("a cancellation under 48 hours shows the warning and records a strike; one over 48 hours records none") is test 67 and passes in `e2e.log`. It asserts the warning text, the done text, a DB check that only the under-48-hour shift has a strike, and "Tell us what happened".
+- Docs — PROVEN. `docs/screens.md` (the `/` row, cancel step and done screen; the Requests row), `docs/data-model.md` (assignments columns, `strikes` DDL, retention rows, purge description) and `docs/office-v2.md`.
+- `guardrails-reviewer` — PARTIAL, unverifiable from disk. The only evidence is the self-written "Guardrails review: FIX FIRST…, fixed" entry in `docs/overnight-log.md` (line ~10265 onward). Its fixes are visible in code and tests (`waitingReview` skipping cancellation requests, the current-version warning check, migration 0039, no review flag in `strike.issued`). No separate review artifact exists. I count this as acceptable since the findings are traceable to code.
+
+Fakes found: none. There are no skips, `.only`, `TODO`s or hard-coded returns in the path, and the tests run against the real database as the app role.
+
+Deviation (documented, not blocking): the purge also keeps a strike whose `expires_at` is under 6 months ago (migration 0039). `firm:settings` only accepts a `keep_months` that covers `live_days` plus 6 months, so at defaults every strike still goes at 12 months. This is tested and written into `docs/data-model.md`, `docs/dpia-strikes.md` and `src/lib/strikes/settings.ts`.
+
+To reach DONE: nothing.
+
+VERDICT: DONE
+```
+
+**Ticked**, hours logged (1.6 h; Phase 12 so far 12.3 h, no estimate to compare with). CI: the
+first checkpoint (`774780a`) failed lint on Prettier formatting in three files (typecheck, tests
+and invariants passed there); the second checkpoint (`2e44a6d`) fixed it and CI passed. Parked
+(Parking lot): the answer's wording to "Tell us what happened" (a WhatsApp template); a per-firm
+switch to turn strikes off. Needs Dylan: sign `docs/dpia-strikes.md` before a real firm uses
+strikes. Commit: "Phase 12: Strikes on cancel (12C.1)" (hash in the next entry).
+

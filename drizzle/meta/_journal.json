@@ -274,6 +274,13 @@
       "when": 1791521104791,
       "tag": "0038_strikes",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791523771919,
+      "tag": "0039_strike_purge_after_expiry",
+      "breakpoints": true
     }
   ]
 }

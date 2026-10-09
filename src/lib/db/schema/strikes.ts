@@ -21,9 +21,10 @@ import { firms } from "./tenancy";
 // themselves that nobody changed afterwards (src/lib/strikes/decide.ts). One per booking. It
 // counts until expires_at (issued_at + strikes.live_days); "expired" is worked out from that date,
 // never stored. The app may read and add rows and change only the review, withdrawal and evidence
-// columns (COLUMN_UPDATES), never delete one: app_purge_old_strikes() (migration 0038), run as the
-// owner by the nightly retention job, deletes rows older than strikes.keep_months (12), and none
-// while the firm's retention hold is on.
+// columns (COLUMN_UPDATES), never delete one: app_purge_old_strikes() (migrations 0038 and 0039),
+// run as the owner by the nightly retention job, deletes rows issued more than strikes.keep_months
+// (12) ago, never one that stopped counting under 6 months ago (keep_months covers that whenever
+// it's set with firm:settings), and none while the firm's retention hold is on.
 //
 // review_reasons ("unwell", "family_or_caring") come from the casual's quick reason and mark it for
 // a person to look at; they're kept here, never in the action log. The withdrawal reason is the

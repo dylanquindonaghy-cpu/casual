@@ -997,7 +997,8 @@ the menu.
 6. **After confirming:** the reference, whether a strike was recorded and until when, and "Tell us
    what happened" (a `review` request about that booking, its reference filled in: 3.5).
 
-The version and time of the warning she saw are stored (S3).
+The version of the warning she saw, and the time she confirmed with it on screen, are stored (S3; a
+strike is only ever issued against a warning that said so, 12C.1).
 
 ### 4.6 Profile (`/profile`)
 

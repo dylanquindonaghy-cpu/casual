@@ -46,6 +46,7 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
     if (sending.current) return;
     sending.current = true;
     setAsking(true);
+    setWarning(null);
     setProblem(null);
     startTransition(async () => {
       const result = await cancelWarningAction(shiftId).catch(() => ({ status: "error" as const }));
@@ -102,19 +103,36 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
       </button>
     );
   }
+  const keep = (
+    <button
+      type="button"
+      disabled={pending && warning !== null}
+      onClick={() => {
+        setAsking(false);
+        setWarning(null);
+        setProblem(null);
+      }}
+      className={`${staffBtn.secondary} mt-3`}
+    >
+      Keep this shift
+    </button>
+  );
   if (!warning) {
     return (
-      <p role="status" className="font-semibold">
-        Checking…
-      </p>
+      <div className="flex flex-col">
+        <p role="status" className="font-semibold">
+          Checking…
+        </p>
+        {keep}
+      </div>
     );
   }
+  // The warning first (docs/office-v2.md 4.5), then why.
   return (
-    <fieldset className="rounded-xl border-2 border-line-strong p-4">
-      <legend className="px-1 text-lg font-bold">Why can&apos;t you make it?</legend>
+    <div className="flex flex-col gap-3">
       <p
         role="note"
-        className={`mb-3 rounded-xl border-2 p-3 ${
+        className={`rounded-xl border-2 p-3 ${
           warning.kind === "strike"
             ? "border-urgent bg-urgent-soft font-semibold text-urgent-ink"
             : "border-line-strong bg-quiet-soft"
@@ -122,59 +140,51 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
       >
         {warning.text}
       </p>
-      {[...CANCEL_REASONS, OTHER_REASON].map((reason) => (
-        <label key={reason} className="flex min-h-12 items-center gap-3 py-2">
-          <input
-            type="radio"
-            name={`reason-${shiftId}`}
-            value={reason}
-            checked={choice === reason}
-            onChange={() => setChoice(reason)}
-            disabled={!ready}
-            className="h-6 w-6 shrink-0 accent-ink"
-          />
-          <span>{reason}</span>
-        </label>
-      ))}
-      {choice === OTHER_REASON && (
-        <label className={`${labelStack} mt-2`}>
-          <span>Tell the office why</span>
-          <input
-            type="text"
-            value={note}
-            maxLength={MAX_NOTE_LENGTH}
-            onChange={(e) => setNote(e.target.value)}
-            disabled={!ready}
-            className={staffField}
-          />
-        </label>
-      )}
-      {problem && (
-        <p role="alert" className="mt-3 font-semibold text-urgent">
-          {problem}
-        </p>
-      )}
-      <button
-        type="button"
-        disabled={pending}
-        onClick={confirm}
-        className={`${staffBtn.dangerSolid} mt-4`}
-      >
-        {pending ? "Cancelling…" : "Confirm cancellation"}
-      </button>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => {
-          setAsking(false);
-          setWarning(null);
-          setProblem(null);
-        }}
-        className={`${staffBtn.secondary} mt-3`}
-      >
-        Keep this shift
-      </button>
-      <p className="mt-3 text-base text-ink-muted">{CANCEL_FOOTER}</p>
-    </fieldset>
+      <fieldset className="rounded-xl border-2 border-line-strong p-4">
+        <legend className="px-1 text-lg font-bold">Why can&apos;t you make it?</legend>
+        {[...CANCEL_REASONS, OTHER_REASON].map((reason) => (
+          <label key={reason} className="flex min-h-12 items-center gap-3 py-2">
+            <input
+              type="radio"
+              name={`reason-${shiftId}`}
+              value={reason}
+              checked={choice === reason}
+              onChange={() => setChoice(reason)}
+              disabled={!ready}
+              className="h-6 w-6 shrink-0 accent-ink"
+            />
+            <span>{reason}</span>
+          </label>
+        ))}
+        {choice === OTHER_REASON && (
+          <label className={`${labelStack} mt-2`}>
+            <span>Tell the office why</span>
+            <input
+              type="text"
+              value={note}
+              maxLength={MAX_NOTE_LENGTH}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={!ready}
+              className={staffField}
+            />
+          </label>
+        )}
+        {problem && (
+          <p role="alert" className="mt-3 font-semibold text-urgent">
+            {problem}
+          </p>
+        )}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={confirm}
+          className={`${staffBtn.dangerSolid} mt-4`}
+        >
+          {pending ? "Cancelling…" : "Confirm cancellation"}
+        </button>
+        {keep}
+        <p className="mt-3 text-base text-ink-muted">{CANCEL_FOOTER}</p>
+      </fieldset>
+    </div>
   );
 }

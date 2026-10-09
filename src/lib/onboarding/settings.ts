@@ -9,7 +9,7 @@ import {
   RETENTION_MIN_DAYS,
   retentionSettings,
 } from "../gdpr/retention-settings";
-import { STRIKE_LIMITS, strikeSettings } from "../strikes/settings";
+import { keepCoversLive, STRIKE_LIMITS, strikeSettings } from "../strikes/settings";
 
 // The firm settings the onboarding checklist asks the firm to agree (docs/go-to-market.md "Pilot
 // onboarding checklist"; docs/data-model.md "Firm settings"), as the app reads them. Each app
@@ -88,7 +88,7 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
     "nothing personal is purged until after this date (yyyy-mm-dd), for a dispute; none for no hold",
   "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
-  "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max})`,
+  "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,
 };
 
 const stored = (s: Settings, key: SettingKey): unknown => {
@@ -163,6 +163,8 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
   try {
     if (READ[key](next) !== value) return null;
     parseAllocationSettings(next);
+    // A strike's record must outlast its counting by 6 months (the tribunal time limit).
+    if (key.startsWith("strikes.") && !keepCoversLive(strikeSettings(next))) return null;
   } catch {
     return null;
   }

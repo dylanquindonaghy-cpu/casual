@@ -101,8 +101,9 @@ export async function liveStrikeCount(tx: FirmTx, workerId: string, now: Date): 
   return Number(row?.n ?? 0);
 }
 
-// The strike row and strike.issued (ids, codes and hours only: the review reasons stay on the row,
-// never in the append-only log, because "unwell" is about health). One per booking (a unique key).
+// The strike row and strike.issued (ids and hours only). The review flag and its reasons stay on the
+// row, never in the append-only log: "unwell" is about health, and the flag alone would say the
+// reason was health or caring long after the row is deleted. One per booking (a unique key).
 export async function issueStrike(
   tx: FirmTx,
   input: {
@@ -144,7 +145,6 @@ export async function issueStrike(
       workerId: input.workerId,
       noticeHours: input.noticeHours,
       thresholdHours: input.settings.noticeHours,
-      review,
     },
   });
   return { strikeId: row.id, expiresAt };

@@ -180,8 +180,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const notice = hours(d.noticeHours);
       const under =
         typeof d.thresholdHours === "number" ? ` (under ${d.thresholdHours} hours)` : "";
-      const review = d.review === true ? " A person should review it." : "";
-      return `${worker} got a strike for cancelling${notice ? ` with ${notice}` : ""}${under}.${review}`;
+      return `${worker} got a strike for cancelling${notice ? ` with ${notice}` : ""}${under}.`;
     }
     case "shift.moved":
     case "shift.curtailed": {

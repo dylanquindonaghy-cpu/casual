@@ -6,8 +6,11 @@
 //   apart from short_notice_threshold_hours (the law's), so firm policy doesn't move when the law
 //   does.
 // - live_days (90): how long a strike counts.
-// - keep_months (12): when the strike row is deleted (app_purge_old_strikes(), migration 0038,
-//   reads the same range): never inside the 6-month tribunal time limit.
+// - keep_months (12): when the strike row is deleted (app_purge_old_strikes(), migrations 0038 and
+//   0039, reads the same range): never inside the 6-month tribunal time limit, and never before a
+//   strike has stopped counting for 6 months. `firm:settings` only accepts a keep_months that
+//   covers live_days plus 6 months (keepCoversLive), so every strike goes at keep_months; the
+//   purge also holds back one that ended under 6 months ago, against settings edited by hand.
 
 export const STRIKE_DEFAULTS = { noticeHours: 48, liveDays: 90, keepMonths: 12 } as const;
 export const STRIKE_LIMITS = {
@@ -29,6 +32,12 @@ function whole(value: unknown, limits: { min: number; max: number }, fallback: n
     value <= limits.max
     ? value
     : fallback;
+}
+
+// keep_months covers live_days plus 6 months (a month counted as 28 days, the shortest), so a
+// strike deleted at keep_months stopped counting more than 6 months before.
+export function keepCoversLive(s: StrikeSettings): boolean {
+  return (s.keepMonths - 6) * 28 >= s.liveDays;
 }
 
 export function strikeSettings(settings: Record<string, unknown>): StrikeSettings {

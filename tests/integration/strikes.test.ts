@@ -15,6 +15,7 @@ import { editShiftDetails } from "@/lib/office/shift-editor";
 import { cancelMyShift } from "@/lib/portal/cancel-shift";
 import { cancelWarning } from "@/lib/portal/cancel-warning";
 import { takeShift } from "@/lib/portal/take-shift";
+import { waitingReview } from "@/lib/portal/shift-detail";
 import { tellWhatHappened } from "@/lib/portal/what-happened";
 import { cancelBooking } from "@/lib/roster/cancel";
 import { STRIKE_WARNING_VERSION, type WarningKind } from "@/lib/strikes/words";
@@ -163,7 +164,6 @@ describe("a casual's own cancellation", () => {
       workerId: sam,
       noticeHours: 19,
       thresholdHours: 48,
-      review: false,
     });
     // It counts: their next warning says so.
     const next = await t.f.shift({ startsAt: hoursFromNow(30) });
@@ -190,8 +190,18 @@ describe("a casual's own cancellation", () => {
       [false, []],
       [false, []],
     ]);
+    // The log keeps ids and hours only: not even that a review is needed (health or caring).
     const log = await t.logged("strike.issued");
-    expect(log.map((e) => e.data.review)).toEqual([true, true, false, false]);
+    expect(log).toHaveLength(4);
+    for (const e of log) {
+      expect(Object.keys(e.data).sort()).toEqual([
+        "assignmentId",
+        "noticeHours",
+        "shiftId",
+        "thresholdHours",
+        "workerId",
+      ]);
+    }
     const all = JSON.stringify(
       (await su.query("select data from events where firm_id = $1", [t.f.firmId])).rows,
     ).toLowerCase();
@@ -373,6 +383,48 @@ describe("the warning they confirmed against", () => {
     expect(await t.strikeRows()).toHaveLength(1);
   });
 
+  it("a strike needs a warning that said so: none sent, or an old version, cancels nothing", async () => {
+    const t = await strikeFirm();
+    const sam = await t.f.worker();
+    const jo = await t.f.worker({ first: "Jo" });
+    const shiftId = await t.f.shift({ startsAt: hoursFromNow(10), headcount: 2 });
+    const far = await t.f.shift({ startsAt: hoursFromNow(100) });
+    await t.take(sam, shiftId);
+    await t.take(jo, shiftId);
+    await t.take(sam, far);
+    const byWorker = (
+      worker: string,
+      shift: string,
+      warning?: { kind: WarningKind; version: string },
+    ) =>
+      cancelBooking(
+        withFirm,
+        t.f.firmId,
+        {
+          shiftId: shift,
+          workerId: worker,
+          reason: "Travel problem",
+          by: { type: "worker", id: worker, ...(warning ? { warning } : {}) },
+        },
+        { clock: at(NOW) },
+      );
+    // A path that showed no warning can't give a strike.
+    expect(await byWorker(sam, shiftId)).toEqual({ status: "warning_changed", kind: "strike" });
+    // A warning of a version that isn't the current one (or never was) isn't proof either.
+    expect(await byWorker(jo, shiftId, { kind: "strike", version: "v0" })).toEqual({
+      status: "warning_changed",
+      kind: "strike",
+    });
+    expect(await t.strikeRows()).toEqual([]);
+    expect((await t.booking(sam, shiftId))?.status).toBe("confirmed");
+    // No strike to give: a cancellation with no warning goes through, recording none.
+    expect(await byWorker(sam, far)).toMatchObject({ status: "cancelled", strike: null });
+    expect(await t.booking(sam, far)).toMatchObject({
+      strike_warning_version: null,
+      strike_warning_shown_at: null,
+    });
+  });
+
   it("a cancellation that rolls back leaves no strike", async () => {
     const t = await strikeFirm();
     const sam = await t.f.worker();
@@ -437,7 +489,12 @@ describe("the strikes table", () => {
     const other = await strikeFirm();
     const sam = await t.f.worker();
     // Strikes issued 13 and 11 months ago (by the database's clock, which the purge reads).
-    const old = async (firm: { f: BookingFirm }, worker: string, monthsAgo: number) => {
+    const old = async (
+      firm: { f: BookingFirm },
+      worker: string,
+      monthsAgo: number,
+      liveDays = 90,
+    ) => {
       const shiftId = await firm.f.shift({ startsAt: hoursFromNow(-24 * 30 * monthsAgo) });
       const { rows } = await su.query<{ id: string }>(
         `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at,
@@ -451,8 +508,8 @@ describe("the strikes table", () => {
         `insert into strikes (firm_id, worker_id, assignment_id, shift_id, notice_hours,
                               threshold_hours, issued_at, expires_at)
          values ($1, $2, $3, $4, 10, 48, now() - make_interval(months => $5),
-                 now() - make_interval(months => $5) + interval '90 days')`,
-        [firm.f.firmId, worker, rows[0]?.id, shiftId, monthsAgo],
+                 now() - make_interval(months => $5) + make_interval(days => $6))`,
+        [firm.f.firmId, worker, rows[0]?.id, shiftId, monthsAgo, liveDays],
       );
     };
     await old(t, sam, 13);
@@ -488,12 +545,66 @@ describe("the strikes table", () => {
     // Another firm's old strike is still there; its own purge takes it.
     expect(await count(other.f.firmId)).toBe(1);
     expect(await purge(other.f.firmId)).toBe(1);
-    // Its log entry stays (the action log isn't purged): only the row goes.
-    const anyStrikeEntry = await su.query(
+    // The nightly purge says how many went.
+    const purged = await su.query(
       "select 1 from events where firm_id = $1 and action = 'retention.purged' and (data->>'strikes')::int = 1",
       [t.f.firmId],
     );
-    expect(anyStrikeEntry.rows).toHaveLength(1);
+    expect(purged.rows).toHaveLength(1);
+  });
+
+  it("never while it still counts, or within 6 months of it ending; a keep_months out of range is 12", async () => {
+    const t = await strikeFirm();
+    const sam = await t.f.worker();
+    const shiftFor = async (monthsAgo: number, liveDays: number) => {
+      const shiftId = await t.f.shift({ startsAt: hoursFromNow(-24 * 30 * monthsAgo) });
+      const { rows } = await su.query<{ id: string }>(
+        `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at,
+                                  cancelled_at, cancel_reason, notice_hours, cancel_via)
+         values ($1, $2, 1, $3, 'cancelled_worker', now() - make_interval(months => $4),
+                 now() - make_interval(months => $4), 'Travel problem', 10, 'app')
+         returning id::text as id`,
+        [t.f.firmId, shiftId, sam, monthsAgo],
+      );
+      const { rows: s } = await su.query<{ id: string }>(
+        `insert into strikes (firm_id, worker_id, assignment_id, shift_id, notice_hours,
+                              threshold_hours, issued_at, expires_at)
+         values ($1, $2, $3, $4, 10, 48, now() - make_interval(months => $5),
+                 now() - make_interval(months => $5) + make_interval(days => $6))
+         returning id::text as id`,
+        [t.f.firmId, sam, rows[0]?.id, shiftId, monthsAgo, liveDays],
+      );
+      return s[0]?.id ?? "";
+    };
+    // A firm keeping strikes 7 months, counting them a year: issued 13 months ago, it stopped
+    // counting a month ago (stays); one that stopped counting 7 months ago goes.
+    await su.query(
+      `update firms set settings = '{"strikes": {"keep_months": 7, "live_days": 365}}' where id = $1`,
+      [t.f.firmId],
+    );
+    const stillRecent = await shiftFor(13, 365);
+    const longDone = await shiftFor(14, 200);
+    const purge = () =>
+      withFirm(t.f.firmId, async (tx) => {
+        const { rows } = await tx.execute<{ n: number }>(sql`select app_purge_old_strikes() as n`);
+        return Number(rows[0]?.n);
+      });
+    expect(await purge()).toBe(1);
+    const left = async () =>
+      (
+        await su.query<{ id: string }>("select id::text from strikes where firm_id = $1", [
+          t.f.firmId,
+        ])
+      ).rows.map((r) => r.id);
+    expect(await left()).toEqual([stillRecent]);
+    expect(await left()).not.toContain(longDone);
+    // keep_months 3 (inside the tribunal limit) isn't read: 12 it is, so a 10-month-old strike stays.
+    await su.query(`update firms set settings = '{"strikes": {"keep_months": 3}}' where id = $1`, [
+      t.f.firmId,
+    ]);
+    const tenMonths = await shiftFor(10, 30);
+    expect(await purge()).toBe(0);
+    expect(await left()).toContain(tenMonths);
   });
 });
 
@@ -561,6 +672,8 @@ describe("Tell us what happened", () => {
       status: "already_sent",
       ref: sent.status === "sent" ? sent.ref : "",
     });
+    // It isn't a request to look again at a refused shift: the shift page doesn't take it for one.
+    expect(await withFirm(t.f.firmId, (tx) => waitingReview(tx, sam, shiftId))).toBeNull();
     // Jo didn't cancel it; nor did anyone on another firm's shift.
     expect(await tellWhatHappened(t.portal(), jo, shiftId, "Hello.")).toEqual({
       status: "not_cancelled",

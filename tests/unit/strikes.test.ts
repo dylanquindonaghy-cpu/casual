@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { passesLogCheck } from "@/lib/events/record";
+import { eventWords } from "@/lib/office/event-words";
 import { strikeDecision, type StrikeDecision, type StrikeFacts } from "@/lib/strikes/decide";
-import { STRIKE_DEFAULTS, strikeSettings } from "@/lib/strikes/settings";
+import { applySetting } from "@/lib/onboarding/settings";
+import { keepCoversLive, STRIKE_DEFAULTS, strikeSettings } from "@/lib/strikes/settings";
 import {
   CANCEL_FOOTER,
   cancelledText,
@@ -181,5 +184,42 @@ describe("the strike settings", () => {
       strikeSettings({ strikes: { notice_hours: 12.5, live_days: "30", keep_months: null } }),
     ).toEqual(STRIKE_DEFAULTS);
     expect(strikeSettings({ strikes: "nonsense" })).toEqual(STRIKE_DEFAULTS);
+  });
+
+  it("firm:settings keeps a strike's record at least 6 months past the time it counts", () => {
+    expect(keepCoversLive(STRIKE_DEFAULTS)).toBe(true);
+    // Counting 90 days: 10 months is the shortest (4 months of 28 days covers 90 days).
+    expect(applySetting({}, "strikes.keep_months", "10")).toEqual({ strikes: { keep_months: 10 } });
+    expect(applySetting({}, "strikes.keep_months", "9")).toBeNull();
+    // Counting a year needs 6 + 14 months.
+    expect(applySetting({ strikes: { keep_months: 18 } }, "strikes.live_days", "365")).toBeNull();
+    expect(applySetting({ strikes: { keep_months: 20 } }, "strikes.live_days", "365")).toEqual({
+      strikes: { keep_months: 20, live_days: 365 },
+    });
+    // The strikes team's email beside them is kept as it is.
+    expect(
+      applySetting({ strikes: { email: "team@example.com" } }, "strikes.notice_hours", "24"),
+    ).toEqual({ strikes: { email: "team@example.com", notice_hours: 24 } });
+  });
+});
+
+describe("the log entry", () => {
+  it("strike.issued: ids and hours only, passing the log check, in plain words", () => {
+    const data = {
+      assignmentId: "11111111-1111-4111-8111-111111111111",
+      shiftId: "22222222-2222-4222-8222-222222222222",
+      workerId: "33333333-3333-4333-8333-333333333333",
+      noticeHours: 19,
+      thresholdHours: 48,
+    };
+    expect(passesLogCheck(data)).toBe(true);
+    expect(
+      eventWords(
+        { action: "strike.issued", actorType: "system", actorId: null, data },
+        { worker: () => "Ann Booker", office: () => "Sam Rota" },
+      ),
+    ).toBe("Ann Booker got a strike for cancelling with 19 hours' notice (under 48 hours).");
+    // A firm's cancellation says it isn't one.
+    expect(strikeDecision({ cancelledBy: "firm" }).code).toBe("by_firm");
   });
 });

@@ -124,6 +124,7 @@ describe("cancelling a shift", () => {
           workerId: t.ann,
           reason: "The event was cancelled",
           noticeHours: 119,
+          strike: "by_firm",
         },
       ],
       [
@@ -136,6 +137,7 @@ describe("cancelling a shift", () => {
           workerId: t.ben,
           reason: "The event was cancelled",
           noticeHours: 119,
+          strike: "by_firm",
         },
       ],
       [

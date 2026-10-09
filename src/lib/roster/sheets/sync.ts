@@ -12,6 +12,7 @@ import {
 } from "../../db/schema";
 import type { FirmTx, WithFirm } from "../../db/scoped";
 import { recordEvent } from "../../events/record";
+import { strikeDecision } from "../../strikes/decide";
 import { acceptOwnOffer } from "../../offers/close";
 import { retryAborted } from "../../db/retry";
 import { checkBooking } from "../book";
@@ -937,6 +938,8 @@ async function logCancel(
       workerId: cancel.workerId,
       reason,
       noticeHours: cancel.noticeHours,
+      // The sheet is the firm's: never a strike (src/lib/strikes/decide.ts).
+      strike: strikeDecision({ cancelledBy: "firm" }).code,
     }),
   );
 }

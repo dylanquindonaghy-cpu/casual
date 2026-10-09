@@ -400,6 +400,7 @@ describe("sheets.sync: from the sheet into our tables", () => {
       workerId: await idOf("workers", f.firmId, "N001"),
       reason: REMOVED_ON_SHEET,
       noticeHours: 35,
+      strike: "by_firm", // the sheet is the firm's: never a strike (12C.1)
     });
     // 35 hours out is outside the 24-hour urgent window: not urgent.
     expect(await eventsOf(f.firmId, "shift.marked_urgent")).toEqual([]);

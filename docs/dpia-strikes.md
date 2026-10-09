@@ -49,9 +49,11 @@ privacy notice updated (`docs/office-v2.md` 6.3), and the solicitor's questions 
 ### How long
 
 - A strike counts for 90 days (`strikes.live_days`).
-- Its row is deleted 12 months after it was issued (`strikes.keep_months`, at least 7), by the
-  nightly purge (`app_purge_old_strikes()`), but never while the firm has a retention hold for a
-  dispute.
+- Its row is deleted 12 months after it was issued (`strikes.keep_months`), by the nightly purge
+  (`app_purge_old_strikes()`), but never while the firm has a retention hold for a dispute. A firm
+  may keep strikes longer, never shorter than the time a strike counts plus 6 months (the 6-month
+  tribunal time limit): `firm:settings` refuses a shorter one, and the purge itself never deletes
+  a strike that stopped counting less than 6 months ago.
 - The `strike.issued` log entry (ids, codes and hours, no reason) stays as long as the action log,
   which isn't purged yet (`PLAN.md` Data 2). The privacy notice and the help page must say so.
 

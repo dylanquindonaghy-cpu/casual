@@ -14,7 +14,7 @@ import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES, firmReasonWords } from 
 import { noticeHours } from "./notice";
 import { strikeDecision, type StrikeDecision } from "../strikes/decide";
 import { decideForWorker, firmStrikeSettings, issueStrike } from "../strikes/issue";
-import { warningKind, type WarningKind } from "../strikes/words";
+import { STRIKE_WARNING_VERSION, warningKind, type WarningKind } from "../strikes/words";
 
 // Cancelling a booking: the one path for a worker cancelling their own shift, or the office
 // cancelling someone's (golden rules 5 and 12; docs/architecture.md, "Cancel"). In its own
@@ -29,9 +29,12 @@ import { warningKind, type WarningKind } from "../strikes/words";
 //      (src/lib/strikes/decide.ts, 12C.1): the office's cancellation is never a strike; a worker's
 //      own is decided from the notice, who booked it and whether the office changed it since, and
 //      a strike row (strike.issued) is added only when one is issued. A worker who saw a warning
-//      sends which kind it was: if the decision now differs (the notice crossed the threshold
-//      while they read it, say), nothing is cancelled and they're shown the new one
-//      ("warning_changed"); otherwise the warning's version and the time are kept on the booking.
+//      sends which kind it was and its version: if the decision now differs (the notice crossed
+//      the threshold while they read it, say) or the version isn't the current one, nothing is
+//      cancelled and they're shown the new one ("warning_changed"); otherwise the warning's
+//      version and the time are kept on the booking. A strike is only ever issued against a
+//      warning that said so: a worker's cancellation that would be a strike, sent with no warning
+//      (a path that shows none), is refused the same way.
 // The reason is typed by a person and may name someone or mention their health, so it is kept
 // only on the assignment row (which can be corrected or anonymised), never in the action log
 // (which is append-only): the event carries who, which shift and booking, and the notice hours.
@@ -129,6 +132,7 @@ async function cancelInTransaction(
   // The office's: never a strike. A worker's: decided below, on their confirmed booking (without
   // one, the plug changes nothing).
   let decision: StrikeDecision = strikeDecision({ cancelledBy: "firm" });
+  let decidedOn: string | null = null; // the booking a worker's decision was made on
   if (by.type === "worker" && strikes) {
     const [booking] = await tx
       .select({ id: assignments.id })
@@ -148,9 +152,13 @@ async function cancelInTransaction(
         reason,
         settings: strikes,
       });
-      if (by.warning && by.warning.kind !== warningKind(decision)) {
-        return { status: "warning_changed", kind: warningKind(decision) };
-      }
+      const kind = warningKind(decision);
+      const seen = by.warning;
+      const stale = seen
+        ? seen.kind !== kind || seen.version !== STRIKE_WARNING_VERSION
+        : kind === "strike";
+      if (stale) return { status: "warning_changed", kind };
+      decidedOn = booking.id;
     }
   }
 
@@ -164,10 +172,13 @@ async function cancelInTransaction(
   if (cancelled.noticeHours !== notice) {
     throw new Error("the booking's notice differs from the one the strike was decided on");
   }
+  if (decidedOn !== null && cancelled.assignmentId !== decidedOn) {
+    throw new Error("the booking cancelled differs from the one the strike was decided on");
+  }
   if (by.type === "worker" && by.warning) {
     await tx
       .update(assignments)
-      .set({ strikeWarningVersion: by.warning.version, strikeWarningShownAt: now })
+      .set({ strikeWarningVersion: STRIKE_WARNING_VERSION, strikeWarningShownAt: now })
       .where(eq(assignments.id, cancelled.assignmentId));
   }
   const strike =
@@ -324,6 +335,7 @@ export async function cancelShiftByFirm(
             workerId: h.workerId,
             reason,
             noticeHours: cancelled.noticeHours,
+            strike: strikeDecision({ cancelledBy: "firm" }).code,
           },
         });
         await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });

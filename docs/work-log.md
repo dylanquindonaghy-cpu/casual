@@ -10246,3 +10246,109 @@ admin's own email.
 Run `npm run dev`, log in at `http://acme.localhost:3000/office` as an admin, open **Settings**, type
 an address and select "Save and send a link". The link appears in the terminal (the console outbox):
 open it and select "Confirm this address".
+
+## 2026-10-09 — Phase 12, task 12C.1: Strikes on cancel
+
+- **Time spent:** 1.6 hours (04:40 to 06:14 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=cd9946580807a39e e2e=true`
+  (3,741 tests; browser tests: 75, then the walkthrough's 3).
+- The independent auditor said `VERDICT: NOT DONE` on its first round (a rule added after the
+  safety review made one sentence of the task untrue, and five documents still described the old
+  rule), then `VERDICT: DONE` on its second, after the fix. It found no fakes.
+- Committed as "Phase 12: Strikes on cancel (12C.1)" and pushed to `build/overnight`. Two
+  checkpoint commits (`774780a`, `2e44a6d`, marked WIP) went first, before the safety review.
+
+### What was built, in plain words
+
+A **strike** is a note against a casual who cancelled a shift late. Now, when a casual cancels a
+shift **themselves** with **less than 48 hours' notice**, they get a strike. They don't get one
+when:
+
+- the office cancelled it (or the firm's rota sheet did);
+- they gave 48 hours' notice or more;
+- the office booked them onto it ("Assign"), even over a rest or hours rule;
+- the office moved it, shortened it, or changed its role, site or pay after they booked.
+
+The rule is one small **pure function** (code that only takes facts in and gives an answer back,
+touching nothing else), `strikeDecision()`. It runs inside the same **transaction** as the
+cancellation (a database unit of work that either all happens or none of it does), so a
+cancellation that fails halfway can never leave a strike behind.
+
+**What the casual sees.** When they tap "Cancel this shift", a box says what will happen, worked
+out by the same rule, for example: "This shift starts in 26 hours. Cancelling with less than 48
+hours' notice gives you a strike. Acme Events' strikes team gets a record of it. You have 0
+strikes in the last 90 days." Then the four reasons, as before, and "Confirm cancellation" or
+"Keep this shift". If the answer changes while they read it (the 48-hour mark passes, say),
+nothing is cancelled and they see the new box. Afterwards: "Cancelled. Reference 4F2A9C1B. A
+strike has been recorded. It counts until Sun 31 Jan." (or "No strike."), and "If something
+stopped you, tell us what happened.", which sends their words to the office as a request.
+
+**Health and caring.** When the reason was "I'm unwell" or "Family or caring", the strike is
+flagged for a person to look at. Being unwell is **health data**, which the law protects more
+strictly, so that flag lives only on the strike's own row. It is never written to the **action
+log** (the permanent record of everything that happens), which only gets ids and hours.
+
+**How long.** A strike counts for 90 days. Its record is deleted after 12 months by the nightly
+clean-up, never while the firm has a "hold" for a dispute. The database login the app uses
+can't delete strikes itself: only one small database function can, and it reads the firm's own
+settings.
+
+**Nothing happens automatically.** No fine, no block, no message. A person decides.
+
+**Paperwork.** `docs/dpia-strikes.md` is a **DPIA** (data protection impact assessment: a
+written check of the privacy risks and what reduces them), with a template each firm fills in.
+It must be reviewed and signed before a real firm uses strikes.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A booking with no record of who made it counts as the office's: no strike | A strike needs proof the casual took the shift | Counting it as theirs |
+| "Changed after booking" is read from the action log by order of entries, not by clock times | The app's and the database's clocks can differ; the log's numbers only go up | Comparing times |
+| A strike is only given against a warning that said so, of the current version | What the casual is told must be what happens | Trusting the page |
+| The warning's stored time is when they confirmed with it on screen | The server can't know when someone looked at a screen | A time sent by the browser |
+| The review flag and its reason stay on the strike row only | Health data mustn't sit in a log that's never deleted | Logging a "review" flag |
+| The record goes at 12 months, and the owner can't set it shorter than the time a strike counts plus 6 months | The 6-month tribunal time limit | Only the clean-up checking |
+| "Tell us what happened" is the existing "review" request, marked with the booking's reference | The task says no new columns or types | A new request type |
+| Strikes are in the casual's data export | They're personal data about them | Leaving them out |
+
+### What the review and the audit found
+
+The safety review found one thing to fix first: a casual's "Tell us what happened" was mistaken for
+a request to look again at a shift the rules refused, so the shift page could say "You asked the
+office to review this" when they hadn't. Fixed and tested. It also asked for, and got: only the
+current warning accepted; no strike without a warning that said so; strike records never deleted
+while they still count; and no review flag in the log. Smaller extras: every cancellation by the
+firm (one booking, a whole session, the rota sheet) now says "no strike" in its log entry, and the
+warning now comes before the reasons.
+
+The first audit round then found that the "kept 6 months past the end" rule made the task's
+"deleted at 12 months" untrue for unusual settings. Now the settings themselves refuse a record
+time that's too short, so the record always goes at the setting, and the documents say so.
+
+### What the new tests prove
+
+- Unit tests (`tests/unit/strikes.test.ts`, 26): every case of the rule and its edges (exactly 48
+  hours is no strike, 47.99 is one), each warning sentence word for word, the done screen's words,
+  the settings and their limits, and the log entry's words.
+- Database tests (`tests/integration/strikes.test.ts`, 15): a real casual taking and cancelling a
+  shift gets a strike with the right dates; the log holds no reason; the office's cancellations
+  give none; office bookings and office changes are exempt; a stale or missing warning cancels
+  nothing; a failed cancellation leaves no strike; one strike per booking; the app can't delete or
+  rewrite one; the clean-up at 12 months, never during a hold, never another firm's; "Tell us what
+  happened" once per booking; strikes in the data export.
+- Browser test (`tests/e2e/strikes.worker.spec.ts`): on a phone, a casual cancels a shift 20 hours
+  away (the strike warning, then a strike) and one 4 days away (no strike).
+- Breaking each part of the rule on purpose made a test fail (6 checks).
+
+### What's parked or needs Dylan
+
+- Sign the DPIA before a real firm uses strikes, and have the firm fill in its part.
+- The office's answer to "Tell us what happened" uses the usual "Your request … is approved/declined"
+  message, which reads oddly here: a better wording needs a new WhatsApp template (Parking lot).
+- There's no per-firm switch to turn strikes off (Parking lot).
+
+### How to see it working
+
+Run `npm run dev`, log in as a casual at `http://acme.localhost:3000`, take a shift that starts
+within 48 hours from "See open shifts", then on "See my shifts" tap "Cancel this shift".

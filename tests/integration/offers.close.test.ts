@@ -7,10 +7,14 @@ import { assignWorker } from "@/lib/office/quick-actions";
 import { takeShift } from "@/lib/portal/take-shift";
 import type { PushTransport } from "@/lib/push/transport";
 import { cancelBooking } from "@/lib/roster/cancel";
+import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { closeShift } from "@/lib/roster/close";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
+
+// A casual cancelling under 48 hours a shift they took confirms against the strike warning (12C.1).
+const STRIKE_WARNING = { kind: "strike", version: STRIKE_WARNING_VERSION } as const;
 
 // When a shift fills, every offer of it still waiting is answered at once, in every mode and by
 // every route that fills it (src/lib/offers/close.ts; audit finding M5): an offered worker who holds
@@ -210,7 +214,8 @@ describe("the answers stay true afterwards", () => {
           shiftId: t.shiftId,
           workerId: first,
           reason: "I'm unwell",
-          by: { type: "worker", id: first },
+          // Under 48 hours on a shift they took: the strike warning they confirmed (12C.1).
+          by: { type: "worker", id: first, warning: STRIKE_WARNING },
         },
         { clock: { now: () => dropout } },
       ),
@@ -239,7 +244,12 @@ describe("the answers stay true afterwards", () => {
         await cancelBooking(
           withFirm,
           t.f.firmId,
-          { shiftId: t.shiftId, workerId: w, reason: "I'm unwell", by: { type: "worker", id: w } },
+          {
+            shiftId: t.shiftId,
+            workerId: w,
+            reason: "I'm unwell",
+            by: { type: "worker", id: w, warning: STRIKE_WARNING },
+          },
           { clock: dropout },
         ),
       ).toMatchObject({ status: "cancelled" });

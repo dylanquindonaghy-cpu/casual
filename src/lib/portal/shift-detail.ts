@@ -60,7 +60,9 @@ export const takenPlaces = (tx: FirmTx, shiftId: string) =>
        and a.status not in (${CANCELLED}) and a.slot <= s.headcount
   `);
 
-// The worker's review request for the shift that's still waiting for the office, if any.
+// The worker's review request for the shift that's still waiting for the office, if any. Not their
+// account of a cancellation ("Tell us what happened", 12C.1): that's a review request too, but
+// about the cancelled booking (its payload names it), not about the rules refusing the shift.
 export async function waitingReview(tx: FirmTx, workerId: string, shiftId: string) {
   const [waiting] = await tx
     .select({ id: requests.id, createdAt: requests.createdAt })
@@ -71,6 +73,7 @@ export async function waitingReview(tx: FirmTx, workerId: string, shiftId: strin
         eq(requests.shiftId, shiftId),
         eq(requests.type, "review"),
         inArray(requests.status, ["open", "escalated"]),
+        sql`not (${requests.payload} ? 'cancellation')`,
       ),
     )
     .orderBy(desc(requests.createdAt))

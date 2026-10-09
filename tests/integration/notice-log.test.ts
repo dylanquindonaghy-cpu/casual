@@ -5,6 +5,7 @@ import { HOUR } from "@/lib/auth/clock";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { bookShift } from "@/lib/roster/book";
 import { cancelBooking } from "@/lib/roster/cancel";
+import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
 import { syncSheet } from "@/lib/roster/sheets/sync";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -63,8 +64,15 @@ describe("the notice log", () => {
           shiftId,
           workerId,
           reason: by === "worker" ? "Unwell" : "Client cancelled",
+          // A worker's own, under 48 hours on a shift they took: the strike warning (12C.1).
           by:
-            by === "worker" ? { type: "worker", id: workerId } : { type: "office", id: resourcer },
+            by === "worker"
+              ? {
+                  type: "worker",
+                  id: workerId,
+                  warning: { kind: "strike", version: STRIKE_WARNING_VERSION },
+                }
+              : { type: "office", id: resourcer },
         },
         { clock: at(when) },
       );

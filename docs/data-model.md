@@ -97,7 +97,8 @@ The owner's strike settings (12C.1), in the same object, read by `src/lib/strike
 `strikes.notice_hours` (48, 1 to 336: a casual's own cancellation with less notice is a strike;
 kept apart from `short_notice_threshold_hours`, the law's), `strikes.live_days` (90, 1 to 365:
 how long a strike counts) and `strikes.keep_months` (12, 7 to 72: when its row is deleted, never
-inside the 6-month tribunal limit).
+inside the 6-month tribunal limit; `firm:settings` accepts it only if it covers `live_days` plus 6
+months, a month counted as 28 days, so with 90 days counting the shortest is 10).
 
 ## DDL sketch (Postgres)
 
@@ -418,7 +419,10 @@ create table requests (
   type text not null,                    -- time_change | swap | availability | general | review
                                          -- review (Phase 3): "Ask the office to review" a shift the rules
                                          -- refused; payload {codes, reasons, note}: the rules' codes and the
-                                         -- words the worker saw, and their optional note
+                                         -- words the worker saw, and their optional note; or, from "Tell us
+                                         -- what happened" after cancelling (12C.1), {codes: [],
+                                         -- reasons: [], note, cancellation}: the cancelled booking's
+                                         -- reference (not a rules review: waitingReview() skips it)
   payload jsonb not null default '{}',   -- a JSON object; shape validated in code per type
   status text not null default 'open',   -- open | approved | declined | auto_resolved | escalated
   resolved_by uuid,                      -- (firm_id, resolved_by) -> office_users
@@ -713,7 +717,7 @@ owner's; `src/lib/gdpr/retention-settings.ts`): `message_days` (default 90), `re
 | Raw messages and transcripts | `retention.message_days` (90) | Yes: `messages` older than that, by `app_purge_old_messages()`, which reads the firm's settings itself; a newer reply stays (its `reply_to` cleared) |
 | The words typed into a request (`requests.payload.note`, `.swapWith`) | `retention.request_note_days` (365) after it closed | Yes: removed from closed requests (approved, declined, auto-resolved), the request stays; open and escalated ones keep them |
 | The office's override reason (`assignments.override_reason`) | The same, after the booking | Yes: cleared |
-| Strikes (`strikes`) | `strikes.keep_months` (12) after it was issued | Yes: deleted by `app_purge_old_strikes()` (12C.1), which reads the firm's settings itself; their `strike.issued` log entries (ids, codes and hours) stay with the action log |
+| Strikes (`strikes`) | `strikes.keep_months` (12) after it was issued, which always covers the 90 days it counts plus 6 months | Yes: deleted by `app_purge_old_strikes()` (12C.1, migrations 0038 and 0039), which reads the firm's settings itself; their `strike.issued` log entries (ids and hours) stay with the action log |
 | Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words, override reasons and strikes (logins still tidy up) |
 | Call audio | Don't store by default (30 days if enabled) | Not stored |
 | Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) | **Not yet**: events are append-only and no policy lets anyone delete them (PLAN.md Parking lot) |
@@ -736,6 +740,9 @@ messages from or to that number with no worker set; the caller can't name a numb
 once per worker).
 
 **Deleting strikes.** The app role has no DELETE on `strikes` either. The owner-run
-`app_purge_old_strikes()` (migration 0038; SECURITY DEFINER, pinned search_path, the current firm
-only) deletes those issued more than the firm's `strikes.keep_months` (12, read inside the
-function) ago, and none while `retention.hold_until` holds. The nightly purge calls it.
+`app_purge_old_strikes()` (migrations 0038 and 0039; SECURITY DEFINER, pinned search_path, the
+current firm only) deletes those issued more than the firm's `strikes.keep_months` (12, read
+inside the function) ago, and none while `retention.hold_until` holds. It also never deletes one
+that stopped counting less than 6 months ago: with settings made by `firm:settings` that can't
+happen (`keep_months` must cover the counting plus 6 months), so it only guards against settings
+edited by hand. The nightly purge calls it.

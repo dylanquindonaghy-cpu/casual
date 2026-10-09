@@ -44,6 +44,10 @@ const NOT_EVENTS = new Set<string>([
   // The strikes team's email keys, changed only through app_set_firm_setting() (12B.7).
   "strikes.email",
   "strikes.email_verified_at",
+  // The owner's strike settings (12C.1), in src/lib/onboarding/settings.ts.
+  "strikes.notice_hours",
+  "strikes.live_days",
+  "strikes.keep_months",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
 ]);

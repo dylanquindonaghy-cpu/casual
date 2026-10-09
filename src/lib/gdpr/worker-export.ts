@@ -19,6 +19,7 @@ import {
   shiftReminders,
   shifts,
   sites,
+  strikes,
   workerSiteBlocks,
   workerUnavailableDays,
   workers,
@@ -33,7 +34,7 @@ import { renumberEvents } from "./event-numbers";
 
 // A worker's data, for a subject access request (docs/runbooks.md "GDPR requests"; UK GDPR: send
 // it within a month). Everything this firm holds about one worker: their details, credentials,
-// days off, bookings, offers, requests, reminders, pay lines, pay queries, shifts-line messages
+// days off, bookings, strikes (12C.1), offers, requests, reminders, pay lines, pay queries, shifts-line messages
 // (with messages from or to their number from before it was known), the action log's rows about
 // them, the shifts those were about, and when they logged in. Every column as stored, except the
 // firm and worker ids on each row and the login secrets (link, session and code hashes, and a
@@ -124,6 +125,11 @@ export async function collectWorkerData(
     .from(assignments)
     .where(eq(assignments.workerId, workerId))
     .orderBy(asc(assignments.createdAt), asc(assignments.id));
+  const strikeRows = await tx
+    .select(columnsOf(strikes))
+    .from(strikes)
+    .where(eq(strikes.workerId, workerId))
+    .orderBy(asc(strikes.issuedAt), asc(strikes.id));
   const offerRows = await tx
     .select(columnsOf(offers))
     .from(offers)
@@ -237,6 +243,7 @@ export async function collectWorkerData(
       daysUnavailable: daysOff,
       siteBlocks,
       bookings,
+      strikes: strikeRows,
       offers: offerRows,
       requests: requestRows,
       shiftReminders: reminders,

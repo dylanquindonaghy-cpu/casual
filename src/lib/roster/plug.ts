@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { WORKER_STATUSES } from "../db/schema/people";
-import { ROLE_PATTERN, SHIFT_SOURCES, SHIFT_STATUSES } from "../db/schema/roster";
+import { CANCEL_VIAS, ROLE_PATTERN, SHIFT_SOURCES, SHIFT_STATUSES } from "../db/schema/roster";
 import type { EligibilityPass } from "../rules/eligibility";
 
 // The rota can live in different places (docs/architecture.md, Roster plugs): our own tables
@@ -90,6 +90,9 @@ export const cancelInputSchema = z.object({
   reason: z.string().trim().min(1).max(500),
   by: z.enum(["worker", "firm"]),
   at: z.date(),
+  // Where it was made (assignments.cancel_via, 12C.1): every caller in the app says so; left out,
+  // the casual's own counts as the app's and the firm's as the office's.
+  via: z.enum(CANCEL_VIAS).optional(),
 });
 export type CancelInput = z.infer<typeof cancelInputSchema>;
 

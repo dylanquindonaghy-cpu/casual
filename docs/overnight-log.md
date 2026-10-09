@@ -10259,3 +10259,21 @@ VERDICT: DONE
 **Ticked**, hours logged (1.1 h; Phase 12 so far 10.7 h, no estimate to compare with). After the
 audit, the auditor's second note was acted on: the "session under way" question is now in the
 Parking lot for Dylan. Commit: "Phase 12: Settings (12B.7)" (hash in the next entry).
+
+(12B.7's commit: `7845c3c`, pushed; CI passed on its checkpoint `7f32b90`.)
+
+## 2026-10-09 04:40 UTC — Phase 12, task 12C.1: Strikes on cancel
+
+**Task:** Strikes on cancel (§3.5, §4.5; S3 and S4; Legal 16), as written in `PLAN.md`.
+
+**Plan:** migration 0038 (S3: `assignments.cancel_via`, `strike_warning_version`,
+`strike_warning_shown_at`; S4: the `strikes` table, the app may read and add rows and update only
+the review, withdrawal and evidence columns, never delete; the owner-run `app_purge_old_strikes()`
+like `app_purge_old_messages()`); the owner's settings `strikes.notice_hours` (48),
+`strikes.live_days` (90) and `strikes.keep_months` (12) in `firm:settings`; a pure
+`strikeDecision()` (`src/lib/strikes/decide.ts`) and its warning and done words; the decision inside
+`cancelBooking()`'s transaction, a `strike` code in `shift.cancelled`, a `strikes` row and
+`strike.issued` only when issued; the cancel step's warning (fetched when the casual opens it, and
+checked again on confirm); the done screen with the strike line and "Tell us what happened" (a
+`review` request with the booking's reference); the nightly purge; `docs/dpia-strikes.md`; tests
+(table, unit, integration, isolation, e2e); docs.

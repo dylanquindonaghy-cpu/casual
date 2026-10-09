@@ -576,6 +576,7 @@ async function mirror(
           reason: CANCELLED_ON_SHEET,
           by: "firm",
           at: now,
+          via: "sheet",
         });
         if (result.status === "cancelled") {
           cancelled += 1;
@@ -678,6 +679,7 @@ async function sheetRemovals(
       reason: REMOVED_ON_SHEET,
       by: "firm",
       at: now,
+      via: "sheet",
     });
     if (result.status === "cancelled") {
       cancelled += 1;
@@ -745,6 +747,7 @@ async function mergeShift(
       reason: REMOVED_ON_SHEET,
       by: "firm",
       at: now,
+      via: "sheet",
     });
     if (result.status === "cancelled") {
       cancelled += 1;

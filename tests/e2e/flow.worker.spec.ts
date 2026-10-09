@@ -55,9 +55,13 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("button", { name: "Cancel this shift" }).click();
     await page.getByLabel("I'm unwell").check();
     await page.getByRole("button", { name: "Confirm cancellation" }).click();
-    await expect(page.getByText("We've recorded your cancellation.")).toBeVisible();
+    // Whether it's a strike depends on when the run is (the notice); the words say which.
+    await expect(
+      page.getByText(
+        /^Cancelled\. Reference [0-9A-F]{8}\. (No strike\.|A strike has been recorded\. It counts until .+\.)$/,
+      ),
+    ).toBeVisible();
     await expect(page.getByText(/^You gave \d+ (hours'|days') notice\.$/)).toBeVisible();
-    await expect(page.getByText(/^Reference: [0-9A-F]{8}$/)).toBeVisible();
   });
   await page.getByRole("button", { name: "Back to my shifts" }).click();
   await expect(page.getByText("No shifts booked yet.")).toBeVisible();

@@ -210,6 +210,7 @@ describe("the office cancelling one booking", () => {
       workerId: t.ann,
       noticeHours: 119,
       reason: "The client needs fewer staff",
+      strike: "by_firm", // the office's: never a strike (12C.1)
     });
     expect(await noticeJobs(t.f.firmId)).toHaveLength(1);
   });

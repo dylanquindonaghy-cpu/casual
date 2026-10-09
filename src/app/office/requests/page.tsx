@@ -146,7 +146,9 @@ export default async function OfficeRequestsPage() {
                   </p>
                 </div>
                 <div className="mt-4 flex min-w-0 flex-col gap-3 border-t border-line pt-4 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
-                  {approveHint(r.type) && <p className={muted}>{approveHint(r.type)}</p>}
+                  {approveHint(r.type, r.asked.cancellation) && (
+                    <p className={muted}>{approveHint(r.type, r.asked.cancellation)}</p>
+                  )}
                   <AnswerForm requestId={r.requestId} firstName={r.worker.firstName} />
                 </div>
               </li>

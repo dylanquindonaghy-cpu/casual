@@ -37,7 +37,8 @@ architecture.md, Tenancy).
 | sites | Venues/sites (address; lat/lng kept for Stage 3) | 1 |
 | shift_events | Events: the sessions (shifts) of one job, with a "show to casuals" switch. Not `events`, the action log | 12 |
 | shifts | Sessions: site, role, start/end, headcount, urgent flag, source; their event, pay rate, post, meeting point, uniform, extra requirements and "show to casuals" switch (12B.1) | 2 |
-| assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed | 2 |
+| assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed; how a cancellation was made and the strike warning the casual confirmed against (12C.1) | 2 |
+| strikes | A strike issued for a casual's own late cancellation (one per booking), its review flag, withdrawal and evidence email (12C.1) | 12 |
 | requests | Time changes, swaps, general asks, reviews of refused shifts, and their status | 2 |
 | offers | Each offer sent (in a wave, or by the office to one worker) and the response (table Phase 2; waves Phase 4; office offers Phase 5) | 2 |
 | shift_reminders | Each 24 h / 2 h reminder a booking got (sent, failed or skipped for quiet hours) | 4 |
@@ -90,6 +91,13 @@ and `strikes.email_verified_at` (an ISO time in UTC such as `2026-11-02T09:00:00
 never a word like `now` or `infinity`), refuses every other key (`retention.*` first among them),
 clears the confirmed time when the address changes, needs an address before a time, and refuses
 `settings` or `settings.strikes` that aren't JSON objects rather than replacing them. Every other setting stays with the owner (`npm run firm:settings`).
+
+The owner's strike settings (12C.1), in the same object, read by `src/lib/strikes/settings.ts`
+(a value out of range is ignored for the default) and set with `npm run firm:settings`:
+`strikes.notice_hours` (48, 1 to 336: a casual's own cancellation with less notice is a strike;
+kept apart from `short_notice_threshold_hours`, the law's), `strikes.live_days` (90, 1 to 365:
+how long a strike counts) and `strikes.keep_months` (12, 7 to 72: when its row is deleted, never
+inside the 6-month tribunal limit).
 
 ## DDL sketch (Postgres)
 
@@ -355,6 +363,10 @@ create table assignments (
   office_kept_at timestamptz,            -- Phase 10: the office kept it though its worker stopped being
                                          -- active or was blocked from the site (Today's "Bookings to
                                          -- check"); cleared when that happens again
+  cancel_via text,                       -- 12C.1: app | office | sheet | import (empty on older rows)
+  strike_warning_version text,           -- 12C.1: on a casual's own cancellation in the app, the strike
+  strike_warning_shown_at timestamptz,   --   warning on screen when they confirmed (its version) and
+                                         --   then; both or neither, only on cancelled_worker
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   check ((status = 'open') = (worker_id is null))
@@ -363,6 +375,32 @@ create unique index assignments_one_live_per_slot on assignments (firm_id, shift
   where status not in ('cancelled_worker', 'cancelled_firm');
 create unique index assignments_one_live_per_worker on assignments (firm_id, shift_id, worker_id)
   where worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm');
+
+-- Strikes (12C.1; src/lib/strikes/): a row only for a strike issued, by strikeDecision() inside
+-- cancelBooking()'s transaction. The app reads and adds rows and may change only the review,
+-- withdrawal and evidence columns; app_purge_old_strikes() deletes them (below).
+create table strikes (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers
+  assignment_id uuid not null,           -- (firm_id, assignment_id) -> assignments; one strike per booking
+  shift_id uuid not null,                -- (firm_id, shift_id) -> shifts
+  notice_hours numeric(8,2) not null,    -- as on the booking; always under threshold_hours
+  threshold_hours int not null,          -- the firm's strikes.notice_hours then
+  issued_at timestamptz not null,
+  expires_at timestamptz not null,       -- issued_at + strikes.live_days; "expired" is worked out
+  status text not null default 'live',   -- live | withdrawn
+  review_needed boolean not null default false, -- a person should look: needs a review reason
+  review_reasons text[] not null default '{}',  -- unwell | family_or_caring (never in the log)
+  reviewed_by uuid, reviewed_at timestamptz,     -- "Keep strike" (12C.5); both or neither
+  withdrawn_by uuid, withdrawn_at timestamptz,   -- withdrawn: both; live: neither
+  withdrawn_reason text,                 -- 1-500 characters; cleared when the casual is erased
+  evidence_email_status text,            -- pending | sent | failed | not_set_up (12C.4); empty until then
+  evidence_email_to text, evidence_email_sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, assignment_id)
+);
 
 -- First yes wins (one statement; the shift must still be open, so the open slots of a draft,
 -- filled or cancelled shift can't be taken):
@@ -656,8 +694,9 @@ create policy firm_isolation on workers for all to public
 **Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`
 applies `src/lib/db/admin/access.ts` after the migrations: FORCE on every table and exactly the
 listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS; no DELETE on `events`,
-`shift_events`, `shifts`, `assignments`, `requests`, `offers` or `shift_reminders`; on
-`shift_events` only its switch may be updated). A new table without an
+`shift_events`, `shifts`, `assignments`, `requests`, `offers`, `shift_reminders` or `strikes`; on
+`shift_events` only its switch may be updated, and on `strikes` only the review, withdrawal and
+evidence columns). A new table without an
 entry there fails the migrate. Adding a table: Drizzle schema + `.enableRLS()` + the tenant
 policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 `tests/helpers/tenant-rows.ts` (the isolation tests fail by name until they exist).
@@ -674,7 +713,8 @@ owner's; `src/lib/gdpr/retention-settings.ts`): `message_days` (default 90), `re
 | Raw messages and transcripts | `retention.message_days` (90) | Yes: `messages` older than that, by `app_purge_old_messages()`, which reads the firm's settings itself; a newer reply stays (its `reply_to` cleared) |
 | The words typed into a request (`requests.payload.note`, `.swapWith`) | `retention.request_note_days` (365) after it closed | Yes: removed from closed requests (approved, declined, auto-resolved), the request stays; open and escalated ones keep them |
 | The office's override reason (`assignments.override_reason`) | The same, after the booking | Yes: cleared |
-| Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words and override reasons (logins still tidy up) |
+| Strikes (`strikes`) | `strikes.keep_months` (12) after it was issued | Yes: deleted by `app_purge_old_strikes()` (12C.1), which reads the firm's settings itself; their `strike.issued` log entries (ids, codes and hours) stay with the action log |
+| Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words, override reasons and strikes (logins still tidy up) |
 | Call audio | Don't store by default (30 days if enabled) | Not stored |
 | Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) | **Not yet**: events are append-only and no policy lets anyone delete them (PLAN.md Parking lot) |
 | Workers and credentials | Until the firm deletes them | An admin erases a worker (`/office/data`) |
@@ -694,3 +734,8 @@ DEFINER, pinned search_path, bound to the current firm by forced RLS) are the on
 from the row, makes the row "Deleted worker" and deletes their messages, the replies to them, and
 messages from or to that number with no worker set; the caller can't name a number, and it runs
 once per worker).
+
+**Deleting strikes.** The app role has no DELETE on `strikes` either. The owner-run
+`app_purge_old_strikes()` (migration 0038; SECURITY DEFINER, pinned search_path, the current firm
+only) deletes those issued more than the firm's `strikes.keep_months` (12, read inside the
+function) ago, and none while `retention.hold_until` holds. The nightly purge calls it.

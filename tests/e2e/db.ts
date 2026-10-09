@@ -1,4 +1,4 @@
-import { and, arrayContains, desc, eq, gt, sql } from "drizzle-orm";
+import { and, arrayContains, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { Pool } from "pg";
 import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
@@ -10,6 +10,7 @@ import {
   requests,
   shifts,
   sites,
+  strikes,
   workers,
 } from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
@@ -460,6 +461,24 @@ export async function answeredMessages(slug: string, providerIds: string[]): Pro
       `);
       return counted[0]?.n ?? 0;
     });
+  } finally {
+    await pool.end();
+  }
+}
+
+// The strikes a spec's casual has on its own sessions (12C.1): the session ids that got one.
+export async function strikesOn(slug: string, shiftIds: string[]): Promise<string[]> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const found = await createWithFirm(pool)(seedId(`firm/${slug}`), (tx) =>
+      tx
+        .select({ shiftId: strikes.shiftId })
+        .from(strikes)
+        .where(inArray(strikes.shiftId, shiftIds)),
+    );
+    return found.map((r) => r.shiftId);
   } finally {
     await pool.end();
   }

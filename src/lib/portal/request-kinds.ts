@@ -89,6 +89,11 @@ export const reviewPayloadSchema = z.strictObject({
   codes: z.array(z.string().max(50)).max(MAX_REVIEW_ITEMS),
   reasons: z.array(z.string().max(MAX_REASON)).max(MAX_REVIEW_ITEMS),
   note,
+  // "Tell us what happened" after cancelling (12C.1): the cancelled booking's reference.
+  cancellation: z
+    .string()
+    .regex(/^[0-9A-F]{8}$/)
+    .optional(),
 });
 export type ReviewPayload = z.infer<typeof reviewPayloadSchema>;
 

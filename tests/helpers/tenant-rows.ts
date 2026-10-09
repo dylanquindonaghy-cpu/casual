@@ -30,6 +30,7 @@ export const EXPECTED_TABLES = [
   "shift_reminders",
   "shifts",
   "sites",
+  "strikes",
   "worker_site_blocks",
   "worker_unavailable_days",
   "workers",
@@ -173,6 +174,22 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, 1, $3, 'confirmed', now())`,
     [firmId, shiftId, rosterWorkerId],
   );
+  // A strike on a booking the rota worker cancelled (its own row: rows.assignments stays strike-free
+  // for the strikes_assignment_fk case).
+  const cancelledId = await one(
+    su,
+    `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at, cancelled_at,
+                              cancel_reason, notice_hours, cancel_via)
+     values ($1, $2, 2, $3, 'cancelled_worker', now(), now(), 'Travel problem', 20, 'app')`,
+    [firmId, shiftId, rosterWorkerId],
+  );
+  const strikeId = await one(
+    su,
+    `insert into strikes (firm_id, worker_id, assignment_id, shift_id, notice_hours, threshold_hours,
+                          issued_at, expires_at)
+     values ($1, $2, $3, $4, 20, 48, now(), now() + interval '90 days')`,
+    [firmId, rosterWorkerId, cancelledId, shiftId],
+  );
   const requestId = await one(
     su,
     "insert into requests (firm_id, worker_id, shift_id, type) values ($1, $2, $3, 'time_change')",
@@ -276,6 +293,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
       worker_site_blocks: siteBlockId,
+      strikes: strikeId,
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
       metrics_daily: metricsId,
@@ -380,6 +398,8 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
     text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
     values: [firmId, p.workerId, p.rosterSiteId],
   }),
+  // One strike per booking, so each gets its own cancelled booking.
+  strikes: (firmId, p) => strikeOnNewBooking(firmId, p),
   pay_records: (firmId, p) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-02', '2026-11-08', 4, $3)`,
@@ -503,6 +523,20 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
     values: [firmId, own.workerId, other.rosterSiteId],
   }),
+  strikes_worker_fk: (firmId, own, other) =>
+    strikeOnNewBooking(firmId, own, { workerId: other.rosterWorkerId }),
+  strikes_shift_fk: (firmId, own, other) =>
+    strikeOnNewBooking(firmId, own, { shiftId: other.rows.shifts }),
+  strikes_assignment_fk: (firmId, own, other) => ({
+    text: `insert into strikes (firm_id, worker_id, assignment_id, shift_id, notice_hours,
+                                threshold_hours, issued_at, expires_at)
+           values ($1, $2, $3, $4, 10, 48, now(), now() + interval '90 days')`,
+    values: [firmId, own.rosterWorkerId, other.rows.assignments, own.rows.shifts],
+  }),
+  strikes_reviewed_by_fk: (firmId, own, other) =>
+    strikeOnNewBooking(firmId, own, { reviewedBy: other.officeUserId }),
+  strikes_withdrawn_by_fk: (firmId, own, other) =>
+    strikeOnNewBooking(firmId, own, { withdrawnBy: other.officeUserId }),
   worker_site_blocks_blocked_by_fk: (firmId, own, other) => ({
     text: `insert into worker_site_blocks (firm_id, worker_id, site_id, reason, blocked_by)
            values ($1, $2, $3, 'incident', $4)`,
@@ -558,3 +592,37 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     values: [firmId, other.rows.assignments, new Date(Date.UTC(2027, 1, 1) + next() * 60_000)],
   }),
 };
+
+// A strike on a new cancelled booking of the tenant's rota worker (one statement: the booking, then
+// the strike pointing at it), with any of its links pointed elsewhere.
+function strikeOnNewBooking(
+  firmId: string,
+  p: Tenant,
+  o: { workerId?: string; shiftId?: string; reviewedBy?: string; withdrawnBy?: string } = {},
+): Statement {
+  return {
+    text: `with booking as (
+             insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at,
+                                      cancelled_at, cancel_reason, notice_hours)
+             values ($1, $2, $3, $4, 'cancelled_worker', now(), now(), 'Travel problem', 10)
+             returning id)
+           insert into strikes (firm_id, worker_id, assignment_id, shift_id, notice_hours,
+                                threshold_hours, issued_at, expires_at, reviewed_by, reviewed_at,
+                                status, withdrawn_by, withdrawn_at)
+           select $1, $5, booking.id, $6, 10, 48, now(), now() + interval '90 days',
+                  $7::uuid, case when $7::uuid is null then null else now() end,
+                  case when $8::uuid is null then 'live' else 'withdrawn' end,
+                  $8::uuid, case when $8::uuid is null then null else now() end
+             from booking`,
+    values: [
+      firmId,
+      p.rows.shifts,
+      100 + next(),
+      p.rosterWorkerId,
+      o.workerId ?? p.rosterWorkerId,
+      o.shiftId ?? p.rows.shifts,
+      o.reviewedBy ?? null,
+      o.withdrawnBy ?? null,
+    ],
+  };
+}

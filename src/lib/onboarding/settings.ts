@@ -9,6 +9,7 @@ import {
   RETENTION_MIN_DAYS,
   retentionSettings,
 } from "../gdpr/retention-settings";
+import { STRIKE_LIMITS, strikeSettings } from "../strikes/settings";
 
 // The firm settings the onboarding checklist asks the firm to agree (docs/go-to-market.md "Pilot
 // onboarding checklist"; docs/data-model.md "Firm settings"), as the app reads them. Each app
@@ -29,6 +30,9 @@ export const SETTING_KEYS = [
   "retention.message_days",
   "retention.request_note_days",
   "retention.hold_until",
+  "strikes.notice_hours",
+  "strikes.live_days",
+  "strikes.keep_months",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 export type SettingValue = string | number | boolean;
@@ -62,6 +66,9 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "retention.message_days": (s) => retentionSettings(s).messageDays,
   "retention.request_note_days": (s) => retentionSettings(s).requestNoteDays,
   "retention.hold_until": (s) => retentionSettings(s).holdUntil ?? "none",
+  "strikes.notice_hours": (s) => strikeSettings(s).noticeHours,
+  "strikes.live_days": (s) => strikeSettings(s).liveDays,
+  "strikes.keep_months": (s) => strikeSettings(s).keepMonths,
 };
 
 // What each key means, for the command's output.
@@ -79,6 +86,9 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "retention.request_note_days": `days a closed request's words are kept, and the office's reason for placing someone despite a rule (${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS})`,
   "retention.hold_until":
     "nothing personal is purged until after this date (yyyy-mm-dd), for a dispute; none for no hold",
+  "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
+  "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
+  "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max})`,
 };
 
 const stored = (s: Settings, key: SettingKey): unknown => {
@@ -135,6 +145,11 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     const rest = { ...inner };
     delete rest[part];
     next = { ...s, retention: value === "none" ? rest : { ...rest, [part]: value } };
+  } else if (key.startsWith("strikes.")) {
+    // Beside the strikes team's email and its confirmed time (set on Settings), kept as they are.
+    const part = key.slice("strikes.".length);
+    const inner = s.strikes && typeof s.strikes === "object" ? (s.strikes as Settings) : {};
+    next = { ...s, strikes: { ...inner, [part]: value } };
   } else if (key.startsWith("quiet_hours.")) {
     // The app reads quiet hours whole (a start without an end is ignored), so the other parts are
     // kept as the app reads them now.

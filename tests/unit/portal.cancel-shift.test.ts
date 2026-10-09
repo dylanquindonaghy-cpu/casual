@@ -19,8 +19,20 @@ const text = (html: string) =>
     .replace(/&#x27;|&#39;/g, "'")
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ");
-const show = (outcome: Exclude<CancelShiftOutcome, { status: "logged_out" | "invalid_reason" }>) =>
-  text(renderToStaticMarkup(createElement(CancelShiftResult, { outcome })));
+const show = (
+  outcome: Exclude<
+    CancelShiftOutcome,
+    { status: "logged_out" | "invalid_reason" | "warning_changed" }
+  >,
+) =>
+  text(
+    renderToStaticMarkup(
+      createElement(CancelShiftResult, {
+        outcome,
+        shiftId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ),
+  );
 
 describe("the reason stored", () => {
   it("is a quick reason as it reads, or 'Something else' with the worker's note", () => {
@@ -53,7 +65,7 @@ describe("the notice wording", () => {
 });
 
 describe("the confirmation", () => {
-  it("records what, when, the notice, a reference and the firm's sign-off", () => {
+  it("records the reference, no strike, what, when, the notice and the firm's sign-off", () => {
     const words = show({
       status: "cancelled",
       ref: "3F2A9C1B",
@@ -63,14 +75,34 @@ describe("the confirmation", () => {
       role: "Door supervisor",
       siteName: "Demo Arena",
       signOff: "Acme Events Shift Team",
+      strike: null,
     });
-    expect(words).toContain("We've recorded your cancellation.");
+    expect(words).toContain("Cancelled. Reference 3F2A9C1B. No strike.");
     expect(words).toContain("Sat 7 Nov, 14:00 to 22:00");
     expect(words).toContain("Door supervisor at Demo Arena");
     expect(words).toContain("You gave 2 days' notice.");
     expect(words).toContain("Recorded at 09:14 on Thu 5 Nov.");
-    expect(words).toContain("Reference: 3F2A9C1B");
     expect(words).toContain("— Acme Events Shift Team");
+    expect(words).toContain("If something stopped you, tell us what happened.");
+    expect(words).toContain("Send to the office");
+  });
+
+  it("says when a strike was recorded and until when", () => {
+    const words = show({
+      status: "cancelled",
+      ref: "3F2A9C1B",
+      noticeHours: 20,
+      recordedAt: "09:14 on Thu 5 Nov",
+      when: "Fri 6 Nov, 05:00 to 13:00",
+      role: "Steward",
+      siteName: null,
+      signOff: "Acme Events Shift Team",
+      strike: { until: "Wed 3 Feb" },
+    });
+    expect(words).toContain(
+      "Cancelled. Reference 3F2A9C1B. A strike has been recorded. It counts until Wed 3 Feb.",
+    );
+    expect(words).toContain("You gave 20 hours' notice.");
   });
 
   it("still confirms, with the reference, if the shift's details couldn't be read", () => {
@@ -83,8 +115,9 @@ describe("the confirmation", () => {
       role: null,
       siteName: null,
       signOff: "Acme Events Shift Team",
+      strike: null,
     });
-    expect(words).toContain("We've recorded your cancellation.");
+    expect(words).toContain("Cancelled. Reference 3F2A9C1B. No strike.");
     expect(words).toContain("You gave 5 hours' notice.");
     expect(words).not.toContain("null");
   });

@@ -24,7 +24,11 @@ export function askedLines(r: QueueRequest): string[] {
       r.asked.swapWith ? `Could swap with: ${r.asked.swapWith}.` : "Asks to swap (no one named).",
     );
   }
-  if (r.type === "review") {
+  if (r.type === "review" && r.asked.cancellation) {
+    lines.push(
+      `Tells the office what happened when they cancelled (reference ${r.asked.cancellation}).`,
+    );
+  } else if (r.type === "review") {
     lines.push("Asks the office to look again at a shift the rules refused. The rules said:");
     lines.push(...r.asked.reasons.map((reason) => `• ${reason}`));
   }
@@ -39,10 +43,11 @@ export function askedLines(r: QueueRequest): string[] {
 }
 
 // What approving does (and doesn't) do.
-export function approveHint(type: string): string | null {
+export function approveHint(type: string, cancellation: string | null = null): string | null {
   if (type === "time_change" || type === "swap") {
     return "Approving doesn't change the shift. Make the change on the shift's page.";
   }
+  if (type === "review" && cancellation) return "Answering doesn't change a strike.";
   if (type === "review") return "Approving doesn't book them. Assign them on the shift's page.";
   return null;
 }

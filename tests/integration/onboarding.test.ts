@@ -205,6 +205,10 @@ describe("a firm's settings", () => {
       "retention.message_days": [90, "default"],
       "retention.request_note_days": [365, "default"],
       "retention.hold_until": ["none", "default"],
+      // Strikes (12C.1): the notice that avoids one, how long it counts, when its record goes.
+      "strikes.notice_hours": [48, "default"],
+      "strikes.live_days": [90, "default"],
+      "strikes.keep_months": [12, "default"],
     });
     expect(await readFirmSettings(urls.admin, "no-such-firm")).toEqual({ status: "no_firm" });
   });

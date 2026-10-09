@@ -387,7 +387,9 @@ describe("assignments", () => {
         await rowCount(c, insertSlot, cancelled("cancelled_worker", { noticeHours: -1.25 })),
       ).toBe(1);
       const stored = await c.query<{ notice_hours: string }>(
-        "select notice_hours::text from assignments where shift_id = $1 and status = 'cancelled_worker'",
+        // This test's own rows (the fixture's cancelled booking, with a strike, has another reason).
+        `select notice_hours::text from assignments
+          where shift_id = $1 and status = 'cancelled_worker' and cancel_reason = 'Venue closed'`,
         [T.rows.shifts],
       );
       expect(stored.rows.map((r) => r.notice_hours)).toEqual(["-1.25"]);

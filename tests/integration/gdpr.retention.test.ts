@@ -162,6 +162,7 @@ describe("the retention purge", () => {
     const counts = await withFirm(t.firmId, (tx) => purgeExpired(tx, now));
     expect(counts).toEqual({
       messages: 1,
+      strikes: 0, // none issued 12 months ago here (tests/integration/strikes.test.ts)
       requestNotes: 1,
       overrideReasons: 1,
       throttle: 1,
@@ -210,6 +211,7 @@ describe("the retention purge", () => {
     const again = await withFirm(t.firmId, (tx) => purgeExpired(tx, now));
     expect(again).toEqual({
       messages: 0,
+      strikes: 0,
       requestNotes: 0,
       overrideReasons: 0,
       throttle: 0,
@@ -229,6 +231,7 @@ describe("the retention purge", () => {
         entity_id: t.firmId,
         data: {
           messages: 1,
+          strikes: 0,
           requestNotes: 1,
           overrideReasons: 1,
           throttle: 1,
@@ -334,6 +337,7 @@ describe("the retention purge", () => {
     const held = await withFirm(t.firmId, (tx) => purgeExpired(tx, now));
     expect(held).toEqual({
       messages: 0,
+      strikes: 0,
       requestNotes: 0,
       overrideReasons: 0,
       throttle: 1,

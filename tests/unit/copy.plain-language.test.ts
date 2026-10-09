@@ -312,6 +312,7 @@ const SCREENS: [string, ReactElement][] = [
         role: "Door supervisor",
         siteName: "Demo Arena",
         signOff,
+        strike: null,
       },
       {
         status: "cancelled",
@@ -322,6 +323,7 @@ const SCREENS: [string, ReactElement][] = [
         role: null,
         siteName: null,
         signOff,
+        strike: { until: "Sun 31 Jan" },
       },
       { status: "started" },
       { status: "not_booked" },
@@ -329,7 +331,7 @@ const SCREENS: [string, ReactElement][] = [
     ] as const
   ).map((outcome): [string, ReactElement] => [
     `Cancel: ${outcome.status}`,
-    createElement(CancelShiftResult, { outcome }),
+    createElement(CancelShiftResult, { outcome, shiftId: "11111111-1111-4111-8111-111111111111" }),
   ]),
   ["My requests, none", createElement(RequestsList, { requests: [], timeZone: TZ })],
   [

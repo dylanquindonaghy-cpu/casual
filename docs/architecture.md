@@ -296,14 +296,21 @@ then send the new number to the office").
 3. 1 row changed: confirm + event. 0 rows: "Just filled — here are similar shifts."
 
 **Cancel**
-1. Worker taps Cancel → reason → confirm.
+1. Worker taps Cancel → the strike warning (`strikeDecision()`, 12C.1: worked out when the step
+   opens) → reason → confirm (sending which warning they saw: if the decision has changed since,
+   nothing is cancelled and the new warning is shown).
 2. `cancelBooking()` (`src/lib/roster/cancel.ts`, the one path for people; the office uses it too,
    golden rule 12): the plug stores `cancelled_at`, the reason, who cancelled and
    `notice_hours = starts_at - cancelled_at` on the row, frees the place, and the `shift.cancelled`
    event is written in the same transaction. Always recorded. The reason is typed by a person, so it
    stays on the row (which can be corrected or anonymised) and never goes into the append-only
    event. A worker can't cancel a shift that has started; the office can until it ends (negative
-   notice; the place isn't reopened). No fresh sheet copy is needed.
+   notice; the place isn't reopened). No fresh sheet copy is needed. In the same transaction the
+   strike decision runs (`src/lib/strikes/decide.ts`; its code goes in `shift.cancelled`): the
+   office's cancellation is never a strike; a casual's own is one only with less notice than the
+   firm's `strikes.notice_hours` (48), on a booking they made themselves that the office hasn't
+   moved or re-priced since, and then a `strikes` row and `strike.issued` are added. The booking
+   records `cancel_via` and the warning's version and time.
 3. If the cancellation reopened a place and the shift starts within the firm's
    `urgent_window_hours` (default 24): the shift is marked urgent in the same transaction and
    logged (`shift.marked_urgent`, by the system, cause "dropout"; `markUrgentAfterDropout()` in

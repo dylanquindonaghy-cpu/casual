@@ -108,8 +108,9 @@ the demo.
     listed. On the one at "Acme Demo Arena", click "Take shift". It says "You're booked." with a
     reference and "— Acme Events Shift Team".
 12. **Cancel it.** Click "See my shifts". Under "Your next shift", click "Cancel this shift",
-    choose "I'm unwell", then "Confirm cancellation". It says "We've recorded your cancellation."
-    and the notice you gave. Click "Back to my shifts": "No shifts booked yet." again.
+    choose "I'm unwell", then "Confirm cancellation". It says "Cancelled. Reference …" and whether a
+    strike was recorded (a box above the reasons said which before you confirmed), with the notice
+    you gave. Click "Back to my shifts": "No shifts booked yet." again.
 13. **Your pay.** Click "See your pay", then "Send me a code". A 6-digit code arrives in the dev
     window ("Your Acme Events code is …"). Type it in "Your code" and click "Check code". You see
     "The last 8 weeks, from Acme Events's payroll." with the hours and rates.

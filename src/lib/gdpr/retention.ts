@@ -30,6 +30,9 @@ const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as con
 // - shifts-line messages (texts, WhatsApps, voicemail text) older than retention.message_days (90):
 //   app_purge_old_messages(), run as the table owner because the app role may not delete messages,
 //   reading the firm's settings itself so no caller can shorten them; a reply newer than that stays;
+// - strikes issued more than strikes.keep_months (12) ago: app_purge_old_strikes() (12C.1), the
+//   same way (the app role can't delete strikes), and none during a hold. Their strike.issued and
+//   strike.withdrawn entries (ids, codes and hours) stay with the rest of the action log;
 // - the words typed into a request (payload.note, and payload.swapWith: a colleague's name), only
 //   once it's closed (approved, declined, auto-resolved) and retention.request_note_days (365) after
 //   it closed: an open or escalated request keeps them (the request itself stays: it's evidence);
@@ -77,6 +80,7 @@ const job = { queue: RETENTION_PURGE_QUEUE, schema: retentionPurgePayload };
 
 export interface PurgeCounts {
   messages: number;
+  strikes: number;
   requestNotes: number;
   overrideReasons: number;
   throttle: number;
@@ -95,6 +99,9 @@ export async function purgeExpired(tx: FirmTx, now: Date): Promise<PurgeCounts> 
   const keep = retentionSettings(firm?.settings ?? {});
   const held = onHold(keep, localDateOf(now, firm?.timezone ?? "Europe/London"));
   const { rows } = await tx.execute<{ n: number }>(sql`select app_purge_old_messages() as n`);
+  const { rows: strikeRows } = await tx.execute<{ n: number }>(
+    sql`select app_purge_old_strikes() as n`,
+  );
   const linkCutoff = daysBefore(now, RETENTION.linkAndCodeDays);
   const sessionCutoff = daysBefore(now, RETENTION.sessionDays);
   const wordsCutoff = daysBefore(now, keep.requestNoteDays);
@@ -102,6 +109,7 @@ export async function purgeExpired(tx: FirmTx, now: Date): Promise<PurgeCounts> 
   const typed = sql.raw(`array[${REQUEST_FREE_TEXT_KEYS.map((k) => `'${k}'`).join(", ")}]`);
   const counts: PurgeCounts = {
     messages: Number(rows[0]?.n ?? 0),
+    strikes: Number(strikeRows[0]?.n ?? 0),
     requestNotes: held
       ? 0
       : await count(

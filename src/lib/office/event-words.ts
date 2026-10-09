@@ -176,6 +176,12 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const reason = byOffice && typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
       return `${who}${notice ? `, with ${notice}` : ""}.${reason}`;
     }
+    case "strike.issued": {
+      const notice = hours(d.noticeHours);
+      const under = typeof d.thresholdHours === "number" ? ` (under ${d.thresholdHours} hours)` : "";
+      const review = d.review === true ? " A person should review it." : "";
+      return `${worker} got a strike for cancelling${notice ? ` with ${notice}` : ""}${under}.${review}`;
+    }
     case "shift.moved":
     case "shift.curtailed": {
       const notice = hours(d.noticeHours);

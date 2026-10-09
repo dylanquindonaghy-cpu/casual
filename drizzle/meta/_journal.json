@@ -267,6 +267,13 @@
       "when": 1791518827876,
       "tag": "0037_firm_setting_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791521104791,
+      "tag": "0038_strikes",
+      "breakpoints": true
     }
   ]
 }

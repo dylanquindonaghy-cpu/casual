@@ -16,6 +16,7 @@ import {
   moveShift,
 } from "@/lib/office/quick-actions";
 import { cancelMyShift } from "@/lib/portal/cancel-shift";
+import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { takeShift } from "@/lib/portal/take-shift";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
 import {
@@ -103,6 +104,7 @@ describe("a worker's own cancellation", () => {
         t.ann,
         t.shiftId,
         "I'm unwell: flu",
+        { kind: "strike", version: STRIKE_WARNING_VERSION }, // she took it herself; 12 hours
       ),
     ).toMatchObject({ status: "cancelled" });
     const r = await t.report();
@@ -125,8 +127,19 @@ describe("a worker's own cancellation", () => {
     await t.f.booking(t.ann, t.shiftId, "confirmed", 1);
     await t.f.booking(t.ben, t.shiftId, "confirmed", 2);
     // Thursday 08:00 is exactly 48 hours before; 36 seconds later is 47.99 hours.
-    await cancelMyShift(t.portal(new Date("2026-11-05T08:00:00Z")), t.ann, t.shiftId, "Travel");
-    await cancelMyShift(t.portal(new Date("2026-11-05T08:00:36Z")), t.ben, t.shiftId, "Travel");
+    // Booked straight into the table (no record of who booked them): no strike either way. Ann's
+    // 48 hours is enough notice; Ben's 47.99 isn't, but the booking counts as the office's.
+    for (const [at, who, kind] of [
+      ["2026-11-05T08:00:00Z", t.ann, "notice"],
+      ["2026-11-05T08:00:36Z", t.ben, "exempt"],
+    ] as const) {
+      expect(
+        await cancelMyShift(t.portal(new Date(at)), who, t.shiftId, "Travel", {
+          kind,
+          version: STRIKE_WARNING_VERSION,
+        }),
+      ).toMatchObject({ status: "cancelled", strike: null });
+    }
     expect(rowsOf((await t.report({ kind: "cancellations" })).rows)).toEqual([
       ["cancelled", "worker", "Ann Booker", 48, false, null],
       ["cancelled", "worker", "Ben Booker", 47.99, true, null],

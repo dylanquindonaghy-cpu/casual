@@ -7,4 +7,5 @@ export * from "./metrics";
 export * from "./people";
 export * from "./pay";
 export * from "./roster";
+export * from "./strikes";
 export * from "./tenancy";

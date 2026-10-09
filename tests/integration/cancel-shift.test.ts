@@ -4,6 +4,7 @@ import { HOUR } from "@/lib/auth/clock";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { cancelMyShift } from "@/lib/portal/cancel-shift";
 import { myShifts } from "@/lib/portal/my-shifts";
+import { STRIKE_WARNING_VERSION } from "@/lib/strikes/words";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -24,6 +25,9 @@ afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
 });
 
+// The warning the casual confirmed against (its kind and version: 12C.1).
+const SAW_NOTICE = { kind: "notice", version: STRIKE_WARNING_VERSION } as const;
+
 const ctxFor = (f: BookingFirm, now = NOW) => ({
   firm: { id: f.firmId, timezone: "Europe/London", signOff: "Booking Test Shift Team" },
   run: withFirm,
@@ -42,7 +46,7 @@ describe("cancelMyShift", () => {
     await su.query("update shifts set site_id = $1 where id = $2", [sites[0]?.id, shiftId]);
     const assignmentId = await f.booking(sam, shiftId);
 
-    const outcome = await cancelMyShift(ctxFor(f), sam, shiftId, "Travel problem");
+    const outcome = await cancelMyShift(ctxFor(f), sam, shiftId, "Travel problem", SAW_NOTICE);
     expect(outcome).toEqual({
       status: "cancelled",
       ref: assignmentId.slice(0, 8).toUpperCase(),
@@ -52,15 +56,21 @@ describe("cancelMyShift", () => {
       role: "Door supervisor",
       siteName: "Demo Arena",
       signOff: "Booking Test Shift Team",
+      strike: null, // 53 hours' notice
     });
     const { rows } = await su.query(
-      `select status, cancel_reason, notice_hours::float as notice from assignments where id = $1`,
+      `select status, cancel_reason, notice_hours::float as notice, cancel_via,
+              strike_warning_version, strike_warning_shown_at
+         from assignments where id = $1`,
       [assignmentId],
     );
     expect(rows[0]).toEqual({
       status: "cancelled_worker",
       cancel_reason: "Travel problem",
       notice: 53,
+      cancel_via: "app",
+      strike_warning_version: STRIKE_WARNING_VERSION,
+      strike_warning_shown_at: NOW,
     });
     const { rows: events } = await su.query(
       "select count(*)::int as n from events where firm_id = $1 and action = 'shift.cancelled'",
@@ -78,15 +88,23 @@ describe("cancelMyShift", () => {
     const shiftId = await f.shift({ startsAt: hoursFromNow(2) });
     await f.booking(sam, shiftId);
     const started = new Date(NOW.getTime() + 3 * HOUR);
-    expect(await cancelMyShift(ctxFor(f, started), sam, shiftId, "I'm unwell")).toEqual({
-      status: "started",
-    });
+    expect(await cancelMyShift(ctxFor(f, started), sam, shiftId, "I'm unwell", SAW_NOTICE)).toEqual(
+      {
+        status: "started",
+      },
+    );
     // Jo isn't booked on it; an unknown shift isn't there.
-    expect(await cancelMyShift(ctxFor(f), jo, shiftId, "I'm unwell")).toEqual({
+    expect(await cancelMyShift(ctxFor(f), jo, shiftId, "I'm unwell", SAW_NOTICE)).toEqual({
       status: "not_booked",
     });
     expect(
-      await cancelMyShift(ctxFor(f), sam, "00000000-0000-4000-8000-000000000000", "I'm unwell"),
+      await cancelMyShift(
+        ctxFor(f),
+        sam,
+        "00000000-0000-4000-8000-000000000000",
+        "I'm unwell",
+        SAW_NOTICE,
+      ),
     ).toEqual({ status: "not_booked" });
     // Sam's booking is still there.
     expect((await myShifts(ctxFor(f), sam, "upcoming")).map((s) => s.shiftId)).toEqual([shiftId]);
@@ -98,7 +116,7 @@ describe("cancelMyShift", () => {
     const kit = await theirs.worker();
     const theirShift = await theirs.shift();
     await theirs.booking(kit, theirShift);
-    expect(await cancelMyShift(ctxFor(mine), kit, theirShift, "I'm unwell")).toEqual({
+    expect(await cancelMyShift(ctxFor(mine), kit, theirShift, "I'm unwell", SAW_NOTICE)).toEqual({
       status: "not_booked",
     });
     const { rows } = await su.query<{ status: string }>(

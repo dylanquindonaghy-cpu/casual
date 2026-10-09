@@ -66,6 +66,7 @@ describe("cancelBooking: a worker cancelling", () => {
       status: "cancelled",
       assignmentId,
       noticeHours: 48,
+      strike: null, // 48 hours' notice
     });
     expect(await rowsOf(shiftId)).toEqual([
       {
@@ -93,7 +94,7 @@ describe("cancelBooking: a worker cancelling", () => {
         actor_id: sam,
         entity_id: assignmentId,
         // The reason is on the row above; the append-only log never holds typed text.
-        data: { by: "worker", shiftId, workerId: sam, noticeHours: 48 },
+        data: { by: "worker", shiftId, workerId: sam, noticeHours: 48, strike: "enough_notice" },
       },
     ]);
 
@@ -194,6 +195,7 @@ describe("cancelBooking: the office cancelling", () => {
       status: "cancelled",
       assignmentId,
       noticeHours: 30,
+      strike: null, // the office's: never a strike
     });
     expect((await rowsOf(shiftId))[0]).toMatchObject({
       status: "cancelled_firm",
@@ -210,6 +212,7 @@ describe("cancelBooking: the office cancelling", () => {
           shiftId,
           workerId: sam,
           noticeHours: 30,
+          strike: "by_firm",
         },
       },
     ]);

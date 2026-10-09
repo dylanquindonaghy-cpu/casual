@@ -7,23 +7,34 @@ import {
   MAX_NOTE_LENGTH,
   OTHER_REASON,
   type CancelShiftOutcome,
+  type CancelWarning,
 } from "@/lib/portal/cancel-reasons";
+import { CANCEL_FOOTER } from "@/lib/strikes/words";
 import { labelStack, staffBtn, staffField } from "../ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
-import { cancelShiftAction } from "./actions";
+import { cancelShiftAction, cancelWarningAction } from "./actions";
 import { CancelShiftResult } from "./cancel-shift-result";
 
-type Shown = Exclude<CancelShiftOutcome, { status: "logged_out" | "invalid_reason" }>;
+type Shown = Exclude<
+  CancelShiftOutcome,
+  { status: "logged_out" | "invalid_reason" | "warning_changed" }
+>;
 
-// "Cancel this shift" → why (a quick reason, or "Something else" with a short note) → "Confirm
-// cancellation" or "Keep this shift" → the confirmation, in place. Then "Back to my shifts"
-// reloads the list without the cancelled shift. The opener and the confirm look destructive
-// (red outline, then red fill); "Keep this shift" is the plain way out. The opener and the choices
-// wait for the page (docs/ui-design.md "Forms wait for the page").
+const CHANGED = "This has changed since you opened it. Read it again, then confirm.";
+
+// "Cancel this shift" → the strike warning (worked out when the step opens, by the same rule that
+// runs on confirm: docs/office-v2.md 4.5) → why (a quick reason, or "Something else" with a short
+// note) → "Confirm cancellation" or "Keep this shift" → the confirmation, in place, with whether a
+// strike was recorded and "Tell us what happened". If what would happen changed while they read
+// it, nothing is cancelled and the new warning is shown. Then "Back to my shifts" reloads the list
+// without the cancelled shift. The opener and the confirm look destructive (red outline, then red
+// fill); "Keep this shift" is the plain way out. The opener and the choices wait for the page
+// (docs/ui-design.md "Forms wait for the page").
 export function CancelShift({ shiftId }: { shiftId: string }) {
   const router = useRouter();
   const ready = useHydrated();
   const [asking, setAsking] = useState(false);
+  const [warning, setWarning] = useState<CancelWarning | null>(null);
   const [choice, setChoice] = useState("");
   const [note, setNote] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -31,30 +42,48 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
   const [pending, startTransition] = useTransition();
   const sending = useRef(false);
 
-  const confirm = () => {
+  const open = () => {
     if (sending.current) return;
+    sending.current = true;
+    setAsking(true);
+    setProblem(null);
+    startTransition(async () => {
+      const result = await cancelWarningAction(shiftId).catch(() => ({ status: "error" as const }));
+      sending.current = false;
+      if (result.status === "logged_out") router.replace("/login");
+      else if (result.status === "ok") setWarning(result.warning);
+      else setOutcome(result);
+    });
+  };
+
+  const confirm = () => {
+    if (sending.current || !warning) return;
     if (!choice) return setProblem("Choose a reason.");
     if (choice === OTHER_REASON && !note.trim()) return setProblem("Tell the office why.");
     setProblem(null);
     setOutcome(null);
     sending.current = true;
+    const seen = { kind: warning.kind, version: warning.version };
     startTransition(async () => {
-      const result = await cancelShiftAction(shiftId, choice, note).catch(() => ({
+      const result = await cancelShiftAction(shiftId, choice, note, seen).catch(() => ({
         status: "error" as const,
       }));
       sending.current = false;
       if (result.status === "logged_out") router.replace("/login");
       else if (result.status === "invalid_reason") setProblem("Choose a reason.");
-      else setOutcome(result);
+      else if (result.status === "warning_changed") {
+        setWarning(result.warning);
+        setProblem(CHANGED);
+      } else setOutcome(result);
     });
   };
 
   if (outcome) {
     // After an error, the same reason is sent again; otherwise back to the (reloaded) list.
-    const retry = outcome.status === "error";
+    const retry = outcome.status === "error" && warning !== null;
     return (
       <div className="flex flex-col gap-3">
-        <CancelShiftResult outcome={outcome} />
+        <CancelShiftResult outcome={outcome} shiftId={shiftId} />
         <button
           type="button"
           disabled={pending}
@@ -68,19 +97,31 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
   }
   if (!asking) {
     return (
-      <button
-        type="button"
-        disabled={!ready}
-        onClick={() => setAsking(true)}
-        className={staffBtn.danger}
-      >
+      <button type="button" disabled={!ready} onClick={open} className={staffBtn.danger}>
         Cancel this shift
       </button>
+    );
+  }
+  if (!warning) {
+    return (
+      <p role="status" className="font-semibold">
+        Checking…
+      </p>
     );
   }
   return (
     <fieldset className="rounded-xl border-2 border-line-strong p-4">
       <legend className="px-1 text-lg font-bold">Why can&apos;t you make it?</legend>
+      <p
+        role="note"
+        className={`mb-3 rounded-xl border-2 p-3 ${
+          warning.kind === "strike"
+            ? "border-urgent bg-urgent-soft font-semibold text-urgent-ink"
+            : "border-line-strong bg-quiet-soft"
+        }`}
+      >
+        {warning.text}
+      </p>
       {[...CANCEL_REASONS, OTHER_REASON].map((reason) => (
         <label key={reason} className="flex min-h-12 items-center gap-3 py-2">
           <input
@@ -126,12 +167,14 @@ export function CancelShift({ shiftId }: { shiftId: string }) {
         disabled={pending}
         onClick={() => {
           setAsking(false);
+          setWarning(null);
           setProblem(null);
         }}
         className={`${staffBtn.secondary} mt-3`}
       >
         Keep this shift
       </button>
+      <p className="mt-3 text-base text-ink-muted">{CANCEL_FOOTER}</p>
     </fieldset>
   );
 }

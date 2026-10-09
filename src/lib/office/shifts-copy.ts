@@ -301,6 +301,8 @@ export function cancelBookingResultText(
       return "We can't find that shift or person.";
     case "no_reason":
       return NO_REASON;
+    case "warning_changed": // only a casual's own cancellation sends a warning
+      return COMMON.error;
     default:
       return COMMON[result.status];
   }

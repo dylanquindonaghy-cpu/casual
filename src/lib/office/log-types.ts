@@ -17,6 +17,11 @@ export const LOG_TYPES = {
     label: "Cancellations",
     actions: ["shift.cancelled", "shift.cancelled_by_firm"],
   },
+  // A strike (12C.1): ids, codes and hours only. Payroll can't open the log.
+  strikes: {
+    label: "Strikes",
+    actions: ["strike.issued"],
+  },
   changes: {
     label: "Changes to shifts",
     actions: [

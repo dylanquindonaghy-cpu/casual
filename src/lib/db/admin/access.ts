@@ -59,12 +59,27 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   push_subscriptions: CRUD,
   // A site a worker may not work at: added and removed by the office (both logged), never edited.
   worker_site_blocks: ["SELECT", "INSERT", "DELETE"],
+  // Strikes (12C.1): issued, then reviewed, withdrawn or emailed (COLUMN_UPDATES), never rewritten
+  // or deleted by the app; app_purge_old_strikes() deletes them at strikes.keep_months.
+  strikes: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
 export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   roster_sources: ["last_synced_at", "last_attempted_at", "last_error_code", "sync_started_at"],
   shift_events: ["showing_to_casuals"],
+  strikes: [
+    "review_needed",
+    "reviewed_by",
+    "reviewed_at",
+    "status",
+    "withdrawn_by",
+    "withdrawn_at",
+    "withdrawn_reason",
+    "evidence_email_status",
+    "evidence_email_to",
+    "evidence_email_sent_at",
+  ],
 };
 
 export function schemaTableNames(): string[] {

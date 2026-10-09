@@ -49,6 +49,10 @@ export const ASSIGNMENT_STATUSES = [
 ] as const;
 // A cancelled row keeps its worker, reason and notice hours; a new open row reopens the slot.
 export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_firm"] as const;
+// Where a cancellation was made (12C.1, S3): the casual in the app, the office, the firm's rota
+// sheet or a file import (`api` comes with the planner API, S11). Empty on rows from before.
+export const CANCEL_VIAS = ["app", "office", "sheet", "import"] as const;
+export type CancelVia = (typeof CANCEL_VIAS)[number];
 
 // review: the worker asks the office to look again at a shift the rules won't let them take.
 export const REQUEST_TYPES = ["time_change", "swap", "availability", "general", "review"] as const;
@@ -327,6 +331,11 @@ export const assignments = pgTable(
     // blocked from the shift's site (Today's "Bookings to check", Phase 10). Cleared when that
     // happens again, so the booking is flagged again.
     officeKeptAt: timestamptz("office_kept_at"),
+    // How it was cancelled (CANCEL_VIAS), and for a casual's own cancellation in the app, the
+    // version of the strike warning on their screen when they confirmed, and when (12C.1, S3).
+    cancelVia: text("cancel_via", { enum: CANCEL_VIAS }),
+    strikeWarningVersion: text("strike_warning_version"),
+    strikeWarningShownAt: timestamptz("strike_warning_shown_at"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -375,6 +384,17 @@ export const assignments = pgTable(
       sql`${t.status} not in ('cancelled_worker', 'cancelled_firm')
         or (${t.cancelledAt} is not null and ${t.noticeHours} is not null
             and ${t.cancelReason} is not null and length(btrim(${t.cancelReason})) > 0)`,
+    ),
+    check(
+      "assignments_cancel_via_check",
+      sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import')`,
+    ),
+    // A warning is stored whole (its version and when), only on a casual's own cancellation.
+    check(
+      "assignments_strike_warning",
+      sql`(${t.strikeWarningVersion} is null) = (${t.strikeWarningShownAt} is null)
+        and (${t.strikeWarningVersion} is null
+             or (${t.status} = 'cancelled_worker' and length(${t.strikeWarningVersion}) between 1 and 40))`,
     ),
     firmIsolation(t.firmId),
   ],

@@ -18,7 +18,15 @@ const request = (o: Partial<QueueRequest> = {}): QueueRequest => ({
   status: "open",
   worker: { id: "w", name: "Ann Booker", firstName: "Ann" },
   shift: null,
-  asked: { start: null, end: null, swapWith: null, reasons: [], note: null, voicemail: false },
+  asked: {
+    start: null,
+    end: null,
+    swapWith: null,
+    reasons: [],
+    cancellation: null,
+    note: null,
+    voicemail: false,
+  },
   createdAt: new Date("2026-11-02T09:00:00Z"),
   answer: null,
   ...o,
@@ -28,6 +36,7 @@ const asked = (o: Partial<QueueRequest["asked"]>) => ({
   end: null,
   swapWith: null,
   reasons: [],
+  cancellation: null,
   note: null,
   voicemail: false,
   ...o,
@@ -48,6 +57,19 @@ describe("the requests page's words", () => {
       "Asks the office to look again at a shift the rules refused. The rules said:",
       "• Your licence expired.",
     ]);
+    // "Tell us what happened" after cancelling (12C.1): the booking's reference, then their words.
+    expect(
+      askedLines(
+        request({
+          type: "review",
+          asked: asked({ cancellation: "4F2A9C1B", note: "The bus didn't come." }),
+        }),
+      ),
+    ).toEqual([
+      "Tells the office what happened when they cancelled (reference 4F2A9C1B).",
+      "Their note: The bus didn't come.",
+    ]);
+    expect(approveHint("review", "4F2A9C1B")).toBe("Answering doesn't change a strike.");
     expect(askedLines(request({ type: "general", asked: asked({ note: "Parking?" }) }))).toEqual([
       "Their note: Parking?",
     ]);

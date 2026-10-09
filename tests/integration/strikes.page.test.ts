@@ -287,6 +287,18 @@ describe("keeping a strike after a review", () => {
 });
 
 describe("two at once", () => {
+  it("two keeps: one is kept, the other is told it's done; one entry", async () => {
+    const t = await strikesFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    const s = await t.strike(ann, { reason: "Family or caring" });
+    const results = await Promise.all([
+      keepStrike(t.office(t.admin), s.assignmentId),
+      keepStrike(t.office(t.resourcer), s.assignmentId),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual(["already_kept", "kept"]);
+    expect(await t.logged("strike.reviewed")).toHaveLength(1);
+  });
+
   it("two withdrawals: one wins, the other is told it's done; one entry", async () => {
     const t = await strikesFirm();
     const ann = await t.f.worker({ first: "Ann" });
@@ -358,6 +370,22 @@ describe("erasing a casual", () => {
       withdrawn_by: null,
     });
     expect(await t.logged("strike.withdrawn")).toEqual([]);
+    // The record knows, so it offers no "Withdraw strike…"; Keep still works (it stores no words).
+    const record = await officeCancellationRecord(
+      { firm: { id: t.f.firmId }, run: withFirm, clock: at(later(5)) },
+      await t.tokenFor(t.admin),
+      s.assignmentId,
+    );
+    expect(record?.status === "found" && record.record.row.erased).toBe(true);
+    expect(await keepStrike(t.office(t.admin, later(5)), s.assignmentId)).toEqual({
+      status: "kept",
+    });
+    expect(await t.logged("strike.reviewed")).toEqual([
+      {
+        actor_id: t.admin,
+        data: { assignmentId: s.assignmentId, shiftId: s.shiftId, workerId: ann, outcome: "kept" },
+      },
+    ]);
   });
 });
 

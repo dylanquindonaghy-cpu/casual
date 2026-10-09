@@ -25,8 +25,8 @@ import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./fre
 // docs/compliance.md). The worker's row stays, anonymous, because offers, bookings, cancellations,
 // reminders and pay lines point at it: they are the notice report's evidence and payroll's. In one
 // transaction:
-// - an active admin (the `data` area), and the worker row locked (a booking locks it too, so one
-//   waits for the other);
+// - an active admin (the `data` area), and the worker row locked (a booking locks it too, and so
+//   does withdrawing one of their strikes, so one waits for the other);
 // - refused while they are booked on a shift that hasn't ended (the office cancels those first,
 //   with a reason and the notice logged: golden rule 12);
 // - app_erase_worker() (owner-run): the row becomes "Deleted worker" (no mobile, email or staff id,

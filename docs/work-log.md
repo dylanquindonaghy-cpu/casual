@@ -10571,3 +10571,91 @@ Run `npm run dev`. Log in as the admin and save a strikes team email on Settings
 link printed in the dev window and confirm it. Log in as a casual, take a shift starting within 48
 hours and cancel it: the email (with "Attached: cancellation-….pdf") appears in the dev window. On
 Today, "Strike evidence" shows while the address isn't confirmed.
+
+## 2026-10-09 — Phase 12, task 12C.5: Strikes page and the casual's strikes
+
+**Time spent:** 1.2 hours (08:58 to 10:12 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=61664385543570c8 e2e=true`.
+That covers 3824 unit and database tests, 78 browser tests ("e2e": a real browser clicking
+through the app) and the walkthrough's 3, all passing. The independent auditor said **DONE** in
+round 1. The commit is "Phase 12: Strikes page and the casual's strikes (12C.5)", pushed to
+`build/overnight`.
+
+### What was built, in plain words
+
+A "strike" is the record the app makes when a casual cancels a shift at short notice (built in
+12C.1). This task gives the office a page to see them and act on them, and shows casuals their own.
+
+- **The Strikes page** (`/office/strikes`). Only admins and resourcers can open it: payroll gets
+  "not found". It has three views as links: Live (strikes still counting), Needs review (a strike
+  still counting that the app flagged for a person to look at) and All. Each casual with a strike
+  gets one card, with the most live strikes first. The card shows their live count, their latest
+  strike (which session, how much notice they gave, until when it counts, and whether the evidence
+  email went) and links to every one of their strikes. On a phone the cards stack. There's no badge
+  on the menu.
+- **Withdraw and Keep**, on each strike's cancellation record (the page from 12C.3, where all the
+  details already are):
+  - "Withdraw strike…" asks why (1 to 500 characters). The reason stays with the strike, visible
+    only to admins and resourcers on that page. It never goes into the log (the app's permanent
+    history), the PDF or the CSV. The strike stops counting at once, and the casual sees it as
+    "Withdrawn by the office".
+  - "Keep strike" marks a strike as looked at. If it was flagged, the flag goes.
+- **The casual's Strikes**, on their Profile page. It says how many strikes count in the last 90
+  days and what the rule is ("A strike is given when you cancel less than 48 hours before a shift
+  starts."). Then it lists each strike: the session, when they cancelled and with how much notice,
+  and a status ("Counts until Thu 4 Feb", "Withdrawn by the office" or "No longer counts"). Under
+  one that still counts, "Tell us what happened" lets them explain. They never see the office's
+  reason for withdrawing, or the review flag.
+- **Deleting a casual's details** (erasure, a GDPR right) now also deletes the office's typed
+  reasons for withdrawing their strikes. Who withdrew it, and when, stay.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The buttons sit on the strike's cancellation record, not on the list | Each strike is one record, so the person sees the full story before acting | Buttons on the list, which would still need choosing which strike |
+| "Keep strike" works on any live strike not reviewed yet | If only flagged strikes could be kept, every "kept" entry in the log would quietly say "this person gave a health or caring reason". The log must never hold that | Leaving "kept" out of the log (but every change must be logged) |
+| Withdrawing locks the casual's row first, and is refused once their details are deleted | Erasure works the same way, so the two take turns. Without this, a withdrawal running at the same moment as an erasure could save a new reason after the erasure | Dropping the reason quietly |
+| Needs review only lists strikes still counting | An expired strike needs nothing done | Listing it until someone clicks |
+| A casual's own data download includes the office's reasons for withdrawing their strikes | A subject access request (a person asking for their data) covers what the firm wrote about them | Leaving it out |
+| When a withdrawn strike's evidence email had already gone, the record says to tell the strikes team | One line now. An automatic email needs its own template, so it's parked | Building that email now |
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/strikes.page.test.ts`, 8 tests: small checks of one piece of code at
+  a time) check every word on the page, the buttons' answers, the record's Strike lines (including
+  the evidence reminders) and the Profile section drawn as real HTML. "Tell us what happened"
+  appears once per session.
+- **Database tests** (`tests/integration/strikes.page.test.ts`, 12 tests, on a real database as
+  the app's own restricted user) check that:
+  - the list's views and order are right, and nothing counts 90 days on;
+  - a withdrawal needs a reason, keeps it off the log and lowers the live count;
+  - Keep clears the flag, works once, and logs ids only;
+  - erasure clears the reason, and a withdrawal after erasure is refused;
+  - two people clicking at once can't both withdraw or both keep;
+  - an erasure and a withdrawal at the same moment never leave a reason behind. Without the new
+    lock this test failed 2 times in 3; with it, it passed 6 times in 6;
+  - payroll and disabled users can't see or change a strike anywhere;
+  - each firm only sees its own strikes.
+- **Browser test** (`tests/e2e/office.strikes.spec.ts`), on a phone-sized screen: a resourcer
+  opens Strikes from the menu, opens a strike's record, keeps it, then withdraws it with a reason,
+  and the page shows it as withdrawn. Nothing scrolls sideways.
+- **Mutation checks:** removing the erased check, removing the lock, or making Keep flagged-only
+  again each made a test fail.
+
+### What's parked or needs Dylan
+
+- An automatic "this strike was withdrawn" email to the strikes team (Parking lot).
+- When the action log's clean-up is built (Data 2), it should delete a strike's log entries along
+  with the strike (Parking lot).
+- The privacy assessment (`docs/dpia-strikes.md`) now covers the withdrawal reason and the "kept"
+  entry. Dylan still needs to read and sign it before a real firm uses strikes.
+
+### How to see it working
+
+Run `npm run dev`. Log in as a casual, take a shift starting within 48 hours and cancel it (you'll
+see the strike warning). Then log in to the office as an admin or resourcer and open **Strikes**
+in the menu's Records group: the casual is there. Click their latest strike to open its record,
+and try "Keep strike" or "Withdraw strike…". Back as the casual, open **Profile** to see the
+Strikes section.

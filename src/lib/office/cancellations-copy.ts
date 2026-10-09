@@ -63,6 +63,7 @@ export interface CancellationRow {
   ref: string; // the booking's first 8 characters, upper case
   workerId: string;
   casual: string;
+  erased?: boolean; // the casual's details were deleted
   staffId: string | null;
   eventName: string | null;
   role: string;
@@ -192,10 +193,15 @@ export function strikeShort(r: Pick<CancellationRow, "strike" | "strikeCode">): 
   return "no";
 }
 
+// The evidence email may have reached the strikes team: sent, or a failure that doesn't prove
+// nothing went (12C.4).
+export const evidenceMayHaveGone = (e: { status: string | null; nothingSent?: boolean }) =>
+  e.status === "sent" || (e.status === "failed" && !e.nothingSent);
+
 export function evidenceText(r: Pick<CancellationRow, "strike">, tz: string): string {
   const e = r.strike?.evidence;
   if (!r.strike || !e) return "No strike: nothing to send";
-  if (e.status !== "sent" && r.strike.status === "withdrawn") {
+  if (r.strike.status === "withdrawn" && !evidenceMayHaveGone(e)) {
     return "Not sent: the strike was withdrawn";
   }
   switch (e.status) {
@@ -407,10 +413,12 @@ export function cancellationsCsv(
 }
 
 // The record's Strike section (12C.5), oldest first: who kept it after a review; then who withdrew
-// it, when and why (on screen only), and, when its evidence email had already gone, a reminder to
-// tell the strikes team; or, while it's live, the review flag.
+// it, when and why (on screen only), and, when its evidence email had gone (or may have), a reminder
+// to tell the strikes team; or, while it's live, the review flag.
 export const WITHDRAWN_AFTER_EVIDENCE =
   "The evidence email had already gone to the strikes team: let them know it's withdrawn.";
+export const WITHDRAWN_MAYBE_AFTER_EVIDENCE =
+  "The evidence email may have reached the strikes team: let them know it's withdrawn.";
 
 export function strikeSectionLines(
   strike: NonNullable<CancellationRow["strike"]>,
@@ -433,6 +441,7 @@ export function strikeSectionLines(
       lines.push("Withdrawn.");
     }
     if (strike.evidence.status === "sent") lines.push(WITHDRAWN_AFTER_EVIDENCE);
+    else if (evidenceMayHaveGone(strike.evidence)) lines.push(WITHDRAWN_MAYBE_AFTER_EVIDENCE);
   } else if (strike.reviewNeeded) {
     lines.push("Flagged for a review: the casual's reason is one a person should look at.");
   }

@@ -9,16 +9,22 @@ import { resultBox } from "../../shifts/shift-tones";
 import { keepStrikeAction, withdrawStrikeAction } from "./actions";
 
 const failed = { status: "error" as const };
+// An answer that says where the strike stands now (not an error to try again after).
+const settled = (status: string) =>
+  ["withdrawn", "kept", "already_kept", "not_live", "erased", "not_found"].includes(status);
 
-// "Withdraw strike…" (asks why: 1–500 characters, kept on the strike, never in the log) and, until
-// someone has reviewed it, "Keep strike" (on any live strike, flagged or not, so the log's entry
-// doesn't tell which were flagged). Waits for the page (docs/ui-design.md "Forms wait for the
-// page").
+// "Withdraw strike…" (asks why: 1–500 characters, kept on the strike, never in the log; not once the
+// casual's details were deleted) and, until someone has reviewed it, "Keep strike" (on any live
+// strike, flagged or not, so the log's entry doesn't tell which were flagged). The page is
+// refreshed after every answer but an error, so it shows where the strike stands. Waits for the
+// page (docs/ui-design.md "Forms wait for the page").
 export function StrikeActions({
   assignmentId,
+  canWithdraw,
   canKeep,
 }: {
   assignmentId: string;
+  canWithdraw: boolean;
   canKeep: boolean;
 }) {
   const router = useRouter();
@@ -32,17 +38,19 @@ export function StrikeActions({
     <div className="flex flex-col gap-3">
       {!open && (
         <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            className={btn.secondary}
-            disabled={busy}
-            onClick={() => {
-              setMessage(null);
-              setOpen(true);
-            }}
-          >
-            Withdraw strike…
-          </button>
+          {canWithdraw && (
+            <button
+              type="button"
+              className={btn.secondary}
+              disabled={busy}
+              onClick={() => {
+                setMessage(null);
+                setOpen(true);
+              }}
+            >
+              Withdraw strike…
+            </button>
+          )}
           {canKeep && (
             <button
               type="button"
@@ -52,7 +60,7 @@ export function StrikeActions({
                 startTransition(async () => {
                   const result = await keepStrikeAction(assignmentId).catch(() => failed);
                   setMessage(keepText(result));
-                  if (result.status === "kept") router.refresh();
+                  if (settled(result.status)) router.refresh();
                 })
               }
             >
@@ -69,10 +77,8 @@ export function StrikeActions({
             startTransition(async () => {
               const result = await withdrawStrikeAction(assignmentId, reason).catch(() => failed);
               setMessage(withdrawText(result));
-              if (result.status === "withdrawn") {
-                setOpen(false);
-                router.refresh();
-              }
+              if (result.status === "withdrawn") setOpen(false);
+              if (settled(result.status)) router.refresh();
             });
           }}
         >

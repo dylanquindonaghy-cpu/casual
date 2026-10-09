@@ -46,6 +46,7 @@ type Row = {
   worker_id: string;
   first_name: string;
   last_name: string;
+  erased: boolean;
   external_ref: string | null;
   status: string;
   confirmed_at: string | Date | null;
@@ -128,7 +129,8 @@ async function loadRows(
   },
 ): Promise<Row[]> {
   const { rows } = await tx.execute<Row>(sql`
-    select a.id::text, a.worker_id::text, w.first_name, w.last_name, w.external_ref, a.status,
+    select a.id::text, a.worker_id::text, w.first_name, w.last_name,
+           w.erased_at is not null as erased, w.external_ref, a.status,
            a.confirmed_at, a.cancelled_at, a.cancel_reason, a.notice_hours::float as notice_hours,
            a.cancel_via, a.strike_warning_version, a.strike_warning_shown_at,
            s.role, s.starts_at, s.ends_at, s.post, s.pay_rate_pence,
@@ -230,6 +232,7 @@ function toRow(r: Row, requirements: CancellationRow["requirements"]): Cancellat
     ref: r.id.slice(0, 8).toUpperCase(),
     workerId: r.worker_id,
     casual: `${r.first_name} ${r.last_name}`,
+    erased: r.erased,
     staffId: r.external_ref,
     eventName: r.event_name,
     role: r.role,

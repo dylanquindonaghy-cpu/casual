@@ -16,11 +16,12 @@ import { officeUserMay, parts, type OfficeContext } from "../office/office-conte
 //   no review). Logged strike.withdrawn with ids only. It stops counting at once (the live count
 //   reads `status`). The firm's planner hears of it by webhook (12J.2). The casual is locked first,
 //   as erasure locks them before clearing their strikes' reasons: an erasure and a withdrawal take
-//   turns, and an erased casual's strikes can't be changed (no new words about them).
+//   turns, and an erased casual's strikes can't be withdrawn (no new words about them).
 // - Keep: any live strike not reviewed yet ("I've looked at it; it stands"); clears the review flag
 //   when it has one, who and when on the row; logged strike.reviewed {outcome: "kept"}. Not only a
 //   flagged one, so the entry never says the casual's reason was health or caring (the flag stays
-//   off the log: docs/dpia-strikes.md).
+//   off the log: docs/dpia-strikes.md). Also after the casual is erased: it stores no words, only
+//   who and when, and a flagged strike would otherwise wait in Needs review until it expires.
 
 const reasonSchema = z.string().trim().min(1).max(WITHDRAW_REASON_MAX);
 

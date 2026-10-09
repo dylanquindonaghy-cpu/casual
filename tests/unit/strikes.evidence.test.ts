@@ -249,6 +249,17 @@ describe("the log", () => {
     expect(evidenceText(strike("withdrawn", { status: "pending" }), TZ)).toBe(
       "Not sent: the strike was withdrawn",
     );
+    // Withdrawn after a failure: "not sent" only when nothing can have gone (12C.5 review).
+    expect(evidenceText(strike("withdrawn", { status: "failed", nothingSent: true }), TZ)).toBe(
+      "Not sent: the strike was withdrawn",
+    );
+    expect(evidenceText(strike("withdrawn", { status: "failed" }), TZ)).toBe("Couldn't be sent");
+    expect(
+      evidenceText(
+        strike("withdrawn", { status: "sent", sentAt: new Date("2026-11-06T18:01:00Z") }),
+        TZ,
+      ),
+    ).toBe("Sent to the strikes team at 18:01 on Fri 6 Nov");
     expect(resendNote({ status: "failed" })?.text).toBe(
       "It may have arrived anyway: check with the strikes team before sending it again.",
     );

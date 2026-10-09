@@ -10603,3 +10603,47 @@ isolation and payroll, e2e withdrawing a strike); `docs/screens.md`.
   once per session (10); the export decision written down (11).
 - Mutation checks after the fixes: removing the erased check, the lock, or making Keep flagged-only
   each made a test fail.
+
+**Guardrails review (round 2, on `2a99c4d`), verdict OK.** It confirmed the six round-1 fixes and
+found no deadlock (withdraw takes the casual then the strike; erasure the casual then strikes;
+Keep only its strike). Its SHOULD and NICE items, and what was done:
+
+- SHOULD 1, fixed: a withdrawn strike's Evidence email field said "Not sent: the strike was
+  withdrawn" even when an earlier attempt failed in a way that may have arrived. Now it says that
+  only when nothing can have gone (pending, not set up, or a failure proven to have sent nothing);
+  otherwise "Couldn't be sent", and the record adds "The evidence email may have reached the
+  strikes team: let them know it's withdrawn." Unit-tested both ways.
+- SHOULD 2, fixed (its recommended route): Keep still works after the casual is erased (it stores
+  no words; refusing it would leave a deleted casual in Needs review until the strike expires). The
+  copy now says "can't be withdrawn", the record hides "Withdraw strike…" for an erased casual and
+  says why, and a test keeps a strike after erasure (ids only in the log).
+- SHOULD 3, fixed: the DPIA's risk table names the leftover hint (offices will mostly keep flagged
+  strikes, and the log outlives the row) with its mitigations; the Parking lot asks the log purge
+  (Data 2) to take a strike's `strike.*` entries with its row.
+- NICE, fixed: the buttons refresh the page after any answer that says where the strike stands;
+  a test for two Keeps at once; erasure's comment mentions the withdrawal's lock; the office-v2
+  line reference; a long comment rewrapped.
+- NICE, not done: the record still shows "Flagged for a review" on a live strike past its date
+  (the list no longer counts it). The record's strike line already reads as history after the date
+  ("Issued (counts until …)"), so it's left as it is.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=61664385543570c8 e2e=true` (3824
+tests; 78 e2e; the walkthrough's 3).
+
+**Audit round 1 (claims-auditor), verbatim verdict and open points:**
+
+> VERDICT: DONE
+>
+> Minor notes (not blockers):
+> 1. Payroll's 404 on the page is proven at loader level plus the `canAccess` table. No test opens `/office/strikes` as payroll in a browser, and none asserts the string `requireOfficeArea("strikes")` the way `tests/unit/guides.test.ts:166` does for the guide.
+> 2. No test asserts that the Strikes menu link carries no badge. It is true by construction in `layout.tsx`.
+>
+> To reach DONE: nothing. The tree stamp is current and every claim is proven.
+
+Both notes are about extra tests for things the code already does. They're left for the phase's
+end-of-phase audit (12I.4).
+
+**Hours:** 1.2 (08:58 to 10:12 UTC). Phase 12 so far: 16.1 hours over 17 Hours-log rows (no
+estimate for Phase 12). **Commit:** "Phase 12: Strikes page and the casual's strikes (12C.5)",
+pushed (its hash in the next entry). CI passed on the checkpoint `ce614aa`; `2a99c4d` was still
+running at commit time.

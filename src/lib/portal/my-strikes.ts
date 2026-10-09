@@ -6,8 +6,8 @@ import type { PortalContext } from "./my-shifts";
 
 // The casual's own strikes, for Profile (docs/office-v2.md 4.6; 12C.5): how many still count (in
 // the firm's `strikes.live_days`, not withdrawn), the firm's notice rule, and each of their strikes
-// kept (newest first, the latest MY_STRIKES_MAX): the session, when they cancelled, the notice, until when it counts and
-// whether it was withdrawn. Never the withdrawal's reason (the office's words) or the review flag.
+// kept (newest first, the latest MY_STRIKES_MAX): the session, when they cancelled, the notice,
+// until when it counts and whether it was withdrawn. Never the withdrawal's reason (the office's words) or the review flag.
 // Only their own, inside their firm. Server only.
 
 export const MY_STRIKES_MAX = 20;

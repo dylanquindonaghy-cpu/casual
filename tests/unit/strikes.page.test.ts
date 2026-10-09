@@ -2,7 +2,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { passesLogCheck } from "@/lib/events/record";
-import { strikeSectionLines, WITHDRAWN_AFTER_EVIDENCE } from "@/lib/office/cancellations-copy";
+import {
+  strikeSectionLines,
+  WITHDRAWN_AFTER_EVIDENCE,
+  WITHDRAWN_MAYBE_AFTER_EVIDENCE,
+} from "@/lib/office/cancellations-copy";
 import { eventWords } from "@/lib/office/event-words";
 import { LOG_TYPES } from "@/lib/office/log-types";
 import { keepText, withdrawText } from "@/lib/office/strike-actions-copy";
@@ -121,6 +125,27 @@ describe("the record's Strike section and its buttons' answers", () => {
       "The evidence email had already gone to the strikes team: let them know it's withdrawn.",
     ]);
     expect(WITHDRAWN_AFTER_EVIDENCE).toMatch(/strikes team/);
+    // It failed in a way that may have arrived: a softer reminder; proven not sent: none.
+    expect(
+      strikeSectionLines(
+        { ...withdrawn, evidence: { status: "failed", to: null, sentAt: null } },
+        TZ,
+      ),
+    ).toEqual([
+      "Withdrawn by Sam Rota at 10:15 on Mon 9 Nov.",
+      "Why: Booked by mistake",
+      "The evidence email may have reached the strikes team: let them know it's withdrawn.",
+    ]);
+    expect(WITHDRAWN_MAYBE_AFTER_EVIDENCE).toMatch(/may have/);
+    expect(
+      strikeSectionLines(
+        {
+          ...withdrawn,
+          evidence: { status: "failed", to: null, sentAt: null, nothingSent: true },
+        },
+        TZ,
+      ),
+    ).toHaveLength(2);
     // It hadn't (withdrawn before it went): no reminder.
     const unsent = { ...withdrawn, evidence: { status: "pending", to: null, sentAt: null } };
     expect(strikeSectionLines(unsent, TZ)).toEqual([
@@ -178,7 +203,7 @@ describe("the record's Strike section and its buttons' answers", () => {
       expect(keepText({ status })).toMatch(/\.$/);
     }
     expect(withdrawText({ status: "erased" })).toBe(
-      "This casual's details were deleted, so their strikes can't be changed.",
+      "This casual's details were deleted, so their strikes can't be withdrawn.",
     );
     expect(keepText({ status: "kept" })).toBe("Kept, and marked as reviewed.");
     expect(keepText({ status: "already_kept" })).toBe("This strike has already been reviewed.");

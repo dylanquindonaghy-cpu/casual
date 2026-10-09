@@ -19,7 +19,7 @@ export function withdrawText(result: WithdrawOutcome): string {
     case "not_live":
       return "This strike has already been withdrawn.";
     case "erased":
-      return "This casual's details were deleted, so their strikes can't be changed.";
+      return "This casual's details were deleted, so their strikes can't be withdrawn.";
     case "not_found":
       return "That strike wasn't found.";
     case "not_allowed":

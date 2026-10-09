@@ -652,7 +652,7 @@ yet reviewed, not only a flagged one, so the log entry doesn't reveal which stri
 request type, no new columns), which the office sees in Enquiries' "Requests from the app".
 
 **Erasing a casual** clears a strike's withdrawal reason, as it already does for cancellation notes
-(`src/lib/gdpr/worker-erase.ts:34-38`).
+(`src/lib/gdpr/worker-erase.ts:37-40`).
 
 **Payroll never sees strikes, and strikes never change pay.**
 

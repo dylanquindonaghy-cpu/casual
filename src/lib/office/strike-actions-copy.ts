@@ -1,0 +1,47 @@
+// What "Withdraw strike…" and "Keep strike" on a cancellation's record say (12C.5). Its own file:
+// the buttons are a client component.
+
+export const WITHDRAW_REASON_MAX = 500;
+
+export type WithdrawOutcome =
+  | { status: "withdrawn" | "invalid" | "not_live" | "not_found" | "not_allowed" }
+  | { status: "logged_out" | "error" };
+export type KeepOutcome =
+  | { status: "kept" | "not_flagged" | "not_found" | "not_allowed" }
+  | { status: "logged_out" | "error" };
+
+export function withdrawText(result: WithdrawOutcome): string {
+  switch (result.status) {
+    case "withdrawn":
+      return "Withdrawn. It no longer counts, and the casual sees it as withdrawn.";
+    case "invalid":
+      return `Write why you're withdrawing it (${WITHDRAW_REASON_MAX} characters at most).`;
+    case "not_live":
+      return "This strike has already been withdrawn.";
+    case "not_found":
+      return "That strike wasn't found.";
+    case "not_allowed":
+      return "Only admins and resourcers can withdraw a strike.";
+    case "logged_out":
+      return "Log in again, then try once more.";
+    case "error":
+      return "Something went wrong. Reload the page to see if it was withdrawn.";
+  }
+}
+
+export function keepText(result: KeepOutcome): string {
+  switch (result.status) {
+    case "kept":
+      return "Kept. It no longer needs a review.";
+    case "not_flagged":
+      return "This strike doesn't need a review any more.";
+    case "not_found":
+      return "That strike wasn't found.";
+    case "not_allowed":
+      return "Only admins and resourcers can keep a strike.";
+    case "logged_out":
+      return "Log in again, then try once more.";
+    case "error":
+      return "Something went wrong. Reload the page to see if it was kept.";
+  }
+}

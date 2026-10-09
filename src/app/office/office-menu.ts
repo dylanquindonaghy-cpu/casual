@@ -36,6 +36,8 @@ const MENU: { label: string; items: MenuItem[] }[] = [
   {
     label: "Records",
     items: [
+      // No badge: strikes aren't a to-do (docs/office-v2.md 3.5).
+      { area: "strikes", href: "/office/strikes", label: "Strikes", icon: "strike" },
       { area: "workers", href: "/office/workers", label: "Workers", icon: "workers" },
       { area: "log", href: "/office/log", label: "Action log", icon: "log" },
       { area: "reports", href: "/office/reports/notice", label: "Notice report", icon: "notice" },

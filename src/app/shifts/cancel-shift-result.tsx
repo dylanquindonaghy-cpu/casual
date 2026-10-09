@@ -86,8 +86,9 @@ function whatHappenedText(result: WhatHappenedOutcome): string {
 }
 
 // "If something stopped you, tell us what happened." Their account goes to the office as a request
-// about this cancellation (it changes no strike: a person reads it).
-function WhatHappened({ shiftId }: { shiftId: string }) {
+// about this cancellation (it changes no strike: a person reads it). On the done screen and, for a
+// strike that still counts, on Profile (12C.5).
+export function WhatHappened({ shiftId }: { shiftId: string }) {
   const [text, setText] = useState("");
   const [result, setResult] = useState<WhatHappenedOutcome | null>(null);
   const [pending, startTransition] = useTransition();

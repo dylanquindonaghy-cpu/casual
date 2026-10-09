@@ -2,16 +2,26 @@ import Link from "next/link";
 import { card, h2, headingGap, muted, nums, sectionGap, staffBtn } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
+import type { MyStrikes } from "@/lib/portal/my-strikes";
+import {
+  myStrikeCancelled,
+  myStrikeCountText,
+  myStrikeRuleText,
+  myStrikeSession,
+  myStrikeStatus,
+  myStrikeTitle,
+} from "@/lib/portal/my-strikes-copy";
 import type { Profile } from "@/lib/portal/profile";
 import { MAX_UNAVAILABLE_DAYS, UNAVAILABLE_AHEAD_DAYS } from "@/lib/portal/profile-kinds";
 import { shortDate } from "@/lib/rules/reasons";
 import { addDays } from "@/lib/time/zoned";
+import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
 import { NotificationForm } from "./notification-form";
 import { PushSetting } from "./push-setting";
 
 // Me (docs/screens.md, `/profile`): contact details and credentials as the office holds them
-// (read-only), days I can't work, and how we reach me. One card per section.
+// (read-only), my strikes (12C.5), days I can't work, and how we reach me. One card per section.
 
 const STATUS_WORDS = {
   valid: "Valid",
@@ -45,11 +55,13 @@ export function ProfileView({
   signOff,
   push = null,
   eyebrow,
+  strikes = null,
 }: {
   profile: Profile;
   signOff: string;
   push?: { publicKey: string | null; firmName: string } | null;
   eyebrow?: string; // the firm's name above the heading
+  strikes?: MyStrikes | null;
 }) {
   const year = Number(profile.today.slice(0, 4));
   return (
@@ -119,6 +131,8 @@ export function ProfileView({
         )}
       </section>
 
+      {strikes && <StrikesSection strikes={strikes} />}
+
       <section aria-labelledby="days-heading" className={`${card} ${sectionGap.staff}`}>
         <h2 id="days-heading" className={h2}>
           Days you can&apos;t work
@@ -160,5 +174,53 @@ export function ProfileView({
         Back to my shifts
       </Link>
     </>
+  );
+}
+
+// Strikes (docs/office-v2.md 4.6): how many still count, the rule, and each strike with where it
+// stands; "Tell us what happened" under one that still counts. Never the office's reasons.
+const STRIKE_TONE = (s: MyStrikes["strikes"][number]): StatusTone =>
+  s.status === "withdrawn" ? "done" : s.counting ? "urgent" : "quiet";
+
+function StrikesSection({ strikes }: { strikes: MyStrikes }) {
+  const tz = strikes.timeZone;
+  return (
+    <section
+      aria-labelledby="strikes-heading"
+      className={`${card} ${sectionGap.staff} overflow-hidden`}
+    >
+      <h2 id="strikes-heading" className={h2}>
+        Strikes
+      </h2>
+      <p className={`${headingGap} font-semibold`}>
+        {myStrikeCountText(strikes.counting, strikes.liveDays)}
+      </p>
+      <p className={`mt-1 ${muted}`}>{myStrikeRuleText(strikes.noticeHours)}</p>
+      {strikes.strikes.length > 0 && (
+        <ul
+          role="list"
+          className={`${headingGap} -mx-4 -mb-4 divide-y divide-line border-t border-line`}
+        >
+          {strikes.strikes.map((s) => (
+            <li key={`${s.shiftId}:${s.cancelledAt.toISOString()}`} className="px-4 py-3">
+              <p className="font-semibold">{myStrikeTitle(s)}</p>
+              <p className={`text-base ${nums}`}>{myStrikeSession(s, tz)}</p>
+              <p className={`text-base ${nums}`}>{myStrikeCancelled(s, tz)}</p>
+              <p className={`mt-1 text-base ${nums}`}>
+                <StatusChip tone={STRIKE_TONE(s)}>{myStrikeStatus(s, tz)}</StatusChip>
+              </p>
+              {s.counting && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer font-semibold">Tell us what happened</summary>
+                  <div className="mt-2">
+                    <WhatHappened shiftId={s.shiftId} />
+                  </div>
+                </details>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

@@ -76,6 +76,11 @@ type Row = {
   evidence_email_sent_at: string | Date | null;
   evidence_stuck: boolean;
   evidence_code: string | null;
+  withdrawn_at: string | Date | null;
+  withdrawn_reason: string | null;
+  withdrawn_by_name: string | null;
+  reviewed_at: string | Date | null;
+  reviewed_by_name: string | null;
   place: string | null;
   marked_urgent: boolean;
   offered_to: number;
@@ -130,6 +135,8 @@ async function loadRows(
            si.name as site_name, si.postcode as site_postcode, ev.name as event_name,
            ou.name as office_name, ce.data ->> 'strike' as strike_code,
            st.status as strike_status, st.expires_at as strike_expires_at, st.review_needed,
+           st.withdrawn_at, st.withdrawn_reason, wo.name as withdrawn_by_name,
+           st.reviewed_at, ro.name as reviewed_by_name,
            st.evidence_email_status, st.evidence_email_to, st.evidence_email_sent_at,
            coalesce(${evidenceStuckSql("st")}, false) as evidence_stuck,
            ${lastEvidenceCodeSql("st")} as evidence_code,
@@ -167,6 +174,8 @@ async function loadRows(
       left join office_users ou
         on ou.firm_id = a.firm_id and ce.actor_type = 'office' and ou.id = ce.actor_id
       left join strikes st on st.firm_id = a.firm_id and st.assignment_id = a.id
+      left join office_users wo on wo.firm_id = st.firm_id and wo.id = st.withdrawn_by
+      left join office_users ro on ro.firm_id = st.firm_id and ro.id = st.reviewed_by
       left join lateral (select w2.first_name, w2.last_name, r.confirmed_at
                            from assignments r
                            join workers w2 on w2.firm_id = r.firm_id and w2.id = r.worker_id
@@ -246,6 +255,14 @@ function toRow(r: Row, requirements: CancellationRow["requirements"]): Cancellat
             status: r.strike_status,
             expiresAt: date(r.strike_expires_at),
             reviewNeeded: Boolean(r.review_needed),
+            withdrawn: r.withdrawn_at
+              ? {
+                  by: r.withdrawn_by_name,
+                  at: date(r.withdrawn_at),
+                  reason: r.withdrawn_reason,
+                }
+              : null,
+            reviewed: r.reviewed_at ? { by: r.reviewed_by_name, at: date(r.reviewed_at) } : null,
             evidence: {
               status: r.evidence_email_status,
               to: r.evidence_email_to,

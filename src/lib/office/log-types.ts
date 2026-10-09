@@ -24,6 +24,8 @@ export const LOG_TYPES = {
     label: "Strikes",
     actions: [
       "strike.issued",
+      "strike.withdrawn",
+      "strike.reviewed",
       "strike.evidence_queued",
       "strike.evidence_sending",
       "strike.evidence_sent",

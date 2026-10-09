@@ -40,7 +40,7 @@ describe("the office menu (v2 groups)", () => {
     expect(labels("admin")).toEqual([
       ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
-      ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
+      ["Records", ["Strikes", "Workers", "Action log", "Notice report", "Pilot metrics"]],
       ["Configuration", ["Office team", "Settings", "Data requests"]],
       ["Help", ["How-to guide"]],
     ]);
@@ -49,7 +49,7 @@ describe("the office menu (v2 groups)", () => {
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
       ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
-      ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
+      ["Records", ["Strikes", "Workers", "Action log", "Notice report", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);
   });

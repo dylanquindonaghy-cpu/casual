@@ -80,6 +80,7 @@ describe("what a deletion says", () => {
         cancelReasons: 0,
         overrideReasons: 0,
         sheetMentions: 0,
+        withdrawalReasons: 0,
       },
     },
     { status: "booked", name: "Ann Booker", upcoming: 1 },

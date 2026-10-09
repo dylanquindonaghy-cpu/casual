@@ -116,6 +116,13 @@ const PATHS = {
       <path d="M3.5 9.5h17M8 3v4M16 3v4M9.5 12.5l5 5M14.5 12.5l-5 5" />
     </>
   ),
+  // Strikes: a warning triangle (the mock-up's).
+  strike: (
+    <>
+      <path d="M12 3.5 21 19H3L12 3.5Z" />
+      <path d="M12 10v4M12 16.5h.01" />
+    </>
+  ),
   // Settings: two sliders.
   settings: (
     <>

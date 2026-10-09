@@ -10,6 +10,7 @@ import {
   requests,
   sessions,
   shifts,
+  strikes,
   workerSiteBlocks,
   workerUnavailableDays,
   workers,
@@ -35,7 +36,8 @@ import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./fre
 // - deleted: their credentials, login links, sessions (and codes), phones' push addresses, days off;
 // - cleared: the free text on their requests (their note, a colleague's name, the office's answer),
 //   pay queries (their details, payroll's note) and cancellations (a typed reason; the app's fixed
-//   wording stays: free-text.ts);
+//   wording stays: free-text.ts) and the office's reasons for withdrawing their strikes (the strike
+//   stays withdrawn, with who and when: 12C.5);
 // - worker.erased with how many of each (never what they were).
 // - replaced: the office's typed reasons for placing them despite a rule (on their bookings: from
 //   Phase 10 never in the log), with the fixed wording; and their staff id taken out of our copy of
@@ -62,6 +64,7 @@ export interface ErasedCounts {
   cancelReasons: number; // typed cancellation reasons replaced (free-text.ts)
   overrideReasons: number; // the office's typed reasons on their bookings, replaced likewise
   sheetMentions: number; // shifts whose kept rota-sheet names (synced_holders) held their staff id
+  withdrawalReasons: number; // the office's typed reasons for withdrawing their strikes (12C.5)
 }
 
 export type EraseWorkerResult =
@@ -180,6 +183,13 @@ async function eraseLocked(tx: FirmTx, id: string, now: Date): Promise<ErasedCou
     cancelReasons,
     overrideReasons,
     sheetMentions,
+    withdrawalReasons: await deleted(
+      tx
+        .update(strikes)
+        .set({ withdrawnReason: null })
+        .where(and(eq(strikes.workerId, id), isNotNull(strikes.withdrawnReason)))
+        .returning({ id: strikes.id }),
+    ),
   };
   return counts;
 }

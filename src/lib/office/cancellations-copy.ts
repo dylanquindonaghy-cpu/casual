@@ -87,6 +87,10 @@ export interface CancellationRow {
     status: "live" | "withdrawn";
     expiresAt: Date;
     reviewNeeded: boolean;
+    // Who withdrew it, when and why (the reason: on screen only, never in the PDF or CSV), and who
+    // kept it after a review (12C.5).
+    withdrawn?: { by: string | null; at: Date; reason: string | null } | null;
+    reviewed?: { by: string | null; at: Date } | null;
     // stuck: still pending with nothing logged for hours (its job stopped for good); nothingSent:
     // its last failure proves nothing was sent (12C.4).
     evidence: {
@@ -400,4 +404,30 @@ export function cancellationsCsv(
     );
   }
   return `﻿${lines.join("\r\n")}\r\n`;
+}
+
+// The record's Strike section (12C.5): who withdrew it, when and why (on screen only), or who kept
+// it after a review; and the review flag.
+export function strikeSectionLines(
+  strike: NonNullable<CancellationRow["strike"]>,
+  tz: string,
+): string[] {
+  if (strike.status === "withdrawn") {
+    const w = strike.withdrawn;
+    if (!w) return ["Withdrawn."];
+    return [
+      `Withdrawn by ${w.by ?? "the office"} at ${timeOnDay(w.at, tz)}.`,
+      w.reason ? `Why: ${w.reason}` : "Why: deleted with the casual's details.",
+    ];
+  }
+  const lines: string[] = [];
+  if (strike.reviewNeeded) {
+    lines.push("Flagged for a review: the casual's reason is one a person should look at.");
+  }
+  if (strike.reviewed) {
+    lines.push(
+      `Kept after a review by ${strike.reviewed.by ?? "the office"} at ${timeOnDay(strike.reviewed.at, tz)}.`,
+    );
+  }
+  return lines;
 }

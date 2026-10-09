@@ -192,6 +192,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         typeof d.thresholdHours === "number" ? ` (under ${d.thresholdHours} hours)` : "";
       return `${worker} got a strike for cancelling${notice ? ` with ${notice}` : ""}${under}.`;
     }
+    // Withdrawn or kept from the record (12C.5); the withdrawal's reason stays on the strike.
+    case "strike.withdrawn":
+      return `${officeName} withdrew ${worker}'s strike. It no longer counts.`;
+    case "strike.reviewed":
+      return `${officeName} kept ${worker}'s strike after a review.`;
     // The evidence email to the strikes team (12C.4).
     case "strike.evidence_queued":
       return "A strike record that waited for the strikes team's email is being sent, now it's confirmed.";

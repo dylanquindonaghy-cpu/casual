@@ -6,9 +6,17 @@ import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeCancellationRecord, type SharedReference } from "@/lib/office/cancellations";
-import { AS_IT_IS_NOW, howText, recordFields, resendNote } from "@/lib/office/cancellations-copy";
+import {
+  AS_IT_IS_NOW,
+  howText,
+  recordFields,
+  resendNote,
+  strikeSectionLines,
+  strikeText,
+} from "@/lib/office/cancellations-copy";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { ResendEvidence } from "./resend-evidence";
+import { StrikeActions } from "./strike-actions";
 
 export const metadata: Metadata = { title: "Cancellation record" };
 
@@ -17,7 +25,8 @@ export const metadata: Metadata = { title: "Cancellation record" };
 // the PDF and the CSV never carry a casual's), and "Download PDF" (by the booking's full id, so it
 // is always this one). Opened by its reference or the booking's full id; a reference two
 // cancellations share lists both to choose from. "Resend evidence" when the evidence email to the
-// strikes team failed or is held up (12C.4). Nothing to approve.
+// strikes team failed or is held up (12C.4). Its strike: "Withdraw strike…" and, when flagged for a
+// review, "Keep strike"; once withdrawn, who, when and why (12C.5). Nothing to approve.
 export default async function CancellationRecordPage({
   params,
 }: {
@@ -66,6 +75,24 @@ export default async function CancellationRecordPage({
         </p>
         <p>{AS_IT_IS_NOW}</p>
       </PageHeader>
+      {strike && (
+        <section aria-labelledby="strike" className="mb-6 flex max-w-3xl flex-col gap-2">
+          <h2 id="strike" className="font-semibold text-ink">
+            Strike: {strikeText(record.row, record.timeZone)}
+          </h2>
+          {strikeSectionLines(strike, record.timeZone).map((line) => (
+            <p key={line} className="text-ink-muted">
+              {line}
+            </p>
+          ))}
+          {strike.status === "live" && (
+            <StrikeActions
+              assignmentId={record.row.assignmentId}
+              reviewNeeded={strike.reviewNeeded}
+            />
+          )}
+        </section>
+      )}
       {resend && (
         <section aria-labelledby="evidence" className="mb-6 flex max-w-3xl flex-col gap-2">
           <h2 id="evidence" className="font-semibold text-ink">

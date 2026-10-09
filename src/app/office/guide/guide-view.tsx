@@ -174,6 +174,8 @@ const MENU_WORDS: Record<string, string> = {
   Cancellations:
     "Every cancellation, by casuals and by the office, with its record and a PDF. Nothing to approve.",
   Requests: "Time changes, swaps and reviews workers have asked for.",
+  Strikes:
+    "Who has strikes for cancelling late, and which need a review. Withdraw or keep one from its record.",
   Workers: "Find a worker to change their access.",
   "Action log": "Everything that happened, newest first.",
   "Notice report": "Every offer, booking, move and cancellation, with the notice given.",

@@ -10535,3 +10535,37 @@ Point 1 goes with 12E.1 (its task text already names this item). Point 2 is in t
 **Hours:** 1.2 (07:41 to 08:55 UTC). Phase 12 so far: 14.9 hours over 16 Hours-log rows (no
 estimate for Phase 12). **Commit:** "Phase 12: Evidence email to the strikes team (12C.4)", pushed
 (its hash in the next entry). CI passed on the checkpoints (`32322d2`, `e1901ef`).
+
+(12C.4's commit: `12ea815`, pushed; CI passed on its checkpoints.)
+
+## 2026-10-09 08:58 UTC — Phase 12, task 12C.5: Strikes page and the casual's strikes
+
+**Task:** Strikes page and the casual's strikes (§3.5, §4.6), as written in `PLAN.md` (12C.5).
+
+**Plan:** `src/lib/strikes/manage.ts`: `withdrawStrike()` (a live strike only; reason 1–500
+characters, trimmed, kept on the row with who and when; clears the review flag; `strike.withdrawn`
+with ids only) and `keepStrike()` (a live strike flagged for review: clears the flag, who and
+when on the row; `strike.reviewed`), each one conditional `UPDATE`, re-checking the office user
+inside the transaction. `src/lib/office/strikes.ts`: the list, one row per casual (live count,
+latest strike with its session and notice, the review flag, the latest's evidence status, and a
+link to each of their strikes' records), Live · Needs review · All as links, sorted by live count;
+admins and resourcers (a new `strikes` area; payroll refused). `/office/strikes` in the menu's
+Records group, first (as the mock-up), no badge; stacked cards on a phone. "Withdraw strike…" and
+"Keep strike" on the strike's cancellation record (every strike is one record, so they sit with
+its full context; the withdrawal reason shows there, never in the PDF, the CSV or the log).
+`/profile`: the casual's Strikes section (the count still counting, in the firm's `live_days`;
+each strike's date, session, notice, until when and status; "Tell us what happened" for a live
+one, reusing 12C.1's form). Erasure clears the withdrawal reason. Tests (unit, integration with
+isolation and payroll, e2e withdrawing a strike); `docs/screens.md`.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| "Withdraw strike…" and "Keep strike" are on the strike's cancellation record; the Strikes page lists each casual with links to every strike's record | Every strike is one record, so the actions sit with its full context (the reason given, the notice, the evidence); one place to build and test | Buttons on the list (the mock-up's "Withdraw a strike" per row would still need choosing which strike) |
+| Strikes first in the Records group, no badge | The mock-up's place; §3.5 says no badge | Operations |
+| Live = not withdrawn and not past its date; Needs review = a live strike flagged; All = every strike kept | §3.5's views; "expired" is worked out from the date (S4) | Storing "expired" |
+| Withdrawing clears the review flag | A withdrawn strike needs no review, and Needs review shouldn't list it | Leaving it |
+| A withdrawal's reason is on screen only (the record, admins and resourcers): never in the PDF, the CSV, the log, the casual's Profile or the planner; erasure clears it, the who and when stay | It's the office's free text and can hold health details | Showing it to the casual |
+| Profile shows the count still counting (`live_days`), the rule, and every kept strike (at most 20) with "Counts until …", "Withdrawn by the office" or "No longer counts"; "Tell us what happened" under one still counting, reusing 12C.1's form | §4.6; the form already ties the account to that cancellation | A separate page |
+| Erasure counts the reasons it cleared (`withdrawalReasons` in `worker.erased`) | Like the other counts there | Not counting |

@@ -473,6 +473,7 @@ describe("erasing a worker", () => {
       cancelReasons: 1,
       overrideReasons: 1,
       sheetMentions: 1,
+      withdrawalReasons: 0, // no strike withdrawn (12C.5: tests/integration/strikes.page.test.ts)
     };
     expect(result).toEqual({ status: "erased", name: "Ann Booker", counts });
     // The office's words about them are replaced; the booking still says there was a reason. Their

@@ -10352,3 +10352,116 @@ time that's too short, so the record always goes at the setting, and the documen
 
 Run `npm run dev`, log in as a casual at `http://acme.localhost:3000`, take a shift that starts
 within 48 hours from "See open shifts", then on "See my shifts" tap "Cancel this shift".
+
+## 2026-10-09 — Phase 12, task 12C.3: Cancellation records
+
+- **Time spent:** 1.4 hours (06:16 to 07:38 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=5e29fcfe183673f4 e2e=true`
+  (3,761 tests; browser tests: 76, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its first round and found no fakes.
+- Committed as "Phase 12: Cancellation records (12C.3)" and pushed to `build/overnight`. Two
+  checkpoint commits (`330a680` before the safety review, `4ce9c60` with its fixes, marked WIP)
+  went first. CI passed on both.
+
+### What was built, in plain words
+
+The office now has a **Cancellations** page (in the menu under Operations, for admins and
+resourcers). It shows this week's numbers ("2 by casuals · 0 by the office", "0 strikes issued"),
+three views as links (All, Under 48 hours, By the office), and the latest 100 cancellations, each
+a link to its **record**.
+
+A record is one cancellation with everything about it: who, which event and session (role, day,
+times), the site, post, pay rate, requirements, meeting point, uniform, when it was booked and
+cancelled, how (in the app, by the office, on the rota sheet), the notice, the reason, the strike,
+and a **"Then"** line saying what happened next ("Place reopened and marked urgent · offered to 5
+casuals · filled again by Ben Fraser at 22:02"). Nothing on these pages approves anything: a
+cancellation is final when it's made.
+
+Two **downloads**: the record as a **PDF** (a printable document) and the chosen view as a
+**CSV** (a spreadsheet file). Neither ever carries a casual's own reason: it reads "Casual's own
+reason (see ShiftDesk)", because "I'm unwell" is **health data** (information the law protects
+more strictly) and these files leave ShiftDesk. The real reason stays on screen, for admins and
+resourcers only. Every download is written to the **action log** (the permanent record of what
+happens) as `export.downloaded`, with ids and counts only.
+
+Key facts and numbers:
+
+- The record has 23 fields; the CSV has §3.4's 22 columns and at most 20,000 rows (a bigger view
+  is refused with a plain message, never cut short).
+- The PDF uses **Noto Sans**, a free font with Latin, Greek and Cyrillic letters, so names such
+  as Łukasz Ştefan, Олена or Δήμητρα print. The font files are cut down beforehand (about 196 KB
+  each) and put in whole, because the PDF library's own trimming lost letters. A tiny second font
+  (6 KB) has the "✓". A record's PDF is about 230 KB, in plain black.
+- A record's **reference** is the first 8 characters of the booking's id. Two cancellations can
+  share one (about 1 in 90 by 10,000 cancellations), so a shared reference lists both to choose
+  from, and the PDF link always uses the booking's full id.
+- Every cancellation now **records what became of its place** in its log entry, at the moment
+  it happens: reopened (and which new row), not reopened because the session had started or the
+  place was above the session's places, removed because the client needs fewer staff, or the
+  whole session cancelled. "Then" reads that, instead of guessing later.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Noto Sans, cut down beforehand and put in whole; "✓" from a second tiny font | The library's own trimming drew blanks; Plus Jakarta Sans has no Greek and only some Cyrillic | Trimming at run time; Plus Jakarta Sans |
+| The PDF is black only | No colours outside the app's design tokens (a test checks), and it photocopies well | Adding the PDF to the test's exceptions |
+| Office reasons go out only if they're from the fixed list; other office words read "Office's own reason (see ShiftDesk)" | Older office reasons are free text and can hold health details | Every office reason as written |
+| "Under 48 hours" uses the firm's strike notice setting | The view and the strikes agree | A fixed 48 |
+| What became of the place is recorded by the cancellation itself | Guessing later from today's state could say false things (the safety review's main finding) | Guessing from slots and statuses |
+| "Offered to" counts casuals offered the session until the session's next cancellation | Offers belong to a session, so a later dropout's offers go on its own record | Counting every later offer |
+| A shared reference lists its cancellations; the PDF link uses the full id | Never hand over the wrong person's record | Showing the newest |
+| Downloads only start from ShiftDesk's own pages | Another site mustn't make someone download, and be logged downloading, a file | No check |
+
+### What the review and the audit found
+
+The safety review found one thing to fix first: "The whole session was cancelled" was worked out
+from the session as it is today, so a booking the office cancelled on Monday would read that way
+if the whole event was cancelled on Tuesday. That would be false, in the PDF too. Fixed at the
+source: each cancellation now writes down what happened to its place when it happens (see above).
+It also asked for, and got: no "(the session had started)" without checking it; the right
+replacement even when a booking moves to another place; downloads refused when another site starts
+them; browser tests proving each download is logged and that payroll can't open them. Smaller
+extras: the CSV counted first and built before it's logged, nothing cached, and a line on the
+record saying the session's details are as they are now. The audit found nothing to fix.
+
+### What the new tests prove
+
+- Unit tests (`tests/unit/office.cancellations.test.ts`, 8): every field word for word; the export
+  reasons (a casual's never leaves, the office's fixed words do); the "Then" line for all five
+  outcomes; the CSV's columns, its escaping (a cell starting "=" can't run as a formula) and no
+  "unwell" or "health"; the PDF read back as text: "Łukasz Ştefan", "✓ Yes", every session detail,
+  the footer, the fonts put in whole; Greek and Cyrillic names; the log entry's words.
+- Database tests (`tests/integration/cancellations.test.ts`, 11): the list, its counts and views;
+  one record's every field and "Then"; a whole session, a place removed, one booking then the
+  whole session, a session that had started, a place above the session's places, a booking moved
+  to another place, a rota-sheet sync's removals, a later dropout; a shared reference; only admins
+  and resourcers, only their own firm; downloads logged, no reason in the CSV or PDF.
+- Six existing tests (cancelling, the office's changes, the rota-sheet sync) now also check what
+  each cancellation recorded about its place.
+- Browser test (`tests/e2e/office.cancellations.spec.ts`): on a phone, a resourcer opens
+  Cancellations from the menu, a record, downloads its PDF and the CSV (each logged once), sees
+  no Approve, Decline or Deny anywhere; a shared reference asks which one; another site's start is
+  refused (403) and logs nothing; payroll gets "not found".
+- Breaking things on purpose made a test fail each time (6 checks): the font trimming, the offer
+  window, the same-transaction window, the shared-reference choice, the two "not reopened"
+  reasons, and the other-site refusal.
+- Checked by eye: both pages at 375px, 390px and 1280px, no sideways scrolling; the PDF rendered
+  to an image.
+
+### What's parked or needs Dylan
+
+- `npm audit` reports 3 high advisories in Next.js, sharp and source-map-js (there before this
+  task); updating Next.js needs its own task (Parking lot).
+- The three older downloads (data export, a worker's export, the notice report) don't refuse
+  another site's start yet (Parking lot).
+- The production image carries the test-only packages (Parking lot).
+- "Your planner" reads "No webhook set up" until the planner webhooks (12J), which also add "By
+  your planner".
+
+### How to see it working
+
+Run `npm run dev`, log in as the resourcer (`docs/walkthrough.md` step 20:
+`http://acme.localhost:3000/office/login`, `acme.resourcer@example.com`), then open Menu →
+Cancellations. Click a cancellation for its record, and "Download PDF" or "Download CSV".
+Cancellations from before this change read "Not recorded" on the "Then" line.

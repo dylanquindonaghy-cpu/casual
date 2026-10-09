@@ -10427,3 +10427,25 @@ Tenant isolation, role checks, what leaves ShiftDesk and the log's contents pass
   the two sheet reasons from the sync module, as `src/lib/gdpr/free-text.ts` already does; the PDF
   route's error log keeps the error (the masking logger, as every route); dev-only packages in the
   image (Parking lot).
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=5e29fcfe183673f4 e2e=true` (3761 tests,
+228 files; 76 e2e; the walkthrough's 3).
+
+**Audit round 1 (claims-auditor), verbatim verdict and open items:**
+
+> VERDICT: DONE
+>
+> Open items, none of which blocks DONE:
+> 1. The "Your planner" row always reads "No webhook set up" (`PLANNER_TEXT`), and the CSV's "Sent to planner at" is always blank. No `webhook.delivered` or `webhook.failed` entries exist yet. PLAN.md line ~953 gives the record's "Your planner" line to the 12J.2 webhook task, and the line is documented in `docs/screens.md`.
+> 2. §3.4's "By your planner" how-text is unreachable. `CANCEL_VIAS` has no `api` value until the planner API (S11, schema comment `roster.ts:53`). `CancellationRow.by` already allows "planner", so 12J needs to add that case to `toRow` and `howText`.
+> 3. PLAN.md Parking lot lists some unrelated and follow-up items: npm audit advisories (pre-existing), older downloads not yet checking `fromOwnPages`, and the dev packages in the production image.
+>
+> To reach DONE: nothing.
+
+Open items 1 and 2 belong to 12J (planner API and webhooks): when it's built, `toRow` and
+`howText` gain the planner's "By your planner", and the record's "Your planner" line reads the
+webhook entries. Item 3 is in the Parking lot.
+
+**Hours:** 1.4 (06:16 to 07:38 UTC). Phase 12 so far: 13.7 hours over 15 Hours-log rows (no
+estimate for Phase 12). **Commit:** "Phase 12: Cancellation records (12C.3)", pushed (its hash in the next
+entry). CI passed on the two checkpoints (`330a680`, `4ce9c60`).

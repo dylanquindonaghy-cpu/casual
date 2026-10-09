@@ -56,11 +56,18 @@ const packEvents = async (firmId: string) =>
 describe("applyCredentialPack", () => {
   it("gives a security firm the security types (plus right to work) and role rules, and logs it", async () => {
     const firmId = await newFirm();
-    expect(await apply(firmId, "security")).toEqual({ typesAdded: 6, rulesAdded: 4 });
+    expect(await apply(firmId, "security")).toEqual({ typesAdded: 8, rulesAdded: 5 });
     expect(await typesOf(firmId)).toEqual([
+      { code: "CSAS", name: "CSAS accreditation", sector: "security", applied_allowed: false },
       {
         code: "FIRST_AID",
         name: "first aid at work certificate",
+        sector: "security",
+        applied_allowed: false,
+      },
+      {
+        code: "MANUAL_HANDLING",
+        name: "manual handling certificate",
         sector: "security",
         applied_allowed: false,
       },
@@ -92,12 +99,13 @@ describe("applyCredentialPack", () => {
     ]);
     expect(await rulesOf(firmId)).toEqual([
       { sector: "security", role: "close_protection_officer", required_types: ["SIA_CP"] },
+      { sector: "security", role: "csas_officer", required_types: ["CSAS"] },
       { sector: "security", role: "door_supervisor", required_types: ["SIA_DS"] },
       { sector: "security", role: "security_officer", required_types: ["SIA_SG"] },
       { sector: "security", role: "steward", required_types: ["STEWARD_L2"] },
     ]);
     const [event] = await packEvents(firmId);
-    expect(event).toMatchObject({ sector: "security", typesAdded: 6, rulesAdded: 4 });
+    expect(event).toMatchObject({ sector: "security", typesAdded: 8, rulesAdded: 5 });
     expect(event.types).toEqual(
       expect.arrayContaining([
         { code: "SIA_DS", appliedAllowed: true },
@@ -105,11 +113,11 @@ describe("applyCredentialPack", () => {
         { code: "RTW", appliedAllowed: false },
       ]),
     );
-    expect(event.types).toHaveLength(6);
+    expect(event.types).toHaveLength(8);
     expect(event.rules).toEqual(
       expect.arrayContaining([{ role: "door_supervisor", requiredTypes: ["SIA_DS"] }]),
     );
-    expect(event.rules).toHaveLength(4);
+    expect(event.rules).toHaveLength(5);
   });
 
   it("applying it again adds nothing, logs nothing, and never overwrites the firm's own edits", async () => {

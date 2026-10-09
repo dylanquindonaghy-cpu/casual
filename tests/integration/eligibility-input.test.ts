@@ -48,6 +48,7 @@ describe("loadEligibilityInput", () => {
         role: "door_supervisor",
         siteId: null,
         requiredTypes: ["SIA_DS"],
+        extraTypes: [],
         startsAt: hoursFromNow(30),
         endsAt: hoursFromNow(38),
       },

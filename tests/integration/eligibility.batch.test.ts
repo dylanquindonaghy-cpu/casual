@@ -82,7 +82,16 @@ async function mixedFirm() {
     steward: await f.shift({ role: "steward", startsAt: hoursFromNow(54) }),
     doorWeek: await f.shift({ role: "door_supervisor", startsAt: hoursFromNow(100) }),
     full: await f.shift({ role: "door_supervisor", startsAt: hoursFromNow(31), headcount: 4 }),
+    // A session that also needs first aid (12B.3), which only Ok holds.
+    firstAid: await f.shift({ role: "door_supervisor", startsAt: hoursFromNow(58) }),
   };
+  await su.query("update shifts set required_credentials = '{FIRST_AID}' where id = $1", [
+    s.firstAid,
+  ]);
+  await su.query(
+    "insert into credentials (firm_id, worker_id, type, status, expires_on) values ($1, $2, 'FIRST_AID', 'valid', '2028-01-01')",
+    [f.firmId, w.ok],
+  );
   // Busy: booked on another shift overlapping `door`, and one ending just before `steward` starts.
   await f.booking(w.busy, await f.shift({ startsAt: hoursFromNow(29) }));
   await f.booking(
@@ -178,6 +187,9 @@ describe("the batched rules give the single rules' answers", () => {
     ]) {
       expect([...codes]).toContain(code);
     }
+    // A session's extra requirement: only the worker who holds it passes.
+    expect(verdicts.get(pairKey(t.s.firstAid, t.w.ok))?.ok).toBe(true);
+    expect(verdicts.get(pairKey(t.s.firstAid, t.w.dayOff))?.codes).toEqual(["credential_missing"]);
     // Blocked at the site's shifts only.
     expect(verdicts.get(pairKey(t.s.door, t.w.barred))?.codes).toEqual(["blocked_site"]);
     expect(verdicts.get(pairKey(t.s.doorLate, t.w.barred))?.ok).toBe(true);

@@ -73,6 +73,10 @@ export const eligibilityInputSchema = z.object({
       siteId: z.string().nullable(),
       // From the firm's credential rule for the role; null when the firm has no rule (fails).
       requiredTypes: z.array(z.string().min(1)).nullable(),
+      // The session's own extra requirements (shifts.required_credentials, docs/office-v2.md
+      // S2): needed on top of the role's, checked the same way. Required, so a new caller can't
+      // leave them out by mistake ([] for none).
+      extraTypes: z.array(z.string().min(1)),
     })
     .and(interval),
   // The worker's other confirmed bookings in every week this shift touches, +/- a day, never
@@ -199,13 +203,14 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
   // 2. The worker has the shift's role.
   if (!worker.roles.includes(shift.role)) fail("wrong_role", REASONS.wrong_role(shift.role));
 
-  // 3-4. Every credential the role needs, in date on every day the shift touches, or "applied"
-  // within the firm's allowance. A suspended one fails whatever else is held. No rule for the
-  // role means not eligible (fail closed).
+  // 3-4. Every credential the role needs, and every extra requirement of the session, in date on
+  // every day the shift touches, or "applied" within the firm's allowance. A suspended one fails
+  // whatever else is held. No rule for the role means not eligible (fail closed), whatever the
+  // session adds. A type needed twice (the role's and the session's) is checked once.
   if (shift.requiredTypes === null) {
     fail("no_rule", REASONS.no_rule());
   } else {
-    for (const type of shift.requiredTypes) {
+    for (const type of new Set([...shift.requiredTypes, ...shift.extraTypes])) {
       const held = input.credentials.filter((c) => c.type === type);
       if (held.some((c) => c.status === "suspended")) {
         fail("credential_suspended", REASONS.credential_suspended(name(type)));

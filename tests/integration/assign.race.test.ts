@@ -182,6 +182,40 @@ describe("assign.race: first yes wins under real concurrency", () => {
     }
   });
 
+  it("the same race when the application in progress is a session's extra requirement (12B.3)", async () => {
+    // Stewards with their own qualification, applying for an SIA security guard licence that two
+    // steward sessions ask for on top of the role's: the day's allowance still holds.
+    const f = await bookingFirm(su, withFirm, {
+      settings: { credential_applied_allowance_pct: 50 },
+    });
+    for (let round = 0; round < 3; round++) {
+      const day = round * 24;
+      const licensed = await f.worker();
+      await f.booking(licensed, await f.shift({ startsAt: hoursFromNow(24 + day) }));
+      const applicant = () =>
+        f.worker({
+          credentials: [
+            { type: "STEWARD_L2", expiresOn: null },
+            { type: "SIA_SG", status: "applied", expiresOn: null },
+          ],
+        });
+      const session = async (h: number) => {
+        const id = await f.shift({ role: "steward", startsAt: hoursFromNow(h + day) });
+        await su.query("update shifts set required_credentials = '{SIA_SG}' where id = $1", [id]);
+        return id;
+      };
+      const [a, b] = [await applicant(), await applicant()];
+      const results = await raceBookings(f.firmId, [
+        { shiftId: await session(25), workerId: a },
+        { shiftId: await session(26), workerId: b },
+      ]);
+      expect(results.map((r) => r.status).sort()).toEqual(["booked", "not_eligible"]);
+      expect(results.find((r) => r.status === "not_eligible")).toMatchObject({
+        codes: ["applied_over_allowance"],
+      });
+    }
+  });
+
   it("a double tap on cancel: cancelled once, one event, the place reopened once", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker();

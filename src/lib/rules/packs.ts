@@ -64,12 +64,26 @@ export const CREDENTIAL_PACKS: Record<Sector, CredentialPack> = {
         typicalValidity: "No expiry",
       },
       { code: "FIRST_AID", name: "first aid at work certificate", typicalValidity: "3 years" },
+      // Community Safety Accreditation Scheme powers, granted by the chief constable to people
+      // employed by a firm with a CSAS agreement (Police Reform Act 2002 s.41): recorded by the
+      // office only, and only under this firm's own scheme (docs/office-v2.md 3.7).
+      {
+        code: "CSAS",
+        name: "CSAS accreditation",
+        typicalValidity: "Set by the police force; ends when the person leaves the firm",
+      },
+      {
+        code: "MANUAL_HANDLING",
+        name: "manual handling certificate",
+        typicalValidity: "No fixed expiry; firm policy",
+      },
     ],
     rules: [
       { role: "steward", requiredTypes: ["STEWARD_L2"] },
       { role: "door_supervisor", requiredTypes: ["SIA_DS"] },
       { role: "security_officer", requiredTypes: ["SIA_SG"] },
       { role: "close_protection_officer", requiredTypes: ["SIA_CP"] },
+      { role: "csas_officer", requiredTypes: ["CSAS"] },
     ],
   },
   rail: {

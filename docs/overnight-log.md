@@ -9909,3 +9909,76 @@ to compare with); `docs/work-log.md` updated.
 
 Commit `50f63a4`, pushed to `build/overnight`; CI runs on the push (checked at the start of the
 next task).
+
+## 2026-10-08 23:52 UTC — Phase 12, task 12B.3: session requirements and CSAS
+
+**Task:** Session requirements and CSAS (§3.3), as written in `PLAN.md` (12B.3). A rules change,
+no database change.
+
+**Plan:**
+- `src/lib/rules/eligibility.ts`: the shift input gains `extraTypes` (the session's
+  `required_credentials`); check 3-4 runs over the role's types and the session's together (each
+  type once), so every extra requirement gets the same checks as a licence: valid, in date to the
+  last day the session touches, "applied" only where that type may count and within the allowance,
+  a suspended one fails. No rule for the role still fails closed, whatever the session adds; none
+  can be overridden (the override list is unchanged).
+- `src/lib/roster/eligibility-input.ts`: both loaders (one booking, and the batches for Open
+  shifts, the urgent board and offer waves) read the session's list; the day's "applied" count also
+  counts people deployed on a session's extra requirement still in progress.
+- `src/lib/rules/packs.ts`: `CSAS` ("CSAS accreditation") and `MANUAL_HANDLING` ("manual handling
+  certificate") in the security pack, and a `csas_officer` role needing `CSAS`.
+- Tests: rules table cases (the doc's three new rows: lacks it, holds it, expires mid-session) and
+  more (both lists, a shared type once, fail closed, suspended/expired, "applied"); the doc-parity
+  and pack tests; an integration test through both loaders, `bookShift` (worker and office) and the
+  applied count. Docs: `docs/rules-and-credentials.md` (the shape, check 3, the packs, CSAS belongs
+  to the firm's own scheme).
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| A `csas_officer` needs `CSAS` only | The task names the role; a session that also needs an SIA licence adds it as an extra requirement | CSAS plus an SIA licence by default |
+| CSAS and manual handling can't count "applied" | An accreditation in progress isn't one; only SIA licences may (the doc's allowance rule) | Letting them count |
+| Typical validity: CSAS "Set by the police force; ends when the person leaves the firm", manual handling "No fixed expiry; firm policy" | No fixed national period for either; the doc's column is a guide and the stored expiry is what counts | Inventing a number |
+| A person deployed on a session's extra requirement still in progress counts toward the day's "applied" share | The allowance caps how many work on an application in progress, whichever list asked for it | Counting the role's types only |
+| Offers still out when a session's requirements change aren't expired | Requirements can only change while nobody is booked, and accepting an offer runs the rules again under the booking's lock, with the new list | Expiring them (as a move does) |
+
+**Built:** as planned. The integration test's "applied" case fails with the loader's change taken
+out (checked, then put back). The pack's integration test lists the security pack's types and
+rules exactly, so it follows (8 types and 5 rules, was 6 and 4). Existing firms keep their types
+until their pack is applied again (`applyCredentialPack()` only adds); the demo seed applies it.
+The screens and data-model notes that said requirements were "checked from 12B.3" now say they
+are.
+- **First full verify: NOT VERIFIED** (70 of 71 browser tests). The one failure,
+  `office.shifts.spec.ts` "payroll doesn't get the shift screens", wasn't this task's change: its
+  login helper accepts `/office` as the landing, but payroll is then sent on to `/office/pay`, and
+  the test opened the menu drawer while that move was still happening; the drawer shuts when the
+  page changes (as designed), so "Pay queries" vanished. It is the race 12A.3 fixed in two other
+  specs, and it had passed until now by luck. The test now waits for `/office/pay` before opening
+  the menu (a stronger check).
+- **Guardrails review: FIX FIRST**, fixed:
+  1. The "applied" day lock skipped a session's extra requirements: `reliesOnApplied()`
+     (`src/lib/roster/book.ts`) looked only at the role's types, so two people relying on an
+     application in progress for a session's extra requirement, booking two sessions on one day at
+     the same moment, could both read the old counts and pass, putting the day over the firm's
+     allowance (the sheet sync's booking of names the same). It now covers both lists, and a new
+     race test in `assign.race.test.ts` (stewards applying for an SIA security guard licence that
+     two steward sessions need) fails with the old code (checked) and passes now.
+  2. `docs/rules-and-credentials.md` still defined "applied" as "a type their role needs": now
+     "their role or that session needs"; `docs/architecture.md`'s check 3 too.
+  Its cheaper points, done: `extraTypes` is required in the rules' input (a future caller can't
+  leave it out; the test inputs give `[]`); the day's "applied" count no longer needs the role's
+  rule row to count a session's extra requirement; the batch-versus-single parity test has a
+  session needing first aid. Parked: CSAS-specific wording in the rules' reasons; fair rotation's
+  comparison group ignoring credentials (a delay, never a wrong booking).
+
+**Verify (final):** `VERIFIED tree=327a40223db14ea6 e2e=true` (00:26 UTC): 3565 tests; 71 e2e and
+the walkthrough's 3.
+
+**Audit round 1:** every claim PROVEN; "Fakes found: none"; one optional nit (the doc's input
+sketch still showed `extraTypes?`), fixed after the tick. Verdict line, verbatim:
+
+VERDICT: DONE
+
+Ticked; hours row added (0.6; Phase 12 so far 6.7 h, no estimate in `PLAN.md`); `docs/work-log.md`
+updated.

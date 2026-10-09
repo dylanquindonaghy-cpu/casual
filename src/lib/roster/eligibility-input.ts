@@ -69,6 +69,7 @@ export async function loadEligibilityInput(
       siteId: shifts.siteId,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
+      requiredCredentials: shifts.requiredCredentials,
     })
     .from(shifts)
     .where(eq(shifts.id, shiftId));
@@ -164,6 +165,7 @@ export async function loadEligibilityInput(
       role: shift.role,
       siteId: shift.siteId,
       requiredTypes: rule ? [...rule.requiredTypes] : null,
+      extraTypes: [...shift.requiredCredentials],
       startsAt: shift.startsAt,
       endsAt: shift.endsAt,
     },
@@ -185,8 +187,9 @@ export async function loadEligibilityInput(
 }
 
 // Everyone else booked on a shift starting the same local day as this one, and how many of them
-// are working on an application in progress: a type their shift's role needs, that may count
-// "applied", held as applied with no valid one in date that day.
+// are working on an application in progress: a type their shift's role or the shift itself (its
+// extra requirements) needs, that may count "applied", held as applied with no valid one in date
+// that day.
 async function deployedThatDay(
   tx: FirmTx,
   at: { workerId: string; startsAt: Date; timeZone: string },
@@ -203,13 +206,14 @@ async function deployedThatDay(
     select count(distinct a.worker_id)::int as deployed,
            count(distinct a.worker_id) filter (where exists (
              select 1
-               from credential_rules r
-               join credentials c
-                 on c.firm_id = r.firm_id and c.worker_id = a.worker_id
-                and c.status = 'applied' and c.type = any (r.required_types)
+               from credentials c
                join credential_types t
                  on t.firm_id = c.firm_id and t.code = c.type and t.applied_allowed
-              where r.firm_id = s.firm_id and r.role = s.role
+              where c.firm_id = s.firm_id and c.worker_id = a.worker_id and c.status = 'applied'
+                and (c.type = any (s.required_credentials)
+                  or exists (select 1 from credential_rules r
+                              where r.firm_id = s.firm_id and r.role = s.role
+                                and c.type = any (r.required_types)))
                 and not exists (
                   select 1 from credentials v
                    where v.firm_id = c.firm_id and v.worker_id = c.worker_id and v.type = c.type
@@ -253,6 +257,7 @@ export async function loadEligibilityInputs(
       siteId: shifts.siteId,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
+      requiredCredentials: shifts.requiredCredentials,
     })
     .from(shifts)
     .where(inArray(shifts.id, shiftIds));
@@ -396,6 +401,7 @@ export async function loadEligibilityInputs(
           role: shift.role,
           siteId: shift.siteId,
           requiredTypes: ruleOf.get(shift.role) ?? null,
+          extraTypes: [...shift.requiredCredentials],
           startsAt: shift.startsAt,
           endsAt: shift.endsAt,
         },
@@ -458,13 +464,14 @@ async function bookedOnDays(
              a.worker_id::text as worker_id,
              exists (
                select 1
-                 from credential_rules r
-                 join credentials c
-                   on c.firm_id = r.firm_id and c.worker_id = a.worker_id
-                  and c.status = 'applied' and c.type = any (r.required_types)
+                 from credentials c
                  join credential_types t
                    on t.firm_id = c.firm_id and t.code = c.type and t.applied_allowed
-                where r.firm_id = s.firm_id and r.role = s.role
+                where c.firm_id = s.firm_id and c.worker_id = a.worker_id and c.status = 'applied'
+                  and (c.type = any (s.required_credentials)
+                    or exists (select 1 from credential_rules r
+                                where r.firm_id = s.firm_id and r.role = s.role
+                                  and c.type = any (r.required_types)))
                   and not exists (
                     select 1 from credentials v
                      where v.firm_id = c.firm_id and v.worker_id = c.worker_id and v.type = c.type

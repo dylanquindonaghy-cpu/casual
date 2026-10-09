@@ -39,6 +39,7 @@ function input(
       endsAt: at("2026-11-07T22:00:00Z"),
       siteId: "site-1",
       requiredTypes: ["SIA_DS"],
+      extraTypes: [],
       ...o.shift,
     },
     otherAssignments: (o.others ?? []).map(([s, e]) => ({ startsAt: at(s), endsAt: at(e) })),
@@ -238,6 +239,117 @@ describe("docs/rules-and-credentials.md test cases", () => {
 
   it("Rule needs no credential: empty list, worker has no credentials -> ok", () => {
     expect(codes(input({ shift: { requiredTypes: [] }, credentials: [] }))).toEqual(OK);
+  });
+
+  const SIA = { type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" } as const;
+  const csasInput = (csas: EligibilityInput["credentials"], shift = {}) =>
+    input({
+      shift: { extraTypes: ["CSAS"], ...shift },
+      credentials: [SIA, ...csas],
+    });
+
+  it("Session needs an extra requirement the worker lacks: role needs SIA_DS (held), session adds CSAS -> fail: missing CSAS", () => {
+    const result = checkEligibility({
+      ...csasInput([]),
+      names: { SIA_DS: "SIA door supervisor licence", CSAS: "CSAS accreditation" },
+    });
+    expect(result.codes).toEqual(["credential_missing"]);
+    expect(result.reasons).toEqual([
+      "This shift needs a valid CSAS accreditation. Send it to the office to be checked.",
+    ]);
+  });
+
+  it("Session needs an extra requirement the worker holds: CSAS held and in date -> ok", () => {
+    expect(codes(csasInput([{ type: "CSAS", status: "valid", expiresOn: "2027-01-01" }]))).toEqual(
+      OK,
+    );
+  });
+
+  it("Extra requirement expires mid-session: night session 22:00-06:00, CSAS expires on its first day -> fail: expired reason", () => {
+    const night = { startsAt: at("2026-11-07T22:00:00Z"), endsAt: at("2026-11-08T06:00:00Z") };
+    const expiring = [{ type: "CSAS", status: "valid", expiresOn: "2026-11-07" }] as const;
+    const result = checkEligibility({
+      ...csasInput([...expiring], night),
+      names: { CSAS: "CSAS accreditation" },
+    });
+    expect(result.codes).toEqual(["credential_expired"]);
+    expect(result.reasons).toEqual([
+      "Your CSAS accreditation expires on 7 Nov, before this shift. Renew it, then send the new number to the office.",
+    ]);
+    // In date to the morning it ends: fine.
+    expect(
+      codes(csasInput([{ type: "CSAS", status: "valid", expiresOn: "2026-11-08" }], night)),
+    ).toEqual(OK);
+  });
+});
+
+describe("a session's extra requirements (12B.3)", () => {
+  it("are checked on top of the role's: both must hold, each with its own reason", () => {
+    const result = checkEligibility(
+      input({ shift: { extraTypes: ["CSAS", "FIRST_AID"] }, credentials: [] }),
+    );
+    expect(result.codes).toEqual([
+      "credential_missing",
+      "credential_missing",
+      "credential_missing",
+    ]);
+  });
+
+  it("a type the role and the session both need is checked once", () => {
+    const result = checkEligibility(input({ shift: { extraTypes: ["SIA_DS"] }, credentials: [] }));
+    expect(result.codes).toEqual(["credential_missing"]);
+  });
+
+  it("no rule for the role still fails closed, whatever the session adds", () => {
+    const result = checkEligibility(
+      input({ shift: { requiredTypes: null, extraTypes: ["CSAS"] }, credentials: [] }),
+    );
+    expect(result.codes).toEqual(["no_rule"]);
+  });
+
+  it("a suspended or office-expired extra requirement fails; it can never be overridden", () => {
+    for (const status of ["suspended", "expired"] as const) {
+      const result = checkEligibility(
+        input({
+          shift: { extraTypes: ["CSAS"] },
+          credentials: [
+            { type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" },
+            { type: "CSAS", status, expiresOn: null },
+          ],
+        }),
+      );
+      expect(result.ok).toBe(false);
+    }
+    expect(() =>
+      checkEligibility({
+        ...input({ shift: { extraTypes: ["CSAS"] } }),
+        overrides: ["credential_missing" as never],
+      }),
+    ).toThrow();
+  });
+
+  it("an extra requirement in progress counts only where 'applied' may count, within the allowance", () => {
+    const applied = [
+      { type: "SIA_DS", status: "valid", expiresOn: "2027-11-01" },
+      { type: "SIA_SG", status: "applied", expiresOn: null },
+    ] as const;
+    const settings = {
+      appliedAllowancePct: 15,
+      appliedAllowedTypes: ["SIA_DS", "SIA_SG"],
+      deployedCount: 20,
+    };
+    expect(
+      codes(input({ shift: { extraTypes: ["SIA_SG"] }, credentials: [...applied], settings })),
+    ).toEqual(OK);
+    expect(
+      codes(
+        input({
+          shift: { extraTypes: ["SIA_SG"] },
+          credentials: [...applied],
+          settings: { ...settings, appliedAllowedTypes: ["SIA_DS"] },
+        }),
+      ),
+    ).toEqual(["credential_missing"]);
   });
 });
 

@@ -73,7 +73,7 @@ describe("credential packs match the doc", () => {
         t.typicalValidity,
       ]),
     ];
-    expect(fromDoc.length).toBe(14);
+    expect(fromDoc.length).toBe(16);
     const sort = (rows: unknown[][]) => rows.map((r) => JSON.stringify(r)).sort();
     expect(sort(fromCode)).toEqual(sort(fromDoc));
   });
@@ -87,7 +87,7 @@ describe("credential packs match the doc", () => {
     const fromCode = Object.values(CREDENTIAL_PACKS).flatMap((p) =>
       p.rules.map((rule) => [p.sector, rule.role, rule.requiredTypes]),
     );
-    expect(fromDoc.length).toBe(10);
+    expect(fromDoc.length).toBe(11);
     const sort = (rows: unknown[][]) => rows.map((r) => JSON.stringify(r)).sort();
     expect(sort(fromCode)).toEqual(sort(fromDoc));
   });
@@ -126,6 +126,18 @@ describe("credential packs are well formed", () => {
       expect(t.name.length).toBeGreaterThan(0);
       expect(t.name.length).toBeLessThanOrEqual(100);
     }
+  });
+
+  it("security has CSAS and manual handling, and a CSAS officer needs CSAS (12B.3)", () => {
+    const codes = CREDENTIAL_PACKS.security.types.map((t) => t.code);
+    expect(codes).toEqual(expect.arrayContaining(["CSAS", "MANUAL_HANDLING"]));
+    // CSAS is the firm's own scheme's: never "applied" (an application in progress isn't one).
+    const csas = CREDENTIAL_PACKS.security.types.find((t) => t.code === "CSAS");
+    expect(csas?.appliedAllowed ?? false).toBe(false);
+    expect(CREDENTIAL_PACKS.security.rules).toContainEqual({
+      role: "csas_officer",
+      requiredTypes: ["CSAS"],
+    });
   });
 
   it("covers the demo firms' roles: Acme (security) and Northline (rail)", () => {

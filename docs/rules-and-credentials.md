@@ -3,11 +3,11 @@
 Pure functions in `src/lib/rules/`. No database access inside the rules — callers load data,
 rules decide. This makes them easy to test in tables. The loader is
 `loadEligibilityInput()` (`src/lib/roster/eligibility-input.ts`): the role's credential rule (none:
-`null`), the worker's credentials, their `confirmed` and `completed` bookings on shifts that aren't
+`null`), the session's extra requirements (`shifts.required_credentials`, 12B.1), the worker's credentials, their `confirmed` and `completed` bookings on shifts that aren't
 cancelled from 8 days before to 8 days after the shift (never the shift itself), credential names
 and `applied_allowed` types from `credential_types`, the day's deployed and applied counts (others
 booked on shifts starting that local day; "applied" = working on an application in progress for a
-type their role needs), and the settings below from `firms.settings`. Availability (the worker's
+type their role or that session needs), and the settings below from `firms.settings`. Availability (the worker's
 days off) and blocked sites are loaded too (checks 8 and 9). A pass (`EligibilityPass`) is single-use and names one
 worker and one shift; roster plugs refuse to book without it (`consumeEligibilityPass()`).
 
@@ -29,7 +29,8 @@ type EligibilityInput = {
   credentials: { type: string; status: 'valid' | 'expired' | 'applied' | 'suspended';
                  expiresOn: string | null }[];            // yyyy-mm-dd; null = no expiry
   shift: { id: string; role: string; startsAt: Date; endsAt: Date; siteId: string | null;
-           requiredTypes: string[] | null };              // from credential_rules; null = no rule
+           requiredTypes: string[] | null;               // from credential_rules; null = no rule
+           extraTypes: string[] };                        // the session's extra requirements ([] for none)
   otherAssignments: { startsAt: Date; endsAt: Date }[];  // confirmed, same week ± a day
   unavailableDates: string[];           // firm-local yyyy-mm-dd, from worker_unavailable_days (the profile page)
   settings: {
@@ -65,7 +66,7 @@ type EligibilityResult = {
 | 0 | The shift hasn't started (`startsAt > now`) | "This shift has already started." |
 | 1 | Worker status is `active` | "Your account isn't active. Contact the office." |
 | 2 | Role match (worker.roles includes shift.role) | "This shift needs a [role]." |
-| 3 | Each required credential present, `valid`, and `expiresOn >= shift date`. The required list comes from the firm's `credential_rules` row for the shift's role; **no row for the role means not eligible** (fail closed: a deleted or forgotten rule must never drop a licence check). A row with an empty list means the role needs no credential. | "Your SIA licence expired on 3 Oct. Renew it, then send the new number to the office." / no rule: "This shift isn't ready to take yet. Ask the office." |
+| 3 | Each required credential present, `valid`, and `expiresOn >= shift date`. The required list comes from the firm's `credential_rules` row for the shift's role, plus the session's own extra requirements (`shifts.required_credentials`: CSAS, first aid… set on the session, 12B.3), each checked exactly like the role's, valid until the session ends; **no row for the role means not eligible** (fail closed: a deleted or forgotten rule must never drop a licence check), whatever the session adds. A row with an empty list means the role needs no credential. | "Your SIA licence expired on 3 Oct. Renew it, then send the new number to the office." / no rule: "This shift isn't ready to take yet. Ask the office." |
 | 4 | If credential is `applied`: allowed only if firm allowance > 0 and adding this worker keeps applied share ≤ allowance % | "Your licence is still being processed. The office can only deploy a limited number of staff in that position today." |
 | 5 | No overlap with other assignments (± travel buffer) | "You're already booked at [time] that day." (or "on Fri 6 Nov" for another day) |
 | 6 | Rest gap ≥ `minRestHours` from the previous and the next assignment | "This is too close to your previous shift (11 hours' rest needed)." / "...your next shift..." |
@@ -110,6 +111,8 @@ Typical validity is a guide only: the expiry on the card/certificate is what we 
 | Security/events | `SIA_CP` | SIA Close Protection | SIA close protection licence | yes | 3 years | Confirm the SIA allowance covers close protection before a firm uses it. |
 | Security/events | `STEWARD_L2` | NVQ Level 2 Spectator Safety | Level 2 spectator safety qualification | no | No expiry | Firm may require refresher. |
 | Security/events | `FIRST_AID` | First aid at work | first aid at work certificate | no | 3 years | |
+| Security/events | `CSAS` | Community Safety Accreditation Scheme | CSAS accreditation | no | Set by the police force; ends when the person leaves the firm | Recorded by the office only, under this firm's own scheme (below). |
+| Security/events | `MANUAL_HANDLING` | Manual handling training | manual handling certificate | no | No fixed expiry; firm policy | Usually a session's extra requirement, not a role's. |
 | Rail | `PTS` | Personal Track Safety | PTS card | no | Renewal typically every 2 years | |
 | Rail | `SENTINEL` | Sentinel card / sponsorship | Sentinel card | no | Ongoing | Primary sponsor recorded. |
 | Rail | `RAIL_DA` | Drugs & alcohol screening | drugs and alcohol test | no | Recent test required (e.g. within 3 months for new sponsorship) | Random tests thereafter. |
@@ -120,8 +123,9 @@ Typical validity is a guide only: the expiry on the card/certificate is what we 
 | Cleaning/various | `DBS` | DBS check | DBS check | no | No fixed expiry; firm policy (or update service) | Site-dependent. |
 | Any | `RTW` | Right to work | right to work check | no | Per document | Firm-level requirement, not per shift. |
 
-Default role rules (every listed type is needed; `RTW` and `FIRST_AID` are types but no role's
-default rule; cleaning needs DBS per site, not per role):
+Default role rules (every listed type is needed; `RTW`, `FIRST_AID` and `MANUAL_HANDLING` are types
+but no role's default rule, often a session's extra requirement instead; cleaning needs DBS per
+site, not per role):
 
 | Pack | Role | Needs |
 |---|---|---|
@@ -129,12 +133,21 @@ default rule; cleaning needs DBS per site, not per role):
 | security | `door_supervisor` | `SIA_DS` |
 | security | `security_officer` | `SIA_SG` |
 | security | `close_protection_officer` | `SIA_CP` |
+| security | `csas_officer` | `CSAS` |
 | rail | `track_operative` | `PTS`, `SENTINEL`, `RAIL_DA` |
 | rail | `lookout` | `PTS`, `SENTINEL`, `RAIL_DA` |
 | construction | `labourer` | `CSCS` |
 | construction | `plant_operator` | `CSCS`, `CPCS_NPORS` |
 | construction | `site_supervisor` | `CSCS`, `SMSTS_SSSTS` |
 | cleaning | `cleaner` | none |
+
+**CSAS belongs to the firm's own scheme.** Under the Police Reform Act 2002 s.41 a chief constable
+accredits people employed by an organisation that has a Community Safety Accreditation Scheme
+agreement, so an accreditation held through another employer doesn't cover this firm's CSAS
+shifts. The office records CSAS itself (a casual can't upload it, `docs/office-v2.md` §3.7), and
+recording it confirms it is under this firm's own scheme. It is never "applied": an application
+in progress isn't an accreditation. Whether a firm may deploy someone accredited through another
+employer is on the solicitor's list (`docs/office-v2.md` §6.4, `PLAN.md` Checks 15).
 
 **Applied/in progress allowance:** SIA approved contractors have been able to deploy a capped
 share of staff whose licence application is in progress (reported as up to 15%). Model it as a
@@ -182,6 +195,9 @@ the current SIA rule before enabling.
 | No credential rule for the role | firm has no `credential_rules` row for the shift's role | fail: "This shift isn't ready to take yet. Ask the office." |
 | Shift already started | `now` at or after `startsAt` | fail: "This shift has already started." |
 | Rule needs no credential | rule row with an empty list, worker has no credentials | ok |
+| Session needs an extra requirement the worker lacks | role needs SIA_DS (held); session adds CSAS, not held | fail: missing CSAS |
+| Session needs an extra requirement the worker holds | session adds CSAS, held and in date | ok |
+| Extra requirement expires mid-session | night session 22:00–06:00; CSAS expires on its first day | fail: expired reason |
 
 ## Race test (integration)
 

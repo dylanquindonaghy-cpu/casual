@@ -260,8 +260,9 @@ Checks, in order (all failures are reported):
 0. The shift hasn't started (the office may override for a late replacement).
 1. The worker's account is active.
 2. Qualification/role match.
-3. Every credential the role needs is present, valid and in date for every day the shift touches;
-   a suspended one always fails; no rule for the role fails.
+3. Every credential the role needs, and every extra requirement of the session (12B.3), is
+   present, valid and in date for every day the shift touches; a suspended one always fails; no
+   rule for the role fails.
 4. Firm "applied/in progress" allowance (e.g. SIA ACS firms may deploy a capped share of staff
    whose licence is in progress — cap is a firm setting; confirm current SIA rules).
 5. No overlapping assignment (including travel buffer if set).

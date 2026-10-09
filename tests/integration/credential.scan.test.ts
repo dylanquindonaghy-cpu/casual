@@ -319,6 +319,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
         role: "door_supervisor",
         siteId: null,
         requiredTypes: ["SIA_DS"],
+        extraTypes: [],
         ...shiftOn(shiftDate),
       },
       otherAssignments: [],

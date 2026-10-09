@@ -154,6 +154,7 @@ export function passFor(shiftId: string, workerId: string): EligibilityPass {
       role: "contract",
       siteId: null,
       requiredTypes: [],
+      extraTypes: [],
       startsAt,
       endsAt: new Date(startsAt.getTime() + HOUR),
     },

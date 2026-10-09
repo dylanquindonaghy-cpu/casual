@@ -123,6 +123,9 @@ test("several shifts for an event, and a file import checked first", async ({ pa
 
 test("payroll doesn't get the shift screens", async ({ page }) => {
   await officeLogin(page, "acme.payroll@example.com");
+  // Payroll lands on /office, then is sent on to the pay dashboard; the menu drawer shuts when the
+  // page changes, so open it only once that move is over.
+  await expect(page).toHaveURL(`${acme}/office/pay`);
   // Absent from the menu itself (opened first, so the check can't pass just because it's shut).
   await expect(await menuLink(page, "Pay queries")).toBeVisible();
   await expect(await menuLink(page, "Shifts")).toHaveCount(0);

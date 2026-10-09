@@ -312,8 +312,9 @@ create table shifts (
   uniform text,                          -- 1..300; likewise (instructions: booked casuals only)
   required_credentials text[] not null default '{}', -- qualification codes needed on top of the
                                          -- role's (all of them), at most 20; the same format check
-                                         -- as credential_rules.required_types. Read by the rules
-                                         -- from 12B.3. Logged as "requirements", never by this name
+                                         -- as credential_rules.required_types. Checked by the rules
+                                         -- on top of the role's (12B.3). Logged as "requirements",
+                                         -- never by this name
   showing_to_casuals boolean not null default true, -- the session's own switch (12B.4 uses it)
   created_at timestamptz not null default now(),
   unique (firm_id, id),

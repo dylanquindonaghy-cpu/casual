@@ -9897,3 +9897,67 @@ name and save a pay rate and post.
 On the demo (`npm run db:reset`, then `npm run dev`), log in to the office as the resourcer, open
 Shifts → "Shifts for an event": there's an "Event name" box and, on each line, Post, Pay rate and
 "Extra requirements". On any shift's page, "Session details" is below "Edit this shift".
+
+## 2026-10-09 — Phase 12, task 12B.3: session requirements and CSAS
+
+- **Time spent:** 0.6 hours (23:52 to 00:29 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=327a40223db14ea6 e2e=true`
+  (3,565 tests; browser tests: 71, then the walkthrough's 3). The first full run had one browser
+  test fail on a timing problem in the test itself (explained below); fixed and re-run.
+- The independent auditor said `VERDICT: DONE` on its **first** round, found no fakes and nothing
+  weakened.
+
+### What was built, in plain words
+
+The **rules engine** (the code that decides whether someone may take a shift) now checks a
+session's **extra requirements**, the ones set in the last task, on top of what the role needs.
+They're checked exactly like a licence: held, valid and in date until the session ends (a night
+session needs it in date until the morning), suspended means no, and "applied for" counts only for
+the SIA licences and only within the firm's allowance. Nobody in the office can override them.
+This is what makes the extra requirements real: until now they were only saved.
+
+The **security qualification list** (the "pack" a security firm starts with) gains **CSAS
+accreditation** (police-granted community safety powers), a **manual handling certificate** and a
+**CSAS officer** role that needs CSAS. CSAS only counts under the firm's own police scheme: the
+office records it, and the rules doc now says why (Police Reform Act 2002, section 41).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A CSAS officer needs CSAS only | A session that also needs an SIA licence adds it as an extra requirement | CSAS plus an SIA licence by default |
+| CSAS and manual handling never count "applied for" | An accreditation in progress isn't one; only SIA licences may | Allowing it |
+| No made-up expiry periods | Neither has a fixed national period; the date on the card is what counts | Inventing "3 years" |
+| Offers already sent aren't cancelled when requirements change | Taking an offer runs the rules again with the new list, so nobody is booked wrongly | Cancelling them |
+
+### What the review found and what was fixed
+
+The safety review found a real gap: the firm's cap on how many people may work on an "applied for"
+licence each day is protected by a lock, so two people booking at the same moment can't both slip
+under it. That lock only looked at the role's requirements, not a session's extra ones. It now
+looks at both, and a new test that makes two such bookings at exactly the same time proves only
+one gets through (with the old code, both did).
+
+The one browser test that failed was a timing problem in the test: payroll logs in, lands on the
+office home page and is then moved on to the pay dashboard; the test opened the menu during that
+move, and the menu closes when the page changes, so the link it looked for vanished. It now waits
+for the pay dashboard first. (The same problem was fixed in two other tests in an earlier task.)
+
+### What the new tests prove
+
+Rules tests: an extra requirement refuses someone without it and lets through someone with it; one
+that expires in the middle of a night session refuses; both lists are checked with a reason each; a
+type needed twice is checked once; no rule for the role still refuses; a suspended or expired one
+refuses and can't be overridden; "applied for" works only where allowed. Database tests: both ways
+the app loads the rules (one booking, and the lists for Open shifts, urgent shifts and offers) pass
+the extra requirements and agree; booking refuses, the office can't override, a holder books; the
+day's "applied for" count includes them; the same-moment race described above.
+
+### What's parked or needs Dylan
+
+- Please confirm the decisions above.
+- Parked: CSAS-specific wording when a casual is missing it (today: "Send it to the office to be
+  checked"), and fair rotation holding a place for people who lack a session's requirement (only a
+  delay, never a wrong booking).
+- Existing firms get the new qualification types only when their pack is applied again; the demo
+  gets them on `npm run db:seed`.

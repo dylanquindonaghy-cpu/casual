@@ -6,6 +6,7 @@ import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { startOfferWaves } from "../offers/waves";
 import { officeCanPlace } from "../roster/book";
+import { isVisibleToCasuals } from "../roster/visibility";
 import { parts, type OfficeContext } from "./office-context";
 
 // The event and session switches (docs/office-v2.md 3.3, "What a switch does"): whether casuals see
@@ -19,9 +20,13 @@ import { parts, type OfficeContext } from "./office-context";
 // has a place free (startOfferWaves: nobody already offered it is offered again), as marking it
 // urgent would have.
 //
-// Locks: the event row (switching an event) or the shift row (switching a session), and nothing
-// else before them, so a booking or an offer that read the switch on finishes first (they hold the
-// shift, then share the event: src/lib/roster/book.ts).
+// Locks: the event row (switching an event) or the shift row then a share of its event (switching
+// a session), so a booking or an offer that read a switch on finishes first (they hold the shift,
+// then share the event: src/lib/roster/book.ts, src/lib/offers/waves.ts), and two switches on one
+// event take turns. After the event row, nothing here waits on any other lock (no shift, worker or
+// advisory lock; the job inserts have no singleton key). That is what keeps shift → worker → event
+// (a booking) and shift → event → worker (an offer's claim) free of deadlocks: never add a wait
+// after the event row here.
 
 export const setShowingSchema = z.strictObject({
   target: z.enum(["event", "session"]),
@@ -31,7 +36,9 @@ export const setShowingSchema = z.strictObject({
 export type SetShowingInput = z.input<typeof setShowingSchema>;
 
 export type SetShowingResult =
-  | { status: "shown"; offering: number } // sessions whose offers started again
+  // `offering`: sessions whose offers started again. `eventHidden`: a session switched on inside an
+  // event that's hidden, so casuals still can't see it.
+  | { status: "shown"; offering: number; eventHidden: boolean }
   | { status: "hidden" }
   | { status: "unchanged" }
   | { status: "not_found" }
@@ -98,7 +105,11 @@ export async function setShowing(
         .where(eq(shifts.id, input.id));
     }
     let offering = 0;
+    let eventHidden = false;
     if (input.showing) {
+      // A session: its event share-locked first (an event switch at this moment finishes first, so
+      // each sees the other's change and an urgent gap isn't left without offers).
+      if (!isEvent) eventHidden = !(await isVisibleToCasuals(tx, input.id, { lock: true }));
       const gaps = await urgentGapsShown(
         tx,
         isEvent ? { eventId: input.id } : { shiftId: input.id },
@@ -124,6 +135,6 @@ export async function setShowing(
       entityId: input.id,
       data: { by: "firm", ...(offering > 0 ? { offersStarted: offering } : {}) },
     });
-    return input.showing ? { status: "shown", offering } : { status: "hidden" };
+    return input.showing ? { status: "shown", offering, eventHidden } : { status: "hidden" };
   });
 }

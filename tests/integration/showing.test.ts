@@ -14,6 +14,7 @@ import { officeOfferPage } from "@/lib/office/offer-page";
 import { setShowing } from "@/lib/office/showing";
 import { myShifts } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
+import { askForReview } from "@/lib/portal/review";
 import { shiftForWorker } from "@/lib/portal/shift-detail";
 import { takeShift } from "@/lib/portal/take-shift";
 import type { PushTransport } from "@/lib/push/transport";
@@ -38,7 +39,7 @@ let withFirm: WithFirm;
 
 beforeAll(() => {
   su = superuserPool();
-  app = appRolePool(4);
+  app = appRolePool(8);
   withFirm = createWithFirm(app);
 });
 afterAll(async () => {
@@ -68,6 +69,13 @@ const jobsFor = async (shiftId: string) =>
       [shiftId],
     )
   ).rows.map((r) => r.name);
+const waveJobs = async (shiftId: string) =>
+  (
+    await su.query<{ data: { firmId: string; idempotencyKey: string; wave: number } }>(
+      "select data from pgboss.job where name = $1 and data ->> 'shiftId' = $2",
+      [OFFER_WAVE_QUEUE, shiftId],
+    )
+  ).rows.map((r) => r.data);
 const logged = async (entityId: string) =>
   (
     await su.query<{
@@ -95,7 +103,12 @@ async function showingFirm() {
   const elsewhere = await f.shift({ eventId: await f.event(), startsAt: hoursFromNow(50) });
   const office = { firm: { id: f.firmId }, officeUserId: resourcer, run: withFirm, clock };
   const portal = { firm: { id: f.firmId }, run: withFirm, clock };
-  return { f, resourcer, casual, eventId, shiftId, sibling, elsewhere, office, portal };
+  // The portal's context with the firm's voice, for Take shift and "Ask the office to review".
+  const voiced = {
+    ...portal,
+    firm: { id: f.firmId, timezone: "Europe/London", signOff: "Acme Shift Team" },
+  };
+  return { f, resourcer, casual, eventId, shiftId, sibling, elsewhere, office, portal, voiced };
 }
 type ShowingFirm = Awaited<ReturnType<typeof showingFirm>>;
 
@@ -143,7 +156,7 @@ describe.each(HOW)("$how", ({ hide, show, stillShown, alsoHidden }) => {
     const hidden = await ids();
     expect(hidden).not.toContain(t.shiftId);
     expect(hidden).toContain(stillShown(t));
-    expect(await show(t)).toEqual({ status: "shown", offering: 0 });
+    expect(await show(t)).toEqual({ status: "shown", offering: 0, eventHidden: false });
     expect(await ids()).toEqual([t.shiftId, t.sibling, t.elsewhere].sort());
   });
 
@@ -169,6 +182,34 @@ describe.each(HOW)("$how", ({ hide, show, stillShown, alsoHidden }) => {
     expect((await shiftForWorker(t.portal, t.casual, stillShown(t))).state).toBe("open");
   });
 
+  it("someone whose place was cancelled still hears the shift was cancelled; nobody else does", async () => {
+    const t = await showingFirm();
+    await t.f.booking(t.casual, t.shiftId, "cancelled_worker");
+    const stranger = await t.f.worker({ first: "Str" });
+    await su.query("update shifts set status = 'cancelled' where id = $1", [t.shiftId]);
+    await hide(t);
+    expect((await shiftForWorker(t.portal, t.casual, t.shiftId)).state).toBe("cancelled");
+    expect(await shiftForWorker(t.portal, stranger, t.shiftId)).toEqual({ state: "missing" });
+    // Open again (with their cancelled place): still missing to them, as nothing can be taken.
+    await su.query("update shifts set status = 'open' where id = $1", [t.shiftId]);
+    expect(await shiftForWorker(t.portal, t.casual, t.shiftId)).toEqual({ state: "missing" });
+  });
+
+  it("Ask the office to review is refused, as if it weren't there", async () => {
+    const t = await showingFirm();
+    const unlicensed = await t.f.worker({ first: "Nol", credentials: [] }); // the rules say no
+    expect((await shiftForWorker(t.portal, unlicensed, t.shiftId)).state).toBe("blocked");
+    await hide(t);
+    expect(await askForReview(t.voiced, unlicensed, t.shiftId, "")).toEqual({
+      status: "not_open",
+    });
+    const { rows } = await su.query("select 1 from requests where shift_id = $1", [t.shiftId]);
+    expect(rows).toHaveLength(0);
+    expect(await askForReview(t.voiced, unlicensed, stillShown(t), "")).toMatchObject({
+      status: "created",
+    });
+  });
+
   it("bookShift refuses a casual, and Take shift says it's gone", async () => {
     const t = await showingFirm();
     await hide(t);
@@ -180,13 +221,7 @@ describe.each(HOW)("$how", ({ hide, show, stillShown, alsoHidden }) => {
         { clock },
       ),
     ).toEqual({ status: "not_found" });
-    expect(
-      await takeShift(
-        { ...t.portal, firm: { ...t.portal.firm, timezone: "Europe/London", signOff: "x" } },
-        t.casual,
-        t.shiftId,
-      ),
-    ).toEqual({ status: "gone" });
+    expect(await takeShift(t.voiced, t.casual, t.shiftId)).toEqual({ status: "gone" });
     const { rows } = await su.query("select 1 from assignments where shift_id = $1", [t.shiftId]);
     expect(rows).toHaveLength(0);
     // Nothing logged as a refusal: to the casual it isn't there.
@@ -232,20 +267,32 @@ describe.each(HOW)("$how", ({ hide, show, stillShown, alsoHidden }) => {
     );
   });
 
-  it("no wave starts: not after a dropout, not when marked urgent, and none queued earlier sends", async () => {
+  it("no wave starts: not after a dropout, not when marked urgent, and one queued earlier sends nothing", async () => {
     const t = await showingFirm();
+    const by = { type: "office" as const, id: t.resourcer };
     const other = await t.f.worker({ first: "Oth" });
-    await t.f.booking(other, t.shiftId);
-    // A wave queued while it was showing, run after it's hidden.
-    await su.query("update shifts set is_urgent = true where id = $1", [t.shiftId]);
-    await hide(t);
-
-    // A dropout inside the urgent window: marked urgent, the office's escalation queued, no wave.
+    // Inside the urgent window (10 hours away), booked.
     await su.query("update shifts set starts_at = $2, ends_at = $3 where id = $1", [
       t.shiftId,
       hoursFromNow(10),
       hoursFromNow(18),
     ]);
+    await t.f.booking(other, t.shiftId);
+    // Marked urgent while it's showing: wave 1 is queued. Then it's hidden.
+    expect(
+      await setShiftUrgent(
+        withFirm,
+        t.f.firmId,
+        { shiftId: t.shiftId, urgent: true, by },
+        { clock },
+      ),
+    ).toEqual({ status: "marked" });
+    const [queued] = await waveJobs(t.shiftId);
+    if (!queued) throw new Error("no wave queued");
+    expect(queued.wave).toBe(1);
+    await hide(t);
+
+    // A dropout inside the urgent window: the office's escalation is queued, no wave.
     await cancelBooking(
       withFirm,
       t.f.firmId,
@@ -257,10 +304,10 @@ describe.each(HOW)("$how", ({ hide, show, stillShown, alsoHidden }) => {
       },
       { clock },
     );
-    expect(await jobsFor(t.shiftId)).toEqual([ESCALATE_SHIFT_QUEUE]);
+    expect(await waveJobs(t.shiftId)).toHaveLength(1);
+    expect((await jobsFor(t.shiftId)).filter((n) => n === ESCALATE_SHIFT_QUEUE)).toHaveLength(2);
 
-    // The office marking it urgent (cleared first): no wave, and the office is told why.
-    const by = { type: "office" as const, id: t.resourcer };
+    // The office marking it urgent again (cleared first): no wave, and the office is told why.
     await setShiftUrgent(
       withFirm,
       t.f.firmId,
@@ -275,15 +322,20 @@ describe.each(HOW)("$how", ({ hide, show, stillShown, alsoHidden }) => {
         { clock },
       ),
     ).toEqual({ status: "marked_hidden" });
-    expect(await jobsFor(t.shiftId)).not.toContain(OFFER_WAVE_QUEUE);
+    expect(await waveJobs(t.shiftId)).toHaveLength(1);
 
-    // Nobody is a candidate, a wave that runs anyway stops (logged), and nothing is sent.
+    // Nobody is a candidate, and the wave queued while it showed stops (logged): nothing is sent.
     expect(await withFirm(t.f.firmId, (tx) => waveCandidates(tx, t.shiftId, NOW))).toEqual([]);
     const { transport, sent } = captureTransport();
     const deps: OfferDeps = { transport, push: noPush, baseDomain: "localhost:3000", clock };
     expect(
       await runOfferWave(
-        { firmId: t.f.firmId, idempotencyKey: "t:1", shiftId: t.shiftId, wave: 1 },
+        {
+          firmId: queued.firmId,
+          idempotencyKey: queued.idempotencyKey,
+          shiftId: t.shiftId,
+          wave: 1,
+        },
         withFirm,
         deps,
       ),
@@ -393,6 +445,131 @@ describe("a switch and a booking at the same moment", () => {
   });
 });
 
+// The real paths take the event's lock: each waits while the event is being switched (a transaction
+// holding the event row, not yet committed), then sees the switch as it is once that commits.
+async function switchingEvent(eventId: string, showing: boolean) {
+  const c = await su.connect();
+  await c.query("begin");
+  await c.query("update shift_events set showing_to_casuals = $2 where id = $1", [
+    eventId,
+    showing,
+  ]);
+  return {
+    commit: async () => {
+      await c.query("commit");
+      c.release();
+    },
+  };
+}
+const settles = (p: Promise<unknown>) => {
+  const state = { done: false };
+  void p.then(
+    () => (state.done = true),
+    () => (state.done = true),
+  );
+  return state;
+};
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+describe("a switch in progress", () => {
+  it("a booking, a wave, an office offer, a review and an urgent mark each wait for the event being hidden, then see it hidden", async () => {
+    const t = await showingFirm();
+    const at = (h: number) => t.f.shift({ eventId: t.eventId, startsAt: hoursFromNow(h) });
+    const [toBook, toWave, toOffer, toReview, toMark] = [
+      await at(30),
+      await at(10),
+      await at(31),
+      await at(32),
+      await at(33),
+    ];
+    await su.query("update shifts set is_urgent = true where id = $1", [toWave]);
+    const unlicensed = await t.f.worker({ first: "Nol", credentials: [] });
+    const { transport, sent } = captureTransport();
+    const deps: OfferDeps = { transport, push: noPush, baseDomain: "localhost:3000", clock };
+
+    const hiding = await switchingEvent(t.eventId, false);
+    const runs = {
+      book: bookShift(
+        withFirm,
+        t.f.firmId,
+        { shiftId: toBook, workerId: t.casual, by: { type: "worker", id: t.casual } },
+        { clock },
+      ),
+      wave: runOfferWave(
+        { firmId: t.f.firmId, idempotencyKey: "t:lock", shiftId: toWave, wave: 1 },
+        withFirm,
+        deps,
+      ),
+      offer: runOfficeOffer(
+        {
+          firmId: t.f.firmId,
+          idempotencyKey: `office-offer:${toOffer}:${t.casual}`,
+          shiftId: toOffer,
+          workerId: t.casual,
+          officeUserId: t.resourcer,
+        },
+        withFirm,
+        deps,
+      ),
+      review: askForReview(t.voiced, unlicensed, toReview, ""),
+      mark: setShiftUrgent(
+        withFirm,
+        t.f.firmId,
+        { shiftId: toMark, urgent: true, by: { type: "office", id: t.resourcer } },
+        { clock },
+      ),
+    };
+    const states = Object.fromEntries(Object.entries(runs).map(([k, p]) => [k, settles(p)]));
+    await pause(400);
+    expect(
+      Object.entries(states)
+        .filter(([, s]) => s.done)
+        .map(([k]) => k),
+    ).toEqual([]);
+    await hiding.commit();
+    expect(await runs.book).toEqual({ status: "not_found" });
+    expect(await runs.wave).toEqual({ status: "stopped", reason: "hidden" });
+    expect(await runs.offer).toEqual({ status: "not_sent", reason: "hidden" });
+    expect(await runs.review).toEqual({ status: "not_open" });
+    expect(await runs.mark).toEqual({ status: "marked_hidden" });
+    expect(sent).toEqual([]);
+    expect(await waveJobs(toMark)).toEqual([]);
+  });
+
+  it("a session marked urgent while its event is being shown gets its wave", async () => {
+    const t = await showingFirm();
+    await setShowing(t.office, { target: "event", id: t.eventId, showing: false });
+    const showing = await switchingEvent(t.eventId, true);
+    const mark = setShiftUrgent(
+      withFirm,
+      t.f.firmId,
+      { shiftId: t.shiftId, urgent: true, by: { type: "office", id: t.resourcer } },
+      { clock },
+    );
+    const state = settles(mark);
+    await pause(400);
+    expect(state.done).toBe(false);
+    await showing.commit();
+    expect(await mark).toEqual({ status: "marked" });
+    expect(await waveJobs(t.shiftId)).toHaveLength(1);
+  });
+
+  it("a session switched on while its event is being switched on sees the event on, and offers go out", async () => {
+    const t = await showingFirm();
+    await setShowing(t.office, { target: "event", id: t.eventId, showing: false });
+    await setShowing(t.office, { target: "session", id: t.shiftId, showing: false });
+    await su.query("update shifts set is_urgent = true where id = $1", [t.shiftId]);
+    const showing = await switchingEvent(t.eventId, true);
+    const on = setShowing(t.office, { target: "session", id: t.shiftId, showing: true });
+    const state = settles(on);
+    await pause(400);
+    expect(state.done).toBe(false);
+    await showing.commit();
+    expect(await on).toEqual({ status: "shown", offering: 1, eventHidden: false });
+    expect(await waveJobs(t.shiftId)).toHaveLength(1);
+  });
+});
+
 describe("setShowing()", () => {
   it("logs who switched what, and nothing when nothing changes", async () => {
     const t = await showingFirm();
@@ -464,6 +641,7 @@ describe("setShowing()", () => {
     expect(await setShowing(t.office, { target: "event", id: t.eventId, showing: true })).toEqual({
       status: "shown",
       offering: 1,
+      eventHidden: false,
     });
     expect(await jobsFor(t.shiftId)).toEqual([ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE]);
     expect(await jobsFor(full)).toEqual([]);
@@ -477,7 +655,29 @@ describe("setShowing()", () => {
     expect(await setShowing(t.office, { target: "event", id: t.eventId, showing: true })).toEqual({
       status: "shown",
       offering: 1,
+      eventHidden: false,
     });
     expect(await jobsFor(t.sibling)).toEqual([]);
+  });
+
+  it("showing a session again starts its offers; inside a hidden event it says casuals still can't see it", async () => {
+    const t = await showingFirm();
+    await setShowing(t.office, { target: "session", id: t.shiftId, showing: false });
+    await su.query("update shifts set is_urgent = true where id = $1", [t.shiftId]);
+    expect(await setShowing(t.office, { target: "session", id: t.shiftId, showing: true })).toEqual(
+      { status: "shown", offering: 1, eventHidden: false },
+    );
+    expect(await waveJobs(t.shiftId)).toHaveLength(1);
+    expect((await logged(t.shiftId)).at(-1)).toMatchObject({
+      action: "session.shown",
+      data: { by: "firm", offersStarted: 1 },
+    });
+
+    await setShowing(t.office, { target: "event", id: t.eventId, showing: false });
+    await setShowing(t.office, { target: "session", id: t.shiftId, showing: false });
+    expect(await setShowing(t.office, { target: "session", id: t.shiftId, showing: true })).toEqual(
+      { status: "shown", offering: 0, eventHidden: true },
+    );
+    expect(await waveJobs(t.shiftId)).toHaveLength(1);
   });
 });

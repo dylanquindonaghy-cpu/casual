@@ -9961,3 +9961,104 @@ day's "applied for" count includes them; the same-moment race described above.
   delay, never a wrong booking).
 - Existing firms get the new qualification types only when their pack is applied again; the demo
   gets them on `npm run db:seed`.
+
+## 2026-10-09 — Phase 12, task 12B.4: what casuals see (the event and session switches)
+
+- **Time spent:** 2.2 hours (00:31 to 02:44 UTC), including a pause while this session's
+  container restarted (the database and Docker had to be started again).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=a251f05687384e0f e2e=true`
+  (3,604 tests; browser tests: 71, then the walkthrough's 3), on the first full run.
+- The independent auditor said `VERDICT: DONE` on its **first** round, found no fakes and nothing
+  weakened.
+- Committed as "Phase 12: What casuals see (12B.4)" and pushed to `build/overnight`. A checkpoint commit (`8e92424`, marked WIP) went first,
+  before the safety review, so the work was saved; CI passed on it.
+
+### What was built, in plain words
+
+Since the last task, every shift (a **session**) belongs to an **event**, and both have a switch:
+"show to casuals". This task makes those switches actually do something. A **casual** (a worker
+on the staff portal) now sees a session only while **both** switches are on.
+
+There is **one check** for this, in one file (`src/lib/roster/visibility.ts`), and every place a
+casual can meet a shift uses it:
+
+- **Open shifts**, the **urgent board** and the **count on the Home page** leave hidden sessions out.
+- The **shift page** says "This shift isn't available." (Someone already booked still sees their
+  booking; someone whose place was cancelled still sees "This shift was cancelled.")
+- **Taking the shift** is refused (it reads as "gone"), and so is **"Ask the office to review"**.
+- **Offers** stop: no automatic offers start (not after a dropout, not when marked urgent), one
+  already queued stops itself, and the office's own "Offer to someone" is refused with a reason.
+
+The office still sees hidden sessions and can still **assign** someone. **People already booked
+keep their place.** Hiding is only about what casuals see, so it is kept out of the rules engine.
+
+A new action, **`setShowing()`**, flips either switch. Only active admins and resourcers may use it.
+Each change goes in the **action log** (the office's record of everything that happened) as
+`event.shown`, `event.hidden`, `session.shown` or `session.hidden`, with who did it, in plain words
+("Sam Rota hid the event from casuals. Anyone booked keeps their shift."). The switches themselves
+appear on screen in the next task (12B.5); this task builds what they do.
+
+### Key facts and numbers
+
+- Showing a session again restarts offers for it if it is urgent, open, not started and has a place
+  free. Nobody already offered it gets a second offer.
+- **Locks** (a database's way of making two things happening at once take turns): a booking, a
+  review request, an offer and an urgent mark each take a shared lock on the event, after the
+  shift's lock. So switching an event off waits a moment for one that is mid-way, and anything after
+  it sees the switch off. Only `setShowing()` takes the event's lock for itself, and it waits on
+  nothing after that, which is why this can't deadlock (two things each waiting for the other
+  forever).
+- No database change: 12B.1 added both switches.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The office's "Offer to someone" is refused for a hidden session, and one queued before it was hidden isn't sent | An offer shows the session to a casual, and taking it would be refused anyway | Letting the office offer it |
+| A casual's booking of a hidden session reads as "not found" | The shift page already treats it as missing | A new "hidden" reason |
+| Showing a session or event again restarts offers for its urgent gaps with a place free | Otherwise an urgent gap shown again sits with no offers, and "Mark urgent" can't restart them (it's already urgent) | Leaving it to the office |
+| The office's "still unfilled" escalation email still goes for a hidden session | It's for the office, which chose to hide it | Skipping it |
+| The shift page heading for a missing shift is now "This shift isn't available." | The task asks for these words; it fits every missing case | Keeping "We can't find that shift." |
+
+### What the review found and what was fixed
+
+The safety review (the `guardrails-reviewer`) found no data leak between firms and no deadlock.
+It did find two things to fix first. One: this log wrongly said showing again doesn't restart
+offers (corrected). Two: "Ask the office to review" didn't check the switches, so a casual with the
+page already open could still send a review for a hidden session (now refused). It also found three
+should-fix items. Marking a session urgent at the same moment its event was being shown could leave
+it with no offers (now each waits for the other). Showing a session inside a hidden event said
+"Showing to casuals." (now it says casuals still can't see it). And no test proved the real paths
+take the lock (now one does). All were fixed, plus the small ones. Three ideas went to the Parking
+lot.
+
+### What the new tests prove
+
+`tests/integration/showing.test.ts` (31 tests, on a real database as the app's own user):
+
+- Every path, run twice (with the event hidden, then with only the session hidden inside a showing
+  event): open shifts, the urgent board and the Home count, the shift page, a former booker's view,
+  taking the shift, the office assigning, a booked casual keeping the shift, review requests, no
+  offers, and the office's offers.
+- "A switch in progress": while an event is being hidden (not yet saved), a booking, an offer wave,
+  an office offer, a review and an urgent mark all wait, then all see it hidden. Taking out any one
+  of the locks makes this test fail (each was tried).
+- `setShowing()`: logs who did what (nothing when nothing changes), only admins and resourcers,
+  never another firm's event or session, and showing again restarts offers.
+
+Unit tests cover the new log words, the result messages, the offer page's "hidden" message, and
+that the new log entries pass the log's privacy check. Separately, each of the casual-facing checks
+was removed one at a time to confirm a test fails without it.
+
+### What's parked or needs Dylan
+
+- Please confirm the decisions above.
+- Parked: fair rotation's head start counts from when the session was made, not from when it was
+  shown again; offers already sent stay waiting while a session is hidden (taking one is refused); a
+  session's history page doesn't show its event's hide/show entries.
+- Personal enquiry replies (12D.2) must use the same check when they're built.
+
+### How to see it working
+
+Nothing to click yet: the switches arrive on the events page in 12B.5. The tests above are the proof
+for now (`npx vitest run tests/integration/showing.test.ts`).

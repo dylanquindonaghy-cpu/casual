@@ -329,16 +329,19 @@ messages anyone twice (the reminders' claim → send → record).
 Every shift belongs to an event (`shift_events`), and both carry a "showing to casuals" switch.
 One check, `src/lib/roster/visibility.ts` (the session's switch and its event's), is used on every
 path a casual reaches a shift by: Open shifts, the urgent board and the Home count (all
-`openShiftsFor()`), the shift page ("This shift isn't available"), a casual's own `bookShift()`
-(refused as not found), offer waves and the waves after a dropout (none start; one queued earlier
+`openShiftsFor()`), the shift page ("This shift isn't available"; someone whose place on it was
+cancelled still sees it was cancelled, started or filled), a casual's own `bookShift()` (refused as
+not found), "Ask the office to review" (refused as not open), offer waves and the waves after a dropout (none start; one queued earlier
 stops, `offer.waves_stopped` {reason: "hidden"}), and the office's own offers (refused; one queued
 earlier isn't sent). The office still sees and assigns a hidden session, booked casuals keep their
 bookings (and still see them), and the office's escalation email still goes. `setShowing()`
 (`src/lib/office/showing.ts`, active admins and resourcers) switches an event or a session, logged
 `event.shown` / `event.hidden` / `session.shown` / `session.hidden` with who; showing one again
-starts offers for each urgent session it brings back with a place free. A casual's booking and the
-offer jobs share-lock the event row after the shift, so switching an event off waits for one that
-read it on (`tests/integration/showing.test.ts`). A display choice, not an eligibility rule: it
+starts offers for each urgent session it brings back with a place free. A casual's booking, a
+review request, the offer jobs and `startOfferWaves()` share-lock the event row after the shift, so
+switching an event waits for one that read it, and one after it sees the new switch; only
+`setShowing()` locks an event row exclusively, and it waits on nothing after that, so the share
+lock can't deadlock (`tests/integration/showing.test.ts`, "a switch in progress"). A display choice, not an eligibility rule: it
 stays out of the rules engine. Personal enquiry replies (12D.2) must use the same check.
 
 **Pay query**

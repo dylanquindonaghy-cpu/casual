@@ -77,7 +77,7 @@ export function urgentResultText(result: SetUrgentResult | Common): string {
     case "marked":
       return "Marked urgent. Offers are going out.";
     case "marked_hidden":
-      return "Marked urgent. It's hidden from casuals, so offers go out when you show it to them.";
+      return "Marked urgent. It's hidden from casuals, so no offers go out while it's hidden.";
     case "cleared":
       return "No longer urgent. No more offers will go out.";
     case "unchanged":

@@ -137,11 +137,14 @@ export function detailsResultText(result: EditDetailsResult | Common): string {
 
 // The event and session switches (src/lib/office/showing.ts).
 export function showingResultText(
-  result: SetShowingResult | Common,
+  result: SetShowingResult | Common | { status: "invalid" },
   target: "event" | "session",
 ): string {
   switch (result.status) {
     case "shown":
+      if (result.eventHidden) {
+        return "Switched on, but its event is hidden from casuals, so they still can't see it.";
+      }
       return result.offering > 0
         ? `Showing to casuals. Offers are going out for ${plural(result.offering, "urgent shift", "urgent shifts")}.`
         : "Showing to casuals.";
@@ -149,6 +152,8 @@ export function showingResultText(
       return "Hidden from casuals. Booked casuals keep their shifts.";
     case "unchanged":
       return "Already done.";
+    case "invalid":
+      return SHIFT_PROBLEM_TEXT.bad_form;
     case "not_found":
       return target === "event" ? "We can't find that event." : "We can't find that shift.";
     default:

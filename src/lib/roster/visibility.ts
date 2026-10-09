@@ -17,7 +17,10 @@ export const visibleToCasuals = sql<boolean>`(${shifts.showingToCasuals} and exi
 // One session. `lock`: the event row is share-locked until the transaction ends, so switching the
 // event off waits for a booking or an offer that read it on (and one after reads it off). The caller
 // holds the shift's lock already (booking and the offer jobs take it first): switching the session
-// itself off waits on that. False when the shift isn't there.
+// itself off waits on that. The lock is taken whatever the switches say (no filter on them), so it
+// always waits for a switch in progress. Only setShowing() locks event rows exclusively, and it
+// waits on nothing after that (src/lib/office/showing.ts): the share lock can't deadlock. False when
+// the shift isn't there.
 export async function isVisibleToCasuals(
   tx: FirmTx,
   shiftId: string,

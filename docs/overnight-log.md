@@ -10016,5 +10016,60 @@ does"), as written in `PLAN.md` (12B.4). No database change (12B.1 added both sw
 |---|---|---|
 | The office's own "Offer to someone" is refused for a hidden session ("This shift is hidden from casuals…"), and one queued before it was hidden isn't sent | An offer is a message showing the session to a casual, and taking it would be refused anyway | Letting the office offer it |
 | A casual's booking of a hidden session reads as "not found", not a new reason | The shift page already treats it as missing; nothing new to explain to the casual | A new "hidden" refusal |
-| Switching a session or event back on doesn't restart offer waves | Nothing in the spec asks for it; the office can mark it urgent or offer it | Restarting waves for urgent sessions (parked) |
+| Showing a session or event again starts offers for each urgent, open, not-started session with a place free that it brings back (as marking it urgent would; nobody already offered it is offered again) | Otherwise an urgent gap shown again would sit with no offers, and "Mark urgent" can't restart them (it's already urgent) | Leaving it to the office |
 | Escalation emails to the office about an unfilled urgent session still go when it's hidden | They're for the office, which chose to hide it | Skipping them |
+
+**12B.4 checkpoint:** `8e92424` (WIP, pushed before the review so the tree was clean; CI passed on
+it). CI also passed on 12B.3's `7e836c3`.
+
+**Guardrails review (12B.4): FIX FIRST, fixed.** No tenant leak, no deadlock cycle, first yes wins
+intact. Findings and what was done:
+
+| Finding | Fix |
+|---|---|
+| FIX FIRST: this log said showing again doesn't restart offers; the code does | The decision row above corrected |
+| FIX FIRST: "Ask the office to review" didn't check the switches | `askForReview` checks them under the event's share lock (as not open); tested for both ways of hiding |
+| SHOULD: `startOfferWaves` read the switch without a lock: a gap marked urgent while its event was being shown could be left with no offers | It share-locks the event; tested with an event switch held open |
+| SHOULD: showing a session inside a hidden event said "Showing to casuals." | The result carries `eventHidden`: "Switched on, but its event is hidden from casuals, so they still can't see it." The session's switch also share-locks its event, so switching a session and its event on at once still starts offers |
+| SHOULD: no test proved the real paths take the lock | "a switch in progress": a booking, a wave, an office offer, a review and an urgent mark each wait for an event being hidden, then see it hidden. Removing each lock in turn fails it (checked) |
+| NICE: the wave test's comment; former bookers on the shift page; the invariant in comments; the office-offer doc; `invalid` for a bad payload; the urgent-but-hidden copy | All done ("Marked urgent. It's hidden from casuals, so no offers go out while it's hidden.") |
+| NICE: Today shows hidden urgent gaps without saying so | Already 12C's task ("Hidden from casuals: nobody can see this gap") |
+| NICE: fair rotation's window, offers already sent, a session's history and its event's entries | Parking lot |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=a251f05687384e0f e2e=true` (first full run after the
+review's fixes; 220 test files, 3,604 tests; 71 browser tests, then the walkthrough's 3). The
+session's container restarted during the review's fixes: Postgres, Docker and the test host names
+were started again, and nothing was lost.
+
+**Auditor verdict (round 1), verbatim:**
+
+```
+VERDICT: DONE
+
+Stamp: `.claude/state/verified.json` has ok=true, e2e=true, tree `a251f05687384e0f`. `./.claude/hooks/tree-hash.sh` prints the same hash, so verify passed on the current files. `test.log` ends with 220 files and 3604 tests passed. `vitest.json` shows 0 skipped and 0 todo. `invariants.log` has "no .only/.skip/.todo". `e2e.log` shows 71 passed plus 3 walkthrough tests passed.
+
+Claims:
+- `setShowing()` for admins and resourcers, on an event or a session — PROVEN. `/home/user/casual/src/lib/office/showing.ts:72-140` checks `officeCanPlace` (active admin or resourcer, `book.ts:332`). A server action wraps it at `src/app/office/shifts/actions.ts:90-96`. Tests in `tests/integration/showing.test.ts` named "is for active admins and resourcers only" (payroll and disabled get `not_allowed`) and "never reaches another firm's event or session" both pass (`test.log` 191-192).
+- One `visibleToCasuals` check — PROVEN. `src/lib/roster/visibility.ts:13` is the SQL form and `:24` is `isVisibleToCasuals(tx, shiftId, {lock})`. Both test the session switch and the event switch.
+- Open shifts, the urgent board, the Home count — PROVEN. `src/lib/portal/open-shifts.ts:92` puts `visibleToCasuals` in `inWindow`, and both the choices query and the candidates query use it. `src/app/urgent/page.tsx:14` and `src/app/page.tsx:29` both call `openShiftsFor(..., {urgent:true})`. The tests "leaves Open shifts, and comes back when shown again" and "leaves the urgent board and the Home count" (`showing.test.ts:150,163`) pass for both variants.
+- The shift page says the shift isn't available — PROVEN. `shift-detail.ts:146-156` returns `missing`, and `src/app/shifts/[id]/shift-view.tsx:64` renders "This shift isn't available." The "booked" state returns earlier at `:130`, so booked casuals keep seeing it. Test "the shift page says it isn't available" (`showing.test.ts:177`) passes.
+- `bookShift` refuses a casual, and the office can still assign — PROVEN. `book.ts:240` refuses a worker booking as `not_found` under `for share` on the event. The office path skips the check. Tests at `showing.test.ts:213` (bookShift and Take shift) and `:231` (office assigns, status `booked`) pass for both variants.
+- Offer waves and dropout waves — PROVEN. `waves.ts:146` makes `startOfferWaves` queue no wave for a hidden session, and `:215` locks the session's own visibility check (`lockShift`). `candidates.ts:59-79` returns `[]` for a hidden session. `urgent.ts` reaches `startOfferWaves` from both `markUrgentAfterDropout` and `setShiftUrgent` (`marked_hidden`). Test "no wave starts" (`showing.test.ts:270`) covers a dropout, a mark-urgent, and a queued wave that stops with reason `hidden` (logged, nothing sent). It passes for both variants.
+- Personal replies once 12D.2 lands — correctly deferred. No shifts-line reply lists shifts today, since `src/lib/inbound` doesn't query `shifts`. PLAN 12D.2 (line ~805) already names `visibleToCasuals`.
+- Booked casuals keep their bookings — PROVEN. `showing.ts` never touches assignments. Test "a booked casual keeps the shift, and still sees it as booked" (`showing.test.ts:248`) checks the assignment row is still `confirmed`, the shift page says `booked`, and the shift is still in `myShifts`. It passes for both variants.
+- The four events logged with who, words in `log-types.ts` and `event-words.ts` — PROVEN. `showing.ts:123-137` records `event.shown/hidden` and `session.shown/hidden` with actorType `office` and the actor id. Groups are at `log-types.ts:33-36`. Words are at `event-words.ts:244-257`. Tests pass: "logs who switched what, and nothing when nothing changes" (`showing.test.ts:574`), the whole-log words tests in `tests/unit/office.log-types.test.ts` (`test.log` 2934-2956, including "has plain words" for each of the four), and `tests/unit/log.phase12-entries.test.ts`.
+- Guardrails-reviewer — PROVEN, with one caveat. `docs/overnight-log.md:10025-10037` records "FIX FIRST, fixed". The fixes are in the code and tests: `askForReview` checks the switches (`review.ts:64`), `startOfferWaves` share-locks the event (`waves.ts:146`), `eventHidden` is returned, and the "a switch in progress" lock tests exist. The log doesn't record a second review run after the fixes.
+
+Fakes found: none. The tests use a real database and the app role, and call the real `setShowing()` for each hide and show. Nothing under test is mocked. The Home-count test calls `openShiftsFor` rather than the page, but the page's count is just `urgent.shifts.length` of that call.
+
+To reach DONE: nothing.
+
+VERDICT: DONE
+```
+
+**Ticked**, hours logged (2.2 h, including the pause for the container restart; Phase 12 so far
+8.9 h, no estimate to compare with). Personal replies (12D.2) must use the same check; 12D.2's
+text already names it. Commit: "Phase 12: What casuals see (12B.4)" (hash in the next entry).
+Parked: fair rotation's window after showing again, offers already sent while hidden, a session's
+history and its event's entries.

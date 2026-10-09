@@ -244,11 +244,17 @@ describe("the shift screens' words", () => {
     expect(showingResultText({ status: "hidden" }, "event")).toBe(
       "Hidden from casuals. Booked casuals keep their shifts.",
     );
-    expect(showingResultText({ status: "shown", offering: 0 }, "session")).toBe(
+    expect(showingResultText({ status: "shown", offering: 0, eventHidden: false }, "session")).toBe(
       "Showing to casuals.",
     );
-    expect(showingResultText({ status: "shown", offering: 2 }, "event")).toBe(
+    expect(showingResultText({ status: "shown", offering: 2, eventHidden: false }, "event")).toBe(
       "Showing to casuals. Offers are going out for 2 urgent shifts.",
+    );
+    expect(showingResultText({ status: "shown", offering: 0, eventHidden: true }, "session")).toBe(
+      "Switched on, but its event is hidden from casuals, so they still can't see it.",
+    );
+    expect(showingResultText({ status: "invalid" }, "session")).toBe(
+      "Check the form and try again.",
     );
     expect(showingResultText({ status: "unchanged" }, "event")).toBe("Already done.");
     expect(showingResultText({ status: "not_found" }, "event")).toBe("We can't find that event.");

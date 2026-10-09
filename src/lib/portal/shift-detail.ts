@@ -21,7 +21,8 @@ import type { MyShift, PortalContext } from "./my-shifts";
 // - blocked: the rules say no, with their reasons in plain English, and the worker's review
 //   request for it if one is waiting (askForReview in review.ts).
 // - missing: not in this firm, a draft, not a shift id, or hidden from casuals (the session's or its
-//   event's switch is off: src/lib/roster/visibility.ts). A booked worker still sees it as booked.
+//   event's switch is off: src/lib/roster/visibility.ts). A booked worker still sees it as booked,
+//   and one whose place was cancelled still sees cancelled, started or filled.
 // Code decides every state (golden rule 1); this only reads.
 
 export interface ShiftSummary {
@@ -142,7 +143,17 @@ export async function shiftForWorker(
       };
     }
 
-    if (!(await isVisibleToCasuals(tx, shiftId))) return { state: "missing" };
+    // Hidden from casuals: missing, except that someone who had a place on it (since cancelled)
+    // still hears it was cancelled, has started or is filled. Nobody is offered a hidden one.
+    const visible = await isVisibleToCasuals(tx, shiftId);
+    if (!visible) {
+      const [hadPlace] = await tx
+        .select({ id: assignments.id })
+        .from(assignments)
+        .where(and(eq(assignments.shiftId, shiftId), eq(assignments.workerId, workerId)))
+        .limit(1);
+      if (!hadPlace) return { state: "missing" };
+    }
 
     const { rows: counted } = await takenPlaces(tx, shiftId);
     const placesLeft = Math.max(0, row.headcount - (counted[0]?.taken ?? 0));
@@ -157,6 +168,7 @@ export async function shiftForWorker(
     if (row.status === "cancelled") return { state: "cancelled", shift };
     if (row.startsAt.getTime() <= now.getTime()) return { state: "started", shift };
     if (row.status !== "open" || placesLeft === 0) return { state: "filled", shift };
+    if (!visible) return { state: "missing" };
 
     const verdict = await previewBooking(tx, { shiftId, workerId, now });
     if (!verdict) return { state: "missing" };

@@ -76,8 +76,8 @@ const uuid = z.uuid();
 
 export type SetUrgentResult =
   | { status: "marked" }
-  // Marked, but hidden from casuals (the session's switch or its event's): no offers go out until
-  // it's shown to them again (src/lib/office/showing.ts).
+  // Marked, but hidden from casuals (the session's switch or its event's): no offers go out while
+  // it's hidden (showing it again starts them if a place is free: src/lib/office/showing.ts).
   | { status: "marked_hidden" }
   | { status: "cleared" }
   | { status: "unchanged" }

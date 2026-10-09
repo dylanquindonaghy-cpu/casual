@@ -87,11 +87,12 @@ export async function editShiftDetailsAction(
 }
 
 // The event or session switch: whether casuals see it (booked casuals keep their shifts).
-export async function setShowingAction(raw: unknown): Promise<SetShowingResult | Common> {
+export async function setShowingAction(
+  raw: unknown,
+): Promise<SetShowingResult | Common | { status: "invalid" }> {
   const input = setShowingSchema.safeParse(raw);
-  if (!input.success || !z.uuid().safeParse(input.data.id).success) {
-    return { status: "not_found" };
-  }
+  if (!input.success) return { status: "invalid" };
+  if (!z.uuid().safeParse(input.data.id).success) return { status: "not_found" };
   return asOffice("set showing", (ctx) => setShowing(ctx, input.data));
 }
 

@@ -5,6 +5,7 @@ import { assignments, requests, shifts } from "../db/schema";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { previewBooking } from "../roster/book";
+import { isVisibleToCasuals } from "../roster/visibility";
 import { dayLabel } from "../rules/reasons";
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import type { PortalContext } from "./my-shifts";
@@ -21,7 +22,8 @@ import { refOf, takenPlaces, waitingReview } from "./shift-detail";
 // worker asks the office to look again at a shift the rules won't let them take. Server only.
 //
 // Code decides whether there is anything to review (golden rule 1): under a lock on the shift row,
-// the shift must be open, not started, with a place left and not already theirs, and the rules
+// the shift must be open, not started, shown to casuals (src/lib/roster/visibility.ts), with a
+// place left and not already theirs, and the rules
 // must still say no on the current rows (if they now say yes, it may still be held by fair
 // rotation: the answer only says it isn't blocked). Then one `review` request is added (one
 // waiting per worker and shift: asking again gives the waiting one's reference) with the rules'
@@ -57,6 +59,9 @@ export async function askForReview(
     if (!shift || shift.status !== "open" || shift.startsAt.getTime() <= now.getTime()) {
       return { status: "not_open" };
     }
+    // Hidden from casuals (the session's switch or its event's, after the page was opened): as if it
+    // weren't there. The event is share-locked, as a booking does.
+    if (!(await isVisibleToCasuals(tx, shiftId, { lock: true }))) return { status: "not_open" };
     const [mine] = await tx
       .select({ id: assignments.id })
       .from(assignments)

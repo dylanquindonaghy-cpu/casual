@@ -110,7 +110,7 @@ describe("the words", () => {
     );
     // A session hidden from casuals (12B.4): marked, but no offers until it's shown; never offered.
     expect(urgentResultText({ status: "marked_hidden" })).toBe(
-      "Marked urgent. It's hidden from casuals, so offers go out when you show it to them.",
+      "Marked urgent. It's hidden from casuals, so no offers go out while it's hidden.",
     );
     expect(offerResultText({ status: "hidden" }, "Ann Booker")).toBe(
       "This shift is hidden from casuals, so it can't be offered. Show it to casuals first.",

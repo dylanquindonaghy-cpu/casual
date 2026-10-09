@@ -140,9 +140,10 @@ export async function startOfferWaves(
     .innerJoin(firms, eq(firms.id, shifts.firmId))
     .where(eq(shifts.id, input.shiftId));
   if (!shift) return false;
-  // Read without a lock: a wave that starts anyway (shown, then hidden before it runs) stops
-  // itself under the shift's lock (notOfferable).
-  const showing = await isVisibleToCasuals(tx, input.shiftId);
+  // The event share-locked: an event being shown or hidden at this moment finishes first, so a
+  // gap made urgent while its event is switched back on still gets its wave (showing.ts can't see
+  // this uncommitted change). Every caller holds the shift's lock already, or is that switch.
+  const showing = await isVisibleToCasuals(tx, input.shiftId, { lock: true });
   if (showing) {
     const { rows } = await tx.execute<{ next: number }>(
       sql`select coalesce(max(wave), 0)::int + 1 as next from offers where shift_id = ${input.shiftId}`,

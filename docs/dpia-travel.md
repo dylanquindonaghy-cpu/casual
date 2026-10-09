@@ -82,10 +82,16 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 
 ### How long
 
-- While the casual keeps it and works for the firm. It's deleted when they remove it, when the
-  office makes them inactive with the reason "They've left" (`DEACTIVATE_REASONS.left`,
+- While the casual keeps it. It's deleted when they remove it, when the office makes them
+  inactive with the reason "They've left" (`DEACTIVATE_REASONS.left`,
   `src/lib/office/worker-reasons.ts`), and when they're erased (`src/lib/gdpr/worker-erase.ts`).
   Made inactive for another reason (a pause), it's kept for when they come back.
+- **A gap, parked:** "They've left" can only be chosen for an active casual. One a rota sheet or a
+  staff file already made inactive, or one who is blocked, keeps their area until the office
+  erases them, with no time limit yet. Before a real firm: either let the office mark an inactive
+  casual as "They've left", or have the nightly retention job delete the areas of casuals inactive
+  for a set time (`PLAN.md` Parking lot). Until then, the firm's offboarding of a leaver should
+  include erasing them when they ask, or removing the area.
 - The log entries (`travel.profile_changed`, `travel.profile_removed`) hold no postcode or point,
   so nothing personal about their location stays in the log.
 - Travel estimates (12G.2) are keyed by postcode, not by person, and are purged 7 days after the
@@ -95,7 +101,11 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 
 - The casual: their own postcode, ways of travelling and limit, on Profile.
 - The firm's admins and resourcers: the district, the limit and the ways of travelling, on the
-  casual's page (`/office/workers/[id]`); later on the Casuals page (12H).
+  casual's page (`/office/workers/[id]`); later on the Casuals page (12H). The firm's "Download all
+  your data" has the district only too (`FIRM_EXPORT_CUT`, `src/lib/gdpr/firm-export.ts`; tested).
+- An admin who downloads one casual's own data for a subject access request (logged
+  `worker.data_exported`) sees that casual's full postcode and its point: it's the casual's data,
+  for the casual.
 - Payroll: nothing. Another firm: nothing.
 - postcodes.io: the postcode alone, when it's saved. TravelTime (12G.2): coordinates and
   meaningless ids.
@@ -109,7 +119,8 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 | They miss offers because of a wrong postcode or a limit set too low | Possible, minor | They see their own setting on Profile and can change or remove it; an unknown distance is shown and still offered (D2, 12G.3) |
 | Their postcode leaks through the log | Unlikely, moderate | Never logged (the log check refuses a field named "postcode"; tested) |
 | A look-up service learns who they are | Unlikely, minor | Only the postcode is sent (tested); TravelTime gets coordinates and meaningless ids |
-| Kept after they leave | Possible, minor | Deleted on "They've left" and on erasure (tested) |
+| Kept after they leave | Possible, minor | Deleted on "They've left" and on erasure (tested). A casual already made inactive by a sheet or file, or blocked, keeps it until erased (parked: see "How long") |
+| The office sees the full postcode in a download | Unlikely, moderate | The firm's export has the district only (tested); only a casual's own subject access export has more |
 
 ### Sign-off
 

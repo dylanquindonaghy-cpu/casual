@@ -2844,6 +2844,19 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   Also: `scripts/invariants.sh` checks the test setups' pins for email, AI and Twilio but not yet
   `TRAVEL_PROVIDER` (pinned to `fake` in `tests/setup/env.ts` and `serverEnv()` since 12G.1).
   Adding it changes a protected file, so it's Dylan's call: two lines like the AI ones.
+  Before `traveltime` is switched on (12G.1 review): limit look-ups per casual and per firm (say 10
+  an hour per casual), so one person can't get the server's address throttled by postcodes.io.
+  For 12G.2: the worker should build its geocoder from `workerEnv()`, not `appEnv()`
+  (`src/lib/travel/server.ts`).
+- Travel areas (12G.1 review): **Dylan to decide** whether a firm switches the travel area on
+  for itself (a per-firm `travel.enabled`, off by default, hiding "Where you work"), since the DPIA's
+  Part 2 is per firm and `TRAVEL_PROVIDER` is per server. Today it shows for every firm (with the
+  fake look-up, a real postcode is refused with "postcode look-ups aren't switched on").
+- Travel areas of leavers the office can't mark "They've left" (12G.1 review): that reason is only
+  offered for an active casual, so one a sheet or file made inactive, or one blocked, keeps their
+  area until erased. Either offer "They've left" for an inactive casual too (deleting the area,
+  logged), or have the nightly retention job delete areas of casuals inactive for a set time.
+  `docs/dpia-travel.md` "How long" names the gap.
 - Strikes' log entries (12C.5 review): when the action log's purge is built (Data 2), it should
   delete a strike's `strike.*` entries when the strike's row goes (12 months), so a `strike.reviewed`
   entry can't hint at a health or caring reason for longer than the strike itself is kept

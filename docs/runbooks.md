@@ -848,7 +848,8 @@ deletion").
 ## Offboarding a firm
 
 1. The firm's admin downloads their data: **Download all your data** on `/office/data` (one JSON
-   file of every table, less login secrets). Hand it over if they ask us instead.
+   file of every table, less login secrets; casuals' travel areas as their postcode district only,
+   never the full postcode: `docs/dpia-travel.md`). Hand it over if they ask us instead.
 2. Release the Twilio number after 30 days.
 3. Delete data per retention/agreement; write the final event. (Deleting a whole firm has no
    script yet: PLAN.md Parking lot.)

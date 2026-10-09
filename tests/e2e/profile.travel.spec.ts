@@ -37,7 +37,7 @@ test("a casual sets their travel area, the office sees only the district, and th
 
   await page.goto(`${acme}/profile`);
   const where = page.getByRole("region", { name: "Where you work" });
-  await expect(where).toContainText("Not set yet. Set it to see shifts you can get to.");
+  await expect(where).toContainText("Not set yet.");
   await where.getByRole("link", { name: "Set your travel area" }).click();
   await expect(page).toHaveURL(`${acme}/profile/travel`);
   await expect(page.getByRole("heading", { name: "Where you work", level: 1 })).toBeVisible();

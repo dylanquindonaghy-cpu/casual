@@ -35,7 +35,7 @@ describe("the casual's words", () => {
       travelSummaryText({ set: true, postcode: "ZZ1 1AA", modes: "car", maxMinutes: 90 }),
     ).toBe("From ZZ1 1AA · up to 90 minutes by car");
     expect(travelSummaryText({ set: false, postcode: null, modes: "both", maxMinutes: 45 })).toBe(
-      "Not set yet. Set it to see shifts you can get to.",
+      "Not set yet.",
     );
   });
 
@@ -46,6 +46,7 @@ describe("the casual's words", () => {
       "invalid",
       "unknown_postcode",
       "lookup_failed",
+      "lookups_off",
       "try_again",
       "not_active",
       "logged_out",
@@ -81,7 +82,14 @@ describe("the office's words", () => {
     expect(siteLocationText({ postcode: "ZZ1 1AA", located: false })).toBe(
       "Location not looked up yet: save the postcode again to look it up.",
     );
-    for (const status of ["saved", "located", "unknown_postcode", "lookup_failed"] as const) {
+    for (const status of [
+      "saved",
+      "saved_unlocated",
+      "located",
+      "lookups_off",
+      "unknown_postcode",
+      "lookup_failed",
+    ] as const) {
       expect(sitePostcodeResultText({ status }), status).toMatch(/\.$/);
     }
     expect(sitePostcodeResultText({ status: "unknown_postcode" })).toMatch(/nothing changed/);
@@ -112,6 +120,21 @@ describe("the log", () => {
     expect(LOG_TYPES.workers.actions).toEqual(
       expect.arrayContaining(["travel.profile_changed", "travel.profile_removed"]),
     );
+  });
+
+  it("a site's location found says so; a changed postcode says that", () => {
+    const site = (fields: string[]) =>
+      eventWords(
+        {
+          action: "site.changed",
+          actorType: "office",
+          actorId: "o",
+          data: { siteId: "s", fields },
+        },
+        { worker: () => "Ann Booker", office: () => "Sam Rota", site: () => "Riverside Arena" },
+      );
+    expect(site(["location"])).toBe("Sam Rota looked up the location of Riverside Arena.");
+    expect(site(["postcode"])).toBe("Sam Rota changed the postcode of Riverside Arena.");
   });
 
   it('"They\'ve left" says the travel area went', () => {

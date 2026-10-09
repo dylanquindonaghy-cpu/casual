@@ -108,7 +108,9 @@ export const sitePostcodeSchema = z.strictObject({
 
 export type EditSitePostcodeResult =
   | { status: "saved" }
+  | { status: "saved_unlocated" } // saved; look-ups aren't switched on, so no location yet
   | { status: "located" } // the same postcode: its missing location found now
+  | { status: "lookups_off" } // the same postcode, no location, and look-ups aren't on
   | { status: "unchanged" }
   | { status: "in_use"; sessions: number } // live bookings on sessions still to come
   | { status: "invalid" }
@@ -134,12 +136,16 @@ export async function editSitePostcode(
   const now = (ctx.clock ?? systemClock).now();
   // The look-up comes first, outside any transaction: a wait on the network never holds rows
   // locked. (The action lets only admins this far; the transaction checks again.)
+  // With look-ups off (the fake geocoder and a real postcode), the postcode is still saved, without
+  // a location, as before look-ups existed.
   let point: Point | null = null;
+  let off = false;
   if (postcode) {
     const found = await (ctx.geocoder ?? serverGeocoder()).locate(postcode);
     if (found.status === "not_found") return { status: "unknown_postcode" };
     if (found.status === "unavailable") return { status: "lookup_failed" };
-    point = found.point;
+    if (found.status === "off") off = true;
+    else point = found.point;
   }
   return (ctx.run ?? withFirm)(ctx.firm.id, async (tx) => {
     if (!(await officeUserMay(tx, ctx.officeUserId, "settings"))) return { status: "not_allowed" };
@@ -156,6 +162,7 @@ export async function editSitePostcode(
     if (!site) return { status: "not_found" };
     if ((site.postcode ?? null) === postcode) {
       if (postcode === null || site.lat !== null) return { status: "unchanged" };
+      if (off) return { status: "lookups_off" };
       // The same postcode with no point yet: the venue doesn't move, so bookings don't matter.
       await tx.update(sites).set(pointColumns(point)).where(eq(sites.id, siteId));
       await recordEvent(tx, {
@@ -188,6 +195,6 @@ export async function editSitePostcode(
       entityId: siteId,
       data: { siteId, fields: ["postcode"] },
     });
-    return { status: "saved" };
+    return { status: off ? "saved_unlocated" : "saved" };
   });
 }

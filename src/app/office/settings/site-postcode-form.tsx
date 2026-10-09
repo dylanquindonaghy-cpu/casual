@@ -34,7 +34,7 @@ export function SitePostcodeForm({
         startTransition(async () => {
           const result = await editSitePostcodeAction(siteId, value).catch(() => failed);
           setMessage(sitePostcodeResultText(result));
-          if (result.status === "saved" || result.status === "located") router.refresh();
+          if (["saved", "saved_unlocated", "located"].includes(result.status)) router.refresh();
         });
       }}
     >

@@ -62,9 +62,13 @@ describe("the fake geocoder", () => {
     expect(a && b && Math.abs(a.lat - b.lat) < 1 && Math.abs(a.lng - b.lng) < 1).toBe(true);
   });
 
-  it("doesn't know district ZZ0, a real postcode or a non-postcode", async () => {
-    for (const p of ["ZZ0 0AA", "SW1A 1AA", "LS1 4AP", "not one", ""]) {
+  it("doesn't know district ZZ0 or a non-postcode; says a real postcode is beyond it ('off')", async () => {
+    for (const p of ["ZZ0 0AA", "not one", ""]) {
       expect(await fakeGeocoder.locate(p), p).toEqual({ status: "not_found" });
+    }
+    // Not "unknown": look-ups aren't switched on, and the words say so.
+    for (const p of ["SW1A 1AA", "ls1 4ap"]) {
+      expect(await fakeGeocoder.locate(p), p).toEqual({ status: "off" });
     }
   });
 });
@@ -130,6 +134,13 @@ describe("postcodes.io, against its written-down answers", () => {
         status: "unavailable",
       });
     }
+  });
+
+  it("an answer too big to be one: unavailable, without reading it all", async () => {
+    const huge = { ...(answer("found") as object), padding: "x".repeat(70 * 1024) };
+    expect(await replying(200, huge).geocoder.locate("ZZ1 1AA")).toEqual({
+      status: "unavailable",
+    });
   });
 
   it("no answer in time, or no network: unavailable", async () => {

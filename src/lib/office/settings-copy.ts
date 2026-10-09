@@ -66,6 +66,10 @@ export function sitePostcodeResultText(
       return "Saved.";
     case "located":
       return "Saved. Its location was found.";
+    case "saved_unlocated":
+      return "Saved. Postcode look-ups aren't switched on yet, so its location isn't known.";
+    case "lookups_off":
+      return "Nothing changed. Postcode look-ups aren't switched on yet, so its location can't be found.";
     case "unchanged":
       return "Nothing changed.";
     case "unknown_postcode":

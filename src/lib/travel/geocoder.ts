@@ -5,11 +5,13 @@ import { tidyPostcode } from "./postcode";
 // person's position. Only the postcode is ever sent, never who it belongs to. Server only.
 //
 // - fake: fixed points for the made-up ZZ postcodes (golden rule 7), for development, tests and a
-//   demo. A real postcode is never found, and nor is district ZZ0 (for "unknown postcode").
+//   demo; district ZZ0 is never found (for "unknown postcode"). Any other postcode is "off": the
+//   fake can't place it, and says so, rather than calling a real postcode unknown.
 // - postcodes.io (https://postcodes.io/docs/overview/): free and keyless. A GET of the postcode
 //   alone, with a time limit; its answer is checked with zod before anything is used. A postcode
 //   it doesn't know (404), or one without a central point, is "not found"; anything else that
-//   goes wrong is "unavailable", and the caller says so and saves nothing.
+//   goes wrong is "unavailable", and the caller says so and saves nothing. Its answer is read only
+//   up to POSTCODES_IO_MAX_BYTES (one is about 2 KB).
 //
 // Chosen by the server's TRAVEL_PROVIDER (`geocoderFor`): "fake", or "traveltime" (postcodes.io).
 
@@ -21,7 +23,8 @@ export interface Point {
 export type GeocodeResult =
   | { status: "found"; postcode: string; point: Point }
   | { status: "not_found" }
-  | { status: "unavailable" };
+  | { status: "unavailable" }
+  | { status: "off" }; // the fake, asked about a real postcode: look-ups aren't switched on
 
 export interface Geocoder {
   locate(postcode: string): Promise<GeocodeResult>;
@@ -56,8 +59,10 @@ export function fakePoint(postcode: string): Point | null {
 export const fakeGeocoder: Geocoder = {
   async locate(raw) {
     const postcode = tidyPostcode(raw);
-    const point = postcode ? fakePoint(postcode) : null;
-    return postcode && point ? { status: "found", postcode, point } : { status: "not_found" };
+    if (!postcode) return { status: "not_found" };
+    if (!postcode.startsWith("ZZ")) return { status: "off" };
+    const point = fakePoint(postcode);
+    return point ? { status: "found", postcode, point } : { status: "not_found" };
   },
 };
 
@@ -65,6 +70,7 @@ export const fakeGeocoder: Geocoder = {
 
 export const POSTCODES_IO_URL = "https://api.postcodes.io";
 export const POSTCODES_IO_TIMEOUT_MS = 5000;
+export const POSTCODES_IO_MAX_BYTES = 64 * 1024;
 
 // Only the fields used; the rest of its answer is ignored.
 const foundAnswer = z.object({
@@ -101,9 +107,13 @@ export function postcodesIoGeocoder(
       } catch {
         return { status: "unavailable" };
       }
+      const length = Number(response.headers.get("content-length") ?? 0);
+      if (length > POSTCODES_IO_MAX_BYTES) return { status: "unavailable" };
       let body: unknown;
       try {
-        body = await response.json();
+        const text = await response.text();
+        if (text.length > POSTCODES_IO_MAX_BYTES) return { status: "unavailable" };
+        body = JSON.parse(text);
       } catch {
         return { status: "unavailable" };
       }

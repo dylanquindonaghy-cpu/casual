@@ -791,7 +791,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return "A site was added from the rota sheet.";
     case "site.changed": {
       const site = names.site?.(d.siteId) ?? "a site";
-      return `${officeName} changed the postcode of ${site}.`;
+      // The same postcode, its location found (12G.1); otherwise the postcode changed.
+      const fields = Array.isArray(d.fields) ? d.fields.map(String) : [];
+      return fields.includes("location") && !fields.includes("postcode")
+        ? `${officeName} looked up the location of ${site}.`
+        : `${officeName} changed the postcode of ${site}.`;
     }
     default:
       return `Recorded: ${e.action}.`;

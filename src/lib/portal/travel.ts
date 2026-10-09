@@ -49,6 +49,7 @@ export type SaveTravelResult =
   | { status: "invalid" }
   | { status: "unknown_postcode" } // the look-up doesn't know it: nothing saved
   | { status: "lookup_failed" } // the look-up didn't answer: nothing saved
+  | { status: "lookups_off" } // look-ups aren't switched on (the fake, a real postcode)
   | { status: "try_again" } // their postcode changed in another tab meanwhile: nothing saved
   | { status: "not_active" };
 
@@ -106,18 +107,27 @@ export async function saveMyTravel(
   const { modes, maxMinutes } = input.data;
   const run = ctx.run ?? withFirm;
   const now = (ctx.clock ?? systemClock).now();
-  const [before] = await run(ctx.firm.id, (tx) =>
-    tx
+  // First, briefly: are they active (no look-up for anyone else), and what's saved now?
+  const before = await run(ctx.firm.id, async (tx) => {
+    const [worker] = await tx
+      .select({ status: workers.status, erasedAt: workers.erasedAt })
+      .from(workers)
+      .where(eq(workers.id, workerId));
+    if (!worker || worker.erasedAt !== null || worker.status !== "active") return null;
+    const [row] = await tx
       .select({ postcode: workerTravel.startPostcode })
       .from(workerTravel)
-      .where(eq(workerTravel.workerId, workerId)),
-  );
+      .where(eq(workerTravel.workerId, workerId));
+    return { postcode: row?.postcode ?? null };
+  });
+  if (!before) return { status: "not_active" };
   // A new postcode is looked up; the same one keeps the point it was saved with.
   let point: Point | null = null;
-  if (before?.postcode !== postcode) {
+  if (before.postcode !== postcode) {
     const found = await (ctx.geocoder ?? serverGeocoder()).locate(postcode);
     if (found.status === "not_found") return { status: "unknown_postcode" };
     if (found.status === "unavailable") return { status: "lookup_failed" };
+    if (found.status === "off") return { status: "lookups_off" };
     point = found.point;
   }
   return run(ctx.firm.id, async (tx) => {

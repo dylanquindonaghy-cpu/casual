@@ -1,5 +1,5 @@
-import { asc, getTableColumns, getTableName, is } from "drizzle-orm";
-import { PgTable } from "drizzle-orm/pg-core";
+import { asc, getTableColumns, getTableName, is, sql } from "drizzle-orm";
+import { PgTable, type SelectedFields } from "drizzle-orm/pg-core";
 import { systemClock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
 import * as schema from "../db/schema";
@@ -13,7 +13,9 @@ import { renumberEvents } from "./event-numbers";
 // (less firm_id, the same on every row), oldest first. Left out, because they are login machinery
 // and not the firm's records: login links, sessions and one-time codes (token and code hashes),
 // the login rate-limit counters (hashed numbers and addresses), and phones' push addresses (each
-// one lets anyone holding it send that phone a notification). Admins only, checked inside the
+// one lets anyone holding it send that phone a notification). A casual's travel area goes out as its
+// district only, never the postcode or its point (FIRM_EXPORT_CUT): the office never sees more
+// (docs/dpia-travel.md); the casual's own export has it in full. Admins only, checked inside the
 // firm's transaction (RLS scopes every row to the firm), and logged: firm.data_exported
 // {tables, rows}.
 //
@@ -26,6 +28,26 @@ export const FIRM_EXPORT_EXCLUDED: Readonly<Record<string, string>> = {
   otp_codes: "one-time code hashes",
   auth_throttle: "login rate-limit counters (hashed numbers and addresses)",
   push_subscriptions: "phones' push addresses and keys",
+};
+
+// Tables exported with some columns cut, and why (the rest of each row as stored).
+const travel = schema.workerTravel;
+export const FIRM_EXPORT_CUT: Readonly<
+  Record<string, { why: string; columns: () => SelectedFields }>
+> = {
+  worker_travel: {
+    why: "a casual's start postcode and its point: the district only (docs/dpia-travel.md)",
+    columns: () => ({
+      id: travel.id,
+      workerId: travel.workerId,
+      district: sql<string>`split_part(${travel.startPostcode}, ' ', 1)`,
+      modes: travel.modes,
+      maxMinutes: travel.maxMinutes,
+      privacyNoticeVersion: travel.privacyNoticeVersion,
+      updatedAt: travel.updatedAt,
+      createdAt: travel.createdAt,
+    }),
+  },
 };
 
 // Every table with a firm_id (the firm's own row is read on its own), less the ones left out.
@@ -47,11 +69,13 @@ export async function collectFirmData(tx: FirmTx, now: Date): Promise<FirmExport
   const [firm] = await tx.select().from(schema.firms);
   const tables: FirmExport["tables"] = {};
   for (const table of firmExportTables()) {
-    const columns = Object.fromEntries(
-      Object.entries(getTableColumns(table)).filter(([key]) => key !== "firmId"),
-    );
-    const order = [columns.createdAt, columns.id].filter((c) => c !== undefined).map((c) => asc(c));
-    const rows = await tx
+    const all = getTableColumns(table);
+    const order = [all.createdAt, all.id].filter((c) => c !== undefined).map((c) => asc(c));
+    const cut = FIRM_EXPORT_CUT[getTableName(table)];
+    const columns: SelectedFields = cut
+      ? cut.columns()
+      : Object.fromEntries(Object.entries(all).filter(([key]) => key !== "firmId"));
+    const rows: Record<string, unknown>[] = await tx
       .select(columns)
       .from(table)
       .orderBy(...order);

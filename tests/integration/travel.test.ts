@@ -161,6 +161,10 @@ describe("saving a travel area", () => {
     expect(
       await saveMyTravel(t.portal(recording({ status: "unavailable" }).geocoder), ann, area),
     ).toEqual({ status: "lookup_failed" });
+    // The fake, given a real postcode: look-ups aren't switched on, and it says so.
+    expect(await saveMyTravel(t.portal(), ann, { ...area, postcode: "LS1 4AP" })).toEqual({
+      status: "lookups_off",
+    });
     for (const bad of [
       { ...area, postcode: "not one" },
       { ...area, postcode: "" },
@@ -203,7 +207,11 @@ describe("saving a travel area", () => {
     ]);
     for (const status of ["inactive", "blocked"] as const) {
       const w = await t.f.worker({ first: status, status });
-      expect(await saveMyTravel(t.portal(), w, area)).toEqual({ status: "not_active" });
+      const look = recording();
+      expect(await saveMyTravel(t.portal(look.geocoder), w, area)).toEqual({
+        status: "not_active",
+      });
+      expect(look.asked).toEqual([]); // no look-up for them at all
       expect(await t.row(w)).toBeUndefined();
     }
   });
@@ -261,6 +269,61 @@ describe("deleting it", () => {
     expect(await t.row(ann)).toBeUndefined();
     // Saving afterwards is refused: nothing comes back.
     expect(await saveMyTravel(t.portal(), ann, area)).toEqual({ status: "not_active" });
+    expect(await t.row(ann)).toBeUndefined();
+  });
+
+  // A save whose look-up is still out when the erasure or "They've left" commits: it must not
+  // bring the area back. The look-up is held until the other has finished.
+  function heldLookUp() {
+    let release: () => void = () => undefined;
+    const go = new Promise<void>((resolve) => (release = resolve));
+    let asked: () => void = () => undefined;
+    const waiting = new Promise<void>((resolve) => (asked = resolve));
+    const geocoder: Geocoder = {
+      async locate(postcode) {
+        asked();
+        await go;
+        return fakeGeocoder.locate(postcode);
+      },
+    };
+    return { geocoder, waiting, release };
+  }
+
+  it("an erasure while a save is looking up: the area never comes back", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    await saveMyTravel(t.portal(), ann, area);
+    const ctx = { firm: { id: t.f.firmId }, officeUserId: t.admin, run: withFirm, clock };
+    const held = heldLookUp();
+    const saving = saveMyTravel(t.portal(held.geocoder), ann, {
+      postcode: "ZZ3 3CC",
+      modes: "car",
+      maxMinutes: 30,
+    });
+    await held.waiting;
+    expect(await eraseWorker(ctx, ann)).toMatchObject({ status: "erased" });
+    held.release();
+    expect(await saving).toEqual({ status: "not_active" });
+    expect(await t.row(ann)).toBeUndefined();
+  });
+
+  it(`"They've left" while a save is looking up: the area never comes back`, async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    await saveMyTravel(t.portal(), ann, area);
+    const ctx = { firm: { id: t.f.firmId }, officeUserId: t.admin, run: withFirm, clock };
+    const held = heldLookUp();
+    const saving = saveMyTravel(t.portal(held.geocoder), ann, {
+      postcode: "ZZ3 3CC",
+      modes: "car",
+      maxMinutes: 30,
+    });
+    await held.waiting;
+    expect(
+      await changeWorkerStatus(ctx, ann, { kind: "deactivate", reason: "left" }),
+    ).toMatchObject({ status: "done" });
+    held.release();
+    expect(await saving).toEqual({ status: "not_active" });
     expect(await t.row(ann)).toBeUndefined();
   });
 
@@ -361,6 +424,20 @@ describe("site locations on Settings", () => {
     expect(await siteRow(t.siteId)).toEqual({ postcode: null, lat: null, lng: null });
     expect((await t.logged("site.changed")).map((e) => e.data)).toEqual([
       { siteId: t.siteId, fields: ["postcode"] },
+      { siteId: t.siteId, fields: ["postcode"] },
+    ]);
+  });
+
+  it("look-ups off (the fake, a real postcode): the postcode is still saved, without a point", async () => {
+    const t = await siteFirm();
+    expect(await editSitePostcode(t.office(t.admin), t.siteId, { postcode: "ls1 4ap" })).toEqual({
+      status: "saved_unlocated",
+    });
+    expect(await siteRow(t.siteId)).toEqual({ postcode: "LS1 4AP", lat: null, lng: null });
+    expect(await editSitePostcode(t.office(t.admin), t.siteId, { postcode: "LS1 4AP" })).toEqual({
+      status: "lookups_off",
+    });
+    expect((await t.logged("site.changed")).map((e) => e.data)).toEqual([
       { siteId: t.siteId, fields: ["postcode"] },
     ]);
   });

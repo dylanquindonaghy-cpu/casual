@@ -62,7 +62,8 @@ Replace the parts in [brackets]. Send both parts.
 > shifts you can get to. We keep that postcode and the middle point of its area, never your
 > address, your location or where you go. Our office sees only the first part of the postcode
 > (like ZZ1). To place it, only the postcode is sent to postcodes.io, never your name. You can
-> change or remove it any time; it's deleted if you leave us or ask us to delete your details.
+> change or remove it any time; it's deleted when we record that you've left us, or if you ask us
+> to delete your details.
 > We use it because it's in both our interests that you're offered work you can reach (our
 > legitimate interest; you can object).
 >

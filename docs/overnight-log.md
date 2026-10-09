@@ -10709,3 +10709,37 @@ in `PLAN.md` (12G.1).
 | The sheet sync and the file import create sites by name only (neither has a postcode column), so they have nothing to look up. Their sites show "No postcode" on Settings until someone adds one there. The planner API (12J.1) will call the same lookup | That's what those paths do today | Adding postcode columns to sheets and imports (out of scope) |
 | The casual can remove their travel area ("Remove my travel area") | Their own postcode; D2 says no area means everything is shown, so removing it is safe | Only the office could remove it |
 | The office's view shows the district, the limit and the ways of travelling, worked out in SQL | §3.7's "ZZ1 · 45 min, car or public transport"; the full postcode never reaches an office page | Reading the row and cutting it in code |
+| A postcode is looked up every time a site's postcode is saved, even when it's unchanged | One transaction after the look-up keeps the code simple and the existing lock test true; a look-up is free and admins only | Reading the site first to skip it (two transactions) |
+| With `TRAVEL_PROVIDER=fake`, a real postcode is "off", not "not found": a site still saves it (without a point, as before 12G.1), and a casual is told look-ups aren't switched on | Calling a real postcode unknown would be false, and would have stopped Settings saving real postcodes (it could in 12B.7) | Refusing it as unknown |
+| The firm's "Download all your data" has a casual's travel area as the district only | The office never sees more (the casual's page, the privacy notice, the DPIA); the casual's own export has it in full | Leaving the table out of the firm export |
+| `worker_travel` grants: select, insert, delete, and update on the area's own columns only | The app can never move an area to another casual or firm | Full CRUD |
+
+**Guardrails review (round 1, on `96116c6`), verdict FIX FIRST.** Findings and what was done:
+
+- FIX FIRST 1, fixed: the firm's data export picked up `worker_travel` whole, so an admin's download
+  held every casual's full postcode and point. It now goes out as the district only
+  (`FIRM_EXPORT_CUT`), tested (no "ZZ1 1AA", no `startPostcode`, `lat` or `lng` in the file;
+  removing the cut fails the test). The DPIA says only a casual's own subject access export has
+  more; the offboarding runbook says so too.
+- SHOULD 1, fixed: with the fake look-up, a real postcode was called unknown. Now "off": Settings
+  saves it without a point ("Saved. Postcode look-ups aren't switched on yet, so its location
+  isn't known."), and a casual is told look-ups aren't switched on. The per-firm switch is parked
+  for Dylan.
+- SHOULD 2, fixed: the "location found" log entry read "changed the postcode"; it now reads
+  "{office} looked up the location of {site}." (unit-tested).
+- SHOULD 3, docs fixed, code parked: "They've left" is only offered for an active casual, so one
+  already made inactive or blocked keeps their area until erased. The privacy notice now says it's
+  deleted when the firm records that they've left; the DPIA names the gap; the Parking lot has the
+  two ways to close it.
+- NICE, fixed: the narrower grant (with `COLUMN_UPDATES`); no look-up for a casual who isn't
+  active (tested: nothing asked); the answer read only up to 64 KB (tested); deterministic race
+  tests (a look-up held until an erasure, or "They've left", has committed: the save says
+  `not_active` and nothing comes back; removing the re-check fails 3 tests); "Not set yet." without
+  promising a filter that comes in 12G.3.
+- NICE, parked: a look-up limit per casual and per firm before `traveltime` (Parking lot); the
+  invariants pin (a protected file); `workerEnv()` for 12G.2; skipping no-op look-ups on Settings
+  (decided against, above).
+- Break checks after the fixes: 10 in all (removing the district cut in the office view or the
+  export, the "left" deletion, the erasure deletion, the extra header, the active check, the
+  postcode in the log, traveltime in tests, the answer's own postcode check, the write's re-check);
+  each made a test fail.

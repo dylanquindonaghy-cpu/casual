@@ -93,6 +93,17 @@ describe("the firm's data export", () => {
     for (const secret of ["tokenHash", "codeHash", "p256dh", "bucket", "test-auth"]) {
       expect(result.body).not.toContain(secret);
     }
+    // A casual's travel area: the district only, never the postcode or its point (12G.1).
+    expect(data.tables.worker_travel).toEqual([
+      expect.objectContaining({ district: "ZZ1", modes: "both", maxMinutes: 45 }),
+    ]);
+    for (const row of data.tables.worker_travel ?? []) {
+      expect(row).not.toHaveProperty("startPostcode");
+      expect(row).not.toHaveProperty("lat");
+      expect(row).not.toHaveProperty("lng");
+    }
+    expect(result.body).not.toContain("ZZ1 1AA");
+    expect(result.body).not.toContain("53.83");
     const events = await su.query(
       `select actor_type, actor_id::text, entity_id::text, data from events
         where firm_id = $1 and action = 'firm.data_exported'`,

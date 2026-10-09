@@ -31,7 +31,7 @@ export function travelSummaryText(t: {
   modes: TravelMode;
   maxMinutes: TravelMinutes;
 }): string {
-  if (!t.set || !t.postcode) return "Not set yet. Set it to see shifts you can get to.";
+  if (!t.set || !t.postcode) return "Not set yet.";
   return `From ${t.postcode} · up to ${t.maxMinutes} minutes by ${travelModesText(t.modes)}`;
 }
 
@@ -43,6 +43,7 @@ export type SaveTravelOutcome =
         | "invalid"
         | "unknown_postcode"
         | "lookup_failed"
+        | "lookups_off"
         | "try_again"
         | "not_active";
     }
@@ -60,6 +61,8 @@ export function saveTravelText(r: SaveTravelOutcome): string {
       return "We couldn't find that postcode, so nothing was saved. Check it and try again.";
     case "lookup_failed":
       return "We couldn't check that postcode just now, so nothing was saved. Try again in a few minutes.";
+    case "lookups_off":
+      return "Travel areas can't be saved yet: postcode look-ups aren't switched on. Nothing was saved.";
     case "try_again":
       return "Your travel area changed while this was saving, so nothing was saved. Check it and save again.";
     case "not_active":

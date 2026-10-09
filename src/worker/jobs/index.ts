@@ -212,8 +212,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   });
 
   // Travel estimates (12G.2): queued with the change that needs them, and every night for each
-  // firm's sessions in the open-shifts window.
-  await registerFirmTask(boss, deps.travelEstimates ?? travelEstimatesTask);
+  // firm's sessions in the window. One at a time (TRAVEL_WORK_OPTIONS).
+  await registerFirmTask(boss, deps.travelEstimates ?? travelEstimatesTask, TRAVEL_WORK_OPTIONS);
   await boss.work(
     TRAVEL_ESTIMATES_TICK_QUEUE,
     logFailures(TRAVEL_ESTIMATES_TICK_QUEUE, async () => {
@@ -331,6 +331,15 @@ export const INBOUND_WORK_OPTIONS = {
   localGroupConcurrency: 1,
 } as const;
 
+// The travel job (12G.2) runs for up to its budget (10 minutes). pg-boss times a batch out, and
+// fails every job in it, at one job's expiry (15 minutes), so two long runs in one batch would fail
+// both (and the abandoned one would carry on beside its retry). One job per fetch keeps each run
+// inside its own expiry.
+export const TRAVEL_WORK_OPTIONS = { ...FIRM_WORK_OPTIONS, batchSize: 1 } as const;
+
+type FirmWorkOptions =
+  typeof FIRM_WORK_OPTIONS | typeof INBOUND_WORK_OPTIONS | typeof TRAVEL_WORK_OPTIONS;
+
 // One after another, in the batch's order, one result per job.
 export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
@@ -341,7 +350,7 @@ export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Pro
 export async function registerFirmTask<P extends FirmJobEnvelope>(
   boss: PgBoss,
   task: FirmTask<P>,
-  options: typeof FIRM_WORK_OPTIONS | typeof INBOUND_WORK_OPTIONS = FIRM_WORK_OPTIONS,
+  options: FirmWorkOptions = FIRM_WORK_OPTIONS,
 ): Promise<void> {
   await boss.work(task.queue, options, (jobs) => inOrder(jobs, (j) => runFirmTask(task, j)));
 }

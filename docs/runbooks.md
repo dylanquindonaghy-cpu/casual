@@ -526,10 +526,10 @@ are never hidden because of it, and an unknown distance is still offered.
    can't be down. `traveltime` asks TravelTime.
 2. The worker's log: `docker compose logs worker --since 2h | grep travel.estimates`. A failed job
    says `travel.estimates` with a code: `TravelUnavailableError` means TravelTime didn't answer
-   (down, too slow, or an answer we couldn't read). pg-boss tries the job again by itself: after 5
-   minutes, then 10, 20, 40 and an hour apart, 6 times (about 3 hours). Urgent shifts' offers go
-   out anyway; `travel estimates before a wave not finished` (a warning) means one went without
-   them.
+   (down, too slow, or an answer we couldn't read). pg-boss tries the job again by itself, 6
+   times, further apart each time (from about 5 minutes to an hour: 3 to 4 hours in all). Urgent
+   shifts' offers go out anyway; `travel estimates before a wave not finished` (a warning) means
+   one went without them.
 3. A wrong or missing key: the worker refuses to start with `traveltime` and no
    `TRAVELTIME_APP_ID` / `TRAVELTIME_API_KEY`. A key TravelTime rejects shows as the same
    `TravelUnavailableError`: check the keys in TravelTime's developer portal, then `nano .env`,

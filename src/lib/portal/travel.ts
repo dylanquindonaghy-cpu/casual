@@ -182,7 +182,9 @@ export async function saveMyTravel(
       entityId: workerId,
       data: { changed, maxMinutes },
     });
-    // Estimates from their (new) postcode, in a shared run a few minutes later (12G.2).
+    // Estimates from their (new) postcode, in a shared run a few minutes later (12G.2). Both ways
+    // are always worked out, so after a change of ways alone the run usually finds nothing missing
+    // (a database read, no search).
     if (changed.includes("postcode") || changed.includes("modes")) await casualMoved(tx);
     return { status: "saved" };
   });

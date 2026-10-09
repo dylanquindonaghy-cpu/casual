@@ -41,7 +41,8 @@ import { workerTravelProvider } from "./worker-provider";
 //   the site's estimates and queues new ones), expiring 7 days after the last session it's for.
 // - A provider that doesn't answer stops the run (no hammering): what was saved stays, and the job
 //   fails, so pg-boss tries again later; the nightly run catches up after that. A run that uses up
-//   its time budget stops between searches and queues the rest as a fresh run.
+//   its time budget stops between searches and, if it saved anything, queues the rest as a fresh
+//   run.
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -337,8 +338,10 @@ export function createTravelEstimatesTask(
         ...deps(),
       });
       if (result.unavailable) throw new TravelUnavailableError();
-      // Out of time with work left: the rest in a fresh run (it only fills what's still missing).
-      if (result.more) {
+      // Out of time with work left: the rest in a fresh run (it only fills what's still missing),
+      // as long as this one saved something. A run that saved nothing in its whole budget would
+      // only do the same again: the rest waits for the nightly run.
+      if (result.more && result.saved > 0) {
         await run(payload.firmId, async (tx) => {
           if (payload.window) await queueMoreWindow(tx);
           else await queueTravelEstimates(tx, payload.shiftIds ?? [], { startAfter: 30 });

@@ -401,7 +401,7 @@ async function mirror(
   let notBooked = 0;
   // Sessions added, back from draft or cancelled, or given a new time, role or site: their travel
   // estimates (12G.2), queued once with the sync, so they're there without waiting for the nightly
-  // run. (Drafts and cancelled sessions need none.)
+  // run. (Drafts and cancelled sessions need none: a new one isn't queued, and the job skips any.)
   const travel = new Set<string>();
   const writes: PendingWrite[] = [];
 

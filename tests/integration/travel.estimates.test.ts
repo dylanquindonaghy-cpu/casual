@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { createLogger } from "@/lib/log";
@@ -35,6 +36,7 @@ import {
   type TravelProvider,
   type TravelSearch,
 } from "@/lib/travel/provider";
+import { FIRM_WORK_OPTIONS, registerJobs, TRAVEL_WORK_OPTIONS } from "@/worker/jobs";
 import { QUEUES } from "@/worker/jobs/queues";
 import { captureTransport, quietLogger } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -301,30 +303,62 @@ describe("working estimates out", () => {
         ? new Promise(() => undefined)
         : fakeTravelProvider.search(s),
     );
-    expect(await t.fill({ shiftIds: [first, second] }, slow.provider, 1_000)).toEqual({
+    expect(await t.fill({ shiftIds: [first, second] }, slow.provider, 2_000)).toEqual({
       searches: 3,
       saved: 2,
       unavailable: false,
       more: true,
     });
     expect(await t.estimates()).toHaveLength(2);
-    // The job: completes (it isn't the provider's fault), and queues the rest.
+    // The job: completes (it isn't the provider's fault), and queues the rest, 30 seconds later.
+    await su.query("delete from travel_estimates where firm_id = $1", [t.f.firmId]);
     await t.clearQueued();
     const task = createTravelEstimatesTask(() => ({
       provider: slow.provider,
       clock,
-      budgetMs: 1_000,
+      budgetMs: 2_000,
+    }));
+    const data = {
+      firmId: t.f.firmId,
+      idempotencyKey: "travel-estimates:t1",
+      shiftIds: [first, second],
+    };
+    const result = await runFirmTask(task, { id: "j1", data }, withFirm, quietLogger);
+    expect(result.status).toBe("completed");
+    const jobs = await t.queued();
+    expect(jobs.map((j) => j.data.shiftIds)).toEqual([[first, second]]);
+    expect(jobs[0]?.delay).toBeCloseTo(30, 0);
+  });
+
+  it("out of time having saved nothing: no fresh run (it would only do the same again)", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const [first, second] = [await t.session(48), await t.session(72)];
+    const secondArrive = new Date(hoursFromNow(72).getTime() - 30 * 60_000).getTime();
+    // Leaves out every start point it's asked about for the first session (nothing to save), and
+    // never answers for the second.
+    const unhelpful = recording((s) =>
+      s.arriveBy.getTime() === secondArrive
+        ? new Promise(() => undefined)
+        : Promise.resolve({ status: "ok", trips: new Map() }),
+    );
+    await t.clearQueued();
+    const task = createTravelEstimatesTask(() => ({
+      provider: unhelpful.provider,
+      clock,
+      budgetMs: 2_000,
     }));
     for (const data of [
       { firmId: t.f.firmId, idempotencyKey: "travel-estimates:t1", shiftIds: [first, second] },
       { firmId: t.f.firmId, idempotencyKey: "travel-estimates:t2", window: true },
     ]) {
       const result = await runFirmTask(task, { id: "j1", data }, withFirm, quietLogger);
-      expect(result.status).toBe("completed");
+      expect(result).toMatchObject({ status: "completed" });
     }
-    const jobs = await t.queued();
-    expect(jobs.map((j) => j.data.shiftIds ?? "window")).toEqual([[first, second], "window"]);
-    for (const j of jobs) expect(j.delay).toBeCloseTo(30, 0);
+    expect(unhelpful.searches).toHaveLength(6); // each run: the first's two, then the second's car
+    expect(await t.estimates()).toEqual([]);
+    expect(await t.queued()).toEqual([]); // the nightly run has the rest
   });
 
   it("2,001 start points: two searches, 2,000 and 1", async () => {
@@ -572,6 +606,23 @@ describe("before an urgent session's first wave", () => {
 });
 
 describe("the job's queue", () => {
+  it("the worker takes travel jobs one at a time (a batch shares one expiry)", async () => {
+    const options = new Map<string, unknown>();
+    const boss = {
+      createQueue: async () => undefined,
+      updateQueue: async () => undefined,
+      work: async (name: string, opts: unknown) => {
+        options.set(name, opts);
+        return "id";
+      },
+      schedule: async () => undefined,
+      unschedule: async () => undefined,
+    } as unknown as PgBoss;
+    await registerJobs(boss);
+    expect(TRAVEL_WORK_OPTIONS).toEqual({ ...FIRM_WORK_OPTIONS, batchSize: 1 });
+    expect(options.get(TRAVEL_ESTIMATES_QUEUE)).toEqual(TRAVEL_WORK_OPTIONS);
+  });
+
   it("tries again after 5 minutes, backing off to an hour apart, 6 times; a run ends before its expiry", () => {
     expect(QUEUES.find((q) => q.name === TRAVEL_ESTIMATES_QUEUE)?.options).toMatchObject({
       policy: "standard",

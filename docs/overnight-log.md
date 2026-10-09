@@ -10875,3 +10875,18 @@ area (12G.1)", pushed (its hash in the next entry). CI passed on the checkpoints
 Mutation checks: removing the dedupe, reversing its order, dropping the provider filter, dropping
 the re-queue and dropping the sync's reopen each made a new test fail. Full suite on 11d1f60:
 239 files, 4,124 tests passed.
+
+**Guardrails review (round 2, of WIP 11d1f60): SHOULD** (nothing FIX FIRST; every round-1 item
+confirmed fixed). Its two follow-ups, both fixed:
+
+| Finding | Fix |
+|---|---|
+| The worker takes firm jobs 5 at a time, and pg-boss times a whole batch out at one job's expiry (15 minutes): two long travel runs in one batch would fail both | Travel jobs are taken one at a time (`TRAVEL_WORK_OPTIONS`, batch size 1), with a test of how the worker registers them |
+| A run that ran out of time re-queued itself even when it saved nothing, so a provider that leaves start points out could keep it going round the clock | It re-queues only if it saved something; otherwise the nightly run has the rest. Test with a provider that leaves every point out |
+
+Its NICE notes: the retry timings now say "3 to 4 hours" (pg-boss adds a random part); the sync
+comment on drafts is exact. Kept as they are: a change of ways of travelling alone still queues a
+run (the task text asks for it; it costs a database read, since both ways are always worked out);
+a search cut off by the budget is a paid request whose answer is dropped (rare: only in a run's
+last seconds); the wave's catch writes to the main log (a test prints one warning line).
+Mutation checks: removing either fix made its new test fail.

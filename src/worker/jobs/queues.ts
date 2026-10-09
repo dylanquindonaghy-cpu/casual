@@ -128,9 +128,11 @@ export const QUEUES: readonly QueueSpec[] = [
     options: { ...sheetsSync.options, expireInSeconds: SHEETS_SYNC_EXPIRE_SECONDS },
   },
   // The travel job (src/lib/travel/estimates.ts) fails when the provider doesn't answer: tried
-  // again after 5 minutes, then 10, 20, up to an hour apart, 6 times (about 3 hours), so an outage
-  // is waited out without hammering the provider; the nightly run catches up after that. A run
-  // stops itself at TRAVEL_JOB_BUDGET_MS (10 minutes), well inside its expiry.
+  // again 6 times, at least 5 minutes later, then at least 10, 20 and 40, then an hour apart
+  // (pg-boss adds a random part: 3 to 4 hours in all), so an outage is waited out without
+  // hammering the provider; the nightly run catches up after that. A run stops itself at
+  // TRAVEL_JOB_BUDGET_MS (10 minutes), inside its expiry; the worker takes these jobs one at a time
+  // (TRAVEL_WORK_OPTIONS, src/worker/jobs/index.ts), since a batch shares one expiry.
   {
     ...travelEstimates,
     options: {

@@ -82,8 +82,9 @@ test("a casual sets their travel area, the office sees only the district, and th
   await office.goto(await sentTo(RESOURCER, sent, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
   await office.getByRole("button", { name: "Log me in" }).click();
   await expect(office).toHaveURL(`${acme}/office`);
-  await office.goto(`${acme}/office/workers/${workerId}`);
-  await expect(office.getByText("Travel area: ZZ1 · 60 min, car")).toBeVisible();
+  await office.goto(`${acme}/office/casuals/${workerId}`);
+  const area = office.getByRole("region", { name: "Travel area" });
+  await expect(area).toContainText("ZZ1 · 60 min, car");
   expect(await office.content()).not.toContain("ZZ1 1AA");
 
   // Removed by the casual, after asking.
@@ -96,5 +97,5 @@ test("a casual sets their travel area, the office sees only the district, and th
   await page.goto(`${acme}/profile`);
   await expect(where).toContainText("Not set yet.");
   await office.reload();
-  await expect(office.getByText("Travel area: Not set")).toBeVisible();
+  await expect(area).toContainText("Not set");
 });

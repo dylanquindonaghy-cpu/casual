@@ -329,7 +329,7 @@ export function TodayContent({
                   <span className="tabular-nums">, {shiftWhen(b.startsAt, b.endsAt, tz)}</span>
                 </p>
                 <p className="mt-1">
-                  <Link href={`/office/workers/${b.workerId}`} className={titleLink}>
+                  <Link href={`/office/casuals/${b.workerId}`} className={titleLink}>
                     {b.worker}&apos;s page
                   </Link>
                 </p>

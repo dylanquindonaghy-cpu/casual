@@ -103,7 +103,7 @@ describe("My shifts", () => {
           now: NOW,
           view: "upcoming",
           shifts: [],
-          notices: [],
+          needs: [],
           urgentCount,
         }),
       ),

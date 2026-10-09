@@ -7,6 +7,7 @@ import { ProfileView, ukMobile } from "@/app/profile/profile-view";
 import { NOTIFY_CHANNELS } from "@/lib/db/schema/people";
 import type { Profile } from "@/lib/portal/profile";
 import { CHANNEL_LABELS, CHANNELS } from "@/lib/portal/profile-kinds";
+import { EVERY_STATUS } from "../helpers/qualifications";
 
 // The profile page (docs/screens.md, `/profile`): what the worker sees about themselves, and the
 // answer to each change in plain words.
@@ -28,7 +29,8 @@ const profile = (over: Partial<Profile> = {}): Profile => ({
   notifyChannel: "whatsapp",
   offerAlerts: true,
   textsOff: false,
-  credentials: [],
+  qualifications: [],
+  rightToWork: { checked: false, checkedOn: null },
   unavailable: [],
   today: "2026-11-02",
   ...over,
@@ -57,69 +59,63 @@ describe("ProfileView", () => {
     expect(ukMobile("+353861234567")).toBe("+353861234567");
   });
 
-  it("shows each credential's status and expiry; an expired one in red, with what to do", () => {
-    const html = render(
-      profile({
-        credentials: [
-          {
-            type: "SIA_DS",
-            name: "SIA door supervisor licence",
-            status: "valid",
-            expiresOn: "2029-01-01",
-            expired: false,
-          },
-          {
-            type: "FIRST_AID",
-            name: "first aid at work certificate",
-            status: "valid",
-            expiresOn: "2026-11-01",
-            expired: true,
-          },
-          {
-            type: "STEWARD_L2",
-            name: "Level 2 spectator safety qualification",
-            status: "valid",
-            expiresOn: null,
-            expired: false,
-          },
-          {
-            type: "SIA_SG",
-            name: "SIA security guard licence",
-            status: "applied",
-            expiresOn: null,
-            expired: false,
-          },
-          {
-            type: "SIA_CP",
-            name: "SIA close protection licence",
-            status: "suspended",
-            expiresOn: "2028-01-01",
-            expired: false,
-          },
-        ],
-      }),
-    );
+  it("shows each qualification's status, date line and what it means; red when it stops her (12F.1)", () => {
+    const html = render(profile({ qualifications: EVERY_STATUS }));
     const page = text(html);
-    expect(page).toContain("SIA door supervisor licence Valid · expires 1 Jan 2029");
-    expect(page).toContain("First aid at work certificate Expired · expired 1 Nov");
+    expect(page).toContain("Qualifications");
     expect(page).toContain(
-      "You can't take shifts that need it. Renew it and send the new details to the office.",
+      "SIA close protection licence Suspended · Suspended You can't take close protection officer shifts. Contact the office.",
     );
-    expect(page).toContain("Level 2 spectator safety qualification Valid · no expiry date");
-    expect(page).toContain("SIA security guard licence Applied for");
     expect(page).toContain(
-      "SIA close protection licence Suspended · expires 1 Jan 2028 You can't take shifts that need it. Contact the office.",
+      "First aid at work certificate Expired · Expired 1 Oct Until it's renewed you won't see response team lead shifts. Send the new details to the office.",
     );
-    // Only the expired and suspended ones are red, and each says what to do.
+    expect(page).toContain(
+      "CSAS accreditation Missing · Needed for CSAS officer shifts You won't see CSAS officer shifts until the office has it.",
+    );
+    expect(page).toContain(
+      "SIA door supervisor licence Expiring soon · Expires 20 Nov Renew it before then to keep getting door supervisor shifts. Send the new details to the office.",
+    );
+    expect(page).toContain(
+      "SIA security guard licence Applied for · Applied for, not issued yet Send it to the office when it arrives.",
+    );
+    expect(page).toContain("Level 2 spectator safety qualification Valid · No expiry date");
+    // Only the expired and suspended ones are red. Never "credential" (staff-facing words).
     expect(html.match(/border-l-4 border-urgent bg-urgent-soft/g)).toHaveLength(2);
-    expect(page.match(/Renew it/g)).toHaveLength(1);
-    expect(page.match(/Contact the office/g)).toHaveLength(1);
+    expect(page.toLowerCase()).not.toContain("credential");
   });
 
-  it("says when there are no credentials on file", () => {
-    expect(text(render(profile()))).toContain(
-      "None on file. Send yours to the office to be checked.",
+  it("a valid one with a date says until when; a different year shows the year", () => {
+    const page = text(
+      render(
+        profile({
+          qualifications: [
+            {
+              type: "SIA_DS",
+              name: "SIA door supervisor licence",
+              status: "valid",
+              expiresOn: "2029-01-01",
+              neededFor: ["door_supervisor"],
+            },
+          ],
+        }),
+      ),
     );
+    expect(page).toContain("SIA door supervisor licence Valid · Valid until 1 Jan 2029");
+  });
+
+  it("right to work: a status only, never 'you can't be booked'", () => {
+    expect(text(render(profile()))).toContain("Right to work Not checked yet: ask the office");
+    expect(
+      text(render(profile({ rightToWork: { checked: true, checkedOn: "2026-01-12" } }))),
+    ).toContain("Right to work Checked by the office on 12 Jan");
+    expect(
+      text(render(profile({ rightToWork: { checked: true, checkedOn: "2025-01-12" } }))),
+    ).toContain("Checked by the office on 12 Jan 2025");
+    expect(text(render(profile()))).not.toMatch(/can't be booked/);
+  });
+
+  it("says when her roles need no qualifications", () => {
+    expect(text(render(profile()))).toContain("Your roles don't need any.");
   });
 
   it("lists marked days with Remove, warns about a booked one, and limits the date picker", () => {

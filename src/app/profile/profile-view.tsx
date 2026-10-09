@@ -16,31 +16,23 @@ import type { Profile } from "@/lib/portal/profile";
 import type { MyTravel } from "@/lib/portal/travel";
 import { TRAVEL_PATH, TRAVEL_TITLE, travelSummaryText } from "@/lib/portal/travel-copy";
 import { MAX_UNAVAILABLE_DAYS, UNAVAILABLE_AHEAD_DAYS } from "@/lib/portal/profile-kinds";
-import { shortDate } from "@/lib/rules/reasons";
+import {
+  dateLine,
+  meaning,
+  qualificationTitle,
+  rightToWorkText,
+  STATUS_TONES as QUALIFICATION_TONES,
+  STATUS_WORDS as QUALIFICATION_WORDS,
+} from "@/lib/portal/qualification-copy";
 import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
 import { NotificationForm } from "./notification-form";
 import { PushSetting } from "./push-setting";
 
-// Me (docs/screens.md, `/profile`): contact details and credentials as the office holds them
-// (read-only), where I work (12G.1), my strikes (12C.5), days I can't work, and how we reach me. One
-// card per section.
-
-const STATUS_WORDS = {
-  valid: "Valid",
-  expired: "Expired",
-  applied: "Applied for",
-  suspended: "Suspended",
-} as const;
-
-// Each status word's colour (docs/ui-design.md "Status tones").
-const TONES: Record<keyof typeof STATUS_WORDS, StatusTone> = {
-  valid: "done",
-  expired: "urgent",
-  applied: "attention",
-  suspended: "urgent",
-};
+// Me (docs/screens.md, `/profile`): contact details (read-only), my qualifications as they stand
+// today (12F.1: each status, its date line and what it means, then right to work), where I work
+// (12G.1), my strikes (12C.5), days I can't work, and how we reach me. One card per section.
 
 // A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START.
 export const TEXTS_OFF =
@@ -49,10 +41,6 @@ export const TEXTS_OFF =
 // "07700 900123" from "+447700900123"; other numbers as stored.
 export const ukMobile = (e164: string) =>
   /^\+44\d{10}$/.test(e164) ? `0${e164.slice(3, 7)} ${e164.slice(7)}` : e164;
-
-// Credential names are stored as workers say them mid-sentence ("first aid at work certificate");
-// as a heading they start with a capital.
-const title = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
 export function ProfileView({
   profile,
@@ -84,57 +72,49 @@ export function ProfileView({
       </section>
 
       <section
-        aria-labelledby="credentials-heading"
+        aria-labelledby="qualifications-heading"
         className={`${card} ${sectionGap.staff} overflow-hidden`}
       >
-        <h2 id="credentials-heading" className={h2}>
-          Licences and cards
+        <h2 id="qualifications-heading" className={h2}>
+          Qualifications
         </h2>
-        {profile.credentials.length === 0 ? (
-          <p className={headingGap}>None on file. Send yours to the office to be checked.</p>
+        {profile.qualifications.length === 0 ? (
+          <p className={headingGap}>Your roles don&apos;t need any.</p>
         ) : (
           // Rows run to the card's edges; one that stops you working is red, with a red edge.
           <ul
             role="list"
-            className={`${headingGap} -mx-4 -mb-4 divide-y divide-line border-t border-line`}
+            className={`${headingGap} -mx-4 divide-y divide-line border-t border-line`}
           >
-            {profile.credentials.map((c, i) => {
-              const blocked = c.expired || c.status === "suspended";
+            {profile.qualifications.map((q) => {
+              const blocked = q.status === "expired" || q.status === "suspended";
+              const means = meaning(q);
               return (
                 <li
-                  key={`${c.type}:${i}`}
+                  key={q.type}
                   className={
                     blocked
                       ? "border-l-4 border-urgent bg-urgent-soft py-3 pr-4 pl-3 text-urgent-ink"
                       : "px-4 py-3"
                   }
                 >
-                  <p className="font-semibold">{title(c.name)}</p>
+                  <p className="font-semibold">{qualificationTitle(q.name)}</p>
                   <p className={`mt-1 text-base ${nums}`}>
-                    <StatusChip tone={c.expired ? "urgent" : TONES[c.status]}>
-                      {c.expired ? "Expired" : STATUS_WORDS[c.status]}
-                    </StatusChip>
-                    {c.expiresOn
-                      ? ` · ${c.expired ? "expired" : "expires"} ${shortDate(c.expiresOn, year)}`
-                      : c.status === "valid"
-                        ? " · no expiry date"
-                        : ""}
+                    <StatusChip tone={QUALIFICATION_TONES[q.status]}>
+                      {QUALIFICATION_WORDS[q.status]}
+                    </StatusChip>{" "}
+                    · {dateLine(q, year)}
                   </p>
-                  {c.expired ? (
-                    <p className="mt-2 text-base">
-                      You can&apos;t take shifts that need it. Renew it and send the new details to
-                      the office.
-                    </p>
-                  ) : c.status === "suspended" ? (
-                    <p className="mt-2 text-base">
-                      You can&apos;t take shifts that need it. Contact the office.
-                    </p>
-                  ) : null}
+                  {means && <p className="mt-2 text-base">{means}</p>}
                 </li>
               );
             })}
           </ul>
         )}
+        <div className="-mx-4 -mb-4 border-t border-line px-4 py-3">
+          <p className="font-semibold">Right to work</p>
+          <p className={`mt-1 text-base ${nums}`}>{rightToWorkText(profile.rightToWork, year)}</p>
+        </div>
       </section>
 
       {travel && (

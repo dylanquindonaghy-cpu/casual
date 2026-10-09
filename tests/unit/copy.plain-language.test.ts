@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
 import { REASONS } from "@/lib/rules/reasons";
+import { EVERY_LEVEL, EVERY_STATUS } from "../helpers/qualifications";
 
 // Copy is product (golden rule 11; docs/screens.md copy rules): every staff screen, in every
 // empty, error and answer state, in plain words. This renders them all and fails on jargon, raw
@@ -171,7 +172,7 @@ const myShifts = (o: Partial<Parameters<typeof MyShiftsView>[0]>) =>
     now: NOW,
     view: "upcoming",
     shifts: [],
-    notices: [],
+    needs: [],
     ...o,
   });
 const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {}) => ({
@@ -214,25 +215,8 @@ const SCREENS: [string, ReactElement][] = [
     }),
   ],
   [
-    "My shifts, a booking and licence notices",
-    myShifts({
-      shifts: [booked],
-      notices: [
-        {
-          type: "SIA_DS",
-          name: "SIA door supervisor licence",
-          expiresOn: "2026-11-20",
-          expired: false,
-        },
-        {
-          type: "FIRST_AID",
-          name: "first aid at work certificate",
-          expiresOn: "2026-10-01",
-          expired: true,
-        },
-        { type: "SIA_SG", name: "SIA security guard licence", expiresOn: null, expired: true },
-      ],
-    }),
+    "My shifts, a booking and every level of Needs updating (12F.1)",
+    myShifts({ shifts: [booked], needs: EVERY_LEVEL }),
   ],
   [
     "Open shifts, no travel area (12G.3)",
@@ -517,43 +501,8 @@ const SCREENS: [string, ReactElement][] = [
           { day: "2026-11-04", booked: true },
           { day: "2026-11-07", booked: false },
         ],
-        credentials: [
-          {
-            type: "SIA_DS",
-            name: "SIA door supervisor licence",
-            status: "valid",
-            expiresOn: "2029-01-01",
-            expired: false,
-          },
-          {
-            type: "FIRST_AID",
-            name: "first aid at work certificate",
-            status: "valid",
-            expiresOn: "2026-10-01",
-            expired: true,
-          },
-          {
-            type: "SIA_SG",
-            name: "SIA security guard licence",
-            status: "applied",
-            expiresOn: null,
-            expired: false,
-          },
-          {
-            type: "SIA_CP",
-            name: "SIA close protection licence",
-            status: "suspended",
-            expiresOn: null,
-            expired: false,
-          },
-          {
-            type: "STEWARD_L2",
-            name: "Level 2 spectator safety qualification",
-            status: "valid",
-            expiresOn: null,
-            expired: false,
-          },
-        ],
+        qualifications: EVERY_STATUS,
+        rightToWork: { checked: true, checkedOn: "2026-01-12" },
       },
     }),
   ],
@@ -571,7 +520,8 @@ const SCREENS: [string, ReactElement][] = [
         textsOff: false,
         today: "2026-11-02",
         unavailable: [],
-        credentials: [],
+        qualifications: [],
+        rightToWork: { checked: false, checkedOn: null },
       },
     }),
   ],

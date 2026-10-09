@@ -44,7 +44,7 @@ const SECTIONS: Section[] = [
   },
   { id: "after-a-shift", title: "After a shift", areas: ["shifts"], body: () => <AfterAShift /> },
   { id: "requests", title: "Answer requests", areas: ["requests"], body: () => <Requests /> },
-  { id: "workers", title: "Workers", areas: ["workers"], body: () => <Workers /> },
+  { id: "casuals", title: "Casuals", areas: ["casuals"], body: () => <Workers /> },
   {
     id: "records",
     title: "Records",
@@ -176,7 +176,7 @@ const MENU_WORDS: Record<string, string> = {
   Requests: "Time changes, swaps and reviews workers have asked for.",
   Strikes:
     "Who has strikes for cancelling late, and which need a review. Withdraw or keep one from its record.",
-  Workers: "Find a worker to change their access.",
+  Casuals: "Their qualifications, travel areas and strikes, and their access.",
   "Action log": "Everything that happened, newest first.",
   "Notice report": "Every offer, booking, move and cancellation, with the notice given.",
   "Pilot metrics": "The pilot's figures against your week-0 baseline.",
@@ -643,7 +643,8 @@ function Workers() {
   return (
     <>
       <Para>
-        Find a worker to change their access: when they leave, come back or lose their phone.
+        Find a casual to see their qualifications and what needs updating, or to change their
+        access: when they leave, come back or lose their phone.
       </Para>
       <Task title="To find someone">
         <Steps>
@@ -696,8 +697,8 @@ function Workers() {
         </Steps>
       </Task>
       <Links>
-        <GoTo href="/office/workers" icon="workers">
-          Go to Workers
+        <GoTo href="/office/casuals" icon="workers">
+          Go to Casuals
         </GoTo>
       </Links>
     </>

@@ -732,7 +732,7 @@ describe("My shifts and the kept copy together", () => {
         now: new Date("2026-11-02T09:05:00Z"),
         view: "upcoming",
         shifts: [],
-        notices: [],
+        needs: [],
       }),
     );
     expect(html).toContain("Updated 09:05 on Mon 2 Nov");

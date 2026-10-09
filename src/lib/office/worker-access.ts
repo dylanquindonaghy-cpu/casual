@@ -2,8 +2,10 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
 import { endEverySession } from "../auth/sessions";
+import { qualificationsFor, type CasualQualifications } from "../credentials/qualifications";
 import {
   assignments,
+  firms,
   sites,
   workers,
   workerSiteBlocks,
@@ -16,6 +18,7 @@ import { retryAborted } from "../db/retry";
 import { recordEvent } from "../events/record";
 import { forgetPhones, reflagFutureBookings } from "../roster/worker-effects";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
+import { STRIKES_PER_CASUAL, strikesOf, type CasualStrike } from "./strikes";
 import type {
   DeactivateReason,
   ReactivateReason,
@@ -24,7 +27,7 @@ import type {
 } from "./worker-reasons";
 
 // The office's controls for one worker (Phase 10; audit M22, M23, L24, L81; docs/screens.md
-// `/office/workers/[id]`), for active admins and resourcers (checked again inside each change).
+// `/office/casuals/[id]`, `/office/workers/[id]` until 12F.1), for active admins and resourcers (checked again inside each change).
 // One transaction each, the worker's row locked first (FOR NO KEY UPDATE, as the office team's
 // changes: a login finishing at the same moment can't deadlock with it, and its session is ended
 // too: src/lib/auth/sessions.ts endEverySession). Every change has a reason from a fixed list and
@@ -91,7 +94,7 @@ const nowOf = (ctx: OfficeContext) => (ctx.clock ?? systemClock).now();
 
 // Inside the firm's transaction: the acting office user may use `area`, and the worker, locked.
 async function lockWorker(tx: FirmTx, ctx: OfficeContext, workerId: string) {
-  if (!(await officeUserMay(tx, ctx.officeUserId, "workers"))) return "not_allowed" as const;
+  if (!(await officeUserMay(tx, ctx.officeUserId, "casuals"))) return "not_allowed" as const;
   const [worker] = await tx
     .select({
       id: workers.id,
@@ -371,9 +374,11 @@ export async function keepFlaggedBooking(
   );
 }
 
-// What a worker's page shows (docs/screens.md `/office/workers/[id]`): who they are, their status,
-// the sites they're blocked from, the sites they could be blocked from, and their bookings ahead
-// (the first 20). Null: not an office user who may see workers, or no such worker here.
+// What a casual's page shows (docs/screens.md `/office/casuals/[id]`; 12F.1): who they are, their
+// status, what needs updating, their qualifications and right to work (src/lib/credentials/
+// status.ts), their travel district, their strikes, the sites they're blocked from and could be
+// blocked from, and their bookings ahead (the first 20). Null: not an office user who may see
+// casuals, or no such casual here.
 export interface WorkerAccessView {
   id: string;
   name: string;
@@ -394,6 +399,13 @@ export interface WorkerAccessView {
     endsAt: Date;
   }[];
   aheadMore: boolean;
+  qualifications: CasualQualifications["qualifications"];
+  rightToWork: CasualQualifications["rightToWork"];
+  needs: CasualQualifications["needs"];
+  strikes: CasualStrike[]; // newest first, at most STRIKES_PER_CASUAL
+  strikesMore: boolean;
+  liveStrikes: number; // live and still counting
+  timeZone: string;
 }
 
 export const WORKER_AHEAD_MAX = 20;
@@ -406,7 +418,7 @@ export async function workerAccessView(
   const { run } = parts(ctx);
   const now = nowOf(ctx);
   return run(ctx.firm.id, async (tx) => {
-    if (!(await officeUserMay(tx, ctx.officeUserId, "workers"))) return null;
+    if (!(await officeUserMay(tx, ctx.officeUserId, "casuals"))) return null;
     const [worker] = await tx
       .select({
         id: workers.id,
@@ -464,6 +476,13 @@ export async function workerAccessView(
        order by s.starts_at, s.id
        limit ${WORKER_AHEAD_MAX + 1}
     `);
+    const [firm] = await tx
+      .select({ timezone: firms.timezone })
+      .from(firms)
+      .where(eq(firms.id, ctx.firm.id));
+    const timeZone = firm?.timezone ?? "Europe/London";
+    const held = (await qualificationsFor(tx, [worker.id], { now, timeZone })).get(worker.id);
+    const strikes = (await strikesOf(tx, [worker.id], now)).get(worker.id) ?? [];
     return {
       id: worker.id,
       name: `${worker.firstName} ${worker.lastName}`,
@@ -494,6 +513,13 @@ export async function workerAccessView(
         endsAt: new Date(a.ends_at),
       })),
       aheadMore: ahead.length > WORKER_AHEAD_MAX,
+      qualifications: held?.qualifications ?? [],
+      rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null },
+      needs: held?.needs ?? [],
+      strikes: strikes.slice(0, STRIKES_PER_CASUAL),
+      strikesMore: strikes.length > STRIKES_PER_CASUAL,
+      liveStrikes: strikes.filter((s) => s.counting).length,
+      timeZone,
     };
   });
 }

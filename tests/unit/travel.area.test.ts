@@ -200,7 +200,7 @@ describe("Booked (My shifts' upcoming)", () => {
           now: NOW,
           view: "upcoming",
           shifts,
-          notices: [],
+          needs: [],
         }),
       ),
     );

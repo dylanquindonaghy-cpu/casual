@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { MyShiftsView, type MyShiftsViewProps } from "@/app/my-shifts-view";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
+import { EVERY_LEVEL } from "../helpers/qualifications";
 
 // My shifts (docs/screens.md, `/`): the display helpers, then the page body rendered to HTML with
 // fake shifts, checked for what the screen spec promises. The "Cancel this shift" button uses
@@ -84,7 +85,7 @@ const base: MyShiftsViewProps = {
   now: at("2026-11-02T09:00:00Z"),
   view: "upcoming",
   shifts: [],
-  notices: [],
+  needs: [],
 };
 const render = (props: Partial<MyShiftsViewProps>) =>
   renderToStaticMarkup(createElement(MyShiftsView, { ...base, ...props }));
@@ -273,32 +274,28 @@ describe("My shifts page body", () => {
     }
   });
 
-  it("warns about credentials expiring soon or expired, in the firm's voice", () => {
-    const html = render({
-      notices: [
-        {
-          type: "FIRST_AID",
-          name: "first aid at work certificate",
-          expiresOn: "2026-10-01",
-          expired: true,
-        },
-        {
-          type: "SIA_DS",
-          name: "SIA door supervisor licence",
-          expiresOn: "2026-11-20",
-          expired: false,
-        },
-        { type: "RTW", name: "right to work check", expiresOn: null, expired: true },
-      ],
-    });
+  it("'Needs updating': one row per qualification, the one stopping a booked shift first (12F.1)", () => {
+    const html = render({ needs: EVERY_LEVEL });
     const words = text(html);
-    expect(words).toContain(
-      "Your first aid at work certificate expired on 1 Oct. You can't take shifts that need it until you renew it and send the new details to the office. — Acme Events Shift Team",
+    expect(words).toContain("Needs updating");
+    const rows = [...html.matchAll(/<li>([^<]*)<\/li>/g)].map((m) =>
+      (m[1] ?? "").replace(/&#x27;|&#39;/g, "'"),
     );
-    expect(words).toContain(
-      "Your SIA door supervisor licence expires on 20 Nov. Renew it and send the new details to the office so you can keep taking shifts. — Acme Events Shift Team",
+    expect(rows).toEqual([
+      "SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Send the new details to the office, or contact them.",
+      "SIA close protection licence is suspended. Contact the office.",
+      "First aid at work certificate expired on 1 Oct. Until it's renewed you won't see response team lead shifts.",
+      "SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts.",
+      "CSAS accreditation is missing. Needed for CSAS officer and steward shifts.",
+    ]);
+    expect(html).toContain('href="/profile"');
+    expect(words).toContain("See your qualifications");
+    // Something that stops her working: red; otherwise amber. Nothing to update: no card.
+    expect(html).toMatch(/aria-labelledby="needs-heading"[^>]*border-urgent/);
+    expect(render({ needs: EVERY_LEVEL.slice(3) })).toMatch(
+      /aria-labelledby="needs-heading"[^>]*border-attention/,
     );
-    expect(words).toContain("Your right to work check is marked as expired.");
+    expect(text(render({}))).not.toContain("Needs updating");
   });
 });
 

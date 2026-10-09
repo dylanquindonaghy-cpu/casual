@@ -26,7 +26,7 @@ import {
 } from "@/lib/office/worker-reasons";
 import { requestLog } from "@/lib/request";
 
-// A worker's access (docs/screens.md `/office/workers`, `/office/workers/[id]`). The firm comes
+// A casual's access (docs/screens.md `/office/casuals`, `/office/casuals/[id]`; Workers until 12F.1). The firm comes
 // from the request's host and the office user from their session (an admin or resourcer: checked
 // here, and again inside each change). Input is checked with zod first; a reason is always one
 // from the fixed list. Results are shown in place.
@@ -39,7 +39,7 @@ async function asOffice<T>(
 ): Promise<T | Common> {
   const session = await getOfficeSession();
   if (!session) return { status: "logged_out" };
-  if (!canAccess(session.officeUser.role, "workers")) return { status: "not_allowed" };
+  if (!canAccess(session.officeUser.role, "casuals")) return { status: "not_allowed" };
   try {
     return await work({ firm: session.firm, officeUserId: session.officeUser.id });
   } catch (error) {
@@ -52,7 +52,7 @@ async function asOffice<T>(
 export async function findWorkersAction(raw: unknown): Promise<FindWorkersResult> {
   const parsed = z.string().max(1_000).safeParse(raw);
   if (!parsed.success) return { status: "found", matches: [] };
-  const result = await asOffice("find workers", (ctx) => findWorkers(ctx, parsed.data, "workers"));
+  const result = await asOffice("find workers", (ctx) => findWorkers(ctx, parsed.data, "casuals"));
   if (result === null) return { status: "not_allowed" };
   if ("status" in result) return result;
   return { status: "found", matches: result };

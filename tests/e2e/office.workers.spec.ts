@@ -4,8 +4,9 @@ import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // A worker who leaves, and one barred from a site, in a real browser (audit M22, M23, L24): a
-// resourcer finds a booked worker, makes them inactive, sees their booking on Today and cancels it
-// with the leaver reason; then blocks another booked worker from their site and keeps that
+// resourcer finds a booked worker on Casuals (Workers until 12F.1), makes them inactive, sees their
+// booking on Today and cancels it with the leaver reason; then blocks another booked worker from
+// their site (opened from the old Workers address, which still leads to their page) and keeps that
 // booking. This spec's own resourcer, workers, shifts and sites (fresh ones on a retry).
 
 const acme = "http://acme.localhost:3100";
@@ -49,14 +50,15 @@ test("a leaver made inactive, their booking cancelled from Today; another kept o
   await officeLogin(page, resourcer);
 
   // Find the leaver and make them inactive (a reason, then "Yes").
-  await (await menuLink(page, "Workers")).click();
-  await expect(page.getByRole("heading", { name: "Workers" })).toBeVisible();
-  await page.getByLabel("Name or mobile number").fill(lenaName);
-  await page.getByRole("button", { name: "Find" }).click();
+  await (await menuLink(page, "Casuals")).click();
+  await expect(page.getByRole("heading", { name: "Casuals", level: 1 })).toBeVisible();
+  const find = page.getByRole("region", { name: "Find a casual" });
+  await find.getByLabel("Name or mobile number").fill(lenaName);
+  await find.getByRole("button", { name: "Find" }).click();
   // What was typed never goes into the address (audit L54; as on the data page).
-  await expect(page.getByRole("link", { name: lenaName })).toBeVisible();
-  expect(page.url()).toBe(`${acme}/office/workers`);
-  await page.getByRole("link", { name: lenaName }).click();
+  await expect(find.getByRole("link", { name: lenaName })).toBeVisible();
+  expect(page.url()).toBe(`${acme}/office/casuals`);
+  await find.getByRole("link", { name: lenaName }).click();
   await expect(page.getByRole("heading", { name: lenaName })).toBeVisible();
   await expect(page.getByRole("link", { name: `Steward at Leaver Hall ${n}` })).toBeVisible();
   await page.getByRole("button", { name: "Make inactive" }).click();
@@ -71,8 +73,9 @@ test("a leaver made inactive, their booking cancelled from Today; another kept o
   ).toBeVisible();
   await expect(page.getByText("Not active · Steward")).toBeVisible();
 
-  // Block the other from their site.
+  // Block the other from their site: the old Workers address leads to their page.
   await page.goto(`${acme}/office/workers/${barred}`);
+  await expect(page).toHaveURL(`${acme}/office/casuals/${barred}`);
   await page.getByLabel("Site", { exact: true }).selectOption(siteId);
   await page.getByLabel("Why?").last().selectOption("client_asked");
   await page.getByRole("button", { name: "Block from this site" }).click();

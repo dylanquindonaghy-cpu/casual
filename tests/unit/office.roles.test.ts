@@ -47,7 +47,7 @@ describe("office roles", () => {
       "/office/requests": ["requests"],
       "/office/cancellations": ["cancellations"],
       "/office/strikes": ["strikes"],
-      "/office/workers": ["workers"],
+      "/office/casuals": ["casuals"],
       "/office/log": ["log"],
       "/office/reports/notice": ["reports"],
       "/office/reports/pilot": ["pilot"],

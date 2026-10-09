@@ -370,7 +370,7 @@ export const MAX_WORKER_MATCHES = 20;
 export async function findWorkers(
   ctx: OfficeContext,
   rawQuery: string,
-  area: "data" | "workers" = "data", // the office worker pages search the same way (Phase 10)
+  area: "data" | "casuals" = "data", // the Casuals pages search the same way (Phase 10; 12F.1)
 ): Promise<WorkerMatch[] | null> {
   const query = rawQuery.trim().slice(0, 100);
   if (!query) return [];

@@ -40,7 +40,7 @@ describe("the office menu (v2 groups)", () => {
     expect(labels("admin")).toEqual([
       ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
-      ["Records", ["Strikes", "Workers", "Action log", "Notice report", "Pilot metrics"]],
+      ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
       ["Configuration", ["Office team", "Settings", "Data requests"]],
       ["Help", ["How-to guide"]],
     ]);
@@ -49,7 +49,7 @@ describe("the office menu (v2 groups)", () => {
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
       ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
-      ["Records", ["Strikes", "Workers", "Action log", "Notice report", "Pilot metrics"]],
+      ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);
   });
@@ -93,7 +93,7 @@ describe("the current page in the menu", () => {
     ["/office/shifts", "/office/events"],
     ["/office/shifts/new", "/office/events"],
     ["/office/shifts/11111111-1111-4111-8111-111111111111", "/office/events"],
-    ["/office/workers/11111111-1111-4111-8111-111111111111", "/office/workers"],
+    ["/office/casuals/11111111-1111-4111-8111-111111111111", "/office/casuals"],
     ["/office/data/workers/11111111-1111-4111-8111-111111111111", "/office/data"],
     ["/office/pay/import", "/office/pay/import"],
     ["/office/pay", "/office/pay"],
@@ -122,7 +122,7 @@ describe("the current page in the menu", () => {
     ["/office/events", "/office/events/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/events", "/office/shifts", "true"],
     ["/office/events", "/office/shifts/11111111-1111-4111-8111-111111111111", "true"],
-    ["/office/workers", "/office/workers/11111111-1111-4111-8111-111111111111", "true"],
+    ["/office/casuals", "/office/casuals/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/data", "/office/data/workers/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/pay/import", "/office/pay/import", "page"],
     ["/office/guide", "/office/guide", "page"],

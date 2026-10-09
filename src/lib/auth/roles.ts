@@ -20,7 +20,9 @@ export const OFFICE_AREAS = {
   pilot: ["admin", "resourcer"], // pilot metrics: the baseline, weekly tallies, the figures
   pay: ["admin", "payroll"], // pay queries, grouped by likely cause
   data: ["admin"], // GDPR: a worker's data (download, delete) and the firm's own download
-  workers: ["admin", "resourcer"], // a worker's access: inactive, active, unblock, site blocks
+  // Casuals (12F.1; Workers until then): their qualifications, travel area, strikes, bookings and
+  // access (inactive, active, unblock, site blocks).
+  casuals: ["admin", "resourcer"],
   guide: ["admin", "resourcer", "payroll"], // the how-to guide (it shows each role its own parts)
 } as const satisfies Record<string, readonly OfficeRole[]>;
 

@@ -274,13 +274,14 @@ describe("the casual's Strikes on Profile", () => {
     lastName: "Booker",
     mobile: "+447700900123",
     email: null,
-    credentials: [],
+    qualifications: [],
+    rightToWork: { checked: false, checkedOn: null },
     unavailable: [],
     today: "2026-11-09",
     notifyChannel: "whatsapp",
     offerAlerts: true,
-    smsOptedOut: false,
-  } as unknown as Profile;
+    textsOff: false,
+  };
   const render = (strikes: MyStrikes) =>
     renderToStaticMarkup(
       createElement(ProfileView, { profile, signOff: "Acme Events Shift Team", strikes }),

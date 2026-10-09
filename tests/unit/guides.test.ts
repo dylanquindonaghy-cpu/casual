@@ -82,7 +82,7 @@ describe("the office how-to guide", () => {
       "Change or cancel a shift",
       "After a shift",
       "Answer requests",
-      "Workers",
+      "Casuals",
       "Records",
       "Pay",
       "Admin",
@@ -99,7 +99,7 @@ describe("the office how-to guide", () => {
       "Change or cancel a shift",
       "After a shift",
       "Answer requests",
-      "Workers",
+      "Casuals",
       "Records",
       "What workers see",
     ]);
@@ -121,7 +121,7 @@ describe("the office how-to guide", () => {
     // The menu map is the role's own menu: the pay dashboard (their home, 12A.3), not Today.
     expect(words(html)).toContain("Pay dashboard");
     expect(words(html)).not.toContain("Today: What needs doing");
-    expect(words(html)).not.toContain("Workers. Find a worker");
+    expect(words(html)).not.toContain("Casuals. Their qualifications");
   });
 
   it.each(["admin", "resourcer", "payroll"] as const)(

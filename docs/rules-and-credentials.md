@@ -178,6 +178,35 @@ the current SIA rule before enabling.
   Blocking never waits for the scan: rule 3 already fails a `valid` credential with a past date.
 - Office can record a renewal (new number + expiry) → status `valid` → offers resume.
 
+## Qualification statuses (what casuals and the office see, 12F.1)
+
+`src/lib/credentials/status.ts` (pure; `tests/unit/credentials.status.test.ts`) turns a type's
+records into one status, reading them the same way as rule 3 above. Staff-facing words say
+"qualification" (or the item's own name), never "credential".
+
+| Status | When |
+|---|---|
+| Suspended | any record of the type is `suspended` (it fails whatever else is held) |
+| Valid | a `valid` record in date (no expiry, or expiring after the next 30 days); the longest-lasting counts |
+| Expiring soon | that record expires within `EXPIRING_SOON_DAYS` (30: the scan's first warning, `src/lib/credentials/expiry.ts`); one window for the scan, the office's Casuals pages and the casual's My shifts and Profile |
+| Applied for | no record in date, but one `applied` (an application in progress) |
+| Expired | records, none in date or applied (marked `expired`, or `valid` with a past date) |
+| Missing | no record of a type one of her roles needs |
+| Being checked, Not accepted | join with 12F.2's uploads |
+
+- **Which are listed:** every type a rule for one of her roles requires (`credential_rules`), with
+  the roles that need it, worst first (suspended, expired, missing, expiring soon, applied for,
+  valid). A type nothing she does needs isn't listed. A session's own extra requirements
+  (`shifts.required_credentials`) show on that shift's page (12H.2).
+- **Right to work** (`RTW`) is a status only (Rules 15): "Checked by the office on {date}" (the
+  check's `verified_at`) or "Not checked yet: ask the office". It's never in the list and never
+  enforced: no role's rule requires it, so the rules engine can book a casual without one.
+- **Needs updating** (`needsUpdating()`), in four levels: (1) it stops a booked shift (expired,
+  suspended or missing, or in date only until before the shift's last day, as rule 3 reads it);
+  (2) expired or suspended; (3) expiring soon; (4) missing. Applied for isn't listed (nothing for
+  her to do yet). Within a level: the shift it stops soonest, the worst status, the soonest date,
+  then the name. The staff photo's levels join with 12F.2.
+
 ## Test cases (table-driven, all must pass)
 
 | Case | Setup | Expected |

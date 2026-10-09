@@ -1,17 +1,9 @@
 import { and, asc, desc, eq, gt, inArray, lte, ne } from "drizzle-orm";
 import { DAY, systemClock, type Clock } from "../auth/clock";
-import {
-  assignments,
-  credentialRules,
-  credentials,
-  credentialTypes,
-  firms,
-  shifts,
-  sites,
-  workers,
-} from "../db/schema";
+import { qualificationsFor } from "../credentials/qualifications";
+import type { NeedsItem } from "../credentials/status";
+import { assignments, firms, shifts, sites } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
-import { addDays, localDateOf } from "../time/zoned";
 import type { TravelFacts } from "../travel/line-copy";
 import { travelFor } from "../travel/lines";
 
@@ -26,12 +18,11 @@ import { travelFor } from "../travel/lines";
 //   history). Cancelled bookings show in neither list.
 // - Travel: each upcoming booking carries its travel facts, for the travel line (12G.3; the same
 //   words as Open shifts). Past ones don't: the trip is done, and its estimates expire.
-// - Notices: credentials the worker's roles need that expire within 30 days, or have expired, for
-//   the banner. Not for a type the worker has already replaced (a newer valid one) or is renewing
-//   (an application in progress).
+// - Needs updating (12F.1): the qualifications the worker's roles need that have expired, are
+//   suspended or missing, expire within EXPIRING_SOON_DAYS, or stop a booked shift, in §4.2's
+//   order. Not a type they've already replaced (a newer valid one) or are renewing (applied for).
 
 export const PAST_DAYS = 30;
-export const NOTICE_DAYS = 30;
 
 export interface PortalContext {
   firm: { id: string };
@@ -125,17 +116,9 @@ export async function myShifts(
   });
 }
 
-export interface CredentialNotice {
-  type: string;
-  name: string;
-  expiresOn: string | null; // null: marked expired with no date
-  expired: boolean;
-}
-
-export async function credentialNotices(
-  ctx: PortalContext,
-  workerId: string,
-): Promise<CredentialNotice[]> {
+// "Needs updating" (docs/office-v2.md 4.2; 12F.1): what the worker should sort out about their
+// qualifications, in its four levels (src/lib/credentials/status.ts).
+export async function myNeedsUpdating(ctx: PortalContext, workerId: string): Promise<NeedsItem[]> {
   const now = (ctx.clock ?? systemClock).now();
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx) => {
@@ -143,68 +126,10 @@ export async function credentialNotices(
       .select({ timezone: firms.timezone })
       .from(firms)
       .where(eq(firms.id, ctx.firm.id));
-    const today = localDateOf(now, firm?.timezone ?? "Europe/London");
-    const horizon = addDays(today, NOTICE_DAYS);
-    // Only credentials the worker's roles need (by the firm's rules): an old card for work they
-    // no longer do isn't worth a red banner on every visit.
-    const [me] = await tx
-      .select({ roles: workers.roles })
-      .from(workers)
-      .where(eq(workers.id, workerId));
-    const rules = me?.roles.length
-      ? await tx
-          .select({ requiredTypes: credentialRules.requiredTypes })
-          .from(credentialRules)
-          .where(inArray(credentialRules.role, [...me.roles]))
-      : [];
-    const needed = new Set(rules.flatMap((r) => r.requiredTypes));
-    const held = await tx
-      .select({
-        id: credentials.id,
-        type: credentials.type,
-        status: credentials.status,
-        expiresOn: credentials.expiresOn,
-        name: credentialTypes.name,
-      })
-      .from(credentials)
-      .leftJoin(
-        credentialTypes,
-        and(
-          eq(credentialTypes.firmId, credentials.firmId),
-          eq(credentialTypes.code, credentials.type),
-        ),
-      )
-      .where(eq(credentials.workerId, workerId));
-    // A valid credential of the type lasting past the horizon (or with no expiry) means the
-    // worker has already replaced any older one; an application in progress means they're
-    // renewing it. Either way, nothing to tell them for that type.
-    const covered = new Set(
-      held
-        .filter(
-          (c) =>
-            (c.status === "valid" && (c.expiresOn === null || c.expiresOn > horizon)) ||
-            c.status === "applied",
-        )
-        .map((c) => c.type),
-    );
-    const notices = new Map<string, CredentialNotice>();
-    for (const c of held) {
-      if (!needed.has(c.type) || covered.has(c.type) || c.status === "suspended") continue;
-      const expired = c.status === "expired" || (c.expiresOn !== null && c.expiresOn < today);
-      const soon = c.status === "valid" && c.expiresOn !== null && c.expiresOn <= horizon;
-      if (!expired && !soon) continue;
-      const notice = {
-        type: c.type,
-        name: c.name ?? c.type.replace(/_/g, " "),
-        expiresOn: c.expiresOn,
-        expired,
-      };
-      // One notice per type: the one lasting longest.
-      const seen = notices.get(c.type);
-      if (!seen || (notice.expiresOn ?? "") > (seen.expiresOn ?? "")) notices.set(c.type, notice);
-    }
-    return [...notices.values()].sort((a, b) =>
-      (a.expiresOn ?? "").localeCompare(b.expiresOn ?? ""),
-    );
+    const held = await qualificationsFor(tx, [workerId], {
+      now,
+      timeZone: firm?.timezone ?? "Europe/London",
+    });
+    return held.get(workerId)?.needs ?? [];
   });
 }

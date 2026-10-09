@@ -439,12 +439,13 @@ test("Part 3: as the office", async ({ browser }) => {
     ).toBeVisible();
   });
 
-  await test.step("28. Workers", async () => {
+  await test.step("28. Casuals", async () => {
     await page.goto(`${acme}/office`);
-    await (await menuLink(page, "Workers")).click();
-    await page.getByLabel("Name or mobile number").fill("Zoe");
-    await page.getByRole("button", { name: "Find" }).click();
-    await page.getByRole("link", { name: ZOE.name }).click();
+    await (await menuLink(page, "Casuals")).click();
+    const find = page.getByRole("region", { name: "Find a casual" });
+    await find.getByLabel("Name or mobile number").fill("Zoe");
+    await find.getByRole("button", { name: "Find" }).click();
+    await find.getByRole("link", { name: ZOE.name }).click();
     await expect(page.getByRole("heading", { name: ZOE.name })).toBeVisible();
   });
 

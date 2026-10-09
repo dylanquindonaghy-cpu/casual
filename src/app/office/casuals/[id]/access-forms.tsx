@@ -27,7 +27,7 @@ const fieldBox = "flex min-w-0 grow basis-56 flex-col gap-1 sm:max-w-sm";
 // A choice and its button on one line, or the button under it on a phone.
 const fieldRow = "flex flex-wrap items-end gap-3";
 
-// The worker's page in the office (docs/screens.md `/office/workers/[id]`). Each change has a
+// The casual's page in the office (docs/screens.md `/office/casuals/[id]`). Each change has a
 // reason from a fixed list; the server checks everything again. The confirmation shows in place,
 // and the page refreshes under it to show the change. Changes that take something away look
 // destructive (red outline, then a solid red "Yes, …"; "Block from this site", which blocks at

@@ -183,8 +183,11 @@ marked; "How-to guide", near its bottom, explains each job step by step.
 
     On "Events & sessions", click "Import shifts", choose `shifts.csv` (see "Opening the sample files"
     below), click "Check the file", then "Import these shifts".
-28. **Workers.** Click "Workers", type `Zoe` in "Name or mobile number", and click "Find". Open Zoe
-    Usman: her bookings, licences and access. (Don't make her inactive: later steps use her.)
+28. **Casuals.** Click "Casuals" (everyone, with their qualifications, travel areas and strikes;
+    "Need updating" lists who has something to sort out). Under "Find a casual", type `Zoe` in
+    "Name or mobile number", and click "Find". Open Zoe Usman: what needs updating, her
+    qualifications, travel area, strikes, bookings and access. (Don't make her inactive: later
+    steps use her.)
 29. **The action log.** Click "Action log". Everything you've done is there, newest first. Choose
     Type "Cancellations" and click "Show".
 30. **The notice report.** Click "Notice report". The cancellations are listed with the notice each

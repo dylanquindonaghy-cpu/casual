@@ -722,3 +722,47 @@ export async function travelScene(
     await pool.end();
   }
 }
+
+// A casual of a spec's own with exactly these qualifications (12F.1; tests/e2e/casual.app.spec.ts):
+// their roles, and each type they hold with its expiry `daysAhead` from today (null: none). A
+// rerun puts them back the same way.
+export async function addQualifiedCasual(
+  slug: string,
+  casual: { firstName: string; lastName: string; mobileE164: string },
+  o: { roles: string[]; held: { type: string; daysAhead: number | null }[] },
+): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      await tx
+        .insert(workers)
+        .values({ firmId, ...casual, roles: o.roles })
+        .onConflictDoNothing();
+      const [worker] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(eq(workers.mobileE164, casual.mobileE164));
+      if (!worker) throw new Error("casual neither added nor found");
+      await tx.update(workers).set({ roles: o.roles }).where(eq(workers.id, worker.id));
+      await tx.delete(credentials).where(eq(credentials.workerId, worker.id));
+      for (const h of o.held) {
+        await tx.insert(credentials).values({
+          firmId,
+          workerId: worker.id,
+          type: h.type,
+          status: "valid",
+          expiresOn:
+            h.daysAhead === null
+              ? null
+              : new Date(Date.now() + h.daysAhead * 86_400_000).toISOString().slice(0, 10),
+        });
+      }
+      return worker.id;
+    });
+  } finally {
+    await pool.end();
+  }
+}

@@ -1,10 +1,6 @@
 import Link from "next/link";
-import {
-  credentialExpiredMessage,
-  credentialExpiringMessage,
-  credentialMarkedExpiredMessage,
-  type FirmVoice,
-} from "@/lib/messaging/templates";
+import type { NeedsItem } from "@/lib/credentials/status";
+import type { FirmVoice } from "@/lib/messaging/templates";
 import {
   isOnNow,
   mapLink,
@@ -13,8 +9,8 @@ import {
   siteAddress,
   timeOnDay,
 } from "@/lib/portal/format";
-import type { CredentialNotice, MyShift, ShiftsView } from "@/lib/portal/my-shifts";
-import { shortDate } from "@/lib/rules/reasons";
+import type { MyShift, ShiftsView } from "@/lib/portal/my-shifts";
+import { needsText } from "@/lib/portal/qualification-copy";
 import { travelLineText } from "@/lib/travel/line-copy";
 import { wallTimeOf } from "@/lib/time/zoned";
 import { HomeScreenHint } from "./home-screen-hint";
@@ -24,7 +20,8 @@ import { PageHeader } from "./ui/page-header";
 import { StatusChip, type StatusTone } from "./ui/status-chip";
 
 // My shifts (docs/screens.md, `/`; layout in docs/ui-design.md "Staff pages"): the greeting, then
-// anything to act on (urgent shifts, licences), a switch between Upcoming and the last 30 days, the
+// anything to act on (urgent shifts; "Needs updating": qualifications in their four levels, 12F.1),
+// a switch between Upcoming and the last 30 days, the
 // next shift in a card (time, role, site, map link, instructions, then what you can do), the rest
 // in a list where each opens to the same details, and the way to every other page. Each upcoming
 // shift shows its travel line ("7.2 miles · 18 min by car · …": 12G.3). Server-rendered
@@ -38,7 +35,7 @@ export interface MyShiftsViewProps {
   now: Date;
   view: ShiftsView;
   shifts: MyShift[];
-  notices: CredentialNotice[];
+  needs: NeedsItem[]; // qualifications to sort out, in order (src/lib/credentials/status.ts)
   urgentCount?: number; // urgent shifts this worker could take (the urgent board)
 }
 
@@ -82,7 +79,7 @@ export function MyShiftsView(props: MyShiftsViewProps) {
           </Link>
         </section>
       )}
-      <Notices {...props} />
+      <NeedsUpdating {...props} />
       <nav
         aria-label="Which shifts"
         className="grid grid-cols-2 divide-x-2 divide-line-strong overflow-hidden rounded-xl border-2 border-line-strong"
@@ -161,32 +158,33 @@ function Pages({ first }: { first: "primary" | "secondary" }) {
   );
 }
 
-function Notices({ notices, voice, timeZone, now }: MyShiftsViewProps) {
-  if (notices.length === 0) return null;
+// "Needs updating" (docs/office-v2.md 4.2), shown only when something does: one row per
+// qualification, the one that stops a booked shift first. A row that stops her working is red.
+function NeedsUpdating({ needs, timeZone, now }: MyShiftsViewProps) {
+  if (needs.length === 0) return null;
   const year = wallTimeOf(now, timeZone).year;
+  const urgent = needs.some((n) => n.level <= 2);
   return (
-    <div className="mb-6 flex flex-col gap-3">
-      {notices.map((n) => {
-        const date = n.expiresOn ? shortDate(n.expiresOn, year) : null;
-        const text = !n.expired
-          ? credentialExpiringMessage(voice, n.name, date ?? "")
-          : date
-            ? credentialExpiredMessage(voice, n.name, date)
-            : credentialMarkedExpiredMessage(voice, n.name);
-        return (
-          <p
-            key={n.type}
-            className={`rounded-xl border-2 p-4 text-base ${
-              n.expired
-                ? "border-urgent bg-urgent-soft text-urgent-ink"
-                : "border-attention bg-attention-soft text-attention-ink"
-            }`}
-          >
-            {text}
-          </p>
-        );
-      })}
-    </div>
+    <section
+      aria-labelledby="needs-heading"
+      className={`mb-6 rounded-xl border-2 p-4 ${
+        urgent
+          ? "border-urgent bg-urgent-soft text-urgent-ink"
+          : "border-attention bg-attention-soft text-attention-ink"
+      }`}
+    >
+      <h2 id="needs-heading" className="text-lg font-bold">
+        Needs updating
+      </h2>
+      <ul role="list" className="mt-2 flex flex-col gap-2 text-base">
+        {needs.map((n) => (
+          <li key={n.qualification.type}>{needsText(n, year)}</li>
+        ))}
+      </ul>
+      <Link href="/profile" className={`${staffBtn.secondary} mt-3`}>
+        See your qualifications
+      </Link>
+    </section>
   );
 }
 

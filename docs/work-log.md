@@ -10465,3 +10465,109 @@ Run `npm run dev`, log in as the resourcer (`docs/walkthrough.md` step 20:
 `http://acme.localhost:3000/office/login`, `acme.resourcer@example.com`), then open Menu →
 Cancellations. Click a cancellation for its record, and "Download PDF" or "Download CSV".
 Cancellations from before this change read "Not recorded" on the "Then" line.
+
+## 2026-10-09 — Phase 12, task 12C.4: Evidence email to the strikes team
+
+- **Time spent:** 1.2 hours (07:41 to 08:55 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=73fed1b819424494 e2e=true`
+  (3,800 tests; browser tests: 77, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its first round and found no fakes.
+- Committed as "Phase 12: Evidence email to the strikes team (12C.4)" and pushed to
+  `build/overnight`. Two checkpoint commits (`32322d2` before the safety review, `e1901ef` with its
+  fixes, marked WIP) went first. CI passed on both.
+
+### What was built, in plain words
+
+When a casual gets a **strike** (a note against them for cancelling late), ShiftDesk now emails
+the firm's **strikes team** about it, with the cancellation record attached as a PDF. For example:
+
+> **Strike: Kieran Doyle cancelled Steward at Acme Demo Racecourse with 15 hours' notice (ref
+> B71E0C42)**
+>
+> Kieran Doyle (staff id N042) cancelled Steward · Raceday · Wed 7 Oct 10:30–18:30 at 19:05 on Tue
+> 6 Oct, 15 hours before the start. That is under your 48-hour rule, so a strike was recorded
+> automatically. It is their strike 2 in the last 90 days.
+
+The email goes **only** to the address an admin saved on Settings **and confirmed** through the
+link sent to it (built in 12B.7). Until then nothing is sent, and the strike waits. Once the address
+is confirmed, the strikes that waited (and still count) are sent.
+
+It never carries health details. The subject and body give no reason at all, and the PDF gives any
+reason a casual picked as "Casual's own reason (see ShiftDesk)". The PDF also doesn't name whoever
+filled the place afterwards.
+
+**How it's sent safely.** The work is a **job** (a task the background worker runs, holding only
+ids). It follows the same three steps as the app's other messages:
+
+1. It writes down a **claim** ("I'm sending this").
+2. It sends.
+3. It writes down what happened.
+
+So the same email is never sent twice by accident. If the email server provably got nothing (it
+couldn't be reached), it tries again later: after 5 minutes, 30 minutes and 2 hours, 4 tries in
+all. If anything else goes wrong, the email may have arrived, so it is **never** resent
+automatically. Instead:
+
+- Today shows it under **"Strike evidence"**, along with a reminder when the strikes team's
+  address isn't confirmed.
+- The cancellation's record shows **"Resend evidence"**, which an admin or resourcer can press
+  after checking with the team. Every resend is written to the action log.
+
+Key facts and numbers: 4 attempts at most; "held up" means nothing has happened for 4 hours; the
+subject is at most 200 characters and always keeps the reference; 5 new kinds of log entry
+(`strike.evidence_queued`, `_sending`, `_sent`, `_failed`, `_resend`), none holding the address.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Each retry is a new job with its own claim | A plain retry would find its own claim and send nothing | The job runner's own retries |
+| Strikes recorded before the address is confirmed are sent once it is | Otherwise the team never hears about them | Only new strikes |
+| No full stop after the link | A full stop can end up in the link a phone opens (an older audit finding) | The spec's text to the letter |
+| No reason in the email's words; the PDF has the neutral one | Nothing about health leaves ShiftDesk | A "Reason:" line |
+| The PDF doesn't name who filled the place | The strike is about one casual; another's name has no part in it | Keeping the name (Dylan can choose this) |
+| Only the newest series of attempts can send | A resend and an old attempt can't both go | Allowing both |
+| The "Strike evidence" to-do lives on Today for now | Today's to-dos move to the dashboard in 12E.1 | Waiting for 12E.1 |
+
+### What the review and the audit found
+
+The safety review's main finding was about a test, not the code: the test meant to prove "nothing
+goes to an unconfirmed address" ran a job that had already finished, so it never reached the
+address check. Two new tests now prove it properly, including an address that was confirmed and
+then changed. It also found ways an email could stay "Sending" forever; those now show on Today and
+can be resent. Withdrawn strikes are never emailed. The wording says "Nothing was sent" only when
+that's proven. The audit found nothing to fix.
+
+### What the new tests prove
+
+- Unit tests (`tests/unit/strikes.evidence.test.ts`, 15): §5.6's example word for word; the
+  200-character subject keeps its reference and never cuts a character in half; the job's ids and
+  key rules; the retry waits; every log entry passes the log check and reads in plain words; the
+  record's evidence wording; the PDF's line without the replacement's name; the Today to-do (admins
+  get a link to Settings, resourcers are told who can).
+- Database tests (`tests/integration/strikes.evidence.test.ts`, 16), with a pretend email sender:
+  - nothing goes before the address is confirmed (three ways); it goes once it's confirmed, once;
+  - the subject, body and PDF for each of the four reasons, with no "unwell" or "health";
+  - which of their strikes it is ("strike 2");
+  - retries only when nothing reached the server; an unclear failure is never resent; a job that
+    stopped part-way is never resent;
+  - "Resend evidence": once, logged, admins and resourcers only, never another firm's;
+  - only one series at a time; held-up and withdrawn strikes; another firm's strikes and to-dos
+    stay apart.
+- The email template is checked against `docs/messaging-templates.md` by the existing test.
+- Browser test (`tests/e2e/office.strike-evidence.spec.ts`): on a phone, a failed email shows on
+  Today, its record opens from there, and "Resend evidence" works; no sideways scrolling.
+- Breaking each important rule on purpose made a test fail: 12 checks.
+
+### What's parked or needs Dylan
+
+- Real sending waits for "Connect an email provider (SMTP)" (Parking lot). Until then emails print
+  to the developer console.
+- Choose whether the emailed PDF should name who filled the place again (today: no).
+
+### How to see it working
+
+Run `npm run dev`. Log in as the admin and save a strikes team email on Settings, then open the
+link printed in the dev window and confirm it. Log in as a casual, take a shift starting within 48
+hours and cancel it: the email (with "Attached: cancellation-….pdf") appears in the dev window. On
+Today, "Strike evidence" shows while the address isn't confirmed.

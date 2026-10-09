@@ -10516,3 +10516,22 @@ contents passed.
   log's phone-number check; tested); "asked for … to be emailed again" for the resend; the PDF
   uses the strike's own threshold.
 - Mutation checks: 12 in all (6 before the review, 6 after), each made a test fail.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=73fed1b819424494 e2e=true` (3800 tests;
+77 e2e; the walkthrough's 3).
+
+**Audit round 1 (claims-auditor), verbatim verdict and open points:**
+
+> VERDICT: DONE
+>
+> Open points, none blocking:
+> 1. The Needs attention item is on Today until the dashboard (12E.1) absorbs it. §3.9 already lists it, and the log notes the interim.
+> 2. Two documented deviations from §5.6's literal text. There is no full stop after the link (the audit L10 rule). And the reason appears only in the attached PDF, not in the subject or body, because §5.6's own example has none there.
+>
+> To reach DONE: nothing.
+
+Point 1 goes with 12E.1 (its task text already names this item). Point 2 is in the decisions table.
+
+**Hours:** 1.2 (07:41 to 08:55 UTC). Phase 12 so far: 14.9 hours over 16 Hours-log rows (no
+estimate for Phase 12). **Commit:** "Phase 12: Evidence email to the strikes team (12C.4)", pushed
+(its hash in the next entry). CI passed on the checkpoints (`32322d2`, `e1901ef`).

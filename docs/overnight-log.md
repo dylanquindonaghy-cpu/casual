@@ -10743,3 +10743,44 @@ in `PLAN.md` (12G.1).
   export, the "left" deletion, the erasure deletion, the extra header, the active check, the
   postcode in the log, traveltime in tests, the answer's own postcode check, the write's re-check);
   each made a test fail.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=b75325343f1fa02e e2e=true` (3884 tests;
+79 e2e; the walkthrough's 3).
+
+**Audit round 1 (claims-auditor), verbatim verdict and what was done:**
+
+> VERDICT: NOT DONE (one small gap; everything else is proven)
+>
+> To reach DONE:
+> 1. Carry the API look-up to 12J.1 in PLAN.md, so the clause is moved rather than dropped. Add to the 12J.1 task text (or the "Waiting for Dylan: S11" Parking-lot entry): a site postcode the planner API fills must go through `serverGeocoder()` into sites.lat/lng, with the same unknown/unavailable handling as `editSitePostcode`, and a test. Then re-run verify.sh, because the edit changes the tree hash.
+> 2. Optional, not blocking: say in the 12G.1 log entry that the 12G.1 live-shape check of the postcodes.io fixtures is the Parking-lot "Connect postcodes.io" step 2, and that the second guardrails round was not run.
+
+- Point 1, done: 12J.1's task text in `PLAN.md` now says a postcode the planner API fills is
+  looked up through `serverGeocoder()` and saved with its point, with `editSitePostcode`'s handling
+  and a test. The planner API itself isn't built yet (it waits for S11), so 12G.1 builds the look-up
+  it will call.
+- Point 2, noted: checking the hand-written postcodes.io answers against one live answer is step 2
+  of "Connect postcodes.io and TravelTime" in the Parking lot. The guardrails reviewer ran once (FIX
+  FIRST, every item fixed or parked above); a second round wasn't run, as for earlier tasks whose
+  fixes were tested and break-checked.
+
+**Audit round 2 (claims-auditor), verbatim verdict and open points:**
+
+> VERDICT: DONE
+>
+> Open points, none blocking:
+> 1. The "recorded" postcodes.io answers in `tests/fixtures/postcodes-io/` are hand-written to the documented shape with made-up ZZ values. Their README says so, and Parking lot "Connect postcodes.io" step 2 (`PLAN.md:~2842`) tracks checking them against one live answer. This follows from the no-network and golden-rule-7 limits.
+> 2. `guardrails-reviewer` ran once (verdict FIX FIRST), and its findings were fixed or parked, each with a test. I confirmed the firm-export district cut, the "off" status, and the "looked up the location" wording are in code and tests. No second round was run, and the only record of the review is the log (`docs/overnight-log.md` 12G.1 section).
+> 3. The Parking lot text at `PLAN.md:~2836-2838` still says a real postcode is "'not found' on Settings and on a casual's 'Where you work'". The code, tests and DPIA now say "off", meaning look-ups aren't switched on. This is wording only and could be tidied.
+> 4. The leaver gap is parked (`PLAN.md:~2859`) and named in the DPIA's "How long" section. "They've left" is only offered for an active casual, so one already made inactive or blocked keeps their area until erased. The task's text (delete when the office makes the casual inactive as "They've left") is met.
+>
+> To reach DONE: nothing. Ticking is for the caller, and the planner-API look-up is now carried by 12J.1's text.
+
+Point 3 is tidied in the Parking lot after the tick (wording only). Points 1, 2 and 4 are as
+recorded above.
+
+**Hours:** 1.5 (10:15 to 11:47 UTC, about 5 minutes of it on Dylan's TikTok check, which he asked for
+mid-run: read-only, findings in `docs/work-log.md`). Phase 12 so far: 17.6 hours over 18 Hours-log
+rows (no estimate for Phase 12). **Commit:** "Phase 12: Postcode look-ups and the casual's travel
+area (12G.1)", pushed (its hash in the next entry). CI passed on the checkpoints (`96116c6`,
+`d3cad42`).

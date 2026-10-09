@@ -677,7 +677,7 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       logged without it and lowers the live count; keeping clears the flag; erasure clears the
       reason; payroll can't open the page or see a strike anywhere; isolation; e2e: withdrawing a
       strike. Docs: `docs/screens.md` (12C.5)
-- [ ] Postcode look-ups and the casual's travel area (§4.6, §5.4; S8, approved; D2; Data 21): a
+- [x] Postcode look-ups and the casual's travel area (§4.6, §5.4; S8, approved; D2; Data 21): a
       `Geocoder` (fake and postcodes.io; answers parsed with zod) in `src/lib/travel/`, chosen by
       `TRAVEL_PROVIDER` (a server setting, never per firm; `fake` pinned in `serverEnv()` and
       `tests/setup/env.ts`, and `traveltime` refused when `NODE_ENV=test`); site postcodes looked up
@@ -881,8 +881,12 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       `tests/setup/env.ts`); `PUT /api/v1/sessions/{ref}`, `GET /api/v1/sessions/{ref}` and
       `GET /api/v1/cancellations` (`since=` or `cursor=`; keyset pages by cancellation time and
       booking id) as §5.3.2 says: `role` one of the firm's role codes, else 422 `unknown_role`; a
-      site's postcode only filled when it has none, else 409 `site_postcode_differs`; new sites and
-      events made with `insert … on conflict do nothing`; places lowered only as far as the
+      site's postcode only filled when it has none, else 409 `site_postcode_differs`; a postcode the
+      API fills is looked up first, outside the transaction, through `serverGeocoder()` (12G.1,
+      `src/lib/travel/`) and saved with its point in `sites.lat`/`lng`, with the same handling as
+      `editSitePostcode` (an unknown postcode is 422 `unknown_postcode`; a failed look-up is 503
+      `lookup_failed` and saves nothing; look-ups off saves the postcode without a point), tested
+      with the fake geocoder; new sites and events made with `insert … on conflict do nothing`; places lowered only as far as the
       highest booked place, else 409 `places_below_booked`; a booked session's move or
       cancellation through `moveShiftByFirm()` or `cancelShiftByFirm()` with S11's API caller
       (`by: { type: "api", keyId }`: the key checked still live in the same transaction, API
@@ -2829,8 +2833,9 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   to the strikes team: let them know it's withdrawn." An automatic "withdrawn" email (same queue
   and claim as the evidence email, its own template) would close the loop: its own task.
 - **Connect postcodes.io and TravelTime** (12G.1 built the postcode look-up; 12G.2 adds travel
-  times). Until then `TRAVEL_PROVIDER=fake`: made-up points for the `ZZ` postcodes only, so a real
-  postcode is "not found" on Settings and on a casual's "Where you work". postcodes.io needs no
+  times). Until then `TRAVEL_PROVIDER=fake`: made-up points for the `ZZ` postcodes only, so for a
+  real postcode Settings saves it without a location and a casual's "Where you work" says postcode
+  look-ups aren't switched on. postcodes.io needs no
   account or key; TravelTime needs an account and a production quote (Checks 14).
   **Who does what:** steps marked **You** are yours; steps marked **Claude** come after.
   1. **You:** sign `docs/dpia-travel.md` (with its balancing test) and decide postcodes.io and
@@ -2985,3 +2990,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-09 | 12 | 1.4 | Cancellation records (12C.3): `/office/cancellations` (this week's counts, the views All, Under 48 hours (the firm's `strikes.notice_hours`) and By the office as links, the latest 100) and `/office/cancellations/[ref]` (every field of §3.4, opened by the reference or the booking's full id; a shared reference lists its cancellations to choose from); a PDF (`pdf-lib` and fontkit, Noto Sans cut down beforehand and embedded whole, "✓" from Noto Sans Symbols 2; black only) and a CSV (§3.4's 22 columns, counted first, refused above 20,000), a casual's reason always "Casual's own reason (see ShiftDesk)", each download logged `export.downloaded` and refused when another site starts it; every cancellation now records what became of its place in `shift.cancelled` (reopened with the row's id, started, above the places, removed, the whole session), so "Then" states only what happened; guardrails FIX FIRST ("whole session cancelled" guessed from today's status) and every SHOULD fixed; 3761 tests + 76 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-09 | 12 | 1.2 | Evidence email to the strikes team (12C.4): the `strikes.evidence_email` job (ids only), queued with each strike in its transaction; claim → send → record under the firm's strikes-email lock; only to a confirmed address (else `not_set_up`, sent once the address is confirmed); §5.6's subject and body (`strikeEvidenceEmail()`, no full stop after the link, the subject kept to 200 characters with its reference) with the record PDF (a casual's reason as "Casual's own reason (see ShiftDesk)", nobody else named); retried only on `EmailNotSentError` as new jobs (4 attempts), otherwise `failed`; one series at a time; "Resend evidence" on the record (logged); a "Strike evidence" to-do on Today (failed or held up, the address unconfirmed) until the dashboard (12E.1); guardrails FIX FIRST (a test never reached the address check) and every SHOULD fixed; 12 mutation checks; 3800 tests + 77 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
 | 2026-10-09 | 12 | 1.2 | Strikes page and the casual's strikes (12C.5): `/office/strikes` for admins and resourcers (Live, Needs review and All as links; one card per casual, sorted by live strikes, with the latest strike's session, notice, status and evidence, and links to each strike's record; first in Records, no badge); "Withdraw strike…" (a reason of 1–500 characters kept on the strike row, never in the log; `strike.withdrawn` with ids only; the casual locked first, refused once they're erased) and "Keep strike" (any live strike not yet reviewed, so `strike.reviewed` never shows the health or caring flag) on the strike's cancellation record; the casual's Strikes on `/profile` (the count in the last 90 days, each strike's session, notice, until when and status, "Tell us what happened" once per session); erasure clears the withdrawal reason; guardrails FIX FIRST (a withdrawal could race an erasure; the log entry revealed the flag) and every SHOULD fixed over two rounds; 3824 tests + 78 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
+| 2026-10-09 | 12 | 1.5 | Postcode look-ups and the casual's travel area (12G.1): a `Geocoder` (`src/lib/travel/`: the fake, made-up points for the ZZ postcodes and "off" for real ones; postcodes.io, one GET of the postcode alone with a 5-second limit and a 64 KB cap, its answer checked with zod; never called tonight: hand-written answers in its documented shape) chosen by `TRAVEL_PROVIDER` (`fake` pinned for tests and e2e, `traveltime` refused under test); site postcodes looked up on Settings before the write and saved with their point, with each site's location status; migration 0040 `worker_travel` (RLS, composite key, column-level updates only); `/profile/travel` (start-from postcode, Car / Public transport / Both, 30–90 minutes, the district line, remove) logged `travel.profile_changed` {changed, maxMinutes}; the office and the firm's export see the district only; deleted on "They've left" and erasure, in the casual's export; `docs/dpia-travel.md`; guardrails FIX FIRST (the firm export held full postcodes) and every SHOULD fixed or parked; 3884 tests + 79 e2e + the walkthrough's 3; verified and audited DONE (round 2, after carrying the planner API's look-up into 12J.1); includes about 5 minutes on Dylan's TikTok check (see docs/work-log.md) |

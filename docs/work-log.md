@@ -10659,3 +10659,121 @@ see the strike warning). Then log in to the office as an admin or resourcer and 
 in the menu's Records group: the casual is there. Click their latest strike to open its record,
 and try "Keep strike" or "Withdraw strike…". Back as the casual, open **Profile** to see the
 Strikes section.
+
+## 2026-10-09 — Phase 12, task 12G.1: Postcode look-ups and the casual's travel area
+
+**Time spent:** 1.5 hours (10:15 to 11:47 UTC; about 5 minutes of it went on Dylan's TikTok check, below).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=bedd0cf46cec94b7 e2e=true`. That covers 3884 unit and database tests, 79 browser tests and the walkthrough's 3, all passing. The independent
+auditor said **DONE** in round 2. Round 1 asked for one thing: the planner API (task 12J.1, not built yet) must use this look-up too, so that is now written into 12J.1's task. The commit is "Phase 12: Postcode look-ups and the casual's travel
+area (12G.1)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+A **postcode look-up** turns a postcode (like "ZZ1 1AA") into the map point at the middle of that
+postcode's area (a latitude and longitude). Later tasks use those points to work out travel times
+(12G.2) and to show casuals only the shifts they can reach (12G.3). This task builds the look-up and
+lets casuals say where they travel from.
+
+- **The look-up** (`src/lib/travel/geocoder.ts`). There are two versions:
+  - **The fake**, used tonight and in every test. It knows only the made-up "ZZ" postcodes and
+    gives each one a fixed point. For a real postcode it says "look-ups aren't switched on" rather
+    than pretending the postcode is wrong.
+  - **postcodes.io**, a free public service, for real use later. It sends the postcode and nothing
+    else, waits at most 5 seconds, and checks the answer's shape before using it. Nothing was sent
+    to it tonight. Its tests use answers written by hand in the shape its documentation shows.
+  - A server setting, `TRAVEL_PROVIDER`, picks which one runs (`fake` or `traveltime`). Tests are
+    locked to `fake`, and `traveltime` is refused whenever tests run.
+- **Sites on Settings.** Saving a site's postcode now looks it up first and stores the point with
+  it. An unknown postcode, or a look-up that fails, saves nothing and says why. Each site shows
+  whether its location is known.
+- **The casual's "Where you work"** (`/profile/travel`). They give:
+  - a start-from postcode (it needn't be home);
+  - how they travel: car, public transport or both;
+  - how long they'll travel: 30, 45, 60 or 90 minutes.
+
+  It's saved after the look-up. Profile shows a summary, and they can remove it. The page says the
+  office only sees the first part of the postcode.
+- **What the office sees:** only the district, like "Travel area: ZZ1 · 60 min, car", on the
+  casual's page. The full postcode never reaches an office page or the firm's data download.
+- **The action log** (the app's permanent history) records which settings changed and the time
+  limit, never the postcode.
+- **Deleting it:** the travel area is deleted when the office marks a casual "They've left", and
+  when a casual's details are erased. It's included when a casual asks for a copy of their data.
+- **A privacy assessment** (`docs/dpia-travel.md`) explains why this is fair to casuals (the
+  "legitimate interests" test) and gives firms a template to fill in.
+
+### Key facts and numbers
+
+- A new database table, `worker_travel`, with one row per casual (migration 0040). It has
+  row-level security, so each firm sees only its own rows.
+- The app may only change the travel columns of a row. It can never move a row to another casual
+  or firm.
+- The look-up happens before the database is touched, never while rows are locked. A slow network
+  can't hold anyone else up.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| No call to the real postcodes.io tonight; hand-written sample answers | The overnight rules forbid outside services; made-up data only | Fetching real answers |
+| A postcode is checked as it's saved; an unknown one is refused | The person sees at once if they made a typo; nothing half-saved | Checking later in a background job |
+| The fake says "switched off" for real postcodes, and Settings still saves them (without a point) | Calling a real postcode "unknown" would be false, and would have broken saving real site postcodes | Refusing them |
+| The firm's data download has the district only | The office never sees more than the district | Leaving the table out of the download |
+| Casuals can remove their own travel area | It's their postcode; with none, they see every shift | Only the office removes it |
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/travel.geocoder.test.ts`, `tests/unit/travel.words.test.ts`) prove:
+  - postcodes are tidied and their district is found;
+  - the fake gives fixed points, and says "off" for real postcodes;
+  - the postcodes.io code sends only the postcode;
+  - it reads each kind of answer correctly, and treats anything odd, slow or too big as
+    "unavailable";
+  - `traveltime` is refused in tests;
+  - every message ends as a plain sentence, and log entries never hold a postcode;
+  - the owner's default time limit is accepted only as 30, 45, 60 or 90.
+- **Database tests** (`tests/integration/travel.test.ts`) prove:
+  - saving, changing (no look-up when only the limit changes), refusing an unknown postcode, and
+    removing;
+  - the office sees only the district;
+  - deletion on "They've left" and on erasure;
+  - a save that's mid-look-up when the casual is erased, or marked "They've left", never brings
+    the area back;
+  - another firm sees nothing;
+  - site postcodes are saved with their point, including a site that a file import created.
+- **Other updated tests:** the firm data download has the district only; the casual's own download
+  has the full area; erasure deletes it.
+- **Browser test** (`tests/e2e/profile.travel.spec.ts`, on a phone-sized screen):
+  - a casual tries an unknown postcode (nothing saved), saves a real one, and reloads;
+  - the office's page for them shows "ZZ1 · 60 min, car" and never "ZZ1 1AA";
+  - the casual then removes it.
+
+  The Settings browser test now checks an unknown postcode, and "Location found." after a save.
+- **Break checks:** breaking each important rule on purpose (10 checks) made a test fail.
+
+### What's parked or needs Dylan
+
+- **Connect postcodes.io and TravelTime** (Parking lot, with numbered steps). Until then, real
+  postcodes can't be placed.
+- **Decide** whether each firm switches travel areas on for itself.
+- A casual already made inactive by a sheet, or blocked, keeps their area until erased (parked,
+  with two ways to fix it).
+- **Sign** `docs/dpia-travel.md` before a real firm uses travel areas.
+
+### Also this session: the TikTok check Dylan asked for
+
+Read-only, nothing changed. The Velora shop's TikTok connection is live: an active ad account
+(GBP, UK), the Shopify pixel (active, tracking views, cart, checkout and purchases) and a catalogue
+with 2 approved products. Two things to fix before ads: the only TikTok profile linked to the
+Velora ad account is @sottaband1 (the Sotta account), and the account has no funds or payment
+method. Smaller: the product description holds drafting notes, the product's web address has "™"
+in it, no product category is set, and business verification isn't submitted. The Shopify side
+couldn't be checked: its connector needs signing in again.
+
+### How to see it working
+
+Run `npm run dev` and log in as a casual. Open **My profile**, then **Set your travel area**. Enter
+`ZZ1 1AA`, choose how you travel and how long, and save. Try `ZZ0 0AA` to see an unknown postcode
+refused. Then log in to the office, open **Workers**, find that casual: the page shows "Travel area:
+ZZ1 · …". On **Settings**, save `ZZ9 9ZZ` for a site and it says "Location found."

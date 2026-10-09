@@ -52,6 +52,7 @@ describe("office roles", () => {
       "/office/pay-queries": ["pay"],
       "/office/pay/import": ["pay"],
       "/office/team": ["team"],
+      "/office/settings": ["settings"],
       "/office/data": ["data"],
       "/office/guide": ["guide"],
     };

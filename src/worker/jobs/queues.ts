@@ -10,6 +10,7 @@ import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
 import { SHIFT_CONFIRMED_QUEUE } from "../../lib/notices/shift-confirmed";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
 import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
+import { STRIKES_EMAIL_LINK_QUEUE } from "../../lib/office/strikes-email";
 import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
 import { SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDERS_QUEUE } from "../../lib/reminders/send";
 import {
@@ -73,6 +74,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   PAY_QUERY_UPDATE_QUEUE,
   INBOUND_MESSAGE_QUEUE,
   RETENTION_PURGE_QUEUE,
+  STRIKES_EMAIL_LINK_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);

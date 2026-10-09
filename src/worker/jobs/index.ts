@@ -41,6 +41,7 @@ import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notice
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { shiftConfirmedTask, type ShiftConfirmedPayload } from "../../lib/notices/shift-confirmed";
 import { officeOfferTask, type OfficeOfferPayload } from "../../lib/offers/office-offer";
+import { strikesEmailLinkTask } from "../../lib/office/strikes-email";
 import {
   PAY_DIGEST_TICK_CRON,
   PAY_DIGEST_TICK_QUEUE,
@@ -152,6 +153,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
   // Telling a worker payroll has sorted their pay query.
   await registerFirmTask(boss, deps.payQueryUpdates ?? payQueryUpdateTask);
+  // The link that confirms the strikes team's email (Settings, 12B.7).
+  await registerFirmTask(boss, strikesEmailLinkTask);
   // Answering WhatsApps on the shifts line (stored by the Twilio webhook).
   await registerFirmTask(
     boss,

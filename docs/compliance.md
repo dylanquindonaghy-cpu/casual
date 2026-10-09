@@ -64,7 +64,9 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
 ## Retention defaults (per firm, adjustable)
 
 Each firm's own settings, set by us with `npm run firm:settings` (Phase 10, audit M24; the app can't
-change them): `retention.message_days` and `retention.request_note_days` (30 to 2190 days), and a
+change them, and since 12B.7 still can't: its only way into `firms.settings` is
+`app_set_firm_setting()`, which accepts the strikes team's email and its confirmed time and refuses
+`retention.*` and every other key, tested in `tests/integration/settings.test.ts`): `retention.message_days` and `retention.request_note_days` (30 to 2190 days), and a
 hold, `retention.hold_until` (a date): until then the purge deletes nothing personal, for a dispute
 or tribunal (logged as a settings change). **Dylan to confirm** the defaults below, the 30-day
 floor, and that a hold covers the whole firm (not one worker).

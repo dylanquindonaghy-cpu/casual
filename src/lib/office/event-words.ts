@@ -462,9 +462,23 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ? `The firm's agreement and data processing agreement were recorded as signed on ${dayLabel(d.signedOn)} ${d.signedOn.slice(0, 4)}${typeof d.was === "string" ? ` (was ${dayLabel(d.was)} ${d.was.slice(0, 4)})` : ""}.`
         : "The firm's agreement and data processing agreement were recorded as signed.";
     case "firm.settings_changed": {
-      const n = Array.isArray(d.keys) ? d.keys.length : 0;
+      const keys = Array.isArray(d.keys) ? d.keys.map(String) : [];
+      // The strikes team's email (Settings, 12B.7): the keys only, never the address.
+      if (keys.length > 0 && keys.every((k) => k.startsWith("strikes.email"))) {
+        if (d.by === "link") return "The strikes team's email was confirmed, by its link.";
+        return keys.includes("strikes.email")
+          ? `${officeName} changed the strikes team's email.`
+          : `${officeName} changed whether the strikes team's email is confirmed.`;
+      }
+      const n = keys.length;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
     }
+    case "firm.strikes_email_link":
+      return "Sending a link to confirm the strikes team's email (it works for 7 days).";
+    case "firm.strikes_email_link_sent":
+      return "The link to confirm the strikes team's email was sent.";
+    case "firm.strikes_email_link_failed":
+      return "The link to confirm the strikes team's email couldn't be sent.";
     case "firm.shifts_line_changed":
       return d.change === "cleared"
         ? "The firm's shifts line (its WhatsApp and text number) was removed."
@@ -714,6 +728,10 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} saved the weekly tally${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
     case "site.created":
       return "A site was added from the rota sheet.";
+    case "site.changed": {
+      const site = names.site?.(d.siteId) ?? "a site";
+      return `${officeName} changed the postcode of ${site}.`;
+    }
     default:
       return `Recorded: ${e.action}.`;
   }

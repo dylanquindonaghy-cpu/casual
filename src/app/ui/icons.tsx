@@ -109,6 +109,14 @@ const PATHS = {
       <path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5" />
     </>
   ),
+  // Settings: two sliders.
+  settings: (
+    <>
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2.5" />
+      <circle cx="9" cy="17" r="2.5" />
+    </>
+  ),
   // How-to guide: an open book.
   guide: (
     <>

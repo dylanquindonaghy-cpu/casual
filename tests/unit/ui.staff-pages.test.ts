@@ -41,11 +41,20 @@ describe("staff pages", () => {
     const without = pages.filter(
       (page) => !pageAndViews(page).some((f) => /<PageHeader\b/.test(read(f))),
     );
-    expect(without.map(rel).sort()).toEqual(["src/app/l/page.tsx", "src/app/login/page.tsx"]);
+    expect(without.map(rel).sort()).toEqual([
+      // The strikes team's confirmation link (12B.7): the login link's layout.
+      "src/app/confirm-email/page.tsx",
+      "src/app/l/page.tsx",
+      "src/app/login/page.tsx",
+    ]);
   });
 
   it("the login pages and the error pages open with their one <h1>", () => {
-    for (const page of ["src/app/l/page.tsx", "src/app/login/page.tsx"]) {
+    for (const page of [
+      "src/app/l/page.tsx",
+      "src/app/login/page.tsx",
+      "src/app/confirm-email/page.tsx",
+    ]) {
       expect(read(join(ROOT, page)).match(/<h1 className=\{loginTitle\}>/g), page).toHaveLength(1);
     }
     for (const page of [

@@ -41,7 +41,7 @@ describe("the office menu (v2 groups)", () => {
       ["Operations", ["Today", "Events & sessions", "Requests"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
-      ["Configuration", ["Office team", "Data requests"]],
+      ["Configuration", ["Office team", "Settings", "Data requests"]],
       ["Help", ["How-to guide"]],
     ]);
   });

@@ -39,3 +39,27 @@ describe("the event and session switches (12B.4)", () => {
     }
   });
 });
+
+describe("Settings (12B.7)", () => {
+  it("passes the log check for each new entry: keys only, never the address or the postcode", () => {
+    for (const data of [
+      { by: "firm", keys: ["strikes.email"] }, // firm.settings_changed (saved)
+      { by: "firm", keys: ["strikes.email", "strikes.email_verified_at"] },
+      { by: "link", keys: ["strikes.email_verified_at"] }, // confirmed by its link
+      {
+        request: "strikes-email-link:00000000-0000-4000-8000-000000000001",
+        expiresAt: "2026-11-09T09:00:00.000Z",
+      }, // firm.strikes_email_link
+      { request: "strikes-email-link:00000000-0000-4000-8000-000000000001" }, // _sent
+      { request: "strikes-email-link:00000000-0000-4000-8000-000000000001", code: "Error" }, // _failed
+      { siteId: "00000000-0000-4000-8000-000000000002", fields: ["postcode"] }, // site.changed
+    ]) {
+      expect(passesLogCheck(data)).toBe(true);
+    }
+  });
+
+  it("would be refused with the address or the postcode in it (why only keys are logged)", () => {
+    expect(passesLogCheck({ keys: ["strikes.email"], to: "strikes.team@example.com" })).toBe(false);
+    expect(passesLogCheck({ siteId: "x", postcode: "ZZ1 1AA" })).toBe(false);
+  });
+});

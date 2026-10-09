@@ -194,6 +194,13 @@ reach the same app, which isn't answering.
   {Role} at {site}, {Sat 7 Nov, 08:00 to 16:00}"; body "The {role} shift at {site}, {when}, still
   has {n place(s)} free." / "{k offer(s)} sent, none accepted for the free place(s)." / "Open the
   office dashboard: {link}" / "— {firm} Shift Team". To active admins and resourcers.
+- Strikes team confirmation (`strikes_email_confirm`, email, built in 12B.7,
+  `strikesEmailConfirmEmail()`: to the address an admin saves on Settings, and to nobody else; the
+  link is signed for that address and works for 7 days): subject "Confirm {firm}'s strikes team
+  email"; body "{firm} uses ShiftDesk to record late cancellations, and asked to send these
+  records to this address." / "If that's right, open this link within 7 days and select Confirm
+  this address:" / "{link}" / "If you weren't expecting this, you can ignore this email: nothing is
+  sent here until the address is confirmed." / "— {firm} Shift Team".
 - Unknown number message (below), failed Sheets sync, domain verified/failed, credential expiries
   (weekly), pay digest (per schedule, below).
 - `unknown_number_alert` (email, to active admins and resourcers, built in Phase 7,

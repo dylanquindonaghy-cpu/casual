@@ -347,7 +347,7 @@ describe("the rest of the public schema", () => {
   // for an incoming message's number, Phase 7, ADR-018; app_resolve_firm_by_domain: the firm for
   // its own verified domain, Phase 8; app_erase_worker and app_purge_old_messages: the only ways
   // messages are deleted, by erasing their worker or once over 90 days old, Phase 8 GDPR).
-  it("the app role can execute exactly seven functions: app_current_firm_id, app_erase_worker, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_resolve_firm and app_resolve_firm_by_domain", async () => {
+  it("the app role can execute exactly eight functions: app_current_firm_id, app_erase_worker, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_resolve_firm, app_resolve_firm_by_domain and app_set_firm_setting", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
@@ -362,6 +362,8 @@ describe("the rest of the public schema", () => {
       "app_purge_old_messages",
       "app_resolve_firm",
       "app_resolve_firm_by_domain",
+      // 12B.7: the strikes team's email, and nothing else (tests/integration/settings.test.ts).
+      "app_set_firm_setting",
     ]);
   });
 

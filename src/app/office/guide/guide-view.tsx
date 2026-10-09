@@ -180,6 +180,7 @@ const MENU_WORDS: Record<string, string> = {
   "Pay queries": "Workers' pay queries, grouped by likely cause.",
   "Import pay records": "Load payroll's spreadsheet, so workers see their pay.",
   "Office team": "Who can log in to the office, and their roles.",
+  Settings: "The strikes team's email, and your sites' postcodes.",
   "Data requests": "Download or delete a worker's data when they ask.",
   "How-to guide": "This page.",
 };

@@ -9,6 +9,7 @@ export type OfficeRole = (typeof OFFICE_ROLES)[number];
 export const OFFICE_AREAS = {
   dashboard: ["admin", "resourcer", "payroll"],
   team: ["admin"], // who has office access, and their roles
+  settings: ["admin"], // the strikes team's email and the sites' postcodes (12B.7)
   today: ["admin", "resourcer"], // gaps, urgent shifts, cancellations, requests, expiries
   shifts: ["admin", "resourcer"], // the shift list, creating, editing, importing, assigning
   requests: ["admin", "resourcer"], // workers' requests: approve or decline with a note

@@ -10161,3 +10161,31 @@ VERDICT: DONE
 auditor noted the event page's "Mark who worked" branch has no test of its own (the components
 are the shift page's, covered by `office.attendance.spec.ts` and the walkthrough); non-blocking.
 Commit: "Phase 12: Events & sessions pages (12B.5)" (hash in the next entry).
+
+(12B.5's commit: `7501399`, pushed; CI passed on its checkpoint `5e09708`.)
+
+## 2026-10-09 03:33 UTC — Phase 12, task 12B.7: Settings
+
+**Task:** Settings (§3.10; S10), as written in `PLAN.md` (12B.7).
+
+**Plan:** migration 0036 `app_set_firm_setting(key, value)` (owner-run, `SECURITY DEFINER`, pinned
+`search_path`, app role only; `strikes.email` and `strikes.email_verified_at` only; clears the
+confirmed time on a new address); `src/lib/office/strikes-email.ts` (save, the signed link, confirm,
+the `strikes-email-link` job); `src/lib/office/settings-page.ts` (the page's data, a site's postcode);
+`/office/settings` (admins: a new `settings` area) and the public `/confirm-email#<code>`; the
+`strikes_email_confirm` email; log entries and words; tests (unit, integration, e2e); docs.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| The link is emailed by a worker job (`strikes-email-link`, ids only), not by the web app | Email is worker-only (the web app holds no SMTP secret), like the office login links | Sending from the server action |
+| The link is signed with a key derived from SESSION_SECRET for this use only, not a new secret | One less secret to manage; domain-separated, so it can't be confused with another HMAC | A new `LINK_SECRET` setting |
+| The link holds the firm's id and the expiry (packed, base64url) and the signature, never the address; it's checked against the firm's address as it is when used | A link for an old address then can't confirm a new one, and the address never sits in a URL | Putting the address in the link |
+| The link opens a page with "Confirm this address" (the code in the fragment, sent only on the button) | Email scanners open links: a GET must never confirm | Confirming on opening |
+| Anyone with the link may confirm (no login) | The strikes team needn't be office users | Requiring an office login |
+| At most once per send (claim → send → record); "Send the link again" queues a new one | The house rule for messages; a duplicate never goes from a retry | Retrying a failed send |
+| A new `settings` office area, admins only, with a "Settings" menu link | The spec's "admin only" | Reusing the `team` area |
+| A postcode is a UK postcode, stored "LS1 4AP"; empty clears it | The location look-up (12G.1) needs a real one | Free text |
+| "In use" counts sessions still to come with a live booking at the site | The spec's "{n} booked sessions use this site" | Counting bookings |
+| `strikes.*` isn't added to `firm:settings` (`SETTING_KEYS`) | §5.2 says admins change it on Settings, and the function is the only writer the app has | Owner-settable too |

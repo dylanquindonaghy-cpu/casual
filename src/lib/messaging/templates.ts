@@ -36,6 +36,28 @@ export function officeLoginLinkEmail(
   };
 }
 
+// strikes_email_confirm (email, 12B.7): sent to the strikes team's address when an admin saves it
+// on Settings. The link confirms that address only, for 7 days (src/lib/office/strikes-email.ts).
+export function strikesEmailConfirmEmail(
+  firm: FirmVoice,
+  link: string,
+): { subject: string; body: string } {
+  return {
+    subject: `Confirm ${firm.name}'s strikes team email`,
+    body: [
+      `${firm.name} uses ShiftDesk to record late cancellations, and asked to send these records to this address.`,
+      "",
+      "If that's right, open this link within 7 days and select Confirm this address:",
+      "",
+      link,
+      "",
+      "If you weren't expecting this, you can ignore this email: nothing is sent here until the address is confirmed.",
+      "",
+      `— ${firm.signOff}`,
+    ].join("\n"),
+  };
+}
+
 // credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires.
 export function credentialExpiringMessage(
   firm: FirmVoice,

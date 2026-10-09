@@ -253,6 +253,13 @@
       "when": 1791499497351,
       "tag": "0035_event_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791516887054,
+      "tag": "0036_firm_setting_function",
+      "breakpoints": true
     }
   ]
 }

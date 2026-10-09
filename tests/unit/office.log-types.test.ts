@@ -41,6 +41,9 @@ const NOT_EVENTS = new Set<string>([
   "retention.message_days",
   "retention.request_note_days",
   "retention.hold_until",
+  // The strikes team's email keys, changed only through app_set_firm_setting() (12B.7).
+  "strikes.email",
+  "strikes.email_verified_at",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
 ]);

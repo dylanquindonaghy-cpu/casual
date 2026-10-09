@@ -40,6 +40,7 @@ const MENU: { label: string; items: MenuItem[] }[] = [
     label: "Configuration",
     items: [
       { area: "team", href: "/office/team", label: "Office team", icon: "team" },
+      { area: "settings", href: "/office/settings", label: "Settings", icon: "settings" },
       { area: "data", href: "/office/data", label: "Data requests", icon: "data" },
     ],
   },

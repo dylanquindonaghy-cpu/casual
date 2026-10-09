@@ -662,6 +662,11 @@ In order (who does it, how, and what done looks like):
    short-notice threshold and quiet hours, as the app reads them. Change any with `--set`, e.g.
    `--set urgent_window_hours=12 --set quiet_hours.start=21:30`. A value the app wouldn't use is
    refused and nothing changes; each change is in the office action log.
+   The strikes team's email isn't one of these: an admin sets it on the office's **Settings** page,
+   and someone at that address opens the emailed link within 7 days and selects **Confirm this
+   address** (strike evidence only ever goes to a confirmed address). If the link didn't arrive or
+   ran out, the admin selects **Send the link again**. Each site's postcode is on the same page
+   (it can't change while people are booked on sessions there that are still to come).
 9. **Shifts line** (you): after "Connect Twilio", the firm's number with `npm run firm:line`, and
    WhatsApp's approval of the display name (start early: it can take days).
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the

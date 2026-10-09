@@ -25,6 +25,7 @@ import {
   shiftChangedByFirmMessage,
   shiftConfirmedMessage,
   shiftEscalationEmail,
+  strikesEmailConfirmEmail,
   shiftOfferMessage,
   shiftOfferSms,
   shiftReminder24hMessage,
@@ -369,6 +370,13 @@ describe("the code says what the doc says", () => {
     expect(words(email.body)).toEqual(words(expected));
   });
 
+  it("strikes_email_confirm (email): the subject, and the body's words", () => {
+    const [subject, ...body] = quotes(section("Office notifications"), "Strikes team confirmation");
+    const email = strikesEmailConfirmEmail(docVoice, "{link}");
+    expect(email.subject).toBe(subject);
+    expect(words(email.body)).toEqual(words(body.join(" ")));
+  });
+
   it("credential_weekly_list (email): the subject, and the body's words", () => {
     const office = section("Office notifications");
     const q = quotes(office, "`credential_weekly_list`");
@@ -638,6 +646,7 @@ describe("every template function is checked here", () => {
         "shiftChangedByFirmMessage",
         "shiftConfirmedMessage",
         "shiftEscalationEmail",
+        "strikesEmailConfirmEmail",
         "shiftOfferMessage",
         "shiftOfferSms",
         "shiftReminder24hMessage",

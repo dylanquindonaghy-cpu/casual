@@ -26,6 +26,7 @@ const shift = (o: Partial<OpenShift> = {}): OpenShift => ({
   endsAt: new Date("2026-11-07T16:00:00Z"),
   placesLeft: 1,
   opensAt: null,
+  travel: { kind: "unknown" },
   isUrgent: true,
   site: {
     id: "22222222-2222-4222-8222-222222222222",
@@ -41,6 +42,8 @@ const list = (shifts: OpenShift[]): OpenShiftsList => ({
   shifts,
   truncated: false,
   offerAlerts: true,
+  area: { maxMinutes: 45 },
+  further: { count: 0, atLeast: false },
   choices: { days: [], sites: [], roles: [] },
 });
 const urgent = (l: OpenShiftsList) =>

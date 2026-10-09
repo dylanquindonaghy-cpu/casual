@@ -178,6 +178,8 @@ const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {})
   shifts: [],
   truncated: false,
   offerAlerts: true,
+  area: { maxMinutes: 45 },
+  further: { count: 0, atLeast: false },
   choices: { days: [], sites: [], roles: [] },
   ...o,
 });
@@ -201,6 +203,7 @@ const SCREENS: [string, ReactElement][] = [
             endsAt: booked.endsAt,
             placesLeft: 1,
             opensAt: null,
+            travel: { kind: "unknown" },
             isUrgent: true,
             site: { id: "33333333-3333-4333-8333-333333333333", ...site },
           },
@@ -230,6 +233,57 @@ const SCREENS: [string, ReactElement][] = [
         { type: "SIA_SG", name: "SIA security guard licence", expiresOn: null, expired: true },
       ],
     }),
+  ],
+  [
+    "Open shifts, no travel area (12G.3)",
+    createElement(OpenShiftsView, {
+      list: openList({ area: null }),
+      filters: {},
+      timeZone: TZ,
+      now: NOW,
+    }),
+  ],
+  [
+    "Open shifts, a shift with its travel line and more further away (12G.3)",
+    createElement(OpenShiftsView, {
+      list: openList({
+        further: { count: 2, atLeast: false },
+        shifts: [
+          {
+            shiftId: booked.shiftId,
+            role: "door_supervisor",
+            startsAt: booked.startsAt,
+            endsAt: booked.endsAt,
+            placesLeft: 2,
+            opensAt: null,
+            isUrgent: false,
+            site: { id: "33333333-3333-4333-8333-333333333333", ...site },
+            travel: {
+              kind: "estimated",
+              straightMetres: 9000,
+              arriveBy: new Date("2026-11-07T13:30:00Z"),
+              car: { minutes: 18, metres: 11587 },
+              publicTransport: null,
+            },
+          },
+        ],
+      }),
+      filters: {},
+      timeZone: TZ,
+      now: NOW,
+    }),
+  ],
+  [
+    "Urgent board, at least 50 more further away (12G.3)",
+    createElement(UrgentView, {
+      list: openList({ further: { count: 50, atLeast: true } }),
+      timeZone: TZ,
+      now: NOW,
+    }),
+  ],
+  [
+    "My shifts, a booking with its travel line (12G.3)",
+    myShifts({ shifts: [{ ...booked, travel: { kind: "straight", straightMetres: 12000 } }] }),
   ],
   [
     "Open shifts, nothing open",

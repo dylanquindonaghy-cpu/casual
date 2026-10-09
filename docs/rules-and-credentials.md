@@ -74,6 +74,12 @@ type EligibilityResult = {
 | 8 | Not marked unavailable for any calendar day the shift touches (a night shift touches two) | "You've marked yourself unavailable that day. Change it in your profile to take this shift." |
 | 9 | Site not in worker's blocked list (`worker_site_blocks`, set by the office on the worker's page: Phase 10) | "This site isn't available to you. Contact the office." |
 
+**Not a check: the travel area** (12G.3; D2, Rules 14). A casual's travel area is a preference,
+not a rule. It narrows what she sees (Open shifts, the urgent board, Home) and what offer waves send
+her (`src/lib/travel/area.ts`), but the rules engine never reads it: a shift opened from a direct
+link stays bookable, the office may offer or assign outside it, and an unknown distance is never a
+reason to refuse.
+
 Office users can **override** checks 6–8, and check 0 (booking a late replacement onto a shift
 that has started), with a logged reason (`overrides`; the result lists what was overridden).
 Checks 3–4 (credentials) and all the others can never be overridden in the app: asking to throws.

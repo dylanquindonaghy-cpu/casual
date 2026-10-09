@@ -10913,3 +10913,49 @@ Gaps 1 and 2 are small tests to add with 12G.3, which touches the same code; gap
 **Hours:** 1.6 (11:49 to 13:25 UTC). Phase 12 so far: 19.2 hours over 19 Hours-log rows (no
 estimate for Phase 12). **Commit:** "Phase 12: Travel estimates (12G.2)", pushed (its hash in the
 next entry). CI passed on the first checkpoint (`744d791`).
+
+## 2026-10-09 13:27 UTC — Phase 12, task 12G.3: The travel filter and travel lines
+
+**Task:** The travel filter and travel lines (§4.3, §5.4; D2, Rules 14), as written in `PLAN.md`
+(12G.3).
+
+**Plan:**
+- `src/lib/travel/area.ts`: the travel area in one place.
+  - `areaVerdict()` (pure) says "in", "out" or "unknown" for one casual and one shift. It is "in"
+    if any way she chose gets there within her limit (car 40 min and public transport 50 min with
+    a 45 limit: in for Both and Car, out for Public transport only). It is "out" only when every
+    way she chose has an estimate and none is within. Anything else is "unknown": shown, offered
+    (D2).
+  - `outsideArea()` is the same rule as SQL, so the filter runs inside the database query.
+  - `nearestMinutes()` (SQL) is the quickest of her chosen ways, for the order.
+- `openShiftsFor()` (`src/lib/portal/open-shifts.ts`):
+  - shifts outside her area are dropped inside the query, before the 50-row cap, from the list and
+    from the day/site/role choices;
+  - the order is urgent first, then the nearest, then the date;
+  - each row carries its travel facts (12G.2's `travelFor()`);
+  - the list says whether she has an area (for the prompt) and how many more shifts she could
+    take are further than she travels (checked by the rules, like the list).
+  - The urgent board (`/urgent`) and Home's urgent card use the same function, so they're
+    filtered too.
+- Offer waves (`waveCandidates()`): a casual whose area rules the shift out isn't a candidate. The
+  office's offer by hand keeps everyone (D2: "the office may still offer outside a casual's area
+  by hand"), through an explicit `byHand` option on its three calls.
+- Booked: upcoming bookings carry the travel line (the next shift's card and "Coming up").
+- Pages:
+  - each Open and urgent card shows the travel line after "places left";
+  - with no home area, Open shifts and the urgent board show "Add your home area to see how far
+    each shift is and only see shifts you can get to", linking to "Where you work";
+  - "N more shifts are further than you travel. Change how far" sits under the list.
+- A shift opened from a direct link stays bookable: booking never checks the area (a test proves
+  it).
+- **Tests:**
+  - unit: `areaVerdict()` with the task's 40/50/45 table, and the words;
+  - integration (`tests/integration/travel.filter.test.ts`): a near shift never cut off by the cap;
+    the filter on the list, `/urgent` and the choices; unknown shown; no area unfiltered; the
+    order; the "N more" count; waves skip out-of-area casuals but offer unknown ones; the office's
+    offer keeps them; a direct link outside the area still books; Booked rows' travel facts;
+    isolation;
+  - unit render tests for the cards, the prompt and the count.
+- **Docs:** `docs/screens.md` (`/`, `/shifts/open`, `/urgent`), `docs/api-and-jobs.md` (offer-wave
+  ranking), `docs/rules-and-credentials.md` (the area isn't a rules check).
+- Then the guardrails reviewer (offers).

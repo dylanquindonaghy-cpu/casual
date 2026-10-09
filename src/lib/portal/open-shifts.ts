@@ -1,12 +1,22 @@
-import { and, asc, eq, gt, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { DAY, systemClock } from "../auth/clock";
-import { CANCELLED_ASSIGNMENT_STATUSES, firms, shifts, sites, workers } from "../db/schema";
+import {
+  CANCELLED_ASSIGNMENT_STATUSES,
+  firms,
+  shifts,
+  sites,
+  workers,
+  workerTravel,
+} from "../db/schema";
 import { withFirm } from "../db/scoped";
 import { loadAllocationGates, parseAllocationSettings } from "../roster/allocation-input";
 import { previewBookings } from "../roster/book";
 import { pairKey } from "../roster/eligibility-input";
 import { visibleToCasuals } from "../roster/visibility";
 import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
+import { nearestMinutes, outsideArea } from "../travel/area";
+import type { TravelFacts } from "../travel/line-copy";
+import { travelFor } from "../travel/lines";
 import type { MyShift, PortalContext } from "./my-shifts";
 
 // The staff portal's Open shifts list (docs/screens.md, `/shifts/open`): only shifts this worker
@@ -18,9 +28,16 @@ import type { MyShift, PortalContext } from "./my-shifts";
 //
 // Filters (a day, a site, a role, urgent only) go into the query, so they reach shifts beyond the
 // first ones. The urgent board (`/urgent`) is this list with `urgent`: the same checks exactly.
-// At most MAX_CANDIDATES matching shifts are checked by the rules, soonest first; `truncated` says
-// there were more, so the page can suggest the filters. The filter choices come from every open
-// shift in the worker's roles in the window (without the rules: a choice can still show nothing).
+// At most MAX_CANDIDATES matching shifts are checked by the rules; `truncated` says there were
+// more, so the page can suggest the filters. The filter choices come from every open shift in the
+// worker's roles in the window (without the rules: a choice can still show nothing).
+//
+// The travel area (12G.3; src/lib/travel/area.ts): shifts it rules out are left out inside the
+// query, before the cap, so shifts nearby are never cut off; the choices leave them out too.
+// Urgent first, then the nearest (the quickest of her chosen ways), then the date. Each shift
+// carries its travel facts (src/lib/travel/lines.ts), and `further` counts the shifts she could
+// otherwise take that are further than she travels (the same filters and rules). With no area,
+// nothing is left out and `area` is null (the pages ask her to add one).
 
 export const OPEN_WINDOW_DAYS = 28;
 export const MAX_CANDIDATES = 50;
@@ -35,6 +52,7 @@ export interface OpenShift {
   // Fair rotation: held for workers with fewer hours that week (the shift's own Monday-to-Sunday week) until then (null: takeable now).
   opensAt: Date | null;
   isUrgent: boolean; // marked urgent (src/lib/roster/urgent.ts)
+  travel: TravelFacts; // for the travel line (src/lib/travel/line-copy.ts)
 }
 
 export interface OpenShiftFilters {
@@ -50,6 +68,10 @@ export interface OpenShiftsList {
   // The worker wants to hear about open shifts (their profile setting): the empty list says
   // "We'll message you" only then.
   offerAlerts: boolean;
+  // Her travel area's limit, or null: no area set (everything shown, with the prompt).
+  area: { maxMinutes: number } | null;
+  // Shifts she could take but for her travel area; `atLeast`: more than the rules checked.
+  further: { count: number; atLeast: boolean };
   choices: {
     days: string[];
     sites: { id: string; name: string }[];
@@ -59,6 +81,7 @@ export interface OpenShiftsList {
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 const EMPTY: OpenShiftsList["choices"] = { days: [], sites: [], roles: [] };
+const NONE_FURTHER: OpenShiftsList["further"] = { count: 0, atLeast: false };
 
 export async function openShiftsFor(
   ctx: PortalContext,
@@ -78,10 +101,22 @@ export async function openShiftsFor(
       .select({ roles: workers.roles, offerAlerts: workers.offerAlerts })
       .from(workers)
       .where(eq(workers.id, workerId));
+    const [home] = await tx
+      .select({ maxMinutes: workerTravel.maxMinutes })
+      .from(workerTravel)
+      .where(eq(workerTravel.workerId, workerId));
+    const area = home ? { maxMinutes: home.maxMinutes } : null;
     const zone = firm?.timezone ?? "Europe/London";
     const offerAlerts = me?.offerAlerts ?? false;
     if (!me || me.roles.length === 0) {
-      return { shifts: [], truncated: false, offerAlerts, choices: EMPTY };
+      return {
+        shifts: [],
+        truncated: false,
+        offerAlerts,
+        area,
+        further: NONE_FURTHER,
+        choices: EMPTY,
+      };
     }
 
     const inWindow = and(
@@ -94,8 +129,16 @@ export async function openShiftsFor(
         where mine.firm_id = ${shifts.firmId} and mine.shift_id = ${shifts.id}
           and mine.worker_id = ${workerId} and mine.status not in (${CANCELLED}))`,
     );
+    const travel = {
+      firmId: sql`${shifts.firmId}`,
+      workerId: sql`${workerId}::uuid`,
+      siteId: sql`${shifts.siteId}`,
+      startsAt: sql`${shifts.startsAt}`,
+    };
+    const outside = outsideArea(travel);
+    const inArea = sql`not ${outside}`;
 
-    // The choices: every open shift in the window, whatever the filters.
+    // The choices: every open shift in the window and her area, whatever the filters.
     const all = await tx
       .select({
         startsAt: shifts.startsAt,
@@ -105,7 +148,7 @@ export async function openShiftsFor(
       })
       .from(shifts)
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
-      .where(inWindow)
+      .where(and(inWindow, inArea))
       .orderBy(asc(shifts.startsAt));
     const siteNames = new Map<string, string>();
     for (const s of all) if (s.siteId && s.siteName) siteNames.set(s.siteId, s.siteName);
@@ -152,19 +195,47 @@ export async function openShiftsFor(
       })
       .from(shifts)
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
-      .where(and(inWindow, ...narrowed))
-      .orderBy(asc(shifts.startsAt), asc(shifts.id))
+      .where(and(inWindow, inArea, ...narrowed))
+      .orderBy(
+        desc(shifts.isUrgent),
+        sql`${nearestMinutes(travel)} asc nulls last`,
+        asc(shifts.startsAt),
+        asc(shifts.id),
+      )
       .limit(MAX_CANDIDATES + 1);
+    // Those her area rules out, for the "further than you travel" count (none without an area).
+    // Joined to sites like the list's query: in a query with no join, Drizzle writes the selected
+    // columns without their table, and `held`'s "id" would then mean the assignment's own.
+    const beyond = area
+      ? await tx
+          .select({ shiftId: shifts.id, headcount: shifts.headcount, held })
+          .from(shifts)
+          .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
+          .where(and(inWindow, outside, ...narrowed))
+          .orderBy(asc(shifts.startsAt), asc(shifts.id))
+          .limit(MAX_CANDIDATES + 1)
+      : [];
 
     // The rules and (fair rotation) the gate for every shift at once: a bounded number of queries
     // however many shifts there are (tests/integration/eligibility.batch.test.ts).
     const free = candidates.slice(0, MAX_CANDIDATES).filter((c) => c.held < c.headcount);
+    const freeBeyond = beyond.slice(0, MAX_CANDIDATES).filter((c) => c.held < c.headcount);
     const shiftIds = free.map((c) => c.shiftId);
-    const verdicts = await previewBookings(tx, { shiftIds, workerIds: [workerId], now });
+    const verdicts = await previewBookings(tx, {
+      shiftIds: [...shiftIds, ...freeBeyond.map((c) => c.shiftId)],
+      workerIds: [workerId],
+      now,
+    });
+    const ok = (shiftId: string) => !!verdicts.get(pairKey(shiftId, workerId))?.ok;
     const gates = await loadAllocationGates(tx, { shiftIds, workerId, now }, allocation);
+    const allowed = free.filter((c) => ok(c.shiftId));
+    const travelOf = await travelFor(
+      tx,
+      workerId,
+      allowed.map((c) => c.shiftId),
+    );
     const kept: OpenShift[] = [];
-    for (const c of free) {
-      if (!verdicts.get(pairKey(c.shiftId, workerId))?.ok) continue;
+    for (const c of allowed) {
       const gate = gates.get(c.shiftId) ?? ({ ok: true } as const);
       kept.push({
         shiftId: c.shiftId,
@@ -174,6 +245,7 @@ export async function openShiftsFor(
         placesLeft: c.headcount - c.held,
         opensAt: gate.ok ? null : gate.opensAt,
         isUrgent: c.isUrgent,
+        travel: travelOf.get(c.shiftId) ?? { kind: "unknown" },
         site:
           c.siteId && c.siteName
             ? {
@@ -187,6 +259,16 @@ export async function openShiftsFor(
             : null,
       });
     }
-    return { shifts: kept, truncated: candidates.length > MAX_CANDIDATES, offerAlerts, choices };
+    return {
+      shifts: kept,
+      truncated: candidates.length > MAX_CANDIDATES,
+      offerAlerts,
+      area,
+      further: {
+        count: freeBeyond.filter((c) => ok(c.shiftId)).length,
+        atLeast: beyond.length > MAX_CANDIDATES,
+      },
+      choices,
+    };
   });
 }

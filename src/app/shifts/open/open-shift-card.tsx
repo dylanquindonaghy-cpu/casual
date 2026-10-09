@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { roleLabel, shiftWhen, siteAddress, soonLabel } from "@/lib/portal/format";
 import type { OpenShift } from "@/lib/portal/open-shifts";
+import { travelLineText } from "@/lib/travel/line-copy";
 import { btn, card, muted } from "../../ui/classes";
 import { StatusChip } from "../../ui/status-chip";
 import { TakeShiftButton } from "./take-shift-button";
 
 // One shift on Open shifts or the urgent board: an "Urgent" label (and a red edge) when marked
-// urgent, then when, role, site and address, places left, then "Take shift" (or, under fair
-// rotation, when it opens).
+// urgent, then when, role, site and address, places left, the travel line (both times, whichever
+// ways she chose; "Distance not known yet" when it isn't: 12G.3), then "Take shift" (or, under
+// fair rotation, when it opens).
 export function OpenShiftCard({
   shift: s,
   timeZone,
@@ -37,6 +39,9 @@ export function OpenShiftCard({
       )}
       <p className={`mt-1 ${muted}`}>
         {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
+      </p>
+      <p className={`mt-1 ${muted}`} data-travel-line="">
+        {travelLineText(s.travel, timeZone)}
       </p>
       {s.opensAt ? (
         <div className="mt-4 rounded-xl bg-quiet-soft p-3">

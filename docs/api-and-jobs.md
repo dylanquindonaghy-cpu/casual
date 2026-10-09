@@ -249,7 +249,12 @@ never overlap.
 ## Offer-wave ranking
 
 1. Eligible per rules engine (credentials, overlap, rest, hours cap, not blocked, available).
-2. Exclude workers who declined this shift or were offered it in an earlier wave.
+2. Exclude workers who declined this shift or were offered it in an earlier wave, and (12G.3; D2)
+   casuals whose travel area rules the shift out: every way they chose has an estimate and none is
+   within their limit (`outsideArea()`, `src/lib/travel/area.ts`). An unknown distance (no
+   estimate yet, or a site with no location) is still offered; a casual with no area is offered
+   everything. The office's "Offer to someone" isn't limited by it (`byHand`: the office may offer
+   outside a casual's area).
 3. Sort:
    - `fair_rotation`: fewest confirmed hours this week → longest since last offer → a shuffle fixed
      by the shift and wave (Phase 10 task 19: the same wave always ranks the same, but the lowest

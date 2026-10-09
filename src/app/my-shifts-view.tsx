@@ -15,6 +15,7 @@ import {
 } from "@/lib/portal/format";
 import type { CredentialNotice, MyShift, ShiftsView } from "@/lib/portal/my-shifts";
 import { shortDate } from "@/lib/rules/reasons";
+import { travelLineText } from "@/lib/travel/line-copy";
 import { wallTimeOf } from "@/lib/time/zoned";
 import { HomeScreenHint } from "./home-screen-hint";
 import { CancelShift } from "./shifts/cancel-shift";
@@ -25,7 +26,8 @@ import { StatusChip, type StatusTone } from "./ui/status-chip";
 // My shifts (docs/screens.md, `/`; layout in docs/ui-design.md "Staff pages"): the greeting, then
 // anything to act on (urgent shifts, licences), a switch between Upcoming and the last 30 days, the
 // next shift in a card (time, role, site, map link, instructions, then what you can do), the rest
-// in a list where each opens to the same details, and the way to every other page. Server-rendered
+// in a list where each opens to the same details, and the way to every other page. Each upcoming
+// shift shows its travel line ("7.2 miles · 18 min by car · …": 12G.3). Server-rendered
 // HTML (the list opens with <details>); only "Cancel this shift" and the home screen hint are small
 // client components.
 
@@ -228,9 +230,20 @@ function NextShift({ shift, timeZone, now }: MyShiftsViewProps & { shift: MyShif
         {shiftWhen(shift.startsAt, shift.endsAt, timeZone)}
       </p>
       <p className="mt-1 font-semibold">{roleLabel(shift.role)}</p>
+      <TravelLine shift={shift} timeZone={timeZone} />
       <ShiftDetails shift={shift} />
       <ShiftActions shift={shift} now={now} />
     </section>
+  );
+}
+
+// Getting there: the shift's travel line (upcoming bookings carry it).
+function TravelLine({ shift, timeZone }: { shift: MyShift; timeZone: string }) {
+  if (!shift.travel) return null;
+  return (
+    <span className={`block ${muted}`} data-travel-line="">
+      {travelLineText(shift.travel, timeZone)}
+    </span>
   );
 }
 
@@ -298,6 +311,7 @@ function UpcomingRow({ shift, timeZone, now }: MyShiftsViewProps & { shift: MySh
               {roleLabel(shift.role)}
               {shift.site ? ` at ${shift.site.name}` : ""}
             </span>
+            <TravelLine shift={shift} timeZone={timeZone} />
             {isOnNow(shift, now) && <span className="block text-base font-semibold">On now</span>}
           </span>
           <svg

@@ -12,6 +12,8 @@ import {
 } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
 import { addDays, localDateOf } from "../time/zoned";
+import type { TravelFacts } from "../travel/line-copy";
+import { travelFor } from "../travel/lines";
 
 // What the staff portal's My shifts page shows (docs/screens.md, `/`), for the logged-in worker
 // only, inside their firm (RLS scopes every row to it).
@@ -22,6 +24,8 @@ import { addDays, localDateOf } from "../time/zoned";
 // - Past: confirmed, completed or no-show bookings on shifts that ended in the last 30 days,
 //   newest first, including a shift the sheet cancelled after it started (its bookings are
 //   history). Cancelled bookings show in neither list.
+// - Travel: each upcoming booking carries its travel facts, for the travel line (12G.3; the same
+//   words as Open shifts). Past ones don't: the trip is done, and its estimates expire.
 // - Notices: credentials the worker's roles need that expire within 30 days, or have expired, for
 //   the banner. Not for a type the worker has already replaced (a newer valid one) or is renewing
 //   (an application in progress).
@@ -50,6 +54,7 @@ export interface MyShift {
     town: string | null;
     postcode: string | null;
   } | null;
+  travel?: TravelFacts; // upcoming bookings only
 }
 
 export type ShiftsView = "upcoming" | "past";
@@ -73,8 +78,8 @@ export async function myShifts(
           lte(shifts.endsAt, now),
           gt(shifts.endsAt, new Date(now.getTime() - PAST_DAYS * DAY)),
         );
-  const rows = await run(ctx.firm.id, (tx) =>
-    tx
+  return run(ctx.firm.id, async (tx) => {
+    const rows = await tx
       .select({
         assignmentId: assignments.id,
         shiftId: shifts.id,
@@ -99,13 +104,25 @@ export async function myShifts(
       .orderBy(
         view === "upcoming" ? asc(shifts.startsAt) : desc(shifts.startsAt),
         asc(assignments.id),
-      ),
-  );
-  return rows.map(({ siteName, addressLine1, addressLine2, town, postcode, status, ...shift }) => ({
-    ...shift,
-    status: status as MyShift["status"],
-    site: siteName === null ? null : { name: siteName, addressLine1, addressLine2, town, postcode },
-  }));
+      );
+    const travel =
+      view === "upcoming"
+        ? await travelFor(
+            tx,
+            workerId,
+            rows.map((r) => r.shiftId),
+          )
+        : null;
+    return rows.map(
+      ({ siteName, addressLine1, addressLine2, town, postcode, status, ...shift }) => ({
+        ...shift,
+        status: status as MyShift["status"],
+        site:
+          siteName === null ? null : { name: siteName, addressLine1, addressLine2, town, postcode },
+        ...(travel ? { travel: travel.get(shift.shiftId) ?? { kind: "unknown" as const } } : {}),
+      }),
+    );
+  });
 }
 
 export interface CredentialNotice {

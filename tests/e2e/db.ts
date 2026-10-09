@@ -19,6 +19,7 @@ import type { FirmTx } from "../../src/lib/db/scoped";
 import { bookShift } from "../../src/lib/roster/book";
 import { cancelBooking } from "../../src/lib/roster/cancel";
 import { automaticEventId, createNamedEvent } from "../../src/lib/roster/shift-events";
+import { fakePoint } from "../../src/lib/travel/geocoder";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
 // dev one) as the app role, inside the seeded firm, exactly as the app would.
@@ -612,6 +613,111 @@ export async function clearTravel(slug: string, workerId: string): Promise<void>
     await createWithFirm(pool)(seedId(`firm/${slug}`), (tx) =>
       tx.delete(workerTravel).where(eq(workerTravel.workerId, workerId)),
     );
+  } finally {
+    await pool.end();
+  }
+}
+
+// The travel filter's scene (12G.3; tests/e2e/travel.filter.spec.ts): a casual of its own with a
+// role nobody else has (so no other spec's lists change) and a travel area (car, 45 minutes), and
+// two urgent sessions in that role 9 days ahead (after Today's 7-day gaps), each at a site of its
+// own with the travel job's estimates: one near (20 min by car), one far (80 min by car). A rerun
+// cancels the last run's sessions first, so it starts the same way (a booking on a cancelled
+// session counts for nothing and isn't listed; bookings are never deleted).
+export const TRAVEL_SCENE_ROLE = "travel_check";
+export async function travelScene(
+  slug: string,
+  casual: { firstName: string; lastName: string; mobileE164: string },
+): Promise<{ workerId: string; near: string; far: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.execute(sql`
+        insert into credential_rules (firm_id, sector, role, required_types)
+        values (${firmId}, 'security', ${TRAVEL_SCENE_ROLE}, '{}')
+        on conflict (firm_id, role) do nothing`);
+      await tx
+        .insert(workers)
+        .values({ firmId, ...casual, roles: [TRAVEL_SCENE_ROLE] })
+        .onConflictDoNothing();
+      const [worker] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(eq(workers.mobileE164, casual.mobileE164));
+      if (!worker) throw new Error("travel scene casual neither added nor found");
+      await tx
+        .update(shifts)
+        .set({ status: "cancelled" })
+        .where(eq(shifts.role, TRAVEL_SCENE_ROLE));
+      const point = (postcode: string) => {
+        const p = fakePoint(postcode);
+        if (!p) throw new Error(`no fake point for ${postcode}`);
+        return { lat: String(p.lat), lng: String(p.lng) };
+      };
+      const home = point("ZZ2 2BB");
+      await tx
+        .insert(workerTravel)
+        .values({
+          firmId,
+          workerId: worker.id,
+          startPostcode: "ZZ2 2BB",
+          ...home,
+          modes: "car",
+          maxMinutes: 45,
+          privacyNoticeVersion: "travel-v1",
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [workerTravel.firmId, workerTravel.workerId],
+          set: { startPostcode: "ZZ2 2BB", ...home, modes: "car", maxMinutes: 45 },
+        });
+      const startsAt = new Date(Date.now() + 9 * 86_400_000);
+      startsAt.setUTCHours(10, 0, 0, 0);
+      const session = async (name: string, at: Date, car: number, metres: number) => {
+        const [site] = await tx
+          .insert(sites)
+          .values({ firmId, name, postcode: "ZZ1 1AA", ...point("ZZ1 1AA") })
+          .returning({ id: sites.id });
+        if (!site) throw new Error("site insert returned nothing");
+        const [row] = await tx
+          .insert(shifts)
+          .values({
+            firmId,
+            siteId: site.id,
+            shiftEventId: await eventFor(tx, site.id, at),
+            role: TRAVEL_SCENE_ROLE,
+            startsAt: at,
+            endsAt: new Date(at.getTime() + 6 * 3_600_000),
+            headcount: 1,
+            status: "open",
+            source: "native",
+            isUrgent: true,
+          })
+          .returning({ id: shifts.id });
+        if (!row) throw new Error("shift insert returned nothing");
+        const arriveBy = new Date(at.getTime() - 30 * 60_000);
+        await tx.execute(sql`
+          insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by,
+                                        minutes, metres, provider, computed_at, expires_at)
+          values (${firmId}, 'ZZ2 2BB', ${site.id}, 'car', ${arriveBy}, ${car}, ${metres}, 'fake',
+                  now(), ${new Date(at.getTime() + 8 * 86_400_000)}),
+                 (${firmId}, 'ZZ2 2BB', ${site.id}, 'public_transport', ${arriveBy}, null, null,
+                  'fake', now(), ${new Date(at.getTime() + 8 * 86_400_000)})`);
+        return row.id;
+      };
+      const stamp = Date.now().toString(36);
+      const near = await session(`Near Hall ${stamp}`, startsAt, 20, 12070);
+      const far = await session(
+        `Far Field ${stamp}`,
+        new Date(startsAt.getTime() + 86_400_000),
+        80,
+        96560,
+      );
+      return { workerId: worker.id, near, far };
+    });
   } finally {
     await pool.end();
   }

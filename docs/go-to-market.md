@@ -66,6 +66,9 @@ Aim: 10 calls → 2 verbal yeses (Gate A).
 
 ## Pilot onboarding checklist
 
+How to do each step, in order, is in `docs/runbooks.md` ("Onboarding a pilot firm"); `npm run -s
+firm:check -- --firm <slug>` shows where a firm is.
+
 - [ ] Agreement + DPA signed
 - [ ] Firm branding (logo, colour, name) and sign-off wording
 - [ ] Rota source connected (Google Sheet shared with our service account, or native)

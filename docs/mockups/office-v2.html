@@ -1,0 +1,3519 @@
+<title>ShiftDesk Office Mock-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+/>
+<style>
+  /* Layout: app shell (top bar, collapsible menu panel, rounded content panel) with ShiftDesk's
+     own name, accent and made-up data. Dark is the main look; light mirrors it. The casual's app is
+     shown as phone screens in the same palette. */
+  :root {
+    --page: #eef1f6;
+    --panel: #ffffff;
+    --card: #ffffff;
+    --raised: #f4f6fa;
+    --line: #dde2ea;
+    --line-strong: #8a93a6;
+    --ink: #151923;
+    --muted: #5a6274;
+    --accent: #2563eb;
+    --accent-soft: #dbe8ff;
+    --accent-ink: #123a8f;
+    --cta: #bcd7ff;
+    --cta-ink: #0d2350;
+    --live: #15803d;
+    --live-soft: #dcfce7;
+    --urgent: #c2271e;
+    --urgent-soft: #fde4e2;
+    --amber: #a85b00;
+    --amber-soft: #fff1d6;
+    --quiet-soft: #eceff4;
+    --switch-on: #2563eb;
+    --switch-off: #c3c9d4;
+    --orange: #ff8a00;
+    --orange-ink: #ffffff;
+    --firm: #1d4ed8;
+    --firm-ink: #ffffff;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 2px 8px rgba(16, 24, 40, 0.05);
+    --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #1b1d23;
+      --panel: #23262e;
+      --card: #262a33;
+      --raised: #2d313b;
+      --line: #353a46;
+      --line-strong: #6b7385;
+      --ink: #eef0f5;
+      --muted: #a3aaba;
+      --accent: #8ab8ff;
+      --accent-soft: #1f3355;
+      --accent-ink: #9cc4ff;
+      --cta: #a9cdfa;
+      --cta-ink: #0e1a2e;
+      --live: #4ade80;
+      --live-soft: #173326;
+      --urgent: #ff6b5f;
+      --urgent-soft: #3b1f1f;
+      --amber: #ffb547;
+      --amber-soft: #3a2c14;
+      --quiet-soft: #2f3440;
+      --switch-on: #6aa6ff;
+      --switch-off: #4a5060;
+      --orange: #ff9a1f;
+      --orange-ink: #1b1d23;
+      --firm: #2f5fd6;
+      --firm-ink: #ffffff;
+      --shadow: none;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #1b1d23;
+    --panel: #23262e;
+    --card: #262a33;
+    --raised: #2d313b;
+    --line: #353a46;
+    --line-strong: #6b7385;
+    --ink: #eef0f5;
+    --muted: #a3aaba;
+    --accent: #8ab8ff;
+    --accent-soft: #1f3355;
+    --accent-ink: #9cc4ff;
+    --cta: #a9cdfa;
+    --cta-ink: #0e1a2e;
+    --live: #4ade80;
+    --live-soft: #173326;
+    --urgent: #ff6b5f;
+    --urgent-soft: #3b1f1f;
+    --amber: #ffb547;
+    --amber-soft: #3a2c14;
+    --quiet-soft: #2f3440;
+    --switch-on: #6aa6ff;
+    --switch-off: #4a5060;
+    --orange: #ff9a1f;
+    --orange-ink: #1b1d23;
+    --firm: #2f5fd6;
+    --firm-ink: #ffffff;
+    --shadow: none;
+    color-scheme: dark;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font: 15px/1.5 var(--font);
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  a {
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  [hidden] {
+    display: none !important;
+  }
+
+  /* ---------- top bar ---------- */
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-inline: 16px;
+    padding-block: 12px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: var(--panel);
+  }
+  .brand small {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    white-space: nowrap;
+  }
+  .cycle b {
+    font-weight: 700;
+  }
+  .cycle .dot {
+    color: var(--muted);
+  }
+  .tag-live {
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--live-soft);
+    color: var(--live);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .spacer {
+    flex: 1;
+  }
+  .icon-btn {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    border: 0;
+    background: transparent;
+  }
+  .icon-btn:hover {
+    background: var(--raised);
+  }
+  .badge {
+    position: absolute;
+    top: 2px;
+    right: 0;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--urgent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .me {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 0;
+    background: transparent;
+    padding: 4px 6px;
+    border-radius: 999px;
+  }
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: var(--raised);
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .me .who {
+    text-align: left;
+    line-height: 1.2;
+  }
+  .me .who span {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .app-btn {
+    font-weight: 600;
+  }
+  .hamburger {
+    display: none;
+  }
+  @media (max-width: 1100px) {
+    .cycle,
+    .hide-md {
+      display: none;
+    }
+  }
+  @media (max-width: 860px) {
+    .hamburger {
+      display: grid;
+    }
+    .me .who,
+    .me > svg {
+      display: none;
+    }
+    .brand small {
+      display: none;
+    }
+  }
+  @media (max-width: 520px) {
+    .top {
+      gap: 4px;
+      padding-inline: 12px;
+    }
+    .brand {
+      font-size: 18px;
+      gap: 8px;
+    }
+    .mark {
+      width: 30px;
+      height: 30px;
+    }
+    .hide-sm {
+      display: none;
+    }
+  }
+
+  /* ---------- shell ---------- */
+  .shell {
+    display: grid;
+    grid-template-columns: 272px minmax(0, 1fr);
+    gap: 16px;
+    padding-inline: 16px;
+    padding-block: 4px 24px;
+    align-items: start;
+  }
+  .shell.collapsed {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .menu {
+    position: sticky;
+    top: 12px;
+    background: var(--panel);
+    border-radius: 24px;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    max-height: calc(100dvh - 24px);
+    display: flex;
+    flex-direction: column;
+  }
+  .menu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 18px 14px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .menu-head h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+  .collapse {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1.5px solid var(--line-strong);
+    background: transparent;
+    display: grid;
+    place-items: center;
+  }
+  .close-menu {
+    display: none;
+  }
+  .menu nav {
+    overflow-y: auto;
+    padding: 8px 12px 16px;
+  }
+  .group {
+    margin: 16px 10px 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .nav-link:hover {
+    background: var(--raised);
+  }
+  .nav-link[aria-current="page"] {
+    background: var(--raised);
+    font-weight: 700;
+  }
+  .nav-link .count {
+    margin-left: auto;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--urgent-soft);
+    color: var(--urgent);
+    font-size: 12px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .shell.collapsed .menu-head h2,
+  .shell.collapsed .group,
+  .shell.collapsed .nav-link .label,
+  .shell.collapsed .nav-link .count {
+    display: none;
+  }
+  .shell.collapsed .menu-head {
+    justify-content: center;
+    padding-inline: 8px;
+  }
+  .shell.collapsed .nav-link {
+    justify-content: center;
+    padding: 0;
+  }
+  .shell.collapsed .collapse svg {
+    transform: rotate(180deg);
+  }
+  @media (max-width: 860px) {
+    .shell,
+    .shell.collapsed {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .menu {
+      position: fixed;
+      z-index: 40;
+      inset: 0 auto 0 0;
+      width: min(86vw, 320px);
+      max-height: none;
+      border-radius: 0 24px 24px 0;
+      transform: translateX(-105%);
+      transition: transform 0.2s ease;
+    }
+    .menu.open {
+      transform: none;
+    }
+    .collapse {
+      display: none;
+    }
+    .close-menu {
+      display: grid;
+    }
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(10, 12, 18, 0.5);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .menu {
+      transition: none;
+    }
+  }
+
+  /* ---------- content panel ---------- */
+  .content {
+    background: var(--panel);
+    border-radius: 24px;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    min-width: 0;
+  }
+  .content-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line);
+  }
+  .content-head h1 {
+    margin: 0 8px 0 0;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+  }
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--raised);
+    color: var(--muted);
+  }
+  .search input {
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    width: 170px;
+    outline: none;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .btn:hover {
+    background: var(--raised);
+  }
+  .btn.cta {
+    background: var(--cta);
+    color: var(--cta-ink);
+    border-color: transparent;
+  }
+  .btn.danger {
+    background: transparent;
+    color: var(--urgent);
+    border-color: var(--urgent);
+  }
+  .btn.small {
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+  .btn.more {
+    width: 40px;
+    padding: 0;
+  }
+  .body {
+    padding: 20px 24px 28px;
+    display: grid;
+    gap: 28px;
+  }
+  h2.section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin: 0 0 12px;
+    font-size: 17px;
+  }
+  h2.section .hint {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  h2.section a {
+    margin-left: auto;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-ink);
+    text-decoration: none;
+  }
+  .mock-note {
+    margin: 0;
+    padding: 10px 16px;
+    border-radius: 14px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  @media (max-width: 520px) {
+    .body {
+      padding: 16px 16px 96px;
+    }
+    .content-head {
+      padding: 16px;
+    }
+  }
+
+  /* KPI strip */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 14px 16px;
+    display: grid;
+    gap: 4px;
+    text-decoration: none;
+    align-content: start;
+  }
+  a.kpi:hover {
+    border-color: var(--line-strong);
+  }
+  .kpi .n {
+    font-size: 28px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .kpi .l {
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .kpi .s {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .kpi.urgent .n {
+    color: var(--urgent);
+  }
+  .kpi.live .n {
+    color: var(--live);
+  }
+  @media (max-width: 900px) {
+    .kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* chips */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .chip.live {
+    background: var(--live-soft);
+    color: var(--live);
+  }
+  .chip.hidden {
+    background: var(--quiet-soft);
+    color: var(--muted);
+  }
+  .chip.info {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  .chip.urgent {
+    background: var(--urgent-soft);
+    color: var(--urgent);
+  }
+  .chip.amber {
+    background: var(--amber-soft);
+    color: var(--amber);
+  }
+  .chip.quiet {
+    background: var(--quiet-soft);
+    color: var(--muted);
+  }
+  .chip.outline {
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* event cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    padding: 18px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .card.urgent {
+    border-color: color-mix(in srgb, var(--urgent) 55%, var(--line));
+  }
+  .card.off {
+    opacity: 0.75;
+  }
+  .card-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: start;
+    gap: 10px;
+  }
+  .card h3 {
+    margin: 0;
+    font-size: 19px;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  .card .when {
+    margin: 2px 0 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .star {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+  }
+  .star[aria-pressed="true"] {
+    color: var(--amber);
+  }
+  .switch {
+    position: relative;
+    width: 48px;
+    height: 28px;
+    border-radius: 999px;
+    border: 0;
+    background: var(--switch-off);
+    padding: 0;
+    flex: none;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #fff;
+    transition: transform 0.15s ease;
+  }
+  .switch[aria-checked="true"] {
+    background: var(--switch-on);
+  }
+  .switch[aria-checked="true"]::after {
+    transform: translateX(20px);
+    background: var(--page);
+  }
+  .switch.sm {
+    width: 38px;
+    height: 22px;
+  }
+  .switch.sm::after {
+    width: 16px;
+    height: 16px;
+  }
+  .switch.sm[aria-checked="true"]::after {
+    transform: translateX(16px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .switch::after {
+      transition: none;
+    }
+  }
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    flex-wrap: wrap;
+  }
+  .note {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  /* sessions */
+  .sessions {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .session {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: grid;
+    gap: 4px;
+    background: var(--raised);
+  }
+  .session.gap {
+    border-color: color-mix(in srgb, var(--urgent) 50%, var(--line));
+  }
+  .session-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .session-top b {
+    font-weight: 700;
+  }
+  .session .meta {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .session .fill {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .session .fill.short {
+    color: var(--urgent);
+  }
+  .session-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* lists */
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 1180px) {
+    .split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .list {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+  }
+  .list > li + li {
+    border-top: 1px solid var(--line);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding: 14px 16px;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+  }
+  button.row:hover,
+  button.row[aria-pressed="true"] {
+    background: var(--raised);
+  }
+  .row .t {
+    margin: 0;
+    font-weight: 700;
+  }
+  .row .d {
+    margin: 2px 0 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .row .time {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .ch {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--raised);
+    color: var(--muted);
+  }
+  .answer {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: var(--raised);
+    font-size: 14px;
+    white-space: pre-line;
+  }
+
+  /* tables */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--card);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  td.num {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* tabs */
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tab {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .tab[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--panel);
+    border-color: var(--ink);
+  }
+
+  /* two-pane (list + detail) */
+  .inbox {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 1100px) {
+    .inbox {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .detail {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 18px;
+    display: grid;
+    gap: 14px;
+    position: sticky;
+    top: 12px;
+  }
+  .detail-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .detail-head .t {
+    margin: 0;
+    font-weight: 800;
+    font-size: 17px;
+  }
+  .detail-head .d {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .bubble {
+    max-width: 92%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    white-space: pre-line;
+  }
+  .bubble.in {
+    background: var(--raised);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble.out {
+    justify-self: end;
+    background: var(--accent-soft);
+    color: var(--ink);
+    border-bottom-right-radius: 4px;
+  }
+  .bubble small {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: normal;
+  }
+  .how {
+    border: 1px dashed var(--line-strong);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 14px;
+    display: grid;
+    gap: 6px;
+  }
+  .how ol,
+  .how ul {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 4px;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 16px;
+    margin: 0;
+    font-size: 14px;
+  }
+  .facts dt {
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .facts dd {
+    margin: 0;
+  }
+  .strike-box {
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: var(--urgent-soft);
+    color: var(--ink);
+    font-size: 14px;
+    display: grid;
+    gap: 4px;
+  }
+  .strike-box b {
+    color: var(--urgent);
+  }
+  .ok-box {
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: var(--live-soft);
+    font-size: 14px;
+  }
+  .email {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 13px;
+    background: var(--raised);
+    display: grid;
+    gap: 4px;
+  }
+  .email b {
+    font-weight: 700;
+  }
+
+  /* floating pill */
+  .floating {
+    position: fixed;
+    left: 24px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 20px;
+    border-radius: 999px;
+    border: 0;
+    background: var(--orange);
+    color: var(--orange-ink);
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  }
+  .floating .pulse {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+  @media (max-width: 520px) {
+    .floating {
+      left: 12px;
+      right: 12px;
+      justify-content: center;
+    }
+  }
+
+  /* ---------- casual's app (phone screens) ---------- */
+  .phones {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 360px));
+    gap: 22px;
+    justify-content: center;
+  }
+  .phone {
+    border: 1px solid var(--line);
+    border-radius: 34px;
+    background: var(--page);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .phone-cap {
+    padding: 10px 16px 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .firm-bar {
+    background: var(--firm);
+    color: var(--firm-ink);
+    padding: 12px 18px;
+    font-weight: 800;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .firm-bar span {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.9;
+  }
+  .screen {
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    font-size: 15px;
+  }
+  .screen h3 {
+    margin: 0;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+  }
+  .screen h4 {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+  .screen .sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .mcard {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+  .mcard.urgent {
+    border-color: color-mix(in srgb, var(--urgent) 55%, var(--line));
+  }
+  .mcard .big {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .mbtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+    border-radius: 14px;
+    font-weight: 700;
+    border: 1.5px solid var(--line-strong);
+    background: var(--panel);
+    color: var(--ink);
+    width: 100%;
+  }
+  .mbtn.cta {
+    background: var(--cta);
+    color: var(--cta-ink);
+    border-color: transparent;
+  }
+  .mbtn.danger {
+    color: var(--urgent);
+    border-color: var(--urgent);
+    background: transparent;
+  }
+  .mbtn.dangerSolid {
+    background: var(--urgent);
+    color: #fff;
+    border-color: var(--urgent);
+  }
+  .mrow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+  }
+  .mrow:first-of-type {
+    border-top: 0;
+  }
+  .mrow .t {
+    margin: 0;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .mrow .d {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .warn {
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: var(--urgent-soft);
+    font-size: 14px;
+    display: grid;
+    gap: 4px;
+  }
+  .warn b {
+    color: var(--urgent);
+  }
+  .travel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .travel span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .photo {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+  .photo .pic {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: var(--raised);
+    color: var(--muted);
+    font-weight: 800;
+    font-size: 20px;
+    border: 2px dashed var(--amber);
+  }
+  .face {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--raised);
+    color: var(--muted);
+    font-weight: 800;
+    font-size: 12px;
+  }
+  .face.due {
+    outline: 2px solid var(--amber);
+    outline-offset: 1px;
+  }
+  .radio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .radio .dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 2px solid var(--line-strong);
+  }
+  .radio.on .dot {
+    border: 6px solid var(--accent);
+  }
+</style>
+
+<header class="top">
+  <button
+    class="icon-btn hamburger"
+    type="button"
+    aria-label="Open menu"
+    aria-expanded="false"
+    aria-controls="menu"
+    data-open-menu
+  >
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  </button>
+  <div class="brand">
+    <span class="mark" aria-hidden="true"
+      ><svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="3.5" y="5" width="17" height="15" rx="3" />
+        <path d="M8 3v4M16 3v4M3.5 10h17M8.5 14.5l2.5 2.5 4.5-5" /></svg
+    ></span>
+    <span>ShiftDesk<small>Acme Events</small></span>
+  </div>
+  <div class="pill cycle" aria-label="Pay week">
+    <b>Week 41</b><span class="dot">·</span>6 Oct – 12 Oct<span class="dot">·</span
+    ><span style="color: var(--muted)">Pay 17 Oct</span><span class="tag-live">Current</span>
+  </div>
+  <div class="spacer"></div>
+  <button class="pill app-btn hide-sm" type="button" data-go="casual">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      aria-hidden="true"
+    >
+      <rect x="7" y="2.5" width="10" height="19" rx="2.5" />
+      <path d="M11 18h2" /></svg
+    >Casual's app
+  </button>
+  <button class="icon-btn" type="button" aria-label="Notifications, 4 new">
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      aria-hidden="true"
+    >
+      <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" />
+      <path d="M10 20a2 2 0 0 0 4 0" /></svg
+    ><span class="badge">4</span>
+  </button>
+  <button
+    class="icon-btn hide-sm"
+    type="button"
+    aria-label="Enquiries needing a person, 2"
+    data-go="enquiries"
+  >
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      aria-hidden="true"
+    >
+      <path d="M4 12a8 8 0 1 1 3.3 6.5L4 19.5l1-3.4A8 8 0 0 1 4 12Z" />
+      <path d="M9 11h6M9 14h4" /></svg
+    ><span class="badge">2</span>
+  </button>
+  <button
+    class="icon-btn"
+    type="button"
+    aria-label="Switch to light mode"
+    data-theme-toggle
+  ></button>
+  <button
+    class="me"
+    type="button"
+    aria-label="Switch role (mock-up only)"
+    title="Switch role (mock-up only)"
+    data-role-cycle
+  >
+    <span class="avatar" aria-hidden="true">SR</span>
+    <span class="who"
+      ><b>Sam Rota</b><span data-role-label>Resourcer (mock-up only: tap to switch)</span></span
+    >
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  </button>
+</header>
+
+<div class="shell" data-shell>
+  <aside class="menu" id="menu" aria-label="Menu">
+    <div class="menu-head">
+      <h2>Menu</h2>
+      <button
+        class="collapse"
+        type="button"
+        aria-label="Collapse menu"
+        aria-expanded="true"
+        data-collapse
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m14 7-5 5 5 5" />
+        </svg>
+      </button>
+      <button class="icon-btn close-menu" type="button" aria-label="Close menu" data-close-menu>
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
+    <nav data-nav></nav>
+  </aside>
+  <div class="scrim" hidden data-scrim></div>
+
+  <main class="content" id="main">
+    <!-- ===================== DASHBOARD ===================== -->
+    <section data-view="dashboard" aria-labelledby="h-dashboard">
+      <div class="content-head">
+        <h1 id="h-dashboard">Dashboard</h1>
+        <label class="search"
+          ><svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m20 20-4-4" /></svg
+          ><span class="sr">Search</span><input placeholder="Search events, people, references"
+        /></label>
+        <button class="btn" type="button">
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4" /></svg
+          >Sync with planner
+        </button>
+        <span class="pill">Today, Mon 6 Oct</span>
+      </div>
+      <div class="body">
+        <p class="mock-note">
+          Mock-up with made-up data. Switches and buttons work on this page only; nothing is saved.
+        </p>
+        <div class="kpis">
+          <a class="kpi urgent" href="#unfilled" data-scroll="unfilled"
+            ><span class="n">3</span><span class="l">Urgent shifts not filled</span
+            ><span class="s">3 places · first starts Tue 10:30</span></a
+          >
+          <a class="kpi live" href="#showing" data-scroll="showing"
+            ><span class="n">5</span><span class="l">Events showing to casuals</span
+            ><span class="s">26 open places across 8 sessions</span></a
+          >
+          <a class="kpi" href="#cancellations" data-scroll="d-cancellations"
+            ><span class="n">2</span><span class="l">Cancellations today</span
+            ><span class="s">1 under 48 hours · strike issued</span></a
+          >
+          <a class="kpi" href="#enquiries" data-scroll="d-enquiries"
+            ><span class="n">18</span><span class="l">Enquiries today</span
+            ><span class="s">16 answered automatically · 2 need a person</span></a
+          >
+        </div>
+
+        <section aria-labelledby="unfilled">
+          <h2 class="section" id="unfilled">
+            Urgent shifts not filled
+            <span class="hint">Casuals see these first, and get an alert</span>
+          </h2>
+          <div class="cards" data-cards="urgent"></div>
+        </section>
+
+        <section aria-labelledby="showing">
+          <h2 class="section" id="showing">
+            Showing to casuals
+            <span class="hint">Switch an event off to hide all its sessions from casuals</span
+            ><a href="#" data-go="events">All events &amp; sessions</a>
+          </h2>
+          <div class="cards" data-cards="live"></div>
+        </section>
+
+        <div class="split">
+          <section aria-labelledby="d-cancellations">
+            <h2 class="section" id="d-cancellations">
+              Cancellations
+              <span class="hint">Recorded automatically, never approved or declined</span
+              ><a href="#" data-go="cancellations">All records</a>
+            </h2>
+            <ul class="list" data-list="cancellations-short"></ul>
+          </section>
+          <section aria-labelledby="d-enquiries">
+            <h2 class="section" id="d-enquiries">
+              Enquiries <span class="hint">What casuals asked, and the reply they got</span
+              ><a href="#" data-go="enquiries">All enquiries</a>
+            </h2>
+            <ul class="list" data-list="enquiries-short"></ul>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== EVENTS & SESSIONS ===================== -->
+    <section data-view="events" hidden aria-labelledby="h-events">
+      <div class="content-head">
+        <h1 id="h-events">Events &amp; sessions</h1>
+        <div class="tabs" role="group" aria-label="Show">
+          <button class="tab" type="button" aria-pressed="true">All</button>
+          <button class="tab" type="button" aria-pressed="false">Showing</button>
+          <button class="tab" type="button" aria-pressed="false">Hidden</button>
+          <button class="tab" type="button" aria-pressed="false">Urgent, not filled</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn" type="button">Sync with planner</button>
+      </div>
+      <div class="body">
+        <p class="mock-note">
+          Events and sessions come from your own planner. Here you only choose what casuals see and
+          what's urgent. Each session keeps its own role, times, pay rate, post and requirements.
+        </p>
+        <div class="cards" data-cards="all"></div>
+      </div>
+    </section>
+
+    <!-- ===================== CANCELLATIONS ===================== -->
+    <section data-view="cancellations" hidden aria-labelledby="h-cancellations">
+      <div class="content-head">
+        <h1 id="h-cancellations">Cancellations</h1>
+        <div class="tabs" role="group" aria-label="Show">
+          <button class="tab" type="button" aria-pressed="true">All</button>
+          <button class="tab" type="button" aria-pressed="false">Under 48 hours</button>
+          <button class="tab" type="button" aria-pressed="false">Strikes issued</button>
+          <button class="tab" type="button" aria-pressed="false">By casuals</button>
+          <button class="tab" type="button" aria-pressed="false">By the office</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn" type="button">Download all (CSV)</button>
+      </div>
+      <div class="body">
+        <div class="kpis">
+          <div class="kpi">
+            <span class="n">11</span><span class="l">Cancellations this week</span
+            ><span class="s">9 by casuals · 2 by the office</span>
+          </div>
+          <div class="kpi urgent">
+            <span class="n">3</span><span class="l">Under 48 hours' notice</span
+            ><span class="s">3 strikes issued</span>
+          </div>
+          <div class="kpi live">
+            <span class="n">8</span><span class="l">Places filled again</span
+            ><span class="s">Median 52 minutes to refill</span>
+          </div>
+          <div class="kpi">
+            <span class="n">All 11</span><span class="l">Marked CANCELLATION in your planner</span
+            ><span class="s">Last sync 09:40</span>
+          </div>
+        </div>
+        <div class="inbox">
+          <ul class="list" data-list="cancellations-full"></ul>
+          <div class="detail" data-cancel-detail aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== STRIKES ===================== -->
+    <section data-view="strikes" hidden aria-labelledby="h-strikes">
+      <div class="content-head">
+        <h1 id="h-strikes">Strikes</h1>
+        <div class="spacer"></div>
+        <button class="btn" type="button">Download (CSV)</button>
+      </div>
+      <div class="body">
+        <p class="mock-note">
+          A casual who cancels with less than 48 hours' notice gets a strike automatically, and the
+          evidence goes to your strikes team (strikes@acme-events.example). The hours and the email
+          address are your firm's settings.
+        </p>
+        <div class="table-wrap" role="region" aria-label="Strikes" tabindex="0">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Casual</th>
+                <th scope="col">Strikes (90 days)</th>
+                <th scope="col">Latest</th>
+                <th scope="col">Evidence</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Kieran Doyle</b></td>
+                <td class="num"><span class="chip urgent">2</span></td>
+                <td>
+                  Steward · Acme Demo Racecourse · Tue 7 Oct 10:30 · cancelled 19:05 Mon 6 Oct (15
+                  hours' notice)
+                </td>
+                <td>Sent to strikes team 19:05</td>
+                <td><button class="btn small" type="button">Withdraw a strike</button></td>
+              </tr>
+              <tr>
+                <td><b>Priya Shah</b></td>
+                <td class="num"><span class="chip urgent">1</span></td>
+                <td>
+                  Steward · Acme Demo Racecourse · Mon 6 Oct 10:30 · cancelled 21:14 Sun 5 Oct (13
+                  hours' notice)
+                </td>
+                <td>Sent to strikes team 21:15</td>
+                <td><button class="btn small" type="button">Withdraw a strike</button></td>
+              </tr>
+              <tr>
+                <td><b>Mo Rahman</b></td>
+                <td class="num"><span class="chip urgent">1</span></td>
+                <td>
+                  Car park marshal · Riverside Food Festival · Sat 4 Oct 08:30 · cancelled 14:20 Fri
+                  3 Oct (18 hours' notice)
+                </td>
+                <td>Sent to strikes team 14:21</td>
+                <td><button class="btn small" type="button">Withdraw a strike</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== ENQUIRIES ===================== -->
+    <section data-view="enquiries" hidden aria-labelledby="h-enquiries">
+      <div class="content-head">
+        <h1 id="h-enquiries">Enquiries</h1>
+        <div class="tabs" role="group" aria-label="Show">
+          <button class="tab" type="button" aria-pressed="true">All 18</button>
+          <button class="tab" type="button" aria-pressed="false">Answered automatically 12</button>
+          <button class="tab" type="button" aria-pressed="false">Sorted by AI 4</button>
+          <button class="tab" type="button" aria-pressed="false">Need a person 2</button>
+        </div>
+      </div>
+      <div class="body">
+        <div class="kpis">
+          <div class="kpi">
+            <span class="n">89%</span><span class="l">Answered straight away</span
+            ><span class="s">16 of 18 today</span>
+          </div>
+          <div class="kpi">
+            <span class="n">4 s</span><span class="l">Typical reply time</span
+            ><span class="s">Automatic replies</span>
+          </div>
+          <div class="kpi">
+            <span class="n">Shifts</span><span class="l">Most asked about</span
+            ><span class="s">9 of 18 enquiries</span>
+          </div>
+          <div class="kpi urgent">
+            <span class="n">2</span><span class="l">Need a person</span
+            ><span class="s">Oldest 3 h 35 min ago</span>
+          </div>
+        </div>
+        <div class="inbox">
+          <ul class="list" data-list="enquiries-full"></ul>
+          <div class="detail" data-convo aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PAYROLL ===================== -->
+    <section data-view="payroll" hidden aria-labelledby="h-payroll">
+      <div class="content-head">
+        <h1 id="h-payroll">Pay dashboard</h1>
+        <div class="spacer"></div>
+        <button class="btn" type="button">Import pay records</button>
+        <button class="btn cta" type="button">Send the digest now</button>
+      </div>
+      <div class="body">
+        <div class="kpis">
+          <div class="kpi urgent">
+            <span class="n">10</span><span class="l">Pay queries waiting</span
+            ><span class="s">Oldest 3 days</span>
+          </div>
+          <div class="kpi">
+            <span class="n">Fri 09:00</span><span class="l">Next digest</span
+            ><span class="s">Last: Mon 09:00, 6 queries</span>
+          </div>
+          <div class="kpi live">
+            <span class="n">14</span><span class="l">Sorted this week</span
+            ><span class="s">Each person told by message</span>
+          </div>
+          <div class="kpi">
+            <span class="n">Fri 17 Oct</span><span class="l">Next pay date</span
+            ><span class="s">Pay records imported Thu</span>
+          </div>
+        </div>
+        <section aria-labelledby="pq">
+          <h2 class="section" id="pq">
+            Waiting, grouped by likely cause
+            <span class="hint">Pay questions never get an AI answer: they come here</span>
+          </h2>
+          <ul class="list" data-list="payqueries"></ul>
+        </section>
+        <section aria-labelledby="pq-sorted">
+          <h2 class="section" id="pq-sorted">Recently sorted</h2>
+          <ul class="list" data-list="paysorted"></ul>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== CASUAL'S APP ===================== -->
+    <section data-view="casual" hidden aria-labelledby="h-casual">
+      <div class="content-head">
+        <h1 id="h-casual">Casual's app</h1>
+        <span class="chip info">What Zoe Adeyemi sees on her phone</span>
+      </div>
+      <div class="body">
+        <p class="mock-note">
+          Casuals open this from a link by WhatsApp or text: no app to download. It's in your firm's
+          colours.
+        </p>
+        <div class="phones">
+          <article class="phone" aria-label="Home screen">
+            <div class="phone-cap">1 · Home</div>
+            <div class="firm-bar">Acme Events <span>Shifts</span></div>
+            <div class="screen">
+              <div>
+                <h3>Hello Zoe</h3>
+                <p class="sub">Updated 21:12 on Mon 6 Oct</p>
+              </div>
+              <div class="mcard" style="border-color: var(--amber)">
+                <div class="chips"><span class="chip amber">2 things need updating</span></div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">Your staff photo</p>
+                    <p class="d">Last uploaded 3 Aug 2024. Photos are renewed every 2 years.</p>
+                  </div>
+                  <span class="chip amber">Due</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">Manual handling certificate</p>
+                    <p class="d">Expires 28 Oct 2026, in 22 days</p>
+                  </div>
+                  <span class="chip amber">Soon</span>
+                </div>
+                <button class="mbtn" type="button">Update now</button>
+              </div>
+              <div class="mcard urgent">
+                <div class="chips">
+                  <span class="chip urgent">Urgent</span
+                  ><span class="chip quiet">Needed now, and you can take them</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">Door supervisor · Acme Demo Arena</p>
+                    <p class="d">Sat 11 Oct, 08:00 – 16:00 · £15.50/h · Gate A</p>
+                    <p class="travel">
+                      <span
+                        ><svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10Z" />
+                          <circle cx="12" cy="11" r="2" /></svg
+                        >3.1 miles</span
+                      ><span
+                        ><svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M5 16v-5l2-5h10l2 5v5M5 16h14M6 16v2.5M18 16v2.5M8 13h.01M16 13h.01"
+                          /></svg
+                        >12 min by car</span
+                      ><span
+                        ><svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <rect x="6" y="3.5" width="12" height="13" rx="3" />
+                          <path d="M6 10h12M9 20.5l1.5-4M15 20.5l-1.5-4" /></svg
+                        >24 min by bus</span
+                      >
+                    </p>
+                  </div>
+                  <span class="chip quiet">1 left</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">CSAS officer · Northgate Town Centre</p>
+                    <p class="d">Sat 11 Oct, 17:00 – 23:00 · £15.00/h · Patrol</p>
+                    <p class="travel">
+                      <span
+                        ><svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10Z" />
+                          <circle cx="12" cy="11" r="2" /></svg
+                        >8.4 miles</span
+                      ><span
+                        ><svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M5 16v-5l2-5h10l2 5v5M5 16h14M6 16v2.5M18 16v2.5M8 13h.01M16 13h.01"
+                          /></svg
+                        >21 min by car</span
+                      ><span
+                        ><svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <rect x="6" y="3.5" width="12" height="13" rx="3" />
+                          <path d="M6 10h12M9 20.5l1.5-4M15 20.5l-1.5-4" /></svg
+                        >38 min by train</span
+                      >
+                    </p>
+                  </div>
+                  <span class="chip info">CSAS</span>
+                </div>
+                <button class="mbtn cta" type="button">See urgent shifts</button>
+              </div>
+              <div class="mcard">
+                <p class="sub" style="font-weight: 700">Your next shift</p>
+                <div class="big">Sun 12 Oct, 10:00 – 18:00</div>
+                <div><b>Steward</b> · Riverside Food Festival</div>
+                <dl class="facts">
+                  <dt>Post</dt>
+                  <dd>Gate B (main entrance)</dd>
+                  <dt>Pay</dt>
+                  <dd>£12.60 an hour (about £100.80)</dd>
+                  <dt>Report to</dt>
+                  <dd>Staff tent by car park C at 09:30</dd>
+                  <dt>Bring</dt>
+                  <dd>Black trousers, boots. Hi-vis provided.</dd>
+                  <dt>Getting there</dt>
+                  <dd>5.0 miles · 15 min by car · 31 min by bus</dd>
+                </dl>
+                <button class="mbtn" type="button">Open in maps</button>
+                <button class="mbtn" type="button">Ask for a change</button>
+                <button class="mbtn danger" type="button">Cancel this shift</button>
+              </div>
+              <div class="mcard">
+                <h4>Shifts you can apply for</h4>
+                <p class="sub">
+                  Only shifts your licences and hours allow, up to 45 minutes from ZZ1 4. You hold
+                  CSAS, so CSAS shifts show too.
+                </p>
+                <div class="mrow">
+                  <div>
+                    <p class="t">CSAS officer · Northgate Town Centre</p>
+                    <p class="d">Every evening to 19 Oct, 17:00 – 23:00 · £15.00/h</p>
+                    <p class="travel">
+                      <span>8.4 miles</span><span>21 min by car</span><span>38 min by train</span>
+                    </p>
+                  </div>
+                  <span class="chip info">CSAS</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">Steward · Northern Lights Live</p>
+                    <p class="d">Sat 11 Oct, 12:00 – 18:30 · £12.60/h · Acme Demo Arena</p>
+                    <p class="travel">
+                      <span>3.1 miles</span><span>12 min by car</span><span>24 min by bus</span>
+                    </p>
+                  </div>
+                  <span class="chip quiet">1 left</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">Course marshal · Northgate Charity 10K</p>
+                    <p class="d">Sun 19 Oct, 07:30 – 13:00 · £12.60/h</p>
+                    <p class="travel">
+                      <span>9.2 miles</span><span>23 min by car</span><span>44 min by train</span>
+                    </p>
+                  </div>
+                  <span class="chip quiet">14 left</span>
+                </div>
+                <p class="sub">2 more shifts are further than you travel. <u>Change how far</u></p>
+                <button class="mbtn cta" type="button">See all open shifts</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="phone" aria-label="Shift details">
+            <div class="phone-cap">2 · A shift she can take</div>
+            <div class="firm-bar">Acme Events <span>Shifts</span></div>
+            <div class="screen">
+              <div class="chips">
+                <span class="chip urgent">Urgent</span><span class="chip info">CSAS position</span>
+              </div>
+              <div>
+                <h3>CSAS officer</h3>
+                <p class="sub">Northgate Town Centre · night-time economy patrol</p>
+              </div>
+              <div class="mcard">
+                <div class="big">Sat 11 Oct, 17:00 – 23:00</div>
+                <dl class="facts">
+                  <dt>Pay</dt>
+                  <dd>£15.00 an hour (about £90)</dd>
+                  <dt>Meet</dt>
+                  <dd>Northgate hub, 12 Market Street, 16:30</dd>
+                  <dt>Post</dt>
+                  <dd>Town centre patrol, in pairs</dd>
+                  <dt>Uniform</dt>
+                  <dd>Black, with your CSAS badge. Body-worn camera issued at the hub.</dd>
+                  <dt>Places</dt>
+                  <dd>1 of 4 left</dd>
+                </dl>
+              </div>
+              <div class="mcard">
+                <h4>Getting there</h4>
+                <p class="sub">From your home area, ZZ1 4</p>
+                <div class="mrow">
+                  <div>
+                    <p class="t">8.4 miles away</p>
+                    <p class="d">Northgate hub, 12 Market Street</p>
+                  </div>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">About 21 min by car</p>
+                    <p class="d">Free staff parking behind the hub</p>
+                  </div>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">About 38 min by public transport</p>
+                    <p class="d">
+                      Train from Exampleton to Northgate, then a 6 min walk. Leave by 15:50.
+                    </p>
+                  </div>
+                </div>
+                <button class="mbtn" type="button">Open in maps</button>
+              </div>
+              <div class="mcard">
+                <h4>What it needs</h4>
+                <div class="mrow">
+                  <div>
+                    <p class="t">CSAS accreditation</p>
+                    <p class="d">Yours is valid until 3 Mar 2027</p>
+                  </div>
+                  <span class="chip live">You have it</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">SIA door supervisor licence</p>
+                    <p class="d">Yours is valid until 9 Jun 2028</p>
+                  </div>
+                  <span class="chip live">You have it</span>
+                </div>
+              </div>
+              <button class="mbtn cta" type="button">Take shift</button>
+              <p class="sub">Cancelling less than 48 hours before the start gives you a strike.</p>
+            </div>
+          </article>
+
+          <article class="phone" aria-label="Cancelling a shift">
+            <div class="phone-cap">3 · If she cancels on Saturday morning</div>
+            <div class="firm-bar">Acme Events <span>Shifts</span></div>
+            <div class="screen">
+              <div>
+                <h3>Cancel this shift?</h3>
+                <p class="sub">
+                  Steward · Riverside Food Festival · Sun 12 Oct, 10:00 – 18:00 · £12.60/h · Gate B
+                </p>
+              </div>
+              <div class="warn">
+                <b>This shift starts in 26 hours.</b>Cancelling with less than 48 hours' notice
+                gives you a strike. Acme Events' strikes team gets a record of it. You have 0
+                strikes.
+              </div>
+              <div style="display: grid; gap: 8px">
+                <p class="sub" style="font-weight: 700; color: var(--ink)">
+                  Why can't you make it?
+                </p>
+                <div class="radio on"><span class="dot" aria-hidden="true"></span>I'm unwell</div>
+                <div class="radio"><span class="dot" aria-hidden="true"></span>Travel problem</div>
+                <div class="radio">
+                  <span class="dot" aria-hidden="true"></span>Family or caring
+                </div>
+                <div class="radio"><span class="dot" aria-hidden="true"></span>Something else</div>
+              </div>
+              <button class="mbtn dangerSolid" type="button">Confirm cancellation</button>
+              <button class="mbtn" type="button">Keep this shift</button>
+              <p class="sub">
+                Your cancellation is recorded the moment you confirm. Nobody needs to approve it.
+              </p>
+            </div>
+          </article>
+
+          <article class="phone" aria-label="Profile">
+            <div class="phone-cap">4 · Her photo, qualifications and travel area</div>
+            <div class="firm-bar">Acme Events <span>Shifts</span></div>
+            <div class="screen">
+              <div>
+                <h3>My profile</h3>
+                <p class="sub">To change your name or number, ask the office.</p>
+              </div>
+              <div class="mcard">
+                <h4>Staff photo</h4>
+                <div class="photo">
+                  <span class="pic" aria-hidden="true">ZA</span>
+                  <div>
+                    <p class="t" style="margin: 0; font-weight: 700">Last uploaded 3 Aug 2024</p>
+                    <p class="sub">
+                      Due for renewal: photos are renewed every 2 years. The office checks it before
+                      it shows on your pass.
+                    </p>
+                  </div>
+                </div>
+                <button class="mbtn cta" type="button">Upload a new photo</button>
+              </div>
+              <div class="mcard">
+                <h4>Qualifications</h4>
+                <div class="mrow">
+                  <div>
+                    <p class="t">SIA door supervisor</p>
+                    <p class="d">Expires 9 Jun 2028 · checked on the SIA register 1 Oct</p>
+                  </div>
+                  <span class="chip live">Valid</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">CSAS accreditation</p>
+                    <p class="d">Expires 3 Mar 2027</p>
+                  </div>
+                  <span class="chip live">Valid</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">Manual handling</p>
+                    <p class="d">Expires 28 Oct 2026, in 22 days. Upload your new certificate.</p>
+                  </div>
+                  <span class="chip amber">Expiring</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">First aid at work</p>
+                    <p class="d">None on file. Needed for team lead shifts.</p>
+                  </div>
+                  <span class="chip quiet">Missing</span>
+                </div>
+                <div class="mrow">
+                  <div>
+                    <p class="t">Right to work</p>
+                    <p class="d">Checked by the office on 12 Jan 2026</p>
+                  </div>
+                  <span class="chip live">Checked</span>
+                </div>
+                <button class="mbtn" type="button">Upload a certificate</button>
+              </div>
+              <div class="mcard">
+                <h4>Where you work</h4>
+                <dl class="facts">
+                  <dt>Home area</dt>
+                  <dd>ZZ1 4</dd>
+                  <dt>Show me</dt>
+                  <dd>Shifts up to 45 minutes away, by car or public transport</dd>
+                </dl>
+                <button class="mbtn" type="button">Change</button>
+              </div>
+              <div class="mcard">
+                <h4>Strikes</h4>
+                <p class="sub" style="color: var(--ink)">
+                  You have <b>0 strikes</b> in the last 90 days.
+                </p>
+                <p class="sub">
+                  A strike is given when you cancel less than 48 hours before a shift starts.
+                </p>
+              </div>
+              <div class="mcard">
+                <h4>Days you can't work</h4>
+                <div class="mrow">
+                  <div><p class="t">Sat 18 Oct</p></div>
+                  <button class="btn small" type="button">Remove</button>
+                </div>
+              </div>
+              <button class="mbtn" type="button">Help</button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CASUALS (compliance) ===================== -->
+    <section data-view="casuals" hidden aria-labelledby="h-casuals">
+      <div class="content-head">
+        <h1 id="h-casuals">Casuals</h1>
+        <div class="tabs" role="group" aria-label="Show">
+          <button class="tab" type="button" aria-pressed="true">All 60</button>
+          <button class="tab" type="button" aria-pressed="false">Need updating 9</button>
+          <button class="tab" type="button" aria-pressed="false">Expiring in 30 days 4</button>
+          <button class="tab" type="button" aria-pressed="false">Photo due 6</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn" type="button">Send reminders</button>
+      </div>
+      <div class="body">
+        <div class="kpis">
+          <div class="kpi live">
+            <span class="n">51</span><span class="l">Ready to work</span
+            ><span class="s">Everything in date</span>
+          </div>
+          <div class="kpi">
+            <span class="n">4</span><span class="l">Expiring in 30 days</span
+            ><span class="s">Reminded automatically</span>
+          </div>
+          <div class="kpi urgent">
+            <span class="n">2</span><span class="l">Expired</span
+            ><span class="s">Can't take shifts that need it</span>
+          </div>
+          <div class="kpi">
+            <span class="n">3</span><span class="l">Uploads to check</span
+            ><span class="s">New photos and certificates</span>
+          </div>
+        </div>
+        <div
+          class="table-wrap"
+          role="region"
+          aria-label="Casuals and their qualifications"
+          tabindex="0"
+        >
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Casual</th>
+                <th scope="col">Qualifications</th>
+                <th scope="col">Staff photo</th>
+                <th scope="col">Travel area</th>
+                <th scope="col">Strikes</th>
+                <th scope="col">Needs updating</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div style="display: flex; gap: 10px; align-items: center">
+                    <span class="face due" aria-hidden="true">ZA</span>
+                    <div>
+                      <b>Zoe Adeyemi</b>
+                      <div style="font-size: 13px; color: var(--muted)">
+                        Steward, door supervisor
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="chips">
+                    <span class="chip live">SIA DS</span><span class="chip live">CSAS</span
+                    ><span class="chip amber">Manual handling: 22 days</span
+                    ><span class="chip quiet">First aid: missing</span>
+                  </div>
+                </td>
+                <td class="num">3 Aug 2024 <span class="chip amber">Due</span></td>
+                <td class="num">ZZ1 4 · 45 min</td>
+                <td class="num">0</td>
+                <td>Photo, manual handling</td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display: flex; gap: 10px; align-items: center">
+                    <span class="face" aria-hidden="true">KD</span>
+                    <div>
+                      <b>Kieran Doyle</b>
+                      <div style="font-size: 13px; color: var(--muted)">Steward</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="chips">
+                    <span class="chip urgent">SIA DS: expired 1 Oct</span
+                    ><span class="chip live">Manual handling</span>
+                  </div>
+                </td>
+                <td class="num">14 Jan 2026</td>
+                <td class="num">ZZ3 9 · 60 min</td>
+                <td class="num"><span class="chip urgent">2</span></td>
+                <td>SIA licence (can't take door work)</td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display: flex; gap: 10px; align-items: center">
+                    <span class="face" aria-hidden="true">BF</span>
+                    <div>
+                      <b>Ben Fraser</b>
+                      <div style="font-size: 13px; color: var(--muted)">Security officer</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="chips">
+                    <span class="chip live">SIA SG</span
+                    ><span class="chip amber">CSAS: applied for</span
+                    ><span class="chip live">First aid</span>
+                  </div>
+                </td>
+                <td class="num">2 May 2026 <span class="chip info">New: check it</span></td>
+                <td class="num">ZZ2 1 · 30 min</td>
+                <td class="num">0</td>
+                <td>Check new photo</td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display: flex; gap: 10px; align-items: center">
+                    <span class="face" aria-hidden="true">PS</span>
+                    <div>
+                      <b>Priya Shah</b>
+                      <div style="font-size: 13px; color: var(--muted)">Steward</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="chips">
+                    <span class="chip live">Manual handling</span
+                    ><span class="chip live">First aid</span>
+                  </div>
+                </td>
+                <td class="num">19 Mar 2026</td>
+                <td class="num">ZZ1 7 · 45 min</td>
+                <td class="num"><span class="chip urgent">1</span></td>
+                <td>Nothing</td>
+              </tr>
+              <tr>
+                <td>
+                  <div style="display: flex; gap: 10px; align-items: center">
+                    <span class="face due" aria-hidden="true">LW</span>
+                    <div>
+                      <b>Leah Ward</b>
+                      <div style="font-size: 13px; color: var(--muted)">
+                        Steward, car park marshal
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="chips">
+                    <span class="chip amber">SIA DS: 12 days</span
+                    ><span class="chip live">Manual handling</span>
+                  </div>
+                </td>
+                <td class="num"><span class="chip urgent">No photo</span></td>
+                <td class="num">ZZ4 2 · 40 min</td>
+                <td class="num">0</td>
+                <td>Photo, SIA renewal</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          Casuals see the same statuses on their phone and can upload a new photo or certificate
+          there. Nothing counts until the office has checked it.
+        </p>
+      </div>
+    </section>
+
+    <section data-view="placeholder" hidden aria-labelledby="h-placeholder">
+      <div class="content-head"><h1 id="h-placeholder" data-placeholder-title>Page</h1></div>
+      <div class="body">
+        <p class="mock-note" data-placeholder-text>
+          This page keeps what it does today, in the new look.
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<button class="floating" type="button" data-go="enquiries">
+  <span class="pulse" aria-hidden="true"></span
+  ><span data-floating-text>2 enquiries need a person</span>
+</button>
+
+<script>
+  (function () {
+    var I = {
+      home: '<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1v-7.5Z"/>',
+      events:
+        '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16M8.5 14h1M11.5 14h1M14.5 14h1M8.5 17h1M11.5 17h1"/>',
+      cancel: '<circle cx="12" cy="12" r="8"/><path d="m9 9 6 6M15 9l-6 6"/>',
+      strike: '<path d="M12 3.5 21 19H3L12 3.5Z"/><path d="M12 10v4M12 16.5h.01"/>',
+      enquiries:
+        '<path d="M4 12a8 8 0 1 1 3.3 6.5L4 19.5l1-3.4A8 8 0 0 1 4 12Z"/><path d="M9 11h6M9 14h4"/>',
+      workers:
+        '<circle cx="9" cy="9" r="3.5"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M15.5 6.5a3 3 0 0 1 0 6M17.5 19a5 5 0 0 0-2.5-4.3"/>',
+      log: '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+      notice:
+        '<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20V3.5Z"/><path d="M14 3.5V8h4M10 12h5M10 15.5h5"/>',
+      chart: '<path d="M5 19V5M5 19h15M9 16v-4M13 16V9M17 16v-7"/>',
+      pay: '<rect x="3.5" y="6.5" width="17" height="11" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+      upload: '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 15v4h14v-4"/>',
+      team: '<path d="M12 3.5 19 6v5.5c0 4.2-3 7.4-7 9-4-1.6-7-4.8-7-9V6l7-2.5Z"/>',
+      data: '<ellipse cx="12" cy="6.5" rx="7" ry="3"/><path d="M5 6.5v11c0 1.7 3.1 3 7 3s7-1.3 7-3v-11M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>',
+      settings:
+        '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+      link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+      guide:
+        '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5v-13ZM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5v-13Z"/>',
+      phoneapp: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/>',
+      star: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.3L12 16l-4.9 2.6 1.1-5.3-4-3.7 5.4-.6L12 4Z"/>',
+      wa: '<path d="M4 20l1.2-3.6A8 8 0 1 1 8 19.1L4 20Z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8a4 4 0 0 1-2-2l.8-1-1-2L9 9.5Z"/>',
+      sms: '<rect x="4" y="5" width="16" height="12" rx="3"/><path d="m8 21 3-4M8 10h8M8 13h5"/>',
+      phone:
+        '<path d="M6 4h3l1.5 4-2 1.2a10 10 0 0 0 6.3 6.3l1.2-2L20 15v3a2 2 0 0 1-2.2 2A16 16 0 0 1 4 6.2 2 2 0 0 1 6 4Z"/>',
+      app: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/>',
+      dots: '<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>',
+      check: '<circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.2 2.3 2.3 4.7-4.9"/>',
+      eyeoff:
+        '<path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 8.5 4.5 9.5 6a16 16 0 0 1-3 3.5M6.7 7.5A15.5 15.5 0 0 0 2.5 12c1 1.5 4.5 6 9.5 6a9.7 9.7 0 0 0 4.4-1.1M9.9 10a3 3 0 0 0 4.1 4.1"/>',
+      sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+      moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>',
+    };
+    function svg(name, size) {
+      size = size || 20;
+      return (
+        '<svg width="' +
+        size +
+        '" height="' +
+        size +
+        '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        I[name] +
+        "</svg>"
+      );
+    }
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+      });
+    }
+
+    // ---------- made-up data ----------
+    // session: [role, start, end, pay, post, filled, needed, requirements, specifics, urgent]
+    var events = [
+      {
+        id: "e1",
+        name: "Northern Lights Live",
+        place: "Acme Demo Arena",
+        when: "Sat 11 Oct",
+        live: true,
+        fav: true,
+        sessions: [
+          [
+            "Door supervisor",
+            "08:00",
+            "16:00",
+            "£15.50",
+            "Gate A, main entrance",
+            3,
+            4,
+            ["SIA door supervisor"],
+            "Black trousers, boots. Radio provided.",
+            true,
+          ],
+          [
+            "Steward",
+            "12:00",
+            "18:30",
+            "£12.60",
+            "Concourse",
+            11,
+            12,
+            [],
+            "Hi-vis provided.",
+            false,
+          ],
+          [
+            "Response team lead",
+            "15:00",
+            "23:30",
+            "£17.00",
+            "Control room",
+            1,
+            1,
+            ["SIA door supervisor", "First aid at work"],
+            "Briefing 14:30 in control.",
+            false,
+          ],
+        ],
+        note: "Jamal Morgan cancelled the 08:00 door supervisor session at 06:00 (5 days' notice). Re-offered: 12 qualified casuals have it within their travel area.",
+      },
+      {
+        id: "e2",
+        name: "Night patrols",
+        place: "Northgate Town Centre",
+        when: "Daily, 6 – 19 Oct",
+        live: true,
+        sessions: [
+          [
+            "CSAS officer",
+            "17:00",
+            "23:00",
+            "£15.00",
+            "Night-time economy patrol",
+            3,
+            4,
+            ["CSAS accreditation", "SIA door supervisor"],
+            "Body-worn camera issued at the hub.",
+            true,
+          ],
+        ],
+        note: "Sat 11 Oct still needs 1 more CSAS officer. 4 CSAS holders have it within their travel area.",
+      },
+      {
+        id: "e3",
+        name: "Riverside Food Festival",
+        place: "Riverside Park",
+        when: "Sun 12 Oct",
+        live: true,
+        sessions: [
+          [
+            "Steward",
+            "10:00",
+            "18:00",
+            "£12.60",
+            "Gate B",
+            5,
+            8,
+            [],
+            "Hi-vis provided. Staff tent by car park C.",
+            false,
+          ],
+          [
+            "Car park marshal",
+            "08:30",
+            "17:00",
+            "£12.60",
+            "Car park C",
+            3,
+            4,
+            [],
+            "Waterproofs advised.",
+            false,
+          ],
+        ],
+      },
+      {
+        id: "e4",
+        name: "Raceday",
+        place: "Acme Demo Racecourse",
+        when: "Tue 7 Oct",
+        live: true,
+        sessions: [
+          [
+            "Steward",
+            "10:30",
+            "18:30",
+            "£12.60",
+            "Parade ring",
+            5,
+            6,
+            [],
+            "Smart black, tie provided.",
+            true,
+          ],
+          [
+            "Security officer",
+            "09:00",
+            "19:00",
+            "£14.00",
+            "Weighing room",
+            2,
+            2,
+            ["SIA security guard"],
+            "",
+            false,
+          ],
+        ],
+        note: "Kieran Doyle cancelled the steward session at 19:05 Mon (15 hours' notice): strike issued. 9 casuals can take it within their travel area.",
+      },
+      {
+        id: "e5",
+        name: "Northgate Charity 10K",
+        place: "Northgate Park",
+        when: "Sun 19 Oct",
+        live: true,
+        sessions: [
+          [
+            "Course marshal",
+            "07:30",
+            "13:00",
+            "£12.60",
+            "Course, km 2 to 8",
+            0,
+            14,
+            [],
+            "Briefing at the start line, 07:15.",
+            false,
+          ],
+          ["Steward", "08:00", "14:00", "£12.60", "Finish area", 0, 4, [], "", false],
+        ],
+      },
+      {
+        id: "e6",
+        name: "Hillside Christmas Market",
+        place: "Hillside Square",
+        when: "Sat 22 Nov",
+        live: false,
+        sessions: [
+          ["Steward", "10:00", "20:00", "£12.60", "Market entrances", 0, 16, [], "", false],
+          [
+            "Door supervisor",
+            "16:00",
+            "22:00",
+            "£15.50",
+            "Bar area",
+            0,
+            4,
+            ["SIA door supervisor"],
+            "",
+            false,
+          ],
+        ],
+        note: "Hidden from casuals: not confirmed by the client yet.",
+      },
+    ];
+    function isUrgent(e) {
+      return e.sessions.some(function (s) {
+        return s[9] && s[5] < s[6];
+      });
+    }
+    function freePlaces(e) {
+      return e.sessions.reduce(function (n, s) {
+        return n + (s[6] - s[5]);
+      }, 0);
+    }
+
+    var cancellations = [
+      {
+        id: "c1",
+        at: "19:05",
+        day: "Mon 6 Oct",
+        who: "Kieran Doyle",
+        by: "casual",
+        via: "In the app (after a WhatsApp reminder)",
+        event: "Raceday · Acme Demo Racecourse",
+        session: "Steward",
+        date: "Tue 7 Oct",
+        time: "10:30 – 18:30",
+        pay: "£12.60/h",
+        post: "Parade ring",
+        hours: 15,
+        notice: "15 hours",
+        reason: "Travel problem",
+        ref: "B71E0C42",
+        booked: "Thu 2 Oct 18:22",
+        strike: "Strike 2 in the last 90 days",
+        next: "Place reopened and marked urgent · offered to 5 people",
+      },
+      {
+        id: "c2",
+        at: "06:00",
+        day: "Mon 6 Oct",
+        who: "Jamal Morgan",
+        by: "casual",
+        via: "In the app",
+        event: "Northern Lights Live · Acme Demo Arena",
+        session: "Door supervisor",
+        date: "Sat 11 Oct",
+        time: "08:00 – 16:00",
+        pay: "£15.50/h",
+        post: "Gate A, main entrance",
+        hours: 122,
+        notice: "5 days",
+        reason: "I'm unwell",
+        ref: "4C8B2E17",
+        booked: "Wed 1 Oct 12:40",
+        strike: null,
+        next: "Place reopened and marked urgent · offered to 6 people",
+      },
+      {
+        id: "c3",
+        at: "21:14",
+        day: "Sun 5 Oct",
+        who: "Priya Shah",
+        by: "casual",
+        via: "WhatsApp, then the app",
+        event: "Raceday · Acme Demo Racecourse",
+        session: "Steward",
+        date: "Mon 6 Oct",
+        time: "10:30 – 18:30",
+        pay: "£12.60/h",
+        post: "Parade ring",
+        hours: 13,
+        notice: "13 hours",
+        reason: "Travel problem",
+        ref: "9D1F6A03",
+        booked: "Tue 30 Sep 09:15",
+        strike: "Strike 1 in the last 90 days",
+        next: "Filled again by Ben Fraser at 22:02",
+      },
+      {
+        id: "c4",
+        at: "16:40",
+        day: "Sun 5 Oct",
+        who: "Tom Hale",
+        by: "office",
+        via: "Cancelled by the office (Sam Rota)",
+        event: "Acme Demo Shopping Centre",
+        session: "Security officer",
+        date: "Tue 7 Oct",
+        time: "07:00 – 15:00",
+        pay: "£14.00/h",
+        post: "Mall control",
+        hours: 38,
+        notice: "38 hours",
+        reason: "The client needs fewer staff",
+        ref: "51A9C3D0",
+        booked: "Fri 26 Sep 10:02",
+        strike: null,
+        next: "Tom told by WhatsApp · place removed",
+      },
+      {
+        id: "c5",
+        at: "11:02",
+        day: "Sun 5 Oct",
+        who: "Leah Ward",
+        by: "casual",
+        via: "In the app",
+        event: "Riverside Food Festival",
+        session: "Steward",
+        date: "Sun 12 Oct",
+        time: "10:00 – 18:00",
+        pay: "£12.60/h",
+        post: "Gate B",
+        hours: 167,
+        notice: "7 days",
+        reason: "Family or caring",
+        ref: "E2D47B98",
+        booked: "Mon 29 Sep 20:11",
+        strike: null,
+        next: "Place reopened · showing to casuals",
+      },
+    ];
+
+    var enquiries = [
+      {
+        id: "q1",
+        ch: "wa",
+        who: "Zoe Adeyemi",
+        at: "21:12",
+        text: "hi, any shifts this weekend? I'm free sat and sun",
+        how: "keyword",
+        label: "Answered automatically",
+        reply:
+          "Hi Zoe, you're booked on Sunday (Steward · Riverside Food Festival · 10:00–18:00). For Saturday you can take:\n1. Door supervisor · Acme Demo Arena · Sat 11 Oct 08:00–16:00 · £15.50/h · Gate A (urgent) · 3.1 miles, 12 min by car, 24 min by bus\n2. CSAS officer · Northgate Town Centre · Sat 11 Oct 17:00–23:00 · £15.00/h · night-time patrol (you hold CSAS) · 8.4 miles, 21 min by car, 38 min by train\nReply 1 or 2 to take one, or see them all: acme.shiftdesk.co.uk/shifts/open\n— Acme Events Shift Team",
+        steps: [
+          "The word “shifts” matched, so the app answered from your own data (no AI needed).",
+          "Checked Zoe's licences: SIA door supervisor ✓, CSAS ✓, first aid ✗.",
+          "Checked her days off, rest between shifts and weekly hours.",
+          "Kept to shifts within her travel area (45 minutes from ZZ1 4) and added the distance and travel time by car and by public transport.",
+          "Listed the 2 Saturday sessions she can take, including 1 CSAS position, with times, pay and post.",
+          "Left out: every Sunday session (she is booked 10:00–18:00) and Response team lead (needs first aid).",
+        ],
+      },
+      {
+        id: "q2",
+        ch: "wa",
+        who: "Ben Fraser",
+        at: "20:31",
+        text: "when do we get paid for last week, the hours look short",
+        how: "ai",
+        label: "Sorted by AI as pay",
+        reply:
+          "Hi Ben, your pay dates, hours and rates are on your pay page (we'll send you a 6-digit code to open it): acme.shiftdesk.co.uk/pay\nIf something looks wrong, tap Raise a pay query there and payroll will look at it.\n— Acme Events Shift Team",
+        steps: [
+          "No keyword matched.",
+          "AI sorted it as “pay”. The AI can only pick a label; it never writes the reply.",
+          "Sent the fixed pay reply with Ben's link. Pay questions never get an AI answer, and pay figures stay behind the code.",
+          "If Ben raises a pay query, it goes to payroll's digest.",
+        ],
+      },
+      {
+        id: "q3",
+        ch: "sms",
+        who: "Kieran Doyle",
+        at: "18:58",
+        text: "cant make tmrw, car broke down",
+        how: "ai",
+        label: "Sorted by AI as cancel",
+        reply:
+          "Hi Kieran, you're booked on: Steward · Acme Demo Racecourse · Tue 7 Oct 10:30–18:30 · parade ring.\nTo cancel, open it and tap Cancel this shift: acme.shiftdesk.co.uk/shifts/b71e0c42\nIt starts in less than 48 hours, so cancelling now gives you a strike.\n— Acme Events Shift Team",
+        steps: [
+          "No keyword matched.",
+          "AI sorted it as “cancel”.",
+          "Found Kieran's next booking and put its details in the reply.",
+          "Warned him about the strike (less than 48 hours to go). He cancelled at 19:05: see Cancellations.",
+        ],
+      },
+      {
+        id: "q4",
+        ch: "voice",
+        who: "Unknown number",
+        at: "17:55",
+        text: "Voicemail: “Hi, it's Carla, I've got a new number, can you update it…”",
+        how: "office",
+        label: "Needs a person",
+        reply: "No automatic reply: this number isn't on your books.",
+        steps: [
+          "The number isn't a casual's.",
+          "The voicemail was turned into text.",
+          "Passed to the office.",
+        ],
+        open: true,
+      },
+      {
+        id: "q5",
+        ch: "wa",
+        who: "Leah Ward",
+        at: "17:47",
+        text: "is parking free at the festival?",
+        how: "office",
+        label: "Needs a person",
+        reply: "Thanks Leah, the office will get back to you.\n— Acme Events Shift Team",
+        steps: [
+          "No keyword matched.",
+          "AI sorted it as “office”: a question the app can't answer from your data.",
+          "Holding reply sent, passed to the office.",
+          "Tip: add parking to the event's details, and the next casual who asks gets it automatically.",
+        ],
+        open: true,
+      },
+      {
+        id: "q6",
+        ch: "app",
+        who: "Priya Shah",
+        at: "16:20",
+        text: "Took a shift: Steward · Acme Demo Racecourse · Sat 11 Oct",
+        how: "self",
+        label: "Done in the app",
+        reply:
+          "You're booked: Steward · Acme Demo Racecourse · Sat 11 Oct 10:30–18:30 · £12.60/h · parade ring. Reference 7F3A21C9.\n— Acme Events Shift Team",
+        steps: [
+          "Taken in the app.",
+          "The rules checked her licences and hours.",
+          "Booked and confirmed.",
+        ],
+      },
+    ];
+
+    var payqueries = [
+      {
+        t: "7 queries: wrong rate, the week of Mon 22 Sep, paid at £13.00",
+        d: "Oldest 3 days · In Monday's digest",
+      },
+      {
+        t: "2 queries: hours missing, the week of Mon 29 Sep, at Acme Demo Shopping Centre",
+        d: "Oldest 1 day · Not in a digest yet",
+      },
+      {
+        t: "1 query: paid late or not paid, the week of Mon 29 Sep",
+        d: "Today 08:12 · Not in a digest yet",
+      },
+    ];
+    var paysorted = [
+      {
+        t: "3 queries: hours missing at Acme Demo Arena",
+        d: "Sorted Fri 3 Oct by Pat Payroll · “Missing hours added to this week's pay.”",
+      },
+      {
+        t: "11 queries: holiday pay rate",
+        d: "Sorted Thu 2 Oct by Pat Payroll · “Holiday pay is now 12.07%, backdated.”",
+      },
+    ];
+
+    var howTone = { keyword: "live", ai: "info", office: "urgent", self: "quiet" };
+    var chName = { wa: "WhatsApp", sms: "Text", voice: "Voicemail", app: "In the app" };
+    var chIcon = { wa: "wa", sms: "sms", voice: "phone", app: "app" };
+
+    // ---------- render ----------
+    function sessionHtml(s, withSwitch) {
+      var short = s[5] < s[6];
+      return (
+        '<li class="session' +
+        (s[9] && short ? " gap" : "") +
+        '"><div class="session-row"><div class="session-top"><b>' +
+        esc(s[0]) +
+        '</b><span class="chip outline">' +
+        esc(s[1]) +
+        " – " +
+        esc(s[2]) +
+        "</span>" +
+        (s[9] && short ? '<span class="chip urgent">Urgent</span>' : "") +
+        s[7]
+          .map(function (r) {
+            return (
+              '<span class="chip info">' +
+              esc(
+                r.indexOf("CSAS") === 0
+                  ? "CSAS"
+                  : r.indexOf("SIA") === 0
+                    ? r.replace("SIA ", "SIA ")
+                    : r,
+              ) +
+              "</span>"
+            );
+          })
+          .join("") +
+        '</div><span class="fill' +
+        (short ? " short" : "") +
+        '">' +
+        s[5] +
+        "/" +
+        s[6] +
+        " filled</span></div>" +
+        '<div class="meta"><span>' +
+        esc(s[3]) +
+        "/h</span><span>" +
+        esc(s[4]) +
+        "</span>" +
+        (s[8] ? "<span>" + esc(s[8]) + "</span>" : "") +
+        "</div>" +
+        (withSwitch
+          ? '<div class="session-row"><span class="note">' +
+            (short ? "Showing to casuals" : "Full: not showing") +
+            '</span><button class="switch sm" type="button" role="switch" aria-checked="' +
+            (short ? "true" : "false") +
+            '" aria-label="Show this session to casuals" data-plain-switch></button></div>'
+          : "") +
+        "</li>"
+      );
+    }
+    function card(e, full) {
+      var urgent = isUrgent(e);
+      var sessions = full ? e.sessions : e.sessions.slice(0, 2);
+      return (
+        '<article class="card' +
+        (urgent ? " urgent" : "") +
+        (e.live ? "" : " off") +
+        '" data-event="' +
+        e.id +
+        '">' +
+        '<div class="card-top"><div><h3>' +
+        esc(e.name) +
+        '</h3><p class="when">' +
+        esc(e.place) +
+        " · " +
+        esc(e.when) +
+        "</p></div>" +
+        '<button class="star" type="button" aria-label="Pin ' +
+        esc(e.name) +
+        '" aria-pressed="' +
+        (e.fav ? "true" : "false") +
+        '" data-star>' +
+        svg("star", 20) +
+        "</button>" +
+        '<button class="switch" type="button" role="switch" aria-checked="' +
+        e.live +
+        '" aria-label="Show ' +
+        esc(e.name) +
+        ' to casuals" data-live></button></div>' +
+        '<div class="chips">' +
+        (e.live
+          ? '<span class="chip live">' + svg("check", 15) + "Showing to casuals</span>"
+          : '<span class="chip hidden">' + svg("eyeoff", 15) + "Hidden from casuals</span>") +
+        '<span class="chip info">' +
+        e.sessions.length +
+        (e.sessions.length === 1 ? " session" : " sessions") +
+        "</span>" +
+        (urgent ? '<span class="chip urgent">Urgent, not filled</span>' : "") +
+        (freePlaces(e)
+          ? '<span class="chip amber">' +
+            freePlaces(e) +
+            (freePlaces(e) === 1 ? " place free" : " places free") +
+            "</span>"
+          : '<span class="chip live">Full</span>') +
+        "</div>" +
+        '<ul class="sessions">' +
+        sessions
+          .map(function (s) {
+            return sessionHtml(s, full);
+          })
+          .join("") +
+        "</ul>" +
+        (!full && e.sessions.length > 2
+          ? '<p class="note">+ ' +
+            (e.sessions.length - 2) +
+            " more session" +
+            (e.sessions.length - 2 === 1 ? "" : "s") +
+            "</p>"
+          : "") +
+        (e.note ? '<p class="note">' + esc(e.note) + "</p>" : "") +
+        '<div class="card-actions"><button class="btn cta" type="button" data-go="events">View sessions</button><button class="btn" type="button">View booked casuals</button><button class="btn more" type="button" aria-label="More for ' +
+        esc(e.name) +
+        '">' +
+        svg("dots", 18) +
+        "</button></div>" +
+        "</article>"
+      );
+    }
+    function renderCards() {
+      document.querySelector('[data-cards="urgent"]').innerHTML = events
+        .filter(function (e) {
+          return e.live && isUrgent(e);
+        })
+        .map(function (e) {
+          return card(e, false);
+        })
+        .join("");
+      document.querySelector('[data-cards="live"]').innerHTML = events
+        .filter(function (e) {
+          return !isUrgent(e);
+        })
+        .map(function (e) {
+          return card(e, false);
+        })
+        .join("");
+      document.querySelector('[data-cards="all"]').innerHTML = events
+        .map(function (e) {
+          return card(e, true);
+        })
+        .join("");
+    }
+    function cancelRow(c, asButton) {
+      var inner =
+        '<span class="ch">' +
+        svg("cancel", 18) +
+        '</span><div><p class="t">' +
+        esc(c.by === "office" ? "The office cancelled " + c.who : c.who + " cancelled") +
+        "</p>" +
+        '<p class="d">' +
+        esc(c.session) +
+        " · " +
+        esc(c.event) +
+        " · " +
+        esc(c.date) +
+        " " +
+        esc(c.time) +
+        "</p>" +
+        '<div class="chips" style="margin-top:6px">' +
+        (c.hours < 48
+          ? '<span class="chip urgent">' + esc(c.notice) + " notice</span>"
+          : '<span class="chip quiet">' + esc(c.notice) + " notice</span>") +
+        (c.strike
+          ? '<span class="chip urgent">' + svg("strike", 14) + "Strike issued</span>"
+          : "") +
+        '<span class="chip live">Planner: CANCELLATION</span></div></div><span class="time">' +
+        esc(c.at) +
+        "<br>" +
+        esc(c.day.split(" ")[0]) +
+        "</span>";
+      return asButton
+        ? '<li><button type="button" class="row" data-cancel="' +
+            c.id +
+            '">' +
+            inner +
+            "</button></li>"
+        : '<li class="row">' + inner + "</li>";
+    }
+    function showCancel(id) {
+      var c = cancellations.filter(function (x) {
+        return x.id === id;
+      })[0];
+      document.querySelectorAll("[data-cancel]").forEach(function (b) {
+        b.setAttribute("aria-pressed", b.getAttribute("data-cancel") === id ? "true" : "false");
+      });
+      var under = c.hours < 48;
+      document.querySelector("[data-cancel-detail]").innerHTML =
+        '<div class="detail-head"><span class="ch">' +
+        svg("cancel", 18) +
+        '</span><div><p class="t">Cancellation record ' +
+        esc(c.ref) +
+        '</p><p class="d">' +
+        esc(c.day) +
+        " at " +
+        esc(c.at) +
+        "</p></div></div>" +
+        '<dl class="facts">' +
+        "<dt>Casual</dt><dd>" +
+        esc(c.who) +
+        "</dd>" +
+        "<dt>Event</dt><dd>" +
+        esc(c.event) +
+        "</dd>" +
+        "<dt>Session</dt><dd>" +
+        esc(c.session) +
+        " · " +
+        esc(c.date) +
+        " · " +
+        esc(c.time) +
+        "</dd>" +
+        "<dt>Post</dt><dd>" +
+        esc(c.post) +
+        "</dd>" +
+        "<dt>Pay rate</dt><dd>" +
+        esc(c.pay) +
+        "</dd>" +
+        "<dt>Booked</dt><dd>" +
+        esc(c.booked) +
+        "</dd>" +
+        "<dt>Cancelled</dt><dd>" +
+        esc(c.day) +
+        " at " +
+        esc(c.at) +
+        " · " +
+        esc(c.via) +
+        "</dd>" +
+        "<dt>Notice</dt><dd>" +
+        esc(c.notice) +
+        (under ? " (under 48 hours)" : "") +
+        "</dd>" +
+        "<dt>Reason</dt><dd>" +
+        esc(c.reason) +
+        "</dd>" +
+        "<dt>Then</dt><dd>" +
+        esc(c.next) +
+        "</dd>" +
+        "</dl>" +
+        (c.strike
+          ? '<div class="strike-box"><b>' +
+            svg("strike", 15) +
+            " Strike issued automatically</b>" +
+            esc(c.strike) +
+            ". Cancelled with " +
+            esc(c.notice) +
+            " notice, less than the 48 hours your firm requires.</div>" +
+            '<div class="email"><b>Evidence sent to your strikes team</b><span>To: strikes@acme-events.example · ' +
+            esc(c.day) +
+            " " +
+            esc(c.at) +
+            "</span><span>Subject: Strike: " +
+            esc(c.who) +
+            " cancelled " +
+            esc(c.session) +
+            " at " +
+            esc(c.event.split(" · ").pop()) +
+            " with " +
+            esc(c.notice) +
+            " notice</span><span>Attached: this record (PDF), the booking and cancellation times, the reason given, the messages sent to " +
+            esc(c.who.split(" ")[0]) +
+            ".</span></div>"
+          : c.by === "office"
+            ? '<div class="ok-box">Cancelled by the office, so no strike. The notice ' +
+              esc(c.who.split(" ")[0]) +
+              " had is in the notice report.</div>"
+            : '<div class="ok-box">No strike: ' +
+              esc(c.notice) +
+              " notice is more than 48 hours.</div>") +
+        '<div class="email"><b>' +
+        svg("link", 14) +
+        " Your planner</b><span>The session is marked CANCELLATION in your rota sheet (row 42) at " +
+        esc(c.at) +
+        ", with the casual, the reason and the notice.</span></div>" +
+        '<div class="card-actions"><button class="btn cta" type="button">Download record (PDF)</button>' +
+        (c.strike ? '<button class="btn" type="button">Withdraw strike…</button>' : "") +
+        "</div>";
+    }
+    function enquiryRow(q, full) {
+      var inner =
+        '<span class="ch" title="' +
+        chName[q.ch] +
+        '">' +
+        svg(chIcon[q.ch], 18) +
+        "</span>" +
+        '<div><p class="t">' +
+        esc(q.who) +
+        ' <span class="chip ' +
+        howTone[q.how] +
+        '" style="margin-left:6px">' +
+        esc(q.label) +
+        "</span></p>" +
+        '<p class="d">“' +
+        esc(q.text) +
+        "”</p>" +
+        (full
+          ? ""
+          : '<div class="answer">' +
+            esc(q.reply.split("\n")[0]) +
+            (q.reply.indexOf("\n") > 0 ? " …" : "") +
+            "</div>") +
+        "</div>" +
+        '<span class="time">' +
+        esc(q.at) +
+        "</span>";
+      return (
+        '<li><button type="button" class="row" data-enquiry="' +
+        q.id +
+        '">' +
+        inner +
+        "</button></li>"
+      );
+    }
+    function showConvo(id) {
+      var q =
+        enquiries.filter(function (x) {
+          return x.id === id;
+        })[0] || enquiries[0];
+      document.querySelectorAll("[data-enquiry]").forEach(function (b) {
+        b.setAttribute("aria-pressed", b.getAttribute("data-enquiry") === q.id ? "true" : "false");
+      });
+      document.querySelector("[data-convo]").innerHTML =
+        '<div class="detail-head"><span class="ch">' +
+        svg(chIcon[q.ch], 18) +
+        '</span><div><p class="t">' +
+        esc(q.who) +
+        '</p><p class="d">' +
+        chName[q.ch] +
+        " · today " +
+        esc(q.at) +
+        '</p></div><span class="chip ' +
+        howTone[q.how] +
+        '" style="margin-left:auto">' +
+        esc(q.label) +
+        "</span></div>" +
+        '<div class="bubble in">' +
+        esc(q.text) +
+        "<small>" +
+        esc(q.who) +
+        " · " +
+        esc(q.at) +
+        "</small></div>" +
+        '<div class="bubble out">' +
+        esc(q.reply) +
+        "<small>" +
+        (q.how === "office" ? "Holding reply" : "Sent automatically") +
+        "</small></div>" +
+        '<div class="how"><b>How it was answered</b><ol>' +
+        q.steps
+          .map(function (s) {
+            return "<li>" + esc(s) + "</li>";
+          })
+          .join("") +
+        "</ol></div>" +
+        (q.open
+          ? '<div class="card-actions"><button class="btn cta" type="button">Reply</button><button class="btn" type="button">Mark as dealt with</button></div>'
+          : '<div class="card-actions"><button class="btn small" type="button">Right answer</button><button class="btn small" type="button">Wrong answer: tell us</button></div>');
+    }
+    function renderLists() {
+      document.querySelector('[data-list="cancellations-short"]').innerHTML = cancellations
+        .slice(0, 3)
+        .map(function (c) {
+          return cancelRow(c, false);
+        })
+        .join("");
+      document.querySelector('[data-list="cancellations-full"]').innerHTML = cancellations
+        .map(function (c) {
+          return cancelRow(c, true);
+        })
+        .join("");
+      document.querySelector('[data-list="enquiries-short"]').innerHTML = enquiries
+        .slice(0, 4)
+        .map(function (q) {
+          return enquiryRow(q, false);
+        })
+        .join("");
+      document.querySelector('[data-list="enquiries-full"]').innerHTML = enquiries
+        .map(function (q) {
+          return enquiryRow(q, true);
+        })
+        .join("");
+      document.querySelector('[data-list="payqueries"]').innerHTML = payqueries
+        .map(function (p) {
+          return (
+            '<li class="row"><span class="ch">' +
+            svg("pay", 18) +
+            '</span><div><p class="t">' +
+            esc(p.t) +
+            '</p><p class="d">' +
+            esc(p.d) +
+            '</p></div><button class="btn small" type="button">Open</button></li>'
+          );
+        })
+        .join("");
+      document.querySelector('[data-list="paysorted"]').innerHTML = paysorted
+        .map(function (p) {
+          return (
+            '<li class="row"><span class="ch">' +
+            svg("pay", 18) +
+            '</span><div><p class="t">' +
+            esc(p.t) +
+            '</p><p class="d">' +
+            esc(p.d) +
+            '</p></div><span class="chip live">Sorted</span></li>'
+          );
+        })
+        .join("");
+      showConvo("q1");
+      showCancel("c1");
+    }
+
+    // ---------- menu per role ----------
+    var OPS = [
+      "Operations",
+      [
+        ["dashboard", "home", "Dashboard"],
+        ["events", "events", "Events & sessions"],
+        ["cancellations", "cancel", "Cancellations"],
+        ["enquiries", "enquiries", "Enquiries", 2],
+        ["casual", "phoneapp", "Casual's app"],
+      ],
+    ];
+    var RECORDS = [
+      "Records",
+      [
+        ["strikes", "strike", "Strikes", 2],
+        ["casuals", "workers", "Casuals", 9],
+        ["p-log", "log", "Action log"],
+        ["p-notice", "notice", "Notice report"],
+        ["p-pilot", "chart", "Pilot metrics"],
+      ],
+    ];
+    var HELP = ["Help", [["p-guide", "guide", "How-to guide"]]];
+    var MENUS = {
+      Resourcer: [OPS, RECORDS, HELP],
+      Payroll: [
+        [
+          "Pay",
+          [
+            ["payroll", "home", "Pay dashboard"],
+            ["p-queries", "pay", "Pay queries", 10],
+            ["p-import", "upload", "Import pay records"],
+          ],
+        ],
+        HELP,
+      ],
+      Admin: [
+        OPS,
+        ["Pay", [["payroll", "pay", "Pay dashboard", 10]]],
+        RECORDS,
+        [
+          "Configuration",
+          [
+            ["p-rules", "settings", "Cancellation & strike rules"],
+            ["p-planner", "link", "Planner connection"],
+            ["p-team", "team", "Office team"],
+            ["p-data", "data", "Data requests"],
+          ],
+        ],
+        HELP,
+      ],
+    };
+    var PLACEHOLDER = {
+      "p-rules":
+        "Your firm's rules: strikes after a cancellation with less than 48 hours' notice; the strikes team's email address (strikes@acme-events.example); how many strikes before the office is told; whether a strike can be withdrawn and by whom.",
+      "p-planner":
+        "Your planner: where events and sessions come from (rota sheet, file import, or your planner's own link), and what ShiftDesk writes back: CANCELLATION on a cancelled session, the casual who took a place.",
+      "p-casuals":
+        "Casuals: find someone, see their licences (SIA, CSAS, first aid), strikes, bookings ahead and access.",
+      "p-guide": "The how-to guide, updated for the new dashboard.",
+    };
+    var HOME = { Resourcer: "dashboard", Payroll: "payroll", Admin: "dashboard" };
+    var roles = ["Resourcer", "Payroll", "Admin"];
+    var role = "Resourcer";
+    var current = "dashboard";
+
+    function renderMenu() {
+      var html = "";
+      MENUS[role].forEach(function (g) {
+        html += '<p class="group">' + esc(g[0]) + "</p>";
+        g[1].forEach(function (l) {
+          html +=
+            '<a class="nav-link" href="#' +
+            l[0] +
+            '" data-go="' +
+            l[0] +
+            '"' +
+            (l[0] === current ? ' aria-current="page"' : "") +
+            ' title="' +
+            esc(l[2]) +
+            '">' +
+            svg(l[1], 21) +
+            '<span class="label">' +
+            esc(l[2]) +
+            "</span>" +
+            (l[3] ? '<span class="count">' + l[3] + "</span>" : "") +
+            "</a>";
+        });
+      });
+      document.querySelector("[data-nav]").innerHTML = html;
+    }
+    var REAL = [
+      "dashboard",
+      "events",
+      "cancellations",
+      "strikes",
+      "enquiries",
+      "payroll",
+      "casual",
+      "casuals",
+    ];
+    function go(view, label) {
+      current = view;
+      var real = REAL.indexOf(view) >= 0;
+      document.querySelectorAll("[data-view]").forEach(function (v) {
+        v.hidden = v.getAttribute("data-view") !== (real ? view : "placeholder");
+      });
+      if (!real) {
+        var name = label || view;
+        document.querySelector("[data-placeholder-title]").textContent = name;
+        document.querySelector("[data-placeholder-text]").textContent =
+          PLACEHOLDER[view] ||
+          name +
+            ": this page keeps what it does today, in the new look, and lives in the menu rather than on the dashboard.";
+      }
+      renderMenu();
+      closeMenu(true);
+      window.scrollTo(0, 0);
+    }
+
+    // ---------- interactions ----------
+    document.addEventListener("click", function (e) {
+      var s = e.target.closest("[data-scroll]");
+      if (s) {
+        e.preventDefault();
+        var el = document.getElementById(s.getAttribute("data-scroll"));
+        if (el) el.scrollIntoView({ block: "start" });
+        return;
+      }
+      var t = e.target.closest("[data-go]");
+      if (t) {
+        e.preventDefault();
+        var lab =
+          t.querySelector && t.querySelector(".label")
+            ? t.querySelector(".label").textContent
+            : null;
+        go(t.getAttribute("data-go"), lab);
+        return;
+      }
+      var sw = e.target.closest("[data-live]");
+      if (sw) {
+        var id = sw.closest("[data-event]").getAttribute("data-event");
+        events.forEach(function (ev) {
+          if (ev.id === id) ev.live = !ev.live;
+        });
+        renderCards();
+        return;
+      }
+      var ps = e.target.closest("[data-plain-switch]");
+      if (ps) {
+        ps.setAttribute(
+          "aria-checked",
+          ps.getAttribute("aria-checked") === "true" ? "false" : "true",
+        );
+        return;
+      }
+      var st = e.target.closest("[data-star]");
+      if (st) {
+        st.setAttribute(
+          "aria-pressed",
+          st.getAttribute("aria-pressed") === "true" ? "false" : "true",
+        );
+        return;
+      }
+      var en = e.target.closest("[data-enquiry]");
+      if (en) {
+        if (current !== "enquiries") go("enquiries");
+        showConvo(en.getAttribute("data-enquiry"));
+        return;
+      }
+      var cn = e.target.closest("[data-cancel]");
+      if (cn) {
+        showCancel(cn.getAttribute("data-cancel"));
+        return;
+      }
+      var tab = e.target.closest(".tab");
+      if (tab) {
+        tab.parentNode.querySelectorAll(".tab").forEach(function (b) {
+          b.setAttribute("aria-pressed", "false");
+        });
+        tab.setAttribute("aria-pressed", "true");
+      }
+    });
+
+    // theme
+    var root = document.documentElement;
+    var themeBtn = document.querySelector("[data-theme-toggle]");
+    function isDark() {
+      var th = root.getAttribute("data-theme");
+      if (th) return th === "dark";
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    function paintThemeBtn() {
+      var dark = isDark();
+      themeBtn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+      themeBtn.innerHTML = svg(dark ? "sun" : "moon", 22);
+    }
+    themeBtn.addEventListener("click", function () {
+      root.setAttribute("data-theme", isDark() ? "light" : "dark");
+      try {
+        localStorage.setItem("sd-theme", root.getAttribute("data-theme"));
+      } catch (err) {}
+      paintThemeBtn();
+    });
+    try {
+      var saved = localStorage.getItem("sd-theme");
+      if (saved) root.setAttribute("data-theme", saved);
+    } catch (err) {}
+
+    // role switch (mock-up only)
+    document.querySelector("[data-role-cycle]").addEventListener("click", function () {
+      role = roles[(roles.indexOf(role) + 1) % roles.length];
+      document.querySelector("[data-role-label]").textContent =
+        role + " (mock-up only: tap to switch)";
+      document.querySelector(".avatar").textContent =
+        role === "Payroll" ? "PP" : role === "Admin" ? "AD" : "SR";
+      document.querySelector(".me b").textContent =
+        role === "Payroll" ? "Pat Payroll" : role === "Admin" ? "Alex Admin" : "Sam Rota";
+      document.querySelector("[data-floating-text]").textContent =
+        role === "Payroll" ? "10 pay queries waiting" : "2 enquiries need a person";
+      document
+        .querySelector(".floating")
+        .setAttribute("data-go", role === "Payroll" ? "payroll" : "enquiries");
+      go(HOME[role]);
+    });
+
+    // collapse (desktop) and drawer (phone)
+    var shell = document.querySelector("[data-shell]");
+    var collapseBtn = document.querySelector("[data-collapse]");
+    collapseBtn.addEventListener("click", function () {
+      var c = shell.classList.toggle("collapsed");
+      collapseBtn.setAttribute("aria-expanded", c ? "false" : "true");
+      collapseBtn.setAttribute("aria-label", c ? "Expand menu" : "Collapse menu");
+    });
+    var menu = document.getElementById("menu");
+    var opener = document.querySelector("[data-open-menu]");
+    var scrim = document.querySelector("[data-scrim]");
+    function openMenu() {
+      menu.classList.add("open");
+      scrim.hidden = false;
+      opener.setAttribute("aria-expanded", "true");
+      var f = menu.querySelector("a");
+      if (f) f.focus();
+    }
+    function closeMenu(quiet) {
+      if (!menu.classList.contains("open")) return;
+      menu.classList.remove("open");
+      scrim.hidden = true;
+      opener.setAttribute("aria-expanded", "false");
+      if (!quiet) opener.focus();
+    }
+    opener.addEventListener("click", openMenu);
+    scrim.addEventListener("click", function () {
+      closeMenu();
+    });
+    document.querySelector("[data-close-menu]").addEventListener("click", function () {
+      closeMenu();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeMenu();
+    });
+
+    renderCards();
+    renderLists();
+    renderMenu();
+    paintThemeBtn();
+  })();
+</script>

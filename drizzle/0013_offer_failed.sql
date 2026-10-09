@@ -1,0 +1,2 @@
+ALTER TABLE "offers" DROP CONSTRAINT "offers_response_check";--> statement-breakpoint
+ALTER TABLE "offers" ADD CONSTRAINT "offers_response_check" CHECK ("offers"."response" in ('accepted', 'declined', 'expired', 'filled_elsewhere', 'failed'));

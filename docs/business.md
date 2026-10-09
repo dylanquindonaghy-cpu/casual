@@ -102,11 +102,11 @@ At ~60 emails and 10 calls a day, 100–200 casuals:
 
 | Item | Monthly |
 |---|---|
-| Claude Haiku on Bedrock (Haiku $1/$5 per million tokens, +10% EU regional) | ~£8–£12 |
+| Claude Haiku 4.5 through the Anthropic API ($1/$5 per million tokens in/out) | ~£8–£12 |
 | Twilio SMS (~$0.056 ≈ 4.1p each; fallback only) | ~£20–£42 |
 | WhatsApp (first 1,000 service messages per number per month free; templates charged) | ~£5–£20 |
 | Voice in (call-to-text, short calls) | ~£6–£15 |
-| Share of hosting (£29 total, shared) | ~£5–£29 |
+| Share of hosting (an estimate until a host is chosen, PLAN.md "Connect hosting": about £29 a month for the server and database together, shared) | ~£5–£29 |
 | **Total** | **~£60–£110** |
 
 - AI phone add-on adds ~£30 (ElevenLabs ~$0.08/min + Twilio).
@@ -117,7 +117,7 @@ At ~60 emails and 10 calls a day, 100–200 casuals:
 
 | Month | What happens | Spend |
 |---|---|---|
-| 1 | Build. AWS new-account credits ($100 + up to $100 more) cover early AI. Twilio test number. | ~£30–£50 |
+| 1 | Build. AI off until "Connect the Anthropic API" (then pay as you go). Twilio test number. | ~£30–£50 |
 | 2 | Build. Discovery calls. | ~£30–£50 |
 | 3 | Incorporate (Companies House £100 from 1 Feb 2026). ICO fee (£52, or £47 by direct debit). | ~£200–£230 |
 | 4 | First pilot. Insurance starts. Solicitor-reviewed terms + DPA (estimate £500–£1,500). | ~£700–£1,700 |
@@ -188,7 +188,7 @@ Answers are in `docs/go-to-market.md`.
 - Policy Pros, 2027 guide: https://www.policypros.co.uk/zero-hours-contracts-january-2027-employer-guide/
 - Shoosmiths, zero-hours: https://www.shoosmiths.com/perspectives/stories/articles/zero-hour-contracts-a-new-era
 - ICAEW, Companies House fees: https://www.icaew.com/insights/viewpoints-on-the-news/2025/nov-2025/significant-hikes-to-companies-house-fees-in-2026
-- AWS Bedrock pricing (CloudForecast): https://www.cloudforecast.io/blog/aws-bedrock-pricing/
+- Claude API pricing (Anthropic): https://platform.claude.com/docs/en/about-claude/pricing
 - Twilio UK SMS: https://textbee.dev/sms-pricing/twilio/gb and https://puresms.uk/compare/twilio
 - Deputy UK pricing: https://www.deputy.com/gb/pricing
 - Planday pricing: https://www.planday.com/pricing

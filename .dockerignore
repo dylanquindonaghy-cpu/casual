@@ -1,0 +1,17 @@
+# Kept out of the image build (Dockerfile): secrets, local state and what the build makes itself.
+# At any depth (a filled-in deploy/.env next to the compose file must never reach an image).
+**/.env
+**/.env.*
+!.env.example
+**/secrets/
+**/*.pem
+**/*service-account*.json
+.git/
+node_modules/
+.next/
+.dev/
+.claude/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo

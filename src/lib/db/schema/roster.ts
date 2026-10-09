@@ -1,0 +1,629 @@
+import { sql } from "drizzle-orm";
+import {
+  type AnyPgColumn,
+  boolean,
+  check,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  unique,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { createdAt, firmIsolation, timestamptz } from "./helpers";
+import { officeUsers, workers } from "./people";
+import { firms, SECTORS, sites } from "./tenancy";
+
+// The rota (Phase 2). Links between firm tables are composite (firm_id, x_id) foreign keys, as in
+// people.ts. Every unique key starts with firm_id: Postgres checks unique indexes before foreign
+// keys, so a key without it would let Firm A tell from the error code whether Firm B's slot is
+// filled (by pointing a row at Firm B's shift). None of the foreign keys has an ON DELETE action: shifts, assignments, requests and offers are the
+// evidence behind the notice report, so deleting a worker, site or shift they point at fails
+// instead of erasing or orphaning that history. The app role can't delete these rows at all
+// (TABLE_ACCESS); shifts and assignments are cancelled, never removed.
+
+// Roles are data ('steward', 'door_supervisor', 'track_operative'...), matched exactly between
+// shifts, credential_rules and workers.roles, so they share one spelling rule. The roster
+// adapters' zod schemas use the same pattern (src/lib/roster/plug.ts).
+export const ROLE_PATTERN = "^[a-z][a-z0-9_]*$";
+// It is pasted into SQL text below, so it must stay a simple pattern: no quote or backslash (which
+// would break the SQL, and where JS and Postgres regexes start to differ).
+if (/['\\]/.test(ROLE_PATTERN)) throw new Error("ROLE_PATTERN must not contain ' or \\");
+const roleFormat = (column: AnyPgColumn) => sql`${column} ~ ${sql.raw(`'${ROLE_PATTERN}'`)}`;
+
+export const SHIFT_STATUSES = ["draft", "open", "filled", "cancelled"] as const;
+export const SHIFT_SOURCES = ["native", "sheets", "csv"] as const;
+
+export const ASSIGNMENT_STATUSES = [
+  "open",
+  "offered",
+  "confirmed",
+  "cancelled_worker",
+  "cancelled_firm",
+  "no_show",
+  "completed",
+] as const;
+// A cancelled row keeps its worker, reason and notice hours; a new open row reopens the slot.
+export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_firm"] as const;
+// Where a cancellation was made (12C.1, S3): the casual in the app, the office, the firm's rota
+// sheet or a file import (`api` comes with the planner API, S11). Empty on rows from before.
+export const CANCEL_VIAS = ["app", "office", "sheet", "import"] as const;
+export type CancelVia = (typeof CANCEL_VIAS)[number];
+
+// review: the worker asks the office to look again at a shift the rules won't let them take.
+export const REQUEST_TYPES = ["time_change", "swap", "availability", "general", "review"] as const;
+export const REQUEST_STATUSES = [
+  "open",
+  "approved",
+  "declined",
+  "auto_resolved",
+  "escalated",
+] as const;
+
+export const OFFER_CHANNELS = ["push", "whatsapp", "sms"] as const;
+// failed: the message couldn't be sent (kept as evidence of the attempt; never counts as offered).
+export const OFFER_RESPONSES = [
+  "accepted",
+  "declined",
+  "expired",
+  "filled_elsewhere",
+  "failed",
+] as const;
+
+// The credential types a firm uses: code, the name workers know it by, and whether an application
+// "in progress" may count within the firm's allowance (an SIA approved-contractor rule, so only
+// SIA licences by default). Seeded per firm from its sector's pack (src/lib/rules/packs.ts);
+// a firm may add its own. credentials.type holds the code (no foreign key: imports and older
+// rows may hold codes a firm hasn't set up, and the rules engine simply finds them missing).
+export const CREDENTIAL_TYPE_SECTORS = [...SECTORS, "any"] as const;
+
+export const credentialTypes = pgTable(
+  "credential_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    // The pack it came from; "any" for types every sector uses (right to work).
+    sector: text("sector", { enum: CREDENTIAL_TYPE_SECTORS }).notNull(),
+    appliedAllowed: boolean("applied_allowed").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("credential_types_firm_id_code_key").on(t.firmId, t.code),
+    check("credential_types_code_format", sql`${t.code} ~ '^[A-Z][A-Z0-9_]*$'`),
+    check(
+      "credential_types_name_length",
+      sql`${t.name} = btrim(${t.name}) and length(${t.name}) between 1 and 100`,
+    ),
+    check(
+      "credential_types_sector_check",
+      sql`${t.sector} in ('security', 'rail', 'construction', 'cleaning', 'any')`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// Which credentials a role needs. Seeded per firm from its sector's pack
+// (docs/rules-and-credentials.md); the rules engine looks a shift's role up here. Type codes are
+// data, never an enum of SIA types (golden rule 6).
+export const credentialRules = pgTable(
+  "credential_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    // The pack the rule belongs to. A firm working in two sectors keeps both packs' rules; a role
+    // name belongs to one pack per firm (unique below), so clashing names must differ.
+    sector: text("sector", { enum: SECTORS }).notNull(),
+    role: text("role").notNull(),
+    // Every listed type is required. Any-of groups ("SIA_DS or SIA_SG") can be modelled later.
+    requiredTypes: text("required_types").array().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("credential_rules_firm_id_role_key").on(t.firmId, t.role),
+    check(
+      "credential_rules_sector_check",
+      sql`${t.sector} in ('security', 'rail', 'construction', 'cleaning')`,
+    ),
+    check("credential_rules_role_format", roleFormat(t.role)),
+    // A flat list of type codes like credentials.type: no NULL or blank elements (they would
+    // never match a credential), no nested arrays, and no commas inside an element (the
+    // cardinality comparison). An empty list means "needs none".
+    check(
+      "credential_rules_required_types_format",
+      sql`coalesce(array_ndims(${t.requiredTypes}), 1) = 1
+        and array_position(${t.requiredTypes}, null) is null
+        and (cardinality(${t.requiredTypes}) = 0
+          or (array_to_string(${t.requiredTypes}, ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'
+            and cardinality(string_to_array(array_to_string(${t.requiredTypes}, ','), ','))
+              = cardinality(${t.requiredTypes})))`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+export interface SheetIssues {
+  change?: {
+    fields: string[]; // role, startsAt, endsAt, siteId, status
+    wanted: Record<string, unknown>; // the sheet's values
+    reason: "rules" | "settings" | "started" | "in_past";
+    workers: { workerId: string; codes: string[] }[];
+  };
+  // In the sheet but not booked (rules codes, no_place, settings_invalid); dropped: taken out of
+  // the sheet's cell because it was full of people booked.
+  names?: { workerId: string; codes: string[]; dropped?: boolean }[];
+}
+
+// The same flat list of qualification codes as credential_rules.required_types: no NULL or blank
+// elements, no nested arrays, no commas inside an element. An empty list means "needs none".
+const qualificationCodes = (column: AnyPgColumn) =>
+  sql`coalesce(array_ndims(${column}), 1) = 1
+    and array_position(${column}, null) is null
+    and (cardinality(${column}) = 0
+      or (array_to_string(${column}, ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'
+        and cardinality(string_to_array(array_to_string(${column}, ','), ','))
+          = cardinality(${column})))`;
+
+// An event: the sessions (shifts) of one job, with one switch for whether casuals see them
+// (docs/office-v2.md 3.3, S1). Not `events`, which is the action log. Every shift belongs to one:
+// "Shifts for an event" creates its own; the sheet sync, the file import, "New shift" and
+// migration 0035 put a shift in its site and day's automatic event, found again by its key in
+// planner_ref (`auto:{site id or none}:{yyyy-mm-dd}`, src/lib/roster/shift-events.ts), unique per
+// firm. The switch is ShiftDesk's own, never read from or written to a planner. Never deleted, only
+// hidden: the app may add rows and change only the switch (TABLE_ACCESS, COLUMN_UPDATES).
+export const shiftEvents = pgTable(
+  "shift_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    name: text("name").notNull(),
+    siteId: uuid("site_id"),
+    source: text("source", { enum: SHIFT_SOURCES }).notNull().default("native"),
+    plannerRef: text("planner_ref"),
+    showingToCasuals: boolean("showing_to_casuals").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("shift_events_firm_id_id_key").on(t.firmId, t.id),
+    // One automatic event per firm, site and day, whoever makes it (two imports at once included).
+    uniqueIndex("shift_events_auto_key")
+      .on(t.firmId, t.plannerRef)
+      .where(sql`${t.plannerRef} like 'auto:%'`),
+    foreignKey({
+      name: "shift_events_site_fk",
+      columns: [t.firmId, t.siteId],
+      foreignColumns: [sites.firmId, sites.id],
+    }),
+    check("shift_events_name_length", sql`char_length(${t.name}) between 1 and 200`),
+    check("shift_events_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check(
+      "shift_events_planner_ref_length",
+      sql`${t.plannerRef} is null or char_length(${t.plannerRef}) between 1 and 200`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+export const shifts = pgTable(
+  "shifts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    // The event it belongs to (shift_events). `shiftEventId`, because `eventId` means an action-log
+    // entry everywhere else in the code.
+    shiftEventId: uuid("event_id").notNull(),
+    siteId: uuid("site_id"),
+    role: text("role").notNull(),
+    startsAt: timestamptz("starts_at").notNull(),
+    endsAt: timestamptz("ends_at").notNull(),
+    headcount: integer("headcount").notNull().default(1),
+    isUrgent: boolean("is_urgent").notNull().default(false),
+    status: text("status", { enum: SHIFT_STATUSES }).notNull().default("open"),
+    source: text("source", { enum: SHIFT_SOURCES }).notNull().default("native"),
+    // The row's id in the firm's own rota (a sheet row key or CSV reference), for upserts.
+    externalRef: text("external_ref"),
+    instructions: text("instructions"),
+    // Sheets only: the staff ids the sheet's "assigned" cell held after the last successful sync.
+    // The base of the three-way merge between the sheet and bookings made here
+    // (src/lib/roster/sheets/merge.ts). Null until first synced.
+    syncedHolders: text("synced_holders").array(),
+    // What the firm's Google Sheet asks for that the last sync couldn't do (Phase 10, audit M1, M2,
+    // L12), for Today's "From your rota sheet": a change to a booked or started shift the rules
+    // refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
+    sheetIssues: jsonb("sheet_issues").$type<SheetIssues>(),
+    // The session's own details (docs/office-v2.md S2), set in ShiftDesk's session editor for
+    // every source: the sheet sync and the file import never write them. Pay is whole pence an
+    // hour; meeting point and uniform are for casuals who can see the session, instructions only
+    // for those booked. requiredCredentials: qualification codes needed on top of the role's.
+    payRatePence: integer("pay_rate_pence"),
+    post: text("post"),
+    meetingPoint: text("meeting_point"),
+    uniform: text("uniform"),
+    requiredCredentials: text("required_credentials")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    // The session's own switch (the event has one too). ShiftDesk's own, never a planner's.
+    showingToCasuals: boolean("showing_to_casuals").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("shifts_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "shifts_event_fk",
+      columns: [t.firmId, t.shiftEventId],
+      foreignColumns: [shiftEvents.firmId, shiftEvents.id],
+    }),
+    // One shift per row of a sheet or import. NULLs don't collide, so native shifts are free.
+    unique("shifts_firm_id_source_external_ref_key").on(t.firmId, t.source, t.externalRef),
+    foreignKey({
+      name: "shifts_site_fk",
+      columns: [t.firmId, t.siteId],
+      foreignColumns: [sites.firmId, sites.id],
+    }),
+    index("shifts_firm_id_starts_at_idx").on(t.firmId, t.startsAt),
+    check("shifts_role_format", roleFormat(t.role)),
+    check("shifts_ends_after_start", sql`${t.endsAt} > ${t.startsAt}`),
+    check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
+    check("shifts_status_check", sql`${t.status} in ('draft', 'open', 'filled', 'cancelled')`),
+    check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check("shifts_pay_rate_range", sql`${t.payRatePence} is null or ${t.payRatePence} >= 0`),
+    check("shifts_post_length", sql`${t.post} is null or char_length(${t.post}) between 1 and 200`),
+    check(
+      "shifts_meeting_point_length",
+      sql`${t.meetingPoint} is null or char_length(${t.meetingPoint}) between 1 and 300`,
+    ),
+    check(
+      "shifts_uniform_length",
+      sql`${t.uniform} is null or char_length(${t.uniform}) between 1 and 300`,
+    ),
+    check(
+      "shifts_required_credentials_format",
+      sql`${qualificationCodes(t.requiredCredentials)}
+        and cardinality(${t.requiredCredentials}) <= 20`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// One row per holder of a slot (1..headcount). An unfilled slot is a row with no worker; first
+// yes wins with one statement that also requires the shift to still be open (golden rule 4):
+//   update assignments a set worker_id = $1, status = 'confirmed', confirmed_at = now()
+//     from shifts s
+//    where a.id = $2 and a.worker_id is null
+//      and s.firm_id = a.firm_id and s.id = a.shift_id and s.status = 'open'
+//   returning a.id
+export const assignments = pgTable(
+  "assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    shiftId: uuid("shift_id").notNull(),
+    slot: integer("slot").notNull(),
+    workerId: uuid("worker_id"),
+    status: text("status", { enum: ASSIGNMENT_STATUSES }).notNull().default("open"),
+    offeredAt: timestamptz("offered_at"),
+    confirmedAt: timestamptz("confirmed_at"),
+    cancelledAt: timestamptz("cancelled_at"),
+    cancelReason: text("cancel_reason"),
+    // The office's reason for placing someone despite a rule (free text, at most 500 characters,
+    // no phone or email): kept here, never in the append-only log, so a worker's deletion and the
+    // retention purge can clear it (audit L23, L30, L85).
+    overrideReason: text("override_reason"),
+    // Shift start minus cancelled_at, in hours. Negative when cancelled after the start.
+    noticeHours: numeric("notice_hours", { precision: 8, scale: 2 }),
+    // When the office chose to keep this booking though its worker stopped being active, or was
+    // blocked from the shift's site (Today's "Bookings to check", Phase 10). Cleared when that
+    // happens again, so the booking is flagged again.
+    officeKeptAt: timestamptz("office_kept_at"),
+    // How it was cancelled (CANCEL_VIAS), and for a casual's own cancellation in the app, the
+    // version of the strike warning on their screen when they confirmed, and when (12C.1, S3).
+    cancelVia: text("cancel_via", { enum: CANCEL_VIAS }),
+    strikeWarningVersion: text("strike_warning_version"),
+    strikeWarningShownAt: timestamptz("strike_warning_shown_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("assignments_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "assignments_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }),
+    foreignKey({
+      name: "assignments_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    // One live holder per slot: a cancelled row stays as evidence and a new open row reopens it.
+    uniqueIndex("assignments_one_live_per_slot")
+      .on(t.firmId, t.shiftId, t.slot)
+      .where(sql`status not in ('cancelled_worker', 'cancelled_firm')`),
+    // Nobody holds two live slots on the same shift.
+    uniqueIndex("assignments_one_live_per_worker")
+      .on(t.firmId, t.shiftId, t.workerId)
+      .where(sql`worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm')`),
+    index("assignments_firm_id_worker_id_idx").on(t.firmId, t.workerId),
+    check(
+      "assignments_status_check",
+      sql`${t.status} in ('open', 'offered', 'confirmed', 'cancelled_worker', 'cancelled_firm', 'no_show', 'completed')`,
+    ),
+    check("assignments_slot_positive", sql`${t.slot} >= 1`),
+    // An open slot has no worker; every other state belongs to one.
+    check(
+      "assignments_worker_matches_status",
+      sql`(${t.status} = 'open') = (${t.workerId} is null)`,
+    ),
+    check(
+      "assignments_offered_at_set",
+      sql`${t.status} <> 'offered' or ${t.offeredAt} is not null`,
+    ),
+    check(
+      "assignments_confirmed_at_set",
+      sql`${t.status} not in ('confirmed', 'no_show', 'completed') or ${t.confirmedAt} is not null`,
+    ),
+    // Golden rule 12: every cancellation, by the worker or the firm, records when, why and how
+    // much notice was given.
+    check(
+      "assignments_cancel_evidence",
+      sql`${t.status} not in ('cancelled_worker', 'cancelled_firm')
+        or (${t.cancelledAt} is not null and ${t.noticeHours} is not null
+            and ${t.cancelReason} is not null and length(btrim(${t.cancelReason})) > 0)`,
+    ),
+    check(
+      "assignments_cancel_via_check",
+      sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import')`,
+    ),
+    // A warning is stored whole (its version and when), only on a casual's own cancellation.
+    check(
+      "assignments_strike_warning",
+      sql`(${t.strikeWarningVersion} is null) = (${t.strikeWarningShownAt} is null)
+        and (${t.strikeWarningVersion} is null
+             or (${t.status} = 'cancelled_worker' and length(${t.strikeWarningVersion}) between 1 and 40))`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// Time changes, swaps, availability, general asks and reviews (a worker asking the office to look
+// again at a shift the rules refused) for the office. payload is validated in code (zod) per type.
+export const requests = pgTable(
+  "requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    shiftId: uuid("shift_id"),
+    type: text("type", { enum: REQUEST_TYPES }).notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    status: text("status", { enum: REQUEST_STATUSES }).notNull().default("open"),
+    resolvedBy: uuid("resolved_by"),
+    resolvedAt: timestamptz("resolved_at"),
+    // The office's note to the worker with its answer (free text: stays on the row and in the
+    // message to them, never in an event).
+    resolutionNote: text("resolution_note"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("requests_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "requests_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    foreignKey({
+      name: "requests_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }),
+    foreignKey({
+      name: "requests_resolved_by_fk",
+      columns: [t.firmId, t.resolvedBy],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
+    index("requests_firm_id_status_idx").on(t.firmId, t.status),
+    check(
+      "requests_type_check",
+      sql`${t.type} in ('time_change', 'swap', 'availability', 'general', 'review')`,
+    ),
+    check(
+      "requests_status_check",
+      sql`${t.status} in ('open', 'approved', 'declined', 'auto_resolved', 'escalated')`,
+    ),
+    check(
+      "requests_shift_required",
+      sql`${t.type} not in ('time_change', 'swap', 'review') or ${t.shiftId} is not null`,
+    ),
+    check("requests_payload_object", sql`jsonb_typeof(${t.payload}) = 'object'`),
+    // Unresolved requests carry no resolution; an office decision always names who and when.
+    check(
+      "requests_resolution",
+      sql`(${t.status} in ('open', 'escalated') and ${t.resolvedAt} is null and ${t.resolvedBy} is null)
+        or (${t.status} = 'auto_resolved' and ${t.resolvedAt} is not null)
+        or (${t.status} in ('approved', 'declined') and ${t.resolvedAt} is not null and ${t.resolvedBy} is not null)`,
+    ),
+    // Only an office answer carries a note, and a short one.
+    check(
+      "requests_resolution_note",
+      sql`${t.resolutionNote} is null
+        or (${t.status} in ('approved', 'declined') and char_length(${t.resolutionNote}) between 1 and 500)`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// Each shift offer sent and the worker's response: in a wave (src/lib/offers/waves.ts: `wave` set),
+// or by the office to one worker (src/lib/offers/office-offer.ts: `offered_by` set). Exactly one of
+// the two, so office offers never take a wave's number.
+export const offers = pgTable(
+  "offers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    shiftId: uuid("shift_id").notNull(),
+    workerId: uuid("worker_id").notNull(),
+    wave: integer("wave"),
+    offeredBy: uuid("offered_by"),
+    channel: text("channel", { enum: OFFER_CHANNELS }).notNull(),
+    sentAt: timestamptz("sent_at").notNull().defaultNow(),
+    respondedAt: timestamptz("responded_at"),
+    response: text("response", { enum: OFFER_RESPONSES }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("offers_firm_id_id_key").on(t.firmId, t.id),
+    // One offer per worker per wave, so a retried offer-wave job (key shift:wave) sends nothing new.
+    unique("offers_firm_id_shift_id_worker_id_wave_key").on(
+      t.firmId,
+      t.shiftId,
+      t.workerId,
+      t.wave,
+    ),
+    foreignKey({
+      name: "offers_shift_fk",
+      columns: [t.firmId, t.shiftId],
+      foreignColumns: [shifts.firmId, shifts.id],
+    }),
+    foreignKey({
+      name: "offers_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }),
+    foreignKey({
+      name: "offers_offered_by_fk",
+      columns: [t.firmId, t.offeredBy],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
+    // One office offer per worker per shift (a retried office-offer job sends nothing new).
+    uniqueIndex("offers_one_office_offer_per_worker")
+      .on(t.firmId, t.shiftId, t.workerId)
+      .where(sql`${t.wave} is null`),
+    // The daily offer cap counts a worker's offers by sent_at.
+    index("offers_firm_id_worker_id_sent_at_idx").on(t.firmId, t.workerId, t.sentAt),
+    check("offers_wave_positive", sql`${t.wave} >= 1`),
+    check("offers_wave_or_office", sql`(${t.wave} is null) = (${t.offeredBy} is not null)`),
+    check("offers_channel_check", sql`${t.channel} in ('push', 'whatsapp', 'sms')`),
+    check(
+      "offers_response_check",
+      sql`${t.response} in ('accepted', 'declined', 'expired', 'filled_elsewhere', 'failed')`,
+    ),
+    check("offers_response_has_time", sql`(${t.response} is null) = (${t.respondedAt} is null)`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+export const REMINDER_KINDS = ["24h", "2h"] as const;
+// sending: claimed and being sent (left so if the job stopped part-way: it may have gone, so it's
+// never sent again); sent; failed (not resent: it may have arrived); skipped (never sent: quiet
+// hours would have held it past its window).
+export const REMINDER_STATUSES = ["sending", "sent", "failed", "skipped"] as const;
+
+// Each shift reminder a booking got (src/lib/reminders/send.ts), or why it didn't: one row per
+// booking, reminder and start time, written before the message goes, so a retried job never sends
+// one twice and a shift moved to a new time gets new reminders. Evidence (a no-show dispute), so
+// never deleted by the app.
+export const shiftReminders = pgTable(
+  "shift_reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    assignmentId: uuid("assignment_id").notNull(),
+    kind: text("kind", { enum: REMINDER_KINDS }).notNull(),
+    // The start time the reminder was for.
+    startsAt: timestamptz("starts_at").notNull(),
+    status: text("status", { enum: REMINDER_STATUSES }).notNull(),
+    // How the message went, or was going (null when skipped).
+    channel: text("channel", { enum: ["whatsapp", "sms"] }),
+    // When the reminder was claimed (just before sending) or skipped.
+    recordedAt: timestamptz("recorded_at").notNull().defaultNow(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("shift_reminders_firm_id_id_key").on(t.firmId, t.id),
+    unique("shift_reminders_once_key").on(t.firmId, t.assignmentId, t.kind, t.startsAt),
+    foreignKey({
+      name: "shift_reminders_assignment_fk",
+      columns: [t.firmId, t.assignmentId],
+      foreignColumns: [assignments.firmId, assignments.id],
+    }),
+    check("shift_reminders_kind_check", sql`${t.kind} in ('24h', '2h')`),
+    check(
+      "shift_reminders_status_check",
+      sql`${t.status} in ('sending', 'sent', 'failed', 'skipped')`,
+    ),
+    check("shift_reminders_channel_check", sql`${t.channel} in ('whatsapp', 'sms')`),
+    check(
+      "shift_reminders_channel_unless_skipped",
+      sql`(${t.status} = 'skipped') = (${t.channel} is null)`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+export const ROSTER_SOURCE_KINDS = ["sheets"] as const;
+
+// Where a firm's rota lives when it isn't our own tables (native firms have no row). The column
+// mapping is validated in code (src/lib/roster/sheets/mapping.ts). Credentials are ours, not the
+// firm's: the firm shares its sheet with our service account, so nothing secret is stored here.
+export const rosterSources = pgTable(
+  "roster_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    kind: text("kind", { enum: ROSTER_SOURCE_KINDS }).notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    spreadsheetId: text("spreadsheet_id").notNull(),
+    mapping: jsonb("mapping").$type<Record<string, unknown>>().notNull(),
+    lastSyncedAt: timestamptz("last_synced_at"),
+    // The last sync that ran, success or not: failures back off from it (cadence.ts).
+    lastAttemptedAt: timestamptz("last_attempted_at"),
+    // A short code only (e.g. "sheet_not_shared"), never a message or a cell's contents.
+    lastErrorCode: text("last_error_code"),
+    // A sync holds this lease while it runs, so two syncs of one firm never overlap.
+    syncStartedAt: timestamptz("sync_started_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    // One enabled source per firm; an old one can be kept, disabled.
+    uniqueIndex("roster_sources_one_enabled_per_firm")
+      .on(t.firmId)
+      .where(sql`enabled`),
+    // A spreadsheet belongs to one firm (audit L45). Every firm shares its sheet with the same
+    // service account, so the id is all that ties a sheet to a firm: the index sees every firm's
+    // rows (RLS can't), so no firm can be pointed at a sheet another firm already uses. Set only
+    // by the owner (npm run firm:sheet); the app may change only the sync's status columns
+    // (src/lib/db/admin/access.ts).
+    uniqueIndex("roster_sources_spreadsheet_id_key").on(t.spreadsheetId),
+    check("roster_sources_kind_check", sql`${t.kind} in ('sheets')`),
+    check(
+      "roster_sources_spreadsheet_id_format",
+      sql`${t.spreadsheetId} ~ '^[A-Za-z0-9_-]{20,100}$'`,
+    ),
+    check("roster_sources_mapping_object", sql`jsonb_typeof(${t.mapping}) = 'object'`),
+    check("roster_sources_error_code_format", sql`${t.lastErrorCode} ~ '^[a-z_]{1,50}$'`),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();

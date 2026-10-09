@@ -1,0 +1,12 @@
+{
+  "results": [
+    {
+      "search_id": "search",
+      "locations": [
+        { "id": "o1", "properties": [{ "travel_time": 1080, "distance": 11587 }] },
+        { "id": "o2", "properties": [{ "travel_time": 2461, "distance": 30410 }] }
+      ],
+      "unreachable": ["o3"]
+    }
+  ]
+}

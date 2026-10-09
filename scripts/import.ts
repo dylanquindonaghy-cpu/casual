@@ -1,0 +1,77 @@
+import { parseArgs } from "node:util";
+import { resolveFirmBySlug } from "../src/lib/db/directory";
+import { withFirm } from "../src/lib/db/scoped";
+import { ImportFileError } from "../src/lib/imports/errors";
+import { AgreementNotRecorded } from "../src/lib/imports/gate-b";
+import { importFromFile, ImportSetupError } from "../src/lib/imports/from-file";
+import { errorCode } from "../src/lib/jobs/firm-job";
+import { FILE_ERROR_TEXT, summarise } from "../src/lib/imports/messages";
+import { appEnv } from "../src/lib/env";
+import { gateBCheck } from "./import-gate-b";
+
+// Imports workers, credentials or shifts for a firm from a .csv or .xlsx file, as one of its office
+// users, until the office import screen exists (Phase 5). A dry run unless --apply is given.
+//
+//   npm run import -- --firm acme --kind workers --as acme.admin@example.com ./workers.csv
+//   npm run import -- --firm acme --kind workers --as acme.admin@example.com ./workers.csv --apply
+//
+// It connects as the restricted app role (DATABASE_URL), inside the firm's own withFirm
+// transaction, exactly as the web app will. Real data only after Gate B (PLAN.md Phase 9).
+
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: {
+    firm: { type: "string" },
+    kind: { type: "string" },
+    as: { type: "string" },
+    apply: { type: "boolean", default: false },
+    // On a live database, saving (--apply) needs the firm's slug repeated here: the agreement and
+    // DPA are signed for it (Gate B; scripts/import-gate-b.ts).
+    "agreement-signed": { type: "string" },
+  },
+});
+
+const [path] = positionals;
+if (!values.firm || !values.kind || !values.as || !path || positionals.length !== 1) {
+  console.error(
+    "Usage: npm run import -- --firm <slug> --kind workers|credentials|shifts|pay --as <office email> <file> [--apply [--agreement-signed <slug>]]",
+  );
+  process.exit(2);
+}
+
+const gate = gateBCheck({
+  apply: values.apply,
+  databaseUrl: appEnv().DATABASE_URL,
+  firm: values.firm,
+  agreementSigned: values["agreement-signed"],
+});
+if (!gate.ok) {
+  console.error(
+    gate.reason === "wrong_firm"
+      ? `--agreement-signed must repeat this firm's slug (${values.firm}). Nothing was saved.`
+      : `This is a live database: real data goes in only once ${values.firm}'s agreement and DPA are signed (Gate B). If they are, add --agreement-signed ${values.firm}. Nothing was saved.`,
+  );
+  process.exit(2);
+}
+
+try {
+  const result = await importFromFile(
+    { firmSlug: values.firm, kind: values.kind, officeEmail: values.as, path, apply: values.apply },
+    { run: withFirm, resolveFirm: resolveFirmBySlug },
+  );
+  console.log(summarise(result));
+  if (result.dryRun) console.log("Run it again with --apply to save it.");
+  process.exit(0);
+} catch (err) {
+  if (err instanceof ImportFileError) console.error(FILE_ERROR_TEXT[err.code]);
+  else if (err instanceof ImportSetupError) console.error(err.message);
+  // Gate B, recorded (src/lib/imports/gate-b.ts): the typed --agreement-signed isn't enough alone.
+  else if (err instanceof AgreementNotRecorded) {
+    console.error(
+      `${values.firm}'s agreement and DPA aren't recorded as signed in this database. Record them first: npm run firm:agreement -- --firm ${values.firm} --signed <the date they were signed>. Nothing was saved.`,
+    );
+  }
+  // Anything else: a code only. A database error's message can quote a row (names, numbers).
+  else console.error(`The import failed (${errorCode(err)}). Nothing was saved.`);
+  process.exit(1);
+}

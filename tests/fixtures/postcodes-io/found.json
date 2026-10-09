@@ -1,0 +1,41 @@
+{
+  "status": 200,
+  "result": {
+    "postcode": "ZZ1 1AA",
+    "quality": 1,
+    "eastings": 430000,
+    "northings": 433000,
+    "country": "England",
+    "nhs_ha": "Exampleton",
+    "longitude": -1.5312347,
+    "latitude": 53.8312345,
+    "european_electoral_region": "Exampleton",
+    "primary_care_trust": "Exampleton",
+    "region": "Exampleton",
+    "lsoa": "Exampleton 001A",
+    "msoa": "Exampleton 001",
+    "incode": "1AA",
+    "outcode": "ZZ1",
+    "parliamentary_constituency": "Exampleton Central",
+    "admin_district": "Exampleton",
+    "parish": "Exampleton, unparished area",
+    "admin_county": null,
+    "date_of_introduction": "198001",
+    "admin_ward": "Exampleton Central",
+    "ced": null,
+    "ccg": "NHS Exampleton",
+    "nuts": "Exampleton",
+    "pfa": "Exampleshire",
+    "codes": {
+      "admin_district": "E00000000",
+      "admin_county": "E99999999",
+      "admin_ward": "E00000001",
+      "parish": "E43000000",
+      "parliamentary_constituency": "E14000000",
+      "ccg": "E38000000",
+      "nuts": "TLE00",
+      "lsoa": "E01000000",
+      "msoa": "E02000000"
+    }
+  }
+}

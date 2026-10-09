@@ -1,0 +1,15 @@
+# Runs /opt/shiftdesk/deploy.sh once (docs/runbooks.md "Deploy"): pulls and starts a new ShiftDesk
+# image if there is one. Started every 2 minutes by shiftdesk-deploy.timer. Its output is in
+# `journalctl -u shiftdesk-deploy`.
+[Unit]
+Description=ShiftDesk: deploy a new image if there is one
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/shiftdesk
+ExecStart=/opt/shiftdesk/deploy.sh
+# A hung pull or migration mustn't block every later run (the timer won't start a run still going).
+TimeoutStartSec=20min

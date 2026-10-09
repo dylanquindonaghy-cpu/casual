@@ -1,0 +1,9 @@
+{
+  "results": [
+    {
+      "search_id": "search",
+      "locations": [{ "id": "o1", "properties": [{ "travel_time": 2460 }] }],
+      "unreachable": ["o2", "o3"]
+    }
+  ]
+}

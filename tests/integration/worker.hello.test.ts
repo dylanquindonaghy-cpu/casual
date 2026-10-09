@@ -1,9 +1,18 @@
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  ESCALATE_SHIFT_QUEUE,
+  escalateShiftPayload,
+  OFFER_WAVE_QUEUE,
+  offerWavePayload,
+} from "@/lib/offers/waves";
+import { PAY_QUERY_UPDATE_QUEUE, payQueryUpdatePayload } from "@/lib/notices/pay-query-update";
+import { inboundMessageJob } from "@/lib/inbound/job";
+import { payDigestJob } from "@/lib/pay/digest";
 import { createBoss } from "@/worker/boss";
 import { registerJobs } from "@/worker/jobs";
 import { HELLO_QUEUE } from "@/worker/jobs/hello";
-import { testDatabaseUrl } from "../setup/test-db";
+import { urls } from "../helpers/db";
 
 async function waitForFinalState(boss: PgBoss, id: string, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
@@ -15,13 +24,32 @@ async function waitForFinalState(boss: PgBoss, id: string, timeoutMs = 15_000) {
   throw new Error(`job ${id} did not finish within ${timeoutMs} ms`);
 }
 
-describe("worker (real pg-boss on the test database)", () => {
+describe("worker (real pg-boss on the test database, as the jobs role)", () => {
   let boss: PgBoss;
 
   beforeAll(async () => {
-    boss = createBoss(testDatabaseUrl());
+    boss = createBoss(urls.jobs);
     await boss.start();
-    await registerJobs(boss);
+    // Offer jobs, a payroll digest and pay query notices that do nothing: this real worker mustn't
+    // pick up another test file's queued jobs (it would message and write for them with the real
+    // clock).
+    await registerJobs(boss, {
+      payDigest: { ...payDigestJob, task: async () => null },
+      inboundMessages: { ...inboundMessageJob, task: async () => null },
+      payQueryUpdates: {
+        queue: PAY_QUERY_UPDATE_QUEUE,
+        schema: payQueryUpdatePayload,
+        task: async () => null,
+      },
+      offers: {
+        wave: { queue: OFFER_WAVE_QUEUE, schema: offerWavePayload, task: async () => null },
+        escalate: {
+          queue: ESCALATE_SHIFT_QUEUE,
+          schema: escalateShiftPayload,
+          task: async () => null,
+        },
+      },
+    });
   });
   afterAll(async () => {
     await boss.stop({ graceful: false });

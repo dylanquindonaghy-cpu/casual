@@ -21,6 +21,12 @@ mechanically impossible without it.
                                          are blocked unless the stamp is valid.
 ```
 
+What the stamp covers: typecheck, lint, the unit and integration tests and the safety checks
+always; with `RUN_E2E=1` (`"e2e": true` in the stamp) also the browser tests, which since Phase 10
+task 20 include the walkthrough run against a **production build** (`next build`, then
+`next start`: `playwright.walkthrough.config.ts`). A stamp with `"e2e": false` doesn't prove the
+production build.
+
 Only Layer 1 can create a passing stamp, and the stamp is tied to a fingerprint of the working
 tree. Change one byte after it passed and the stamp is stale. So the sequence is forced:
 verify → audit → tick, in that order, on those exact files.

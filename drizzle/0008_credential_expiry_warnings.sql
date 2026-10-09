@@ -1,0 +1,3 @@
+ALTER TABLE "credentials" ADD COLUMN "expiry_warned_for" date;--> statement-breakpoint
+ALTER TABLE "credentials" ADD COLUMN "expiry_warned_days" smallint;--> statement-breakpoint
+ALTER TABLE "credentials" ADD CONSTRAINT "credentials_expiry_warned_days" CHECK (("credentials"."expiry_warned_for" is null) = ("credentials"."expiry_warned_days" is null) and "credentials"."expiry_warned_days" in (30, 14, 7));

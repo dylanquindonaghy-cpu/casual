@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "result": {
+    "postcode": "ZZ9 9ZZ",
+    "quality": 9,
+    "eastings": null,
+    "northings": null,
+    "country": "England",
+    "longitude": null,
+    "latitude": null,
+    "incode": "9ZZ",
+    "outcode": "ZZ9",
+    "admin_district": "Exampleton",
+    "codes": {}
+  }
+}

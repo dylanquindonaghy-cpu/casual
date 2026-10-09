@@ -57,6 +57,9 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   // keeps AI off if .env switches it on (scripts/invariants.sh checks these lines stay).
   AI_TRANSPORT: "none",
   ANTHROPIC_API_KEY: "",
+  // Never postcodes.io or TravelTime: the made-up points for the ZZ postcodes (the e2e servers
+  // don't run with NODE_ENV=test, so this pin is what keeps them off).
+  TRAVEL_PROVIDER: "fake",
 });
 const env = serverEnv(PORT, OUTBOX);
 

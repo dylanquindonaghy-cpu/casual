@@ -10,7 +10,8 @@ import { editSitePostcodeAction } from "./actions";
 
 const failed = { status: "error" as const };
 
-// One site's postcode: "Save postcode". Refused while booked sessions to come use the site.
+// One site's postcode: "Save postcode" (looked up first: one it can't find saves nothing). Refused
+// while booked sessions to come use the site.
 export function SitePostcodeForm({
   siteId,
   name,
@@ -33,7 +34,7 @@ export function SitePostcodeForm({
         startTransition(async () => {
           const result = await editSitePostcodeAction(siteId, value).catch(() => failed);
           setMessage(sitePostcodeResultText(result));
-          if (result.status === "saved") router.refresh();
+          if (result.status === "saved" || result.status === "located") router.refresh();
         });
       }}
     >

@@ -99,6 +99,7 @@ describe("deploy/docker-compose.yml", () => {
         "NODE_ENV",
         "OFFLINE_COPY", // the phones' offline copy on or off (not a secret; Phase 10 task 17)
         "SESSION_SECRET",
+        "TRAVEL_PROVIDER", // postcode look-ups on Settings and Profile (not a secret; 12G.1)
         "TWILIO_AUTH_TOKEN",
         "VAPID_PUBLIC_KEY",
       ].sort(),

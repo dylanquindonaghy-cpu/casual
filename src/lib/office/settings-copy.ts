@@ -50,14 +50,28 @@ export function strikesEmailResultText(result: SaveStrikesEmailResult | Common):
   }
 }
 
+// Whether a site's location is known (12G.1): travel times need it.
+export function siteLocationText(site: { postcode: string | null; located: boolean }): string {
+  if (!site.postcode) return "No postcode yet, so distances to this site can't be worked out.";
+  return site.located
+    ? "Location found."
+    : "Location not looked up yet: save the postcode again to look it up.";
+}
+
 export function sitePostcodeResultText(
   result: EditSitePostcodeResult | Common | { status: "not_allowed" },
 ): string {
   switch (result.status) {
     case "saved":
       return "Saved.";
+    case "located":
+      return "Saved. Its location was found.";
     case "unchanged":
       return "Nothing changed.";
+    case "unknown_postcode":
+      return "We couldn't find that postcode, so nothing changed. Check it and try again.";
+    case "lookup_failed":
+      return "We couldn't look that postcode up just now, so nothing changed. Try again in a few minutes.";
     case "in_use":
       return result.sessions === 1
         ? "1 booked session uses this site: move it first."

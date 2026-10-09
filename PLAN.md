@@ -2828,6 +2828,22 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   strikes team still holds the evidence. Today the record says "The evidence email had already gone
   to the strikes team: let them know it's withdrawn." An automatic "withdrawn" email (same queue
   and claim as the evidence email, its own template) would close the loop: its own task.
+- **Connect postcodes.io and TravelTime** (12G.1 built the postcode look-up; 12G.2 adds travel
+  times). Until then `TRAVEL_PROVIDER=fake`: made-up points for the `ZZ` postcodes only, so a real
+  postcode is "not found" on Settings and on a casual's "Where you work". postcodes.io needs no
+  account or key; TravelTime needs an account and a production quote (Checks 14).
+  **Who does what:** steps marked **You** are yours; steps marked **Claude** come after.
+  1. **You:** sign `docs/dpia-travel.md` (with its balancing test) and decide postcodes.io and
+     TravelTime are acceptable sub-processors (Legal 2); for TravelTime, get the production quote
+     and accept its data processing agreement.
+  2. **Claude:** check the hand-written postcodes.io answers (`tests/fixtures/postcodes-io/`)
+     against one live answer for a public postcode (a council office's, never a casual's), and
+     correct the parser if the shape differs. Nothing personal is sent.
+  3. **You:** put `TRAVEL_PROVIDER=traveltime` (and 12G.2's TravelTime keys) in the server's
+     `.env`; then save one site's postcode on Settings and check it says "Location found."
+  Also: `scripts/invariants.sh` checks the test setups' pins for email, AI and Twilio but not yet
+  `TRAVEL_PROVIDER` (pinned to `fake` in `tests/setup/env.ts` and `serverEnv()` since 12G.1).
+  Adding it changes a protected file, so it's Dylan's call: two lines like the AI ones.
 - Strikes' log entries (12C.5 review): when the action log's purge is built (Data 2), it should
   delete a strike's `strike.*` entries when the strike's row goes (12 months), so a `strike.reviewed`
   entry can't hint at a health or caring reason for longer than the strike itself is kept

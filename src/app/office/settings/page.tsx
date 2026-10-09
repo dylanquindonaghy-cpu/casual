@@ -5,7 +5,7 @@ import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
-import { strikesEmailStatus } from "@/lib/office/settings-copy";
+import { siteLocationText, strikesEmailStatus } from "@/lib/office/settings-copy";
 import { officeSettingsPage } from "@/lib/office/settings-page";
 import { SitePostcodeForm } from "./site-postcode-form";
 import { StrikesEmailForm } from "./strikes-email-form";
@@ -65,6 +65,7 @@ export default async function SettingsPage() {
                       : `${site.bookedSessions} booked sessions to come.`}
                   </p>
                 )}
+                <p className="text-sm text-ink-muted">{siteLocationText(site)}</p>
                 <SitePostcodeForm siteId={site.siteId} name={site.name} postcode={site.postcode} />
               </li>
             ))}

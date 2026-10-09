@@ -5,6 +5,8 @@ import {
   date,
   foreignKey,
   index,
+  integer,
+  numeric,
   pgTable,
   smallint,
   text,
@@ -12,6 +14,12 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
+import {
+  TRAVEL_MINUTES,
+  TRAVEL_MODES,
+  type TravelMinutes,
+  type TravelMode,
+} from "../../travel/modes";
 import { firms, sites } from "./tenancy";
 
 // Links between firm tables use composite foreign keys (firm_id, x_id) -> parent (firm_id, id).
@@ -267,6 +275,55 @@ export const pushSubscriptions = pgTable(
       "push_subscriptions_endpoint_https",
       sql`${t.endpoint} like 'https://%' and length(${t.endpoint}) <= 2048`,
     ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// A casual's travel area (docs/office-v2.md 4.6, 5.4; S8; 12G.1): where they start from (a postcode,
+// which can differ from home, and its central point: never a house number, GPS or movement), how
+// they travel and their time limit. Set on /profile/travel; one row per casual. A table of its own,
+// so the erased-worker check above is unchanged. The office sees the district only ("ZZ1"). Deleted
+// when the office makes them inactive as "They've left" and when they're erased; in their export.
+// Never in the log (travel.profile_changed names what changed and the time limit only).
+export { TRAVEL_MINUTES, TRAVEL_MODES, type TravelMinutes, type TravelMode };
+
+export const workerTravel = pgTable(
+  "worker_travel",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    startPostcode: text("start_postcode").notNull(), // tidy: "ZZ1 1AA"
+    lat: numeric("lat", { precision: 9, scale: 6 }).notNull(),
+    lng: numeric("lng", { precision: 9, scale: 6 }).notNull(),
+    modes: text("modes", { enum: TRAVEL_MODES }).notNull(),
+    maxMinutes: integer("max_minutes").notNull(),
+    // The wording of the page's privacy line they saw when they saved (TRAVEL_NOTICE_VERSION).
+    privacyNoticeVersion: text("privacy_notice_version").notNull(),
+    updatedAt: timestamptz("updated_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("worker_travel_firm_id_id_key").on(t.firmId, t.id),
+    unique("worker_travel_one_per_worker").on(t.firmId, t.workerId),
+    foreignKey({
+      name: "worker_travel_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }).onDelete("cascade"),
+    check(
+      "worker_travel_postcode_check",
+      sql`${t.startPostcode} ~ '^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$'`,
+    ),
+    check(
+      "worker_travel_point_check",
+      sql`${t.lat} between -90 and 90 and ${t.lng} between -180 and 180`,
+    ),
+    check("worker_travel_modes_check", sql`${t.modes} in ('car', 'public_transport', 'both')`),
+    check("worker_travel_minutes_check", sql`${t.maxMinutes} in (30, 45, 60, 90)`),
+    check("worker_travel_notice_check", sql`length(${t.privacyNoticeVersion}) between 1 and 40`),
     firmIsolation(t.firmId),
   ],
 ).enableRLS();

@@ -14,8 +14,11 @@ reviewed once by a solicitor before the first pilot.
   checked first: ADR-021), Twilio (numbers, SMS, WhatsApp, voice), Meta (WhatsApp), ElevenLabs (only
   if the AI phone add-on is used), Google (only for a firm whose rota is a Google Sheet: our Google
   Cloud service account reads and writes the sheet the firm shares with it; the sheet itself stays
-  in the firm's own Google account). List them in the DPA. Twilio, Meta, ElevenLabs and Google are
-  US-linked: check each one's DPA and UK transfer terms. **Dylan to confirm** the Google line with
+  in the firm's own Google account), postcodes.io (turns a postcode into its central point: only the
+  postcode is sent, never who it's for) and TravelTime (travel times, from 12G.2: coordinates and
+  meaningless ids only), both only once `TRAVEL_PROVIDER=traveltime` (`docs/dpia-travel.md`). List
+  them in the DPA. Twilio, Meta, ElevenLabs and Google are US-linked: check each one's DPA and UK
+  transfer terms. **Dylan to confirm** the Google line with
   the solicitor (added in Phase 10 task 10).
 
 ## Data processing agreement (must cover)
@@ -77,6 +80,7 @@ floor, and that a hold covers the whole firm (not one worker).
 | The words typed into a request (a note, a colleague's name) | 12 months by default, counted from when the request closed (built: removed, the request stays). An open or escalated request keeps them. (Phase 8 built 90 days from creation, with no "Dylan to confirm"; Phase 10 put back the spec's 12 months) |
 | The office's typed reason for placing someone despite a rule | On the booking, not in the log; the same 12 months from the booking (built) |
 | Strikes (a casual's own late cancellations, 12C.1) | The strike counts 90 days (`strikes.live_days`); its row is deleted 12 months after it was issued (`strikes.keep_months`, which must cover the time a strike counts plus 6 months, the tribunal limit; the purge never deletes a strike that stopped counting less than 6 months ago), nothing during a hold (built: the nightly purge). The office's reason for withdrawing one (12C.5) goes with its row, or when the casual is erased. Its `strike.issued`, `strike.withdrawn` and `strike.reviewed` log entries (ids and hours, never a reason or the review flag) stay with the action log. A DPIA comes first: `docs/dpia-strikes.md` |
+| A casual's travel area (12G.1: their start-from postcode and its central point, how they travel, their limit) | While they keep it: deleted when they remove it, when the office makes them inactive as "They've left", and on erasure (built). Never in the action log. A DPIA and the legitimate-interests balancing test come first: `docs/dpia-travel.md` |
 | Call audio | We store none: only a voicemail's text. But Twilio records every voicemail (up to 2 minutes) to transcribe it, and keeps the recording until it's deleted there: a deletion job comes with the Twilio sender ("Connect Twilio", "Before going live") |
 | Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |

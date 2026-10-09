@@ -31,10 +31,11 @@ architecture.md, Tenancy).
 | workers | Casual staff: name, mobile, email, status, roles, how we reach them (WhatsApp or text) and whether they want open-shift alerts | 1 |
 | worker_unavailable_days | Days a worker marked as "can't work" on their profile (one row per firm-local day) | 3 |
 | worker_site_blocks | Sites a worker may not work at (rules check 9), set by the office with a reason | 10 |
+| worker_travel | A casual's travel area: start postcode and its central point, ways of travelling, time limit (12G.1, S8) | 12 |
 | credentials | Licences/cards per worker: type, number, expiry, status | 1 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
-| sites | Venues/sites (address; lat/lng kept for Stage 3) | 1 |
+| sites | Venues/sites (address; the postcode's central point in lat/lng, looked up when the postcode is saved: 12G.1) | 1 |
 | shift_events | Events: the sessions (shifts) of one job, with a "show to casuals" switch. Not `events`, the action log | 12 |
 | shifts | Sessions: site, role, start/end, headcount, urgent flag, source; their event, pay rate, post, meeting point, uniform, extra requirements and "show to casuals" switch (12B.1) | 2 |
 | assignments | Worker on a shift slot: open → (offered) → confirmed → cancelled/no-show/completed; how a cancellation was made and the strike warning the casual confirmed against (12C.1) | 2 |
@@ -100,6 +101,11 @@ how long a strike counts) and `strikes.keep_months` (12, 7 to 72: when its row i
 inside the 6-month tribunal limit; `firm:settings` accepts it only if it covers `live_days` plus 6
 months, a month counted as 28 days, so with 90 days counting the shortest is 10).
 
+The owner's travel setting (12G.1), read by `src/lib/travel/settings.ts`:
+`travel.default_max_minutes` (45; 30, 45, 60 or 90): a casual's time limit on `/profile/travel`
+until they choose their own. Which look-up service is used is a server setting
+(`TRAVEL_PROVIDER`), never per firm.
+
 ## DDL sketch (Postgres)
 
 ```sql
@@ -147,7 +153,7 @@ create table sites (
   firm_id uuid not null references firms(id),
   name text not null,
   address_line1 text, address_line2 text, town text, postcode text,
-  lat numeric(9,6), lng numeric(9,6),   -- Stage 3 only
+  lat numeric(9,6), lng numeric(9,6),   -- the postcode's central point (12G.1), saved with it
   notes text,
   created_at timestamptz not null default now(),
   unique (firm_id, id),
@@ -228,6 +234,29 @@ create table worker_site_blocks (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, worker_id, site_id)
+);
+
+-- A casual's travel area (12G.1; S8; docs/office-v2.md 4.6, 5.4; docs/dpia-travel.md), set on
+-- /profile/travel: where they start from (a postcode, which needn't be home, and its central point
+-- from the geocoder: never a house number, GPS or movement), how they travel and their time limit.
+-- A table of its own so the workers_erased check is unchanged. The office reads the district only
+-- (split_part(start_postcode, ' ', 1), in SQL). Deleted by the casual ("Remove my travel area"),
+-- when the office makes them inactive as "They've left", and on erasure; in their export. Events:
+-- travel.profile_changed {changed: ["postcode" | "modes" | "maxMinutes"], maxMinutes} and
+-- travel.profile_removed {}: never the postcode or its point.
+create table worker_travel (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers, on delete cascade
+  start_postcode text not null,          -- tidy UK format, e.g. 'ZZ1 1AA'
+  lat numeric(9,6) not null, lng numeric(9,6) not null,
+  modes text not null,                   -- car | public_transport | both
+  max_minutes integer not null,          -- 30 | 45 | 60 | 90
+  privacy_notice_version text not null,  -- the page's privacy line they saw (travel-v1)
+  updated_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, worker_id)
 );
 
 create table credentials (

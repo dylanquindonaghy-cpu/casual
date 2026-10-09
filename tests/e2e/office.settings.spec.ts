@@ -80,15 +80,21 @@ test("an admin saves the strikes team's email and its link confirms it; a site's
     await page.reload();
     await expect(page.getByText("Confirmed", { exact: true })).toBeVisible();
 
-    // A site with no bookings to come: its postcode changes.
+    // A site with no bookings to come: its postcode changes. One the look-up doesn't know saves
+    // nothing (12G.1); a known one is saved with its location.
     const site = page.getByRole("listitem").filter({ hasText: SITE });
+    await site.getByLabel("Postcode", { exact: true }).fill("zz0 0aa");
+    await site.getByRole("button", { name: `Save postcode: ${SITE}` }).click();
+    await expect(
+      site.getByRole("status").filter({ hasText: "We couldn't find that postcode" }),
+    ).toBeVisible();
     await site.getByLabel("Postcode", { exact: true }).fill("zz9 9zz");
     await site.getByRole("button", { name: `Save postcode: ${SITE}` }).click();
     await expect(site.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
     await page.reload();
-    await expect(
-      page.getByRole("listitem").filter({ hasText: SITE }).getByLabel("Postcode", { exact: true }),
-    ).toHaveValue("ZZ9 9ZZ");
+    const saved = page.getByRole("listitem").filter({ hasText: SITE });
+    await expect(saved.getByLabel("Postcode", { exact: true })).toHaveValue("ZZ9 9ZZ");
+    await expect(saved.getByText("Location found.")).toBeVisible();
   } finally {
     await cancelOwnShift("acme", shiftId);
   }

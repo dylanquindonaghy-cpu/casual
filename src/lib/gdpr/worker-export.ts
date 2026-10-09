@@ -20,9 +20,10 @@ import {
   shifts,
   sites,
   strikes,
-  workerSiteBlocks,
-  workerUnavailableDays,
   workers,
+  workerSiteBlocks,
+  workerTravel,
+  workerUnavailableDays,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -34,7 +35,8 @@ import { renumberEvents } from "./event-numbers";
 
 // A worker's data, for a subject access request (docs/runbooks.md "GDPR requests"; UK GDPR: send
 // it within a month). Everything this firm holds about one worker: their details, credentials,
-// days off, bookings, strikes (12C.1), offers, requests, reminders, pay lines, pay queries, shifts-line messages
+// days off, their travel area (12G.1), bookings, strikes (12C.1), offers, requests, reminders,
+// pay lines, pay queries, shifts-line messages
 // (with messages from or to their number from before it was known), the action log's rows about
 // them, the shifts those were about, and when they logged in. Every column as stored, except the
 // firm and worker ids on each row and the login secrets (link, session and code hashes, and a
@@ -120,6 +122,11 @@ export async function collectWorkerData(
     )
     .where(eq(workerSiteBlocks.workerId, workerId))
     .orderBy(asc(sites.name));
+  // Their travel area (12G.1): the start postcode, its point, how they travel and their limit.
+  const travelArea = await tx
+    .select(columnsOf(workerTravel))
+    .from(workerTravel)
+    .where(eq(workerTravel.workerId, workerId));
   const bookings = await tx
     .select(columnsOf(assignments))
     .from(assignments)
@@ -242,6 +249,7 @@ export async function collectWorkerData(
       credentials: credentialRows,
       daysUnavailable: daysOff,
       siteBlocks,
+      travelArea,
       bookings,
       strikes: strikeRows,
       offers: offerRows,

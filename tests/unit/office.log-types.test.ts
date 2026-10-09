@@ -48,6 +48,8 @@ const NOT_EVENTS = new Set<string>([
   "strikes.notice_hours",
   "strikes.live_days",
   "strikes.keep_months",
+  // The owner's travel default (12G.1), in src/lib/onboarding/settings.ts.
+  "travel.default_max_minutes",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
   // The evidence email's job queue (src/lib/strikes/evidence-queue.ts, 12C.4; the task's own name).

@@ -32,6 +32,7 @@ export const EXPECTED_TABLES = [
   "sites",
   "strikes",
   "worker_site_blocks",
+  "worker_travel",
   "worker_unavailable_days",
   "workers",
 ] as const;
@@ -219,6 +220,13 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, $3, 'client_asked')`,
     [firmId, workerId, siteId],
   );
+  const travelId = await one(
+    su,
+    `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes, max_minutes,
+                                privacy_notice_version, updated_at)
+     values ($1, $2, 'ZZ1 1AA', 53.83, -1.53, 'both', 45, 'travel-v1', now())`,
+    [firmId, workerId],
+  );
   const pushSubscriptionId = await one(
     su,
     `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -293,6 +301,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       pay_records: payRecordId,
       worker_unavailable_days: unavailableDayId,
       worker_site_blocks: siteBlockId,
+      worker_travel: travelId,
       strikes: strikeId,
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
@@ -397,6 +406,15 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   worker_site_blocks: (firmId, p) => ({
     text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
     values: [firmId, p.workerId, p.rosterSiteId],
+  }),
+  // One per casual: a new casual, then their travel area.
+  worker_travel: (firmId) => ({
+    text: `with w as (insert into workers (firm_id, first_name, last_name, mobile_e164)
+                      values ($1, 'Probe', 'Traveller', $2) returning id)
+           insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes,
+                                      max_minutes, privacy_notice_version, updated_at)
+           select $1, w.id, 'ZZ2 2BB', 53.86, -1.51, 'car', 30, 'travel-v1', now() from w`,
+    values: [firmId, fakeMobile()],
   }),
   // One strike per booking, so each gets its own cancelled booking.
   strikes: (firmId, p) => strikeOnNewBooking(firmId, p),
@@ -541,6 +559,12 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into worker_site_blocks (firm_id, worker_id, site_id, reason, blocked_by)
            values ($1, $2, $3, 'incident', $4)`,
     values: [firmId, own.rosterWorkerId, own.rosterSiteId, other.officeUserId],
+  }),
+  worker_travel_worker_fk: (firmId, _own, other) => ({
+    text: `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes,
+                                      max_minutes, privacy_notice_version, updated_at)
+           values ($1, $2, 'ZZ3 3CC', 53.89, -1.49, 'car', 60, 'travel-v1', now())`,
+    values: [firmId, other.rosterWorkerId],
   }),
   push_subscriptions_worker_fk: (firmId, _own, other) => ({
     text: "insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth) values ($1, $2, $3, 'k', 'a')",

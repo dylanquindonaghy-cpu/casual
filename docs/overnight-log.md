@@ -10647,3 +10647,65 @@ end-of-phase audit (12I.4).
 estimate for Phase 12). **Commit:** "Phase 12: Strikes page and the casual's strikes (12C.5)",
 pushed (its hash in the next entry). CI passed on the checkpoint `ce614aa`; `2a99c4d` was still
 running at commit time.
+
+(12C.5's commit: `502382f`, pushed.)
+
+## 2026-10-09 10:15 UTC — Phase 12, task 12G.1: Postcode look-ups and the casual's travel area
+
+**Task:** Postcode look-ups and the casual's travel area (§4.6, §5.4; S8; D2; Data 21), as written
+in `PLAN.md` (12G.1).
+
+**Plan:**
+- `src/lib/travel/postcode.ts`: one UK postcode format check, its tidy form ("ZZ1 1AA") and its
+  district ("ZZ1"); the Settings page's check moves here.
+- `src/lib/travel/geocoder.ts`: a `Geocoder` (postcode → its central point, "not found", or
+  "unavailable"). There are two:
+  - **fake:** fixed points for the made-up ZZ postcodes, with district ZZ0 never found;
+  - **postcodes.io:** sends only the postcode, has a 5-second limit, and its answers are checked
+    with zod.
+  - Chosen by `TRAVEL_PROVIDER` (`fake` or `traveltime`; a server setting for the web app and the
+    worker). It is pinned to `fake` in `serverEnv()` and `tests/setup/env.ts`, and `traveltime` is
+    refused under `NODE_ENV=test`.
+- **Sites:** Settings looks the postcode up before saving and stores the postcode with its point
+  in one write. An unknown postcode, or the service being down, is refused with words saying so.
+  Saving the same postcode again fills in a missing point. The Sites list shows each site's
+  location status: found, no postcode, or not looked up yet.
+- **Migration 0040:** S8's `worker_travel` (one row per casual):
+  - the start postcode and its point, the ways of travelling (car, public transport or both), the
+    time limit (30, 45, 60 or 90), when it was saved, and the privacy notice version;
+  - RLS, a composite foreign key to the casual, and full access for the app (the casual saves and
+    removes it; it's deleted on "They've left" and on erasure).
+- **`/profile/travel`:** start-from postcode, Car / Public transport / Both, and 30, 45, 60 or 90
+  minutes (the firm's `travel.default_max_minutes`, 45, until they choose). It has the district
+  line, "Save" (looked up first) and "Remove my travel area".
+  - Logged `travel.profile_changed { changed, maxMinutes }`: which settings changed and the time
+    limit only.
+  - Profile gets a "Where you work" section that links to it.
+- **The office:** the casual's page shows "Travel area: ZZ1 · 45 min, car or public transport".
+  The district is worked out in SQL, so no office loader ever reads the full postcode or the
+  point.
+- **Deletion and export:** the row is deleted when the office makes the casual inactive as
+  "They've left" and when they're erased (counted in `worker.erased`, never shown). It is in the
+  casual's export.
+- **`travel.default_max_minutes`:** added to the owner's `firm:settings` (30, 45, 60 or 90).
+- **`docs/dpia-travel.md`:** the DPIA, with the legitimate-interests balancing test and a firm
+  template.
+- **Tests:**
+  - contract tests against the fake and against recorded postcodes.io answers (never the network);
+  - `traveltime` refused under test, an unknown postcode, and only a postcode ever sent;
+  - isolation (`tenant-rows.ts`), the erased-worker check unchanged, erase and export, and deleted
+    on "They've left";
+  - the office never gets more than the district, and the change is logged without the postcode;
+  - e2e: a casual sets and changes their travel area on a phone.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| No call to the real postcodes.io tonight. The "recorded" answers are written by hand to its documented shape, with made-up ZZ postcodes and values; "Connect postcodes.io" is in the Parking lot (check the shape against the live service once) | Overnight hard limit: no outside services. Golden rule 7: made-up data only | Fetching real answers |
+| One setting picks both services: `TRAVEL_PROVIDER=fake` (the fake geocoder, and 12G.2's fake travel times) or `traveltime` (postcodes.io, and TravelTime from 12G.2) | §5.2 names one setting with these two values | A setting per service |
+| `fake` is allowed in production; the env comment and the runbook say it knows only the made-up ZZ postcodes | The walkthrough runs a production build on localhost, and a demo deploy on a real domain uses ZZ data. Refusing it would block both | Refusing `fake` in production (as console email is) |
+| A postcode is looked up as it's saved (Settings and Profile), before the write, never inside a database transaction. Unknown postcodes and a service that's down are refused, so a postcode is never stored without its point | The person saving sees at once if it's wrong; no half-saved state; no network wait while rows are locked | Saving now and looking it up in a job (needs a status column and leaves "not found" postcodes stored) |
+| The sheet sync and the file import create sites by name only (neither has a postcode column), so they have nothing to look up. Their sites show "No postcode" on Settings until someone adds one there. The planner API (12J.1) will call the same lookup | That's what those paths do today | Adding postcode columns to sheets and imports (out of scope) |
+| The casual can remove their travel area ("Remove my travel area") | Their own postcode; D2 says no area means everything is shown, so removing it is safe | Only the office could remove it |
+| The office's view shows the district, the limit and the ways of travelling, worked out in SQL | §3.7's "ZZ1 · 45 min, car or public transport"; the full postcode never reaches an office page | Reading the row and cutting it in code |

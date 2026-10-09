@@ -141,6 +141,8 @@ export const LOG_TYPES = {
       "worker.signed_out",
       "worker.site_blocked",
       "worker.site_unblocked",
+      "travel.profile_changed",
+      "travel.profile_removed",
     ],
   },
   logins: {

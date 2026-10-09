@@ -57,6 +57,15 @@ Replace the parts in [brackets]. Send both parts.
 > copy more than 14 days old is never shown. [If we show our logo:] Our logo is loaded from our own
 > website, so our website sees your phone's internet address, as it would for any visit.
 >
+> **Your travel area (only if you set one):** on your profile you can give a postcode you start
+> from (it needn't be your home), how you travel and how long you'll travel, so we can show you
+> shifts you can get to. We keep that postcode and the middle point of its area, never your
+> address, your location or where you go. Our office sees only the first part of the postcode
+> (like ZZ1). To place it, only the postcode is sent to postcodes.io, never your name. You can
+> change or remove it any time; it's deleted if you leave us or ask us to delete your details.
+> We use it because it's in both our interests that you're offered work you can reach (our
+> legitimate interest; you can object).
+>
 > **Who else handles it:** [Our supplier] stores it in [the UK / the EU] ([hosting company], which
 > runs its servers and database). It uses [email company] to send emails, Twilio (texts, WhatsApp
 > and calls) and Meta (WhatsApp) to send and receive messages[, and Google, as we keep our rota in

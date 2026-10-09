@@ -475,6 +475,23 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   of 4,096 tokens or more (a cache marker would silently do nothing).
 - AI never decides eligibility, assignment or pay.
 
+## Postcodes and travel (Phase 12, `src/lib/travel/`)
+
+- `Geocoder` (`src/lib/travel/geocoder.ts`): a postcode to its central point, "not found" or
+  "unavailable". Two: the fake (fixed points for the made-up `ZZ` postcodes; every other postcode
+  is not found) and postcodes.io (one GET of the postcode alone, a 5-second limit, the answer
+  checked with zod). Chosen by the server's `TRAVEL_PROVIDER` (`fake`, the default, or
+  `traveltime`, refused under `NODE_ENV=test`; pinned to `fake` for the tests and the browser
+  tests' servers). Built in 12G.1; real look-ups wait for "Connect postcodes.io and TravelTime"
+  (PLAN.md Parking lot).
+- A postcode is looked up when it's saved (a site's on Settings, a casual's on `/profile/travel`),
+  before the database transaction, never inside it, and saved with its point in one write.
+  Unknown postcodes and failed look-ups save nothing.
+- The casual's travel area is `worker_travel` (S8). The office reads the district only, cut out in
+  SQL. It is deleted on "They've left" and on erasure, and is never in the action log
+  (`docs/dpia-travel.md`).
+- Travel times (12G.2) and the travel filter (12G.3) build on these points.
+
 ## Custom domains and branding
 
 - Firm adds `CNAME shifts.firmname.co.uk -> portal.<our-domain>`. (As built in Phase 8: to the firm's

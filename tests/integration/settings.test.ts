@@ -779,6 +779,8 @@ describe("the Settings page's data", () => {
       ).rows[0]?.id ?? "";
     const arena = await site(t.f.firmId, "Riverside Arena");
     const park = await site(t.f.firmId, "Northgate Park");
+    // The arena's location is known (12G.1); the park's isn't yet.
+    await su.query("update sites set lat = 53.83, lng = -1.53 where id = $1", [arena]);
     await site(other.f.firmId, "Another Firm's Ground");
     const session = await t.f.shift({ startsAt: hoursFromNow(48) });
     await su.query("update shifts set site_id = $2 where id = $1", [session, arena]);
@@ -791,8 +793,20 @@ describe("the Settings page's data", () => {
       token,
     );
     expect(page?.sites).toEqual([
-      { siteId: park, name: "Northgate Park", postcode: "ZZ1 1AA", bookedSessions: 0 },
-      { siteId: arena, name: "Riverside Arena", postcode: "ZZ1 1AA", bookedSessions: 1 },
+      {
+        siteId: park,
+        name: "Northgate Park",
+        postcode: "ZZ1 1AA",
+        located: false,
+        bookedSessions: 0,
+      },
+      {
+        siteId: arena,
+        name: "Riverside Arena",
+        postcode: "ZZ1 1AA",
+        located: true,
+        bookedSessions: 1,
+      },
     ]);
   });
 });

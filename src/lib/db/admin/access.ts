@@ -62,6 +62,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Strikes (12C.1): issued, then reviewed, withdrawn or emailed (COLUMN_UPDATES), never rewritten
   // or deleted by the app; app_purge_old_strikes() deletes them at strikes.keep_months.
   strikes: ["SELECT", "INSERT"],
+  // A casual's travel area (12G.1, S8): saved, changed and removed by the casual; deleted when the
+  // office makes them inactive as "They've left" and when they're erased.
+  worker_travel: CRUD,
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).

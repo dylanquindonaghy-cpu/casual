@@ -13,6 +13,8 @@ import {
   myStrikeTitle,
 } from "@/lib/portal/my-strikes-copy";
 import type { Profile } from "@/lib/portal/profile";
+import type { MyTravel } from "@/lib/portal/travel";
+import { TRAVEL_TITLE, travelSummaryText } from "@/lib/portal/travel-copy";
 import { MAX_UNAVAILABLE_DAYS, UNAVAILABLE_AHEAD_DAYS } from "@/lib/portal/profile-kinds";
 import { shortDate } from "@/lib/rules/reasons";
 import { addDays } from "@/lib/time/zoned";
@@ -22,7 +24,8 @@ import { NotificationForm } from "./notification-form";
 import { PushSetting } from "./push-setting";
 
 // Me (docs/screens.md, `/profile`): contact details and credentials as the office holds them
-// (read-only), my strikes (12C.5), days I can't work, and how we reach me. One card per section.
+// (read-only), where I work (12G.1), my strikes (12C.5), days I can't work, and how we reach me. One
+// card per section.
 
 const STATUS_WORDS = {
   valid: "Valid",
@@ -57,12 +60,14 @@ export function ProfileView({
   push = null,
   eyebrow,
   strikes = null,
+  travel = null,
 }: {
   profile: Profile;
   signOff: string;
   push?: { publicKey: string | null; firmName: string } | null;
   eyebrow?: string; // the firm's name above the heading
   strikes?: MyStrikes | null;
+  travel?: MyTravel | null;
 }) {
   const year = Number(profile.today.slice(0, 4));
   return (
@@ -131,6 +136,18 @@ export function ProfileView({
           </ul>
         )}
       </section>
+
+      {travel && (
+        <section aria-labelledby="travel-heading" className={`${card} ${sectionGap.staff}`}>
+          <h2 id="travel-heading" className={h2}>
+            {TRAVEL_TITLE}
+          </h2>
+          <p className={`${headingGap} ${nums}`}>{travelSummaryText(travel)}</p>
+          <Link href="/profile/travel" className={`${staffBtn.secondary} mt-4`}>
+            {travel.set ? "Change your travel area" : "Set your travel area"}
+          </Link>
+        </section>
+      )}
 
       {strikes && <StrikesSection strikes={strikes} />}
 

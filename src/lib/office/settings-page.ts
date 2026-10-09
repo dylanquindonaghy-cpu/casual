@@ -7,14 +7,24 @@ import { systemClock } from "../auth/clock";
 import { CANCELLED_ASSIGNMENT_STATUSES, firms, sites } from "../db/schema";
 import { withFirm, type FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import type { Geocoder, Point } from "../travel/geocoder";
+import { POSTCODE_INPUT_MAX, tidyPostcode } from "../travel/postcode";
+import { serverGeocoder } from "../travel/server";
 import { officeUserMay, type OfficeContext } from "./office-context";
 import { strikesEmailOf, type StrikesEmail } from "./strikes-email";
 
 // Settings (docs/office-v2.md 3.10; docs/screens.md `/office/settings`; 12B.7), admins only,
 // checked here as well as on the page: the strikes team's email (src/lib/office/strikes-email.ts)
-// and the sites, each with its postcode. A site's postcode can't change while it has live bookings
-// on sessions still to come: it would move booked casuals' venue with no reason or notice (golden
-// rule 12). A change is logged `site.changed` {siteId, fields: ["postcode"]}, never the postcode.
+// and the sites, each with its postcode and whether its location is known. A site's postcode can't
+// change while it has live bookings on sessions still to come: it would move booked casuals' venue
+// with no reason or notice (golden rule 12). A change is logged `site.changed` {siteId, fields:
+// ["postcode"]}, never the postcode or its point.
+//
+// The postcode is looked up first (12G.1; src/lib/travel/geocoder.ts), outside any transaction,
+// and saved with its central point in one write: one it can't find, or a look-up that fails, saves
+// nothing. Saving the same postcode again fills in a missing point (a site saved before look-ups,
+// or added by a sheet, a file or the planner without one). The sheet sync and the file import add
+// sites by name only, so those have no postcode until it's added here.
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 
@@ -22,6 +32,7 @@ export interface SettingsSite {
   siteId: string;
   name: string;
   postcode: string | null;
+  located: boolean; // its central point is known (sites.lat, lng)
   bookedSessions: number; // sessions still to come with someone booked
 }
 
@@ -68,7 +79,12 @@ export async function officeSettingsPage(
        order by e.id desc limit 1
     `);
     const siteRows = await tx
-      .select({ siteId: sites.id, name: sites.name, postcode: sites.postcode })
+      .select({
+        siteId: sites.id,
+        name: sites.name,
+        postcode: sites.postcode,
+        located: sql<boolean>`${sites.lat} is not null and ${sites.lng} is not null`,
+      })
       .from(sites)
       .orderBy(asc(sites.name));
     const booked = await bookedSessionsAt(tx, null, now);
@@ -83,33 +99,48 @@ export async function officeSettingsPage(
 }
 
 // A UK postcode ("LS1 4AP", any case and spacing), kept as "LS1 4AP"; empty clears it.
-const POSTCODE = /^([A-Z]{1,2}[0-9][A-Z0-9]?) ?([0-9][A-Z]{2})$/;
 export const sitePostcodeSchema = z.strictObject({
   postcode: z
     .string()
-    .max(12)
-    .transform((v) => v.trim().toUpperCase().replace(/\s+/g, " "))
-    .refine((v) => v === "" || POSTCODE.test(v)),
+    .max(POSTCODE_INPUT_MAX)
+    .refine((v) => v.trim() === "" || tidyPostcode(v) !== null),
 });
 
 export type EditSitePostcodeResult =
   | { status: "saved" }
+  | { status: "located" } // the same postcode: its missing location found now
   | { status: "unchanged" }
   | { status: "in_use"; sessions: number } // live bookings on sessions still to come
   | { status: "invalid" }
+  | { status: "unknown_postcode" } // the look-up doesn't know it: nothing saved
+  | { status: "lookup_failed" } // the look-up didn't answer: nothing saved
   | { status: "not_found" }
   | { status: "not_allowed" };
 
+const pointColumns = (point: Point | null) => ({
+  lat: point ? String(point.lat) : null,
+  lng: point ? String(point.lng) : null,
+});
+
 export async function editSitePostcode(
-  ctx: OfficeContext,
+  ctx: OfficeContext & { geocoder?: Geocoder },
   siteId: string,
   raw: z.input<typeof sitePostcodeSchema>,
 ): Promise<EditSitePostcodeResult> {
   if (!z.uuid().safeParse(siteId).success) return { status: "not_found" };
   const parsed = sitePostcodeSchema.safeParse(raw);
   if (!parsed.success) return { status: "invalid" };
-  const postcode = parsed.data.postcode.replace(POSTCODE, "$1 $2") || null;
+  const postcode = tidyPostcode(parsed.data.postcode);
   const now = (ctx.clock ?? systemClock).now();
+  // The look-up comes first, outside any transaction: a wait on the network never holds rows
+  // locked. (The action lets only admins this far; the transaction checks again.)
+  let point: Point | null = null;
+  if (postcode) {
+    const found = await (ctx.geocoder ?? serverGeocoder()).locate(postcode);
+    if (found.status === "not_found") return { status: "unknown_postcode" };
+    if (found.status === "unavailable") return { status: "lookup_failed" };
+    point = found.point;
+  }
   return (ctx.run ?? withFirm)(ctx.firm.id, async (tx) => {
     if (!(await officeUserMay(tx, ctx.officeUserId, "settings"))) return { status: "not_allowed" };
     // No booking may land between the count and the change. "for update" on the site holds back
@@ -118,12 +149,25 @@ export async function editSitePostcode(
     // the site's sessions still to come makes bookings in flight finish first and later ones wait
     // for this change. The count then runs after both, so it sees every committed booking.
     const [site] = await tx
-      .select({ postcode: sites.postcode })
+      .select({ postcode: sites.postcode, lat: sites.lat })
       .from(sites)
       .where(eq(sites.id, siteId))
       .for("update");
     if (!site) return { status: "not_found" };
-    if ((site.postcode ?? null) === postcode) return { status: "unchanged" };
+    if ((site.postcode ?? null) === postcode) {
+      if (postcode === null || site.lat !== null) return { status: "unchanged" };
+      // The same postcode with no point yet: the venue doesn't move, so bookings don't matter.
+      await tx.update(sites).set(pointColumns(point)).where(eq(sites.id, siteId));
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: ctx.officeUserId,
+        action: "site.changed",
+        entityType: "site",
+        entityId: siteId,
+        data: { siteId, fields: ["location"] },
+      });
+      return { status: "located" };
+    }
     await tx.execute(sql`
       select s.id from shifts s
        where s.site_id = ${siteId} and s.starts_at > ${now}
@@ -132,7 +176,10 @@ export async function editSitePostcode(
     `);
     const sessions = (await bookedSessionsAt(tx, siteId, now)).get(siteId) ?? 0;
     if (sessions > 0) return { status: "in_use", sessions };
-    await tx.update(sites).set({ postcode }).where(eq(sites.id, siteId));
+    await tx
+      .update(sites)
+      .set({ postcode, ...pointColumns(point) })
+      .where(eq(sites.id, siteId));
     await recordEvent(tx, {
       actorType: "office",
       actorId: ctx.officeUserId,

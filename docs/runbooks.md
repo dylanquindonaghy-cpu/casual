@@ -495,6 +495,26 @@ Each failed one is logged with its reason, and never sent twice by itself.
 5. **Then send it again from the app:** a login link, ask again on the login page (a new link); the
    payroll digest, "Send the digest now" on the pay queries page.
 
+## Postcodes not found (sites or travel areas)
+
+Settings ("We couldn't find that postcode") and a casual's "Where you work" look each postcode up
+when it's saved (12G.1; `docs/office-v2.md` 5.4). Which service does that is the server's
+`TRAVEL_PROVIDER`, in `.env`, for the web app and the worker:
+
+- `fake` (the default): knows only the made-up `ZZ` postcodes (development, tests, a demo). Every
+  real postcode is "not found". A real firm needs `traveltime`.
+- `traveltime`: postcodes.io (free, no key; only the postcode is sent). Turned on by "Connect
+  postcodes.io and TravelTime" in `PLAN.md`'s Parking lot, never in tests (refused there).
+
+1. Check which: `grep '^TRAVEL_PROVIDER=' .env`.
+2. "We couldn't look that postcode up just now": postcodes.io didn't answer in 5 seconds or sent
+   something unexpected. Nothing was saved. Try again in a few minutes; if it lasts, check
+   https://postcodes.io (its status) from the server: `curl -s https://api.postcodes.io/postcodes/`
+   followed by a public postcode such as a council office's (never a casual's).
+3. A site shows "Location not looked up yet": its postcode was saved before look-ups (or while the
+   service was off). Save the same postcode again on Settings.
+4. Northern Ireland (BT) postcodes need a separate licence first (`PLAN.md` Checks 16).
+
 ## Google Sheets sync failing
 
 `npm run -s firm:sheet -- --firm <slug>` shows the firm's sheet, when it last synced and why it's
@@ -721,7 +741,8 @@ Admins and resourcers can. Each change needs a reason from a list, and goes in t
   "They've left, or can't work here" and the notice go in the notice report) or keep it (then
   tell them yourself: they get no reminders). A kept booking doesn't stop you moving the shift's
   time; moving it to another site asks you to cancel it first. Your rota sheet or a staff file
-  can't make them active again: only the office can.
+  can't make them active again: only the office can. With the reason "They've left", their travel
+  area (their start-from postcode) is deleted too; any other reason keeps it for when they're back.
 - **They're back:** "Make active again". They log in with a new link. If your rota sheet or staff
   file says they're inactive, change it there too.
 - **Blocked by your rota sheet or a staff file by mistake:** "Unblock". Change the sheet or file

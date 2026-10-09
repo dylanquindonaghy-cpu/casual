@@ -576,6 +576,21 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "worker.unavailable_removed":
       return `${worker} removed a day off${day(d.day)}.`;
 
+    // The casual's travel area (12G.1): what changed and the limit, never the postcode.
+    case "travel.profile_changed": {
+      const changed = Array.isArray(d.changed) ? d.changed.map(String) : [];
+      const parts = [
+        changed.includes("postcode") ? "where they start from" : null,
+        changed.includes("modes") ? "how they travel" : null,
+        changed.includes("maxMinutes") ? "how long they'll travel" : null,
+      ].filter((p): p is string => p !== null);
+      const what = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+      const limit = typeof d.maxMinutes === "number" ? ` Up to ${d.maxMinutes} minutes.` : "";
+      return `${worker} changed their travel area${what}.${limit}`;
+    }
+    case "travel.profile_removed":
+      return `${worker} removed their travel area.`;
+
     // A worker's access, changed by the office (src/lib/office/worker-access.ts).
     case "worker.deactivated":
     case "worker.reactivated":
@@ -597,7 +612,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         ahead > 0 ? ` ${ahead === 1 ? "1 booking" : `${ahead} bookings`} ahead to check.` : "";
       switch (e.action) {
         case "worker.deactivated":
-          return `${officeName} made ${worker} inactive.${reason}${toCheck}`;
+          return `${officeName} made ${worker} inactive.${reason}${toCheck}${
+            d.travelAreaRemoved === true ? " Their travel area was deleted." : ""
+          }`;
         case "worker.reactivated":
           return `${officeName} made ${worker} active again.${reason}`;
         case "worker.unblocked":

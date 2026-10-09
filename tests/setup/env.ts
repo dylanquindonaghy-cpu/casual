@@ -20,3 +20,6 @@ process.env.SMTP_PASS = "";
 // NODE_ENV=test; scripts/invariants.sh checks these lines stay).
 process.env.AI_TRANSPORT = "none";
 process.env.ANTHROPIC_API_KEY = "";
+// Never postcodes.io or TravelTime, whatever .env says (the settings also refuse traveltime under
+// NODE_ENV=test).
+process.env.TRAVEL_PROVIDER = "fake";

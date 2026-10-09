@@ -42,6 +42,8 @@ services:
       # The phones' offline copy of My shifts: "off" switches it off (docs/runbooks.md "A bad service
       # worker").
       OFFLINE_COPY: ${OFFLINE_COPY:-on}
+      # Postcode look-ups (Settings, Profile): fake knows only the made-up ZZ postcodes.
+      TRAVEL_PROVIDER: ${TRAVEL_PROVIDER:-fake}
     volumes:
       - *db-ca
     healthcheck:
@@ -87,6 +89,8 @@ services:
       AI_TRANSPORT: ${AI_TRANSPORT:-none}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-}
+      # Postcodes and travel times (docs/office-v2.md 5.4): fake knows only the made-up ZZ postcodes.
+      TRAVEL_PROVIDER: ${TRAVEL_PROVIDER:-fake}
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,

@@ -10,6 +10,7 @@ import { workerAccessView } from "@/lib/office/worker-access";
 import { SITE_BLOCK_REASON_WORDS } from "@/lib/office/worker-reasons";
 import { roleLabel, shiftWhen } from "@/lib/portal/format";
 import { localDateOf } from "@/lib/time/zoned";
+import { officeTravelText } from "@/lib/travel/copy";
 import { SignOutButton, SiteBlocks, StatusForm } from "./access-forms";
 
 // The status word's colour (docs/ui-design.md "Status tones").
@@ -19,10 +20,11 @@ const STATUS_TONES: Record<"active" | "inactive" | "blocked", StatusTone> = {
   blocked: "urgent",
 };
 
-// One worker's access (docs/screens.md `/office/workers/[id]`): their status and what changes it,
-// the sites they can't work at, logging them out everywhere, and their bookings ahead. Admins and
-// resourcers (checked here and in every function it calls). The changes are cards on the left;
-// "Booked ahead" sits beside them on a wide screen (below them on a phone).
+// One worker's access (docs/screens.md `/office/workers/[id]`): their status, their travel area (the
+// postcode district only, 12G.1), what changes their status, the sites they can't work at, logging
+// them out everywhere, and their bookings ahead. Admins and resourcers (checked here and in every
+// function it calls). The changes are cards on the left; "Booked ahead" sits beside them on a wide
+// screen (below them on a phone).
 export default async function OfficeWorkerPage({ params }: { params: Promise<{ id: string }> }) {
   const { firm, officeUser } = await requireOfficeArea("workers");
   const { id } = await params;
@@ -43,6 +45,9 @@ export default async function OfficeWorkerPage({ params }: { params: Promise<{ i
                 {STATUS_WORDS[worker.status]}
               </StatusChip>
               {worker.roles.length > 0 ? ` · ${worker.roles.map(roleLabel).join(", ")}` : ""}
+            </p>
+            <p className="text-ink-muted tabular-nums">
+              Travel area: {officeTravelText(worker.travel)}
             </p>
           </>
         )}

@@ -11,9 +11,10 @@ import {
   sessions,
   shifts,
   strikes,
-  workerSiteBlocks,
-  workerUnavailableDays,
   workers,
+  workerSiteBlocks,
+  workerTravel,
+  workerUnavailableDays,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -33,7 +34,8 @@ import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./fre
 //   no roles, inactive; a check in the database holds it to exactly that) and their shifts-line
 //   messages are deleted (theirs, replies to them, and ones from or to their number before it was
 //   known, found by the number the row held);
-// - deleted: their credentials, login links, sessions (and codes), phones' push addresses, days off;
+// - deleted: their credentials, login links, sessions (and codes), phones' push addresses, days off,
+//   their travel area (12G.1: the start postcode and its point);
 // - cleared: the free text on their requests (their note, a colleague's name, the office's answer),
 //   pay queries (their details, payroll's note) and cancellations (a typed reason; the app's fixed
 //   wording stays: free-text.ts) and the office's reasons for withdrawing their strikes (the strike
@@ -58,6 +60,7 @@ export interface ErasedCounts {
   devices: number; // phones' push addresses
   daysUnavailable: number;
   siteBlocks: number; // sites the office kept them off (Phase 10)
+  travelArea: number; // their travel area: the start postcode and its point (12G.1)
   messages: number;
   requests: number;
   payQueries: number;
@@ -154,6 +157,12 @@ async function eraseLocked(tx: FirmTx, id: string, now: Date): Promise<ErasedCou
         .delete(workerSiteBlocks)
         .where(eq(workerSiteBlocks.workerId, id))
         .returning({ id: workerSiteBlocks.id }),
+    ),
+    travelArea: await deleted(
+      tx
+        .delete(workerTravel)
+        .where(eq(workerTravel.workerId, id))
+        .returning({ id: workerTravel.id }),
     ),
     messages: Number(erased.rows[0]?.n ?? 0),
     requests: await deleted(

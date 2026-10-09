@@ -281,6 +281,13 @@
       "when": 1791523771919,
       "tag": "0039_strike_purge_after_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791541249522,
+      "tag": "0040_worker_travel",
+      "breakpoints": true
     }
   ]
 }

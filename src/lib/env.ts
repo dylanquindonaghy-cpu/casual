@@ -93,6 +93,21 @@ const appFields = {
     (v) => (v === "" ? undefined : v),
     z.string().min(16, { message: "must be the Twilio account's auth token" }).optional(),
   ),
+  // Postcode look-ups and travel times (docs/office-v2.md 5.4), a server setting, never per firm.
+  // "fake" (the default): made-up points for the ZZ postcodes only (src/lib/travel/geocoder.ts),
+  // for development, tests and a demo; a real postcode is never found. "traveltime": postcodes.io
+  // for postcodes (only the postcode is sent) and, from 12G.2, TravelTime for travel times; refused
+  // under NODE_ENV=test, so no test can reach either. Real use waits for "Connect postcodes.io and
+  // TravelTime" (PLAN.md Parking lot). An empty value means not set.
+  TRAVEL_PROVIDER: unsetIfEmpty(z.enum(["fake", "traveltime"]).default("fake")),
+};
+
+// Tests never reach postcodes.io or TravelTime.
+const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
+  e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
+const noRealTravelInTestsMessage = {
+  path: ["TRAVEL_PROVIDER"],
+  message: "tests never call postcodes.io or TravelTime: traveltime is refused when NODE_ENV=test",
 };
 
 const realSecret = (e: { NODE_ENV: string; SESSION_SECRET: string }) =>
@@ -115,6 +130,7 @@ export const appEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(alertsOn, alertsOnMessage)
+  .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   // The test-only pages never on a real address, even if the switch were copied into one.
   .refine((e) => !e.E2E_TEST_PAGES || /^localhost(:\d+)?$/.test(e.APP_BASE_DOMAIN), {
     path: ["E2E_TEST_PAGES"],
@@ -204,6 +220,7 @@ export const workerEnvSchema = z
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
   .refine(alertsOn, alertsOnMessage)
+  .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine((e) => e.SHEETS_TRANSPORT !== "google" || e.GOOGLE_SERVICE_ACCOUNT_JSON_PATH, {
     path: ["GOOGLE_SERVICE_ACCOUNT_JSON_PATH"],
     message: "SHEETS_TRANSPORT=google needs the path to the service account's key file",

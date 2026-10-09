@@ -12,6 +12,7 @@ import {
   sites,
   strikes,
   workers,
+  workerTravel,
 } from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
 import type { FirmTx } from "../../src/lib/db/scoped";
@@ -596,6 +597,20 @@ export async function failEvidence(slug: string, assignmentId: string): Promise<
         .update(strikes)
         .set({ evidenceEmailStatus: "failed" })
         .where(eq(strikes.assignmentId, assignmentId)),
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
+// A spec's own casual starts without a travel area (12G.1), so a retry starts as the first run did.
+export async function clearTravel(slug: string, workerId: string): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), (tx) =>
+      tx.delete(workerTravel).where(eq(workerTravel.workerId, workerId)),
     );
   } finally {
     await pool.end();

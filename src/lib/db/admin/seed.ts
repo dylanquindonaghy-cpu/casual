@@ -29,6 +29,7 @@ import {
 } from "./seed-extras";
 import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
+import { fakePoint } from "../../travel/geocoder";
 import { isLocalHost } from "./urls";
 
 // Loads the demo firms (docs/testing.md). Firms are created through the owner connection (the
@@ -141,12 +142,23 @@ async function loadFirm(tx: FirmTx, firm: SeedFirm): Promise<void> {
   const firmId = firm.id;
   // The sector's credential types and default role rules first; existing ones stay as they are.
   await applyCredentialPack(tx, firm.sector, { type: "system" });
+  // Each made-up ZZ postcode with the fake geocoder's point for it (12G.1), as Settings would save.
+  const located = (postcode: string | undefined) => {
+    const point = postcode ? fakePoint(postcode) : null;
+    return { lat: point ? String(point.lat) : null, lng: point ? String(point.lng) : null };
+  };
   await tx
     .insert(sites)
-    .values(firm.sites.map((s) => ({ ...s, firmId })))
+    .values(firm.sites.map((s) => ({ ...s, ...located(s.postcode), firmId })))
     .onConflictDoUpdate({
       target: sites.id,
-      set: { name: sql`excluded.name`, town: sql`excluded.town`, postcode: sql`excluded.postcode` },
+      set: {
+        name: sql`excluded.name`,
+        town: sql`excluded.town`,
+        postcode: sql`excluded.postcode`,
+        lat: sql`excluded.lat`,
+        lng: sql`excluded.lng`,
+      },
     });
   await tx
     .insert(officeUsers)

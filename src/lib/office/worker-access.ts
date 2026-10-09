@@ -7,7 +7,9 @@ import {
   sites,
   workers,
   workerSiteBlocks,
+  workerTravel,
   type SITE_BLOCK_REASONS,
+  type TravelMode,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { retryAborted } from "../db/retry";
@@ -166,6 +168,17 @@ export async function changeWorkerStatus(
       // reach a leaver's phone). Any change: their bookings ahead are looked at again on Today (one
       // kept while they were inactive may still be at a site they're blocked from).
       const phones = after === "active" ? 0 : await forgetPhones(tx, worker.id);
+      // "They've left": their travel area goes (docs/office-v2.md 5.4: the start point is kept only
+      // while it's of use). Any other reason keeps it for when they're made active again.
+      const travelRemoved =
+        change.kind === "deactivate" && change.reason === "left"
+          ? (
+              await tx
+                .delete(workerTravel)
+                .where(eq(workerTravel.workerId, worker.id))
+                .returning({ id: workerTravel.id })
+            ).length
+          : 0;
       const flagged = await reflagFutureBookings(tx, { workerId: worker.id, now });
       const futureBookings = deactivating ? flagged : 0;
       await log(
@@ -181,6 +194,7 @@ export async function changeWorkerStatus(
           linksSpent: ended.links,
           ...(deactivating ? { futureBookings } : {}),
           ...(phones > 0 ? { devicesForgotten: phones } : {}),
+          ...(travelRemoved > 0 ? { travelAreaRemoved: true } : {}),
           ...(stillInactive ? { stillInactive } : {}),
         },
       );
@@ -370,6 +384,8 @@ export interface WorkerAccessView {
   byOffice: boolean; // made inactive by the office (a sheet or file can't undo it)
   siteBlocks: { siteId: string; site: string; reason: string; since: Date }[];
   otherSites: { id: string; name: string }[];
+  // Their travel area (12G.1): the district only ("ZZ1"), never the postcode or its point.
+  travel: { district: string; maxMinutes: number; modes: TravelMode } | null;
   ahead: {
     shiftId: string;
     role: string;
@@ -418,6 +434,16 @@ export async function workerAccessView(
        order by s.name
     `);
     const blocked = new Set(blocks.map((b) => b.site_id));
+    // The district is cut out in the database: the full postcode never reaches the office.
+    const { rows: travel } = await tx.execute<{
+      district: string;
+      max_minutes: number;
+      modes: TravelMode;
+    }>(sql`
+      select split_part(t.start_postcode, ' ', 1) as district, t.max_minutes, t.modes
+        from worker_travel t
+       where t.worker_id = ${worker.id}
+    `);
     const allSites = await tx
       .select({ id: sites.id, name: sites.name })
       .from(sites)
@@ -453,6 +479,13 @@ export async function workerAccessView(
         since: new Date(b.created_at),
       })),
       otherSites: allSites.filter((s) => !blocked.has(s.id)),
+      travel: travel[0]
+        ? {
+            district: travel[0].district,
+            maxMinutes: Number(travel[0].max_minutes),
+            modes: travel[0].modes,
+          }
+        : null,
       ahead: ahead.slice(0, WORKER_AHEAD_MAX).map((a) => ({
         shiftId: a.shift_id,
         role: a.role,

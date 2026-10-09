@@ -206,6 +206,13 @@ async function everything() {
     "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'incident')",
     [b.firmId, worker, barredFrom],
   );
+  // Their travel area (12G.1).
+  await one(
+    `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes, max_minutes,
+                                privacy_notice_version, updated_at)
+     values ($1, $2, 'ZZ4 4DD', 53.932, -1.478, 'car', 60, 'travel-v1', now())`,
+    [b.firmId, worker],
+  );
   const events = {
     added: await one(
       `insert into events (firm_id, actor_type, action, entity_type, entity_id)
@@ -313,6 +320,17 @@ describe("a worker's data export", () => {
     expect(s.daysUnavailable?.map((d) => d.day)).toEqual(["2026-12-25"]);
     expect(s.siteBlocks).toEqual([
       { site: "Riverside Arena", reason: "incident", createdAt: expect.any(String) },
+    ]);
+    // Their travel area, in full: it's theirs (12G.1).
+    expect(s.travelArea).toEqual([
+      expect.objectContaining({
+        startPostcode: "ZZ4 4DD",
+        lat: "53.932000",
+        lng: "-1.478000",
+        modes: "car",
+        maxMinutes: 60,
+        privacyNoticeVersion: "travel-v1",
+      }),
     ]);
     expect(idsIn(s.bookings).sort()).toEqual(
       [t.ids.booking, t.ids.cancelled, t.ids.firmCancelled].sort(),
@@ -467,6 +485,7 @@ describe("erasing a worker", () => {
       devices: 1,
       daysUnavailable: 1,
       siteBlocks: 1,
+      travelArea: 1,
       messages: 4,
       requests: 3,
       payQueries: 1,
@@ -514,6 +533,7 @@ describe("erasing a worker", () => {
       "push_subscriptions",
       "worker_unavailable_days",
       "worker_site_blocks",
+      "worker_travel",
     ]) {
       expect(await count(table, "worker_id = $1", [t.worker]), table).toBe(0);
     }

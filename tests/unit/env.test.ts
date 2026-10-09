@@ -161,6 +161,7 @@ describe("environment", () => {
       "DATABASE_URL",
       "NODE_ENV",
       "SESSION_SECRET",
+      "TRAVEL_PROVIDER", // not a credential: "fake" when unset (12G.1)
     ]);
   });
 

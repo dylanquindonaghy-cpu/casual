@@ -209,6 +209,8 @@ describe("a firm's settings", () => {
       "strikes.notice_hours": [48, "default"],
       "strikes.live_days": [90, "default"],
       "strikes.keep_months": [12, "default"],
+      // Travel (12G.1): a casual's time limit until they choose their own.
+      "travel.default_max_minutes": [45, "default"],
     });
     expect(await readFirmSettings(urls.admin, "no-such-firm")).toEqual({ status: "no_firm" });
   });

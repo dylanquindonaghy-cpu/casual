@@ -10,6 +10,7 @@ import {
   retentionSettings,
 } from "../gdpr/retention-settings";
 import { keepCoversLive, STRIKE_LIMITS, strikeSettings } from "../strikes/settings";
+import { travelSettings } from "../travel/settings";
 
 // The firm settings the onboarding checklist asks the firm to agree (docs/go-to-market.md "Pilot
 // onboarding checklist"; docs/data-model.md "Firm settings"), as the app reads them. Each app
@@ -33,6 +34,7 @@ export const SETTING_KEYS = [
   "strikes.notice_hours",
   "strikes.live_days",
   "strikes.keep_months",
+  "travel.default_max_minutes",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 export type SettingValue = string | number | boolean;
@@ -69,6 +71,7 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "strikes.notice_hours": (s) => strikeSettings(s).noticeHours,
   "strikes.live_days": (s) => strikeSettings(s).liveDays,
   "strikes.keep_months": (s) => strikeSettings(s).keepMonths,
+  "travel.default_max_minutes": (s) => travelSettings(s).defaultMaxMinutes,
 };
 
 // What each key means, for the command's output.
@@ -89,6 +92,8 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,
+  "travel.default_max_minutes":
+    "a casual's travel time limit until they choose their own (30, 45, 60 or 90 minutes)",
 };
 
 const stored = (s: Settings, key: SettingKey): unknown => {
@@ -150,6 +155,10 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     const part = key.slice("strikes.".length);
     const inner = s.strikes && typeof s.strikes === "object" ? (s.strikes as Settings) : {};
     next = { ...s, strikes: { ...inner, [part]: value } };
+  } else if (key.startsWith("travel.")) {
+    const part = key.slice("travel.".length);
+    const inner = s.travel && typeof s.travel === "object" ? (s.travel as Settings) : {};
+    next = { ...s, travel: { ...inner, [part]: value } };
   } else if (key.startsWith("quiet_hours.")) {
     // The app reads quiet hours whole (a start without an end is ignored), so the other parts are
     // kept as the app reads them now.

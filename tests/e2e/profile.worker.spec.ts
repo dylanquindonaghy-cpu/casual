@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
 
-// The profile page in a real browser: credentials as the office holds them, a day marked
+// The profile page in a real browser: qualifications as the office holds them, a day marked
 // unavailable and cleared again, and the notification settings kept after a reload.
 
 const acme = "http://acme.localhost:3100";
@@ -24,9 +24,24 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   const days = page.getByRole("region", { name: "Days you can't work" });
   const reach = page.getByRole("region", { name: "How we reach you" });
   await expect(page.getByText("To change these, ask the office.")).toBeVisible();
-  await expect(page.getByText("SIA door supervisor licence")).toBeVisible();
-  await expect(page.getByText(/^Expired · expired /)).toBeVisible();
-  await expect(page.getByText(/Renew it and send the new details to the office\./)).toBeVisible();
+  // Qualifications (12F.1): the ones her roles need, worst first, then right to work.
+  const quals = page.getByRole("region", { name: "Qualifications" });
+  const rows = quals.getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("SIA door supervisor licence");
+  await expect(
+    rows.nth(0).getByText(/^Expired · Expired \d{1,2} [A-Z][a-z]{2}( \d{4})?$/),
+  ).toBeVisible();
+  await expect(
+    rows
+      .nth(0)
+      .getByText(
+        "Until it's renewed you won't see door supervisor shifts. Send the new details to the office.",
+      ),
+  ).toBeVisible();
+  await expect(rows.nth(1)).toContainText("Level 2 spectator safety qualification");
+  await expect(rows.nth(1).getByText("Valid · No expiry date")).toBeVisible();
+  await expect(quals.getByText("Not checked yet: ask the office")).toBeVisible();
   await expect(page.getByText("No days marked.")).toBeVisible();
 
   // Three days from now, London time.

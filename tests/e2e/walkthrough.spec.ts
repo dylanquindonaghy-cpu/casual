@@ -249,7 +249,14 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("18. Log in as Maya Morgan: her expired licence, and the urgent shift she can't take", async () => {
     await workerLogin(page, MAYA);
-    await expect(page.getByText(/^Your SIA door supervisor licence /).first()).toBeVisible();
+    // My shifts' "Needs updating" card (12F.1), red: her licence stops her working.
+    const needs = page.getByRole("region", { name: "Needs updating" });
+    await expect(
+      needs.getByText(
+        /^SIA door supervisor licence expired on .+\. Until it's renewed you won't see door supervisor shifts\.$/,
+      ),
+    ).toBeVisible();
+    await expect(needs.getByRole("link", { name: "See your qualifications" })).toBeVisible();
     await page.goto(`${acme}/shifts/${dropout}`);
     await expect(page.getByRole("heading", { name: "You can't take this shift:" })).toBeVisible();
     await expect(page.getByText(/Your SIA door supervisor licence expired on /)).toBeVisible();

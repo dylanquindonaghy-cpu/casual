@@ -11097,3 +11097,52 @@ only and the status logic against check 3 all passed. Its items:
 Break checks: the suspended rule, the 30-day boundary, "in date on its expiry day", the
 booked-shift boundary, listing right to work, the applied fix and the live count each made a test
 fail.
+
+**Root causes found while closing it:**
+
+- The first full verify failed on `tests/e2e/profile.worker.spec.ts`. That test still looked for
+  the old Profile words (`Expired · expired …`, "Renew it and send the new details to the
+  office."). The page now says "Expired · Expired 4 Sep" and "Until it's renewed you won't see
+  door supervisor shifts. Send the new details to the office." The test now checks the
+  Qualifications section row by row: both rows, their status and date lines, the meaning, and
+  right to work. That is more checks than before, not fewer.
+- The second verify failed on the walkthrough's step 18. It looked for My shifts' old red licence
+  banner ("Your SIA door supervisor licence …"), which 12F.1 replaced with the "Needs updating"
+  card. The first failure had stopped the run before the walkthrough, so this one only showed up
+  now. The step now checks the card's row and its "See your qualifications" link.
+  `docs/walkthrough.md` step 18 says "A red "Needs updating" card".
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=185a4542001277d0 e2e=true`
+before audit round 1. After the round-1 fix it printed `VERIFIED tree=b81a6e0b97088464 e2e=true`:
+4,203 tests, 82 browser tests and the walkthrough's 3.
+
+**Audit round 1 (claims-auditor), verbatim verdict:**
+
+> VERDICT: NOT DONE — open item: no test asserts the rendered Casuals list (view links with counts, columns, phone cards) or the casual page's Needs updating, Qualifications, right to work and Strikes sections. Everything else is PROVEN.
+
+Fix: a second test in `tests/e2e/casual.app.spec.ts`, "the office sees Zoe on Casuals and on her
+own page". Zoe gets one strike the real way (`bookAndCancel`, a session of the spec's own inside
+48 hours, cancelled in `finally`), then a resourcer checks:
+
+- on a phone, each view's count against the cards it lists, and Zoe's card;
+- at 1280px, the five column headers and Zoe's row, with the cards hidden;
+- Zoe's page: Needs updating, each qualification's status and date line, right to work, and the
+  strike with its cancellation-record link.
+
+Break checks: adding 1 to a view's count, and blanking the right-to-work line, each made it fail.
+
+**Audit round 2 (claims-auditor), verbatim verdict:**
+
+> VERDICT: DONE
+
+**Hours:** 2.1 (14:16 to 16:25 UTC). Phase 12 so far: 22.1 hours over 21 Hours-log rows (no
+estimate for Phase 12). **Commit:** "Phase 12: Qualification statuses and the Casuals pages
+(12F.1)", pushed (its hash in the next entry). 12G.3's commit was `9616304`, pushed.
+
+**CI:** GitHub Actions couldn't start any job on `9616304`, `8a2f196` or `be2cb79`. Each job ended
+within about 4 seconds with no runner (runner 0) and no steps. That is the account's Actions
+minutes or billing limit, not the code. It was explained once on PR #2. The local verify above is
+the evidence for this task. The fix for Dylan goes in the morning summary.
+
+**Parked:** the staff photo column, uploads, "Being checked" and "Not accepted" (12F.2, as the
+task text says).

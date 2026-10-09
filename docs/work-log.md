@@ -11004,3 +11004,103 @@ Run `npm run dev`, log in as a casual (see `docs/walkthrough.md`), set "Where yo
 with a ZZ postcode, then open "See open shifts": the prompt is gone and each card shows its travel
 line. At first it's the straight-line distance ("Travel time not known yet"); the times appear
 within about 5 minutes, once the worker's travel job has run (`npm run dev` starts the worker too).
+
+## 2026-10-09 — Phase 12, task 12F.1: Qualification statuses and the Casuals pages
+
+**Time spent:** 2.1 hours (14:16 to 16:25 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=b81a6e0b97088464 e2e=true`:
+4,203 unit and database tests, 82 browser tests and the walkthrough's 3 parts all passed. The
+independent auditor said **DONE** on its second round (the first round asked for one more browser
+test, described below). The commit is "Phase 12: Qualification statuses and the Casuals pages
+(12F.1)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Casuals and the office now see each qualification (a licence or card, like an SIA licence) with a
+clear status, and the office has a new "Casuals" area.
+
+- **The statuses** (`src/lib/credentials/status.ts`): Valid, Expiring soon (within 30 days),
+  Expired, Missing, Applied for, or Suspended. They read a casual's records the same way the
+  booking rules do. For example, a suspended licence counts as suspended even if the casual also
+  holds a valid one, because the booking rules refuse the casual in that case too.
+- **Which are listed:** only the qualifications the casual's roles need (from the firm's rules).
+  A role's qualification with no record is "Missing: Needed for {role} shifts". Right to work is
+  shown separately as a status only ("Checked by the office on 12 Jan" or "Not checked yet: ask the
+  office"), because no rule requires it.
+- **"Needs updating"** lists what to sort out, in four levels:
+  1. something that stops a shift she's booked on;
+  2. expired or suspended;
+  3. expiring soon;
+  4. missing.
+- **One "expiring soon" window:** 30 days, the same as the daily expiry job's first warning, used
+  by the casual's pages and the office.
+- **For the casual:** Profile's "Qualifications" section shows each status, its date line and what
+  it means ("Until it's renewed you won't see door supervisor shifts."), then right to work. My
+  shifts' old licence banners became a "Needs updating" card. The word "credential" never appears.
+- **For the office:** "Workers" became "Casuals" (`/office/casuals`):
+  - two views, All and Need updating, each with its count;
+  - "Find a casual" (the existing search form, as built);
+  - a table on a computer, and stacked cards on a phone: each casual's qualifications (worst
+    first), travel district, live strikes and what needs updating.
+- **One casual's page** (`/office/casuals/[id]`) adds:
+  - needs updating, qualifications and right to work;
+  - the travel area and strikes (each linking to its cancellation record);
+  - the existing bookings ahead and access controls.
+- The old `/office/workers` addresses redirect, so old links still work.
+
+### Key facts and numbers
+
+- One loader (`src/lib/credentials/qualifications.ts`) works out every casual's qualifications in
+  five database reads, however many casuals there are.
+- The office list shows at most 200 casuals ("Use Find a casual to find anyone else").
+- The office only ever sees the postcode district (like "ZZ1"), never the full postcode.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A suspended record beats a valid one; a valid one in date beats applied for; applied for beats expired | The same order the booking rules use, so a status never says "Valid" when booking would refuse | Showing each record separately |
+| Profile lists only the types her roles need | The spec: "A type nothing needs isn't listed" | Every record held (as before) |
+| "Need updating" counts active casuals only | An inactive or blocked casual can't work, so there's nothing urgent to update | Everyone |
+| The made-up "Zoe" in the browser test is built by the test itself | The spec's Zoe arrives with the demo seed task (12I.1) | Changing the seed now |
+| The staff photo, uploads and "Being checked" / "Not accepted" wait for 12F.2 | The task text says they join with 12F.2 | Showing empty columns |
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/credentials.status.test.ts`, 24 tests): every status at its boundary
+  dates (30 days, the expiry day itself, the day after), several records at once, which types are
+  listed, right to work, the four levels and their order, and the office's one-line summary.
+  `portal.profile`, `portal.my-shifts` and the plain-language check cover the new words.
+- **Database tests** (`tests/integration/office.casuals.test.ts`; `profile`, `my-shifts`): the
+  list's counts and views, each column, never the full postcode, live strikes (not withdrawn or
+  past ones), who may see it, each firm's own, and the casual's page.
+- **Browser tests** (a real browser clicking through the app):
+  - new `casual.app.spec.ts`, part 1: Zoe's Profile shows one Valid, one Expiring soon and one
+    Missing, and My shifts shows her Needs updating card;
+  - `casual.app.spec.ts`, part 2 (added after the auditor's first round): Zoe gets one strike
+    the real way (a session cancelled inside 48 hours). A resourcer then opens Casuals:
+    - on a phone, each view's count matches the number of cards it lists, and Zoe's card shows
+      her tags, travel, strikes and summary;
+    - on a computer, the table has its five columns and Zoe's row, and the cards are hidden;
+    - Zoe's own page shows her needs, each qualification's status and date, her right to work,
+      and her strike with its link.
+  - `office.workers.spec.ts` now uses Casuals, and checks the old address still leads to the
+    casual's page. The walkthrough's step 28 uses Casuals too.
+  - Two older browser tests still expected the old licence words: `profile.worker.spec.ts`, and
+    the walkthrough's step 18 (My shifts' old red banner, now the "Needs updating" card). Both
+    now check the new words, with at least as many checks as before.
+- Break checks (a deliberate fault, to prove a test notices it): changing the suspended rule, the
+  30-day boundary, the "in date on its expiry day" rule, the "blocks a booked shift" boundary, or
+  listing right to work each made a test fail. So did adding 1 to a view's count, or removing the
+  right-to-work line from a casual's page, for the new browser test.
+
+### What's parked or needs Dylan
+
+- Uploads, the staff photo and checking them: task 12F.2.
+- Nothing for Dylan to do for this task.
+
+### How to see it working
+
+Run `npm run dev`, log in to the office as `acme.resourcer@example.com`, and open "Casuals". Try
+"Need updating", then open someone. As a casual, open "My profile" to see "Qualifications".

@@ -128,9 +128,9 @@ the demo.
     "New start" to 13:00 and "New finish" to 18:30, and click "Send request". It says "Request
     sent." Click "See my requests": it's "Waiting for the office". Log out.
 18. **Log in as Maya Morgan** (`07700 900129`), a door supervisor whose SIA licence has expired.
-    A red banner on My shifts says so. Open the urgent shift's page: the link printed at the end
-    of `npm run db:reset` (step 7; it isn't in her open shifts, because she can't take it). It
-    says "You can't take this shift:" and why. Click "Ask the office to review": it gives a
+    A red "Needs updating" card on My shifts says so. Open the urgent shift's page: the link
+    printed at the end of `npm run db:reset` (step 7; it isn't in her open shifts, because she
+    can't take it). It says "You can't take this shift:" and why. Click "Ask the office to review": it gives a
     reference. Log out.
 19. **Log in as Wes Doyle** (`07700 900139`), a door supervisor with a valid licence. My shifts
     says "1 urgent shift needs someone" (2 from Friday noon: Zoe's cancelled shift is then less

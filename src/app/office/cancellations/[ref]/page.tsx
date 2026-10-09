@@ -6,7 +6,7 @@ import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeCancellationRecord, type SharedReference } from "@/lib/office/cancellations";
-import { AS_IT_IS_NOW, howText, recordFields } from "@/lib/office/cancellations-copy";
+import { AS_IT_IS_NOW, howText, recordFields, resendNote } from "@/lib/office/cancellations-copy";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { ResendEvidence } from "./resend-evidence";
 
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Cancellation record" };
 // the PDF and the CSV never carry a casual's), and "Download PDF" (by the booking's full id, so it
 // is always this one). Opened by its reference or the booking's full id; a reference two
 // cancellations share lists both to choose from. "Resend evidence" when the evidence email to the
-// strikes team failed (12C.4). Nothing to approve.
+// strikes team failed or is held up (12C.4). Nothing to approve.
 export default async function CancellationRecordPage({
   params,
 }: {
@@ -33,6 +33,9 @@ export default async function CancellationRecordPage({
   if (!found) notFound();
   if (found.status === "several") return <ChooseOne shared={found.shared} />;
   const { record } = found;
+  // "Resend evidence" when a live strike's email failed or is held up (12C.4).
+  const strike = record.row.strike;
+  const resend = strike?.status === "live" ? resendNote(strike.evidence) : null;
   const fields = recordFields(record.row, {
     tz: record.timeZone,
     threshold: record.threshold,
@@ -63,14 +66,12 @@ export default async function CancellationRecordPage({
         </p>
         <p>{AS_IT_IS_NOW}</p>
       </PageHeader>
-      {record.row.strike?.evidence.status === "failed" && (
+      {resend && (
         <section aria-labelledby="evidence" className="mb-6 flex max-w-3xl flex-col gap-2">
           <h2 id="evidence" className="font-semibold text-ink">
-            The evidence email failed
+            {resend.heading}
           </h2>
-          <p className="text-ink-muted">
-            It may have arrived anyway: check with the strikes team before sending it again.
-          </p>
+          <p className="text-ink-muted">{resend.text}</p>
           <ResendEvidence assignmentId={record.row.assignmentId} />
         </section>
       )}

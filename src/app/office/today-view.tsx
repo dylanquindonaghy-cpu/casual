@@ -386,9 +386,14 @@ export function TodayContent({
             {view.evidence.failed.map((f) => (
               <li key={f.assignmentId} className={`${row} flex max-w-prose flex-col gap-2`}>
                 <p>
-                  {f.casual}&apos;s strike record couldn&apos;t be emailed to the strikes team
-                  (cancelled <span className="tabular-nums">{timeOnDay(f.cancelledAt, tz)}</span>).
-                  It may have arrived anyway.
+                  {f.casual}&apos;s strike record{" "}
+                  {f.stuck ? "hasn't been emailed to" : "couldn't be emailed to"} the strikes team
+                  (cancelled <span className="tabular-nums">{timeOnDay(f.cancelledAt, tz)}</span>).{" "}
+                  {f.stuck
+                    ? "It's held up."
+                    : f.nothingSent
+                      ? "Nothing was sent."
+                      : "It may have arrived anyway."}
                 </p>
                 <Link
                   href={`/office/cancellations/${f.assignmentId}`}

@@ -80,8 +80,16 @@ export interface StrikeEvidenceFacts {
 }
 
 export const EVIDENCE_SUBJECT_MAX = 200;
-const clip = (text: string, max: number) =>
-  text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+// At most `max` UTF-16 units (what the message's limit counts), cut between whole characters.
+const clip = (text: string, max: number) => {
+  if (text.length <= max) return text;
+  let out = "";
+  for (const ch of text) {
+    if (out.length + ch.length > max - 1) break;
+    out += ch;
+  }
+  return `${out.trimEnd()}…`;
+};
 
 export function strikeEvidenceEmail(
   firm: FirmVoice,
@@ -95,6 +103,11 @@ export function strikeEvidenceEmail(
     const fixed = subject.length - f.casual.length - (f.site?.length ?? 0);
     const each = Math.max(1, Math.floor((EVIDENCE_SUBJECT_MAX - fixed) / (f.site ? 2 : 1)));
     subject = subjectOf(clip(f.casual, each), f.site ? clip(f.site, each) : null);
+  }
+  // Anything else too long (a role, the notice): cut before the reference, which always stays.
+  const ref = ` (ref ${f.ref})`;
+  if (subject.length > EVIDENCE_SUBJECT_MAX) {
+    subject = `${clip(subject.slice(0, -ref.length), EVIDENCE_SUBJECT_MAX - ref.length)}${ref}`;
   }
   return {
     subject,

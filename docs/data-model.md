@@ -616,9 +616,11 @@ create table events (
 -- entries from before it have none. The Sheets sync's adds source and its fixed reason ("Removed
 -- on the rota sheet", "Shift cancelled on the rota sheet").
 -- Strikes (src/lib/strikes/): strike.issued (strike; actor system; {assignmentId, shiftId, workerId,
--- noticeHours, thresholdHours}); its evidence email (12C.4): strike.evidence_sending and
--- strike.evidence_sent {request, attempt}, strike.evidence_failed {request, attempt, code, retry}
--- (code not_set_up, stopped, or the error's class), strike.evidence_resend (actor office; {}).
+-- noticeHours, thresholdHours}); its evidence email (12C.4): strike.evidence_queued (the address
+-- confirmed while it waited; {}), strike.evidence_sending and strike.evidence_sent {request,
+-- attempt}, strike.evidence_failed {request, attempt, code, retry} (code not_set_up, withdrawn,
+-- stopped, not_built, or the error's class), strike.evidence_resend (actor office; {}). The
+-- request names the series in base 36 (no run of digits the log would take for a phone number).
 -- Never the address: it's on the strike row (evidence_email_to) with the time it went.
 -- Booking (src/lib/roster/book.ts): shift.assigned (assignment; actor worker or office; {by:
 -- worker|firm, shiftId, workerId, slot, noticeHours, overridden?, reason?}); from the Sheets sync

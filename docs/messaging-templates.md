@@ -210,7 +210,7 @@ reach the same app, which isn't answering.
   automatically. It is their strike {n} in the last {days} days." / "The record is attached (PDF)
   and is also here:" / "{link}" / "— {firm} Shift Team" (" (staff id …)" left out when there's
   none). No reason in the subject or body; the PDF gives a casual's as "Casual's own reason (see
-  ShiftDesk)".
+  ShiftDesk)", and doesn't name who filled the place again.
 - Unknown number message (below), failed Sheets sync, domain verified/failed, credential expiries
   (weekly), pay digest (per schedule, below).
 - `unknown_number_alert` (email, to active admins and resourcers, built in Phase 7,

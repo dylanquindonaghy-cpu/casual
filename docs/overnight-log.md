@@ -10489,6 +10489,30 @@ data model).
 | The attached PDF's "Evidence email" line reads "Sent to the strikes team at {the sending time}" | The attached record is that email | "Sending" |
 | "Their strike {n} in the last {days} days": their strikes not withdrawn in the strike's own window up to it | The same number on every attempt and resend | The live count when it's sent |
 | The Needs attention item (failed emails, the unconfirmed address) is a "Strike evidence" section on Today, admins get the Settings link | The Needs attention section arrives with the dashboard (12E.1), which moves Today's to-dos there | Waiting for 12E.1 |
-| "Resend evidence" only after `failed`, under the same lock | Two taps queue one; a sent or waiting email has nothing to resend | Any time |
-| A withdrawn strike's waiting evidence isn't sent (left `pending`) | Nothing to tell the team; withdrawal arrives in 12C.5, which can settle its evidence status | Sending it |
+| "Resend evidence" after `failed`, or when held up (still `pending`, nothing logged about the strike for 4 hours by the database's clock), for live strikes, under the same lock; it starts a new series, and only a strike's latest series sends | Two taps queue one; a job that stopped for good can't leave "Sending" forever; an older series' job, retry or late failure can't send or change anything (a late success still records `sent`) | Only after `failed` (the review found it could stick) |
+| A withdrawn strike's evidence isn't sent (logged {code: "withdrawn"}), resent or listed; the record says "Not sent: the strike was withdrawn" | Nothing to tell the team; no new status needed (S4's four stay) | Sending it |
+| The PDF emailed to the strikes team doesn't name who filled the place ("filled again at 22:02") and uses the strike's own threshold | §6.3's "a minimal PDF": another casual's name has no part in this casual's strike; the body and PDF agree | The download's PDF unchanged (the office sees names on screen anyway) |
+| "Nothing was sent" only when the failure proves it (`EmailNotSentError`, or the message couldn't be built: `not_built`); otherwise "may have arrived" | Say only what's known | One wording for every failure |
 | Queue name `strikes.evidence_email` (the task's), listed as "not a log entry" in the log-types test | pg-boss accepts dots | A kebab-case name |
+
+**Guardrails review (messaging, jobs): FIX FIRST, 1 item, fixed; every SHOULD fixed but one
+decision; most NICE fixed.** Tenant isolation, at-most-once sending, payloads and the log's
+contents passed.
+
+- FIX FIRST: the test "nothing sent to an unconfirmed address" reran a job that had already
+  finished, so it never reached the address check (sending to any saved address passed every
+  test). Fixed: two new cases (saved but not confirmed; confirmed, then changed to a new address),
+  and that mutation now fails 2 tests.
+- SHOULD, fixed: evidence could stay "Sending" for good (a job that stopped for good, a withdrawn
+  strike, a missing record): held-up evidence now shows on Today and can be resent, a withdrawn
+  strike is logged and never sent, a missing record throws (the job alert). Today's list and the
+  resend leave out withdrawn strikes. The address confirmed now logs `strike.evidence_queued` per
+  strike. Cross-firm tests for the backlog and Today. The replacement's name is left out of the
+  emailed PDF (my decision, in the table above; Dylan can reverse it).
+- NICE, fixed: one series at a time (an older series' late failure neither retries nor changes
+  the status, tested); "nothing was sent" only when proven, with `not_built` for a message that
+  couldn't be built; the subject always keeps its reference and never splits a character; the
+  series written in base 36 in the key (a billion-sized event id passed as digits would trip the
+  log's phone-number check; tested); "asked for … to be emailed again" for the resend; the PDF
+  uses the strike's own threshold.
+- Mutation checks: 12 in all (6 before the review, 6 after), each made a test fail.

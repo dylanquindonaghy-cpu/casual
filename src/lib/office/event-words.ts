@@ -193,6 +193,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker} got a strike for cancelling${notice ? ` with ${notice}` : ""}${under}.`;
     }
     // The evidence email to the strikes team (12C.4).
+    case "strike.evidence_queued":
+      return "A strike record that waited for the strikes team's email is being sent, now it's confirmed.";
     case "strike.evidence_sending":
       return "Emailing a strike record to the strikes team.";
     case "strike.evidence_sent":
@@ -200,11 +202,17 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "strike.evidence_failed":
       if (d.code === "not_set_up")
         return "A strike record wasn't emailed: the strikes team's email isn't confirmed. It goes when it is.";
+      if (d.code === "withdrawn")
+        return "A strike record wasn't emailed: the strike was withdrawn.";
       if (d.retry === true)
         return "Emailing a strike record didn't reach the email server. Trying again.";
+      if (d.code === "EmailNotSentError")
+        return "Emailing a strike record didn't reach the email server after 4 tries, so nothing was sent. Resend it from the record.";
+      if (d.code === "not_built")
+        return "A strike record's email couldn't be put together, so nothing was sent. Resend it from the record.";
       return "Emailing a strike record failed, and it may have arrived. Check with the strikes team, or resend it from the record.";
     case "strike.evidence_resend":
-      return `${officeName} sent a strike record to the strikes team again.`;
+      return `${officeName} asked for a strike record to be emailed to the strikes team again.`;
     case "shift.moved":
     case "shift.curtailed": {
       const notice = hours(d.noticeHours);

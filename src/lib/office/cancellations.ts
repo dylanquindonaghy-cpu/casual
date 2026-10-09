@@ -6,7 +6,13 @@ import { canAccess } from "../auth/roles";
 import { credentialRules, credentialTypes, firms, type CancelVia } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
-import { resendEvidence, type ResendEvidenceResult } from "../strikes/evidence-queue";
+import {
+  evidenceStuckSql,
+  lastEvidenceCodeSql,
+  NOTHING_SENT_CODES,
+  resendEvidence,
+  type ResendEvidenceResult,
+} from "../strikes/evidence-queue";
 import type { StrikeCode } from "../strikes/decide";
 import { liveStrikeCount } from "../strikes/issue";
 import { strikeSettings } from "../strikes/settings";
@@ -68,6 +74,8 @@ type Row = {
   evidence_email_status: string | null;
   evidence_email_to: string | null;
   evidence_email_sent_at: string | Date | null;
+  evidence_stuck: boolean;
+  evidence_code: string | null;
   place: string | null;
   marked_urgent: boolean;
   offered_to: number;
@@ -123,6 +131,8 @@ async function loadRows(
            ou.name as office_name, ce.data ->> 'strike' as strike_code,
            st.status as strike_status, st.expires_at as strike_expires_at, st.review_needed,
            st.evidence_email_status, st.evidence_email_to, st.evidence_email_sent_at,
+           coalesce(${evidenceStuckSql("st")}, false) as evidence_stuck,
+           ${lastEvidenceCodeSql("st")} as evidence_code,
            ce.data ->> 'place' as place,
            coalesce(ce.id is not null and exists (
              select 1 from events u
@@ -240,6 +250,8 @@ function toRow(r: Row, requirements: CancellationRow["requirements"]): Cancellat
               status: r.evidence_email_status,
               to: r.evidence_email_to,
               sentAt: dateOrNull(r.evidence_email_sent_at),
+              stuck: r.evidence_stuck,
+              nothingSent: r.evidence_code !== null && NOTHING_SENT_CODES.includes(r.evidence_code),
             },
           }
         : null,

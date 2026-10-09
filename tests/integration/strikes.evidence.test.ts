@@ -235,11 +235,18 @@ describe("only to a confirmed address", () => {
     expect(emailOf(out.sent[0]).to).toBe(TEAM);
     expect(await t.evidence(s.strikeId)).toEqual({ status: "sent", to: TEAM, sent_at: later(2) });
     const entries = await t.logged(s.strikeId);
+    // The confirmation queued it again as its own series (strike.evidence_queued).
     expect(entries.map((e) => e.action)).toEqual([
       "strike.evidence_failed",
+      "strike.evidence_queued",
       "strike.evidence_sending",
       "strike.evidence_sent",
     ]);
+    const { rows: queuedEntry } = await su.query<{ id: string }>(
+      "select id::text from events where entity_id = $1 and action = 'strike.evidence_queued'",
+      [s.strikeId],
+    );
+    expect(String(second.series)).toBe(queuedEntry[0]?.id);
     // Never the address in the log.
     expect(JSON.stringify(entries)).not.toContain("@");
     expect((await t.today()).evidence).toMatchObject({
@@ -481,5 +488,188 @@ describe("isolation", () => {
     ).toEqual({ status: "gone" });
     expect(out.sent).toEqual([]);
     expect((await t.evidence(s.strikeId))?.status).toBe("pending");
+  });
+});
+
+describe("only to a confirmed address: never one saved but not confirmed", () => {
+  it("saved, not confirmed yet: a new strike's evidence waits and nothing is sent", async () => {
+    const t = await evidenceFirm();
+    await t.saveTeam();
+    const s = await t.strike();
+    const out = transport();
+    expect(await t.run((await t.jobs(s.strikeId))[0]!.data, out.transport)).toEqual({
+      status: "not_set_up",
+    });
+    expect(out.sent).toEqual([]);
+    expect((await t.evidence(s.strikeId))?.status).toBe("not_set_up");
+  });
+
+  it("confirmed, then changed to an address not confirmed yet: sent to neither", async () => {
+    const t = await evidenceFirm();
+    await t.confirmTeam();
+    expect(
+      await saveStrikesEmail(
+        { firm: { id: t.f.firmId }, officeUserId: t.admin, run: withFirm, clock: at(later(1.6)) },
+        { address: "new.strikes.team@example.com" },
+      ),
+    ).toMatchObject({ status: "saved" });
+    const s = await t.strike();
+    const out = transport();
+    expect(await t.run((await t.jobs(s.strikeId))[0]!.data, out.transport)).toEqual({
+      status: "not_set_up",
+    });
+    expect(out.sent).toEqual([]);
+  });
+});
+
+describe("one series at a time", () => {
+  it("a resend takes over: the earlier series' job sends nothing", async () => {
+    const t = await evidenceFirm();
+    await t.confirmTeam();
+    const s = await t.strike();
+    const [first] = await t.jobs(s.strikeId);
+    // The first attempt is held up: nothing logged about the strike for 5 hours.
+    await su.query(
+      "update events set created_at = created_at - interval '5 hours' where entity_id = $1",
+      [s.strikeId],
+    );
+    const item = (await t.today()).evidence.failed;
+    expect(item).toEqual([expect.objectContaining({ assignmentId: s.assignmentId, stuck: true })]);
+    expect(await resendEvidenceAsOffice(t.office(t.resourcer), s.assignmentId)).toEqual({
+      status: "queued",
+    });
+    const out = transport();
+    // The held-up job turns up after all: superseded, it sends nothing.
+    expect(await t.run(first!.data, out.transport)).toEqual({ status: "already" });
+    expect(out.sent).toEqual([]);
+    expect(await t.run((await t.jobs(s.strikeId))[1]!.data, out.transport)).toEqual({
+      status: "sent",
+    });
+    expect(out.sent).toHaveLength(1);
+    expect((await t.today()).evidence.failed).toEqual([]);
+  });
+
+  it("an earlier series' late failure changes nothing and starts no retry", async () => {
+    const t = await evidenceFirm();
+    await t.confirmTeam();
+    const s = await t.strike();
+    const [first] = await t.jobs(s.strikeId);
+    // While the first attempt is sending: a rerun of its job marked it failed (its heartbeat was
+    // lost), and the office resent it. Then the first attempt's send fails, nothing sent.
+    const midway: MessagingTransport = {
+      name: "midway",
+      async send() {
+        await su.query("update strikes set evidence_email_status = 'failed' where id = $1", [
+          s.strikeId,
+        ]);
+        expect(await resendEvidenceAsOffice(t.office(t.admin), s.assignmentId)).toEqual({
+          status: "queued",
+        });
+        throw new EmailNotSentError("connect");
+      },
+    };
+    expect(await t.run(first!.data, midway)).toEqual({ status: "failed" });
+    // No retry of the old series; the resend's job is the only one waiting, its status untouched.
+    const jobs = await t.jobs(s.strikeId);
+    expect(jobs.map((j) => [j.data.series === first!.data.series, j.data.attempt])).toEqual([
+      [true, 1],
+      [false, 1],
+    ]);
+    expect((await t.evidence(s.strikeId))?.status).toBe("pending");
+    expect((await t.logged(s.strikeId)).at(-1)?.data).toMatchObject({
+      code: "EmailNotSentError",
+      retry: false,
+    });
+  });
+});
+
+describe("withdrawn strikes", () => {
+  it("nothing sent, logged; no resend; not on Today", async () => {
+    const t = await evidenceFirm();
+    await t.confirmTeam();
+    const s = await t.strike();
+    await su.query(
+      `update strikes set status = 'withdrawn', withdrawn_at = $2, withdrawn_by = $3,
+              withdrawn_reason = 'Made up for the test'
+        where id = $1`,
+      [s.strikeId, later(1.5), t.admin],
+    );
+    const out = transport();
+    expect(await t.run((await t.jobs(s.strikeId))[0]!.data, out.transport)).toEqual({
+      status: "gone",
+    });
+    expect(out.sent).toEqual([]);
+    expect((await t.logged(s.strikeId)).at(-1)?.data).toMatchObject({ code: "withdrawn" });
+    // Even once it's been quiet for hours.
+    await su.query(
+      "update events set created_at = created_at - interval '5 hours' where entity_id = $1",
+      [s.strikeId],
+    );
+    expect(await resendEvidenceAsOffice(t.office(t.admin), s.assignmentId)).toEqual({
+      status: "not_failed",
+    });
+    expect((await t.today()).evidence.failed).toEqual([]);
+  });
+});
+
+describe("the emailed PDF names nobody else", () => {
+  it("who filled the place again isn't named; the strike's own threshold is used", async () => {
+    const t = await evidenceFirm();
+    await t.confirmTeam();
+    const s = await t.strike();
+    // Jo takes the place at 10:30, before the evidence goes.
+    const jo = await t.f.worker({ first: "Jo" });
+    expect(
+      await takeShift(
+        {
+          firm: { id: t.f.firmId, timezone: "Europe/London", signOff: "x" },
+          run: withFirm,
+          clock: at(later(1.5)),
+        },
+        jo,
+        s.shiftId,
+      ),
+    ).toMatchObject({ status: "booked" });
+    // The owner raises the firm's threshold afterwards: the strike's own (48) stays.
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{strikes}',
+         coalesce(settings -> 'strikes', '{}'::jsonb) || '{"notice_hours": 72}'::jsonb)
+        where id = $1`,
+      [t.f.firmId],
+    );
+    const out = transport();
+    expect(await t.run((await t.jobs(s.strikeId))[0]!.data, out.transport)).toEqual({
+      status: "sent",
+    });
+    const email = emailOf(out.sent[0]);
+    const pdf = await pdfText(email.attachments![0]!.content as Uint8Array);
+    expect(pdf).toContain("filled again at 10:30");
+    expect(pdf).not.toContain("Jo Booker");
+    expect(pdf).toContain("Under 48 hours");
+    expect(email.body).toContain("under your 48-hour rule");
+  });
+});
+
+describe("isolation: the address and Today", () => {
+  it("confirming one firm's address sends none of another's; Today lists only its own", async () => {
+    const a = await evidenceFirm();
+    const b = await evidenceFirm();
+    const waiting = await b.strike();
+    await b.run((await b.jobs(waiting.strikeId))[0]!.data, transport().transport);
+    expect((await b.evidence(waiting.strikeId))?.status).toBe("not_set_up");
+    await a.confirmTeam();
+    // Firm B's strike is still waiting, with no new job.
+    expect((await b.evidence(waiting.strikeId))?.status).toBe("not_set_up");
+    expect(await b.jobs(waiting.strikeId)).toHaveLength(1);
+
+    const failedA = await a.strike();
+    await a.run(
+      (await a.jobs(failedA.strikeId))[0]!.data,
+      transport(() => new EmailMayHaveArrivedError()).transport,
+    );
+    expect((await a.today()).evidence.failed.map((f) => f.assignmentId)).toEqual([
+      failedA.assignmentId,
+    ]);
+    expect((await b.today()).evidence.failed).toEqual([]);
   });
 });

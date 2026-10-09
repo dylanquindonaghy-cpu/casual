@@ -11,6 +11,11 @@ import {
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import type { StopReason } from "../offers/waves";
+import {
+  evidenceStuckSql,
+  lastEvidenceCodeSql,
+  NOTHING_SENT_CODES,
+} from "../strikes/evidence-queue";
 import { confirmedStrikesEmail } from "../strikes/team-email";
 import { addDays, localDateOf } from "../time/zoned";
 
@@ -160,7 +165,14 @@ export interface TodayView {
 export interface TodayEvidence {
   addressConfirmed: boolean; // the strikes team's email is set and confirmed
   waiting: number; // strikes still counting, left waiting for a confirmed address
-  failed: { assignmentId: string; casual: string; cancelledAt: Date }[]; // newest first
+  // Failed or held up, on strikes still counting and not withdrawn, newest first.
+  failed: {
+    assignmentId: string;
+    casual: string;
+    cancelledAt: Date;
+    stuck: boolean; // held up: still pending, nothing logged for hours
+    nothingSent: boolean; // its last failure proves nothing was sent
+  }[];
   failedMore: boolean;
 }
 
@@ -529,13 +541,21 @@ async function loadEvidence(tx: FirmTx, now: Date): Promise<TodayEvidence> {
     first_name: string | null;
     last_name: string | null;
     cancelled_at: string | Date;
+    stuck: boolean;
+    code: string | null;
   }>(sql`
-    select a.id::text as assignment_id, w.first_name, w.last_name, a.cancelled_at
-      from strikes s
-      join assignments a on a.firm_id = s.firm_id and a.id = s.assignment_id
-      join workers w on w.firm_id = s.firm_id and w.id = s.worker_id
-     where s.evidence_email_status = 'failed'
-     order by s.issued_at desc, s.id
+    select * from (
+      select a.id::text as assignment_id, w.first_name, w.last_name, a.cancelled_at,
+             s.issued_at, s.id, coalesce(${evidenceStuckSql("s")}, false) as stuck,
+             ${lastEvidenceCodeSql("s")} as code, s.evidence_email_status as evidence
+        from strikes s
+        join assignments a on a.firm_id = s.firm_id and a.id = s.assignment_id
+        join workers w on w.firm_id = s.firm_id and w.id = s.worker_id
+       where s.status = 'live' and s.expires_at > ${now}
+         and s.evidence_email_status in ('failed', 'pending')
+    ) f
+     where f.evidence = 'failed' or f.stuck
+     order by f.issued_at desc, f.id
      limit ${LIST_MAX + 1}
   `);
   const { rows: waiting } = await tx.execute<{ n: number }>(sql`
@@ -549,6 +569,8 @@ async function loadEvidence(tx: FirmTx, now: Date): Promise<TodayEvidence> {
       assignmentId: f.assignment_id,
       casual: `${f.first_name ?? ""} ${f.last_name ?? ""}`.trim() || "A casual",
       cancelledAt: new Date(f.cancelled_at),
+      stuck: f.stuck,
+      nothingSent: f.code !== null && NOTHING_SENT_CODES.includes(f.code),
     })),
     failedMore: failed.length > LIST_MAX,
   };

@@ -3,7 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { passesLogCheck } from "@/lib/events/record";
 import { EVIDENCE_SUBJECT_MAX, strikeEvidenceEmail } from "@/lib/messaging/templates";
-import { evidenceSessionText } from "@/lib/office/cancellations-copy";
+import {
+  evidenceSessionText,
+  evidenceText,
+  resendNote,
+  thenText,
+} from "@/lib/office/cancellations-copy";
 import { eventWords } from "@/lib/office/event-words";
 import { resendEvidenceText } from "@/lib/office/evidence-copy";
 import { LOG_TYPES } from "@/lib/office/log-types";
@@ -83,6 +88,20 @@ describe("the email's words (§5.6)", () => {
     expect(long.subject.endsWith("with 15 hours' notice (ref B71E0C42)")).toBe(true);
   });
 
+  it("a very long role or notice still leaves the reference, and no character is cut in half", () => {
+    const long = strikeEvidenceEmail(ACME, {
+      ...facts,
+      role: "Event steward ".repeat(20).trim(),
+      casual: "Zoë 🙂 Ünal".repeat(30),
+    });
+    expect(long.subject.length).toBeLessThanOrEqual(EVIDENCE_SUBJECT_MAX);
+    expect(long.subject.endsWith(" (ref B71E0C42)")).toBe(true);
+    // No lone half of a surrogate pair.
+    expect(long.subject).not.toMatch(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/,
+    );
+  });
+
   it("the session line: role, event, day and times in the firm's zone", () => {
     expect(
       evidenceSessionText(
@@ -102,7 +121,8 @@ describe("the email's words (§5.6)", () => {
 describe("the job's payload and retries", () => {
   const ok = {
     firmId: "00000000-0000-4000-8000-0000000000aa",
-    idempotencyKey: "strike-evidence:00000000-0000-4000-8000-000000000001:42:1",
+    // The series in base 36 (42 is "16").
+    idempotencyKey: "strike-evidence:00000000-0000-4000-8000-000000000001:16:1",
     strikeId: "00000000-0000-4000-8000-000000000001",
     series: 42,
     attempt: 1,
@@ -111,7 +131,8 @@ describe("the job's payload and retries", () => {
   it("ids and numbers only, its key naming the strike, the series and the attempt", () => {
     expect(strikeEvidencePayload.safeParse(ok).success).toBe(true);
     for (const bad of [
-      { ...ok, idempotencyKey: "strike-evidence:00000000-0000-4000-8000-000000000001:42:2" },
+      { ...ok, idempotencyKey: "strike-evidence:00000000-0000-4000-8000-000000000001:16:2" },
+      { ...ok, idempotencyKey: "strike-evidence:00000000-0000-4000-8000-000000000001:42:1" },
       { ...ok, series: 43 },
       {
         ...ok,
@@ -123,6 +144,15 @@ describe("the job's payload and retries", () => {
     ]) {
       expect(strikeEvidencePayload.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
     }
+  });
+
+  it("a series past a billion still passes the log check (no run of 10 digits in the key)", () => {
+    const series = 1_234_567_890;
+    const key = `strike-evidence:00000000-0000-4000-8000-000000000001:${series.toString(36)}:1`;
+    expect(strikeEvidencePayload.safeParse({ ...ok, idempotencyKey: key, series }).success).toBe(
+      true,
+    );
+    expect(passesLogCheck({ request: key, attempt: 1 })).toBe(true);
   });
 
   it("at most 4 attempts, waiting 5 minutes, 30 minutes and 2 hours", () => {
@@ -159,6 +189,7 @@ describe("the log", () => {
   it("in the Strikes group, in plain words", () => {
     expect(LOG_TYPES.strikes.actions).toEqual(
       expect.arrayContaining([
+        "strike.evidence_queued",
         "strike.evidence_sending",
         "strike.evidence_sent",
         "strike.evidence_failed",
@@ -180,8 +211,71 @@ describe("the log", () => {
     expect(say("strike.evidence_failed", { code: "EmailMayHaveArrivedError", retry: false })).toBe(
       "Emailing a strike record failed, and it may have arrived. Check with the strikes team, or resend it from the record.",
     );
+    expect(say("strike.evidence_failed", { code: "EmailNotSentError", retry: false })).toBe(
+      "Emailing a strike record didn't reach the email server after 4 tries, so nothing was sent. Resend it from the record.",
+    );
+    expect(say("strike.evidence_failed", { code: "not_built", retry: false })).toBe(
+      "A strike record's email couldn't be put together, so nothing was sent. Resend it from the record.",
+    );
+    expect(say("strike.evidence_failed", { code: "withdrawn", retry: false })).toBe(
+      "A strike record wasn't emailed: the strike was withdrawn.",
+    );
+    expect(say("strike.evidence_queued", {})).toBe(
+      "A strike record that waited for the strikes team's email is being sent, now it's confirmed.",
+    );
     expect(say("strike.evidence_resend", {})).toBe(
-      "Sam Rota sent a strike record to the strikes team again.",
+      "Sam Rota asked for a strike record to be emailed to the strikes team again.",
+    );
+  });
+
+  it("the record's evidence line and its resend note say only what's known", () => {
+    const strike = (status: "live" | "withdrawn", evidence: object) => ({
+      strike: {
+        status,
+        expiresAt: new Date("2027-02-04T18:00:00Z"),
+        reviewNeeded: false,
+        evidence: { status: null, to: null, sentAt: null, ...evidence },
+      },
+    });
+    const TZ = "Europe/London";
+    expect(evidenceText(strike("live", { status: "failed" }), TZ)).toBe("Couldn't be sent");
+    expect(evidenceText(strike("live", { status: "failed", nothingSent: true }), TZ)).toBe(
+      "Couldn't be sent: nothing was sent",
+    );
+    expect(evidenceText(strike("live", { status: "pending" }), TZ)).toBe("Sending");
+    expect(evidenceText(strike("live", { status: "pending", stuck: true }), TZ)).toBe(
+      "Held up: not sent yet",
+    );
+    expect(evidenceText(strike("withdrawn", { status: "pending" }), TZ)).toBe(
+      "Not sent: the strike was withdrawn",
+    );
+    expect(resendNote({ status: "failed" })?.text).toBe(
+      "It may have arrived anyway: check with the strikes team before sending it again.",
+    );
+    expect(resendNote({ status: "failed", nothingSent: true })?.text).toBe(
+      "It didn't reach the email server, so nothing was sent.",
+    );
+    expect(resendNote({ status: "pending", stuck: true })?.heading).toBe(
+      "The evidence email is held up",
+    );
+    for (const status of ["pending", "sent", "not_set_up", null]) {
+      expect(resendNote({ status })).toBeNull();
+    }
+  });
+
+  it("the emailed PDF's Then line leaves out who took the place", () => {
+    const t = {
+      place: "reopened" as const,
+      markedUrgent: false,
+      offeredTo: 0,
+      replacement: { name: "Jo Booker", at: new Date("2026-11-02T11:00:00Z") },
+    };
+    const when = new Date("2026-11-02T10:00:00Z");
+    expect(thenText(t, when, "Europe/London")).toBe(
+      "Place reopened · filled again by Jo Booker at 11:00",
+    );
+    expect(thenText(t, when, "Europe/London", false)).toBe(
+      "Place reopened · filled again at 11:00",
     );
   });
 
@@ -230,6 +324,8 @@ describe("the Needs attention item (on Today until the dashboard, 12E.1)", () =>
     assignmentId: "4f2a9c1b-0000-4000-8000-000000000001",
     casual: "Ann Booker",
     cancelledAt: new Date("2026-11-02T10:00:00Z"),
+    stuck: false,
+    nothingSent: false,
   };
 
   it("none while the address is confirmed and nothing failed", () => {
@@ -256,6 +352,25 @@ describe("the Needs attention item (on Today until the dashboard, 12E.1)", () =>
       new RegExp(
         `<a[^>]*href="/office/cancellations/${failed.assignmentId}"[^>]*>Open the record to resend it</a>`,
       ),
+    );
+    // Held up, or provably not sent: said so.
+    const other = render(
+      view({
+        addressConfirmed: true,
+        waiting: 0,
+        failed: [
+          { ...failed, stuck: true },
+          { ...failed, assignmentId: "4f2a9c1b-0000-4000-8000-000000000002", nothingSent: true },
+        ],
+        failedMore: false,
+      }),
+      true,
+    );
+    expect(text(other)).toContain(
+      "Ann Booker's strike record hasn't been emailed to the strikes team (cancelled 10:00 on Mon 2 Nov). It's held up.",
+    );
+    expect(text(other)).toContain(
+      "Ann Booker's strike record couldn't be emailed to the strikes team (cancelled 10:00 on Mon 2 Nov). Nothing was sent.",
     );
     // A resourcer can't open Settings: told who can, no link.
     const resourcer = render(v, false);

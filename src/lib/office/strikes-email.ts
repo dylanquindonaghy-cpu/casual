@@ -282,7 +282,7 @@ export async function confirmStrikesEmail(
     }
     if (current.confirmedAt) return { status: "already" };
     await setFirmSetting(tx, "strikes.email_verified_at", now.toISOString());
-    const confirmed = await recordEvent(tx, {
+    await recordEvent(tx, {
       actorType: "system",
       action: "firm.settings_changed",
       entityType: "firm",
@@ -290,7 +290,7 @@ export async function confirmStrikesEmail(
       data: { by: "link", keys: ["strikes.email_verified_at"] },
     });
     // The strikes recorded while there was no confirmed address, still counting, now go (12C.4).
-    await queueWaitingEvidence(tx, { series: confirmed, now });
+    await queueWaitingEvidence(tx, { now });
     return { status: "confirmed" };
   });
 }

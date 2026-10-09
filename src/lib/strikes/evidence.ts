@@ -6,6 +6,7 @@ import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
 import { errorCode, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
+import { outboundMessageSchema, type OutboundMessage } from "../messaging/transport";
 import { EmailNotSentError } from "../messaging/smtp";
 import { strikeEvidenceEmail } from "../messaging/templates";
 import { loadCancellationRecord, type CancellationRecord } from "../office/cancellations";
@@ -18,6 +19,7 @@ import { signOffFor } from "../tenancy/sign-off";
 import {
   EVIDENCE_MAX_ATTEMPTS,
   queueStrikeEvidence,
+  SERIES_ACTIONS,
   STRIKE_EVIDENCE_QUEUE,
   strikeEvidencePayload,
   type StrikeEvidencePayload,
@@ -45,6 +47,8 @@ import { startsInText } from "./words";
 //    have arrived, so only a person sends it again ("Resend evidence" on the record), and the
 //    Needs attention item shows it.
 // A job stopped between its claim and its outcome is never sent again: rerun, it records `failed`.
+// Only the strike's latest series sends (a resend starts a new one); an older series' late failure
+// only logs, while a late success still records `sent`, which is what happened.
 
 // Waits before attempts 2, 3 and 4.
 export const EVIDENCE_RETRY_AFTER_MS = [5 * MINUTE, 30 * MINUTE, 2 * HOUR] as const;
@@ -82,6 +86,15 @@ const ATTEMPT_ACTIONS = [
   "strike.evidence_failed",
 ];
 
+// The strike's latest series: the id of its latest entry that started one (evidence-queue.ts).
+async function currentSeries(tx: FirmTx, strikeId: string): Promise<number> {
+  const [row] = await tx
+    .select({ id: sql<string | null>`max(${events.id})` })
+    .from(events)
+    .where(and(eq(events.entityId, strikeId), inArray(events.action, [...SERIES_ACTIONS])));
+  return Number(row?.id ?? 0);
+}
+
 async function claim(tx: FirmTx, p: StrikeEvidencePayload, now: Date): Promise<Claim> {
   await lockStrikesEmail(tx);
   const [strike] = await tx
@@ -109,14 +122,31 @@ async function claim(tx: FirmTx, p: StrikeEvidencePayload, now: Date): Promise<C
       ),
     );
   if (ran.some((e) => e.action !== "strike.evidence_sending")) return { status: "already" };
+  // A newer series (a resend, or the address confirmed since) has taken over.
+  if ((await currentSeries(tx, strike.id)) !== p.series) return { status: "already" };
   if (ran.length > 0) {
     // Claimed, then stopped before its outcome: the email may have gone, so never again.
-    await recordFailure(tx, { strikeId: strike.id, payload: p, code: "stopped", retry: false });
+    await recordFailure(tx, {
+      strikeId: strike.id,
+      payload: p,
+      code: "stopped",
+      retry: false,
+      current: true,
+    });
     return { status: "failed" };
   }
   if (strike.evidence !== "pending") return { status: "already" };
-  // A withdrawn strike (12C.5) has nothing to tell the team.
-  if (strike.status !== "live") return { status: "gone" };
+  // A withdrawn strike (12C.5) has nothing to tell the team: logged, nothing sent.
+  if (strike.status !== "live") {
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "strike.evidence_failed",
+      entityType: "strike",
+      entityId: strike.id,
+      data: { request: p.idempotencyKey, attempt: p.attempt, code: "withdrawn", retry: false },
+    });
+    return { status: "gone" };
+  }
 
   const [firm] = await tx
     .select({ name: firms.name, slug: firms.slug, settings: firms.settings })
@@ -138,7 +168,9 @@ async function claim(tx: FirmTx, p: StrikeEvidencePayload, now: Date): Promise<C
     return { status: "not_set_up" };
   }
   const found = await loadCancellationRecord(tx, strike.assignmentId, now);
-  if (found?.status !== "found") return { status: "gone" };
+  // A strike's booking is always a cancelled one: without it, fail loudly (the job's failure alert;
+  // the evidence shows as held up on Today after EVIDENCE_STUCK_HOURS).
+  if (found?.status !== "found") throw new Error("the strike's cancellation record wasn't found");
   // Which of their strikes this is: those counting when it was recorded (its own window), it too.
   const window = strike.expiresAt.getTime() - strike.issuedAt.getTime();
   const [counted] = await tx
@@ -178,11 +210,19 @@ async function claim(tx: FirmTx, p: StrikeEvidencePayload, now: Date): Promise<C
   };
 }
 
+// A failed attempt, logged. `current`: still the strike's latest series, so it settles the status
+// (an older series only logs what happened to it).
 async function recordFailure(
   tx: FirmTx,
-  f: { strikeId: string; payload: StrikeEvidencePayload; code: string; retry: boolean },
+  f: {
+    strikeId: string;
+    payload: StrikeEvidencePayload;
+    code: string;
+    retry: boolean;
+    current: boolean;
+  },
 ) {
-  if (!f.retry) {
+  if (!f.retry && f.current) {
     await tx
       .update(strikes)
       .set({ evidenceEmailStatus: "failed" })
@@ -221,11 +261,14 @@ async function evidenceMessage(
   const pdf = await recordPdf({
     title: `Cancellation record ${row.ref}`,
     firmName: record.firmName,
+    // The strike's own threshold (as the body says), and no other casual's name: the replacement
+    // reads "filled again at 22:02".
     fields: recordFields(sending, {
       tz,
-      threshold: record.threshold,
+      threshold: c.thresholdHours,
       liveStrikes: record.liveStrikes,
       forExport: true,
+      replacementName: false,
     }),
     generatedAt: timeOnDay(now, tz),
     note: AS_IT_IS_NOW,
@@ -271,17 +314,26 @@ export async function runStrikeEvidence(
   const claimed = await run(payload.firmId, (tx) => claim(tx, payload, now));
   if (claimed.status !== "send") return { status: claimed.status };
 
+  // Built and checked first: a failure here is before anything was sent, and not worth retrying.
   let code: string | null = null;
   let notSent = false;
+  let message: OutboundMessage | null = null;
   try {
-    await deps.transport.send(await evidenceMessage(claimed, now, deps.baseDomain));
-  } catch (err) {
-    code = errorCode(err);
-    notSent = err instanceof EmailNotSentError;
+    message = outboundMessageSchema.parse(await evidenceMessage(claimed, now, deps.baseDomain));
+  } catch {
+    code = "not_built";
+  }
+  if (message) {
+    try {
+      await deps.transport.send(message);
+    } catch (err) {
+      code = errorCode(err);
+      notSent = err instanceof EmailNotSentError;
+    }
   }
 
-  const retry = code !== null && notSent && payload.attempt < EVIDENCE_MAX_ATTEMPTS;
-  await run(payload.firmId, async (tx) => {
+  const canRetry = code !== null && notSent && payload.attempt < EVIDENCE_MAX_ATTEMPTS;
+  const retried = await run(payload.firmId, async (tx) => {
     if (code === null) {
       await tx
         .update(strikes)
@@ -294,9 +346,12 @@ export async function runStrikeEvidence(
         entityId: claimed.strikeId,
         data: { request: payload.idempotencyKey, attempt: payload.attempt },
       });
-      return;
+      return false;
     }
-    await recordFailure(tx, { strikeId: claimed.strikeId, payload, code, retry });
+    // A newer series started while this one was sending: it only logs what happened here.
+    const current = (await currentSeries(tx, claimed.strikeId)) === payload.series;
+    const retry = canRetry && current;
+    await recordFailure(tx, { strikeId: claimed.strikeId, payload, code, retry, current });
     if (retry) {
       const wait = EVIDENCE_RETRY_AFTER_MS[payload.attempt - 1] ?? 2 * HOUR;
       await queueStrikeEvidence(
@@ -305,9 +360,10 @@ export async function runStrikeEvidence(
         { startAfter: new Date(now.getTime() + wait) },
       );
     }
+    return retry;
   });
   if (code === null) return { status: "sent" };
-  return retry ? { status: "retrying", attempt: payload.attempt + 1 } : { status: "failed" };
+  return retried ? { status: "retrying", attempt: payload.attempt + 1 } : { status: "failed" };
 }
 
 export function createStrikeEvidenceTask(

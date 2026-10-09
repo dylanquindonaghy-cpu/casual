@@ -87,7 +87,15 @@ export interface CancellationRow {
     status: "live" | "withdrawn";
     expiresAt: Date;
     reviewNeeded: boolean;
-    evidence: { status: string | null; to: string | null; sentAt: Date | null };
+    // stuck: still pending with nothing logged for hours (its job stopped for good); nothingSent:
+    // its last failure proves nothing was sent (12C.4).
+    evidence: {
+      status: string | null;
+      to: string | null;
+      sentAt: Date | null;
+      stuck?: boolean;
+      nothingSent?: boolean;
+    };
   } | null;
   warning: { version: string; shownAt: Date } | null;
   then: ThenFacts;
@@ -183,22 +191,51 @@ export function strikeShort(r: Pick<CancellationRow, "strike" | "strikeCode">): 
 export function evidenceText(r: Pick<CancellationRow, "strike">, tz: string): string {
   const e = r.strike?.evidence;
   if (!r.strike || !e) return "No strike: nothing to send";
+  if (e.status !== "sent" && r.strike.status === "withdrawn") {
+    return "Not sent: the strike was withdrawn";
+  }
   switch (e.status) {
     case "sent":
       return e.sentAt ? `Sent to the strikes team at ${timeOnDay(e.sentAt, tz)}` : "Sent";
     case "failed":
-      return "Couldn't be sent";
+      return e.nothingSent ? "Couldn't be sent: nothing was sent" : "Couldn't be sent";
     case "not_set_up":
       return "No strikes team email set up";
     case "pending":
-      return "Sending";
+      return e.stuck ? "Held up: not sent yet" : "Sending";
     default:
       return "Not sent";
   }
 }
 
+// The record's "Resend evidence" section (12C.4): when the email failed or is held up, what to say.
+export function resendNote(e: { status: string | null; stuck?: boolean; nothingSent?: boolean }): {
+  heading: string;
+  text: string;
+} | null {
+  if (e.status === "failed") {
+    return e.nothingSent
+      ? {
+          heading: "The evidence email failed",
+          text: "It didn't reach the email server, so nothing was sent.",
+        }
+      : {
+          heading: "The evidence email failed",
+          text: "It may have arrived anyway: check with the strikes team before sending it again.",
+        };
+  }
+  if (e.status === "pending" && e.stuck) {
+    return {
+      heading: "The evidence email is held up",
+      text: "It hasn't gone in the last few hours. It may have arrived anyway: check with the strikes team before sending it again.",
+    };
+  }
+  return null;
+}
+
 // "Place reopened and marked urgent · offered to 5 casuals · filled again by Ben Fraser at 22:02".
-export function thenText(t: ThenFacts, cancelledAt: Date, tz: string): string {
+// `names`: false leaves out who took the place (the evidence email's PDF: no other casual's name).
+export function thenText(t: ThenFacts, cancelledAt: Date, tz: string, names = true): string {
   switch (t.place) {
     case null:
       return "Not recorded";
@@ -220,7 +257,7 @@ export function thenText(t: ThenFacts, cancelledAt: Date, tz: string): string {
   if (t.replacement) {
     const sameDay = localDateOf(t.replacement.at, tz) === localDateOf(cancelledAt, tz);
     const at = sameDay ? hhmm(t.replacement.at, tz) : timeOnDay(t.replacement.at, tz);
-    parts.push(`filled again by ${t.replacement.name} at ${at}`);
+    parts.push(names ? `filled again by ${t.replacement.name} at ${at}` : `filled again at ${at}`);
   } else {
     parts.push("not filled again yet");
   }
@@ -255,7 +292,13 @@ const sessionText = (r: CancellationRow, tz: string) =>
 // version that leaves ShiftDesk (the PDF), with the casual's reason replaced.
 export function recordFields(
   r: CancellationRow,
-  o: { tz: string; threshold: number; liveStrikes: number; forExport: boolean },
+  o: {
+    tz: string;
+    threshold: number;
+    liveStrikes: number;
+    forExport: boolean;
+    replacementName?: boolean; // false: "filled again at …" (the evidence email's PDF)
+  },
 ): RecordField[] {
   const site = r.siteName ? [r.siteName, r.sitePostcode].filter(Boolean).join(", ") : null;
   return [
@@ -288,7 +331,7 @@ export function recordFields(
     { label: "Live strikes now", value: String(o.liveStrikes) },
     { label: "Evidence email", value: evidenceText(r, o.tz) },
     { label: "Your planner", value: PLANNER_TEXT },
-    { label: "Then", value: thenText(r.then, r.cancelledAt, o.tz) },
+    { label: "Then", value: thenText(r.then, r.cancelledAt, o.tz, o.replacementName ?? true) },
     { label: "Warning on the cancel screen", value: warningText(r, o.tz) },
   ];
 }

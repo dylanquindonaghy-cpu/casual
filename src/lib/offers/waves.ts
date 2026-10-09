@@ -30,6 +30,7 @@ import { previewBooking } from "../roster/book";
 import { rankForFairRotation } from "../rules/allocation";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { hoursToStart } from "../rules/urgent";
+import { isVisibleToCasuals } from "../roster/visibility";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf } from "../time/zoned";
@@ -41,19 +42,22 @@ import { lockLiveContact, type LiveContact } from "./reachable";
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
 // docs/architecture.md, "Offer waves"). Two firm jobs:
 //
-// - offer-wave {shiftId, wave}: while the shift is open, not started and has a place free, send
+// - offer-wave {shiftId, wave}: while the shift is open, not started, shown to casuals (its switch
+//   and its event's: src/lib/roster/visibility.ts) and has a place free, send
 //   the urgent offer to the next workers the rules allow (candidates.ts): under fair rotation the
 //   firm's `wave_size` best by rankForFairRotation, then the next wave `wave_minutes` later; under
 //   first come, first served everyone at once. Each offer is an `offers` row and an `offer.sent`
 //   event; a wave already sent sends nothing (a retry, or a second chain after another dropout).
-//   When there's no one left, or the shift filled, started or closed, the chain stops
+//   When there's no one left, or the shift filled, started, closed or was hidden, the chain stops
 //   (`offer.waves_stopped`); a filled shift's unanswered offers become "filled_elsewhere".
 // - escalate-shift {shiftId}: at the start minus `escalate_hours_before_start` (default 3), if a
 //   place is still free and the shift hasn't started, email the office's active admins and
 //   resourcers once (`shift.escalated`, which the Today view reads as "needs attention").
 //
 // startOfferWaves() queues both, in the transaction that caused them (a place reopened inside the
-// urgent window, or the office marking the shift urgent: src/lib/roster/urgent.ts).
+// urgent window, the office marking the shift urgent: src/lib/roster/urgent.ts, or showing an
+// urgent session to casuals again: src/lib/office/showing.ts). A session hidden from casuals gets
+// no wave, only the office's escalation check.
 // Messages go through the configured transport (console in development and tests); each offer is
 // also pushed to the worker's subscribed phones (PUSH_TRANSPORT: console or none until the real
 // sender is connected). Quiet hours hold a wave unless the firm lets urgent override them; a
@@ -123,27 +127,33 @@ const jobs = {
   escalate: { queue: ESCALATE_SHIFT_QUEUE, schema: escalateShiftPayload },
 };
 
-// Queues the next wave now, and the escalation check for the start minus the firm's hours (at
-// once if that time has passed). Inside the caller's withFirm transaction.
+// Queues the next wave now (only for a session shown to casuals), and the escalation check for the
+// start minus the firm's hours (at once if that time has passed). Inside the caller's withFirm
+// transaction. True when a wave was queued.
 export async function startOfferWaves(
   tx: FirmTx,
   input: { shiftId: string; now: Date },
-): Promise<void> {
+): Promise<boolean> {
   const [shift] = await tx
     .select({ startsAt: shifts.startsAt, settings: firms.settings })
     .from(shifts)
     .innerJoin(firms, eq(firms.id, shifts.firmId))
     .where(eq(shifts.id, input.shiftId));
-  if (!shift) return;
-  const { rows } = await tx.execute<{ next: number }>(
-    sql`select coalesce(max(wave), 0)::int + 1 as next from offers where shift_id = ${input.shiftId}`,
-  );
-  const wave = rows[0]?.next ?? 1;
-  await sendFirmJob(tx, jobs.wave, {
-    idempotencyKey: `offer-wave:${input.shiftId}:${wave}`,
-    shiftId: input.shiftId,
-    wave,
-  });
+  if (!shift) return false;
+  // Read without a lock: a wave that starts anyway (shown, then hidden before it runs) stops
+  // itself under the shift's lock (notOfferable).
+  const showing = await isVisibleToCasuals(tx, input.shiftId);
+  if (showing) {
+    const { rows } = await tx.execute<{ next: number }>(
+      sql`select coalesce(max(wave), 0)::int + 1 as next from offers where shift_id = ${input.shiftId}`,
+    );
+    const wave = rows[0]?.next ?? 1;
+    await sendFirmJob(tx, jobs.wave, {
+      idempotencyKey: `offer-wave:${input.shiftId}:${wave}`,
+      shiftId: input.shiftId,
+      wave,
+    });
+  }
   const escalateAt = new Date(shift.startsAt.getTime() - escalateHours(shift.settings) * HOUR);
   await sendFirmJob(
     tx,
@@ -151,6 +161,7 @@ export async function startOfferWaves(
     { idempotencyKey: `escalate-shift:${input.shiftId}`, shiftId: input.shiftId },
     escalateAt.getTime() > input.now.getTime() ? { startAfter: escalateAt } : undefined,
   );
+  return showing;
 }
 
 export interface OfferDeps extends NotifyDeps {
@@ -168,9 +179,12 @@ export interface LockedShift {
   isUrgent: boolean;
   siteName: string | null;
   freePlaces: number;
+  showing: boolean; // shown to casuals: its switch and its event's (src/lib/roster/visibility.ts)
 }
 
-// The shift, locked (the same shift-first order as booking), with its places still free.
+// The shift, locked (the same shift-first order as booking), with its places still free and
+// whether casuals see it (its event share-locked, as a booking does: switching the event off
+// waits for this transaction).
 export async function lockShift(tx: FirmTx, shiftId: string): Promise<LockedShift | null> {
   const [row] = await tx
     .select({
@@ -194,7 +208,11 @@ export async function lockShift(tx: FirmTx, shiftId: string): Promise<LockedShif
      where shift_id = ${shiftId} and worker_id is not null
        and status not in (${CANCELLED}) and slot <= ${row.headcount}
   `);
-  return { ...row, freePlaces: Math.max(0, row.headcount - (rows[0]?.taken ?? 0)) };
+  return {
+    ...row,
+    freePlaces: Math.max(0, row.headcount - (rows[0]?.taken ?? 0)),
+    showing: await isVisibleToCasuals(tx, shiftId, { lock: true }),
+  };
 }
 
 export async function firmVoice(tx: FirmTx, firmId: string) {
@@ -221,13 +239,15 @@ export const timeOf = (d: Date, tz: string) => {
   return `${pad(w.hour)}:${pad(w.minute)}`;
 };
 
-export type StopReason = "filled" | "started" | "not_open" | "not_urgent" | "no_candidates";
+export type StopReason =
+  "filled" | "started" | "not_open" | "hidden" | "not_urgent" | "no_candidates";
 
 export type WaveResult =
   | { status: "sent"; sent: number; next: number | null }
   | { status: "held"; until: Date } // quiet hours
   | { status: "already_sent" }
-  // `sent`: offers this run sent before the shift filled, started or closed (absent when none).
+  // `sent`: offers this run sent before the shift filled, started, closed or was hidden (absent when
+  // none).
   | { status: "stopped"; reason: StopReason | "gone"; sent?: number }
   // The shift's role, times or site changed mid-wave: queued again from the shift as it is now.
   | { status: "restarted"; sent: number };
@@ -238,6 +258,8 @@ function notOfferable(shift: LockedShift, now: Date): Exclude<StopReason, "no_ca
   if (shift.status !== "open" && shift.status !== "filled") return "not_open";
   // No place free, or the office marked it filled (it found someone another way: closeShift()).
   if (shift.freePlaces === 0 || shift.status === "filled") return "filled";
+  // The office hid the session or its event from casuals: no offers while it's hidden.
+  if (!shift.showing) return "hidden";
   // The office cleared the urgent mark: no more urgent offers.
   if (!shift.isUrgent) return "not_urgent";
   return null;

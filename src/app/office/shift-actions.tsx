@@ -33,7 +33,7 @@ export function ShiftActions({
     startTransition(async () => {
       const result = await setUrgentAction(shiftId, !isUrgent).catch(() => failed);
       setMessage(urgentResultText(result));
-      if (result.status === "marked" || result.status === "cleared") router.refresh();
+      if (["marked", "marked_hidden", "cleared"].includes(result.status)) router.refresh();
     });
   const markFilled = () =>
     startTransition(async () => {

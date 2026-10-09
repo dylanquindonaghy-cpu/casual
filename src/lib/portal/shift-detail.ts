@@ -6,6 +6,7 @@ import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { loadAllocationGate } from "../roster/allocation-input";
 import { previewBooking } from "../roster/book";
+import { isVisibleToCasuals } from "../roster/visibility";
 import type { MyShift, PortalContext } from "./my-shifts";
 
 // One shift's page for the logged-in worker (docs/screens.md, `/shifts/[id]`): the blocked-shift
@@ -19,7 +20,8 @@ import type { MyShift, PortalContext } from "./my-shifts";
 // - held: fair rotation holds it for workers with fewer hours that week (the shift's own week) until opensAt.
 // - blocked: the rules say no, with their reasons in plain English, and the worker's review
 //   request for it if one is waiting (askForReview in review.ts).
-// - missing: not in this firm, a draft, or not a shift id.
+// - missing: not in this firm, a draft, not a shift id, or hidden from casuals (the session's or its
+//   event's switch is off: src/lib/roster/visibility.ts). A booked worker still sees it as booked.
 // Code decides every state (golden rule 1); this only reads.
 
 export interface ShiftSummary {
@@ -139,6 +141,8 @@ export async function shiftForWorker(
         },
       };
     }
+
+    if (!(await isVisibleToCasuals(tx, shiftId))) return { state: "missing" };
 
     const { rows: counted } = await takenPlaces(tx, shiftId);
     const placesLeft = Math.max(0, row.headcount - (counted[0]?.taken ?? 0));

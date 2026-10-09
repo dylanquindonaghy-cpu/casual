@@ -14,12 +14,14 @@ import { officeCanPlace } from "./book";
 // - markUrgentAfterDropout: called in the same transaction as a cancellation that may have
 //   reopened a place (cancel.ts; the Sheets sync once per shift, after the sheet's new names are
 //   booked, when a name was removed). If the shift is open with a place free and starts within the
-//   firm's urgent window, offer waves start (src/lib/offers/waves.ts), and it's marked urgent and
+//   firm's urgent window, offer waves start (src/lib/offers/waves.ts; none while it's hidden from
+//   casuals, only the office's escalation check), and it's marked urgent and
 //   logged as the system's (shift.marked_urgent, cause "dropout") unless it already was. No free
 //   place, or outside the window: nothing happens.
 // - setShiftUrgent: the office marks the flag by hand (active admins and resourcers) on a shift
 //   that hasn't started and isn't a draft or cancelled, or clears it at any time. Logged as the
-//   firm's; no change, no event.
+//   firm's; no change, no event. Marking a session hidden from casuals starts no offers (they
+//   start when it's shown again).
 // The flag stays when the shift fills: the urgent board and offer waves only look at open places.
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
@@ -74,6 +76,9 @@ const uuid = z.uuid();
 
 export type SetUrgentResult =
   | { status: "marked" }
+  // Marked, but hidden from casuals (the session's switch or its event's): no offers go out until
+  // it's shown to them again (src/lib/office/showing.ts).
+  | { status: "marked_hidden" }
   | { status: "cleared" }
   | { status: "unchanged" }
   | { status: "not_found" }
@@ -116,8 +121,10 @@ export async function setShiftUrgent(
       return { status: "not_open" };
     }
     await tx.update(shifts).set({ isUrgent: request.urgent }).where(eq(shifts.id, request.shiftId));
-    // Marked urgent by the office: offer it out now (the waves stop by themselves once filled).
-    if (request.urgent) await startOfferWaves(tx, { shiftId: request.shiftId, now });
+    // Marked urgent by the office: offer it out now (the waves stop by themselves once filled),
+    // unless it's hidden from casuals.
+    const offering =
+      request.urgent && (await startOfferWaves(tx, { shiftId: request.shiftId, now }));
     await recordEvent(tx, {
       actorType: "office",
       actorId: request.by.id,
@@ -128,6 +135,7 @@ export async function setShiftUrgent(
         ? { by: "firm", cause: "office", hoursToStart: hoursToStart(shift.startsAt, now) }
         : { by: "firm" },
     });
-    return { status: request.urgent ? "marked" : "cleared" };
+    if (!request.urgent) return { status: "cleared" };
+    return { status: offering ? "marked" : "marked_hidden" };
   });
 }

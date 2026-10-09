@@ -65,6 +65,9 @@ describe("the words", () => {
     expect(stoppedText(urgent({ stopped: "no_candidates" }))).toBe(
       "Offers stopped: nobody else can take it.",
     );
+    expect(stoppedText(urgent({ stopped: "hidden" }))).toBe(
+      "Offers stopped: it's hidden from casuals.",
+    );
     expect(stoppedText(urgent())).toBeNull();
   });
 
@@ -104,6 +107,13 @@ describe("the words", () => {
     );
     expect(offerResultText({ status: "logged_out" }, "Ann Booker")).toBe(
       "Your session has ended. Log in again.",
+    );
+    // A session hidden from casuals (12B.4): marked, but no offers until it's shown; never offered.
+    expect(urgentResultText({ status: "marked_hidden" })).toBe(
+      "Marked urgent. It's hidden from casuals, so offers go out when you show it to them.",
+    );
+    expect(offerResultText({ status: "hidden" }, "Ann Booker")).toBe(
+      "This shift is hidden from casuals, so it can't be offered. Show it to casuals first.",
     );
   });
 });

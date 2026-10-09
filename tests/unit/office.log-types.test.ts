@@ -80,6 +80,29 @@ describe("the action log's types and words", () => {
   it("some words, as the log shows them", () => {
     const say = (action: string, data: Record<string, unknown> = {}, actorType = "system") =>
       eventWords({ action, actorType, actorId: "a", data }, names);
+    // The event and session switches (12B.4), with who switched them.
+    expect(say("event.hidden", { by: "firm" }, "office")).toBe(
+      "Sam Rota hid the event from casuals. Anyone booked keeps their shift.",
+    );
+    expect(say("session.hidden", { by: "firm" }, "office")).toBe(
+      "Sam Rota hid it from casuals. Anyone booked keeps their shift.",
+    );
+    expect(say("event.shown", { by: "firm" }, "office")).toBe(
+      "Sam Rota showed the event to casuals.",
+    );
+    expect(say("event.shown", { by: "firm", offersStarted: 2 }, "office")).toBe(
+      "Sam Rota showed the event to casuals. Offers went out again for 2 urgent shifts.",
+    );
+    expect(say("session.shown", { by: "firm", offersStarted: 1 }, "office")).toBe(
+      "Sam Rota showed it to casuals. Offers went out again for 1 urgent shift.",
+    );
+    expect(say("offer.waves_stopped", { reason: "hidden", wave: 1 })).toBe(
+      "Offers stopped: it's hidden from casuals.",
+    );
+    expect(say("offer.waves_stopped", { reason: "filled", wave: 1 })).toBe("Offers stopped.");
+    expect(say("offer.office_not_sent", { workerId: "w", reason: "hidden" })).toBe(
+      "The offer to Ann Booker wasn't sent: the shift is hidden from casuals.",
+    );
     expect(say("auth.login", {}, "worker")).toBe("Ann Booker logged in.");
     expect(say("auth.login", {}, "office")).toBe("Sam Rota logged in.");
     expect(say("auth.link_rejected", { reason: "expired" })).toBe(

@@ -240,6 +240,21 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         : "Marked urgent after a dropout.";
     case "shift.urgent_cleared":
       return `${officeName} marked it not urgent.`;
+    // The event and session switches (src/lib/office/showing.ts).
+    case "event.shown":
+    case "session.shown": {
+      const what = e.action === "event.shown" ? "the event" : "it";
+      const n = Number(d.offersStarted ?? 0);
+      const offers =
+        n > 0
+          ? ` Offers went out again for ${n === 1 ? "1 urgent shift" : `${n} urgent shifts`}.`
+          : "";
+      return `${officeName} showed ${what} to casuals.${offers}`;
+    }
+    case "event.hidden":
+      return `${officeName} hid the event from casuals. Anyone booked keeps their shift.`;
+    case "session.hidden":
+      return `${officeName} hid it from casuals. Anyone booked keeps their shift.`;
     case "shift.closed":
       return `${officeName} marked it as filled.`;
     case "shift.reopened":
@@ -263,12 +278,16 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "offer.office_queued":
       return `${officeName} asked to offer it to ${worker}.`;
     case "offer.office_not_sent":
-      return `The offer to ${worker} wasn't sent.`;
+      return d.reason === "hidden"
+        ? `The offer to ${worker} wasn't sent: the shift is hidden from casuals.`
+        : `The offer to ${worker} wasn't sent.`;
     case "offer.office_held":
     case "offer.wave_held":
       return "Offers waiting for quiet hours to end.";
     case "offer.waves_stopped":
-      return "Offers stopped.";
+      return d.reason === "hidden"
+        ? "Offers stopped: it's hidden from casuals."
+        : "Offers stopped.";
     case "offer.closed":
       return `Offers still waiting were closed: ${String(d.filledElsewhere ?? 0)} filled by someone else${
         Number(d.accepted ?? 0) > 0 ? `, ${String(d.accepted)} taken by the people placed` : ""

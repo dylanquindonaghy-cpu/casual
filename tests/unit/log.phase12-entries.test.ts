@@ -26,3 +26,16 @@ describe("shift.changed for a session's details (12B.1)", () => {
     expect(passesLogCheck({ by: "firm", requiredCredentials: ["FIRST_AID"] })).toBe(false);
   });
 });
+
+describe("the event and session switches (12B.4)", () => {
+  it("passes the log check for each switch entry and each new stop reason", () => {
+    for (const data of [
+      { by: "firm" }, // event.hidden, session.hidden, and shown with no offers started
+      { by: "firm", offersStarted: 3 }, // event.shown, session.shown
+      { reason: "hidden", wave: 2 }, // offer.waves_stopped
+      { workerId: "00000000-0000-4000-8000-000000000001", reason: "hidden" }, // offer.office_not_sent
+    ]) {
+      expect(passesLogCheck(data)).toBe(true);
+    }
+  });
+});

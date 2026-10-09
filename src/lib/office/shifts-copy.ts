@@ -12,6 +12,7 @@ import type {
   ShiftProblem,
 } from "./shift-editor";
 import type { ShiftImportResult } from "./shift-import";
+import type { SetShowingResult } from "./showing";
 import { AGREEMENT_NEEDED_TEXT, FILE_ERROR_TEXT } from "../imports/messages";
 
 // The office's shift screens in plain words (docs/screens.md `/office/shifts`).
@@ -129,6 +130,27 @@ export function detailsResultText(result: EditDetailsResult | Common): string {
       return "This shift has started or was cancelled, so it can't be changed.";
     case "not_found":
       return "We can't find that shift.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+// The event and session switches (src/lib/office/showing.ts).
+export function showingResultText(
+  result: SetShowingResult | Common,
+  target: "event" | "session",
+): string {
+  switch (result.status) {
+    case "shown":
+      return result.offering > 0
+        ? `Showing to casuals. Offers are going out for ${plural(result.offering, "urgent shift", "urgent shifts")}.`
+        : "Showing to casuals.";
+    case "hidden":
+      return "Hidden from casuals. Booked casuals keep their shifts.";
+    case "unchanged":
+      return "Already done.";
+    case "not_found":
+      return target === "event" ? "We can't find that event." : "We can't find that shift.";
     default:
       return COMMON[result.status];
   }

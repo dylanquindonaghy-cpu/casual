@@ -8,6 +8,7 @@ import {
   editResultText,
   importResultLines,
   restWorkedResultText,
+  showingResultText,
 } from "@/lib/office/shifts-copy";
 
 // The office's shift screens in plain words (src/lib/office/shifts-copy.ts) and a shift's history
@@ -236,6 +237,24 @@ describe("the shift screens' words", () => {
     );
     expect(assignResultText({ status: "invalid_reason" }, "Ann")).toBe(
       "Give a reason for the override (no phone numbers or email addresses).",
+    );
+  });
+
+  it("the event and session switches (12B.4)", () => {
+    expect(showingResultText({ status: "hidden" }, "event")).toBe(
+      "Hidden from casuals. Booked casuals keep their shifts.",
+    );
+    expect(showingResultText({ status: "shown", offering: 0 }, "session")).toBe(
+      "Showing to casuals.",
+    );
+    expect(showingResultText({ status: "shown", offering: 2 }, "event")).toBe(
+      "Showing to casuals. Offers are going out for 2 urgent shifts.",
+    );
+    expect(showingResultText({ status: "unchanged" }, "event")).toBe("Already done.");
+    expect(showingResultText({ status: "not_found" }, "event")).toBe("We can't find that event.");
+    expect(showingResultText({ status: "not_found" }, "session")).toBe("We can't find that shift.");
+    expect(showingResultText({ status: "not_allowed" }, "session")).toBe(
+      "You can't change shifts.",
     );
   });
 });

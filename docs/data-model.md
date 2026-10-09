@@ -315,7 +315,9 @@ create table shifts (
                                          -- as credential_rules.required_types. Checked by the rules
                                          -- on top of the role's (12B.3). Logged as "requirements",
                                          -- never by this name
-  showing_to_casuals boolean not null default true, -- the session's own switch (12B.4 uses it)
+  showing_to_casuals boolean not null default true, -- the session's own switch: casuals see it
+                                         -- only while this and its event's are on
+                                         -- (src/lib/roster/visibility.ts, 12B.4)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, source, external_ref) -- one shift per sheet/import row (NULLs don't collide)

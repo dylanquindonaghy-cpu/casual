@@ -50,7 +50,12 @@ export function OfferView({ page, eyebrow }: { page: OfferPage; eyebrow: string 
           </>
         )}
       </PageHeader>
-      {shift.open ? (
+      {shift.open && shift.hidden ? (
+        <p className={`${card} text-ink-muted`}>
+          This shift is hidden from casuals, so it can&apos;t be offered. Show it to casuals first,
+          or assign someone from the shift&apos;s page.
+        </p>
+      ) : shift.open ? (
         <section aria-labelledby="who-can-take-it">
           <h2 id="who-can-take-it" className={h2}>
             Who can take it

@@ -9982,3 +9982,39 @@ VERDICT: DONE
 
 Ticked; hours row added (0.6; Phase 12 so far 6.7 h, no estimate in `PLAN.md`); `docs/work-log.md`
 updated.
+
+(12B.3's commit: `7e836c3`, pushed; CI passed on the commit before it.)
+
+## 2026-10-09 00:31 UTC — Phase 12, task 12B.4: what casuals see (the event and session switches)
+
+**Task:** What casuals see: the event and session switches everywhere (§3.3 "What a switch
+does"), as written in `PLAN.md` (12B.4). No database change (12B.1 added both switches).
+
+**Plan:**
+- One check, `src/lib/roster/visibility.ts`: a session is visible to casuals when its own switch
+  and its event's are both on; as SQL for the lists, and `isVisibleToCasuals(tx, shiftId)`.
+- Open shifts (`openShiftsFor`, which also feeds the urgent board and the Home count): hidden
+  sessions left out. The shift page: a hidden session is "missing" ("This shift isn't
+  available"), except for a casual booked on it, who keeps seeing it as booked.
+- `bookShift`: a casual's own booking of a hidden session is refused (as not found), checked
+  under the booking's lock; the office can still assign.
+- Offer waves: `startOfferWaves` starts none for a hidden session (so a dropout or "Mark urgent"
+  starts none); a wave already queued stops with the reason "hidden" (`offer.waves_stopped`);
+  `waveCandidates` gives no one for a hidden session.
+- `setShowing()` (`src/lib/office/showing.ts`) for active admins and resourcers on an event or a
+  session, logged `event.shown` / `event.hidden` / `session.shown` / `session.hidden` with who
+  (words in `log-types.ts` and `event-words.ts`); a server action for 12B.5's switches.
+- Booked casuals keep their bookings: hiding never touches assignments.
+- Tests: one parameterised integration test per path (open shifts, the urgent board, the Home
+  count, the shift page, `bookShift`, no wave starts, a booked casual keeps the shift, the office
+  can still assign), each run for a hidden event and for a hidden session inside a showing event;
+  `setShowing()`; the whole-log words test.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| The office's own "Offer to someone" is refused for a hidden session ("This shift is hidden from casuals…"), and one queued before it was hidden isn't sent | An offer is a message showing the session to a casual, and taking it would be refused anyway | Letting the office offer it |
+| A casual's booking of a hidden session reads as "not found", not a new reason | The shift page already treats it as missing; nothing new to explain to the casual | A new "hidden" refusal |
+| Switching a session or event back on doesn't restart offer waves | Nothing in the spec asks for it; the office can mark it urgent or offer it | Restarting waves for urgent sessions (parked) |
+| Escalation emails to the office about an unfilled urgent session still go when it's hidden | They're for the office, which chose to hide it | Skipping them |

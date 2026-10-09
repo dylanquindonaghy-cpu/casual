@@ -5,10 +5,12 @@ import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
 import { CANCELLED_ASSIGNMENT_STATUSES, firms, offers, shifts, sites, workers } from "../db/schema";
 import { officeOfferCandidates, type OfficeCandidate } from "../offers/office-offer";
+import { isVisibleToCasuals } from "../roster/visibility";
 
 // "Offer to someone" for one shift (Today's quick action): the shift, who could be offered it now
 // (the candidate list: the booking rules, offer messages on, never offered it, the daily cap unless
-// urgent) and who has been offered it already. Admins and resourcers; reads only.
+// urgent) and who has been offered it already; nobody while it's hidden from casuals (the session's
+// switch or its event's). Admins and resourcers; reads only.
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 
@@ -23,6 +25,7 @@ export interface OfferPage {
     placesLeft: number;
     isUrgent: boolean;
     open: boolean; // open, not started, with a place free
+    hidden: boolean; // hidden from casuals: it can't be offered (src/lib/roster/visibility.ts)
   };
   candidates: OfficeCandidate[];
   offered: {
@@ -68,6 +71,7 @@ export async function officeOfferPage(
     const placesLeft = Math.max(0, shift.headcount - (rows[0]?.taken ?? 0));
     const open =
       shift.status === "open" && placesLeft > 0 && shift.startsAt.getTime() > now.getTime();
+    const hidden = !(await isVisibleToCasuals(tx, shiftId));
     const offered = await tx
       .select({
         first: workers.firstName,
@@ -91,8 +95,9 @@ export async function officeOfferPage(
         placesLeft,
         isUrgent: shift.isUrgent,
         open,
+        hidden,
       },
-      candidates: open ? await officeOfferCandidates(tx, shiftId, now) : [],
+      candidates: open && !hidden ? await officeOfferCandidates(tx, shiftId, now) : [],
       offered: offered.map((o) => ({
         worker: `${o.first} ${o.last}`,
         wave: o.wave,

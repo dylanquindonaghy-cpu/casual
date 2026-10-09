@@ -5,11 +5,13 @@ import { withFirm } from "../db/scoped";
 import { loadAllocationGates, parseAllocationSettings } from "../roster/allocation-input";
 import { previewBookings } from "../roster/book";
 import { pairKey } from "../roster/eligibility-input";
+import { visibleToCasuals } from "../roster/visibility";
 import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
 import type { MyShift, PortalContext } from "./my-shifts";
 
 // The staff portal's Open shifts list (docs/screens.md, `/shifts/open`): only shifts this worker
-// could take right now. Open shifts starting in the next 28 days, in one of the worker's roles,
+// could take right now. Open shifts starting in the next 28 days, shown to casuals (the session's
+// and its event's switches: src/lib/roster/visibility.ts), in one of the worker's roles,
 // with a place left and not already theirs, each kept only if the rules say yes on the current
 // rows (previewBookings: no locks, no pass, every shift at once; taking one re-checks everything
 // in bookShift).
@@ -87,6 +89,7 @@ export async function openShiftsFor(
       gt(shifts.startsAt, now),
       lt(shifts.startsAt, new Date(now.getTime() + OPEN_WINDOW_DAYS * DAY)),
       inArray(shifts.role, [...me.roles]),
+      visibleToCasuals,
       sql`not exists (select 1 from assignments mine
         where mine.firm_id = ${shifts.firmId} and mine.shift_id = ${shifts.id}
           and mine.worker_id = ${workerId} and mine.status not in (${CANCELLED}))`,

@@ -24,6 +24,7 @@ import {
   type EditShiftResult,
 } from "@/lib/office/shift-editor";
 import { importShiftsFile, type ShiftImportResult } from "@/lib/office/shift-import";
+import { setShowing, setShowingSchema, type SetShowingResult } from "@/lib/office/showing";
 import {
   ATTENDANCE_OUTCOMES,
   type MarkAttendanceResult,
@@ -83,6 +84,15 @@ export async function editShiftDetailsAction(
   if (!z.uuid().safeParse(shiftId).success) return { status: "not_found" };
   if (!input.success) return { status: "invalid", problems: ["bad_form"] };
   return asOffice("edit shift details", (ctx) => editShiftDetails(ctx, shiftId, input.data));
+}
+
+// The event or session switch: whether casuals see it (booked casuals keep their shifts).
+export async function setShowingAction(raw: unknown): Promise<SetShowingResult | Common> {
+  const input = setShowingSchema.safeParse(raw);
+  if (!input.success || !z.uuid().safeParse(input.data.id).success) {
+    return { status: "not_found" };
+  }
+  return asOffice("set showing", (ctx) => setShowing(ctx, input.data));
 }
 
 // The file, and "check" (a dry run) or "import".

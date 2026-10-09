@@ -20,6 +20,7 @@ import { pushToWorker, sendToWorker } from "../notify/send";
 import { dayWords } from "../portal/format";
 import { getPushTransport } from "../push/transport";
 import { officeCanPlace } from "../roster/book";
+import { isVisibleToCasuals } from "../roster/visibility";
 import { dayLabel } from "../rules/reasons";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { portalUrl } from "../tenancy/portal-url";
@@ -35,7 +36,8 @@ import { firmVoice, lockShift, timeOf, type OfferDeps } from "./waves";
 // urgent). The office chooses who, never whether the rules allow it (that's "manual assign").
 //
 // - queueOfficeOffer (a server action calls it): an active admin or resourcer, an open shift that
-//   hasn't started, a worker on the candidate list now. Queues the office-offer job in the same
+//   hasn't started and is shown to casuals (an offer shows the shift to the worker, and taking it
+//   would be refused: src/lib/roster/visibility.ts), a worker on the candidate list now. Queues the office-offer job in the same
 //   transaction and logs offer.office_queued {shiftId, workerId}.
 // - The office-offer job, under the shift lock (the same order as booking): checks it all again,
 //   holds for quiet hours unless the shift is urgent and the firm lets urgent through, writes the
@@ -107,6 +109,7 @@ export type QueueOfficeOfferResult =
   | { status: "failed_before" } // the office's earlier offer to them couldn't be sent
   | { status: "not_candidate" } // the rules, their settings or the daily cap leave them out
   | { status: "not_open" } // filled, closed, cancelled, a draft, or started
+  | { status: "hidden" } // hidden from casuals (the session's switch or its event's)
   | { status: "not_found" }
   | { status: "not_allowed" };
 
@@ -147,6 +150,7 @@ export async function queueOfficeOffer(
     if (shift.status !== "open" || shift.startsAt.getTime() <= now.getTime()) {
       return { status: "not_open" };
     }
+    if (!(await isVisibleToCasuals(tx, request.shiftId))) return { status: "hidden" };
     // One office offer per worker per shift, even one that failed (it may have arrived).
     const [byOffice] = await tx
       .select({ response: offers.response })
@@ -196,8 +200,11 @@ export type OfficeOfferResult =
   | { status: "already" }
   | {
       status: "not_sent";
-      reason: "gone" | "started" | "not_open" | "filled" | "not_candidate" | "not_allowed";
+      reason: NotSentReason;
     };
+
+type NotSentReason =
+  "gone" | "started" | "not_open" | "filled" | "hidden" | "not_candidate" | "not_allowed";
 
 type OfficeClaim =
   | { done: OfficeOfferResult }
@@ -220,9 +227,7 @@ async function claimOfficeOffer(
   now: Date,
 ): Promise<OfficeClaim> {
   const shift = await lockShift(tx, payload.shiftId);
-  const notSent = async (
-    reason: "gone" | "started" | "not_open" | "filled" | "not_candidate" | "not_allowed",
-  ) => {
+  const notSent = async (reason: NotSentReason) => {
     if (shift) {
       await recordEvent(tx, {
         actorType: "system",
@@ -266,6 +271,8 @@ async function claimOfficeOffer(
   if (shift.startsAt.getTime() <= now.getTime()) return notSent("started");
   if (shift.status === "filled" || shift.freePlaces === 0) return notSent("filled");
   if (shift.status !== "open") return notSent("not_open");
+  // Hidden from casuals since it was queued (the office can still assign someone).
+  if (!shift.showing) return notSent("hidden");
   // Counted under the worker's offer-count lock, so an offer sent at the same moment (the
   // office's, or a wave's) is counted too: the daily cap holds (candidates.ts).
   await lockOfferCounts(tx, [payload.workerId]);

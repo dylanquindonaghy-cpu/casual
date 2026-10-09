@@ -22,6 +22,7 @@ import { loadEligibilityInput, loadEligibilityInputs } from "./eligibility-input
 import { nativeRosterPlug, sheetsRosterPlug } from "./native";
 import { noticeHours } from "./notice";
 import type { AssignResult, RosterPlug, RosterSource } from "./plug";
+import { isVisibleToCasuals } from "./visibility";
 
 // Booking a shift: the one path every "yes" goes through (docs/architecture.md, "Take an open
 // shift"; golden rules 1, 4 and 5).
@@ -30,7 +31,9 @@ import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 //   1. who may book whom: a worker only themselves; an office user only while active and an admin
 //      or resourcer; only the office may override, only checks 0 and 6-8, always with a reason;
 //   2. checkBooking(): lock the shift, then the worker, load the current rows and run the rules
-//      (never what the page showed a moment ago);
+//      (never what the page showed a moment ago); a worker's own booking only of a session shown
+//      to casuals (its switch and its event's, src/lib/roster/visibility.ts: hidden reads as not
+//      found, as on the shift page); the office can still place someone on a hidden one;
 //   2b. the firm's allocation mode (a worker's own booking only): under fair rotation, a newly
 //      opened place is held a few minutes for the workers with the fewest hours that week;
 //   3. re-check the live source: our tables for native and imported shifts (the lock and the
@@ -46,7 +49,8 @@ import type { AssignResult, RosterPlug, RosterSource } from "./plug";
 // runs inside its own long transaction.
 //
 // Locks, in this order: the shift, then the worker, then (only when the booking would rely on the
-// firm's "applied" allowance) the firm's day. The offer waves (src/lib/offers/waves.ts) follow the
+// firm's "applied" allowance) the firm's day, then (a worker's own booking) a share lock on the
+// shift's event, so switching the event off waits for it. The offer waves (src/lib/offers/waves.ts) follow the
 // same order: the shift, then each offered worker (key share, through the offers row's link). The worker lock makes two bookings for one person
 // queue, so two tabs can't both pass the overlap, rest or weekly-hours checks; the day lock does
 // the same for two applied workers and the allowance. Two portal bookings can't deadlock each
@@ -233,6 +237,9 @@ async function bookInTransaction(
     overrides: by.type === "office" ? by.overrides : [],
   });
   if (check.status === "not_found") return { status: "not_found" };
+  if (by.type === "worker" && !(await isVisibleToCasuals(tx, shiftId, { lock: true }))) {
+    return { status: "not_found" };
+  }
   const { result } = check;
   if (!result.pass) {
     await recordEvent(tx, {

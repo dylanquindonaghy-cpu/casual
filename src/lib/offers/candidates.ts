@@ -8,7 +8,8 @@ import { weekOf } from "../rules/eligibility";
 import { localDayOf, mayOfferToday } from "../rules/offer-cap";
 import { localDateOf } from "../time/zoned";
 
-// Who a shift offer may go to (docs/api-and-jobs.md, "Offer-wave ranking"): active workers with
+// Who a shift offer may go to (docs/api-and-jobs.md, "Offer-wave ranking"): nobody while the shift
+// is hidden from casuals (its switch or its event's: src/lib/roster/visibility.ts); otherwise active workers with
 // the shift's role who want open-shift messages (their profile setting), have never held a place
 // on the shift (on it now, or cancelled off it: a cancellation is a "no"), haven't been offered it
 // before (an offer that failed to send doesn't count), who are under the daily offer cap unless the
@@ -52,13 +53,16 @@ export async function waveCandidates(
     starts_at: string | Date;
     is_urgent: boolean;
     time_zone: string;
+    showing: boolean;
   }>(sql`
-    select s.role, s.starts_at, s.is_urgent, f.timezone as time_zone
+    select s.role, s.starts_at, s.is_urgent, f.timezone as time_zone,
+           s.showing_to_casuals and e.showing_to_casuals as showing
       from shifts s join firms f on f.id = s.firm_id
+      join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
      where s.id = ${shiftId}
   `);
   const row = found[0];
-  if (!row) return [];
+  if (!row || !row.showing) return [];
   const shift = {
     id: shiftId,
     role: row.role,

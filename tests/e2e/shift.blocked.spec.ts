@@ -58,5 +58,5 @@ test("a shift link that doesn't exist says so", async ({ page }) => {
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
   await page.goto(`${acme}/shifts/00000000-0000-4000-8000-000000000000`);
-  await expect(page.getByRole("heading", { name: "We can't find that shift." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "This shift isn't available." })).toBeVisible();
 });

@@ -61,7 +61,7 @@ export function ShiftView({
     case "missing":
       return (
         <>
-          <PageHeader eyebrow={eyebrow} title="We can't find that shift.">
+          <PageHeader eyebrow={eyebrow} title="This shift isn't available.">
             <p>It may have been removed, or the link is wrong.</p>
           </PageHeader>
           {openShiftsLink}

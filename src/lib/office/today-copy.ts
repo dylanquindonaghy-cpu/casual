@@ -33,6 +33,7 @@ const STOPPED: Record<NonNullable<UrgentShift["stopped"]>, string> = {
   filled: "Offers stopped: it was filled.",
   started: "Offers stopped: it has started.",
   not_open: "Offers stopped: it isn't open any more.",
+  hidden: "Offers stopped: it's hidden from casuals.",
   not_urgent: "Offers stopped: it was marked not urgent.",
 };
 
@@ -75,6 +76,8 @@ export function urgentResultText(result: SetUrgentResult | Common): string {
   switch (result.status) {
     case "marked":
       return "Marked urgent. Offers are going out.";
+    case "marked_hidden":
+      return "Marked urgent. It's hidden from casuals, so offers go out when you show it to them.";
     case "cleared":
       return "No longer urgent. No more offers will go out.";
     case "unchanged":
@@ -119,6 +122,8 @@ export function offerResultText(result: QueueOfficeOfferResult | Common, name: s
       return `${name} can't be offered this shift now.`;
     case "not_open":
       return "This shift isn't open any more.";
+    case "hidden":
+      return "This shift is hidden from casuals, so it can't be offered. Show it to casuals first.";
     case "not_found":
       return "We can't find that shift or person.";
     default:

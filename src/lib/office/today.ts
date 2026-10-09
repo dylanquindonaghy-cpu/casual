@@ -10,6 +10,7 @@ import {
   type SheetIssues,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import type { StopReason } from "../offers/waves";
 import { addDays, localDateOf } from "../time/zoned";
 
 // The office's Today view (docs/screens.md `/office/today`; product spec: "one screen showing
@@ -57,7 +58,7 @@ export interface UrgentShift extends TodayShift {
   byOffice: number;
   accepted: number;
   failed: number;
-  stopped: "filled" | "started" | "not_open" | "not_urgent" | "no_candidates" | null;
+  stopped: StopReason | null;
   escalated: boolean;
 }
 

@@ -325,6 +325,22 @@ Each wave claims one worker at a time (the shift locked for milliseconds), then 
 transaction open, then records: a booking never waits for a wave's messages, and a retry never
 messages anyone twice (the reminders' claim → send → record).
 
+**What casuals see (the event and session switches)** (12B.4; docs/office-v2.md 3.3)
+Every shift belongs to an event (`shift_events`), and both carry a "showing to casuals" switch.
+One check, `src/lib/roster/visibility.ts` (the session's switch and its event's), is used on every
+path a casual reaches a shift by: Open shifts, the urgent board and the Home count (all
+`openShiftsFor()`), the shift page ("This shift isn't available"), a casual's own `bookShift()`
+(refused as not found), offer waves and the waves after a dropout (none start; one queued earlier
+stops, `offer.waves_stopped` {reason: "hidden"}), and the office's own offers (refused; one queued
+earlier isn't sent). The office still sees and assigns a hidden session, booked casuals keep their
+bookings (and still see them), and the office's escalation email still goes. `setShowing()`
+(`src/lib/office/showing.ts`, active admins and resourcers) switches an event or a session, logged
+`event.shown` / `event.hidden` / `session.shown` / `session.hidden` with who; showing one again
+starts offers for each urgent session it brings back with a place free. A casual's booking and the
+offer jobs share-lock the event row after the shift, so switching an event off waits for one that
+read it on (`tests/integration/showing.test.ts`). A display choice, not an eligibility rule: it
+stays out of the rules engine. Personal enquiry replies (12D.2) must use the same check.
+
 **Pay query**
 1. Worker (after OTP) fills a structured form.
 2. Code assigns grouping keys: the issue and the week, plus the pay line's rate for a wrong

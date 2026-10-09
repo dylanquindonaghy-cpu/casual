@@ -128,7 +128,7 @@ describe("ShiftView", () => {
       [{ state: "cancelled", shift: summary }, "This shift was cancelled."],
       [
         { state: "missing" },
-        "We can't find that shift. It may have been removed, or the link is wrong.",
+        "This shift isn't available. It may have been removed, or the link is wrong.",
       ],
     ];
     for (const [page, sentence] of cases) {

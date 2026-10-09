@@ -10149,3 +10149,100 @@ phone's page wider.
 
 Run the app (`npm run dev`), log in to the office as `acme.admin@example.com` and click **Events &
 sessions**. Switch an event off, then log in as a casual: its shifts are gone from Open shifts.
+
+## 2026-10-09 — Phase 12, task 12B.7: Settings
+
+- **Time spent:** 1.1 hours (03:33 to 04:37 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=25de968d6b219146 e2e=true`
+  (3,674 tests; browser tests: 74, then the walkthrough's 3).
+- The independent auditor said `VERDICT: DONE` on its **first** round and found no fakes.
+- Committed as "Phase 12: Settings (12B.7)" and pushed to `build/overnight`. A checkpoint commit
+  (`7f32b90`, marked WIP) went first, before the safety review.
+
+### What was built, in plain words
+
+The office has a new **Settings** page (`/office/settings`), for **admins** only. Other office
+people don't see it in the menu, and the server refuses them even if they type the address. It has
+two sections.
+
+**The strikes team's email.** Later in Phase 12, when a casual cancels late, a record of it (the
+"evidence") is emailed to the firm's strikes team. This page is where an admin types that team's
+address. An address someone mistyped mustn't get those records, so the address has to be
+**confirmed** first:
+
+1. The admin types the address and selects "Save and send a link".
+2. A background **job** (work the app does a moment later, outside the web page) emails that address
+   a link. The link works for 7 days.
+3. Someone at that address opens the link and selects **"Confirm this address"**. Only then does
+   the page say "Confirmed", and only a confirmed address can ever receive evidence.
+
+The link is **signed**: it carries a code made with a secret key (an **HMAC**, a kind of tamper-proof
+stamp). The code covers the firm, the address, which save of the address it was sent for, and the
+expiry date. So a link that was changed, is out of date, belongs to another firm, or was sent for an
+older address doesn't work. Opening the link alone confirms nothing (email scanners open links), so
+it needs the button.
+
+**The sites.** Each site (venue) is listed with its **postcode**, which an admin can change. A
+change is refused while people are booked on sessions there that are still to come ("2 booked
+sessions use this site: move them first"), because it would move their venue without telling them.
+
+**One safe way to change settings.** A firm's settings also hold things only the owner may change,
+like how long messages are kept. So the app's database login still can't change the settings
+directly. Instead there's one **database function** (a small program kept inside the database),
+`app_set_firm_setting`, which accepts only the strikes team's address and its confirmed time and
+refuses everything else.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A worker job emails the link, not the web page | Only the job runner holds the email password | Sending from the page |
+| The link's key comes from the existing session secret, used only for this | One less secret to manage | A new secret |
+| The address isn't in the link; it's checked against the firm's address when the link is used | A link for an old address can't confirm a new one, and the address never sits in a web address | Putting the address in the link |
+| Anyone with the link may confirm (no login) | The strikes team needn't have office logins | Requiring a login |
+| At most 3 links every 15 minutes and 10 a day per firm | Each link is an email to an outside address; same limits as login emails | No limit |
+| A link that fails counts against the visitor's IP address (20 every 15 minutes, shared with login links) | Stops someone hammering the page with guesses | A separate limit |
+| A postcode must be a UK postcode, stored like "LS1 4AP"; empty clears it | The travel task (12G.1) needs a real one | Free text |
+| Only sessions that haven't started block a postcode change | The task's words; **a question for Dylan** in the Parking lot | Sessions under way too |
+
+### What the review found and what was fixed
+
+The safety review found one thing to fix first. A postcode change and a booking made at the same
+moment could both go through: the change counted 0 bookings, a booking landed, then the postcode
+changed under the new booking. The cause: the change locked the site, but bookings lock the
+session, not the site. Now the change locks the site and its sessions still to come before
+counting, so a booking in progress finishes first and a later one waits.
+
+It also asked for, and got: the link checked for shape before the database is touched; the limits on
+links and failed tries above; a test proving saving and confirming take turns; and a browser test
+that can't trip on a retry. Smaller extras: a new migration (0037) makes the function stricter (a
+confirmed time must be a real date and time, never a word like "now"); a link sent before the address
+was removed and added back no longer confirms it; and the address box no longer fills in the
+admin's own email.
+
+### What the new tests prove
+
+- Database tests (`tests/integration/settings.test.ts`, 28): the app's login can't change the
+  settings directly, and the function refuses retention and every key outside its list; only active
+  admins can save (a resourcer, payroll or a disabled admin can't); saving logs the key and never the
+  address; the job emails the link once, and a second run sends nothing; a changed, expired, other
+  firm's or old-address link is refused; the link limits and the failed-try limit work; two
+  "same moment" tests with real database locks for the postcode and one for saving and confirming;
+  only sessions still to come block a postcode change; another firm's sites never appear.
+- Unit tests (`tests/unit/office.settings.test.ts`): the link's format and each way it can be
+  refused, and the page's words.
+- Browser test (`tests/e2e/office.settings.spec.ts`): an admin saves the address, the link arrives in
+  the test outbox, someone confirms it, and the page says "Confirmed"; a site's postcode changes; a
+  resourcer can't open the page.
+- Breaking each fix on purpose made its test fail (5 checks).
+
+### What's parked or needs Dylan
+
+- Please confirm the decisions above, and answer the Parking lot question: should a session already
+  under way also block a postcode change?
+
+### How to see it working
+
+Run `npm run dev`, log in at `http://acme.localhost:3000/office` as an admin, open **Settings**, type
+an address and select "Save and send a link". The link appears in the terminal (the console outbox):
+open it and select "Confirm this address".

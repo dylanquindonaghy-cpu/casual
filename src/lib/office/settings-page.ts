@@ -30,7 +30,7 @@ export interface SettingsPage {
   sites: SettingsSite[];
 }
 
-// Sessions still to come at the site with at least one live booking.
+// Sessions still to come at the site (not started) with at least one live booking.
 async function bookedSessionsAt(tx: FirmTx, siteId: string | null, now: Date) {
   const { rows } = await tx.execute<{ site_id: string; n: number }>(sql`
     select s.site_id, count(distinct s.id)::int as n from shifts s
@@ -112,13 +112,24 @@ export async function editSitePostcode(
   const now = (ctx.clock ?? systemClock).now();
   return (ctx.run ?? withFirm)(ctx.firm.id, async (tx) => {
     if (!(await officeUserMay(tx, ctx.officeUserId, "settings"))) return { status: "not_allowed" };
+    // No booking may land between the count and the change. "for update" on the site holds back
+    // a session added at it or moved to it (their foreign-key check needs the site's key share);
+    // a booking takes its session's row first (src/lib/roster/native.ts lockShift), so locking
+    // the site's sessions still to come makes bookings in flight finish first and later ones wait
+    // for this change. The count then runs after both, so it sees every committed booking.
     const [site] = await tx
       .select({ postcode: sites.postcode })
       .from(sites)
       .where(eq(sites.id, siteId))
-      .for("no key update");
+      .for("update");
     if (!site) return { status: "not_found" };
     if ((site.postcode ?? null) === postcode) return { status: "unchanged" };
+    await tx.execute(sql`
+      select s.id from shifts s
+       where s.site_id = ${siteId} and s.starts_at > ${now}
+       order by s.id
+         for no key update
+    `);
     const sessions = (await bookedSessionsAt(tx, siteId, now)).get(siteId) ?? 0;
     if (sessions > 0) return { status: "in_use", sessions };
     await tx.update(sites).set({ postcode }).where(eq(sites.id, siteId));

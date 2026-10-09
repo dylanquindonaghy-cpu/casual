@@ -10189,3 +10189,73 @@ the `strikes-email-link` job); `src/lib/office/settings-page.ts` (the page's dat
 | A postcode is a UK postcode, stored "LS1 4AP"; empty clears it | The location look-up (12G.1) needs a real one | Free text |
 | "In use" counts sessions still to come with a live booking at the site | The spec's "{n} booked sessions use this site" | Counting bookings |
 | `strikes.*` isn't added to `firm:settings` (`SETTING_KEYS`) | §5.2 says admins change it on Settings, and the function is the only writer the app has | Owner-settable too |
+
+**Guardrails review (auth): FIX FIRST, 1 item, fixed; every SHOULD fixed, and the cheap NICE ones.**
+
+- FIX FIRST: a site's postcode check could race a booking made at the same moment (the site row's
+  lock didn't block bookings, which lock the session's row). Root cause: the count ran under a lock
+  bookings never take. Fixed: the site is locked `for update` (holds back a session added at it or
+  moved to it) and its sessions that haven't ended are locked before counting (bookings in flight
+  finish first; later ones wait). Two real-lock tests: a booking in progress makes the change wait
+  and then refuse it; while a change is held open, a booking there and a session moved there wait.
+- SHOULD, fixed: the public confirm checks the link's shape and firm before the database, and a
+  link that fails counts against the IP's failed links (20 every 15 minutes, shared with login
+  links); link emails are capped per firm at 3 every 15 minutes and 10 a day (like login emails,
+  L49), and over that nothing changes; a real-lock test proves saving and confirming take turns;
+  the browser test's address is unique per run (CI retries).
+- NICE, fixed: migration 0037 tightens the function (an ISO time in UTC only, never `now` or
+  `infinity`; `settings` and `settings.strikes` must be objects, refused rather than replaced); the
+  link also signs which save of the address it was sent for, so a link sent before the address was
+  cleared and added back (or changed and changed back) doesn't confirm it; the worker's task can be
+  swapped in tests; payroll and a disabled admin are refused on postcodes; another firm's sites
+  aren't on the page; the address box no longer offers the admin's own email.
+- Mutation checks: removing either postcode lock, the lock in confirming, or the save from the
+  signature, or counting sessions under way, makes its test fail (5 of 5).
+- Not done (NICE 7): the function checking the address itself when confirming. It would only guard
+  against the app's own login, which can set the address and its time anyway.
+
+| Decision | Why | Alternative |
+|---|---|---|
+| Only sessions still to come (not started) block a postcode change, as the task says ("allowed without" live future bookings); the review asked whether a session under way should block it too | The approved wording; a session under way has its casuals there already | Counting sessions under way as well: **Dylan to decide** |
+| Failed confirmation links share the login links' per-IP count | One "failed links" limit per IP, whatever the link | A separate limit |
+| Link emails per firm, not per address | Simpler, and a firm has one strikes team | Per address |
+| The tightened checks are a new migration (0037), not an edit of 0036 | 0036 was already applied to the dev and test databases; a new one reaches every database | Editing 0036 |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=25de968d6b219146 e2e=true` (first full run after the
+review's fixes; 224 test files, 3,674 tests; 74 browser tests, then the walkthrough's 3).
+
+**Auditor verdict (round 1), verbatim:**
+
+```
+Audit of Phase 12 task 12B.7 (Settings). Read-only; no files modified.
+
+Stamp: `.claude/state/verified.json` has ok:true, e2e:true, tree 25de968d6b219146. `.claude/hooks/tree-hash.sh` prints 25de968d6b219146, so the stamp matches the current files. test.log shows 224 files and 3674 tests passed. invariants.log shows no .only/.skip, and schema and migrations in sync. e2e.log shows 74 passed plus 3 walkthrough tests passed. The one lint warning is in `tests/unit/inbound.signature.test.ts`, unrelated to 12B.7.
+
+Claims (paths under /home/user/casual):
+- Owner-run `app_set_firm_setting(key, value)` migration, `SECURITY DEFINER` — PROVEN. `drizzle/0036_firm_setting_function.sql` creates it, and `0037_firm_setting_checks.sql` tightens it. Both are in `drizzle/meta/_journal.json`. The test "runs as its owner, with a pinned search_path; only the app role may call it" (`tests/integration/settings.test.ts:260`) passed. `rls.every-table` "app role can execute exactly eight functions" passed.
+- Accepts only `strikes.email` and `strikes.email_verified_at`, refuses `retention.*` and every other key, clears the confirmed time on an address change — PROVEN. The key allow-list is at 0037 sql:15-18. `it.each` at `settings.test.ts:163-182` covers `retention.message_days`, `retention.hold_until`, `retention.request_note_days`, `wave_size`, `strikes.notice_hours`, `webhook.url`, `strikes` and null. All were refused with 42501 and the settings were unchanged. The test at line 184 covers clearing the confirmed time on a new address.
+- The app login can't change `firms.settings` directly — PROVEN. `access.ts:20` gives `firms` only SELECT. The test at `settings.test.ts:143` shows a raw `jsonb_set` on `retention.message_days` is rejected with 42501 and retention is unchanged.
+- `/office/settings` admin-only, checked on the server — PROVEN. `page.tsx:67` uses `requireOfficeArea("settings")`. `settings-page.ts:52` uses `canAccess`. `actions.ts:23` and `officeUserMay` run again inside each change (`strikes-email.ts:209`, `settings-page.ts:114`). Tests: not_allowed for resourcer, payroll and a disabled admin on both writes (`settings.test.ts:274`, `:720`). The page data returns null for a resourcer (`:751`). The e2e "a resourcer doesn't get Settings" got a 404 and passed.
+- Strikes email confirmed by an HMAC link valid 7 days, signing firm id, address and expiry — PROVEN. `strikes-email.ts:79-139` implements it, with `timingSafeEqual` and the signature checked before the expiry. It also signs which save of the address the link was sent for, which is stricter than the task asks. Tests: tampered signature, later expiry, another secret, another firm's link and junk all give "invalid", and expiry plus 1s gives "expired" (`settings.test.ts:451-492`). The unit tests in `tests/unit/office.settings.test.ts` also passed.
+- A link sent for one address doesn't confirm a later one — PROVEN. `settings.test.ts:479-481` changes the address and the old link is refused. `:496-510` covers cleared and re-added.
+- Evidence only ever to a confirmed address — PROVEN for what this task builds. `confirmedStrikesEmail()` (`strikes-email.ts:65`) returns an address only when it is confirmed. It is tested in the unit tests and at `settings.test.ts:428` and `:481`. The sender itself is 12C, outside this task.
+- Sites list, each postcode editable, refused with live future bookings (message "{n} booked sessions use this site: move them first") — PROVEN. `settings-page.ts:103-146` implements it. Tests: `settings.test.ts:596` (refused with 2 sessions, then allowed once cancelled), `:642` (sessions under way or cancelled don't count), and two real-lock race tests at `:664` and `:692`. The text is asserted in the unit test ("3 booked sessions use this site: move them first."). For n=1 the copy reads "1 booked session uses this site: move it first." This is a grammatical variant, not a defect.
+- `firm.settings_changed` logs keys only and `site.changed` logs the site id and field name only — PROVEN. The log asserts the key-only data (`settings.test.ts:295-297`, `:316`, `:487`) and `{siteId, fields:["postcode"]}` (`:627`). `recordEvent` enforces `passesLogCheck` at runtime (`events/record.ts:25-41`). `tests/unit/log.phase12-entries.test.ts` "Settings (12B.7)" passed. The new actions are in `log-types.ts:187-191` and `event-words.ts`. The `office.log-types` group checks passed.
+- Other Phase 12 values stay with `firm:settings` — PROVEN. `strikes.*` is not added to `SETTING_KEYS`, and `docs/data-model.md` says so.
+- Isolation — PROVEN. This task adds no table. The cross-firm tests are: the function changes only the current firm (`settings.test.ts:242`), another firm's link is refused (`:468`), and only the firm's own sites are changeable or listed (`:720`, `:770`).
+- Docs — PROVEN. `docs/data-model.md` (strikes block, migrations 0036 and 0037), `docs/compliance.md` ("since 12B.7 still can't ... refuses `retention.*`") and `docs/runbooks.md` onboarding step 8 (Settings page, link, resend, postcodes, link limits) are updated.
+- `guardrails-reviewer` (auth) — PROVEN by record and by its fixes. It is recorded in `docs/overnight-log.md` (about line 10192) as "FIX FIRST, 1 item, fixed". I can't prove the agent ran, but the fixes it names are on disk and tested: the site and session locks (`settings-page.ts:115-132`), the IP failure limit and shape check, the per-firm link caps, and migration 0037.
+
+Fakes found: none. No skips, `.only`, TODOs or hard-coded returns in the touched files. The tests use the real database as the app role, with real-lock concurrency tests.
+
+Non-blocking notes:
+- `app_set_firm_setting('strikes.email_verified_at', …)` doesn't check that the time came from a link. The overnight log records this as a deliberate omission, and the task text doesn't ask for it.
+- The overnight log flags "sessions under way don't block a postcode change" as "Dylan to decide". The task as written says "still to come", so the code matches it. It is not an approval gate, and I found no Parking lot entry for it.
+
+VERDICT: DONE
+```
+
+**Ticked**, hours logged (1.1 h; Phase 12 so far 10.7 h, no estimate to compare with). After the
+audit, the auditor's second note was acted on: the "session under way" question is now in the
+Parking lot for Dylan. Commit: "Phase 12: Settings (12B.7)" (hash in the next entry).

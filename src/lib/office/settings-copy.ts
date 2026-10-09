@@ -12,6 +12,11 @@ const COMMON: Record<Common["status"], string> = {
 };
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+// Minutes under an hour, hours after that (like src/app/too-many-tries.tsx).
+const wait = (minutes: number) =>
+  minutes < 60
+    ? plural(minutes, "minute", "minutes")
+    : plural(Math.ceil(minutes / 60), "hour", "hours");
 
 // Beside the tag ("Not set", "Not confirmed", "Confirmed"): whether evidence can go there.
 export function strikesEmailStatus(s: SettingsPage["strikesEmail"], timeZone: string): string {
@@ -36,6 +41,8 @@ export function strikesEmailResultText(result: SaveStrikesEmailResult | Common):
       return "Removed. Strike evidence isn't sent anywhere until you add an address.";
     case "invalid":
       return "Enter the team's email address (254 characters at most).";
+    case "too_many":
+      return `Too many links sent. Nothing changed: try again in ${wait(result.retryAfterMinutes)}.`;
     case "not_allowed":
       return "Only admins can change settings.";
     default:
@@ -80,6 +87,8 @@ export function confirmResultText(
       return `This link has expired. Ask ${firmName} to send a new one.`;
     case "invalid":
       return `This link doesn't work. It may be for an older address. Ask ${firmName} to send a new one.`;
+    case "rate_limited":
+      return `Too many tries. Try again in ${wait(result.retryAfterMinutes)}.`;
     case "error":
       return COMMON.error;
   }

@@ -5,6 +5,7 @@ import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import type { MessagingTransport } from "@/lib/messaging/transport";
 import { editSitePostcode, officeSettingsPage } from "@/lib/office/settings-page";
+import { bookShift } from "@/lib/roster/book";
 import {
   confirmedStrikesEmail,
   confirmStrikesEmail,
@@ -39,17 +40,45 @@ afterAll(async () => {
 const SECRET = "a-test-secret-for-signing-links-0123456789";
 const clockAt = (at: Date) => ({ now: () => at });
 const clock = clockAt(NOW);
+const MINUTE = 60_000;
+
+const settles = (p: Promise<unknown>) => {
+  const state = { done: false };
+  void p.then(
+    () => (state.done = true),
+    () => (state.done = true),
+  );
+  return state;
+};
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A run that does its work, says so, and holds its transaction open (locks and all) until released.
+function holdingRun() {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let worked: () => void = () => undefined;
+  const hasWorked = new Promise<void>((resolve) => (worked = resolve));
+  const run: WithFirm = (firmId, fn) =>
+    withFirm(firmId, async (tx) => {
+      const result = await fn(tx);
+      worked();
+      await held;
+      return result;
+    });
+  return { run, hasWorked, release };
+}
 
 async function settingsFirm() {
   const f = await bookingFirm(su, withFirm, {
     settings: { retention: { message_days: 400, hold_until: "2027-01-31" }, wave_size: 4 },
   });
   const admin = await f.office("admin");
-  const office = (officeUserId: string) => ({
+  const office = (officeUserId: string, at = NOW) => ({
     firm: { id: f.firmId },
     officeUserId,
     run: withFirm,
-    clock,
+    clock: clockAt(at),
+    secret: SECRET,
   });
   const settings = async () =>
     (
@@ -77,13 +106,37 @@ async function settingsFirm() {
         [STRIKES_EMAIL_LINK_QUEUE, f.firmId],
       )
     ).rows.map((r) => r.data);
-  const confirmCtx = (at = NOW) => ({
+  const confirmCtx = (at = NOW, ip = "203.0.113.7") => ({
     firm: { id: f.firmId },
+    ip,
     run: withFirm,
     clock: clockAt(at),
     secret: SECRET,
   });
-  return { f, admin, office, settings, logged, jobs, confirmCtx };
+  // The latest save of the address: what a link signs besides the address.
+  const saved = async () =>
+    Number(
+      (
+        await su.query<{ id: string }>(
+          `select coalesce(max(id), 0)::text as id from events
+            where firm_id = $1 and action = 'firm.settings_changed' and data -> 'keys' ? 'strikes.email'`,
+          [f.firmId],
+        )
+      ).rows[0]?.id ?? 0,
+    );
+  // A link as the job would sign it now (another secret or firm, to forge one).
+  const link = async (
+    address: string,
+    expiresAt = new Date(NOW.getTime() + DAY),
+    o: { secret?: string; firmId?: string } = {},
+  ) =>
+    signStrikesEmailLink(o.secret ?? SECRET, {
+      firmId: o.firmId ?? f.firmId,
+      address,
+      saved: await saved(),
+      expiresAt,
+    });
+  return { f, admin, office, settings, logged, jobs, confirmCtx, saved, link };
 }
 
 describe("app_set_firm_setting(): the only way the app may change firms.settings", () => {
@@ -150,9 +203,12 @@ describe("app_set_firm_setting(): the only way the app may change firms.settings
     await expect(set("strikes.email", "not an address")).rejects.toMatchObject({
       cause: { code: "22023" },
     });
-    await expect(set("strikes.email_verified_at", "yesterday-ish")).rejects.toMatchObject({
-      cause: { code: "22023" },
-    });
+    // Only an ISO time in UTC: never a word Postgres would read as a time.
+    for (const notATime of ["yesterday-ish", "now", "epoch", "infinity", "2026-11-02 09:00"]) {
+      await expect(set("strikes.email_verified_at", notATime)).rejects.toMatchObject({
+        cause: { code: "22023" },
+      });
+    }
     await set("strikes.email", null);
     expect((await t.settings()).strikes).toEqual({});
     await expect(set("strikes.email_verified_at", "2026-11-02T09:00:00Z")).rejects.toMatchObject({
@@ -163,6 +219,24 @@ describe("app_set_firm_setting(): the only way the app may change firms.settings
       retention: { message_days: 400, hold_until: "2027-01-31" },
       wave_size: 4,
     });
+  });
+
+  it("refuses settings or settings.strikes that aren't objects, rather than replacing them", async () => {
+    const t = await settingsFirm();
+    const { sql } = await import("drizzle-orm");
+    const set = () =>
+      withFirm(t.f.firmId, (tx) =>
+        tx.execute(sql`select app_set_firm_setting('strikes.email', 'strikes.team@example.com')`),
+      );
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{strikes}', '"x"') where id = $1`,
+      [t.f.firmId],
+    );
+    await expect(set()).rejects.toMatchObject({ cause: { code: "22023" } });
+    expect((await t.settings()).strikes).toBe("x");
+    await su.query("update firms set settings = '[]' where id = $1", [t.f.firmId]);
+    await expect(set()).rejects.toMatchObject({ cause: { code: "22023" } });
+    expect(await t.settings()).toEqual([]);
   });
 
   it("changes only the firm the transaction is in, and needs one", async () => {
@@ -231,14 +305,7 @@ describe("saving the strikes team's email", () => {
     expect(await t.jobs()).toHaveLength(2);
     expect(await t.logged("firm.settings_changed")).toHaveLength(1);
     // Confirmed: the same address changes nothing; a new one clears the confirmation.
-    await confirmStrikesEmail(
-      t.confirmCtx(),
-      signStrikesEmailLink(SECRET, {
-        firmId: t.f.firmId,
-        address: "strikes.team@example.com",
-        expiresAt: new Date(NOW.getTime() + DAY),
-      }),
-    );
+    await confirmStrikesEmail(t.confirmCtx(), await t.link("strikes.team@example.com"));
     expect(
       await saveStrikesEmail(t.office(t.admin), { address: "strikes.team@example.com" }),
     ).toEqual({ status: "unchanged" });
@@ -257,6 +324,52 @@ describe("saving the strikes team's email", () => {
     expect(await saveStrikesEmail(t.office(t.admin), { address: "not an address" })).toEqual({
       status: "invalid",
     });
+  });
+});
+
+describe("how many links a firm can send", () => {
+  it("3 every 15 minutes and 10 a day; over that nothing changes, and the first refusal is logged", async () => {
+    const t = await settingsFirm();
+    const save = (address: string, at = NOW) =>
+      saveStrikesEmail(t.office(t.admin, at), { address });
+    expect(await save("first.team@example.com")).toEqual({ status: "saved" });
+    expect(await save("first.team@example.com")).toEqual({ status: "sent_again" });
+    expect(await save("second.team@example.com")).toEqual({ status: "saved" });
+    // The fourth in the window: refused, the address isn't changed and no link is queued.
+    const refused = await save("third.team@example.com");
+    expect(refused).toMatchObject({ status: "too_many" });
+    expect(refused.status === "too_many" && refused.retryAfterMinutes).toBeGreaterThan(0);
+    expect(await save("second.team@example.com")).toMatchObject({ status: "too_many" });
+    expect((await t.settings()).strikes).toEqual({ email: "second.team@example.com" });
+    expect(await t.jobs()).toHaveLength(3);
+    expect((await t.logged("auth.rate_limited")).map((e) => e.data)).toEqual([
+      { limit: "strikes_link:firm" },
+    ]);
+    // Clearing the address, or a confirmed one saved again, sends nothing and isn't counted.
+    expect(await save("")).toEqual({ status: "cleared" });
+    // Later windows: 3, 3 and 1 more make 10 that day; the 11th waits for the next day.
+    for (const [minutes, n] of [
+      [15, 3],
+      [30, 3],
+      [45, 1],
+    ] as const) {
+      for (let i = 0; i < n; i++) {
+        expect(
+          await save(
+            `team.${minutes}.${i}@example.com`,
+            new Date(NOW.getTime() + minutes * MINUTE),
+          ),
+        ).toEqual({ status: "saved" });
+      }
+    }
+    expect(
+      await save("eleventh.team@example.com", new Date(NOW.getTime() + 60 * MINUTE)),
+    ).toMatchObject({ status: "too_many" });
+    expect(await t.jobs()).toHaveLength(10);
+    expect((await t.logged("auth.rate_limited")).map((e) => e.data)).toEqual([
+      { limit: "strikes_link:firm" },
+      { limit: "strikes_link:firm_day" },
+    ]);
   });
 });
 
@@ -327,14 +440,7 @@ describe("the link: sent once, signed for the address, 7 days", () => {
     expect(await runStrikesEmailLink(second, withFirm, deps(transport))).toEqual({
       status: "already",
     });
-    await confirmStrikesEmail(
-      t.confirmCtx(),
-      signStrikesEmailLink(SECRET, {
-        firmId: t.f.firmId,
-        address: "other.team@example.com",
-        expiresAt: new Date(NOW.getTime() + DAY),
-      }),
-    );
+    await confirmStrikesEmail(t.confirmCtx(), await t.link("other.team@example.com"));
     await saveStrikesEmail(t.office(t.admin), { address: "other.team@example.com" });
     const third = (await t.jobs()).at(-1) as { firmId: string; idempotencyKey: string };
     expect(await runStrikesEmailLink(third, withFirm, deps(transport))).toMatchObject({
@@ -347,11 +453,7 @@ describe("the link: sent once, signed for the address, 7 days", () => {
     const other = await settingsFirm();
     await saveStrikesEmail(t.office(t.admin), { address: "strikes.team@example.com" });
     const expiresAt = new Date(NOW.getTime() + 7 * DAY);
-    const good = signStrikesEmailLink(SECRET, {
-      firmId: t.f.firmId,
-      address: "strikes.team@example.com",
-      expiresAt,
-    });
+    const good = await t.link("strikes.team@example.com", expiresAt);
     const [packedText = "", mac] = good.split(".");
     const flip = (s = "") => (s.startsWith("A") ? `B${s.slice(1)}` : `A${s.slice(1)}`);
     const later = Buffer.from(packedText, "base64url");
@@ -359,17 +461,11 @@ describe("the link: sent once, signed for the address, 7 days", () => {
     for (const bad of [
       `${packedText}.${flip(mac)}`, // a changed signature
       `${later.toString("base64url")}.${mac}`, // a later expiry
-      signStrikesEmailLink("another-secret-entirely-0123456789abcdef", {
-        firmId: t.f.firmId,
-        address: "strikes.team@example.com",
-        expiresAt,
+      await t.link("strikes.team@example.com", expiresAt, {
+        secret: "another-secret-entirely-0123456789abcdef",
       }),
       // Another firm's link, for the same address.
-      signStrikesEmailLink(SECRET, {
-        firmId: other.f.firmId,
-        address: "strikes.team@example.com",
-        expiresAt,
-      }),
+      await t.link("strikes.team@example.com", expiresAt, { firmId: other.f.firmId }),
       "",
       "v1.not-a-link",
     ]) {
@@ -385,11 +481,7 @@ describe("the link: sent once, signed for the address, 7 days", () => {
     expect(confirmedStrikesEmail(await t.settings())).toBeNull();
     expect(await t.logged("firm.settings_changed")).toHaveLength(2); // the two saves only
     // The good link confirms once; again: already.
-    const fresh = signStrikesEmailLink(SECRET, {
-      firmId: t.f.firmId,
-      address: "new.team@example.com",
-      expiresAt,
-    });
+    const fresh = await t.link("new.team@example.com", expiresAt);
     expect(await confirmStrikesEmail(t.confirmCtx(), fresh)).toEqual({ status: "confirmed" });
     expect(await confirmStrikesEmail(t.confirmCtx(), fresh)).toEqual({ status: "already" });
     expect((await t.logged("firm.settings_changed")).at(-1)).toEqual({
@@ -397,6 +489,89 @@ describe("the link: sent once, signed for the address, 7 days", () => {
       actor_id: null,
       data: { by: "link", keys: ["strikes.email_verified_at"] },
     });
+  });
+});
+
+describe("the link, used again or guessed at", () => {
+  it("a link sent before the address was saved again doesn't confirm it (cleared and added back, or changed back)", async () => {
+    const t = await settingsFirm();
+    await saveStrikesEmail(t.office(t.admin), { address: "strikes.team@example.com" });
+    const first = await t.link("strikes.team@example.com");
+    await saveStrikesEmail(t.office(t.admin), { address: "" });
+    await saveStrikesEmail(t.office(t.admin, new Date(NOW.getTime() + 16 * MINUTE)), {
+      address: "strikes.team@example.com",
+    });
+    expect(await confirmStrikesEmail(t.confirmCtx(), first)).toEqual({ status: "invalid" });
+    expect(confirmedStrikesEmail(await t.settings())).toBeNull();
+    // The link sent for this save works.
+    expect(
+      await confirmStrikesEmail(t.confirmCtx(), await t.link("strikes.team@example.com")),
+    ).toEqual({ status: "confirmed" });
+  });
+
+  it("failed links count against the IP: after 20, none is checked from it for 15 minutes; junk isn't counted", async () => {
+    const t = await settingsFirm();
+    await saveStrikesEmail(t.office(t.admin), { address: "strikes.team@example.com" });
+    const good = await t.link("strikes.team@example.com");
+    const [packed = "", mac = ""] = good.split(".");
+    const forged = `${packed}.${mac.startsWith("A") ? "B" : "A"}${mac.slice(1)}`;
+    // Junk (no link, or another firm's) is refused before the database: not counted.
+    for (let i = 0; i < 30; i++) {
+      expect(await confirmStrikesEmail(t.confirmCtx(), "v1.not-a-link")).toEqual({
+        status: "invalid",
+      });
+    }
+    for (let i = 0; i < 20; i++) {
+      expect(await confirmStrikesEmail(t.confirmCtx(), forged)).toEqual({ status: "invalid" });
+    }
+    expect((await t.logged("auth.rate_limited")).map((e) => e.data)).toEqual([
+      { limit: "link_fail:ip" },
+    ]);
+    const paused = await confirmStrikesEmail(t.confirmCtx(), good);
+    expect(paused).toMatchObject({ status: "rate_limited" });
+    expect(confirmedStrikesEmail(await t.settings())).toBeNull();
+    // Another IP isn't held back; nor this one once the window has passed.
+    expect(
+      await confirmStrikesEmail(t.confirmCtx(new Date(NOW.getTime() + 16 * MINUTE)), good),
+    ).toEqual({ status: "confirmed" });
+    const other = await settingsFirm();
+    await saveStrikesEmail(other.office(other.admin), { address: "strikes.team@example.com" });
+    expect(
+      await confirmStrikesEmail(
+        other.confirmCtx(NOW, "198.51.100.23"),
+        await other.link("strikes.team@example.com"),
+      ),
+    ).toEqual({ status: "confirmed" });
+  });
+
+  it("saving and confirming take turns: a link used while the address is being changed waits, then is refused", async () => {
+    const t = await settingsFirm();
+    await saveStrikesEmail(t.office(t.admin), { address: "strikes.team@example.com" });
+    const old = await t.link("strikes.team@example.com");
+    // A save in progress: it holds the firm's strikes-email lock and has changed the address.
+    const c = await su.connect();
+    try {
+      await c.query("begin");
+      await c.query(
+        "select pg_advisory_xact_lock(hashtextextended('strikes-email:' || $1::text, 0))",
+        [t.f.firmId],
+      );
+      await c.query(
+        `update firms set settings = jsonb_set(settings, '{strikes}', '{"email":"new.team@example.com"}')
+          where id = $1`,
+        [t.f.firmId],
+      );
+      const confirming = confirmStrikesEmail(t.confirmCtx(), old);
+      const state = settles(confirming);
+      await pause(400);
+      expect(state.done).toBe(false);
+      await c.query("commit");
+      expect(await confirming).toEqual({ status: "invalid" });
+    } finally {
+      await c.query("rollback").catch(() => undefined); // after a failure: let the locks go
+      c.release();
+    }
+    expect((await t.settings()).strikes).toEqual({ email: "new.team@example.com" });
   });
 });
 
@@ -464,14 +639,98 @@ describe("a site's postcode", () => {
     expect(await postcodeOf(t.siteId)).toBeNull();
   });
 
+  it("only sessions still to come count: one under way, or a cancelled one, doesn't", async () => {
+    const t = await siteFirm();
+    const underWay = await t.f.shift({ startsAt: hoursFromNow(-2) }); // 8 hours: ends in 6
+    const cancelled = await t.f.shift({ startsAt: hoursFromNow(30), status: "cancelled" });
+    const soon = await t.f.shift({ startsAt: hoursFromNow(1) });
+    await su.query("update shifts set site_id = $2 where id = any($1)", [
+      [underWay, cancelled, soon],
+      t.siteId,
+    ]);
+    await t.f.booking(await t.f.worker(), underWay);
+    await t.f.booking(await t.f.worker({ first: "Two" }), cancelled);
+    await t.f.booking(await t.f.worker({ first: "Three" }), soon);
+    expect(await editSitePostcode(t.office(t.admin), t.siteId, { postcode: "ZZ9 9ZZ" })).toEqual({
+      status: "in_use",
+      sessions: 1,
+    });
+    await su.query("update shifts set starts_at = $2 where id = $1", [soon, hoursFromNow(-1)]);
+    expect(await editSitePostcode(t.office(t.admin), t.siteId, { postcode: "ZZ9 9ZZ" })).toEqual({
+      status: "saved",
+    });
+  });
+
+  it("a booking in progress at the site: the change waits for it, then is refused", async () => {
+    const t = await siteFirm();
+    const session = await t.f.shift({ startsAt: hoursFromNow(48) });
+    await su.query("update shifts set site_id = $2 where id = $1", [session, t.siteId]);
+    const casual = await t.f.worker();
+    // A booking as the roster takes one: the session's row first, then the slot; not committed.
+    const c = await su.connect();
+    try {
+      await c.query("begin");
+      await c.query("select id from shifts where id = $1 for no key update", [session]);
+      await c.query(
+        `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+         values ($1, $2, 1, $3, 'confirmed', now())`,
+        [t.f.firmId, session, casual],
+      );
+      const edit = editSitePostcode(t.office(t.admin), t.siteId, { postcode: "ZZ9 9ZZ" });
+      const state = settles(edit);
+      await pause(400);
+      expect(state.done).toBe(false);
+      await c.query("commit");
+      expect(await edit).toEqual({ status: "in_use", sessions: 1 });
+    } finally {
+      await c.query("rollback").catch(() => undefined); // after a failure: let the locks go
+      c.release();
+    }
+    expect(await postcodeOf(t.siteId)).toBe("ZZ1 1AA");
+  });
+
+  it("while a change is being made, a booking at the site and a session moved to it wait for it", async () => {
+    const t = await siteFirm();
+    const session = await t.f.shift({ startsAt: hoursFromNow(48) });
+    const elsewhere = await t.f.shift({ startsAt: hoursFromNow(72) });
+    await su.query("update shifts set site_id = $2 where id = $1", [session, t.siteId]);
+    const casual = await t.f.worker();
+    const holding = holdingRun();
+    const edit = editSitePostcode({ ...t.office(t.admin), run: holding.run }, t.siteId, {
+      postcode: "ZZ9 9ZZ",
+    });
+    await holding.hasWorked;
+    const booking = bookShift(
+      withFirm,
+      t.f.firmId,
+      { shiftId: session, workerId: casual, by: { type: "worker", id: casual } },
+      { clock },
+    );
+    const moving = su.query("update shifts set site_id = $2 where id = $1", [elsewhere, t.siteId]);
+    const states = [settles(booking), settles(moving)];
+    await pause(400);
+    expect(states.map((s) => s.done)).toEqual([false, false]);
+    holding.release();
+    expect(await edit).toEqual({ status: "saved" });
+    expect(await booking).toMatchObject({ status: "booked" });
+    await moving;
+    expect(await postcodeOf(t.siteId)).toBe("ZZ9 9ZZ");
+  });
+
   it("only active admins, and only the firm's own sites", async () => {
     const t = await siteFirm();
     const other = await siteFirm();
-    expect(
-      await editSitePostcode(t.office(await t.f.office("resourcer")), t.siteId, {
-        postcode: "ZZ9 9ZZ",
-      }),
-    ).toEqual({ status: "not_allowed" });
+    for (const id of [
+      await t.f.office("resourcer"),
+      await t.f.office("payroll"),
+      await t.f.office("admin", "disabled"),
+    ]) {
+      expect(await editSitePostcode(t.office(id), t.siteId, { postcode: "ZZ9 9ZZ" })).toEqual({
+        status: "not_allowed",
+      });
+    }
+    expect(await postcodeOf(t.siteId)).toBe("ZZ1 1AA");
+    expect(await t.logged("site.changed")).toEqual([]);
     expect(
       await editSitePostcode(t.office(t.admin), other.siteId, { postcode: "ZZ9 9ZZ" }),
     ).toEqual({ status: "not_found" });
@@ -506,5 +765,34 @@ describe("the Settings page's data", () => {
       confirmedAt: null,
     });
     expect(page?.strikesEmail.linkSentAt).toBeInstanceOf(Date);
+  });
+
+  it("lists the firm's own sites only, each with its booked sessions still to come", async () => {
+    const t = await settingsFirm();
+    const other = await settingsFirm();
+    const site = async (firmId: string, name: string) =>
+      (
+        await su.query<{ id: string }>(
+          `insert into sites (firm_id, name, postcode) values ($1, $2, 'ZZ1 1AA') returning id::text as id`,
+          [firmId, name],
+        )
+      ).rows[0]?.id ?? "";
+    const arena = await site(t.f.firmId, "Riverside Arena");
+    const park = await site(t.f.firmId, "Northgate Park");
+    await site(other.f.firmId, "Another Firm's Ground");
+    const session = await t.f.shift({ startsAt: hoursFromNow(48) });
+    await su.query("update shifts set site_id = $2 where id = $1", [session, arena]);
+    await t.f.booking(await t.f.worker(), session);
+    const { token } = await withFirm(t.f.firmId, (tx) =>
+      createSession(tx, { kind: "office", subjectId: t.admin, now: NOW }),
+    );
+    const page = await officeSettingsPage(
+      { firm: { id: t.f.firmId }, run: withFirm, clock },
+      token,
+    );
+    expect(page?.sites).toEqual([
+      { siteId: park, name: "Northgate Park", postcode: "ZZ1 1AA", bookedSessions: 0 },
+      { siteId: arena, name: "Riverside Arena", postcode: "ZZ1 1AA", bookedSessions: 1 },
+    ]);
   });
 });

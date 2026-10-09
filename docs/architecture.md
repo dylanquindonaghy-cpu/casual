@@ -104,7 +104,9 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 10 link
    requests per IP (anything typed, junk included) and 3 per number, plus at most 10 per number a
    day (Phase 10, audit L49: each link is a billed message); 20 failed link uses per IP
-   (successful logins don't count). Checked IP first, stopping at the first refusal, so a refused
+   (successful logins don't count; the strikes team's confirmation links count here too, 12B.7).
+   Those confirmation links are emails too: a firm sends at most 3 every 15 minutes and 10 a day
+   (`STRIKES_LINK_LIMITS`, `src/lib/office/strikes-email.ts`). Checked IP first, stopping at the first refusal, so a refused
    IP can't use up a worker's allowance. Link requests are counted in their own transaction before
    the real work (a request that fails still counts), with one conditional upsert (parallel
    requests can't lose a count). Failed link uses are counted in the login's own transaction,

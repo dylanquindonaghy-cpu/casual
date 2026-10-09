@@ -9,6 +9,7 @@ import {
 import {
   checkStrikesEmailLink,
   confirmedStrikesEmail,
+  parseStrikesEmailLink,
   signStrikesEmailLink,
   strikesEmailOf,
 } from "@/lib/office/strikes-email";
@@ -47,13 +48,15 @@ describe("the address as stored", () => {
 });
 
 describe("the signed link", () => {
+  const SAVED = 4021;
   const link = signStrikesEmailLink(SECRET, {
     firmId: FIRM,
     address: "Strikes.Team@example.com",
+    saved: SAVED,
     expiresAt: in7,
   });
-  const check = (token: string, address: string | null, now = NOW, firmId = FIRM) =>
-    checkStrikesEmailLink(SECRET, token, { firmId, address, now });
+  const check = (token: string, address: string | null, now = NOW, firmId = FIRM, saved = SAVED) =>
+    checkStrikesEmailLink(SECRET, token, { firmId, address, saved, now });
 
   it("packs the firm and the expiry, never the address, and no run of digits", () => {
     expect(link).toMatch(/^[A-Za-z0-9_-]{28}\.[A-Za-z0-9_-]{43}$/);
@@ -69,8 +72,10 @@ describe("the signed link", () => {
     expect(check(link, "strikes.team@example.com", new Date(in7.getTime() + 1000))).toBe("expired");
   });
 
-  it("is refused for another address, another firm, a changed part, another key, or no address", () => {
+  it("is refused for another address, a later save of the same one, another firm, a changed part, another key, or no address", () => {
     expect(check(link, "new.team@example.com")).toBe("invalid");
+    // The address saved again (cleared and added back, or changed and changed back).
+    expect(check(link, "strikes.team@example.com", NOW, FIRM, SAVED + 3)).toBe("invalid");
     expect(
       check(link, "strikes.team@example.com", NOW, "22222222-2222-4222-8222-222222222222"),
     ).toBe("invalid");
@@ -92,11 +97,30 @@ describe("the signed link", () => {
       checkStrikesEmailLink("another-secret-entirely-0123456789abcdef", link, {
         firmId: FIRM,
         address: "strikes.team@example.com",
+        saved: SAVED,
         now: NOW,
       }),
     ).toBe("invalid");
     expect(check(link, null)).toBe("invalid");
     expect(check("v1.x.y.z", "strikes.team@example.com")).toBe("invalid");
+  });
+
+  it("is read for its shape and firm before anything else (refused there: no database work)", () => {
+    expect(parseStrikesEmailLink(link, FIRM)).toEqual({
+      expires: Math.floor(in7.getTime() / 1000),
+      given: link.split(".")[1],
+    });
+    expect(parseStrikesEmailLink(link, FIRM.toUpperCase())).not.toBeNull();
+    expect(parseStrikesEmailLink(link, "22222222-2222-4222-8222-222222222222")).toBeNull();
+    for (const junk of [
+      "",
+      "v1.not-a-link",
+      `${link}x`,
+      `${link}.${link}`,
+      link.replace(".", ""),
+    ]) {
+      expect(parseStrikesEmailLink(junk, FIRM)).toBeNull();
+    }
   });
 });
 
@@ -122,6 +146,15 @@ describe("the words", () => {
     );
     expect(strikesEmailResultText({ status: "not_allowed" })).toBe(
       "Only admins can change settings.",
+    );
+    expect(strikesEmailResultText({ status: "too_many", retryAfterMinutes: 12 })).toBe(
+      "Too many links sent. Nothing changed: try again in 12 minutes.",
+    );
+    expect(strikesEmailResultText({ status: "too_many", retryAfterMinutes: 600 })).toBe(
+      "Too many links sent. Nothing changed: try again in 10 hours.",
+    );
+    expect(confirmResultText({ status: "rate_limited", retryAfterMinutes: 1 }, "Acme Events")).toBe(
+      "Too many tries. Try again in 1 minute.",
     );
     expect(sitePostcodeResultText({ status: "in_use", sessions: 3 })).toBe(
       "3 booked sessions use this site: move them first.",
@@ -156,6 +189,12 @@ describe("the words", () => {
     );
     expect(say("site.changed", { siteId: "s", fields: ["postcode"] })).toBe(
       "Sam Rota changed the postcode of Riverside Arena.",
+    );
+    expect(say("auth.rate_limited", { limit: "strikes_link:firm" }, "system")).toBe(
+      "Too many links to confirm the strikes team's email: sending them was paused for a while.",
+    );
+    expect(say("auth.rate_limited", { limit: "link_fail:ip" }, "system")).toBe(
+      "Too many tries: logging in was paused for a while.",
     );
   });
 });

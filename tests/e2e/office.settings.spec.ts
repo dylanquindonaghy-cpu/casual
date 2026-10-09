@@ -13,7 +13,8 @@ const acme = "http://acme.localhost:3100";
 const RUN = Date.now().toString(36);
 const ADMIN = "settings.admin@example.com";
 const RESOURCER = "settings.resourcer@example.com";
-const TEAM = "strikes.team@example.com";
+// Per run: a retry after this run confirmed it would otherwise find it unchanged.
+const TEAM = `strikes.${RUN}@example.com`;
 const SITE = `Settings Test Hall ${RUN}`;
 
 async function officeLogin(page: Page, email: string) {

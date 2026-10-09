@@ -629,7 +629,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "auth.otp_locked":
       return `${who}'s code stopped working after too many wrong tries.`;
     case "auth.rate_limited":
-      return "Too many tries: logging in was paused for a while.";
+      return typeof d.limit === "string" && d.limit.startsWith("strikes_link:")
+        ? "Too many links to confirm the strikes team's email: sending them was paused for a while."
+        : "Too many tries: logging in was paused for a while.";
 
     // The rota sheet and imports.
     case "roster.source_connected":

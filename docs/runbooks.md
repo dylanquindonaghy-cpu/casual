@@ -666,7 +666,8 @@ In order (who does it, how, and what done looks like):
    and someone at that address opens the emailed link within 7 days and selects **Confirm this
    address** (strike evidence only ever goes to a confirmed address). If the link didn't arrive or
    ran out, the admin selects **Send the link again**. Each site's postcode is on the same page
-   (it can't change while people are booked on sessions there that are still to come).
+   (it can't change while people are booked on sessions there that are still to come). A firm can
+   send at most 3 links every 15 minutes and 10 a day: past that, the page says how long to wait.
 9. **Shifts line** (you): after "Connect Twilio", the firm's number with `npm run firm:line`, and
    WhatsApp's approval of the display name (start early: it can take days).
 10. **Privacy notice line** (you send it, the firm publishes it): `docs/privacy-notice.md` has the

@@ -260,6 +260,13 @@
       "when": 1791516887054,
       "tag": "0036_firm_setting_function",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791518827876,
+      "tag": "0037_firm_setting_checks",
+      "breakpoints": true
     }
   ]
 }

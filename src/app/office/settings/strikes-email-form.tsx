@@ -42,7 +42,7 @@ export function StrikesEmailForm({
         Strikes team email
         <input
           type="email"
-          autoComplete="email"
+          autoComplete="off"
           className={`${field} w-full`}
           value={value}
           maxLength={254}

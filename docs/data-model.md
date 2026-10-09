@@ -84,11 +84,12 @@ strikes team's address (no default) and when it was confirmed by its emailed lin
 (`src/lib/office/strikes-email.ts`). Admins set the address on Settings; strike evidence only ever
 goes to a confirmed one. The app's login can't update `firms` at all: the only way it changes
 `firms.settings` is the owner-run function `app_set_firm_setting(key, value)` (migration 0036,
-`SECURITY DEFINER`, `search_path` pinned, callable only by the app role, for the current firm
-only). It accepts `strikes.email` (an address, or NULL to clear it) and
-`strikes.email_verified_at` (an ISO time, or NULL), refuses every other key (`retention.*` first
-among them), clears the confirmed time when the address changes, and needs an address before a
-time. Every other setting stays with the owner (`npm run firm:settings`).
+checks tightened in 0037; `SECURITY DEFINER`, `search_path` pinned, callable only by the app
+role, for the current firm only). It accepts `strikes.email` (an address, or NULL to clear it)
+and `strikes.email_verified_at` (an ISO time in UTC such as `2026-11-02T09:00:00.000Z`, or NULL;
+never a word like `now` or `infinity`), refuses every other key (`retention.*` first among them),
+clears the confirmed time when the address changes, needs an address before a time, and refuses
+`settings` or `settings.strikes` that aren't JSON objects rather than replacing them. Every other setting stays with the owner (`npm run firm:settings`).
 
 ## DDL sketch (Postgres)
 

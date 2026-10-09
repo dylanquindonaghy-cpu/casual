@@ -10777,3 +10777,124 @@ Run `npm run dev` and log in as a casual. Open **My profile**, then **Set your t
 `ZZ1 1AA`, choose how you travel and how long, and save. Try `ZZ0 0AA` to see an unknown postcode
 refused. Then log in to the office, open **Workers**, find that casual: the page shows "Travel area:
 ZZ1 · …". On **Settings**, save `ZZ9 9ZZ` for a site and it says "Location found."
+
+## 2026-10-09 — Phase 12, task 12G.2: Travel estimates
+
+**Time spent:** 1.6 hours (11:49 to 13:25 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=bd2d1c019b2e1bc0 e2e=true`.
+That covers 4,126 unit and database tests, 79 browser tests and the walkthrough's 3, all passing.
+The independent auditor said **DONE** in round 1. The commit is "Phase 12: Travel estimates (12G.2)",
+pushed to `build/overnight`.
+
+### What was built, in plain words
+
+A **travel estimate** is how long it takes to get from a postcode to a site: by car (with the
+distance) and by public transport, arriving 30 minutes before a shift starts. Casuals will see
+these on every shift ("7.2 miles · 18 min by car · 41 min by public transport"), and the next task
+(12G.3) uses them to show casuals only the shifts they can reach. This task works them out and
+stores them. Showing them on pages is 12G.3.
+
+- **The travel provider** (`src/lib/travel/provider.ts`): the code that answers "how long from
+  these points to this site?". There are two versions:
+  - **The fake**, used tonight and in every test. It works a time out from the straight-line
+    distance (roads are taken as 1.3 times longer than the straight line).
+  - **TravelTime**, a paid service, for real use later. One request asks about up to 2,000 start
+    points at once, gives up after 90 minutes of travel, and asks for the distance by car. It
+    sends only map points under made-up labels ("o1", "o2"), never a postcode or a name. Its
+    answer is checked before use (with zod, a library that checks data has the expected shape),
+    with a 10-second time limit and a size cap. Nothing was sent to TravelTime tonight: its tests
+    use answers written by hand in the shape its documentation shows.
+- **A new table**, `travel_estimates` (migration 0041). Each row is one postcode, one site, one way
+  of travelling and one arrive-by time. It is keyed by postcode, not by person: casuals who start
+  from the same postcode share it.
+- **The travel job** (`src/lib/travel/estimates.ts`): a background job (it runs in the worker, the
+  separate program that does work away from the web pages). It finds the sessions that need
+  estimates, groups those sharing a site and start time, and asks the provider only for the
+  estimates that are missing.
+- **What starts the job:** a new, imported, synced, moved or urgent session; a site's postcode
+  changing (its old estimates are deleted at once); a casual changing their postcode or ways of
+  travelling; and a nightly run at 02:20 for every session in the next 29 days (the 28 days casuals
+  can see, plus one).
+- **If the provider is down:** the job stops (no hammering), keeps what it saved, and tries again
+  later, waiting longer each time (3 to 4 hours of tries), then the nightly run catches up. Until
+  then the casual sees "about 7 miles (straight line) · Travel time not known yet". Shifts are
+  never hidden because of it.
+- **Urgent shifts:** before the first offers go out, the offer job fills in the shift's missing
+  estimates itself, waiting at most 5 seconds. If the provider is slow or down, the offers go
+  anyway.
+- **Clearing up:** each estimate is deleted 7 days after the last session it was for.
+
+### Key facts and numbers
+
+- One provider request per site, start time, way of travelling and batch of up to 2,000 start
+  points. 2,001 casuals with different postcodes means 2 requests per way.
+- A job run has a 10-minute budget. If it runs out with work left, and it saved something, it
+  queues the rest as a fresh run.
+- Casuals' changes wait 5 minutes and share one run per firm, so ten casuals saving their postcodes
+  cost one run, not ten.
+- The worker takes travel jobs one at a time, because pg-boss (the job queue, which lives in the
+  database) gives a whole batch of jobs one shared time limit.
+- No database transaction (a group of database changes that succeed or fail together) is open
+  while the provider is asked. An answer is saved only if the site hasn't moved meanwhile.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| No call to TravelTime tonight; hand-written sample answers, checked live in the "Connect" step | Overnight rules: no outside services | Using the free key |
+| Both ways are worked out for every postcode, whichever ways the casual chose | The spec says both times always show; the choice only drives the filter | Only the chosen ways (fewer requests) |
+| A provider that doesn't answer stops the run, and pg-boss tries again later | No hammering a service that's down | Carrying on with every request |
+| The first wave fills its own shift's estimates, for at most 5 seconds | The task asks for estimates before the first wave; a slow service must never hold offers back | Making the wave wait for the job |
+| Only the worker can reach the provider and holds TravelTime's keys | Pages never call the provider (a test checks every page's imports) | The provider in the web app too |
+| Estimates are left out of the firm's data download and expire after 7 days, even during a hold | They hold full postcodes the office never sees; they're worked out, never evidence | Exporting them; keeping them during a hold |
+| Every run covers 29 days ahead, not further | Far-off sessions get theirs as they come closer; fewer paid requests | Every future session |
+
+### What the guardrails reviewer found
+
+The `guardrails-reviewer` (a checking agent that reads the change against the project's golden
+rules) ran twice:
+
+- **Round 1** found one must-fix problem: two casuals with the same postcode but slightly different
+  map points made the save fail. Fixed: one point per postcode (the latest). It also asked for
+  shorter database transactions, a time budget, retries that back off, casuals' changes sharing one
+  run, every run limited to 29 days, and a size cap that stops reading a too-big answer early. All
+  done, each with a test.
+- **Round 2** found nothing must-fix and two follow-ups, both done: travel jobs are taken one at a
+  time, and a run that saved nothing doesn't re-queue itself.
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/travel.provider.test.ts`, `tests/unit/travel.body.test.ts`,
+  `tests/unit/travel.boundary.test.ts`) prove:
+  - the fake's times, the 90-minute ceiling and the 2,000 limit;
+  - a TravelTime request holds only points and made-up labels, and each kind of answer is read
+    correctly (anything odd, slow or too big is "unavailable");
+  - an answer is never read past its size cap, however it's sent;
+  - the travel line's words, including across the clock change;
+  - no page's code can reach the provider.
+- **Database tests** (`tests/integration/travel.estimates.test.ts`, 23 tests) prove:
+  - who is searched from (active casuals with the role, one point per postcode), batching, and
+    sessions sharing searches;
+  - a site that moves mid-search gets nothing saved;
+  - the provider down: the job fails to be tried again, and the line falls back to the straight
+    line;
+  - running out of time: what's done is kept, and the rest is queued only after progress;
+  - an urgent shift has its estimates before its first offer, and a slow or broken provider never
+    holds offers back;
+  - the nightly run covers the window, once a day;
+  - the purge; each change that queues the job; one firm's casuals never searched for another.
+- **Sheet sync tests** prove a synced session gets its estimates without the nightly run, and a
+  session brought back from draft or cancelled gets them too.
+
+### What's parked or needs Dylan
+
+- **Connect postcodes.io and TravelTime** (PLAN.md Parking lot): sign the DPIA, get TravelTime's
+  production quote, then put the keys in the server's settings. Claude then checks the sample
+  answers against one live request between two public places, and TravelTime's limits.
+- **A cap per casual** on how often their area changes (each new postcode costs requests).
+
+### How to see it working
+
+Nothing new is on screen yet: 12G.3 adds the travel lines and the filter. The tests above run it
+end to end with the fake provider: `npm test -- tests/integration/travel.estimates.test.ts`.

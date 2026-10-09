@@ -10890,3 +10890,26 @@ run (the task text asks for it; it costs a database read, since both ways are al
 a search cut off by the budget is a paid request whose answer is dropped (rare: only in a run's
 last seconds); the wave's catch writes to the main log (a test prints one warning line).
 Mutation checks: removing either fix made its new test fail.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=bd2d1c019b2e1bc0 e2e=true`
+(4,126 tests, 79 browser tests, the walkthrough's 3).
+
+**Audit round 1 (claims-auditor), verbatim verdict and open points:**
+
+> VERDICT: DONE
+>
+> Stamp: `.claude/state/verified.json` has ok:true and e2e:true, tree bd2d1c019b2e1bc0, which matches `tree-hash.sh`. `test.log` ends at 4126 passed, 0 skipped, 0 todo, and lint, typecheck, invariants and migration-drift are clean. I also re-ran `tests/unit/travel.provider.test.ts` (16/16 passed).
+>
+> Minor gaps, none blocking:
+> 1. A change to the casual's ways of travelling alone is coded to queue the job (`portal/travel.ts:188`) but isn't tested separately. Only postcode changes are exercised.
+> 2. The `boss.schedule` registration for the nightly tick isn't asserted. The tick logic itself is tested.
+> 3. "Sent by the API from 12J.1" is not part of this task. The planner API doesn't exist, and 12J.1 is parked waiting for S11. PLAN.md line 890 assigns that call to 12J.1.
+>
+> To reach DONE: nothing required. A modes-only test and a `boss.schedule` assertion would be tidy but aren't in the acceptance list.
+
+(Its per-claim evidence, each PROVEN with file and line, is summarised in `docs/work-log.md`.)
+Gaps 1 and 2 are small tests to add with 12G.3, which touches the same code; gap 3 is 12J.1's.
+
+**Hours:** 1.6 (11:49 to 13:25 UTC). Phase 12 so far: 19.2 hours over 19 Hours-log rows (no
+estimate for Phase 12). **Commit:** "Phase 12: Travel estimates (12G.2)", pushed (its hash in the
+next entry). CI passed on the first checkpoint (`744d791`).

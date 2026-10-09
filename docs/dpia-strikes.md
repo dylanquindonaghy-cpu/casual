@@ -32,6 +32,15 @@ privacy notice updated (`docs/office-v2.md` 6.3), and the solicitor's questions 
 - **What is stored, only for a strike issued** (the `strikes` table): who, which booking and
   session, the notice given and the threshold, when it was issued and until when it counts, live
   or withdrawn, and a "needs a person to review" flag.
+  - **Withdrawn (12C.5):** who withdrew it, when, and their reason (1–500 characters typed by a
+    person in the office). The reason is on screen to admins and resourcers only (the record page),
+    never in the log, the PDF, the CSV or the evidence email. Erasing the casual clears it; who and
+    when stay. It is in the casual's own data export (`src/lib/gdpr/worker-export.ts`), because a
+    subject access request covers what the firm wrote about them: the firm can hold part of it
+    back only if an exemption applies.
+  - **Kept after a review (12C.5):** who and when. "Keep strike" works on any live strike not yet
+    reviewed, not only a flagged one, so its `strike.reviewed` log entry (ids only) doesn't show
+    which strikes were flagged.
 - **Health and caring:** when the reason was "I'm unwell" or "Family or caring", the strike is
   flagged for a person to review, and the flag's reason is stored on the strike row only.
   - "I'm unwell" is health data, a special category (UK GDPR Article 9).
@@ -54,8 +63,11 @@ privacy notice updated (`docs/office-v2.md` 6.3), and the solicitor's questions 
   may keep strikes longer, never shorter than the time a strike counts plus 6 months (the 6-month
   tribunal time limit): `firm:settings` refuses a shorter one, and the purge itself never deletes
   a strike that stopped counting less than 6 months ago.
-- The `strike.issued` log entry (ids, codes and hours, no reason) stays as long as the action log,
-  which isn't purged yet (`PLAN.md` Data 2). The privacy notice and the help page must say so.
+- The `strike.issued`, `strike.withdrawn` and `strike.reviewed` log entries (ids, codes and hours,
+  no reason and no review flag) stay as long as the action log, which isn't purged yet (`PLAN.md`
+  Data 2). The privacy notice and the help page must say so.
+- The office's reason for withdrawing a strike goes with the strike's row (12 months), or sooner
+  when the casual is erased.
 
 ### Who can see it
 

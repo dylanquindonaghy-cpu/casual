@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { passesLogCheck } from "@/lib/events/record";
-import { strikeSectionLines } from "@/lib/office/cancellations-copy";
+import { strikeSectionLines, WITHDRAWN_AFTER_EVIDENCE } from "@/lib/office/cancellations-copy";
 import { eventWords } from "@/lib/office/event-words";
 import { LOG_TYPES } from "@/lib/office/log-types";
 import { keepText, withdrawText } from "@/lib/office/strike-actions-copy";
@@ -21,6 +21,7 @@ import {
   myStrikeCountText,
   myStrikeRuleText,
   myStrikeSession,
+  myStrikesMoreText,
   myStrikeStatus,
   myStrikeTitle,
 } from "@/lib/portal/my-strikes-copy";
@@ -97,7 +98,7 @@ describe("the record's Strike section and its buttons' answers", () => {
     reviewNeeded: false,
     evidence: { status: "sent", to: null, sentAt: null },
   };
-  it("flagged, kept after a review, withdrawn with or without its reason", () => {
+  it("flagged, kept after a review, withdrawn with or without its reason, oldest first", () => {
     expect(strikeSectionLines(base, TZ)).toEqual([]);
     expect(strikeSectionLines({ ...base, reviewNeeded: true }, TZ)).toEqual([
       "Flagged for a review: the casual's reason is one a person should look at.",
@@ -113,16 +114,36 @@ describe("the record's Strike section and its buttons' answers", () => {
       status: "withdrawn" as const,
       withdrawn: { by: "Sam Rota", at: at("2026-11-09T10:15:00Z"), reason: "Booked by mistake" },
     };
+    // Its evidence email had gone: a reminder to tell the strikes team.
     expect(strikeSectionLines(withdrawn, TZ)).toEqual([
+      "Withdrawn by Sam Rota at 10:15 on Mon 9 Nov.",
+      "Why: Booked by mistake",
+      "The evidence email had already gone to the strikes team: let them know it's withdrawn.",
+    ]);
+    expect(WITHDRAWN_AFTER_EVIDENCE).toMatch(/strikes team/);
+    // It hadn't (withdrawn before it went): no reminder.
+    const unsent = { ...withdrawn, evidence: { status: "pending", to: null, sentAt: null } };
+    expect(strikeSectionLines(unsent, TZ)).toEqual([
       "Withdrawn by Sam Rota at 10:15 on Mon 9 Nov.",
       "Why: Booked by mistake",
     ]);
     // After the casual's details were deleted, the reason goes; who and when stay.
     expect(
-      strikeSectionLines({ ...withdrawn, withdrawn: { ...withdrawn.withdrawn, reason: null } }, TZ),
+      strikeSectionLines({ ...unsent, withdrawn: { ...withdrawn.withdrawn, reason: null } }, TZ),
     ).toEqual([
       "Withdrawn by Sam Rota at 10:15 on Mon 9 Nov.",
       "Why: deleted with the casual's details.",
+    ]);
+    // Kept after a review, then withdrawn: both, oldest first.
+    expect(
+      strikeSectionLines(
+        { ...unsent, reviewed: { by: "Ann Office", at: at("2026-11-08T09:00:00Z") } },
+        TZ,
+      ),
+    ).toEqual([
+      "Kept after a review by Ann Office at 09:00 on Sun 8 Nov.",
+      "Withdrawn by Sam Rota at 10:15 on Mon 9 Nov.",
+      "Why: Booked by mistake",
     ]);
   });
 
@@ -131,6 +152,7 @@ describe("the record's Strike section and its buttons' answers", () => {
       "withdrawn",
       "invalid",
       "not_live",
+      "erased",
       "not_found",
       "not_allowed",
       "logged_out",
@@ -146,7 +168,8 @@ describe("the record's Strike section and its buttons' answers", () => {
     );
     for (const status of [
       "kept",
-      "not_flagged",
+      "already_kept",
+      "not_live",
       "not_found",
       "not_allowed",
       "logged_out",
@@ -154,7 +177,11 @@ describe("the record's Strike section and its buttons' answers", () => {
     ] as const) {
       expect(keepText({ status })).toMatch(/\.$/);
     }
-    expect(keepText({ status: "kept" })).toBe("Kept. It no longer needs a review.");
+    expect(withdrawText({ status: "erased" })).toBe(
+      "This casual's details were deleted, so their strikes can't be changed.",
+    );
+    expect(keepText({ status: "kept" })).toBe("Kept, and marked as reviewed.");
+    expect(keepText({ status: "already_kept" })).toBe("This strike has already been reviewed.");
   });
 });
 
@@ -244,15 +271,39 @@ describe("the casual's Strikes on Profile", () => {
       liveDays: 90,
       noticeHours: 48,
       strikes: [mine(), mine({ shiftId: "x2", status: "withdrawn", counting: false })],
+      more: false,
     });
     expect(text).toContain("Strikes");
     expect(text).toContain("You have 1 strike in the last 90 days.");
     expect(text).toContain("Counts until Thu 4 Feb");
     expect(text).toContain("Withdrawn by the office");
     expect(text.match(/Tell us what happened/g)).toHaveLength(1);
+    expect(text).not.toContain("most recent");
     // None yet: the count and the rule.
-    const none = render({ timeZone: TZ, counting: 0, liveDays: 90, noticeHours: 48, strikes: [] });
+    const none = render({
+      timeZone: TZ,
+      counting: 0,
+      liveDays: 90,
+      noticeHours: 48,
+      strikes: [],
+      more: false,
+    });
     expect(none).toContain("You have 0 strikes in the last 90 days.");
     expect(none).toContain("A strike is given when you cancel less than 48 hours");
+  });
+
+  it("one 'Tell us what happened' per session, and a note when there are more than it shows", () => {
+    // Two strikes on the same session (booked again after cancelling): only the newer one asks.
+    const text = render({
+      timeZone: TZ,
+      counting: 2,
+      liveDays: 90,
+      noticeHours: 48,
+      strikes: [mine({ cancelledAt: at("2026-11-07T09:00:00Z") }), mine()],
+      more: true,
+    });
+    expect(text.match(/Tell us what happened/g)).toHaveLength(1);
+    expect(myStrikesMoreText(20)).toBe("Showing your 20 most recent strikes.");
+    expect(text).toContain("Showing your 2 most recent strikes.");
   });
 });

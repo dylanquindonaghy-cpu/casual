@@ -643,7 +643,10 @@ through the API), exactly 48 hours and "Family or caring" flagged.
   reason text. The firm's planner hears about it by webhook (5.3).
 - The casual sees it on Profile as withdrawn.
 
-**"Keep strike"** clears the review flag (who and when on the row; `strike.reviewed` logged).
+**"Keep strike"** marks a live strike as reviewed and clears its review flag if it has one (who
+and when on the row; `strike.reviewed` logged with ids only). Built (12C.5) for any live strike not
+yet reviewed, not only a flagged one, so the log entry doesn't reveal which strikes were flagged
+(the flag comes from a health or caring reason).
 
 **"Tell us what happened."** The casual's own account goes in as a `review` request (an existing
 request type, no new columns), which the office sees in Enquiries' "Requests from the app".

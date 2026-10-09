@@ -116,6 +116,7 @@ async function countRows(tx: FirmTx, view: CancellationView, threshold: number):
 }
 
 // The cancelled bookings in a view, newest first (or those with a reference, or one by its id).
+// A withdrawn strike's reason (the office's words) only for a record, never for a list or the CSV.
 async function loadRows(
   tx: FirmTx,
   o: {
@@ -135,7 +136,8 @@ async function loadRows(
            si.name as site_name, si.postcode as site_postcode, ev.name as event_name,
            ou.name as office_name, ce.data ->> 'strike' as strike_code,
            st.status as strike_status, st.expires_at as strike_expires_at, st.review_needed,
-           st.withdrawn_at, st.withdrawn_reason, wo.name as withdrawn_by_name,
+           st.withdrawn_at, ${o.id || o.ref ? sql`st.withdrawn_reason` : sql`null::text`}
+             as withdrawn_reason, wo.name as withdrawn_by_name,
            st.reviewed_at, ro.name as reviewed_by_name,
            st.evidence_email_status, st.evidence_email_to, st.evidence_email_sent_at,
            coalesce(${evidenceStuckSql("st")}, false) as evidence_stuck,

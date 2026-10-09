@@ -4,10 +4,10 @@
 export const WITHDRAW_REASON_MAX = 500;
 
 export type WithdrawOutcome =
-  | { status: "withdrawn" | "invalid" | "not_live" | "not_found" | "not_allowed" }
+  | { status: "withdrawn" | "invalid" | "not_live" | "erased" | "not_found" | "not_allowed" }
   | { status: "logged_out" | "error" };
 export type KeepOutcome =
-  | { status: "kept" | "not_flagged" | "not_found" | "not_allowed" }
+  | { status: "kept" | "already_kept" | "not_live" | "not_found" | "not_allowed" }
   | { status: "logged_out" | "error" };
 
 export function withdrawText(result: WithdrawOutcome): string {
@@ -18,6 +18,8 @@ export function withdrawText(result: WithdrawOutcome): string {
       return `Write why you're withdrawing it (${WITHDRAW_REASON_MAX} characters at most).`;
     case "not_live":
       return "This strike has already been withdrawn.";
+    case "erased":
+      return "This casual's details were deleted, so their strikes can't be changed.";
     case "not_found":
       return "That strike wasn't found.";
     case "not_allowed":
@@ -32,9 +34,11 @@ export function withdrawText(result: WithdrawOutcome): string {
 export function keepText(result: KeepOutcome): string {
   switch (result.status) {
     case "kept":
-      return "Kept. It no longer needs a review.";
-    case "not_flagged":
-      return "This strike doesn't need a review any more.";
+      return "Kept, and marked as reviewed.";
+    case "already_kept":
+      return "This strike has already been reviewed.";
+    case "not_live":
+      return "This strike has been withdrawn.";
     case "not_found":
       return "That strike wasn't found.";
     case "not_allowed":

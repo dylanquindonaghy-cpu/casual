@@ -157,6 +157,8 @@ describe("the list", () => {
     // 90 days on (Sun 31 Jan), nothing counts: Live is empty, All still lists them.
     const past = later(24 * 91);
     expect((await t.list("live", past)).rows).toEqual([]);
+    // Ben's flagged strike no longer counts, so it no longer needs a review.
+    expect((await t.list("review", past)).rows).toEqual([]);
     expect((await t.list("all", past)).rows.map((r) => r.live)).toEqual([0, 0, 0]);
   });
 });
@@ -214,11 +216,16 @@ describe("withdrawing a strike", () => {
 });
 
 describe("keeping a strike after a review", () => {
-  it("clears the flag, with who and when; logged; only a flagged live strike", async () => {
+  it("any live strike, once: clears the flag, with who and when; logged with ids only", async () => {
     const t = await strikesFirm();
-    const [ann, ben] = [await t.f.worker({ first: "Ann" }), await t.f.worker({ first: "Ben" })];
+    const [ann, ben, cal] = [
+      await t.f.worker({ first: "Ann" }),
+      await t.f.worker({ first: "Ben" }),
+      await t.f.worker({ first: "Cal" }),
+    ];
     const flagged = await t.strike(ann, { reason: "Family or caring" });
     const plain = await t.strike(ben);
+    const gone = await t.strike(cal);
     expect(await keepStrike(t.office(t.admin), flagged.assignmentId)).toEqual({ status: "kept" });
     expect(await t.row(flagged.assignmentId)).toMatchObject({
       status: "live",
@@ -226,7 +233,17 @@ describe("keeping a strike after a review", () => {
       reviewed_by: t.admin,
       reviewed_at: later(3),
     });
-    expect(await t.logged("strike.reviewed")).toEqual([
+    // Not only a flagged one, so the log's entry doesn't tell which were flagged.
+    expect(await keepStrike(t.office(t.resourcer), plain.assignmentId)).toEqual({
+      status: "kept",
+    });
+    expect(await t.row(plain.assignmentId)).toMatchObject({
+      status: "live",
+      review_needed: false,
+      reviewed_by: t.resourcer,
+    });
+    const entries = await t.logged("strike.reviewed");
+    expect(entries).toEqual([
       {
         actor_id: t.admin,
         data: {
@@ -236,14 +253,80 @@ describe("keeping a strike after a review", () => {
           outcome: "kept",
         },
       },
+      {
+        actor_id: t.resourcer,
+        data: {
+          assignmentId: plain.assignmentId,
+          shiftId: plain.shiftId,
+          workerId: ben,
+          outcome: "kept",
+        },
+      },
     ]);
+    expect(JSON.stringify(entries)).not.toMatch(/review_needed|reviewNeeded|caring/i);
+    // Once only; not a withdrawn one.
     expect(await keepStrike(t.office(t.admin), flagged.assignmentId)).toEqual({
-      status: "not_flagged",
+      status: "already_kept",
     });
-    expect(await keepStrike(t.office(t.admin), plain.assignmentId)).toEqual({
-      status: "not_flagged",
+    await withdrawStrike(t.office(t.admin), gone.assignmentId, "Booked by mistake");
+    expect(await keepStrike(t.office(t.admin), gone.assignmentId)).toEqual({ status: "not_live" });
+    expect(await keepStrike(t.office(t.admin), crypto.randomUUID())).toEqual({
+      status: "not_found",
     });
     expect((await t.list("review")).rows).toEqual([]);
+    // Kept, then withdrawn: both stay on the record.
+    expect(
+      await withdrawStrike(t.office(t.admin), flagged.assignmentId, "Her manager agreed"),
+    ).toEqual({ status: "withdrawn" });
+    expect(await t.row(flagged.assignmentId)).toMatchObject({
+      status: "withdrawn",
+      reviewed_by: t.admin,
+      withdrawn_by: t.admin,
+    });
+  });
+});
+
+describe("two at once", () => {
+  it("two withdrawals: one wins, the other is told it's done; one entry", async () => {
+    const t = await strikesFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    const s = await t.strike(ann);
+    const results = await Promise.all([
+      withdrawStrike(t.office(t.admin), s.assignmentId, "First"),
+      withdrawStrike(t.office(t.resourcer), s.assignmentId, "Second"),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual(["not_live", "withdrawn"]);
+    expect(await t.logged("strike.withdrawn")).toHaveLength(1);
+    const winner = results[0]?.status === "withdrawn" ? "First" : "Second";
+    expect((await t.row(s.assignmentId))?.withdrawn_reason).toBe(winner);
+  });
+
+  it("a withdrawal and a keep: it ends withdrawn either way, logged once each at most", async () => {
+    const t = await strikesFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    const s = await t.strike(ann, { reason: "I'm unwell" });
+    const [withdrawn, kept] = await Promise.all([
+      withdrawStrike(t.office(t.admin), s.assignmentId, "Doctor's note seen"),
+      keepStrike(t.office(t.resourcer), s.assignmentId),
+    ]);
+    expect(withdrawn).toEqual({ status: "withdrawn" });
+    expect(["kept", "not_live"]).toContain(kept.status);
+    expect((await t.row(s.assignmentId))?.status).toBe("withdrawn");
+    expect(await t.logged("strike.withdrawn")).toHaveLength(1);
+    expect(await t.logged("strike.reviewed")).toHaveLength(kept.status === "kept" ? 1 : 0);
+  });
+
+  it("an erasure and a withdrawal: the reason never outlives the casual's details", async () => {
+    const t = await strikesFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    const s = await t.strike(ann);
+    const [erased, withdrawn] = await Promise.all([
+      eraseWorker(t.office(t.admin, later(4)), ann),
+      withdrawStrike(t.office(t.resourcer, later(4)), s.assignmentId, "She rang about her mum"),
+    ]);
+    expect(erased).toMatchObject({ status: "erased" });
+    expect(["withdrawn", "erased"]).toContain(withdrawn.status);
+    expect((await t.row(s.assignmentId))?.withdrawn_reason).toBeNull();
   });
 });
 
@@ -260,6 +343,21 @@ describe("erasing a casual", () => {
       withdrawn_by: t.admin,
       withdrawn_reason: null,
     });
+  });
+
+  it("after it, their strikes can't be withdrawn: no new words about them", async () => {
+    const t = await strikesFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    const s = await t.strike(ann);
+    expect(await eraseWorker(t.office(t.admin, later(4)), ann)).toMatchObject({ status: "erased" });
+    expect(
+      await withdrawStrike(t.office(t.admin, later(5)), s.assignmentId, "Ann rang about her mum"),
+    ).toEqual({ status: "erased" });
+    expect(await t.row(s.assignmentId)).toMatchObject({
+      withdrawn_reason: null,
+      withdrawn_by: null,
+    });
+    expect(await t.logged("strike.withdrawn")).toEqual([]);
   });
 });
 

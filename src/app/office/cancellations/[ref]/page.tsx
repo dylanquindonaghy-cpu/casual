@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { btn, nums, page, row, rows, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
+import { canAccess } from "@/lib/auth/roles";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeCancellationRecord, type SharedReference } from "@/lib/office/cancellations";
 import {
@@ -25,14 +26,15 @@ export const metadata: Metadata = { title: "Cancellation record" };
 // the PDF and the CSV never carry a casual's), and "Download PDF" (by the booking's full id, so it
 // is always this one). Opened by its reference or the booking's full id; a reference two
 // cancellations share lists both to choose from. "Resend evidence" when the evidence email to the
-// strikes team failed or is held up (12C.4). Its strike: "Withdraw strike…" and, when flagged for a
-// review, "Keep strike"; once withdrawn, who, when and why (12C.5). Nothing to approve.
+// strikes team failed or is held up (12C.4). Its strike: "Withdraw strike…" and, until someone has
+// reviewed it, "Keep strike" (for whoever may change strikes); once withdrawn, who, when and why
+// (12C.5). Nothing to approve.
 export default async function CancellationRecordPage({
   params,
 }: {
   params: Promise<{ ref: string }>;
 }) {
-  const { firm } = await requireOfficeArea("cancellations");
+  const { firm, officeUser } = await requireOfficeArea("cancellations");
   const { ref } = await params;
   const found = await officeCancellationRecord(
     { firm },
@@ -85,11 +87,8 @@ export default async function CancellationRecordPage({
               {line}
             </p>
           ))}
-          {strike.status === "live" && (
-            <StrikeActions
-              assignmentId={record.row.assignmentId}
-              reviewNeeded={strike.reviewNeeded}
-            />
+          {strike.status === "live" && canAccess(officeUser.role, "strikes") && (
+            <StrikeActions assignmentId={record.row.assignmentId} canKeep={!strike.reviewed} />
           )}
         </section>
       )}

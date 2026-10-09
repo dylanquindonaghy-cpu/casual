@@ -27,6 +27,9 @@ export const myStrikeSession = (s: MyStrike, tz: string) =>
 export const myStrikeCancelled = (s: MyStrike, tz: string) =>
   `Cancelled ${timeOnDay(s.cancelledAt, tz)}, with ${noticeText(s.noticeHours)}.`;
 
+// Under the list when there are more than it shows.
+export const myStrikesMoreText = (shown: number) => `Showing your ${shown} most recent strikes.`;
+
 // "Counts until Thu 4 Feb" / "Withdrawn by the office" / "No longer counts".
 export function myStrikeStatus(s: MyStrike, tz: string): string {
   if (s.status === "withdrawn") return "Withdrawn by the office";

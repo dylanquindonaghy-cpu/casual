@@ -10569,3 +10569,37 @@ isolation and payroll, e2e withdrawing a strike); `docs/screens.md`.
 | A withdrawal's reason is on screen only (the record, admins and resourcers): never in the PDF, the CSV, the log, the casual's Profile or the planner; erasure clears it, the who and when stay | It's the office's free text and can hold health details | Showing it to the casual |
 | Profile shows the count still counting (`live_days`), the rule, and every kept strike (at most 20) with "Counts until …", "Withdrawn by the office" or "No longer counts"; "Tell us what happened" under one still counting, reusing 12C.1's form | §4.6; the form already ties the account to that cancellation | A separate page |
 | Erasure counts the reasons it cleared (`withdrawalReasons` in `worker.erased`) | Like the other counts there | Not counting |
+| Withdrawing locks the casual first, and an erased casual's strikes can't be withdrawn (`erased`: "This casual's details were deleted, so their strikes can't be changed.") | Erasure locks the casual and then clears their strikes' reasons; without the same lock a withdrawal could store a reason after the erasure (review FIX FIRST 1) | Dropping the reason silently after an erasure |
+| "Keep strike" works on any live strike not reviewed yet, not only a flagged one ("Kept, and marked as reviewed.") | If only flagged strikes could be kept, every `strike.reviewed` entry in the log would say "this casual gave a health or caring reason", which the log must never hold (review FIX FIRST 2). Now the entry says only that someone reviewed it | Leaving the entry out of the log (rule 5 says log every state change); a separate "reviewed" table |
+| Needs review lists only strikes still counting | A strike past its date needs nothing done (review SHOULD 3) | Listing them until someone clicks |
+| The withdrawal reason is read only for a single record, never for a list or the CSV | Less of the office's free text in memory (review NICE 7) | Reading it everywhere and not showing it |
+| A casual's own data export includes their strikes' withdrawal reasons | A subject access request covers what the firm wrote about them; the firm can hold part back only under an exemption (written in the DPIA) | Leaving it out of the export |
+| When a strike is withdrawn after its evidence email went, the record says to tell the strikes team; an automatic email is parked | Closes the gap now with one line; the email needs its own template and queue (review SHOULD 4) | Building the email in this task |
+
+**Guardrails review (round 1), verdict FIX FIRST.** Findings and what was done:
+
+- FIX FIRST 1, fixed: `withdrawStrike` read the strike and updated it without locking the casual,
+  so an erasure running at the same moment could clear the reasons and then the withdrawal could
+  store a new one. Now it locks the casual (`FOR NO KEY UPDATE`, the same order as erasure: casual,
+  then strike) and refuses an erased casual. Tests: erase then withdraw (refused, nothing stored);
+  both at once (the reason is never left behind; this test failed 2 times in 3 with the lock
+  removed, and passed 6 times in 6 with it).
+- FIX FIRST 2, fixed (decided under overnight autonomy; see the decisions table): `strike.reviewed`
+  could only exist for a flagged strike, so it revealed the health or caring flag. "Keep strike" now
+  works on any live strike not yet reviewed (`kept`, `already_kept`, `not_live`). The DPIA,
+  `docs/compliance.md`, `docs/office-v2.md`, `retention.ts` and `docs/screens.md` now say the entry
+  holds ids only and can be on any strike.
+- SHOULD 3, fixed: Needs review (and the row's "Needs review" chip) only counts a flagged strike
+  that still counts. Tested 91 days on.
+- SHOULD 4, partly: the record says "The evidence email had already gone to the strikes team: let
+  them know it's withdrawn." when that's so; the automatic email is in the Parking lot.
+- SHOULD 5, fixed: the DPIA's "What is stored" and "How long" cover the withdrawal reason and the
+  `strike.reviewed` entry.
+- SHOULD 6, fixed: tests for two withdrawals at once (one wins, one entry, the winner's reason) and
+  a withdrawal with a keep at once (it ends withdrawn; at most one entry each).
+- NICE, fixed: the reason only for single records (7); the buttons only for roles that may change
+  strikes (8); "Kept after a review by …" stays after a withdrawal, oldest first (9); Profile says
+  "Showing your 20 most recent strikes." when there are more, and "Tell us what happened" appears
+  once per session (10); the export decision written down (11).
+- Mutation checks after the fixes: removing the erased check, the lock, or making Keep flagged-only
+  each made a test fail.

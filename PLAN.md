@@ -2824,6 +2824,10 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 - The production image holds the dev-only packages (`COPY --from=build /app /app` after `npm ci`),
   now including `pdfjs-dist` and its native canvas files (tests only). The worker and migrations run
   TypeScript through `tsx`, so pruning needs care: its own task (12C.3 review, 2026-10-09).
+- Strikes (12C.5 review, 2026-10-09): when a strike is withdrawn after its evidence email went, the
+  strikes team still holds the evidence. Today the record says "The evidence email had already gone
+  to the strikes team: let them know it's withdrawn." An automatic "withdrawn" email (same queue
+  and claim as the evidence email, its own template) would close the loop: its own task.
 
 ## Hours log
 

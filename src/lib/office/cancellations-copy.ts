@@ -406,28 +406,35 @@ export function cancellationsCsv(
   return `﻿${lines.join("\r\n")}\r\n`;
 }
 
-// The record's Strike section (12C.5): who withdrew it, when and why (on screen only), or who kept
-// it after a review; and the review flag.
+// The record's Strike section (12C.5), oldest first: who kept it after a review; then who withdrew
+// it, when and why (on screen only), and, when its evidence email had already gone, a reminder to
+// tell the strikes team; or, while it's live, the review flag.
+export const WITHDRAWN_AFTER_EVIDENCE =
+  "The evidence email had already gone to the strikes team: let them know it's withdrawn.";
+
 export function strikeSectionLines(
   strike: NonNullable<CancellationRow["strike"]>,
   tz: string,
 ): string[] {
-  if (strike.status === "withdrawn") {
-    const w = strike.withdrawn;
-    if (!w) return ["Withdrawn."];
-    return [
-      `Withdrawn by ${w.by ?? "the office"} at ${timeOnDay(w.at, tz)}.`,
-      w.reason ? `Why: ${w.reason}` : "Why: deleted with the casual's details.",
-    ];
-  }
   const lines: string[] = [];
-  if (strike.reviewNeeded) {
-    lines.push("Flagged for a review: the casual's reason is one a person should look at.");
-  }
   if (strike.reviewed) {
     lines.push(
       `Kept after a review by ${strike.reviewed.by ?? "the office"} at ${timeOnDay(strike.reviewed.at, tz)}.`,
     );
+  }
+  if (strike.status === "withdrawn") {
+    const w = strike.withdrawn;
+    if (w) {
+      lines.push(
+        `Withdrawn by ${w.by ?? "the office"} at ${timeOnDay(w.at, tz)}.`,
+        w.reason ? `Why: ${w.reason}` : "Why: deleted with the casual's details.",
+      );
+    } else {
+      lines.push("Withdrawn.");
+    }
+    if (strike.evidence.status === "sent") lines.push(WITHDRAWN_AFTER_EVIDENCE);
+  } else if (strike.reviewNeeded) {
+    lines.push("Flagged for a review: the casual's reason is one a person should look at.");
   }
   return lines;
 }

@@ -6,7 +6,7 @@ import type { PortalContext } from "./my-shifts";
 
 // The casual's own strikes, for Profile (docs/office-v2.md 4.6; 12C.5): how many still count (in
 // the firm's `strikes.live_days`, not withdrawn), the firm's notice rule, and each of their strikes
-// kept (newest first): the session, when they cancelled, the notice, until when it counts and
+// kept (newest first, the latest MY_STRIKES_MAX): the session, when they cancelled, the notice, until when it counts and
 // whether it was withdrawn. Never the withdrawal's reason (the office's words) or the review flag.
 // Only their own, inside their firm. Server only.
 
@@ -31,6 +31,7 @@ export interface MyStrikes {
   liveDays: number;
   noticeHours: number;
   strikes: MyStrike[];
+  more: boolean; // they have more than MY_STRIKES_MAX
 }
 
 type Ctx = PortalContext & { firm: { id: string } };
@@ -63,7 +64,7 @@ export async function myStrikes(ctx: Ctx, workerId: string): Promise<MyStrikes> 
         left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
        where st.worker_id = ${workerId}
        order by st.issued_at desc, st.id
-       limit ${MY_STRIKES_MAX}
+       limit ${MY_STRIKES_MAX + 1}
     `);
     const { rows: counted } = await tx.execute<{ n: number }>(sql`
       select count(*)::int as n from strikes
@@ -74,7 +75,8 @@ export async function myStrikes(ctx: Ctx, workerId: string): Promise<MyStrikes> 
       counting: Number(counted[0]?.n ?? 0),
       liveDays: settings.liveDays,
       noticeHours: settings.noticeHours,
-      strikes: rows.map((r) => {
+      more: rows.length > MY_STRIKES_MAX,
+      strikes: rows.slice(0, MY_STRIKES_MAX).map((r) => {
         const expiresAt = new Date(r.expires_at);
         return {
           shiftId: r.shift_id,

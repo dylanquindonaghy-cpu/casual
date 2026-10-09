@@ -17,7 +17,7 @@ import { strikeSettings } from "../strikes/settings";
 // casual with a strike: how many still count (live: not withdrawn and not past its date), whether
 // one waits for a review, and their strikes newest first (the latest first), each with its
 // session, notice and evidence email, linking to its cancellation record (where it's withdrawn or
-// kept). Views: Live (a strike still counting), Needs review (a live strike flagged), All. Sorted
+// kept). Views: Live (a strike still counting), Needs review (one still counting, flagged), All. Sorted
 // by the live count, then the latest strike. Reads only, inside the firm.
 
 export const STRIKE_VIEWS = ["live", "review", "all"] as const;
@@ -68,7 +68,7 @@ const viewFilter = (view: StrikeView, now: Date) =>
   view === "live"
     ? sql`count(*) filter (where st.status = 'live' and st.expires_at > ${now}) > 0`
     : view === "review"
-      ? sql`bool_or(st.status = 'live' and st.review_needed)`
+      ? sql`bool_or(st.status = 'live' and st.review_needed and st.expires_at > ${now})`
       : sql`true`;
 
 export async function loadStrikes(
@@ -90,7 +90,8 @@ export async function loadStrikes(
   }>(sql`
     select w.id::text as worker_id, w.first_name, w.last_name,
            count(*) filter (where st.status = 'live' and st.expires_at > ${o.now})::int as live,
-           coalesce(bool_or(st.status = 'live' and st.review_needed), false) as review,
+           coalesce(bool_or(st.status = 'live' and st.review_needed and st.expires_at > ${o.now}),
+                    false) as review,
            max(st.issued_at) as latest, count(*) over ()::int as total
       from strikes st
       join workers w on w.firm_id = st.firm_id and w.id = st.worker_id

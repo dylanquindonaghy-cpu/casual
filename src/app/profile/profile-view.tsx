@@ -8,6 +8,7 @@ import {
   myStrikeCountText,
   myStrikeRuleText,
   myStrikeSession,
+  myStrikesMoreText,
   myStrikeStatus,
   myStrikeTitle,
 } from "@/lib/portal/my-strikes-copy";
@@ -184,6 +185,13 @@ const STRIKE_TONE = (s: MyStrikes["strikes"][number]): StatusTone =>
 
 function StrikesSection({ strikes }: { strikes: MyStrikes }) {
   const tz = strikes.timeZone;
+  // "Tell us what happened" once per session: under its newest strike, while that still counts.
+  const newest = new Set<string>();
+  const tellUs = strikes.strikes.map((s) => {
+    const first = !newest.has(s.shiftId);
+    newest.add(s.shiftId);
+    return first && s.counting;
+  });
   return (
     <section
       aria-labelledby="strikes-heading"
@@ -196,12 +204,15 @@ function StrikesSection({ strikes }: { strikes: MyStrikes }) {
         {myStrikeCountText(strikes.counting, strikes.liveDays)}
       </p>
       <p className={`mt-1 ${muted}`}>{myStrikeRuleText(strikes.noticeHours)}</p>
+      {strikes.more && (
+        <p className={`mt-1 ${muted}`}>{myStrikesMoreText(strikes.strikes.length)}</p>
+      )}
       {strikes.strikes.length > 0 && (
         <ul
           role="list"
           className={`${headingGap} -mx-4 -mb-4 divide-y divide-line border-t border-line`}
         >
-          {strikes.strikes.map((s) => (
+          {strikes.strikes.map((s, i) => (
             <li key={`${s.shiftId}:${s.cancelledAt.toISOString()}`} className="px-4 py-3">
               <p className="font-semibold">{myStrikeTitle(s)}</p>
               <p className={`text-base ${nums}`}>{myStrikeSession(s, tz)}</p>
@@ -209,7 +220,7 @@ function StrikesSection({ strikes }: { strikes: MyStrikes }) {
               <p className={`mt-1 text-base ${nums}`}>
                 <StatusChip tone={STRIKE_TONE(s)}>{myStrikeStatus(s, tz)}</StatusChip>
               </p>
-              {s.counting && (
+              {tellUs[i] && (
                 <details className="mt-2">
                   <summary className="cursor-pointer font-semibold">Tell us what happened</summary>
                   <div className="mt-2">

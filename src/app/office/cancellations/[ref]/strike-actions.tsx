@@ -10,15 +10,16 @@ import { keepStrikeAction, withdrawStrikeAction } from "./actions";
 
 const failed = { status: "error" as const };
 
-// "Withdraw strike…" (asks why: 1–500 characters, kept on the strike, never in the log) and, when
-// the strike waits for a review, "Keep strike". Waits for the page (docs/ui-design.md "Forms wait
-// for the page").
+// "Withdraw strike…" (asks why: 1–500 characters, kept on the strike, never in the log) and, until
+// someone has reviewed it, "Keep strike" (on any live strike, flagged or not, so the log's entry
+// doesn't tell which were flagged). Waits for the page (docs/ui-design.md "Forms wait for the
+// page").
 export function StrikeActions({
   assignmentId,
-  reviewNeeded,
+  canKeep,
 }: {
   assignmentId: string;
-  reviewNeeded: boolean;
+  canKeep: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -42,7 +43,7 @@ export function StrikeActions({
           >
             Withdraw strike…
           </button>
-          {reviewNeeded && (
+          {canKeep && (
             <button
               type="button"
               className={btn.secondary}

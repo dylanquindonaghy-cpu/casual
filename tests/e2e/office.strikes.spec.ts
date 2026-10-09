@@ -11,8 +11,9 @@ import { sentTo } from "./outbox";
 
 // Strikes in a real browser (12C.5; docs/office-v2.md 3.5): a casual of this spec's own cancels a
 // session a day away (a strike). A resourcer opens Strikes from the menu, finds them, opens the
-// strike's record from there and withdraws it with a reason: the record then says who, when and
-// why, and the Strikes page shows it withdrawn. Nothing offers Approve, Decline or Deny. The
+// strike's record from there, keeps it (marked as reviewed), then withdraws it with a reason: the
+// record then says who kept it, who withdrew it, when and why, and the Strikes page shows it
+// withdrawn. Nothing offers Approve, Decline or Deny. The
 // session, its site, the casual and the resourcer are made up and this spec's own; a retry makes a
 // new session (the run's suffix).
 
@@ -77,6 +78,13 @@ test("a resourcer withdraws a strike from the Strikes page, with a reason", asyn
       page.getByRole("heading", { name: /^Strike: Issued \(counts until/ }),
     ).toBeVisible();
 
+    // Keep it first (any live strike can be marked as reviewed, once).
+    await page.getByRole("button", { name: "Keep strike" }).click();
+    await expect(page.getByRole("status")).toHaveText("Kept, and marked as reviewed.");
+    await expect(page.getByText(/^Kept after a review by Strikes Resourcer at /)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Keep strike" })).toHaveCount(0);
+
+    // Then withdraw it after all.
     await page.getByRole("button", { name: "Withdraw strike…" }).click();
     await page.getByLabel("Why are you withdrawing it?").fill(REASON);
     await noSidewaysScroll(page);

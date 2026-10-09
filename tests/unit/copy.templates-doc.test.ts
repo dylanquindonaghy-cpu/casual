@@ -25,6 +25,7 @@ import {
   shiftChangedByFirmMessage,
   shiftConfirmedMessage,
   shiftEscalationEmail,
+  strikeEvidenceEmail,
   strikesEmailConfirmEmail,
   shiftOfferMessage,
   shiftOfferSms,
@@ -377,6 +378,31 @@ describe("the code says what the doc says", () => {
     expect(words(email.body)).toEqual(words(body.join(" ")));
   });
 
+  it("strike_evidence (email): the subject, and the body's words", () => {
+    const [subject, ...body] = quotes(section("Office notifications"), "Strike evidence");
+    const email = strikeEvidenceEmail(docVoice, {
+      casual: "{casual}",
+      staffId: "{staff id}",
+      role: "{role}",
+      site: "{site}",
+      notice: "{notice}",
+      ref: "{ref}",
+      session: "{session}",
+      cancelledAt: "{when}",
+      beforeStart: "{hours}",
+      thresholdHours: "{threshold}",
+      strikeNumber: "{n}",
+      liveDays: "{days}",
+      link: "{link}",
+    });
+    expect(email.subject).toBe(subject);
+    // The bullet's quotes after the subject: " at {site}" (left out without a site), the body's
+    // four, " (staff id …)" (left out without one), then the PDF's reason.
+    expect(words(email.body)).toEqual(words(body.slice(1, 5).join(" ")));
+    expect(body[0]).toBe(" at {site}");
+    expect(body.at(-1)).toBe("Casual's own reason (see ShiftDesk)");
+  });
+
   it("credential_weekly_list (email): the subject, and the body's words", () => {
     const office = section("Office notifications");
     const q = quotes(office, "`credential_weekly_list`");
@@ -646,6 +672,7 @@ describe("every template function is checked here", () => {
         "shiftChangedByFirmMessage",
         "shiftConfirmedMessage",
         "shiftEscalationEmail",
+        "strikeEvidenceEmail",
         "strikesEmailConfirmEmail",
         "shiftOfferMessage",
         "shiftOfferSms",

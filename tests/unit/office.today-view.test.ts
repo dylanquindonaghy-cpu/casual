@@ -136,6 +136,7 @@ describe("the page", async () => {
     expiring: [],
     unknownMessages: [],
     unknownMore: false,
+    evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
   };
   const text = (view: Omit<TodayView, "officeUser">) =>
     renderToStaticMarkup(createElement(TodayContent, { view })).replace(/<[^>]+>/g, " ");

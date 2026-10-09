@@ -10449,3 +10449,46 @@ webhook entries. Item 3 is in the Parking lot.
 **Hours:** 1.4 (06:16 to 07:38 UTC). Phase 12 so far: 13.7 hours over 15 Hours-log rows (no
 estimate for Phase 12). **Commit:** "Phase 12: Cancellation records (12C.3)", pushed (its hash in the next
 entry). CI passed on the two checkpoints (`330a680`, `4ce9c60`).
+
+(12C.3's commit: `f896fac`, pushed; CI passed on its checkpoints.)
+
+## 2026-10-09 07:41 UTC — Phase 12, task 12C.4: Evidence email to the strikes team
+
+**Task:** Evidence email to the strikes team (§5.6), as written in `PLAN.md` (12C.4).
+
+**Plan:** `src/lib/strikes/evidence.ts`: the `strikes.evidence_email` job (ids only:
+`firmJobEnvelope` with the strike's id and the attempt), queued with the strike in
+`issueStrike()`'s transaction (evidence status `pending`). Claim → send → record, like the other
+notices: (1) a short transaction takes the firm's strikes-email lock (the one Settings' save and
+confirm take), reads the confirmed address (none: `not_set_up`, logged, nothing sent), records the
+claim (`strike.evidence_sending`) and loads the record; (2) the email goes with no transaction
+open: §5.6's subject and body (`strikeEvidenceEmail()` in `src/lib/messaging/templates.ts`) and
+the record PDF (12C.3's, with every casual's reason as "Casual's own reason (see ShiftDesk)");
+(3) a short transaction records `sent` (address and time on the row; `strike.evidence_sent` without
+the address) or the failure (`strike.evidence_failed` with the error's code). `EmailNotSentError`
+(nothing reached the server) queues the next attempt, a fresh claim, up to 4 attempts in all
+(after 5 minutes, 30 minutes, 2 hours); anything else, or the last attempt, sets `failed`. A job
+stopped part-way (its claim but no outcome) is never resent: its rerun records `failed`.
+Confirming the address (12B.7) queues the strikes left `not_set_up` that still count. "Resend
+evidence" on the record (admins and resourcers, only after `failed`, logged
+`strike.evidence_resend`) sends once more. The Needs attention item lives on Today until 12E.1
+moves Today's to-dos to the dashboard: failed evidence emails (each linking to its record) and an
+unconfirmed address. Tests with a fake transport; docs (screens, messaging templates, api-and-jobs,
+data model).
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| Each retry is a new job with its own claim (`strike-evidence:<strike>:<series>:<attempt>`), queued only after `EmailNotSentError`; at most 4 attempts, after 5 minutes, 30 minutes and 2 hours | A pg-boss retry of the same job would find its own claim and send nothing; a fresh claim per attempt keeps "at most once" exact | pg-boss's own retries |
+| No confirmed address: `not_set_up`, logged `strike.evidence_failed` {code: "not_set_up"}; confirming the address sends the strikes left waiting that still count (not withdrawn, not expired) | The task's "sent once the address is confirmed"; otherwise early strikes would never reach the team | Only strikes recorded after confirming |
+| The job's claim takes the firm's strikes-email lock (Settings' save and confirm take it too; the helpers moved to `src/lib/strikes/team-email.ts`) | A confirmation landing mid-claim could otherwise leave a strike `not_set_up` after the backlog was queued | No lock |
+| A job stopped between its claim and its outcome is `failed` (code "stopped") when rerun | The email may have gone: only a person resends | Sending again |
+| No full stop after the link (§5.6's example has "{link}.") | The app's rule since audit L10: a full stop can end up in the link a phone opens | §5.6 to the letter |
+| No reason in the subject or body (§5.6's has none); the attached PDF gives "Casual's own reason (see ShiftDesk)" | Nothing about health in what leaves; the record carries the neutral reason | A "Reason:" line in the body |
+| The attached PDF's "Evidence email" line reads "Sent to the strikes team at {the sending time}" | The attached record is that email | "Sending" |
+| "Their strike {n} in the last {days} days": their strikes not withdrawn in the strike's own window up to it | The same number on every attempt and resend | The live count when it's sent |
+| The Needs attention item (failed emails, the unconfirmed address) is a "Strike evidence" section on Today, admins get the Settings link | The Needs attention section arrives with the dashboard (12E.1), which moves Today's to-dos there | Waiting for 12E.1 |
+| "Resend evidence" only after `failed`, under the same lock | Two taps queue one; a sent or waiting email has nothing to resend | Any time |
+| A withdrawn strike's waiting evidence isn't sent (left `pending`) | Nothing to tell the team; withdrawal arrives in 12C.5, which can settle its evidence status | Sending it |
+| Queue name `strikes.evidence_email` (the task's), listed as "not a log entry" in the log-types test | pg-boss accepts dots | A kebab-case name |

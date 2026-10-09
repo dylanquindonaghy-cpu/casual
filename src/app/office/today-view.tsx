@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { TodayShift, TodayView } from "@/lib/office/today";
+import type { TodayEvidence, TodayShift, TodayView } from "@/lib/office/today";
 import {
   placesText,
   requestsText,
@@ -46,6 +46,7 @@ const HEADINGS = {
   urgent: "Urgent shifts",
   "to-check": "Bookings to check",
   "from-sheet": "From your rota sheet",
+  evidence: "Strike evidence",
   requests: "Requests",
   gaps: "Gaps in the next 7 days",
   "to-mark": "Who worked?",
@@ -142,6 +143,17 @@ function ToneIcon({ tone, size = 20 }: { tone: TileTone; size?: number }) {
 
 type Tile = { id: SectionId; n: number; more: boolean; tone: Exclude<TileTone, "calm"> };
 
+// "Strike evidence" (12C.4): each failed evidence email, and the strikes team's address while it
+// isn't confirmed. Only shown when there's one.
+const evidenceItems = (e: TodayEvidence) => e.failed.length + (e.addressConfirmed ? 0 : 1);
+
+export function evidenceAddressText(waiting: number): string {
+  const base =
+    "The strikes team's email isn't set and confirmed, so strike records can't be emailed to them.";
+  if (waiting === 0) return base;
+  return `${base} ${waiting} ${waiting === 1 ? "record waits" : "records wait"} for it.`;
+}
+
 // One tile per section on the page, in the page's order. "Bookings to check" and "From your rota
 // sheet" only exist when there's something in them.
 function summaryTiles(view: Omit<TodayView, "officeUser">): Tile[] {
@@ -157,6 +169,12 @@ function summaryTiles(view: Omit<TodayView, "officeUser">): Tile[] {
       id: "from-sheet",
       n: view.fromSheet.length,
       more: view.fromSheetMore,
+      tone: "attention",
+    },
+    evidenceItems(view.evidence) > 0 && {
+      id: "evidence",
+      n: evidenceItems(view.evidence),
+      more: view.evidence.failedMore,
       tone: "attention",
     },
     { id: "requests", n: view.requests.total, more: false, tone: "attention" },
@@ -246,7 +264,13 @@ function SheetChip({ shift }: { shift: TodayShift }) {
   return shift.fromSheet ? <StatusChip tone="quiet">From your Google Sheet</StatusChip> : null;
 }
 
-export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) {
+export function TodayContent({
+  view,
+  isAdmin = false,
+}: {
+  view: Omit<TodayView, "officeUser">;
+  isAdmin?: boolean; // only admins can open Settings
+}) {
   const tz = view.timeZone;
   return (
     <>
@@ -341,6 +365,41 @@ export function TodayContent({ view }: { view: Omit<TodayView, "officeUser"> }) 
             ))}
           </ul>
           {view.fromSheetMore && <More>Showing the first 50.</More>}
+        </Section>
+      )}
+
+      {evidenceItems(view.evidence) > 0 && (
+        <Section id="evidence" n={evidenceItems(view.evidence)} more={view.evidence.failedMore}>
+          <ul role="list" className={`${headingGap} ${rows}`}>
+            {!view.evidence.addressConfirmed && (
+              <li className={`${row} flex max-w-prose flex-col gap-2`}>
+                <p>{evidenceAddressText(view.evidence.waiting)}</p>
+                {isAdmin ? (
+                  <Link href="/office/settings" className={`${titleLink} self-start`}>
+                    Set it in Settings
+                  </Link>
+                ) : (
+                  <p className={meta}>An admin can set it in Settings.</p>
+                )}
+              </li>
+            )}
+            {view.evidence.failed.map((f) => (
+              <li key={f.assignmentId} className={`${row} flex max-w-prose flex-col gap-2`}>
+                <p>
+                  {f.casual}&apos;s strike record couldn&apos;t be emailed to the strikes team
+                  (cancelled <span className="tabular-nums">{timeOnDay(f.cancelledAt, tz)}</span>).
+                  It may have arrived anyway.
+                </p>
+                <Link
+                  href={`/office/cancellations/${f.assignmentId}`}
+                  className={`${titleLink} self-start`}
+                >
+                  Open the record to resend it
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {view.evidence.failedMore && <More>Showing the first 50.</More>}
         </Section>
       )}
 

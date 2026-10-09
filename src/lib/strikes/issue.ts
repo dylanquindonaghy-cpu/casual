@@ -3,6 +3,7 @@ import { assignments, firms, strikes } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { strikeDecision, type StrikeDecision } from "./decide";
+import { queueStrikeEvidence } from "./evidence-queue";
 import { strikeSettings, type StrikeSettings } from "./settings";
 
 // Strikes in the database (12C.1; docs/office-v2.md 3.5): the facts strikeDecision() needs about a
@@ -101,9 +102,10 @@ export async function liveStrikeCount(tx: FirmTx, workerId: string, now: Date): 
   return Number(row?.n ?? 0);
 }
 
-// The strike row and strike.issued (ids and hours only). The review flag and its reasons stay on the
-// row, never in the append-only log: "unwell" is about health, and the flag alone would say the
-// reason was health or caring long after the row is deleted. One per booking (a unique key).
+// The strike row and strike.issued (ids and hours only), and its evidence email queued (12C.4). The
+// review flag and its reasons stay on the row, never in the append-only log: "unwell" is about
+// health, and the flag alone would say the reason was health or caring long after the row is
+// deleted. One per booking (a unique key).
 export async function issueStrike(
   tx: FirmTx,
   input: {
@@ -131,10 +133,12 @@ export async function issueStrike(
       expiresAt,
       reviewNeeded: review,
       reviewReasons: input.decision.reviewReasons,
+      // The evidence email to the strikes team, queued below (12C.4).
+      evidenceEmailStatus: "pending",
     })
     .returning({ id: strikes.id });
   if (!row) throw new Error("strike insert returned nothing");
-  await recordEvent(tx, {
+  const issued = await recordEvent(tx, {
     actorType: "system",
     action: "strike.issued",
     entityType: "strike",
@@ -147,5 +151,7 @@ export async function issueStrike(
       thresholdHours: input.settings.noticeHours,
     },
   });
+  // With the strike, in its transaction: a cancellation rolled back sends nothing.
+  await queueStrikeEvidence(tx, { strikeId: row.id, series: issued });
   return { strikeId: row.id, expiresAt };
 }

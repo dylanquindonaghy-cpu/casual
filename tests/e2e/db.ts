@@ -487,10 +487,11 @@ export async function strikesOn(slug: string, shiftIds: string[]): Promise<strin
 }
 
 // A spec's casual takes its own session and cancels it, through the real code (as the app does),
-// with enough notice that it's no strike. Returns the booking's reference and its full id.
+// with enough notice that it's no strike, or (`warning: "strike"`, a session inside 48 hours) as a
+// strike, with the strike warning. Returns the booking's reference and its full id.
 export async function bookAndCancel(
   slug: string,
-  o: { shiftId: string; workerId: string; reason: string },
+  o: { shiftId: string; workerId: string; reason: string; warning?: "notice" | "strike" },
 ): Promise<{ ref: string; assignmentId: string }> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
@@ -505,7 +506,7 @@ export async function bookAndCancel(
       shiftId: o.shiftId,
       workerId: o.workerId,
       reason: o.reason,
-      by: { ...by, warning: { kind: "notice", version: "v1" } },
+      by: { ...by, warning: { kind: o.warning ?? "notice", version: "v1" } },
     });
     if (cancelled.status !== "cancelled") throw new Error(`not cancelled: ${cancelled.status}`);
     const { assignmentId } = cancelled;
@@ -563,6 +564,39 @@ export async function downloadsBy(slug: string, email: string): Promise<unknown[
       `);
       return found.rows.map((r) => r.data);
     });
+  } finally {
+    await pool.end();
+  }
+}
+
+// The strike on a booking with its evidence email failed (12C.4), as the job leaves it when the
+// email may have arrived. Waits first for the e2e worker to finish the strike's own evidence job
+// (it runs as soon as the strike is recorded), so the two can't overwrite each other.
+export async function failEvidence(slug: string, assignmentId: string): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const run = createWithFirm(pool);
+    const firmId = seedId(`firm/${slug}`);
+    for (let i = 0; ; i++) {
+      const [row] = await run(firmId, (tx) =>
+        tx
+          .select({ status: strikes.evidenceEmailStatus })
+          .from(strikes)
+          .where(eq(strikes.assignmentId, assignmentId)),
+      );
+      if (!row) throw new Error("no strike on that booking");
+      if (row.status !== "pending") break;
+      if (i >= 60) throw new Error("the evidence job didn't finish");
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    await run(firmId, (tx) =>
+      tx
+        .update(strikes)
+        .set({ evidenceEmailStatus: "failed" })
+        .where(eq(strikes.assignmentId, assignmentId)),
+    );
   } finally {
     await pool.end();
   }

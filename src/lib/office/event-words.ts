@@ -192,6 +192,19 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         typeof d.thresholdHours === "number" ? ` (under ${d.thresholdHours} hours)` : "";
       return `${worker} got a strike for cancelling${notice ? ` with ${notice}` : ""}${under}.`;
     }
+    // The evidence email to the strikes team (12C.4).
+    case "strike.evidence_sending":
+      return "Emailing a strike record to the strikes team.";
+    case "strike.evidence_sent":
+      return "A strike record was emailed to the strikes team.";
+    case "strike.evidence_failed":
+      if (d.code === "not_set_up")
+        return "A strike record wasn't emailed: the strikes team's email isn't confirmed. It goes when it is.";
+      if (d.retry === true)
+        return "Emailing a strike record didn't reach the email server. Trying again.";
+      return "Emailing a strike record failed, and it may have arrived. Check with the strikes team, or resend it from the record.";
+    case "strike.evidence_resend":
+      return `${officeName} sent a strike record to the strikes team again.`;
     case "shift.moved":
     case "shift.curtailed": {
       const notice = hours(d.noticeHours);

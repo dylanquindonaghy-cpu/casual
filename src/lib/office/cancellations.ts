@@ -6,11 +6,13 @@ import { canAccess } from "../auth/roles";
 import { credentialRules, credentialTypes, firms, type CancelVia } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { resendEvidence, type ResendEvidenceResult } from "../strikes/evidence-queue";
 import type { StrikeCode } from "../strikes/decide";
 import { liveStrikeCount } from "../strikes/issue";
 import { strikeSettings } from "../strikes/settings";
 import { addDays, localDateOf, mondayOf, zonedToUtc } from "../time/zoned";
 import { isThenPlace, type CancellationRow, type CancellationView } from "./cancellations-copy";
+import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // Cancellation records (docs/office-v2.md 3.4; docs/screens.md `/office/cancellations`; 12C.3), for
 // admins and resourcers (checked here as well as on the page). Every cancelled booking, by the
@@ -443,4 +445,19 @@ export async function logDownload(
     }),
   );
   return true;
+}
+
+// "Resend evidence" on a cancellation's record (12C.4): an active admin or resourcer, checked again
+// inside the firm's transaction; only after the evidence email failed (src/lib/strikes/
+// evidence-queue.ts). Logged strike.evidence_resend.
+export async function resendEvidenceAsOffice(
+  ctx: OfficeContext,
+  assignmentId: string,
+): Promise<ResendEvidenceResult | { status: "not_allowed" }> {
+  return parts(ctx).run(ctx.firm.id, async (tx) => {
+    if (!(await officeUserMay(tx, ctx.officeUserId, "cancellations"))) {
+      return { status: "not_allowed" as const };
+    }
+    return resendEvidence(tx, { assignmentId, officeUserId: ctx.officeUserId });
+  });
 }

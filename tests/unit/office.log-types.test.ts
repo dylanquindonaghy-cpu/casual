@@ -50,6 +50,8 @@ const NOT_EVENTS = new Set<string>([
   "strikes.keep_months",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
+  // The evidence email's job queue (src/lib/strikes/evidence-queue.ts, 12C.4; the task's own name).
+  "strikes.evidence_email",
 ]);
 const recorded = new Set(
   [...sourceFiles(ROOT), ...sourceFiles(join(process.cwd(), "scripts"))]

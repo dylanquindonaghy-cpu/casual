@@ -63,6 +63,7 @@ const empty: View = {
   expiring: [],
   unknownMessages: [],
   unknownMore: false,
+  evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
 };
 
 const full: View = {

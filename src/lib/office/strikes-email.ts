@@ -17,6 +17,13 @@ import { recordEvent } from "../events/record";
 import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
 import { strikesEmailConfirmEmail } from "../messaging/templates";
+import { queueWaitingEvidence } from "../strikes/evidence-queue";
+import {
+  confirmedStrikesEmail,
+  lockStrikesEmail,
+  strikesEmailOf,
+  type StrikesEmail,
+} from "../strikes/team-email";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { officeUserMay, type OfficeContext } from "./office-context";
@@ -29,8 +36,9 @@ import { officeUserMay, type OfficeContext } from "./office-context";
 // days. The signature covers the firm id, the address, the expiry and which save of the address it
 // was sent for (the id of the latest `firm.settings_changed` naming strikes.email): a link sent for
 // an old address can't confirm a new one, nor the same address saved again later, and a changed or
-// late link is refused. Opening it and selecting "Confirm this address" sets the confirmed time.
-// Evidence (12C) only ever goes to a confirmed address: confirmedStrikesEmail().
+// late link is refused. Opening it and selecting "Confirm this address" sets the confirmed time and
+// sends the strikes' evidence left waiting for it (12C.4). Evidence only ever goes to a confirmed
+// address: confirmedStrikesEmail().
 //
 // Every change is logged `firm.settings_changed` with the keys only (never the address: the log
 // refuses email addresses, docs/office-v2.md 6.1). Saving and confirming take the firm's
@@ -45,27 +53,8 @@ export const STRIKES_EMAIL_MAX = 254;
 
 type Settings = Record<string, unknown>;
 
-export interface StrikesEmail {
-  address: string | null;
-  confirmedAt: Date | null;
-}
-
-// The address and its confirmed time as stored (settings.strikes), each only when it makes sense.
-export function strikesEmailOf(settings: Settings): StrikesEmail {
-  const strikes = settings.strikes;
-  if (typeof strikes !== "object" || strikes === null) return { address: null, confirmedAt: null };
-  const { email, email_verified_at: at } = strikes as Record<string, unknown>;
-  const address = typeof email === "string" && email.length > 0 ? email : null;
-  const confirmedAt =
-    address && typeof at === "string" && !Number.isNaN(Date.parse(at)) ? new Date(at) : null;
-  return { address, confirmedAt };
-}
-
-// Where strike evidence may go: the address, only once it's confirmed.
-export function confirmedStrikesEmail(settings: Settings): string | null {
-  const { address, confirmedAt } = strikesEmailOf(settings);
-  return address && confirmedAt ? address : null;
-}
+// The address helpers live in src/lib/strikes/team-email.ts (the evidence email reads them too).
+export { confirmedStrikesEmail, strikesEmailOf, type StrikesEmail };
 
 // --- The signed link ----------------------------------------------------------------------------
 
@@ -139,11 +128,6 @@ export function checkStrikesEmailLink(
 }
 
 // --- Saving and confirming ----------------------------------------------------------------------
-
-const lockStrikesEmail = (tx: FirmTx) =>
-  tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended('strikes-email:' || app_current_firm_id()::text, 0))`,
-  );
 
 async function settingsOf(tx: FirmTx): Promise<Settings> {
   const [firm] = await tx
@@ -298,13 +282,15 @@ export async function confirmStrikesEmail(
     }
     if (current.confirmedAt) return { status: "already" };
     await setFirmSetting(tx, "strikes.email_verified_at", now.toISOString());
-    await recordEvent(tx, {
+    const confirmed = await recordEvent(tx, {
       actorType: "system",
       action: "firm.settings_changed",
       entityType: "firm",
       entityId: ctx.firm.id,
       data: { by: "link", keys: ["strikes.email_verified_at"] },
     });
+    // The strikes recorded while there was no confirmed address, still counting, now go (12C.4).
+    await queueWaitingEvidence(tx, { series: confirmed, now });
     return { status: "confirmed" };
   });
 }

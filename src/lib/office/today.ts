@@ -11,6 +11,7 @@ import {
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import type { StopReason } from "../offers/waves";
+import { confirmedStrikesEmail } from "../strikes/team-email";
 import { addDays, localDateOf } from "../time/zoned";
 
 // The office's Today view (docs/screens.md `/office/today`; product spec: "one screen showing
@@ -32,6 +33,9 @@ import { addDays, localDateOf } from "../time/zoned";
 // - unknownMessages: WhatsApps on the shifts line in the last 7 days from numbers that aren't one of
 //   the firm's active workers, newest first: the number, their words, when, and the name when the
 //   number is a former worker's (Phase 7; the office was emailed about the first from each number).
+// - evidence: the strike evidence emails that failed (each with its record, where "Resend
+//   evidence" is), and whether the strikes team's address is confirmed, with how many strikes wait
+//   for it (12C.4; docs/office-v2.md 3.9's Needs attention item, here until the dashboard, 12E.1).
 // At most 50 in each list; `more` says there were others.
 
 export const TODAY_GAP_DAYS = 7;
@@ -150,6 +154,14 @@ export interface TodayView {
   expiring: TodayExpiry[];
   unknownMessages: TodayUnknownMessage[];
   unknownMore: boolean;
+  evidence: TodayEvidence;
+}
+
+export interface TodayEvidence {
+  addressConfirmed: boolean; // the strikes team's email is set and confirmed
+  waiting: number; // strikes still counting, left waiting for a confirmed address
+  failed: { assignmentId: string; casual: string; cancelledAt: Date }[]; // newest first
+  failedMore: boolean;
 }
 
 type ShiftRow = {
@@ -503,6 +515,42 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
       formerWorker: u.first_name !== null ? `${u.first_name} ${u.last_name}` : null,
       formerWorkerActive: u.worker_status === "active",
     })),
+    evidence: await loadEvidence(tx, now),
+  };
+}
+
+async function loadEvidence(tx: FirmTx, now: Date): Promise<TodayEvidence> {
+  const [firm] = await tx
+    .select({ settings: firms.settings })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  const { rows: failed } = await tx.execute<{
+    assignment_id: string;
+    first_name: string | null;
+    last_name: string | null;
+    cancelled_at: string | Date;
+  }>(sql`
+    select a.id::text as assignment_id, w.first_name, w.last_name, a.cancelled_at
+      from strikes s
+      join assignments a on a.firm_id = s.firm_id and a.id = s.assignment_id
+      join workers w on w.firm_id = s.firm_id and w.id = s.worker_id
+     where s.evidence_email_status = 'failed'
+     order by s.issued_at desc, s.id
+     limit ${LIST_MAX + 1}
+  `);
+  const { rows: waiting } = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n from strikes
+     where evidence_email_status = 'not_set_up' and status = 'live' and expires_at > ${now}
+  `);
+  return {
+    addressConfirmed: confirmedStrikesEmail(firm?.settings ?? {}) !== null,
+    waiting: Number(waiting[0]?.n ?? 0),
+    failed: failed.slice(0, LIST_MAX).map((f) => ({
+      assignmentId: f.assignment_id,
+      casual: `${f.first_name ?? ""} ${f.last_name ?? ""}`.trim() || "A casual",
+      cancelledAt: new Date(f.cancelled_at),
+    })),
+    failedMore: failed.length > LIST_MAX,
   };
 }
 

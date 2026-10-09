@@ -309,8 +309,10 @@ then send the new number to the office").
    strike decision runs (`src/lib/strikes/decide.ts`; its code goes in `shift.cancelled`): the
    office's cancellation is never a strike; a casual's own is one only with less notice than the
    firm's `strikes.notice_hours` (48), on a booking they made themselves that the office hasn't
-   moved or re-priced since, and then a `strikes` row and `strike.issued` are added. The booking
-   records `cancel_via` and the warning's version and time.
+   moved or re-priced since, and then a `strikes` row and `strike.issued` are added, and its
+   evidence email to the strikes team is queued (`strikes.evidence_email`, 12C.4: only to a
+   confirmed address, with the record's PDF). The booking records `cancel_via` and the warning's
+   version and time.
 3. If the cancellation reopened a place and the shift starts within the firm's
    `urgent_window_hours` (default 24): the shift is marked urgent in the same transaction and
    logged (`shift.marked_urgent`, by the system, cause "dropout"; `markUrgentAfterDropout()` in

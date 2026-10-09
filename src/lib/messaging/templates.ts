@@ -58,6 +58,58 @@ export function strikesEmailConfirmEmail(
   };
 }
 
+// strike_evidence (email, 12C.4; docs/office-v2.md 5.6): to the strikes team's confirmed address
+// when a strike is recorded, with the cancellation record's PDF (src/lib/strikes/evidence.ts). The
+// facts come formatted (times in the firm's zone). Never a reason: the PDF's reason for a casual is
+// "Casual's own reason (see ShiftDesk)". No full stop after the link (audit L10). The subject keeps
+// to 200 characters, shortening the casual's name and the site (never the reference).
+export interface StrikeEvidenceFacts {
+  casual: string; // "Kieran Doyle"
+  staffId: string | null; // the firm's staff id, when it has one
+  role: string; // "Steward"
+  site: string | null; // "Acme Demo Racecourse"
+  notice: string; // "15 hours' notice"
+  ref: string; // "B71E0C42"
+  session: string; // "Steward · Raceday · Wed 7 Oct 10:30–18:30"
+  cancelledAt: string; // "19:05 on Tue 6 Oct"
+  beforeStart: string; // "15 hours"
+  thresholdHours: string; // "48"
+  strikeNumber: string; // "2": this strike's place among their strikes counting then
+  liveDays: string; // "90"
+  link: string; // the record in the office
+}
+
+export const EVIDENCE_SUBJECT_MAX = 200;
+const clip = (text: string, max: number) =>
+  text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+
+export function strikeEvidenceEmail(
+  firm: FirmVoice,
+  f: StrikeEvidenceFacts,
+): { subject: string; body: string } {
+  const subjectOf = (casual: string, site: string | null) =>
+    `Strike: ${casual} cancelled ${f.role}${site ? ` at ${site}` : ""} with ${f.notice} (ref ${f.ref})`;
+  let subject = subjectOf(f.casual, f.site);
+  if (subject.length > EVIDENCE_SUBJECT_MAX) {
+    // What isn't the name or the site, then the room left shared between them.
+    const fixed = subject.length - f.casual.length - (f.site?.length ?? 0);
+    const each = Math.max(1, Math.floor((EVIDENCE_SUBJECT_MAX - fixed) / (f.site ? 2 : 1)));
+    subject = subjectOf(clip(f.casual, each), f.site ? clip(f.site, each) : null);
+  }
+  return {
+    subject,
+    body: [
+      `${f.casual}${f.staffId ? ` (staff id ${f.staffId})` : ""} cancelled ${f.session} at ${f.cancelledAt}, ${f.beforeStart} before the start. That is under your ${f.thresholdHours}-hour rule, so a strike was recorded automatically. It is their strike ${f.strikeNumber} in the last ${f.liveDays} days.`,
+      "",
+      "The record is attached (PDF) and is also here:",
+      "",
+      f.link,
+      "",
+      `— ${firm.signOff}`,
+    ].join("\n"),
+  };
+}
+
 // credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires.
 export function credentialExpiringMessage(
   firm: FirmVoice,

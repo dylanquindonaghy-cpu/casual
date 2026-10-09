@@ -33,7 +33,7 @@ export default async function OfficeHome() {
         <p className="text-lg text-ink">Hello {officeUser.name}</p>
         {whoAndLine}
       </PageHeader>
-      <TodayContent view={today} />
+      <TodayContent view={today} isAdmin={today.officeUser.role === "admin"} />
     </main>
   );
 }

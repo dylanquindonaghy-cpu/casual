@@ -18,10 +18,17 @@ export const LOG_TYPES = {
     // export.downloaded: a cancellation record's PDF or the cancellations CSV (12C.3).
     actions: ["shift.cancelled", "shift.cancelled_by_firm", "export.downloaded"],
   },
-  // A strike (12C.1): ids, codes and hours only. Payroll can't open the log.
+  // A strike (12C.1) and its evidence email to the strikes team (12C.4): ids, codes and hours
+  // only, never the address. Payroll can't open the log.
   strikes: {
     label: "Strikes",
-    actions: ["strike.issued"],
+    actions: [
+      "strike.issued",
+      "strike.evidence_sending",
+      "strike.evidence_sent",
+      "strike.evidence_failed",
+      "strike.evidence_resend",
+    ],
   },
   changes: {
     label: "Changes to shifts",

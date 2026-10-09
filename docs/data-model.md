@@ -396,8 +396,9 @@ create table strikes (
   reviewed_by uuid, reviewed_at timestamptz,     -- "Keep strike" (12C.5); both or neither
   withdrawn_by uuid, withdrawn_at timestamptz,   -- withdrawn: both; live: neither
   withdrawn_reason text,                 -- 1-500 characters; cleared when the casual is erased
-  evidence_email_status text,            -- pending | sent | failed | not_set_up (12C.4); empty until then
-  evidence_email_to text, evidence_email_sent_at timestamptz,
+  evidence_email_status text,            -- pending (queued with the strike) | sent | failed | not_set_up
+                                         -- (no confirmed strikes-team address); 12C.4
+  evidence_email_to text, evidence_email_sent_at timestamptz,  -- where and when it went
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, assignment_id)
@@ -614,6 +615,11 @@ create table events (
 -- had started), removed ("The client needs fewer staff") or session_cancelled (the whole shift);
 -- entries from before it have none. The Sheets sync's adds source and its fixed reason ("Removed
 -- on the rota sheet", "Shift cancelled on the rota sheet").
+-- Strikes (src/lib/strikes/): strike.issued (strike; actor system; {assignmentId, shiftId, workerId,
+-- noticeHours, thresholdHours}); its evidence email (12C.4): strike.evidence_sending and
+-- strike.evidence_sent {request, attempt}, strike.evidence_failed {request, attempt, code, retry}
+-- (code not_set_up, stopped, or the error's class), strike.evidence_resend (actor office; {}).
+-- Never the address: it's on the strike row (evidence_email_to) with the time it went.
 -- Booking (src/lib/roster/book.ts): shift.assigned (assignment; actor worker or office; {by:
 -- worker|firm, shiftId, workerId, slot, noticeHours, overridden?, reason?}); from the Sheets sync
 -- the same with source: sheets and reason "Put on the rota sheet by the office".

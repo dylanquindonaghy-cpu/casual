@@ -234,6 +234,20 @@ export function warningText(r: Pick<CancellationRow, "warning" | "by">, tz: stri
   return r.by === "casual" ? "None recorded" : "None (not cancelled in the app)";
 }
 
+// The session in the evidence email (docs/office-v2.md 5.6): "Steward · Raceday · Wed 7 Oct
+// 10:30–18:30".
+export const evidenceSessionText = (
+  r: Pick<CancellationRow, "role" | "eventName" | "startsAt" | "endsAt">,
+  tz: string,
+) =>
+  [
+    roleLabel(r.role),
+    r.eventName,
+    `${dayLabel(localDateOf(r.startsAt, tz))} ${hhmm(r.startsAt, tz)}–${hhmm(r.endsAt, tz)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
 const sessionText = (r: CancellationRow, tz: string) =>
   `${roleLabel(r.role)} · ${dayLabel(localDateOf(r.startsAt, tz))}, ${hhmm(r.startsAt, tz)} to ${hhmm(r.endsAt, tz)}`;
 

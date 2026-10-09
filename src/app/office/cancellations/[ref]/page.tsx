@@ -8,6 +8,7 @@ import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeCancellationRecord, type SharedReference } from "@/lib/office/cancellations";
 import { AS_IT_IS_NOW, howText, recordFields } from "@/lib/office/cancellations-copy";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
+import { ResendEvidence } from "./resend-evidence";
 
 export const metadata: Metadata = { title: "Cancellation record" };
 
@@ -15,7 +16,8 @@ export const metadata: Metadata = { title: "Cancellation record" };
 // `/office/cancellations/[ref]`): every field, the reason as given (admins and resourcers only:
 // the PDF and the CSV never carry a casual's), and "Download PDF" (by the booking's full id, so it
 // is always this one). Opened by its reference or the booking's full id; a reference two
-// cancellations share lists both to choose from. Nothing to approve.
+// cancellations share lists both to choose from. "Resend evidence" when the evidence email to the
+// strikes team failed (12C.4). Nothing to approve.
 export default async function CancellationRecordPage({
   params,
 }: {
@@ -61,6 +63,17 @@ export default async function CancellationRecordPage({
         </p>
         <p>{AS_IT_IS_NOW}</p>
       </PageHeader>
+      {record.row.strike?.evidence.status === "failed" && (
+        <section aria-labelledby="evidence" className="mb-6 flex max-w-3xl flex-col gap-2">
+          <h2 id="evidence" className="font-semibold text-ink">
+            The evidence email failed
+          </h2>
+          <p className="text-ink-muted">
+            It may have arrived anyway: check with the strikes team before sending it again.
+          </p>
+          <ResendEvidence assignmentId={record.row.assignmentId} />
+        </section>
+      )}
       <dl className="grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]">
         {fields.map((f) => (
           <div key={f.label} className="contents">

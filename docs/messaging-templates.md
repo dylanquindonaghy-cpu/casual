@@ -201,6 +201,16 @@ reach the same app, which isn't answering.
   records to this address." / "If that's right, open this link within 7 days and select Confirm
   this address:" / "{link}" / "If you weren't expecting this, you can ignore this email: nothing is
   sent here until the address is confirmed." / "— {firm} Shift Team".
+- Strike evidence (`strike_evidence`, email, built in 12C.4, `strikeEvidenceEmail()`: to the strikes
+  team's confirmed address only, when a strike is recorded, with the cancellation record as a PDF;
+  docs/office-v2.md 5.6): subject "Strike: {casual} cancelled {role} at {site} with {notice} (ref
+  {ref})" (" at {site}" left out when there's none; at most 200 characters, the name and site
+  shortened first); body "{casual} (staff id {staff id}) cancelled {session} at {when}, {hours}
+  before the start. That is under your {threshold}-hour rule, so a strike was recorded
+  automatically. It is their strike {n} in the last {days} days." / "The record is attached (PDF)
+  and is also here:" / "{link}" / "— {firm} Shift Team" (" (staff id …)" left out when there's
+  none). No reason in the subject or body; the PDF gives a casual's as "Casual's own reason (see
+  ShiftDesk)".
 - Unknown number message (below), failed Sheets sync, domain verified/failed, credential expiries
   (weekly), pay digest (per schedule, below).
 - `unknown_number_alert` (email, to active admins and resourcers, built in Phase 7,

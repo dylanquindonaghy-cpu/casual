@@ -11,6 +11,7 @@ import {
 } from "../gdpr/retention-settings";
 import { keepCoversLive, STRIKE_LIMITS, strikeSettings } from "../strikes/settings";
 import { travelSettings } from "../travel/settings";
+import { PHOTO_RENEWAL_LIMITS, photoSettings } from "../uploads/settings";
 
 // The firm settings the onboarding checklist asks the firm to agree (docs/go-to-market.md "Pilot
 // onboarding checklist"; docs/data-model.md "Firm settings"), as the app reads them. Each app
@@ -35,6 +36,7 @@ export const SETTING_KEYS = [
   "strikes.live_days",
   "strikes.keep_months",
   "travel.default_max_minutes",
+  "photo.renewal_months",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 export type SettingValue = string | number | boolean;
@@ -72,6 +74,7 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "strikes.live_days": (s) => strikeSettings(s).liveDays,
   "strikes.keep_months": (s) => strikeSettings(s).keepMonths,
   "travel.default_max_minutes": (s) => travelSettings(s).defaultMaxMinutes,
+  "photo.renewal_months": (s) => photoSettings(s).renewalMonths,
 };
 
 // What each key means, for the command's output.
@@ -94,6 +97,7 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,
   "travel.default_max_minutes":
     "a casual's travel time limit until they choose their own (30, 45, 60 or 90 minutes)",
+  "photo.renewal_months": `months before a casual's staff photo is due again, from the day the current one was uploaded (${PHOTO_RENEWAL_LIMITS.min} to ${PHOTO_RENEWAL_LIMITS.max})`,
 };
 
 const stored = (s: Settings, key: SettingKey): unknown => {
@@ -159,6 +163,10 @@ export function applySetting(s: Settings, key: SettingKey, raw: string): Setting
     const part = key.slice("travel.".length);
     const inner = s.travel && typeof s.travel === "object" ? (s.travel as Settings) : {};
     next = { ...s, travel: { ...inner, [part]: value } };
+  } else if (key.startsWith("photo.")) {
+    const part = key.slice("photo.".length);
+    const inner = s.photo && typeof s.photo === "object" ? (s.photo as Settings) : {};
+    next = { ...s, photo: { ...inner, [part]: value } };
   } else if (key.startsWith("quiet_hours.")) {
     // The app reads quiet hours whole (a start without an end is ignored), so the other parts are
     // kept as the app reads them now.

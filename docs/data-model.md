@@ -33,7 +33,8 @@ architecture.md, Tenancy).
 | worker_site_blocks | Sites a worker may not work at (rules check 9), set by the office with a reason | 10 |
 | worker_travel | A casual's travel area: start postcode and its central point, ways of travelling, time limit (12G.1, S8) | 12 |
 | travel_estimates | Travel time (and distance by car) from a postcode to a site, by car or public transport, arriving by a time; keyed by postcode, never by person (12G.2, S9) | 12 |
-| credentials | Licences/cards per worker: type, number, expiry, status | 1 |
+| credentials | Licences/cards per worker: type, number, expiry, status; whether the office has checked it (verified, or a casual's upload waiting or turned down), and the upload it came from (12F.2, S6) | 1 |
+| uploads | A casual's staff photos and certificate images (JPEG re-encoded by the server, 1 MB at most): kind, type, size, sha256, the bytes, and the office's check (waiting, approved or rejected with a reason) (12F.2, S7) | 12 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
 | sites | Venues/sites (address; the postcode's central point in lat/lng, looked up when the postcode is saved: 12G.1) | 1 |
@@ -106,6 +107,11 @@ The owner's travel setting (12G.1), read by `src/lib/travel/settings.ts`:
 `travel.default_max_minutes` (45; 30, 45, 60 or 90): a casual's time limit on `/profile/travel`
 until they choose their own. Which look-up service is used is a server setting
 (`TRAVEL_PROVIDER`), never per firm.
+
+The owner's staff photo setting (12F.2), read by `src/lib/uploads/settings.ts`:
+`photo.renewal_months` (36; whole months, 12 to 60): how often a casual's staff photo is due again,
+from the day the current one (the latest approved) was uploaded. "Due soon" starts 30 days before
+(`EXPIRING_SOON_DAYS`).
 
 ## DDL sketch (Postgres)
 
@@ -298,8 +304,46 @@ create table credentials (
   -- the last threshold sent. A new expires_on (a renewal) means none sent yet for it.
   expiry_warned_for date,
   expiry_warned_days smallint,           -- 30 | 14 | 7; set together with expiry_warned_for (check)
+  -- The office's check (S6; 12F.2): 'verified' is the office's own (imported, recorded, or an upload
+  -- a named person approved: verified_at/by filled); 'waiting' and 'rejected' are a casual's upload
+  -- not (yet) accepted. Only verified records count anywhere (the rules engine, the expiry scan,
+  -- Today, the import's "latest record"), and an unchecked one is always stored as expired with
+  -- its upload (credentials_unchecked_never_valid), so a reader that missed the filter still
+  -- couldn't count it.
+  check_state text not null default 'verified',  -- verified | waiting | rejected
+  rejected_reason text,                  -- blurry | wrong_document | expired | doesnt_match | other; only when rejected
+  evidence_upload_id uuid,               -- (firm_id, evidence_upload_id) -> uploads(firm_id, id)
   created_at timestamptz not null default now()
 );
+
+-- Photos and certificate images (S7; 12F.2; docs/office-v2.md 5.5), in Postgres so RLS, erasure and
+-- export cover them. Re-encoded by the server (src/lib/uploads/image.ts): always a JPEG, no location
+-- or other hidden data, 1 MB at most. The app may add, check (status, checked_by, checked_at,
+-- reject_reason: COLUMN_UPDATES) and delete them (a waiting one replaced, the retention purge,
+-- erasure), never rewrite the bytes or whose they are. Served only by /files/[id]. The current
+-- staff photo is the latest approved one, so workers has no photo column. The JSON exports carry
+-- every column but `data`.
+create table uploads (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers(firm_id, id), on delete cascade
+  kind text not null,                    -- photo | certificate
+  credential_type text,                  -- a certificate's type code; null for a photo (check)
+  content_type text not null,            -- always 'image/jpeg'
+  size integer not null,                 -- = octet_length(data), 1 to 1,000,000
+  sha256 text not null,                  -- hex: the fingerprint the exports carry
+  data bytea not null,
+  uploaded_by text not null default 'casual',
+  status text not null default 'waiting', -- waiting | approved | rejected
+  checked_by uuid,                       -- (firm_id, checked_by) -> office_users(firm_id, id)
+  checked_at timestamptz,                -- set with checked_by, when not waiting (check)
+  reject_reason text,                    -- as credentials.rejected_reason; only when rejected
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
+);
+-- One waiting per casual, kind and type: a new one replaces it.
+create unique index uploads_one_waiting on uploads (firm_id, worker_id, kind, coalesce(credential_type, ''))
+  where status = 'waiting';
 
 -- The rota (Phase 2, src/lib/db/schema/roster.ts). Its foreign keys have no ON DELETE action:
 -- deleting a worker, site, shift or office user that rota rows point at fails, so history is
@@ -783,8 +827,9 @@ owner's; `src/lib/gdpr/retention-settings.ts`): `message_days` (default 90), `re
 | Raw messages and transcripts | `retention.message_days` (90) | Yes: `messages` older than that, by `app_purge_old_messages()`, which reads the firm's settings itself; a newer reply stays (its `reply_to` cleared) |
 | The words typed into a request (`requests.payload.note`, `.swapWith`) | `retention.request_note_days` (365) after it closed | Yes: removed from closed requests (approved, declined, auto-resolved), the request stays; open and escalated ones keep them |
 | The office's override reason (`assignments.override_reason`) | The same, after the booking | Yes: cleared |
+| Photos and certificate images (`uploads`, 12F.2) | One turned down: 30 days after the check (with its "Not accepted" record). A staff photo replaced by a newer approved one: 30 days after that one was approved. The current photo and a certificate's image stay with what they prove | Yes: `retention-purge` (none during a hold); erasure deletes them all |
 | Strikes (`strikes`) | `strikes.keep_months` (12) after it was issued, which always covers the 90 days it counts plus 6 months | Yes: deleted by `app_purge_old_strikes()` (12C.1, migrations 0038 and 0039), which reads the firm's settings itself; their `strike.issued` log entries (ids and hours) stay with the action log |
-| Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words, override reasons and strikes (logins still tidy up) |
+| Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words, override reasons, strikes and uploads (logins still tidy up) |
 | Call audio | Don't store by default (30 days if enabled) | Not stored |
 | Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) | **Not yet**: events are append-only and no policy lets anyone delete them (PLAN.md Parking lot) |
 | Workers and credentials | Until the firm deletes them | An admin erases a worker (`/office/data`) |

@@ -82,6 +82,7 @@ floor, and that a hold covers the whole firm (not one worker).
 | Strikes (a casual's own late cancellations, 12C.1) | The strike counts 90 days (`strikes.live_days`); its row is deleted 12 months after it was issued (`strikes.keep_months`, which must cover the time a strike counts plus 6 months, the tribunal limit; the purge never deletes a strike that stopped counting less than 6 months ago), nothing during a hold (built: the nightly purge). The office's reason for withdrawing one (12C.5) goes with its row, or when the casual is erased. Its `strike.issued`, `strike.withdrawn` and `strike.reviewed` log entries (ids and hours, never a reason or the review flag) stay with the action log. A DPIA comes first: `docs/dpia-strikes.md` |
 | Travel estimates (12G.2: minutes and distance from a postcode to a site, keyed by postcode, not by person) | 7 days after the last session they were for, by the nightly purge (even during a hold: not about anyone in particular), and when a site's postcode changes (built). Not in the firm's data export |
 | A casual's travel area (12G.1: their start-from postcode and its central point, how they travel, their limit) | While they keep it: deleted when they remove it, when the office makes them inactive as "They've left", and on erasure (built). Never in the action log. A DPIA and the legitimate-interests balancing test come first: `docs/dpia-travel.md` |
+| Staff photos and certificate images (12F.2) | One the office turned down: 30 days after the check. A staff photo replaced by a newer approved one: 30 days after that one was approved. The current photo and the image behind a current certificate stay while they're current, then follow the firm's retention (a later task); all of them go on erasure (built: the nightly purge, nothing during a hold). In the exports as details only (kind, date, status, fingerprint); each image is its own download |
 | Call audio | We store none: only a voicemail's text. But Twilio records every voicemail (up to 2 minutes) to transcribe it, and keeps the recording until it's deleted there: a deletion job comes with the Twilio sender ("Connect Twilio", "Before going live") |
 | Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |
@@ -161,7 +162,33 @@ for the service the worker asked for): `docs/privacy-notice.md`, "On your phone"
 - SIA approved contractors may deploy a limited share of staff whose licence application is in
   progress (reported as up to 15%) — kept as a firm setting (default 0, and no command sets it
   yet) until the current SIA rules are confirmed.
-- Third-party check APIs exist, but the SIA doesn't endorse them. **Don't build a scraper.**
+- Third-party check APIs exist, but the SIA doesn't endorse them. **Don't build a scraper.** The
+  office's check page links the GOV.UK register for a person to look the licence up by hand.
+- **Only checked records count** (12F.2; D3). A casual may upload a photo of her card; it counts for
+  nothing (the rules, the expiry scan and Today all ignore it, and the database stores it as
+  expired) until a named admin or resourcer approves it, typing the expiry date and number as they
+  read them from the card. Rejecting takes a reason from a fixed list. Every check is logged
+  (`upload.approved`, `upload.rejected`: ids and codes only).
+- **What casuals never upload:** CSAS accreditation (only this firm's own scheme covers its shifts,
+  Police Reform Act 2002 s.41: the office records it, confirming that), right-to-work documents
+  (they stay with the office, Rules 15), and anything holding health or criminal record details
+  (drugs and alcohol tests, rail medicals, DBS certificates): the office records those itself, so
+  we never keep a copy of special-category or criminal-offence data
+  (`src/lib/rules/packs.ts` `officeRecorded`).
+
+## Photos and certificate images (12F.2; docs/office-v2.md 5.5)
+
+- **No biometrics.** No face matching, no AI and no reading of the text on a card, ever. Matching a
+  face would make staff photos biometric data, special-category data under UK GDPR Article 9
+  (https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/biometric-data-guidance-biometric-recognition/biometric-recognition/).
+  A photo is looked at by a person, as the SIA's own checks are.
+- **Stored in Postgres** (row-level security, erasure and export cover them), 1 MB at most. The
+  server reads each file's real type from its first bytes (JPEG, PNG or WebP only) and re-encodes
+  it with `sharp`, which keeps only the pixels: location (GPS), camera details and every other
+  hidden tag are dropped.
+- **Seen only by** the casual (her own) and her firm's active admins and resourcers, through one
+  access-checked address (`/files/{id}`), never cached and never in the phone's offline copy.
+- **Retention:** above ("Retention defaults").
 - **Rail:** PTS, Sentinel, drugs and alcohol test dates. **Construction:** CSCS card type/expiry.
   **Cleaning:** DBS where the site requires it.
 

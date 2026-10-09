@@ -21,6 +21,8 @@ const TODAY = "2026-11-02";
 const day = (n: number) => addDays(TODAY, n);
 const valid = (expiresOn: string | null): CredentialRecord => ({ status: "valid", expiresOn });
 const status = (...records: CredentialRecord[]) => qualificationStatus(records, TODAY);
+// The office's own records: no image behind them, nothing sent by her.
+const NO_UPLOAD = { evidenceUploadId: null, waiting: null, rejected: null } as const;
 
 describe("one shared 'expiring soon' window", () => {
   it("is the expiry job's first warning: 30 days", () => {
@@ -48,7 +50,7 @@ describe("qualificationStatus: the full table, at the boundary dates", () => {
     ["applied for", [{ status: "applied", expiresOn: null }], "applied", null],
     ["suspended", [{ status: "suspended", expiresOn: day(200) }], "suspended", day(200)],
   ] as const)("%s", (_name, records, expected, expiresOn) => {
-    expect(status(...records)).toEqual({ status: expected, expiresOn });
+    expect(status(...records)).toEqual({ status: expected, expiresOn, ...NO_UPLOAD });
   });
 
   it("several records: suspended beats everything, as the rules engine reads it", () => {
@@ -61,24 +63,28 @@ describe("qualificationStatus: the full table, at the boundary dates", () => {
     expect(status({ status: "expired", expiresOn: day(-10) }, valid(day(400)))).toEqual({
       status: "valid",
       expiresOn: day(400),
+      ...NO_UPLOAD,
     });
     expect(status(valid(day(10)), valid(day(400)), valid(null))).toEqual({
       status: "valid",
       expiresOn: null,
+      ...NO_UPLOAD,
     });
     expect(status(valid(day(10)), valid(day(20)))).toEqual({
       status: "expiring_soon",
       expiresOn: day(20),
+      ...NO_UPLOAD,
     });
   });
 
   it("being renewed (applied for) counts over an expired one; the latest expired date shows", () => {
     expect(
       status({ status: "expired", expiresOn: day(-10) }, { status: "applied", expiresOn: null }),
-    ).toEqual({ status: "applied", expiresOn: null });
+    ).toEqual({ status: "applied", expiresOn: null, ...NO_UPLOAD });
     expect(status(valid(day(-30)), { status: "expired", expiresOn: day(-5) })).toEqual({
       status: "expired",
       expiresOn: day(-5),
+      ...NO_UPLOAD,
     });
   });
 });
@@ -114,6 +120,8 @@ describe("which qualifications are listed", () => {
         neededFor: ["response_team_lead"],
         appliedCounts: false,
         renewing: false,
+        uploadable: true,
+        ...NO_UPLOAD,
       },
       {
         type: "SIA_DS",
@@ -123,6 +131,8 @@ describe("which qualifications are listed", () => {
         neededFor: ["door_supervisor", "response_team_lead"],
         appliedCounts: false,
         renewing: false,
+        uploadable: true,
+        ...NO_UPLOAD,
       },
     ]);
   });
@@ -234,6 +244,8 @@ const qual = (o: Partial<Qualification>): Qualification => ({
   neededFor: ["door_supervisor"],
   appliedCounts: false,
   renewing: false,
+  uploadable: true,
+  ...NO_UPLOAD,
   ...o,
 });
 
@@ -351,5 +363,165 @@ describe("the office's one-line summary", () => {
         need(4, { status: "missing" }),
       ]),
     ).toBe("SIA door supervisor licence: expired (booked shift), and 2 more");
+  });
+});
+
+// Uploads (12F.2; D3): only checked records count. Her upload is "Being checked" until a named
+// office person approves it, and "Not accepted" with the reason if they don't.
+describe("uploads: only checked records count", () => {
+  const sent = (id: string, sentOn: string, reason?: "blurry" | "expired") => ({
+    id,
+    sentOn,
+    ...(reason ? { reason } : {}),
+  });
+  const waiting = (id = "u-wait", on = day(-1)): CredentialRecord => ({
+    status: "expired",
+    expiresOn: null,
+    checkState: "waiting",
+    upload: sent(id, on),
+  });
+  const rejected = (id = "u-rej", on = day(-3), reason: "blurry" | "expired" = "blurry") => ({
+    status: "expired" as const,
+    expiresOn: null,
+    checkState: "rejected" as const,
+    upload: sent(id, on, reason),
+  });
+
+  it("a waiting upload alone is Being checked, never Valid, whatever its status says", () => {
+    expect(status(waiting())).toEqual({
+      status: "being_checked",
+      expiresOn: null,
+      evidenceUploadId: null,
+      waiting: { uploadId: "u-wait", sentOn: day(-1) },
+      rejected: null,
+    });
+    // Even a record that (wrongly) says valid and in date counts for nothing until it's checked.
+    const unchecked: CredentialRecord = {
+      ...valid(day(400)),
+      checkState: "waiting",
+      upload: sent("x", TODAY),
+    };
+    expect(status(unchecked).status).toBe("being_checked");
+    expect(
+      status({ ...unchecked, checkState: "rejected", upload: sent("x", TODAY, "blurry") }).status,
+    ).toBe("rejected");
+  });
+
+  it("turned down: Not accepted, with the reason, over an expired or applied record", () => {
+    expect(status({ status: "expired", expiresOn: day(-20) }, rejected())).toEqual({
+      status: "rejected",
+      expiresOn: null,
+      evidenceUploadId: null,
+      waiting: null,
+      rejected: { uploadId: "u-rej", sentOn: day(-3), reason: "blurry" },
+    });
+    expect(status({ status: "applied", expiresOn: null }, rejected()).status).toBe("rejected");
+    // The latest one turned down is the one that shows.
+    expect(
+      status(rejected("old", day(-9), "expired"), rejected("new", day(-2), "blurry")).rejected,
+    ).toEqual({ uploadId: "new", sentOn: day(-2), reason: "blurry" });
+  });
+
+  it("a new upload after one was turned down is Being checked", () => {
+    expect(status(rejected(), waiting()).status).toBe("being_checked");
+  });
+
+  it("a renewal sent while hers is still in date: that one shows, renewing, and the office sees it waiting", () => {
+    const now = status(valid(day(10)), waiting());
+    expect(now).toMatchObject({
+      status: "expiring_soon",
+      expiresOn: day(10),
+      waiting: { uploadId: "u-wait", sentOn: day(-1) },
+    });
+    const [q] = list(
+      ["door_supervisor"],
+      [
+        { type: "SIA_DS", ...valid(day(10)) },
+        { type: "SIA_DS", ...waiting() },
+      ],
+    );
+    expect(q?.renewing).toBe(true);
+    // Renewing: not "expiring soon" to sort out, but it still stops a shift after it expires.
+    expect(needsUpdating({ qualifications: q ? [q] : [], bookings: [], today: TODAY })).toEqual([]);
+    expect(
+      needsUpdating({
+        qualifications: q ? [q] : [],
+        bookings: [{ role: "door_supervisor", startDay: day(12), endDay: day(12) }],
+        today: TODAY,
+      }).map((n) => n.level),
+    ).toEqual([1]);
+  });
+
+  it("an upload never hides a suspension", () => {
+    expect(status({ status: "suspended", expiresOn: null }, waiting()).status).toBe("suspended");
+  });
+
+  it("the image behind the record that decides it", () => {
+    expect(
+      status(
+        { ...valid(day(400)), upload: sent("approved-card", day(-50)) },
+        { status: "expired", expiresOn: day(-60), upload: sent("old-card", day(-900)) },
+      ).evidenceUploadId,
+    ).toBe("approved-card");
+    expect(status(valid(day(400))).evidenceUploadId).toBeNull();
+  });
+
+  it("needs updating: being checked stops a booked shift, otherwise it's for the office; not accepted is level 2", () => {
+    const [checking] = list(["door_supervisor"], [{ type: "SIA_DS", ...waiting() }]);
+    const [turnedDown] = list(["steward"], [{ type: "STEWARD_L2", ...rejected() }]);
+    const qualifications = [checking, turnedDown].filter((q) => q !== undefined);
+    expect(
+      needsUpdating({ qualifications, bookings: [], today: TODAY }).map((n) => [
+        n.level,
+        n.qualification.type,
+      ]),
+    ).toEqual([[2, "STEWARD_L2"]]);
+    expect(
+      needsUpdating({
+        qualifications,
+        bookings: [{ role: "door_supervisor", startDay: day(3), endDay: day(3) }],
+        today: TODAY,
+      }).map((n) => [n.level, n.qualification.type]),
+    ).toEqual([
+      [1, "SIA_DS"],
+      [2, "STEWARD_L2"],
+    ]);
+  });
+
+  it("which she may upload: not the ones the office records (CSAS, health and criminal record details)", () => {
+    const q = listQualifications({
+      roles: ["door_supervisor", "csas_officer", "track_worker"],
+      rules: [
+        ...RULES,
+        { role: "track_worker", requiredTypes: ["PTS", "RAIL_MEDICAL", "RAIL_DA", "RTW"] },
+      ],
+      names: NAMES,
+      records: [],
+      today: TODAY,
+    });
+    expect(Object.fromEntries(q.map((x) => [x.type, x.uploadable]))).toEqual({
+      SIA_DS: true,
+      CSAS: false,
+      PTS: true,
+      RAIL_MEDICAL: false,
+      RAIL_DA: false,
+    });
+  });
+
+  it("right to work reads checked records only", () => {
+    expect(
+      rightToWork(
+        [
+          {
+            type: "RTW",
+            checkedOn: null,
+            ...valid(null),
+            checkState: "waiting",
+            upload: sent("r", TODAY),
+          },
+        ],
+        TODAY,
+      ).checked,
+    ).toBe(false);
   });
 });

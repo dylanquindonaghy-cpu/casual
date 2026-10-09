@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { card, h2, headingGap, muted, nums, sectionGap, staffBtn } from "@/app/ui/classes";
+import { btn, card, h2, headingGap, muted, nums, sectionGap, staffBtn } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import type { MyStrikes } from "@/lib/portal/my-strikes";
@@ -22,18 +22,23 @@ import {
   noRuleText,
   qualificationTitle,
   rightToWorkText,
+  statusLabel,
   STATUS_TONES as QUALIFICATION_TONES,
-  STATUS_WORDS as QUALIFICATION_WORDS,
 } from "@/lib/portal/qualification-copy";
+import { PHOTO_GUIDANCE, PHOTO_TONES, PHOTO_WORDS, photoDates } from "@/lib/portal/upload-copy";
+import { shortDate } from "@/lib/rules/reasons";
 import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
 import { NotificationForm } from "./notification-form";
 import { PushSetting } from "./push-setting";
+import { UploadForm } from "./upload-form";
 
-// Me (docs/screens.md, `/profile`): contact details (read-only), my qualifications as they stand
-// today (12F.1: each status, its date line and what it means, then right to work), where I work
-// (12G.1), my strikes (12C.5), days I can't work, and how we reach me. One card per section.
+// Me (docs/screens.md, `/profile`): contact details (read-only), my staff photo (12F.2: the current
+// one, when it's due again, its status and "Upload a new photo"), my qualifications as they stand
+// today (12F.1: each status, its date line and what it means, then right to work; 12F.2: "Upload a
+// certificate" for the ones I may upload), where I work (12G.1), my strikes (12C.5), days I can't
+// work, and how we reach me. One card per section.
 
 // A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START.
 export const TEXTS_OFF =
@@ -72,6 +77,52 @@ export function ProfileView({
         <p className={`mt-2 ${muted}`}>To change these, ask the office.</p>
       </section>
 
+      <section aria-labelledby="photo-heading" className={`${card} ${sectionGap.staff}`}>
+        <h2 id="photo-heading" className={h2}>
+          Staff photo
+        </h2>
+        <div className={`${headingGap} flex items-center gap-4`}>
+          {profile.photo.current ? (
+            // An access-checked image of her own (src/app/files/[id]/route.ts), never cached.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/files/${profile.photo.current.id}`}
+              alt={`Staff photo of ${profile.firstName} ${profile.lastName}`}
+              width={72}
+              height={72}
+              className="h-18 w-18 shrink-0 rounded-lg border border-line object-cover"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="flex h-18 w-18 shrink-0 items-center justify-center rounded-lg border border-dashed border-line-strong text-sm text-ink-muted"
+            >
+              No photo
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className={`text-base ${nums}`}>{photoDates(profile.photo, year)}</p>
+            <p className="mt-1">
+              <StatusChip tone={PHOTO_TONES[profile.photo.status]}>
+                {PHOTO_WORDS[profile.photo.status]}
+              </StatusChip>
+            </p>
+          </div>
+        </div>
+        {profile.photo.waiting && (
+          <p className={`mt-3 ${muted} ${nums}`}>
+            You sent a new one on {shortDate(profile.photo.waiting.uploadedOn, year)}. Until the
+            office checks it, this one stays.
+          </p>
+        )}
+        <UploadForm
+          kind="photo"
+          camera="user"
+          button="Upload a new photo"
+          guidance={PHOTO_GUIDANCE}
+        />
+      </section>
+
       <section
         aria-labelledby="qualifications-heading"
         className={`${card} ${sectionGap.staff} overflow-hidden`}
@@ -93,7 +144,8 @@ export function ProfileView({
             className={`${headingGap} -mx-4 divide-y divide-line border-t border-line`}
           >
             {profile.qualifications.map((q) => {
-              const blocked = q.status === "expired" || q.status === "suspended";
+              const blocked =
+                q.status === "expired" || q.status === "suspended" || q.status === "rejected";
               const means = meaning(q);
               return (
                 <li
@@ -106,12 +158,18 @@ export function ProfileView({
                 >
                   <p className="font-semibold">{qualificationTitle(q.name)}</p>
                   <p className={`mt-1 text-base ${nums}`}>
-                    <StatusChip tone={QUALIFICATION_TONES[q.status]}>
-                      {QUALIFICATION_WORDS[q.status]}
-                    </StatusChip>
+                    <StatusChip tone={QUALIFICATION_TONES[q.status]}>{statusLabel(q)}</StatusChip>
                     {dateLine(q, year) && ` · ${dateLine(q, year)}`}
                   </p>
                   {means && <p className="mt-2 text-base">{means}</p>}
+                  {/* An upload can't lift a suspension; one waiting may be replaced. */}
+                  {q.uploadable && q.status !== "suspended" && (
+                    <p className="mt-2">
+                      <Link href={`/profile/upload/${q.type}`} className={btn.link}>
+                        Upload a certificate
+                      </Link>
+                    </p>
+                  )}
                 </li>
               );
             })}

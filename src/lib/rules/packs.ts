@@ -18,6 +18,11 @@ export interface PackType {
   // Whether an application in progress may count within the firm's allowance (an SIA approved
   // contractor rule; confirm the current SIA position before a firm turns it on).
   appliedAllowed?: boolean;
+  // Recorded by the office only: a casual can't upload an image of it (12F.2; docs/office-v2.md
+  // 3.7, 5.5). Either the law says only this firm can grant it (CSAS), or the document itself holds
+  // what we never keep a copy of (right to work papers stay with the office; health and criminal
+  // record details).
+  officeRecorded?: string;
 }
 
 export interface PackRule {
@@ -33,7 +38,12 @@ export interface CredentialPack {
 
 // Types every sector's firms may use (checked at onboarding, not per shift).
 export const ANY_SECTOR_TYPES: PackType[] = [
-  { code: "RTW", name: "right to work check", typicalValidity: "Per document" },
+  {
+    code: "RTW",
+    name: "right to work check",
+    typicalValidity: "Per document",
+    officeRecorded: "the documents stay with the office (Rules 15)",
+  },
 ];
 
 export const CREDENTIAL_PACKS: Record<Sector, CredentialPack> = {
@@ -71,6 +81,8 @@ export const CREDENTIAL_PACKS: Record<Sector, CredentialPack> = {
         code: "CSAS",
         name: "CSAS accreditation",
         typicalValidity: "Set by the police force; ends when the person leaves the firm",
+        officeRecorded:
+          "only this firm's own scheme covers its shifts (Police Reform Act 2002 s.41)",
       },
       {
         code: "MANUAL_HANDLING",
@@ -95,8 +107,14 @@ export const CREDENTIAL_PACKS: Record<Sector, CredentialPack> = {
         code: "RAIL_DA",
         name: "drugs and alcohol test",
         typicalValidity: "Recent test required (e.g. within 3 months for new sponsorship)",
+        officeRecorded: "a test result is health data",
       },
-      { code: "RAIL_MEDICAL", name: "rail safety-critical medical", typicalValidity: "Varies" },
+      {
+        code: "RAIL_MEDICAL",
+        name: "rail safety-critical medical",
+        typicalValidity: "Varies",
+        officeRecorded: "a medical is health data",
+      },
     ],
     rules: [
       { role: "track_operative", requiredTypes: ["PTS", "SENTINEL", "RAIL_DA"] },
@@ -131,9 +149,19 @@ export const CREDENTIAL_PACKS: Record<Sector, CredentialPack> = {
         code: "DBS",
         name: "DBS check",
         typicalValidity: "No fixed expiry; firm policy (or update service)",
+        officeRecorded: "a certificate may show criminal record details",
       },
     ],
     // DBS is needed where the site requires it, not for the role everywhere.
     rules: [{ role: "cleaner", requiredTypes: [] }],
   },
 };
+
+// Types the office records itself (PackType.officeRecorded): never uploaded by a casual. A firm's
+// own type outside every pack may be uploaded.
+export const OFFICE_RECORDED_TYPES: ReadonlySet<string> = new Set(
+  [...ANY_SECTOR_TYPES, ...Object.values(CREDENTIAL_PACKS).flatMap((p) => p.types)]
+    .filter((t) => t.officeRecorded)
+    .map((t) => t.code),
+);
+export const casualMayUpload = (type: string): boolean => !OFFICE_RECORDED_TYPES.has(type);

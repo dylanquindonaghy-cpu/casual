@@ -277,6 +277,7 @@ describe("the casual's Strikes on Profile", () => {
     qualifications: [],
     rightToWork: { checked: false, checkedOn: null, expired: false },
     rolesWithoutRule: [],
+    photo: { status: "missing", current: null, waiting: null },
     unavailable: [],
     today: "2026-11-09",
     notifyChannel: "whatsapp",

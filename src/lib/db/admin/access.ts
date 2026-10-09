@@ -69,6 +69,10 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Travel estimates (12G.2, S9): added and refreshed by the travel job (COLUMN_UPDATES: the result
   // and its expiry only), deleted when a site's postcode changes and by the retention purge.
   travel_estimates: ["SELECT", "INSERT", "DELETE"],
+  // Photos and certificate images (12F.2, S7): sent by a casual, checked by the office
+  // (COLUMN_UPDATES: the check only, never the bytes or whose they are), deleted when replaced
+  // while waiting, by the retention purge and on erasure.
+  uploads: ["SELECT", "INSERT", "DELETE"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
@@ -97,6 +101,7 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
     "updated_at",
   ],
   travel_estimates: ["minutes", "metres", "provider", "computed_at", "expires_at"],
+  uploads: ["status", "checked_by", "checked_at", "reject_reason"],
 };
 
 export function schemaTableNames(): string[] {

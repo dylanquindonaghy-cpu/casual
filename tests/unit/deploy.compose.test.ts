@@ -293,6 +293,18 @@ describe("the image (Dockerfile)", () => {
     expect(runtime).toContain("chown -R node:node /app/.next/cache");
   });
 
+  it("loads sharp's native image library in the runtime image (12F.2), so a missing one fails the build", () => {
+    expect(runtime).toMatch(/^RUN node -e "require\('sharp'\)"$/m);
+    // In the image the app runs (after its code is copied in), before it drops to the node user.
+    expect(runtime.indexOf("require('sharp')")).toBeGreaterThan(
+      runtime.indexOf("COPY --from=build"),
+    );
+    expect(runtime.indexOf("require('sharp')")).toBeLessThan(runtime.indexOf("USER node"));
+    // A direct dependency, at an exact version, so npm ci always installs it.
+    const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
+    expect(pkg.dependencies.sharp).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
   it("no secrets in the image: the build-only placeholders stay in the build stage", () => {
     expect(runtime).not.toMatch(/DATABASE_URL|SESSION_SECRET|APP_BASE_DOMAIN/);
     expect(dockerfile).not.toMatch(/COPY[^\n]*\.env/);

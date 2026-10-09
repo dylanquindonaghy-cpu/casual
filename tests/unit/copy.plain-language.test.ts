@@ -3,6 +3,15 @@ import vm from "node:vm";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { REJECT_REASONS as REJECT_REASON_LIST } from "@/lib/db/schema";
+import { statusLabel } from "@/lib/portal/qualification-copy";
+import {
+  CARD_GUIDANCE,
+  PHOTO_GUIDANCE,
+  PHOTO_WORDS,
+  sendUploadText,
+  type SendUploadOutcome,
+} from "@/lib/portal/upload-copy";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
 import { REASONS } from "@/lib/rules/reasons";
@@ -504,6 +513,15 @@ const SCREENS: [string, ReactElement][] = [
         qualifications: EVERY_STATUS,
         rightToWork: { checked: true, checkedOn: "2026-01-12", expired: false },
         rolesWithoutRule: ["response_team_lead"],
+        photo: {
+          status: "waiting",
+          current: {
+            id: "7c1d2e3f-0000-4000-8000-0000000000aa",
+            uploadedOn: "2024-08-03",
+            renewBy: "2027-08-03",
+          },
+          waiting: { id: "7c1d2e3f-0000-4000-8000-0000000000ab", uploadedOn: "2026-10-01" },
+        },
       },
     }),
   ],
@@ -524,6 +542,7 @@ const SCREENS: [string, ReactElement][] = [
         qualifications: [],
         rightToWork: { checked: false, checkedOn: null, expired: true },
         rolesWithoutRule: [],
+        photo: { status: "missing", current: null, waiting: null },
       },
     }),
   ],
@@ -573,6 +592,42 @@ const SCREENS: [string, ReactElement][] = [
   ],
   ["The whole page failed", createElement(GlobalError)],
   ["Help", createElement(HelpView, { firmName: "Acme Events" })],
+  // Uploads (12F.2): every answer after sending a photo or card, the guidance, the photo's statuses
+  // and why one wasn't accepted, as she reads them.
+  [
+    "Uploads: every answer, the guidance, the photo's statuses and the reasons",
+    createElement(
+      "div",
+      null,
+      ...(
+        [
+          { status: "sent", kind: "photo" },
+          { status: "sent", kind: "certificate" },
+          { status: "empty" },
+          { status: "too_big" },
+          { status: "not_an_image" },
+          { status: "not_needed" },
+          { status: "not_active" },
+          { status: "logged_out" },
+          { status: "no_signal" },
+          { status: "error" },
+        ] as SendUploadOutcome[]
+      ).map((o, i) => createElement("p", { key: `s${i}` }, sendUploadText(o))),
+      createElement("p", { key: "g1" }, PHOTO_GUIDANCE),
+      createElement("p", { key: "g2" }, CARD_GUIDANCE),
+      ...Object.values(PHOTO_WORDS).map((w) => createElement("p", { key: w }, w)),
+      ...REJECT_REASON_LIST.map((r) =>
+        createElement(
+          "p",
+          { key: r },
+          statusLabel({
+            status: "rejected",
+            rejected: { uploadId: "u", sentOn: "2026-10-30", reason: r },
+          }),
+        ),
+      ),
+    ),
+  ],
 ];
 
 describe("every staff screen and state is in plain words", () => {

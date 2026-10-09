@@ -69,6 +69,7 @@ describe("what a deletion says", () => {
       name: "Ann Booker",
       counts: {
         licences: 1,
+        images: 0,
         loginLinks: 0,
         sessions: 0,
         devices: 0,

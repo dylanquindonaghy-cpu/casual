@@ -50,6 +50,8 @@ const NOT_EVENTS = new Set<string>([
   "strikes.keep_months",
   // The owner's travel default (12G.1), in src/lib/onboarding/settings.ts.
   "travel.default_max_minutes",
+  // The owner's staff photo renewal (12F.2), in src/lib/onboarding/settings.ts.
+  "photo.renewal_months",
   // The one field asked of Google Sheets for a spreadsheet's locale (src/lib/roster/sheets/google.ts).
   "properties.locale",
   // The evidence email's job queue (src/lib/strikes/evidence-queue.ts, 12C.4; the task's own name).
@@ -223,6 +225,17 @@ describe("the action log's types and words", () => {
     ).toBe(
       "Old data was deleted on schedule, by the firm's retention settings: 3 messages, 2 request notes, 1 reason on a booking and 2 old login records.",
     );
+    expect(
+      say("retention.purged", {
+        messages: 0,
+        requestNotes: 0,
+        overrideReasons: 0,
+        uploads: 2,
+        throttle: 1,
+      }),
+    ).toBe(
+      "Old data was deleted on schedule, by the firm's retention settings: 0 messages, 0 request notes, 0 reasons on bookings, 2 turned-down or replaced photos and card images and 1 old login record.",
+    );
     expect(say("retention.purged", { throttle: 2, held: true })).toBe(
       "Old login records were tidied up (2). Nothing else was deleted: a hold is on (a dispute).",
     );
@@ -281,5 +294,45 @@ describe("the action log's types and words", () => {
     expect(isLogType("offers")).toBe(true);
     expect(isLogType("toString")).toBe(false);
     expect(isLogType("")).toBe(false);
+  });
+});
+
+describe("photos and certificate images in the log (12F.2)", () => {
+  const say = (action: string, data: Record<string, unknown>) =>
+    eventWords(
+      { action, actorType: action === "upload.received" ? "worker" : "office", actorId: "a", data },
+      names,
+    );
+  it("what was sent and the check, in plain words; never the image", () => {
+    expect(say("upload.received", { workerId: "w", kind: "photo" })).toBe(
+      "Ann Booker sent a new staff photo.",
+    );
+    expect(
+      say("upload.received", {
+        workerId: "w",
+        kind: "certificate",
+        qualificationType: "SIA_DS",
+        replaced: true,
+      }),
+    ).toBe("Ann Booker sent their SIA door supervisor licence, in place of the one waiting.");
+    expect(
+      say("upload.approved", {
+        workerId: "w",
+        kind: "certificate",
+        qualificationType: "SIA_DS",
+        expiresOn: "2027-11-06",
+      }),
+    ).toBe("Sam Rota approved Ann Booker's SIA door supervisor licence (expires Sat 6 Nov).");
+    expect(say("upload.approved", { workerId: "w", kind: "photo" })).toBe(
+      "Sam Rota approved Ann Booker's staff photo.",
+    );
+    expect(say("upload.rejected", { workerId: "w", kind: "photo", reason: "blurry" })).toBe(
+      "Sam Rota didn't accept Ann Booker's staff photo: blurry.",
+    );
+    expect(
+      say("credential.added", { workerId: "w", type: "CSAS", via: "office", ownScheme: true }),
+    ).toBe(
+      "Sam Rota recorded Ann Booker's SIA door supervisor licence, under the firm's own scheme.",
+    );
   });
 });

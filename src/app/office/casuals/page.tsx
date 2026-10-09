@@ -22,6 +22,7 @@ import {
   casualsList,
   type CasualRow,
   type CasualView,
+  type WaitingUpload,
 } from "@/lib/office/casuals";
 import { STATUS_WORDS as ACCESS_WORDS } from "@/lib/office/worker-copy";
 import { roleLabel } from "@/lib/portal/format";
@@ -31,21 +32,101 @@ import {
   STATUS_TONES,
   STATUS_WORDS,
 } from "@/lib/portal/qualification-copy";
+import { OFFICE_PHOTO_WORDS, PHOTO_TONES, uploadWhat } from "@/lib/portal/upload-copy";
+import { shortDate } from "@/lib/rules/reasons";
+import { localDateOf } from "@/lib/time/zoned";
 import { officeTravelText } from "@/lib/travel/copy";
 import { FindWorkerForm } from "../find-worker-form";
 import { findWorkersAction } from "./actions";
 
 export const metadata: Metadata = { title: "Casuals" };
 
-const VIEW_WORDS: Record<CasualView, string> = { all: "All", needs: "Need updating" };
+const VIEW_WORDS: Record<CasualView, string> = {
+  all: "All",
+  needs: "Need updating",
+  uploads: "Uploads to check",
+};
 const EMPTY: Record<CasualView, string> = {
   all: "No casuals yet. Add them from a staff file or your rota sheet.",
   needs: "Nobody needs to update anything.",
+  uploads: "Nothing to check. New photos and certificates show here.",
 };
 const isView = (v: unknown): v is CasualView =>
   typeof v === "string" && (CASUAL_VIEWS as readonly string[]).includes(v);
 const hrefOf = (view: CasualView) =>
-  view === "all" ? "/office/casuals" : "/office/casuals?view=needs";
+  view === "all" ? "/office/casuals" : `/office/casuals?view=${view}`;
+
+// Their current staff photo, small, beside their name (decorative: the name is next to it).
+function Thumb({ row }: { row: CasualRow }) {
+  return row.photo.current ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/files/${row.photo.current.id}`}
+      alt=""
+      width={40}
+      height={40}
+      className="h-10 w-10 shrink-0 rounded-md border border-line object-cover"
+    />
+  ) : (
+    <span
+      aria-hidden="true"
+      className="h-10 w-10 shrink-0 rounded-md border border-dashed border-line-strong"
+    />
+  );
+}
+
+function PhotoCell({ row, year }: { row: CasualRow; year: number }) {
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {row.photo.current && (
+        <span className={nums}>{shortDate(row.photo.current.uploadedOn, year)}</span>
+      )}
+      <StatusChip tone={PHOTO_TONES[row.photo.status]}>
+        {OFFICE_PHOTO_WORDS[row.photo.status]}
+      </StatusChip>
+    </span>
+  );
+}
+
+// Uploads to check: every photo and certificate waiting, oldest first; each opens the casual's
+// page, where it's approved or rejected.
+function UploadsList({
+  uploads,
+  timeZone,
+  year,
+}: {
+  uploads: WaitingUpload[];
+  timeZone: string;
+  year: number;
+}) {
+  return (
+    <ul role="list" className={`${headingGap} flex flex-col gap-3`}>
+      {uploads.map((u) => (
+        <li key={u.id} className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+          <span className="min-w-0">
+            <Link
+              href={`/office/casuals/${u.workerId}#uploads`}
+              className={`font-semibold ${textLink}`}
+            >
+              {u.name}
+            </Link>
+            <span className={`block ${meta}`}>
+              {uploadWhat(
+                u.kind,
+                u.qualificationName ? qualificationTitle(u.qualificationName) : null,
+              )}{" "}
+              · sent{" "}
+              <span className={nums}>{shortDate(localDateOf(u.sentAt, timeZone), year)}</span>
+            </span>
+          </span>
+          <Link href={`/office/casuals/${u.workerId}#uploads`} className={btn.secondary}>
+            Check it
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // Each qualification as a tag, the worst first.
 function Tags({ row }: { row: CasualRow }) {
@@ -88,6 +169,8 @@ export default async function OfficeCasualsPage({
   const view: CasualView = isView(viewParam) ? viewParam : "all";
   const list = await casualsList({ firm, officeUserId: officeUser.id }, view);
   if (!list) notFound();
+  const timeZone = firm.timezone;
+  const year = Number(localDateOf(new Date(), timeZone).slice(0, 4));
   return (
     <main className={page.office}>
       <PageHeader eyebrow={<>{firm.name} office</>} title="Casuals">
@@ -127,7 +210,13 @@ export default async function OfficeCasualsPage({
         <h2 id="list" className={h2}>
           {VIEW_WORDS[view]}
         </h2>
-        {list.rows.length === 0 ? (
+        {view === "uploads" ? (
+          list.uploads.length === 0 ? (
+            <p className={`${headingGap} text-ink-muted`}>{EMPTY[view]}</p>
+          ) : (
+            <UploadsList uploads={list.uploads} timeZone={timeZone} year={year} />
+          )
+        ) : list.rows.length === 0 ? (
           <p className={`${headingGap} text-ink-muted`}>{EMPTY[view]}</p>
         ) : (
           <>
@@ -143,6 +232,7 @@ export default async function OfficeCasualsPage({
                   <tr>
                     <th className={table.th}>Casual</th>
                     <th className={table.th}>Qualifications</th>
+                    <th className={table.th}>Staff photo</th>
                     <th className={table.th}>Travel area</th>
                     <th className={`${table.th} ${table.num}`}>Live strikes</th>
                     <th className={table.th}>Needs updating</th>
@@ -151,17 +241,25 @@ export default async function OfficeCasualsPage({
                 <tbody>
                   {list.rows.map((r) => (
                     <tr key={r.id}>
-                      <td className={`${table.td} min-w-48`}>
-                        <Link
-                          href={`/office/casuals/${r.id}`}
-                          className={`font-semibold ${textLink}`}
-                        >
-                          {r.name}
-                        </Link>
-                        <span className={`block ${meta}`}>{who(r)}</span>
+                      <td className={`${table.td} min-w-56`}>
+                        <span className="flex items-center gap-3">
+                          <Thumb row={r} />
+                          <span className="min-w-0">
+                            <Link
+                              href={`/office/casuals/${r.id}`}
+                              className={`font-semibold ${textLink}`}
+                            >
+                              {r.name}
+                            </Link>
+                            <span className={`block ${meta}`}>{who(r)}</span>
+                          </span>
+                        </span>
                       </td>
                       <td className={`${table.td} min-w-56`}>
                         <Tags row={r} />
+                      </td>
+                      <td className={`${table.td} min-w-40`}>
+                        <PhotoCell row={r} year={year} />
                       </td>
                       <td className={`${table.td} ${nums}`}>{officeTravelText(r.travel)}</td>
                       <td className={`${table.td} ${table.num}`}>{strikesText(r.liveStrikes)}</td>
@@ -174,14 +272,26 @@ export default async function OfficeCasualsPage({
             <ul role="list" className={`${headingGap} flex flex-col gap-3 md:hidden`}>
               {list.rows.map((r) => (
                 <li key={r.id} className={card}>
-                  <Link href={`/office/casuals/${r.id}`} className={`font-semibold ${textLink}`}>
-                    {r.name}
-                  </Link>
-                  <p className={meta}>{who(r)}</p>
+                  <div className="flex items-center gap-3">
+                    <Thumb row={r} />
+                    <div className="min-w-0">
+                      <Link
+                        href={`/office/casuals/${r.id}`}
+                        className={`font-semibold ${textLink}`}
+                      >
+                        {r.name}
+                      </Link>
+                      <p className={meta}>{who(r)}</p>
+                    </div>
+                  </div>
                   <div className="mt-2">
                     <Tags row={r} />
                   </div>
                   <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                    <dt className="font-semibold">Staff photo</dt>
+                    <dd>
+                      <PhotoCell row={r} year={year} />
+                    </dd>
                     <dt className="font-semibold">Travel area</dt>
                     <dd className={nums}>{officeTravelText(r.travel)}</dd>
                     <dt className="font-semibold">Live strikes</dt>

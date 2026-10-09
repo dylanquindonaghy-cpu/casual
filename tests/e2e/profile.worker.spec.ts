@@ -35,9 +35,7 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   await expect(
     rows
       .nth(0)
-      .getByText(
-        "Until it's renewed you won't see door supervisor shifts. Send the new details to the office.",
-      ),
+      .getByText("Until it's renewed you won't see door supervisor shifts. Upload the new one."),
   ).toBeVisible();
   await expect(rows.nth(1)).toContainText("Level 2 spectator safety qualification");
   await expect(rows.nth(1).getByText("Valid · No expiry date")).toBeVisible();

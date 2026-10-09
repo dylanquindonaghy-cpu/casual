@@ -20,6 +20,7 @@ import {
   shifts,
   sites,
   strikes,
+  uploads,
   workers,
   workerSiteBlocks,
   workerTravel,
@@ -31,6 +32,7 @@ import { officeUserMay, parts, type OfficeContext } from "../office/office-conte
 import { eventsAboutWorker } from "../office/action-log";
 import { csvCell } from "../office/notice-report";
 import { rosterId } from "../roster/book";
+import { uploadDetails } from "../uploads/details";
 import { renumberEvents } from "./event-numbers";
 
 // A worker's data, for a subject access request (docs/runbooks.md "GDPR requests"; UK GDPR: send
@@ -103,6 +105,13 @@ export async function collectWorkerData(
     .from(credentials)
     .where(eq(credentials.workerId, workerId))
     .orderBy(asc(credentials.createdAt), asc(credentials.id));
+  // Their photos and certificate images (12F.2): the details only, never the image itself (each is
+  // its own download from the data page).
+  const images = await tx
+    .select(uploadDetails())
+    .from(uploads)
+    .where(eq(uploads.workerId, workerId))
+    .orderBy(asc(uploads.createdAt), asc(uploads.id));
   const daysOff = await tx
     .select(columnsOf(workerUnavailableDays))
     .from(workerUnavailableDays)
@@ -247,6 +256,7 @@ export async function collectWorkerData(
     worker,
     sections: {
       credentials: credentialRows,
+      images,
       daysUnavailable: daysOff,
       siteBlocks,
       travelArea,

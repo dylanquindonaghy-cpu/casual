@@ -54,8 +54,9 @@ export async function firmReadiness(tx: FirmTx): Promise<ReadinessItem[]> {
       (select count(*)::int from office_users where status = 'active' and role = 'payroll') as payroll,
       (select count(*)::int from workers where status = 'active') as workers,
       (select count(*)::int from workers w where w.status = 'active'
-          and not exists (select 1 from credentials c where c.worker_id = w.id)) as workers_without_credentials,
-      (select count(*)::int from credentials) as credentials,
+          and not exists (select 1 from credentials c where c.worker_id = w.id
+                            and c.check_state = 'verified')) as workers_without_credentials,
+      (select count(*)::int from credentials where check_state = 'verified') as credentials,
       (select count(*)::int from credential_rules) as rules
   `);
   // The baseline's figures saved so far (each of BASELINE_KEYS, once or more).

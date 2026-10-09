@@ -17,6 +17,7 @@ import {
   type FirmVoice,
 } from "../messaging/templates";
 import { shortDate } from "../rules/reasons";
+import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { addDays, localDateOf } from "../time/zoned";
 import { EXPIRING_SOON_DAYS, expiryAction, isWeeklyListDay } from "./expiry";
@@ -75,6 +76,9 @@ export const credentialScanJob = { queue: CREDENTIAL_SCAN_QUEUE, schema: credent
 
 export interface CredentialScanDeps {
   transport: MessagingTransport;
+  // The app's domain (APP_BASE_DOMAIN): the reminders link to the casual's upload page on their
+  // firm's portal (12F.2).
+  baseDomain: string;
 }
 
 export interface ScanResult {
@@ -95,7 +99,7 @@ export async function scanCredentials(
   const today = payload.idempotencyKey.slice(KEY_PREFIX.length);
   // The Monday list stays outside: claimWeeklyList takes the same lock in its own transaction.
   const { warned, expired, failed } = await oneScanAtATime(run, payload.firmId, () =>
-    warnAndExpire(run, payload.firmId, today, deps.transport),
+    warnAndExpire(run, payload.firmId, today, deps),
   );
   const weeklyList = isWeeklyListDay(today)
     ? await sendWeeklyList(run, payload.firmId, today, deps.transport)
@@ -146,9 +150,17 @@ async function oneScanAtATime<T>(
   }
 }
 
-async function firmVoice(tx: FirmTx, firmId: string): Promise<FirmVoice & { line: string | null }> {
+async function firmVoice(
+  tx: FirmTx,
+  firmId: string,
+): Promise<FirmVoice & { line: string | null; slug: string }> {
   const [firm] = await tx
-    .select({ name: firms.name, settings: firms.settings, line: firms.shiftsLineE164 })
+    .select({
+      name: firms.name,
+      slug: firms.slug,
+      settings: firms.settings,
+      line: firms.shiftsLineE164,
+    })
     .from(firms)
     .where(eq(firms.id, firmId));
   if (!firm) throw new Error("firm not visible inside its own transaction");
@@ -157,11 +169,13 @@ async function firmVoice(tx: FirmTx, firmId: string): Promise<FirmVoice & { line
     name: firm.name,
     signOff: signOffFor(firm.name, firm.settings.sign_off),
     line: firm.line,
+    slug: firm.slug,
   };
 }
 
-// True when the worker also holds a valid credential of the same type that lasts longer (or never
-// expires): a renewal recorded as a new row. The old row gets no warning and no message, and isn't
+// True when the worker also holds a valid, checked credential of the same type that lasts longer (or
+// never expires): a renewal recorded as a new row (a casual's upload only once the office approves
+// it, 12F.2). The old row gets no warning and no message, and isn't
 // listed for the office; it is still marked expired when its date passes, so the record stays true.
 // (A drizzle alias renders as its name alone inside sql``, so the FROM names the table as well.)
 const newer = alias(credentials, "newer");
@@ -169,7 +183,7 @@ const superseded: SQL<boolean> = sql<boolean>`exists (
   select 1 from ${credentials} as ${sql.identifier("newer")}
    where ${newer.firmId} = ${credentials.firmId} and ${newer.workerId} = ${credentials.workerId}
      and ${newer.type} = ${credentials.type} and ${newer.id} <> ${credentials.id}
-     and ${newer.status} = 'valid'
+     and ${newer.status} = 'valid' and ${newer.checkState} = 'verified'
      and (${newer.expiresOn} is null or ${newer.expiresOn} > ${credentials.expiresOn}))`;
 
 type CredentialClaim =
@@ -289,6 +303,7 @@ async function claimCredential(
   id: string,
   today: string,
   voice: FirmVoice & { line: string | null },
+  portal: string,
 ): Promise<CredentialClaim> {
   const c = await lockDue(tx, id);
   if (!c || c.status !== "valid" || !c.expiresOn) return null;
@@ -321,6 +336,8 @@ async function claimCredential(
   // worker always has a mobile: only an erased one has none.)
   const mobile = c.workerStatus === "active" && !c.superseded ? c.mobile : null;
   const from = voice.line ? { from: voice.line } : {};
+  // Where she uploads the renewed card (12F.2): one the office records says to send it to them.
+  const upload = `${portal}/profile/upload/${c.type}`;
 
   if (action.kind === "warn") {
     // Unmarked, so a worker who comes back is warned then.
@@ -335,7 +352,7 @@ async function claimCredential(
         channel: "whatsapp",
         to: mobile,
         ...from,
-        body: credentialExpiringMessage(voice, name, shortDate(expiresOn, year)),
+        body: credentialExpiringMessage(voice, name, shortDate(expiresOn, year), upload),
       },
       data: { type: c.type, expiresOn, days: action.days, daysLeft: action.daysLeft },
     };
@@ -371,7 +388,7 @@ async function claimCredential(
             channel: "whatsapp",
             to: mobile,
             ...from,
-            body: credentialExpiredMessage(voice, name, shortDate(expiresOn, year)),
+            body: credentialExpiredMessage(voice, name, shortDate(expiresOn, year), upload),
           }
         : null,
       data: { type: c.type, expiresOn },
@@ -384,8 +401,9 @@ async function warnAndExpire(
   run: WithFirm,
   firmId: string,
   today: string,
-  transport: MessagingTransport,
+  deps: CredentialScanDeps,
 ): Promise<{ warned: number; expired: number; failed: number }> {
+  const { transport } = deps;
   const inFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => run(firmId, fn);
   // Every credential the planner could act on today (read only: each is locked when claimed).
   const { voice, due } = await inFirm(async (tx) => ({
@@ -396,6 +414,7 @@ async function warnAndExpire(
       .where(
         and(
           eq(credentials.status, "valid"),
+          eq(credentials.checkState, "verified"),
           isNotNull(credentials.expiresOn),
           lte(credentials.expiresOn, addDays(today, EXPIRING_SOON_DAYS)),
         ),
@@ -409,7 +428,9 @@ async function warnAndExpire(
   let expired = 0;
   let failed = 0;
   for (const { id } of due) {
-    const claim = await inFirm((tx) => claimCredential(tx, id, today, voice));
+    const claim = await inFirm((tx) =>
+      claimCredential(tx, id, today, voice, portalUrl(voice.slug, deps.baseDomain)),
+    );
     if (!claim) continue;
     if (claim.kind === "expire") expired += 1;
     if (!claim.message) continue;
@@ -510,6 +531,7 @@ async function claimWeeklyList(
       and(
         eq(workers.status, "active"),
         inArray(credentials.status, ["valid", "expired"]),
+        eq(credentials.checkState, "verified"),
         gte(credentials.expiresOn, addDays(today, -7)),
         lte(credentials.expiresOn, addDays(today, EXPIRING_SOON_DAYS)),
         sql`not ${superseded}`,
@@ -594,9 +616,10 @@ export function credentialScanTask(
 }
 
 // The worker's wiring. Deps are read when the job runs.
-export const credentialScanFirmTask = credentialScanTask(() => ({
-  transport: getTransport(workerEnv()),
-}));
+export const credentialScanFirmTask = credentialScanTask(() => {
+  const env = workerEnv();
+  return { transport: getTransport(env), baseDomain: env.APP_BASE_DOMAIN };
+});
 
 export interface CredentialTickDeps {
   listFirmIds: () => Promise<string[]>;

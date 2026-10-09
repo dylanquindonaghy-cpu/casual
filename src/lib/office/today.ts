@@ -419,12 +419,12 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
       from credentials c
       join workers w on w.firm_id = c.firm_id and w.id = c.worker_id
       left join credential_types ct on ct.firm_id = c.firm_id and ct.code = c.type
-     where w.status = 'active' and c.status = 'valid'
+     where w.status = 'active' and c.status = 'valid' and c.check_state = 'verified'
        and c.expires_on >= ${today}::date and c.expires_on <= ${addDays(today, TODAY_GAP_DAYS)}::date
        and not exists (
          select 1 from credentials n
           where n.firm_id = c.firm_id and n.worker_id = c.worker_id and n.type = c.type
-            and n.id <> c.id and n.status = 'valid'
+            and n.id <> c.id and n.status = 'valid' and n.check_state = 'verified'
             and (n.expires_on is null or n.expires_on > c.expires_on))
      order by c.expires_on, w.last_name, w.first_name
      limit ${LIST_MAX}

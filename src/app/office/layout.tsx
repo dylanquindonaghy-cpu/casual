@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { getOfficeSession } from "@/lib/auth/current-office";
-import { ROLE_LABELS } from "@/lib/auth/roles";
+import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
+import { uploadsToCheck } from "@/lib/office/casuals";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
 import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
@@ -16,9 +17,14 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
   if (!s) return <>{children}</>;
   // The Pay queries badge: how many are waiting (admins and payroll).
   const waiting = await officePayQueriesWaiting({ firm: s.firm }, s.officeUser.role);
-  const badges = waiting
-    ? { "/office/pay-queries": { count: waiting, words: `${waiting} waiting` } }
-    : {};
+  // The Casuals badge: uploads waiting for a check (admins and resourcers; 12F.2).
+  const toCheck = canAccess(s.officeUser.role, "casuals")
+    ? await uploadsToCheck({ firm: s.firm, officeUserId: s.officeUser.id })
+    : null;
+  const badges = {
+    ...(waiting ? { "/office/pay-queries": { count: waiting, words: `${waiting} waiting` } } : {}),
+    ...(toCheck ? { "/office/casuals": { count: toCheck, words: `${toCheck} to check` } } : {}),
+  };
   return (
     <OfficeShell
       name={s.officeUser.name}

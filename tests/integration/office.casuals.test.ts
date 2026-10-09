@@ -108,7 +108,7 @@ describe("the Casuals list", () => {
     await t.strike(ann, 5, "withdrawn");
 
     const list = await t.list();
-    expect(list?.counts).toEqual({ all: 2, needs: 1 });
+    expect(list?.counts).toEqual({ all: 2, needs: 1, uploads: 0 });
     expect(list?.rows.map((r) => r.id)).toEqual([ann, ben]); // both "Booker": by first name
     const [a, b] = list?.rows ?? [];
     expect(a?.qualifications.map((q) => [q.type, q.status])).toEqual([
@@ -154,7 +154,7 @@ describe("the Casuals list", () => {
 
     const needs = await t.list("needs");
     expect(needs?.view).toBe("needs");
-    expect(needs?.counts).toEqual({ all: 5, needs: 3 });
+    expect(needs?.counts).toEqual({ all: 5, needs: 3, uploads: 0 });
     expect(needs?.rows.map((r) => r.id)).toEqual([blocking, soon, missing]);
     expect(needs?.rows[0]?.needs[0]).toMatchObject({
       level: 1,

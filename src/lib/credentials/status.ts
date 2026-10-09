@@ -1,41 +1,73 @@
+import type { CheckState, RejectReason } from "../db/schema";
+import { casualMayUpload } from "../rules/packs";
 import { daysUntil, EXPIRING_SOON_DAYS } from "./expiry";
 
-// A casual's qualifications as they stand today (docs/office-v2.md 3.7, 4.2, 4.6; Rules 15; 12F.1).
-// Pure: records and dates in, statuses out. The same reading as the rules engine
-// (docs/rules-and-credentials.md): a suspended record fails whatever else is held; otherwise a
-// valid record in date counts; an applied one is being processed; anything else has expired.
+// A casual's qualifications as they stand today (docs/office-v2.md 3.7, 4.2, 4.6; Rules 15; 12F.1,
+// 12F.2). Pure: records and dates in, statuses out. The same reading as the rules engine
+// (docs/rules-and-credentials.md): only checked records count (D3: the office's own, or an upload a
+// named person approved); a suspended one fails whatever else is held; otherwise a valid one in
+// date counts; an applied one is being processed; anything else has expired.
 //
 // - qualificationStatus(): one type's records → Valid, Expiring soon (within EXPIRING_SOON_DAYS),
-//   Expired, Missing (no record), Applied for or Suspended. ("Being checked" and "Not accepted"
-//   join with 12F.2's uploads.)
+//   Being checked (her upload is waiting for the office), Not accepted (the office turned her latest
+//   upload down, with a reason), Applied for, Expired, Missing (no record) or Suspended. An upload
+//   never counts until it's checked: a waiting renewal of a record still in date shows that record
+//   (renewing), and an upload never hides a suspension.
 // - listQualifications(): every type one of her roles needs (the firm's rules), with the roles that
 //   need it, worst first. A type nothing needs isn't listed. Right to work is a status only
 //   (rightToWork()), never in the list.
 // - needsUpdating(): what she should sort out, in §4.2's order: (1) blocks a booked shift (expired,
-//   suspended or missing, applied for where the firm's rules won't accept it, or expiring before
-//   the shift ends); (2) expired or suspended; (3) expiring soon, unless she's already applied to
-//   renew it; (4) missing. The staff photo's levels join with 12F.2.
+//   suspended, missing, not accepted or still being checked, applied for where the firm's rules won't
+//   accept it, or expiring before the shift ends); (2) expired, suspended or not accepted; (3)
+//   expiring soon, unless she's already applied or sent a renewal; (4) missing. One being checked
+//   is otherwise for the office, not her. (The staff photo has its own status: src/lib/uploads/
+//   photo.ts.)
 // - rolesWithoutRule(): her roles the firm has no rule for: the rules engine refuses those shifts
 //   (fail closed), so nothing may say her roles "need none".
 
 export const RIGHT_TO_WORK = "RTW";
 
 export type QualificationStatus =
-  "valid" | "expiring_soon" | "expired" | "missing" | "applied" | "suspended";
+  | "valid"
+  | "expiring_soon"
+  | "expired"
+  | "missing"
+  | "applied"
+  | "suspended"
+  | "being_checked"
+  | "rejected";
+
+// Her upload a record came from (a certificate image), when it was sent, and why it wasn't
+// accepted (rejected records only).
+export interface RecordUpload {
+  id: string;
+  sentOn: string; // yyyy-mm-dd, the firm's calendar
+  reason?: RejectReason | null;
+}
 
 export interface CredentialRecord {
   status: "valid" | "expired" | "applied" | "suspended";
   expiresOn: string | null; // yyyy-mm-dd
+  checkState?: CheckState; // default verified (the office's own)
+  upload?: RecordUpload | null;
 }
 
 export interface QualificationState {
   status: QualificationStatus;
   // The date that goes with it: valid until / expires / expired on (null: no expiry, or none known).
   expiresOn: string | null;
+  // The image behind the record that decides it (null: the office's own record, no image).
+  evidenceUploadId: string | null;
+  // Her upload waiting for the office, whatever the status (a renewal of one still in date too).
+  waiting: { uploadId: string; sentOn: string } | null;
+  // Not accepted: her latest upload, and why (only with that status).
+  rejected: { uploadId: string; sentOn: string; reason: RejectReason } | null;
 }
 
+const checked = (r: CredentialRecord) => (r.checkState ?? "verified") === "verified";
+
 const inDate = (r: CredentialRecord, today: string) =>
-  r.status === "valid" && (r.expiresOn === null || r.expiresOn >= today);
+  checked(r) && r.status === "valid" && (r.expiresOn === null || r.expiresOn >= today);
 
 // The longest-lasting first (no expiry lasts longest).
 const lasting = (a: CredentialRecord, b: CredentialRecord) =>
@@ -45,25 +77,61 @@ export function qualificationStatus(
   records: readonly CredentialRecord[],
   today: string,
 ): QualificationState {
-  if (records.length === 0) return { status: "missing", expiresOn: null };
-  const suspended = records.find((r) => r.status === "suspended");
-  if (suspended) return { status: "suspended", expiresOn: suspended.expiresOn };
-  const best = records.filter((r) => inDate(r, today)).sort(lasting)[0];
+  const office = records.filter(checked);
+  const upload = (r: CredentialRecord | undefined) => r?.upload ?? null;
+  const waitingRecord = records.find((r) => r.checkState === "waiting" && r.upload);
+  const waiting = waitingRecord?.upload
+    ? { uploadId: waitingRecord.upload.id, sentOn: waitingRecord.upload.sentOn }
+    : null;
+  const state = (
+    status: QualificationStatus,
+    expiresOn: string | null,
+    from: CredentialRecord | undefined,
+  ): QualificationState => ({
+    status,
+    expiresOn,
+    evidenceUploadId: upload(from)?.id ?? null,
+    waiting,
+    rejected: null,
+  });
+  const suspended = office.find((r) => r.status === "suspended");
+  if (suspended) return state("suspended", suspended.expiresOn, suspended);
+  const best = office.filter((r) => inDate(r, today)).sort(lasting)[0];
   if (best) {
     const soon = best.expiresOn !== null && daysUntil(today, best.expiresOn) <= EXPIRING_SOON_DAYS;
-    return { status: soon ? "expiring_soon" : "valid", expiresOn: best.expiresOn };
+    return state(soon ? "expiring_soon" : "valid", best.expiresOn, best);
   }
-  if (records.some((r) => r.status === "applied")) return { status: "applied", expiresOn: null };
+  if (waiting) return state("being_checked", null, undefined);
+  // Her latest upload turned down: what she needs to know, ahead of an older record.
+  const turnedDown = records
+    .filter((r) => r.checkState === "rejected" && r.upload?.reason)
+    .sort((a, b) => (b.upload?.sentOn ?? "").localeCompare(a.upload?.sentOn ?? ""))[0];
+  if (turnedDown?.upload?.reason) {
+    return {
+      ...state("rejected", null, undefined),
+      rejected: {
+        uploadId: turnedDown.upload.id,
+        sentOn: turnedDown.upload.sentOn,
+        reason: turnedDown.upload.reason,
+      },
+    };
+  }
+  if (office.length === 0) return state("missing", null, undefined);
+  const applied = office.find((r) => r.status === "applied");
+  if (applied) return state("applied", null, applied);
   // Expired: marked so, or valid with its date gone. The latest date, if any has one.
-  const dated = records.filter((r) => r.expiresOn !== null).sort(lasting)[0];
-  return { status: "expired", expiresOn: dated?.expiresOn ?? null };
+  const dated = office.filter((r) => r.expiresOn !== null).sort(lasting)[0];
+  return state("expired", dated?.expiresOn ?? null, dated ?? office[0]);
 }
 
-// Worst first: what stops her working, then what's missing, then what's about to.
+// Worst first: what stops her working (the office's word, then hers turned down), then what's
+// missing or waiting for the office, then what's about to.
 export const STATUS_ORDER: readonly QualificationStatus[] = [
   "suspended",
   "expired",
+  "rejected",
   "missing",
+  "being_checked",
   "expiring_soon",
   "applied",
   "valid",
@@ -76,7 +144,11 @@ export interface Qualification extends QualificationState {
   // Applied for: whether the rules engine may accept it (the type allows it and the firm's
   // allowance is above 0; the share is checked per shift). Otherwise it counts for nothing.
   appliedCounts: boolean;
-  renewing: boolean; // in date, with an application to renew it in progress
+  // In date, with a renewal on its way: an application in progress, or her new card waiting for
+  // the office.
+  renewing: boolean;
+  // Whether she may upload it (not one the office records itself: src/lib/rules/packs.ts).
+  uploadable: boolean;
 }
 
 export function listQualifications(o: {
@@ -110,7 +182,8 @@ export function listQualifications(o: {
         appliedCounts: o.appliedCounts?.(type) ?? false,
         renewing:
           (state.status === "valid" || state.status === "expiring_soon") &&
-          records.some((r) => r.status === "applied"),
+          (state.waiting !== null || records.some((r) => checked(r) && r.status === "applied")),
+        uploadable: casualMayUpload(type),
       };
     })
     .sort((a, b) => rank(a.status) - rank(b.status) || a.name.localeCompare(b.name));
@@ -129,7 +202,7 @@ export function rightToWork(
   records: readonly ({ type: string; checkedOn: string | null } & CredentialRecord)[],
   today: string,
 ): RightToWork {
-  const all = records.filter((r) => r.type === RIGHT_TO_WORK);
+  const all = records.filter((r) => r.type === RIGHT_TO_WORK && checked(r));
   const checks = all.filter((r) => inDate(r, today));
   if (checks.length === 0) {
     return { checked: false, checkedOn: null, expired: all.some((r) => r.status !== "applied") };
@@ -173,8 +246,12 @@ export function needsUpdating(o: {
         (q.status === "expired" ||
           q.status === "suspended" ||
           q.status === "missing" ||
+          q.status === "rejected" ||
+          q.status === "being_checked" ||
           appliedStops ||
-          (q.status !== "applied" && q.expiresOn !== null && q.expiresOn < b.endDay)),
+          ((q.status === "valid" || q.status === "expiring_soon") &&
+            q.expiresOn !== null &&
+            q.expiresOn < b.endDay)),
     );
     if (stopped) {
       items.push({
@@ -185,7 +262,7 @@ export function needsUpdating(o: {
       continue;
     }
     const level: NeedsLevel | null =
-      q.status === "expired" || q.status === "suspended"
+      q.status === "expired" || q.status === "suspended" || q.status === "rejected"
         ? 2
         : q.status === "expiring_soon" && !q.renewing
           ? 3

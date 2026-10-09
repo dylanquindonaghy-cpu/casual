@@ -253,9 +253,13 @@ test("Part 2: as a worker", async ({ browser }) => {
     const needs = page.getByRole("region", { name: "Needs updating" });
     await expect(
       needs.getByText(
-        /^SIA door supervisor licence expired on .+\. Until it's renewed you won't see door supervisor shifts\.$/,
+        /^SIA door supervisor licence expired on .+\. Until it's renewed you won't see door supervisor shifts\. Upload it$/,
       ),
     ).toBeVisible();
+    // Straight to its upload page (12F.2).
+    await expect(
+      needs.getByRole("link", { name: "Upload your SIA door supervisor licence" }),
+    ).toHaveAttribute("href", "/profile/upload/SIA_DS");
     await expect(needs.getByRole("link", { name: "See your qualifications" })).toBeVisible();
     await page.goto(`${acme}/shifts/${dropout}`);
     await expect(page.getByRole("heading", { name: "You can't take this shift:" })).toBeVisible();

@@ -278,16 +278,34 @@ describe("My shifts page body", () => {
     const html = render({ needs: EVERY_LEVEL });
     const words = text(html);
     expect(words).toContain("Needs updating");
-    const rows = [...html.matchAll(/<li>([^<]*)<\/li>/g)].map((m) =>
-      (m[1] ?? "").replace(/&#x27;|&#39;/g, "'"),
+    const card = html.slice(html.indexOf('aria-labelledby="needs-heading"'));
+    const section = card.slice(0, card.indexOf("</section>"));
+    const items = [...section.matchAll(/<li>(.*?)<\/li>/g)].map((m) => m[1] ?? "");
+    const rows = items.map((inner) =>
+      inner
+        .replace(/<[^>]+>/g, "")
+        .replace(/&#x27;|&#39;/g, "'")
+        .replace(/\s+/g, " ")
+        .trim(),
     );
+    // A row she can sort herself ends "Upload it" (12F.2): not a suspension (an upload can't lift
+    // it), not one the office records (CSAS).
     expect(rows).toEqual([
-      "SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Send the new details to the office, or contact them.",
+      "SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or contact the office. Upload it",
       "SIA close protection licence is suspended. Contact the office.",
-      "First aid at work certificate expired on 1 Oct. Until it's renewed you won't see response team lead shifts.",
-      "SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts.",
+      "First aid at work certificate expired on 1 Oct. Until it's renewed you won't see response team lead shifts. Upload it",
+      "SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts. Upload it",
       "CSAS accreditation is missing. Needed for CSAS officer and steward shifts.",
     ]);
+    const links = items.map((inner) => /href="([^"]+)"/.exec(inner)?.[1] ?? null);
+    expect(links).toEqual([
+      "/profile/upload/SIA_DS",
+      null,
+      "/profile/upload/FIRST_AID",
+      "/profile/upload/SIA_SG",
+      null,
+    ]);
+    expect(html).toContain('aria-label="Upload your first aid at work certificate"');
     expect(html).toContain('href="/profile"');
     expect(words).toContain("See your qualifications");
     // Something that stops her working: red; otherwise amber. Nothing to update: no card.

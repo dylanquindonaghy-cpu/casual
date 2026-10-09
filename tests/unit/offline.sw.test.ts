@@ -227,6 +227,13 @@ describe("which requests the service worker answers", () => {
     expect(answers(req("/?_rsc=abc", { mode: "cors" }))).toBe(false); // a page's data
     expect(answers(req("/", { method: "POST", mode: "navigate" }))).toBe(false); // an action
     expect(answers(req("https://example.com/_next/static/x.js"))).toBe(false);
+    // Photos and certificate images (12F.2) are never kept: always the network, with the server's
+    // access check and "private, no-store".
+    expect(answers(req("/files/7c1d2e3f-0000-4000-8000-000000000001"))).toBe(false);
+    expect(answers(navigate("/files/7c1d2e3f-0000-4000-8000-000000000001"))).toBe(false);
+    expect(answers(req("/_next/static/../../files/7c1d2e3f-0000-4000-8000-000000000001"))).toBe(
+      false,
+    );
   });
 
   it("shares its cache names with the page (which deletes the copy on logout and login)", () => {

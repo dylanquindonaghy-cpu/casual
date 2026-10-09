@@ -1,5 +1,7 @@
+import type { RejectReason } from "../db/schema";
 import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
+import { REJECT_CHOICES } from "../portal/qualification-copy";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
@@ -411,7 +413,24 @@ export function eventWords(e: LoggedEvent, names: Names): string {
 
     // Credentials.
     case "credential.added":
-      return `${credential(d.type)} added for ${worker}.`;
+      // The office records CSAS itself, under its own scheme (12F.2).
+      return d.via === "office"
+        ? `${officeName} recorded ${worker}'s ${credential(d.type)}${d.ownScheme ? ", under the firm's own scheme" : ""}.`
+        : `${credential(d.type)} added for ${worker}.`;
+
+    // Photos and certificate images (12F.2): what was sent and the check, never the image.
+    case "upload.received":
+      return `${worker} sent ${d.kind === "photo" ? "a new staff photo" : `their ${credential(d.qualificationType)}`}${
+        d.replaced ? ", in place of the one waiting" : ""
+      }.`;
+    case "upload.approved":
+      return `${officeName} approved ${worker}'s ${
+        d.kind === "photo" ? "staff photo" : credential(d.qualificationType)
+      }${typeof d.expiresOn === "string" ? ` (expires ${dayLabel(d.expiresOn)})` : ""}.`;
+    case "upload.rejected":
+      return `${officeName} didn't accept ${worker}'s ${
+        d.kind === "photo" ? "staff photo" : credential(d.qualificationType)
+      }: ${REJECT_CHOICES[d.reason as RejectReason]?.toLowerCase() ?? "other"}.`;
     case "credential.updated":
       return `${worker}'s ${credential(d.type)} was updated.`;
     case "credential.expired":
@@ -553,7 +572,12 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         return `Old login records were tidied up (${logins}). Nothing else was deleted: a hold is on (a dispute).`;
       }
       const of = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
-      return `Old data was deleted on schedule, by the firm's retention settings: ${of(n("messages"), "message", "messages")}, ${of(n("requestNotes"), "request note", "request notes")}, ${of(n("overrideReasons"), "reason on a booking", "reasons on bookings")} and ${of(logins, "old login record", "old login records")}.`;
+      // Photos and card images (12F.2) only when there were some, so older entries read as before.
+      const images =
+        n("uploads") > 0
+          ? `, ${of(n("uploads"), "turned-down or replaced photo or card image", "turned-down or replaced photos and card images")}`
+          : "";
+      return `Old data was deleted on schedule, by the firm's retention settings: ${of(n("messages"), "message", "messages")}, ${of(n("requestNotes"), "request note", "request notes")}, ${of(n("overrideReasons"), "reason on a booking", "reasons on bookings")}${images} and ${of(logins, "old login record", "old login records")}.`;
     }
     case "credential_pack.applied":
       return "The credential rules for the firm's sector were set up.";

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import {
   assignments,
   credentialRules,
@@ -6,11 +6,14 @@ import {
   credentialTypes,
   firms,
   shifts,
+  uploads,
   workers,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { rulesSettingsSchema } from "../roster/eligibility-input";
 import { localDateOf } from "../time/zoned";
+import { staffPhoto, type StaffPhoto } from "../uploads/photo";
+import { photoSettings } from "../uploads/settings";
 import {
   listQualifications,
   needsUpdating,
@@ -21,16 +24,19 @@ import {
   type RightToWork,
 } from "./status";
 
-// Casuals' qualifications as they stand now (12F.1; src/lib/credentials/status.ts has the rules),
-// for many casuals at once: the casual's own Profile and My shifts, and the office's Casuals pages.
-// A fixed number of queries however many casuals (their roles, the firm's rules and type names,
-// their records, their confirmed bookings ahead). Inside the firm's transaction; reads only.
+// Casuals' qualifications and staff photos as they stand now (12F.1, 12F.2;
+// src/lib/credentials/status.ts and src/lib/uploads/photo.ts have the rules), for many casuals at
+// once: the casual's own Profile and My shifts, and the office's Casuals pages. A fixed number of
+// queries however many casuals (their roles, the firm's rules, type names and settings, their
+// records with the upload each came from, their photos, their confirmed bookings ahead). Image
+// bytes are never read here. Inside the firm's transaction; reads only.
 
 export interface CasualQualifications {
   qualifications: Qualification[];
   rightToWork: RightToWork;
   needs: NeedsItem[];
   rolesWithoutRule: string[]; // her roles the firm has no rule for: those shifts can't be taken
+  photo: StaffPhoto;
 }
 
 // `people`: the casuals' roles when the caller has them already (the office's list), so they
@@ -71,6 +77,8 @@ export async function qualificationsFor(
   const allowance = settings.success ? settings.data.credential_applied_allowance_pct : 0;
   const appliedOk = new Set(types.filter((t) => t.appliedAllowed).map((t) => t.code));
   const appliedCounts = (type: string) => allowance > 0 && appliedOk.has(type);
+  const { renewalMonths } = photoSettings(firm?.settings ?? {});
+  // Each record with the upload it came from (when it was sent; why it was turned down).
   const records = await tx
     .select({
       workerId: credentials.workerId,
@@ -78,10 +86,34 @@ export async function qualificationsFor(
       status: credentials.status,
       expiresOn: credentials.expiresOn,
       verifiedAt: credentials.verifiedAt,
+      checkState: credentials.checkState,
+      uploadId: uploads.id,
+      sentAt: uploads.createdAt,
+      reason: credentials.rejectedReason,
     })
     .from(credentials)
+    .leftJoin(
+      uploads,
+      and(eq(uploads.firmId, credentials.firmId), eq(uploads.id, credentials.evidenceUploadId)),
+    )
     .where(inArray(credentials.workerId, ids))
     .orderBy(asc(credentials.type));
+  // Their photos, waiting or approved (a turned-down one changes nothing): never the bytes.
+  const photos = await tx
+    .select({
+      workerId: uploads.workerId,
+      id: uploads.id,
+      status: uploads.status,
+      uploadedAt: uploads.createdAt,
+    })
+    .from(uploads)
+    .where(
+      and(
+        inArray(uploads.workerId, ids),
+        eq(uploads.kind, "photo"),
+        ne(uploads.status, "rejected"),
+      ),
+    );
   // Bookings still to finish: one in progress still needs its qualifications today.
   const bookings = await tx
     .select({
@@ -105,6 +137,7 @@ export async function qualificationsFor(
     );
   // Each casual's own, grouped once (not filtered per casual: a firm may have thousands).
   const recordsOf = groupBy(records, (r) => r.workerId);
+  const photosOf = groupBy(photos, (p) => p.workerId);
   const bookingsOf = groupBy(bookings, (b) => b.workerId ?? "");
   for (const person of people) {
     const mine = (recordsOf.get(person.id) ?? []).map((r) => ({
@@ -112,6 +145,11 @@ export async function qualificationsFor(
       status: r.status,
       expiresOn: r.expiresOn,
       checkedOn: r.verifiedAt ? localDateOf(r.verifiedAt, o.timeZone) : null,
+      checkState: r.checkState,
+      upload:
+        r.uploadId && r.sentAt
+          ? { id: r.uploadId, sentOn: localDateOf(r.sentAt, o.timeZone), reason: r.reason }
+          : null,
     }));
     const qualifications = listQualifications({
       roles: person.roles,
@@ -125,6 +163,16 @@ export async function qualificationsFor(
       qualifications,
       rightToWork: rightToWork(mine, today),
       rolesWithoutRule: rolesWithoutRule(person.roles, rules),
+      photo: staffPhoto(
+        (photosOf.get(person.id) ?? []).map((p) => ({
+          id: p.id,
+          status: p.status,
+          uploadedAt: p.uploadedAt,
+          uploadedOn: localDateOf(p.uploadedAt, o.timeZone),
+        })),
+        today,
+        renewalMonths,
+      ),
       needs: needsUpdating({
         qualifications,
         bookings: (bookingsOf.get(person.id) ?? []).map((b) => ({

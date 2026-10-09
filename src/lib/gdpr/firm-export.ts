@@ -6,6 +6,7 @@ import * as schema from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeUserMay, parts, type OfficeContext } from "../office/office-context";
+import { uploadDetails } from "../uploads/details";
 import { renumberEvents } from "./event-numbers";
 
 // A firm's own data, all of it, as one JSON file (docs/compliance.md "Firms can export their data
@@ -16,7 +17,9 @@ import { renumberEvents } from "./event-numbers";
 // lets anyone holding it send that phone a notification), and travel estimates (keyed by casuals'
 // full postcodes, which the office never sees). A casual's travel area goes out as its
 // district only, never the postcode or its point (FIRM_EXPORT_CUT): the office never sees more
-// (docs/dpia-travel.md); the casual's own export has it in full. Admins only, checked inside the
+// (docs/dpia-travel.md); the casual's own export has it in full. Photos and certificate images go
+// out as their details and fingerprint, never the bytes (FIRM_EXPORT_CUT; 12F.2): each image is its
+// own download. Admins only, checked inside the
 // firm's transaction (RLS scopes every row to the firm), and logged: firm.data_exported
 // {tables, rows}.
 //
@@ -51,6 +54,10 @@ export const FIRM_EXPORT_CUT: Readonly<
       updatedAt: travel.updatedAt,
       createdAt: travel.createdAt,
     }),
+  },
+  uploads: {
+    why: "photos and certificate images: their details and fingerprint, never the image (each is its own download)",
+    columns: () => ({ ...uploadDetails(), workerId: schema.uploads.workerId }),
   },
 };
 

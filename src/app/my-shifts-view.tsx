@@ -10,7 +10,7 @@ import {
   timeOnDay,
 } from "@/lib/portal/format";
 import type { MyShift, ShiftsView } from "@/lib/portal/my-shifts";
-import { needsText } from "@/lib/portal/qualification-copy";
+import { needsText, needsUpload } from "@/lib/portal/qualification-copy";
 import { travelLineText } from "@/lib/travel/line-copy";
 import { wallTimeOf } from "@/lib/time/zoned";
 import { HomeScreenHint } from "./home-screen-hint";
@@ -178,7 +178,22 @@ function NeedsUpdating({ needs, timeZone, now }: MyShiftsViewProps) {
       </h2>
       <ul role="list" className="mt-2 flex flex-col gap-2 text-base">
         {needs.map((n) => (
-          <li key={n.qualification.type}>{needsText(n, year)}</li>
+          <li key={n.qualification.type}>
+            {needsText(n, year)}
+            {/* Where she can sort it herself (12F.2): straight to that card's upload. */}
+            {needsUpload(n.qualification) && (
+              <>
+                {" "}
+                <Link
+                  href={`/profile/upload/${n.qualification.type}`}
+                  aria-label={`Upload your ${n.qualification.name}`}
+                  className="font-semibold underline underline-offset-4"
+                >
+                  Upload it
+                </Link>
+              </>
+            )}
+          </li>
         ))}
       </ul>
       <Link href="/profile" className={`${staffBtn.secondary} mt-3`}>

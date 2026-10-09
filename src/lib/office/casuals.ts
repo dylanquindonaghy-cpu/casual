@@ -1,8 +1,17 @@
-import { asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { qualificationsFor } from "../credentials/qualifications";
 import type { NeedsItem, Qualification } from "../credentials/status";
-import { firms, workers, type TravelMode } from "../db/schema";
+import {
+  credentialTypes,
+  firms,
+  uploads,
+  workers,
+  type TravelMode,
+  type UploadKind,
+} from "../db/schema";
+import type { FirmTx } from "../db/scoped";
+import type { StaffPhoto } from "../uploads/photo";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // The Casuals list (docs/office-v2.md 3.7; docs/screens.md `/office/casuals`; 12F.1), for admins and
@@ -10,12 +19,14 @@ import { officeUserMay, parts, type OfficeContext } from "./office-context";
 // name, with their qualifications (worst first: src/lib/credentials/status.ts), travel district
 // (never the postcode: it's cut out in the database), live strikes and what needs updating.
 //
-// Views, each with its count: All, and Need updating (active casuals with something to update,
-// the worst first: one stopping a booked shift, then expired, expiring soon, missing). An inactive
-// or blocked casual can't work, so isn't "to update". The staff photo column and "Uploads to check"
-// join with 12F.2. Reads only; a fixed number of queries however many casuals.
+// Views, each with its count: All; Need updating (active casuals with something to update, the
+// worst first: one stopping a booked shift, then expired, expiring soon, missing; an inactive or
+// blocked casual can't work, so isn't "to update"); and Uploads to check (12F.2: every photo and
+// certificate image waiting for the office, oldest first, whoever sent it). Each casual has their
+// staff photo (src/lib/uploads/photo.ts). Reads only (never an image's bytes); a fixed number of
+// queries however many casuals.
 
-export const CASUAL_VIEWS = ["all", "needs"] as const;
+export const CASUAL_VIEWS = ["all", "needs", "uploads"] as const;
 export type CasualView = (typeof CASUAL_VIEWS)[number];
 export const CASUALS_PAGE_MAX = 200;
 
@@ -29,13 +40,73 @@ export interface CasualRow {
   liveStrikes: number;
   needs: NeedsItem[];
   rolesWithoutRule: string[]; // roles the firm has no rule for (those shifts can't be taken)
+  photo: StaffPhoto;
+}
+
+// One upload waiting for the office (Uploads to check).
+export interface WaitingUpload {
+  id: string;
+  workerId: string;
+  name: string;
+  kind: UploadKind;
+  qualificationType: string | null;
+  qualificationName: string | null; // as stored, mid-sentence
+  sentAt: Date;
 }
 
 export interface CasualsList {
   view: CasualView;
   counts: Record<CasualView, number>;
-  rows: CasualRow[];
+  rows: CasualRow[]; // All and Need updating
+  uploads: WaitingUpload[]; // Uploads to check
   more: boolean; // more than CASUALS_PAGE_MAX in the view
+}
+
+// Every upload waiting for the office, oldest first (casuals not erased: theirs are deleted).
+async function waitingUploads(tx: FirmTx, limit: number): Promise<WaitingUpload[]> {
+  const rows = await tx
+    .select({
+      id: uploads.id,
+      workerId: uploads.workerId,
+      firstName: workers.firstName,
+      lastName: workers.lastName,
+      kind: uploads.kind,
+      qualificationType: uploads.credentialType,
+      qualificationName: credentialTypes.name,
+      sentAt: uploads.createdAt,
+    })
+    .from(uploads)
+    .innerJoin(workers, and(eq(workers.firmId, uploads.firmId), eq(workers.id, uploads.workerId)))
+    .leftJoin(
+      credentialTypes,
+      and(
+        eq(credentialTypes.firmId, uploads.firmId),
+        eq(credentialTypes.code, uploads.credentialType),
+      ),
+    )
+    .where(and(eq(uploads.status, "waiting"), isNull(workers.erasedAt)))
+    .orderBy(asc(uploads.createdAt), asc(uploads.id))
+    .limit(limit);
+  return rows.map(({ firstName, lastName, ...r }) => ({ ...r, name: `${firstName} ${lastName}` }));
+}
+
+async function waitingCount(tx: FirmTx): Promise<number> {
+  const { rows } = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n
+      from uploads u
+      join workers w on w.firm_id = u.firm_id and w.id = u.worker_id
+     where u.status = 'waiting' and w.erased_at is null
+  `);
+  return Number(rows[0]?.n ?? 0);
+}
+
+// The Casuals menu badge: how many uploads wait for the office (admins and resourcers; null for
+// anyone else).
+export async function uploadsToCheck(ctx: OfficeContext): Promise<number | null> {
+  const { run } = parts(ctx);
+  return run(ctx.firm.id, async (tx) =>
+    (await officeUserMay(tx, ctx.officeUserId, "casuals")) ? waitingCount(tx) : null,
+  );
 }
 
 export async function casualsList(
@@ -100,6 +171,7 @@ export async function casualsList(
         liveStrikes: liveOf.get(p.id) ?? 0,
         needs: q?.needs ?? [],
         rolesWithoutRule: q?.rolesWithoutRule ?? [],
+        photo: q?.photo ?? { status: "missing", current: null, waiting: null },
       };
     });
     // The worst first: by level, then (level 1) the booked shift it stops soonest; then by name.
@@ -110,11 +182,22 @@ export async function casualsList(
           (a.needs[0]?.level ?? 9) - (b.needs[0]?.level ?? 9) ||
           (a.needs[0]?.blocks?.day ?? "").localeCompare(b.needs[0]?.blocks?.day ?? ""),
       );
+    const waiting = await waitingCount(tx);
+    if (view === "uploads") {
+      return {
+        view,
+        counts: { all: all.length, needs: needing.length, uploads: waiting },
+        rows: [],
+        uploads: await waitingUploads(tx, CASUALS_PAGE_MAX),
+        more: waiting > CASUALS_PAGE_MAX,
+      };
+    }
     const shown = view === "needs" ? needing : all;
     return {
       view,
-      counts: { all: all.length, needs: needing.length },
+      counts: { all: all.length, needs: needing.length, uploads: waiting },
       rows: shown.slice(0, CASUALS_PAGE_MAX),
+      uploads: [],
       more: shown.length > CASUALS_PAGE_MAX,
     };
   });

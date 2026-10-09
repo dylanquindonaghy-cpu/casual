@@ -54,10 +54,15 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
 
   // My shifts' "Needs updating": the expiring one (level 3) before the missing one (level 4).
   const needs = page.getByRole("region", { name: "Needs updating" });
+  // One she can upload ends "Upload it" (12F.2); CSAS is recorded by the office, so it doesn't.
   await expect(needs.getByRole("listitem")).toHaveText([
-    /^Level 2 spectator safety qualification expires on \d{1,2} \w{3}( \d{4})?\. Renew it to keep getting steward shifts\.$/,
+    /^Level 2 spectator safety qualification expires on \d{1,2} \w{3}( \d{4})?\. Renew it to keep getting steward shifts\. Upload it$/,
     "CSAS accreditation is missing. Needed for CSAS officer shifts.",
   ]);
+  await expect(
+    needs.getByRole("link", { name: "Upload your Level 2 spectator safety qualification" }),
+  ).toHaveAttribute("href", "/profile/upload/STEWARD_L2");
+  await expect(needs.getByRole("link", { name: /CSAS/ })).toHaveCount(0);
   await needs.getByRole("link", { name: "See your qualifications" }).click();
 
   await expect(page).toHaveURL(`${acme}/profile`);
@@ -139,8 +144,13 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     await expect(needsList.getByRole("listitem")).toHaveCount(needCount);
     const card = needsList.getByRole("listitem").filter({ hasText: "Zoe Adeyemi" });
     await expect(card).toContainText(TAGS);
-    await expect(card.locator("dt")).toHaveText(["Travel area", "Live strikes", "Needs updating"]);
-    await expect(card.locator("dd")).toHaveText(["Not set", String(strikes), SUMMARY]);
+    await expect(card.locator("dt")).toHaveText([
+      "Staff photo",
+      "Travel area",
+      "Live strikes",
+      "Needs updating",
+    ]);
+    await expect(card.locator("dd")).toHaveText(["Missing", "Not set", String(strikes), SUMMARY]);
     await noSidewaysScroll(page);
 
     // On a computer: the table's columns, and Zoe's row; the cards are hidden.
@@ -149,6 +159,7 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     await expect(table.getByRole("columnheader")).toHaveText([
       "Casual",
       "Qualifications",
+      "Staff photo",
       "Travel area",
       "Live strikes",
       "Needs updating",
@@ -156,9 +167,10 @@ test("the office sees Zoe on Casuals and on her own page", async ({ page }, test
     await expect(table.getByRole("row")).toHaveCount(needCount + 1);
     const row = table.getByRole("row").filter({ hasText: "Zoe Adeyemi" });
     await expect(row.getByRole("cell").nth(1)).toContainText(TAGS);
-    await expect(row.getByRole("cell").nth(2)).toHaveText("Not set");
-    await expect(row.getByRole("cell").nth(3)).toHaveText(String(strikes));
-    await expect(row.getByRole("cell").nth(4)).toHaveText(SUMMARY);
+    await expect(row.getByRole("cell").nth(2)).toHaveText("Missing"); // no staff photo yet
+    await expect(row.getByRole("cell").nth(3)).toHaveText("Not set");
+    await expect(row.getByRole("cell").nth(4)).toHaveText(String(strikes));
+    await expect(row.getByRole("cell").nth(5)).toHaveText(SUMMARY);
     await expect(needsList.getByRole("listitem")).toHaveCount(0);
 
     // Her page, on a phone again.

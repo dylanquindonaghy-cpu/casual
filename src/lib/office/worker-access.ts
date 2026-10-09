@@ -403,6 +403,7 @@ export interface WorkerAccessView {
   rightToWork: CasualQualifications["rightToWork"];
   needs: CasualQualifications["needs"];
   rolesWithoutRule: string[];
+  photo: CasualQualifications["photo"]; // their staff photo (12F.2)
   strikes: CasualStrike[]; // newest first, at most STRIKES_PER_CASUAL
   strikesMore: boolean;
   liveStrikes: number; // live and still counting
@@ -523,6 +524,7 @@ export async function workerAccessView(
       rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null, expired: false },
       needs: held?.needs ?? [],
       rolesWithoutRule: held?.rolesWithoutRule ?? [],
+      photo: held?.photo ?? { status: "missing", current: null, waiting: null },
       strikes: strikes.slice(0, STRIKES_PER_CASUAL),
       strikesMore: strikes.length > STRIKES_PER_CASUAL,
       liveStrikes: Number(live[0]?.n ?? 0),

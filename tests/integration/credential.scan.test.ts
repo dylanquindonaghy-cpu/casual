@@ -60,7 +60,7 @@ async function newFirm(name = "Scan Test") {
   );
   const firmId = rows[0]?.id ?? "";
   await withFirm(firmId, (tx) => applyCredentialPack(tx, "security", { type: "system" }));
-  return { firmId, name: `${name} ${slug}` };
+  return { firmId, name: `${name} ${slug}`, slug };
 }
 
 let mobiles = 0;
@@ -169,10 +169,15 @@ const eventsOf = async (firmId: string, action: string) =>
     )
   ).rows;
 
+// The reminders link to the casual's upload page on the firm's portal (12F.2).
+const BASE_DOMAIN = "localhost:3000";
+const uploadLink = (f: { slug: string }, type: string) =>
+  `http://${f.slug}.${BASE_DOMAIN}/profile/upload/${type}`;
+
 // The scan is for the date in its payload (the firm's local date when the tick ran).
 function scanner() {
   const { transport, sent } = captureTransport();
-  const deps: CredentialScanDeps = { transport };
+  const deps: CredentialScanDeps = { transport, baseDomain: BASE_DOMAIN };
   const scan = (firmId: string, date: string) =>
     scanCredentials({ firmId, idempotencyKey: `credential-scan:${date}` }, withFirm, deps);
   return { scan, sent };
@@ -215,11 +220,11 @@ describe("credential-scan: warnings", () => {
     expect(whatsapp(first.sent)).toEqual([
       {
         to: sam.mobile,
-        body: `Your first aid at work certificate expires on 11 Oct. Renew it and send the new details to the office so you can keep taking shifts. — ${signOff}`,
+        body: `Your first aid at work certificate expires on 11 Oct. Upload your renewed card so you can keep taking shifts that need it: ${uploadLink(f, "FIRST_AID")} — ${signOff}`,
       },
       {
         to: sam.mobile,
-        body: `Your SIA door supervisor licence expires on 5 Nov. Renew it and send the new details to the office so you can keep taking shifts. — ${signOff}`,
+        body: `Your SIA door supervisor licence expires on 5 Nov. Upload your renewed card so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${signOff}`,
       },
     ]);
     expect(await credentialRow(door)).toEqual({
@@ -377,7 +382,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
     expect(whatsapp(sent)).toEqual([
       {
         to: sam.mobile,
-        body: `Your SIA door supervisor licence expired on 5 Oct. You can't take shifts that need it until you renew it and send the new details to the office. — ${f.name} Shift Team`,
+        body: `Your SIA door supervisor licence expired on 5 Oct. You can't take shifts that need it until you upload your renewed card and the office checks it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
       },
     ]);
     const logged = await eventsOf(f.firmId, "credential.expired");
@@ -620,7 +625,7 @@ describe("credential-scan-tick and the job", () => {
     const sam = await addWorker(f.firmId);
     await addCredential(f.firmId, sam.id, { type: "SIA_DS", expiresOn: "2026-10-12" });
     const { transport, sent } = captureTransport();
-    const job = credentialScanTask(() => ({ transport }));
+    const job = credentialScanTask(() => ({ transport, baseDomain: BASE_DOMAIN }));
     const ok = await runFirmTask(
       job,
       {
@@ -711,7 +716,7 @@ describe("credential-scan: failures and races", () => {
     const scan = scanCredentials(
       { firmId: f.firmId, idempotencyKey: `credential-scan:${TUESDAY_DATE}` },
       withFirm,
-      { transport: slow },
+      { transport: slow, baseDomain: BASE_DOMAIN },
     );
     await inSend;
     const renewal = withFirm(f.firmId, (tx) =>
@@ -758,7 +763,9 @@ describe("credential-scan: failures and races", () => {
     };
     const payload = { firmId: f.firmId, idempotencyKey: "credential-scan:2026-10-05" };
     // The list's email fails: logged for that office user, and the scan still completes.
-    expect(await scanCredentials(payload, withFirm, { transport: emailDown })).toMatchObject({
+    expect(
+      await scanCredentials(payload, withFirm, { transport: emailDown, baseDomain: BASE_DOMAIN }),
+    ).toMatchObject({
       warned: 1,
       failed: 0,
       weeklyList: "sent",

@@ -122,6 +122,10 @@ export const LOG_TYPES = {
       "credential.updated",
       "credential.expired",
       "credential_pack.applied",
+      // Photos and certificate images (12F.2).
+      "upload.received",
+      "upload.approved",
+      "upload.rejected",
     ],
   },
   workers: {

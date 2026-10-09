@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { retryAborted } from "../db/retry";
 import {
@@ -11,10 +11,12 @@ import {
   sessions,
   shifts,
   strikes,
+  uploads,
   workers,
   workerSiteBlocks,
   workerTravel,
   workerUnavailableDays,
+  type UploadKind,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -34,8 +36,9 @@ import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./fre
 //   no roles, inactive; a check in the database holds it to exactly that) and their shifts-line
 //   messages are deleted (theirs, replies to them, and ones from or to their number before it was
 //   known, found by the number the row held);
-// - deleted: their credentials, login links, sessions (and codes), phones' push addresses, days off,
-//   their travel area (12G.1: the start postcode and its point);
+// - deleted: their credentials, then their photos and certificate images (12F.2), login links,
+//   sessions (and codes), phones' push addresses, days off, their travel area (12G.1: the start
+//   postcode and its point);
 // - cleared: the free text on their requests (their note, a colleague's name, the office's answer),
 //   pay queries (their details, payroll's note) and cancellations (a typed reason; the app's fixed
 //   wording stays: free-text.ts) and the office's reasons for withdrawing their strikes (the strike
@@ -55,6 +58,7 @@ import { ERASED_REASON, erasedCancelReason, REQUEST_FREE_TEXT_KEYS } from "./fre
 
 export interface ErasedCounts {
   licences: number; // credentials (the log masker refuses a key named "credentials")
+  images: number; // their photos and certificate images (12F.2)
   loginLinks: number;
   sessions: number;
   devices: number; // phones' push addresses
@@ -132,6 +136,10 @@ async function eraseLocked(tx: FirmTx, id: string, now: Date): Promise<ErasedCou
   const counts: ErasedCounts = {
     licences: await deleted(
       tx.delete(credentials).where(eq(credentials.workerId, id)).returning({ id: credentials.id }),
+    ),
+    // After the records that point at them.
+    images: await deleted(
+      tx.delete(uploads).where(eq(uploads.workerId, id)).returning({ id: uploads.id }),
     ),
     loginLinks: await deleted(
       tx.delete(magicLinks).where(eq(magicLinks.workerId, id)).returning({ id: magicLinks.id }),
@@ -229,6 +237,8 @@ export interface WorkerDataSummary {
   status: string;
   erasedAt: Date | null;
   upcoming: number; // bookings on shifts that haven't ended: they stop a deletion
+  // Their photos and certificate images (12F.2): each is its own download, beside the JSON.
+  images: { id: string; kind: UploadKind; type: string | null; createdAt: Date }[];
 }
 
 // The worker's data page: who they are, and whether they can be deleted now. Admins only.
@@ -261,6 +271,16 @@ export async function workerDataSummary(
       status: w.status,
       erasedAt: w.erasedAt,
       upcoming: await upcomingBookings(tx, w.id, now),
+      images: await tx
+        .select({
+          id: uploads.id,
+          kind: uploads.kind,
+          type: uploads.credentialType,
+          createdAt: uploads.createdAt,
+        })
+        .from(uploads)
+        .where(eq(uploads.workerId, w.id))
+        .orderBy(asc(uploads.createdAt), asc(uploads.id)),
     };
   });
 }

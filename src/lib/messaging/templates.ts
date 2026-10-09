@@ -123,27 +123,26 @@ export function strikeEvidenceEmail(
   };
 }
 
-// credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires.
+// credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires. The
+// link is the casual's upload page for it (12F.2; docs/office-v2.md 5.7 item 5).
 export function credentialExpiringMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
+  link: string,
 ): string {
-  return `Your ${credential} expires on ${date}. Renew it and send the new details to the office so you can keep taking shifts. — ${firm.signOff}`;
+  return `Your ${credential} expires on ${date}. Upload your renewed card so you can keep taking shifts that need it: ${link} — ${firm.signOff}`;
 }
 
-// credential_expired (WhatsApp, utility): the day after a credential's expiry date.
+// credential_expired (WhatsApp, utility): the day after a credential's expiry date, with the same
+// upload link.
 export function credentialExpiredMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
+  link: string,
 ): string {
-  return `Your ${credential} expired on ${date}. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
-}
-
-// On screen only (the My shifts banner): a credential the office marked expired with no date.
-export function credentialMarkedExpiredMessage(firm: FirmVoice, credential: string): string {
-  return `Your ${credential} is marked as expired. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
+  return `Your ${credential} expired on ${date}. You can't take shifts that need it until you upload your renewed card and the office checks it: ${link} — ${firm.signOff}`;
 }
 
 // credential_weekly_list (email to admins and resourcers, Mondays): what expires in the next 30

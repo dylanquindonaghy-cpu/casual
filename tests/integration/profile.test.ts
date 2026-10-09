@@ -93,6 +93,10 @@ describe("myProfile", () => {
         neededFor: ["close_protection_officer"],
         appliedCounts: false,
         renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
       },
       {
         type: "SIA_SG",
@@ -102,6 +106,10 @@ describe("myProfile", () => {
         neededFor: ["security_officer"],
         appliedCounts: false,
         renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
       },
       {
         type: "STEWARD_L2",
@@ -111,6 +119,10 @@ describe("myProfile", () => {
         neededFor: ["steward"],
         appliedCounts: false,
         renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
       },
       {
         type: "SIA_DS",
@@ -120,6 +132,10 @@ describe("myProfile", () => {
         neededFor: ["door_supervisor"],
         appliedCounts: false,
         renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
       },
     ]);
   });

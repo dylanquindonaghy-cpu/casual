@@ -176,7 +176,22 @@ the current SIA rule before enabling.
 - The day **after** the expiry date: status → `expired` (a credential is in date on its expiry day)
   and the worker gets `credential_expired`; worker sees a red banner; offers stop automatically.
   Blocking never waits for the scan: rule 3 already fails a `valid` credential with a past date.
-- Office can record a renewal (new number + expiry) → status `valid` → offers resume.
+- Office can record a renewal (new number + expiry) → status `valid` → offers resume. Since 12F.2
+  the casual can also upload her renewed card (`/profile/upload/{type}`, where both messages link):
+  it counts once a named office person approves it (below).
+- **Only checked records count** (12F.2, S6, D3). `credentials.check_state` is `verified` for the
+  office's own records (imported, recorded, or an upload approved: `verified_at` and `verified_by`
+  filled), `waiting` or `rejected` for a casual's upload. Every reader filters on `verified`: rule
+  3's two loaders and check 4's SQL (`src/lib/roster/eligibility-input.ts`), the expiry scan (and its
+  "already replaced" test), Today's expiring list, the import's "latest record" (a file never
+  updates a casual's upload) and readiness. And the database stores an unchecked record as
+  `expired` with its upload (`credentials_unchecked_never_valid`), so a reader that ever missed the
+  filter still couldn't count it. Tested in `tests/integration/uploads.test.ts`.
+- **What a casual can't upload** (`officeRecorded` in `src/lib/rules/packs.ts`): CSAS (only the
+  firm's own scheme covers its shifts, Police Reform Act 2002 s.41: the office records it on the
+  casual's page after confirming that), right to work (Rules 15), and documents holding health or
+  criminal record details (`RAIL_DA`, `RAIL_MEDICAL`, `DBS`). A firm's own type outside the packs
+  may be uploaded.
 
 ## Qualification statuses (what casuals and the office see, 12F.1)
 
@@ -191,12 +206,16 @@ records into one status, reading them the same way as rule 3 above. Staff-facing
 | Expiring soon | that record expires within `EXPIRING_SOON_DAYS` (30: the scan's first warning, `src/lib/credentials/expiry.ts`); one window for the scan, the office's Casuals pages and the casual's My shifts and Profile |
 | Applied for | no record in date, but one `applied` (an application in progress). It counts towards booking only as check 4 allows: a type with `applied_allowed`, at a firm whose `credential_applied_allowance_pct` is above 0 (`appliedCounts`) |
 | Expired | records, none in date or applied (marked `expired`, or `valid` with a past date) |
+| Being checked | no record in date, and her upload of it waits for the office (12F.2). It never counts until approved |
+| Not accepted | no record in date, and the office turned down her latest upload, with a reason ("Not accepted: too blurry to read", …); it goes 30 days after the check, with the image |
 | Missing | no record of a type one of her roles needs |
-| Being checked, Not accepted | join with 12F.2's uploads |
+
+An upload never hides a suspension, and a renewal sent while hers is still in date leaves that one
+showing ("renewing"), with the new one waiting for the office.
 
 - **Which are listed:** every type a rule for one of her roles requires (`credential_rules`), with
-  the roles that need it, worst first (suspended, expired, missing, expiring soon, applied for,
-  valid). A type nothing she does needs isn't listed. A session's own extra requirements
+  the roles that need it, worst first (suspended, expired, not accepted, missing, being checked,
+  expiring soon, applied for, valid). A type nothing she does needs isn't listed. A session's own extra requirements
   (`shifts.required_credentials`) show on that shift's page (12H.2).
 - **Right to work** (`RTW`) is a status only (Rules 15): "Checked by the office on {date}" (a check
   in date; its `verified_at`), "The office's check has run out: ask the office" (a time-limited
@@ -206,11 +225,13 @@ records into one status, reading them the same way as rule 3 above. Staff-facing
   closed), so the pages say so ("… shifts aren't set up yet, so you can't take them. Ask the
   office."), never that her roles "need none".
 - **Needs updating** (`needsUpdating()`), in four levels: (1) it stops a booked shift (expired,
-  suspended or missing; applied for where check 4 won't accept it; or in date only until before
-  the shift's last day, as rule 3 reads it); (2) expired or suspended; (3) expiring soon, unless
-  an application to renew it is in progress; (4) missing. Otherwise applied for isn't listed
-  (nothing for her to do yet). Within a level: the shift it stops soonest, the worst status, the soonest date,
-  then the name. The staff photo's levels join with 12F.2.
+  suspended, missing, not accepted or still being checked; applied for where check 4 won't accept
+  it; or in date only until before the shift's last day, as rule 3 reads it); (2) expired,
+  suspended or not accepted; (3) expiring soon, unless an application or her new card is on its
+  way; (4) missing. Otherwise applied for and being checked aren't listed (nothing for her to do
+  yet). Within a level: the shift it stops soonest, the worst status, the soonest date, then the
+  name. The staff photo has its own status (`src/lib/uploads/photo.ts`: Up to date, Due soon 30
+  days before `photo.renewal_months`, Overdue, Missing, Waiting for check), not a level.
 
 ## Test cases (table-driven, all must pass)
 

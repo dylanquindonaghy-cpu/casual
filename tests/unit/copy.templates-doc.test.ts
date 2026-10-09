@@ -7,7 +7,6 @@ import {
   callGreeting,
   credentialExpiredMessage,
   credentialExpiringMessage,
-  credentialMarkedExpiredMessage,
   credentialWeeklyListEmail,
   firmChangePush,
   loginCodeMessage,
@@ -330,15 +329,19 @@ describe("the code says what the doc says", () => {
     );
   });
 
-  it("credential_expiring, credential_expired and the My shifts banner", () => {
-    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}")).toBe(
+  it("credential_expiring and credential_expired, with the upload page's link (12F.2)", () => {
+    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}", "{link}")).toBe(
       docBody("credential_expiring"),
     );
-    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}")).toBe(
+    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", "{link}")).toBe(
       docBody("credential_expired"),
     );
-    const banner = /^\| \(screen only: My shifts banner\) \| [^|]+ \| "([^"]+)"/m.exec(doc)?.[1];
-    expect(credentialMarkedExpiredMessage(docVoice, "{credential}")).toBe(banner);
+    // The screen copy is My shifts' "Needs updating" card (12F.1), not a message: the doc says so
+    // and points to its words; its rows lead to the same upload page.
+    const screen = doc.split("\n").find((l) => l.startsWith("| (screen only: My shifts"));
+    expect(screen).toContain("Needs updating");
+    expect(screen).toContain("needsText()");
+    expect(screen).toContain("Upload it");
   });
 
   it("office_login_link (email): the subject, and the body's words", () => {
@@ -566,9 +569,8 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
     ["shift_reminder_24h", shiftReminder24hMessage(voice, { ...shift, link: "L" })],
     ["shift_reminder_2h", shiftReminder2hMessage(voice, { ...shift, link: "L" })],
-    ["credential_expiring", credentialExpiringMessage(voice, "PTS card", "3 Oct")],
-    ["credential_expired", credentialExpiredMessage(voice, "PTS card", "3 Oct")],
-    ["the My shifts banner", credentialMarkedExpiredMessage(voice, "PTS card")],
+    ["credential_expiring", credentialExpiringMessage(voice, "PTS card", "3 Oct", "L")],
+    ["credential_expired", credentialExpiredMessage(voice, "PTS card", "3 Oct", "L")],
     ["office_login_link", officeLoginLinkEmail(voice, "L").body],
     ["voicemail_received", voicemailReceivedMessage(voice, "R")],
     ["sms_stopped", smsStoppedMessage(voice)],
@@ -653,7 +655,6 @@ describe("every template function is checked here", () => {
         "callGreeting",
         "credentialExpiredMessage",
         "credentialExpiringMessage",
-        "credentialMarkedExpiredMessage",
         "credentialWeeklyListEmail",
         "bookedPush",
         "changeWords",
@@ -835,12 +836,14 @@ describe("the WhatsApp submission pack", () => {
         voice("credential_expiring"),
         ex("credential_expiring", "credential"),
         ex("credential_expiring", "date"),
+        ex("credential_expiring", "link"),
       ),
     credential_expired: () =>
       credentialExpiredMessage(
         voice("credential_expired"),
         ex("credential_expired", "credential"),
         ex("credential_expired", "date"),
+        ex("credential_expired", "link"),
       ),
     request_update: () =>
       requestUpdateMessage(voice("request_update"), {

@@ -24,7 +24,16 @@ import {
   SITE_UNBLOCK_REASONS,
   UNBLOCK_REASONS,
 } from "@/lib/office/worker-reasons";
+import type { CheckOutcome } from "@/lib/portal/upload-copy";
 import { requestLog } from "@/lib/request";
+import {
+  approveSchema,
+  approveUpload,
+  csasSchema,
+  recordCsas,
+  rejectSchema,
+  rejectUpload,
+} from "@/lib/uploads/check";
 
 // A casual's access (docs/screens.md `/office/casuals`, `/office/casuals/[id]`; Workers until 12F.1). The firm comes
 // from the request's host and the office user from their session (an admin or resourcer: checked
@@ -109,4 +118,39 @@ export async function unblockFromSiteAction(
   return asOffice("unblock from site", (ctx) =>
     unblockFromSite(ctx, workerId as string, siteId as string, r.data),
   );
+}
+
+// Checking a casual's photo or certificate (12F.2; src/lib/uploads/check.ts): approve with the
+// expiry date and number as read from the card, reject with a reason from the fixed list, or (CSAS
+// only) record it after confirming it's under this firm's own scheme.
+const uploadId = z.uuid();
+
+export async function approveUploadAction(
+  id: unknown,
+  expiresOn: unknown,
+  number: unknown,
+): Promise<CheckOutcome> {
+  const parsedId = uploadId.safeParse(id);
+  const input = approveSchema.safeParse({ expiresOn, number });
+  if (!parsedId.success || !input.success) return { status: "invalid" };
+  return asOffice("approve upload", (ctx) => approveUpload(ctx, parsedId.data, input.data));
+}
+
+export async function rejectUploadAction(id: unknown, reason: unknown): Promise<CheckOutcome> {
+  const parsedId = uploadId.safeParse(id);
+  const input = rejectSchema.safeParse({ reason });
+  if (!parsedId.success || !input.success) return { status: "invalid" };
+  return asOffice("reject upload", (ctx) => rejectUpload(ctx, parsedId.data, input.data.reason));
+}
+
+export async function recordCsasAction(
+  workerId: unknown,
+  expiresOn: unknown,
+  number: unknown,
+  ownScheme: unknown,
+): Promise<CheckOutcome> {
+  const parsedId = uploadId.safeParse(workerId);
+  const input = csasSchema.safeParse({ expiresOn, number, ownScheme });
+  if (!parsedId.success || !input.success) return { status: "invalid" };
+  return asOffice("record CSAS", (ctx) => recordCsas(ctx, parsedId.data, input.data));
 }

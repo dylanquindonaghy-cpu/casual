@@ -17,12 +17,33 @@ import {
   noRuleText,
   qualificationTitle,
   rightToWorkText,
+  statusLabel,
   STATUS_TONES as QUALIFICATION_TONES,
-  STATUS_WORDS as QUALIFICATION_WORDS,
 } from "@/lib/portal/qualification-copy";
+import { OFFICE_PHOTO_WORDS, PHOTO_TONES, photoDates } from "@/lib/portal/upload-copy";
+import { shortDate } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
 import { officeTravelText } from "@/lib/travel/copy";
+import { CSAS } from "@/lib/uploads/check";
 import { SignOutButton, SiteBlocks, StatusForm } from "./access-forms";
+import { RecordCsas, UploadsToCheck } from "./upload-checks";
+
+// An upload's image, opening full size in a new tab (access-checked: src/app/files/[id]/route.ts).
+function Evidence({ id, alt, size }: { id: string; alt: string; size: number }) {
+  return (
+    <a href={`/files/${id}`} target="_blank" rel="noreferrer" className="shrink-0">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/files/${id}`}
+        alt={alt}
+        width={size}
+        height={size}
+        style={{ width: size, height: size }}
+        className="rounded-lg border border-line bg-quiet-soft object-contain"
+      />
+    </a>
+  );
+}
 
 // The status word's colour (docs/ui-design.md "Status tones").
 const STATUS_TONES: Record<"active" | "inactive" | "blocked", StatusTone> = {
@@ -31,12 +52,14 @@ const STATUS_TONES: Record<"active" | "inactive" | "blocked", StatusTone> = {
   blocked: "urgent",
 };
 
-// One casual's page (docs/office-v2.md 3.7; docs/screens.md `/office/casuals/[id]`; 12F.1): what
-// needs updating, their qualifications and right to work, their travel area (the postcode district
-// only, 12G.1), their strikes, then their access (what changes their status, the sites they can't
-// work at, logging them out everywhere: moved from `/office/workers/[id]`). "Booked ahead" sits
-// beside them on a wide screen (below them on a phone). Admins and resourcers (checked here and in
-// every function it calls). Evidence images and approving or rejecting join with 12F.2.
+// One casual's page (docs/office-v2.md 3.7; docs/screens.md `/office/casuals/[id]`; 12F.1, 12F.2):
+// what needs updating, their uploads waiting for a check (each image with approve and reject), their
+// staff photo, their qualifications (each with the card it came from) and right to work (and, for
+// CSAS, recording it under the firm's own scheme), their travel area (the postcode district only,
+// 12G.1), their strikes, then their access (what changes their status, the sites they can't work
+// at, logging them out everywhere: moved from `/office/workers/[id]`). "Booked ahead" sits beside
+// them on a wide screen (below them on a phone). Admins and resourcers (checked here and in every
+// function it calls).
 export default async function OfficeCasualPage({ params }: { params: Promise<{ id: string }> }) {
   const { firm, officeUser } = await requireOfficeArea("casuals");
   const { id } = await params;
@@ -80,6 +103,64 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
               )}
             </section>
 
+            {/* Always there: it shows itself while it has anything to check, and keeps what was
+                checked here on screen with its answer. */}
+            <UploadsToCheck
+              items={[
+                ...(worker.photo.waiting
+                  ? [
+                      {
+                        uploadId: worker.photo.waiting.id,
+                        kind: "photo" as const,
+                        type: null,
+                        title: "Staff photo",
+                        name: "staff photo",
+                        alt: `New staff photo of ${worker.name}`,
+                        sent: `Sent ${shortDate(worker.photo.waiting.uploadedOn, Number(thisYear))}`,
+                      },
+                    ]
+                  : []),
+                ...worker.qualifications.flatMap((q) =>
+                  q.waiting
+                    ? [
+                        {
+                          uploadId: q.waiting.uploadId,
+                          kind: "certificate" as const,
+                          type: q.type,
+                          title: qualificationTitle(q.name),
+                          name: q.name,
+                          alt: `${qualificationTitle(q.name)} sent by ${worker.name}`,
+                          sent: `Sent ${shortDate(q.waiting.sentOn, Number(thisYear))}`,
+                        },
+                      ]
+                    : [],
+                ),
+              ]}
+            />
+
+            <section className={card} aria-labelledby="photo">
+              <h2 id="photo" className={h2}>
+                Staff photo
+              </h2>
+              <div className="mt-2 flex flex-wrap items-center gap-4">
+                {worker.photo.current ? (
+                  <Evidence
+                    id={worker.photo.current.id}
+                    alt={`Staff photo of ${worker.name}`}
+                    size={96}
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  <p className="tabular-nums">{photoDates(worker.photo, Number(thisYear))}</p>
+                  <p className="mt-1">
+                    <StatusChip tone={PHOTO_TONES[worker.photo.status]}>
+                      {OFFICE_PHOTO_WORDS[worker.photo.status]}
+                    </StatusChip>
+                  </p>
+                </div>
+              </div>
+            </section>
+
             <section className={card} aria-labelledby="qualifications">
               <h2 id="qualifications" className={h2}>
                 Qualifications
@@ -98,10 +179,30 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                       <p className="font-semibold">{qualificationTitle(q.name)}</p>
                       <p className="mt-1 tabular-nums">
                         <StatusChip tone={QUALIFICATION_TONES[q.status]}>
-                          {QUALIFICATION_WORDS[q.status]}
+                          {statusLabel(q)}
                         </StatusChip>
                         {dateLine(q, Number(thisYear)) && ` · ${dateLine(q, Number(thisYear))}`}
                       </p>
+                      {q.evidenceUploadId && (
+                        <p className={`${meta} mt-1`}>
+                          <a
+                            href={`/files/${q.evidenceUploadId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={textLink}
+                          >
+                            See the card it came from
+                          </a>
+                        </p>
+                      )}
+                      {q.waiting && (
+                        <p className={`${meta} mt-1`}>
+                          A new one is waiting:{" "}
+                          <a href="#uploads" className={textLink}>
+                            check it
+                          </a>
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -110,6 +211,13 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                 <span className="font-semibold">Right to work:</span>{" "}
                 {rightToWorkText(worker.rightToWork, Number(thisYear))}
               </p>
+              {worker.qualifications.some((q) => q.type === CSAS) && (
+                <div className="mt-3 border-t border-line pt-3">
+                  <p className="font-semibold">Record CSAS accreditation</p>
+                  <p className={meta}>Only the office records it: casuals can&apos;t upload it.</p>
+                  <RecordCsas workerId={worker.id} firmName={firm.name} />
+                </div>
+              )}
             </section>
 
             <section className={card} aria-labelledby="travel">

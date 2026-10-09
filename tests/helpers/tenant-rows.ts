@@ -32,6 +32,7 @@ export const EXPECTED_TABLES = [
   "sites",
   "strikes",
   "travel_estimates",
+  "uploads",
   "worker_site_blocks",
   "worker_travel",
   "worker_unavailable_days",
@@ -236,6 +237,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, 'ZZ1 1AA', 53.83, -1.53, 'both', 45, 'travel-v1', now())`,
     [firmId, workerId],
   );
+  // A staff photo (12F.2): three bytes stand in for the image.
+  const uploadId = await one(
+    su,
+    `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data)
+     values ($1, $2, 'photo', 'image/jpeg', 3, encode(sha256('\\xffd8ff'::bytea), 'hex'),
+             '\\xffd8ff'::bytea)`,
+    [firmId, workerId],
+  );
   const pushSubscriptionId = await one(
     su,
     `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -312,6 +321,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       worker_site_blocks: siteBlockId,
       worker_travel: travelId,
       travel_estimates: estimateId,
+      uploads: uploadId,
       strikes: strikeId,
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
@@ -435,6 +445,14 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   }),
   // One strike per booking, so each gets its own cancelled booking.
   strikes: (firmId, p) => strikeOnNewBooking(firmId, p),
+  // Approved, so any number may be added (one waiting at a time per casual).
+  uploads: (firmId, p) => ({
+    text: `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data, status,
+                                checked_by, checked_at)
+           values ($1, $2, 'photo', 'image/jpeg', 3, encode(sha256('\\xffd8ff'::bytea), 'hex'),
+                   '\\xffd8ff'::bytea, 'approved', $3, now())`,
+    values: [firmId, p.workerId, p.officeUserId],
+  }),
   pay_records: (firmId, p) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-02', '2026-11-08', 4, $3)`,
@@ -474,6 +492,26 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
   }),
   credentials_verified_by_fk: (firmId, own, other) => ({
     text: "insert into credentials (firm_id, worker_id, type, verified_by) values ($1, $2, 'PTS', $3)",
+    values: [firmId, own.workerId, other.officeUserId],
+  }),
+  credentials_evidence_upload_fk: (firmId, own, other) => ({
+    text: `insert into credentials (firm_id, worker_id, type, status, check_state, evidence_upload_id)
+           values ($1, $2, 'PTS', 'expired', 'waiting', $3)`,
+    values: [firmId, own.workerId, other.rows.uploads],
+  }),
+  // A waiting certificate of a type of its own each time (one waiting per casual and type).
+  uploads_worker_fk: (firmId, _own, other) => ({
+    text: `insert into uploads (firm_id, worker_id, kind, credential_type, content_type, size, sha256,
+                                data)
+           values ($1, $2, 'certificate', $3, 'image/jpeg', 3,
+                   encode(sha256('\\xffd8ff'::bytea), 'hex'), '\\xffd8ff'::bytea)`,
+    values: [firmId, other.workerId, `PROBE_${next()}`],
+  }),
+  uploads_checked_by_fk: (firmId, own, other) => ({
+    text: `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data, status,
+                                checked_by, checked_at)
+           values ($1, $2, 'photo', 'image/jpeg', 3, encode(sha256('\\xffd8ff'::bytea), 'hex'),
+                   '\\xffd8ff'::bytea, 'approved', $3, now())`,
     values: [firmId, own.workerId, other.officeUserId],
   }),
   magic_links_worker_fk: (firmId, _own, other) => ({

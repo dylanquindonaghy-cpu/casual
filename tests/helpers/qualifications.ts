@@ -11,6 +11,10 @@ export const qual = (o: Partial<Qualification> = {}): Qualification => ({
   neededFor: ["door_supervisor"],
   appliedCounts: false,
   renewing: false,
+  evidenceUploadId: null,
+  waiting: null,
+  rejected: null,
+  uploadable: true,
   ...o,
 });
 
@@ -37,11 +41,32 @@ export const EVERY_STATUS: Qualification[] = [
     neededFor: ["response_team_lead"],
   }),
   qual({
+    type: "PTS",
+    name: "PTS card",
+    status: "rejected",
+    expiresOn: null,
+    neededFor: ["track_worker"],
+    rejected: {
+      uploadId: "7c1d2e3f-0000-4000-8000-000000000001",
+      sentOn: "2026-10-30",
+      reason: "blurry",
+    },
+  }),
+  qual({
     type: "CSAS",
     name: "CSAS accreditation",
     status: "missing",
     expiresOn: null,
     neededFor: ["csas_officer"],
+    uploadable: false,
+  }),
+  qual({
+    type: "CSCS",
+    name: "CSCS card",
+    status: "being_checked",
+    expiresOn: null,
+    neededFor: ["labourer"],
+    waiting: { uploadId: "7c1d2e3f-0000-4000-8000-000000000002", sentOn: "2026-10-31" },
   }),
   qual({ type: "SIA_DS", status: "expiring_soon", expiresOn: "2026-11-20" }),
   qual({
@@ -94,5 +119,6 @@ export const EVERY_LEVEL: NeedsItem[] = [
     status: "missing",
     expiresOn: null,
     neededFor: ["csas_officer", "steward"],
+    uploadable: false,
   }),
 ];

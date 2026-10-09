@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { qualificationsFor } from "../credentials/qualifications";
+import type { StaffPhoto } from "../uploads/photo";
 import type { Qualification, RightToWork } from "../credentials/status";
 import { workers, workerUnavailableDays } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
@@ -43,6 +44,7 @@ export interface Profile {
   qualifications: Qualification[];
   rightToWork: RightToWork;
   rolesWithoutRule: string[]; // her roles the firm has no rule for (she can't take those shifts)
+  photo: StaffPhoto; // her staff photo (12F.2)
   unavailable: { day: string; booked: boolean }[];
   today: string;
 }
@@ -109,6 +111,7 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       qualifications: held?.qualifications ?? [],
       rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null, expired: false },
       rolesWithoutRule: held?.rolesWithoutRule ?? [],
+      photo: held?.photo ?? { status: "missing", current: null, waiting: null },
       unavailable: days.map(({ day }) => ({ day, booked: booked.has(day) })),
       today,
     };

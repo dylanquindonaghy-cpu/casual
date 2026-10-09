@@ -11146,3 +11146,81 @@ the evidence for this task. The fix for Dylan goes in the morning summary.
 
 **Parked:** the staff photo column, uploads, "Being checked" and "Not accepted" (12F.2, as the
 task text says).
+
+## 2026-10-09 16:28 UTC — Phase 12, task 12F.2: Uploads, the check view and the staff photo
+
+**Task:** Uploads, the check view and the staff photo (§3.7, §4.6, §5.5; S6, S7, D3, Data 20), as
+written in `PLAN.md`.
+
+**Plan:**
+
+- **Migration 0042** (S6 and S7 as approved):
+  - new table `uploads`: kind (photo or certificate), `credential_type` (certificates only),
+    `content_type`, size (1 MB at most), sha256, data (the bytes), `uploaded_by`, status
+    (waiting, approved or rejected), `checked_by`, `checked_at` and `reject_reason`.
+  - RLS, composite keys and `TABLE_ACCESS` select, insert and delete. Only the check columns can
+    change (`COLUMN_UPDATES`).
+  - one waiting upload per casual per photo or type (a partial unique index).
+  - on `credentials`: `check_state` (verified, waiting or rejected; every existing row
+    verified), `rejected_reason` and `evidence_upload_id`.
+- **Only checked records count, twice over.** Every reader the rules and messages use filters
+  `check_state = 'verified'`:
+  - the rules engine's two loaders and their SQL;
+  - the expiry scan, with its "renewed" test;
+  - Today's expiring list;
+  - the import's "latest record";
+  - the qualifications loader.
+
+  A database check also makes an unchecked record always read as expired (`check_state =
+  'verified' or status = 'expired'`). So a reader that ever misses the filter still can't count
+  it.
+- **Images** (`src/lib/uploads/image.ts`):
+  - the type is read from the first bytes (JPEG, PNG or WebP only);
+  - refused over the limit;
+  - decoded with a pixel cap and turned upright;
+  - re-encoded as JPEG at 1,600px at most by `sharp`, which drops EXIF and GPS;
+  - the result checked again.
+
+  The phone resizes first (canvas, 1,600px JPEG). The limit is the web import's 950,000 bytes,
+  because Next's server-action body limit is 1 MB.
+- **Casual:**
+  - Profile gains a "Staff photo" section (72px, its alt text, "Last uploaded … · renew by …",
+    a status, "Upload a new photo" with the front camera and one line of SIA guidance);
+  - qualifications gain "Being checked" and "Not accepted: {reason}";
+  - "Upload a certificate" goes to `/profile/upload/[type]`, never for CSAS or right to work.
+  - A new upload replaces her own waiting one. It never replaces an approved photo.
+- **Office:**
+  - Casuals gains a third view, "Uploads to check" (oldest first), and a badge on the Casuals
+    menu item;
+  - the table gains a Staff photo column and a thumbnail;
+  - the casual's page gains the photo with approve or reject, each waiting certificate with its
+    image, approve (expiry and number, as read by a person; the GOV.UK register linked for SIA)
+    and reject (blurry, wrong document, expired, doesn't match, other);
+  - "Record CSAS accreditation", office only, after confirming it's under this firm's own
+    scheme.
+- **`/files/[id]`:** the casual's own, or an active admin or resourcer of the firm. Otherwise 404.
+  Sent `private, no-store`, never in the offline copy.
+- **Retention:** rejected uploads 30 days after the check (their rejected record with them), and a
+  replaced photo 30 days after the newer one is approved. Nothing during a hold.
+- **Messages:**
+  - `credential_expiring` and `credential_expired` take §5.7's words, with the upload page's
+    link;
+  - My shifts' "Needs updating" rows (the screen copy since 12F.1) link to the upload too;
+  - the old banner text, unused since 12F.1, goes, with its doc row.
+- **Log:** `upload.received`, `upload.approved`, `upload.rejected` (`qualificationType`, ids and
+  codes only).
+- **Erase and export:**
+  - erase deletes the uploads;
+  - the casual's and the firm's JSON exports carry the details only (kind, date, status,
+    fingerprint), never the bytes;
+  - each image downloads on its own from the data page.
+- **`photo.renewal_months`** (36) is a setting.
+- **Dockerfile:** loads sharp in the runtime stage, so a missing library fails the build.
+  `sharp` becomes a direct dependency.
+- **Tests:**
+  - unit: bytes, size, location data, photo status at its boundaries, the new statuses and
+    words, templates;
+  - database: the rules ignore waiting and rejected records, approve and reject, CSAS, another
+    firm's or casual's file, the queue, the Staff photo column, purges, erase and export,
+    isolation;
+  - e2e: a casual uploads a photo and a card, the office checks them.

@@ -10854,3 +10854,24 @@ area (12G.1)", pushed (its hash in the next entry). CI passed on the checkpoints
 | The worker alone builds the provider and gets TravelTime's keys; the wave job loads the travel code with a dynamic import | Pages never call the provider, and the web app never holds the key (a test walks every web file's imports) | The provider in the web app too |
 | Estimates are left out of the firm's data export, kept through a hold, and not deleted on erasure | Keyed by full postcodes (which the office never sees), not by person, and they expire 7 days after their last session | Exporting them; deleting by postcode on erasure |
 | Reading them (`travelFor()` and the travel line's words, with the straight-line fallback) is built now; showing them on pages is 12G.3 | The task's fallback ("(straight line)", "Travel time not known yet") needs a place to be tested | Leaving the words to 12G.3 |
+
+**Guardrails review (round 1, of WIP 744d791): FIX FIRST.** What it found and what was done
+(WIP 11d1f60):
+
+| Finding | Severity | Fix |
+|---|---|---|
+| Two casuals with one postcode but slightly different points made the save fail ("cannot affect row a second time") | FIX FIRST | One start point per postcode (the latest saved: `distinct on`), with a test |
+| A casual's change queued a job for every session of their roles | SHOULD | One window run 5 minutes later, shared by every casual change in that slot (a firm-scoped singleton); a per-casual cap is parked |
+| A sheet bringing a session back from draft or cancelled didn't queue it | SHOULD | Queued; a new draft no longer is. Test added |
+| Runbook step 5 said to re-save a site's postcode (a no-op) | SHOULD | Removed; the retries and the nightly run are the refill |
+| The job's queue had pg-boss's default retries | SHOULD | 6 retries from 5 minutes, backing off to an hour; expiry 15 minutes |
+| Planning ran as one long transaction over every session | SHOULD | One short read, then a short transaction per group; a 10-minute budget, the rest re-queued |
+| A run asked for far-off sessions, and a site's move queued all of its future sessions | SHOULD | Every run, and `siteMoved()`, stay inside 29 days (the open-shifts window and a day) |
+| Marking urgent queued a job that could search alongside the first wave's own fill | SHOULD | That job starts 2 minutes later |
+| The first wave's fill had no deadline | SHOULD | At most 5 seconds, with a warning when not finished |
+| The wave's dynamic import wasn't guarded; size caps read the whole body first; estimates from another provider weren't searched again; DPIA called estimates "not personal" | NICE | All fixed, with tests (`tests/unit/travel.body.test.ts`, provider switch test) |
+| TravelTime's location limit and ids it leaves out | NICE | Parked in the Connect step |
+
+Mutation checks: removing the dedupe, reversing its order, dropping the provider filter, dropping
+the re-queue and dropping the sync's reopen each made a new test fail. Full suite on 11d1f60:
+239 files, 4,124 tests passed.

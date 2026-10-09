@@ -138,8 +138,9 @@ describe("in her travel area", () => {
     const MODES: TravelMode[] = ["car", "public_transport", "both"];
     const workers = new Map<TravelMode, string>();
     for (const m of MODES) workers.set(m, await t.casual(m, 45));
-    // Each way: not worked out, beyond the ceiling (null), within (30), over the limit (60).
-    const WAYS: (number | null | "none")[] = ["none", null, 30, 60];
+    // Each way: not worked out, beyond the ceiling (null), within (30), the limit itself (45),
+    // over it (60).
+    const WAYS: (number | null | "none")[] = ["none", null, 30, 45, 60];
     const cases: { shiftId: string; car: WayEstimate; pt: WayEstimate }[] = [];
     let h = 24;
     for (const car of WAYS) {
@@ -263,6 +264,17 @@ describe("the list", () => {
     expect(await t.listed(cass)).toEqual([urgent30, e10, b10, a20, unknown]);
   });
 
+  it("'nearest' is her quickest chosen way: a way she didn't choose doesn't count", async () => {
+    const t = await filterFirm();
+    const cass = await t.casual("car", 60);
+    const busOnly = await t.session(48); // 5 min by public transport, but she drives: 40
+    await t.estimate(busOnly, "car", 40);
+    await t.estimate(busOnly, "public_transport", 5);
+    const drive = await t.session(72);
+    await t.estimate(drive, "car", 15);
+    expect(await t.listed(cass)).toEqual([drive, busOnly]);
+  });
+
   it("each row carries both times, whichever way she chose", async () => {
     const t = await filterFirm();
     const cass = await t.casual("car");
@@ -347,6 +359,7 @@ describe("offer waves", () => {
       [shiftId],
     );
     expect(new Set(rows.map((r) => r.worker_id))).toEqual(new Set([inside, unknown]));
+    expect(rows.map((r) => r.worker_id)).not.toContain(outside);
     expect(sent).toHaveLength(2);
   });
 

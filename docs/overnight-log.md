@@ -10959,3 +10959,38 @@ next entry). CI passed on the first checkpoint (`744d791`).
 - **Docs:** `docs/screens.md` (`/`, `/shifts/open`, `/urgent`), `docs/api-and-jobs.md` (offer-wave
   ranking), `docs/rules-and-credentials.md` (the area isn't a rules check).
 - Then the guardrails reviewer (offers).
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| The office's "Offer to someone" isn't limited by a casual's travel area (`byHand` on its three calls; a test lets only the office pass it) | D2: "the office may still offer outside a casual's area by hand" | Filtering the office's list too |
+| "Out" only when every way she chose has an estimate and none is within; anything not worked out yet is "unknown": shown and offered | D2: an unknown distance is shown, labelled and still offered; never hidden silently | Treating "not worked out" as out |
+| Past bookings carry no travel line | The trip is done, and estimates expire 7 days after the session | A line on every past row ("Travel time not known yet" once expired) |
+| The "further" count runs the same rules as the list, on up to 50 shifts ("At least 50 more…" beyond) | It counts shifts she could otherwise take, and stays a bounded number of queries | Counting every shift outside her area, takeable or not |
+| The no-area prompt is on Open shifts and the urgent board; Home's new layout (with its own "Shifts you can apply for") is a later task (12H) | Home today only shows the urgent count, which is filtered | A banner on today's Home too |
+| The shift page's "Getting there" block waits for 12H.2 (its task text) | 12G.3's text lists the lists, Home, waves and Booked rows | Adding it now |
+| The browser test's scene uses a role only its own casual has, 9 days ahead | So no other spec's lists or counts change | Seed changes |
+
+**Root causes found while building:**
+- The "further" count counted a full shift. In a query with no join, Drizzle writes the selected
+  columns without their table, so the "held" subquery's `"id"` meant the assignment's own id and
+  every shift looked empty. The count's query now joins sites, as the list's does (comment in the
+  code). No other query has a correlated subquery in a select list.
+- The browser test's reset deleted the casual's bookings, which the app role may not do (bookings
+  are evidence). It now only cancels its last run's sessions: the rules and the lists ignore
+  bookings on cancelled sessions.
+
+**Guardrails review (offers): OK, safe to commit.** It confirmed the SQL filter matches
+`areaVerdict()`, first yes wins and the daily cap are untouched, nothing personal leaks, and the
+count's fix. Its items:
+
+| Finding | Severity | Done |
+|---|---|---|
+| The database agreement test never tried the exact limit (45) | SHOULD | Added; turning the SQL's `>` into `>=` now fails it |
+| "At least 1 more shifts are…" | NICE | Singular now, tested |
+| An unused test variable (the lint warning) | NICE | Used: the out-of-area casual gets no offer row |
+| Only the office should pass `byHand` | NICE | A tripwire in `tests/unit/offers.boundary.test.ts` |
+| Home works out a count it never shows | NICE | Parked (one bounded batch per Home load) |
+| "Nearest" for a casual with one way | NICE | Tested; counting the other way now fails it |
+| TravelTime's "unreachable" must mean over 90 minutes; the prompt shows at every firm | NICE | Parked in the Parking lot (with the per-firm switch) |

@@ -105,9 +105,9 @@ export const AREA_PROMPT_LINK = "Add your home area";
 export function furtherText(further: { count: number; atLeast: boolean }, urgent = false): string {
   const kind = urgent ? "urgent shift" : "shift";
   const n = further.count;
-  if (further.atLeast) return `At least ${n} more ${kind}s are further than you travel.`;
-  return n === 1
-    ? `1 more ${kind} is further than you travel.`
-    : `${n} more ${kind}s are further than you travel.`;
+  const many = n === 1 ? `1 more ${kind} is` : `${n} more ${kind}s are`;
+  return `${further.atLeast ? `At least ${many}` : capitalised(many)} further than you travel.`;
 }
 export const FURTHER_LINK = "Change how far";
+
+const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

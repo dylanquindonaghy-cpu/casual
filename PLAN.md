@@ -2868,7 +2868,15 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 - Travel areas (12G.1 review): **Dylan to decide** whether a firm switches the travel area on
   for itself (a per-firm `travel.enabled`, off by default, hiding "Where you work"), since the DPIA's
   Part 2 is per firm and `TRAVEL_PROVIDER` is per server. Today it shows for every firm (with the
-  fake look-up, a real postcode is refused with "postcode look-ups aren't switched on").
+  fake look-up, a real postcode is refused with "postcode look-ups aren't switched on"). Since
+  12G.3, Open shifts and the urgent board also ask every casual with no area to "Add your home
+  area": the same switch should hide that prompt where travel areas are off.
+- Travel filter (12G.3 review): before TravelTime goes live (the "Connect" step), confirm that a
+  start point it lists as unreachable means "over 90 minutes" (or no public transport in time), never
+  "no timetable data": the filter treats it as out of reach, so a casual who only uses public
+  transport would be left out of that session's waves. If TravelTime can mean "no data", save it as
+  not known instead. Also: Home works out the "further" count and the travel lines for an urgent
+  count it never shows (one more rules batch per Home load); skip them there if Home gets slow.
 - Travel areas of leavers the office can't mark "They've left" (12G.1 review): that reason is only
   offered for an active casual, so one a sheet or file made inactive, or one blocked, keeps their
   area until erased. Either offer "They've left" for an inactive casual too (deleting the area,

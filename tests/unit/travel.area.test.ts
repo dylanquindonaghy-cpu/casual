@@ -86,6 +86,9 @@ describe("the 'further than you travel' words", () => {
     expect(furtherText({ count: 50, atLeast: true })).toBe(
       "At least 50 more shifts are further than you travel.",
     );
+    expect(furtherText({ count: 1, atLeast: true })).toBe(
+      "At least 1 more shift is further than you travel.",
+    );
     expect(furtherText({ count: 3, atLeast: false }, true)).toBe(
       "3 more urgent shifts are further than you travel.",
     );

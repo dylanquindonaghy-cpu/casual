@@ -28,6 +28,7 @@ import { wallTimeOf } from "../time/zoned";
 import { resolveColumns, type ColumnsOf, type ImportKind } from "./columns";
 import { appDatabaseIsLocal } from "../db/where";
 import { requireAgreementForImport } from "./gate-b";
+import { queueTravelEstimates } from "../travel/estimate-queue";
 
 // Imports a list of workers, credentials or shifts (rows from readTable) into the caller's firm,
 // inside the caller's withFirm transaction (docs/architecture.md, Roster plugs: CSV/Excel).
@@ -227,7 +228,11 @@ export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<Import
       problems: [],
     };
     const seen = new Set<string>();
-    const importRow = rowImporter(opts, columns, seen);
+    // Sessions added or given a new time, role or site: their travel estimates (12G.2) are queued
+    // once, with the import (none for a dry run: it's rolled back). A row that fails after adding
+    // its id leaves one the job simply doesn't find.
+    const travel = new Set<string>();
+    const importRow = rowImporter(opts, columns, seen, travel);
     for (const [i, row] of data.entries()) {
       if (isBlank(row)) continue;
       let outcome: RowOutcome;
@@ -249,6 +254,7 @@ export async function runImport(tx: FirmTx, opts: ImportOptions): Promise<Import
         result.problems.push({ row: i + 2, problem: outcome });
       }
     }
+    await queueTravelEstimates(sp, [...travel]);
     await recordEvent(sp, {
       actorType: "office",
       actorId: opts.actorId,
@@ -282,6 +288,7 @@ function rowImporter(
   opts: ImportOptions,
   columns: ColumnsOf<ImportKind>,
   seen: Set<string>,
+  travel: Set<string>,
 ): (tx: FirmTx, row: string[]) => Promise<RowOutcome> {
   const once = (key: string) => {
     if (seen.has(key)) throw new Problem("duplicate_row");
@@ -611,7 +618,10 @@ function rowImporter(
           externalRef: ref,
         })
         .returning({ id: shifts.id });
-      if (added) await event(tx, "shift.created", "shift", added.id, {});
+      if (added) {
+        await event(tx, "shift.created", "shift", added.id, {});
+        travel.add(added.id);
+      }
       return "created";
     }
     const changed = (Object.keys(fields) as (keyof typeof fields)[]).filter((k) => {
@@ -642,6 +652,7 @@ function rowImporter(
     }
     await tx.update(shifts).set(fields).where(eq(shifts.id, existing.id));
     await event(tx, "shift.changed", "shift", existing.id, { fields: changed });
+    if (retimed) travel.add(existing.id);
     // The status follows the places, as in the office's shift editor: never for a shift the office
     // marked as filled with places still free (src/lib/roster/close.ts), which stays closed until
     // the office opens it again (audit M11). A filled shift that a re-import does open again (more

@@ -12,6 +12,7 @@ import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES } from "./firm-reasons";
 import { changeNoticeHours } from "./notice";
 import { recheckHolders } from "./recheck";
 import { isoDate, timesOn } from "./shift-times";
+import { queueTravelEstimates } from "../travel/estimate-queue";
 
 // The office moving or shortening a shift people are booked on (docs/api-and-jobs.md,
 // "Firm-initiated changes"; golden rule 12). One transaction: an active admin or resourcer; the
@@ -127,6 +128,8 @@ export async function moveShiftByFirm(
           .update(shifts)
           .set({ ...times, siteId })
           .where(eq(shifts.id, request.shiftId));
+        // New times or a new site: its travel estimates again (12G.2).
+        await queueTravelEstimates(tx, [request.shiftId]);
 
         // Can each booked worker still work it? The rules at the new time and site, with their
         // rows (and the new day's "applied" lock) held: src/lib/roster/recheck.ts.

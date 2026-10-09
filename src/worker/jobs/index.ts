@@ -82,6 +82,14 @@ import {
   sendOpsAlert,
 } from "../../lib/ops/tick";
 import { HELLO_QUEUE, handleHello } from "./hello";
+import type { TravelEstimatesPayload } from "../../lib/travel/estimate-queue";
+import {
+  runTravelEstimatesTick,
+  TRAVEL_ESTIMATES_CRON,
+  TRAVEL_ESTIMATES_TICK_QUEUE,
+  TRAVEL_ESTIMATES_TZ,
+  travelEstimatesTask,
+} from "../../lib/travel/estimates";
 import { ensureQueues } from "./queues";
 
 export interface JobDeps {
@@ -102,6 +110,7 @@ export interface JobDeps {
   payQueryUpdates?: FirmTask<PayQueryUpdatePayload>;
   strikesEmailLinks?: FirmTask<StrikesEmailLinkPayload>;
   strikeEvidence?: FirmTask<StrikeEvidencePayload>;
+  travelEstimates?: FirmTask<TravelEstimatesPayload>;
   inboundMessages?: FirmTask<InboundMessagePayload>;
   // Alerts to the founder: where they go (default: the console), and the web app's health check as
   // seen inside the server (unset: not checked).
@@ -200,6 +209,23 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   );
   await boss.schedule(METRICS_ROLLUP_TICK_QUEUE, METRICS_ROLLUP_CRON, null, {
     tz: METRICS_ROLLUP_TZ,
+  });
+
+  // Travel estimates (12G.2): queued with the change that needs them, and every night for each
+  // firm's sessions in the open-shifts window.
+  await registerFirmTask(boss, deps.travelEstimates ?? travelEstimatesTask);
+  await boss.work(
+    TRAVEL_ESTIMATES_TICK_QUEUE,
+    logFailures(TRAVEL_ESTIMATES_TICK_QUEUE, async () => {
+      await runTravelEstimatesTick({
+        listFirmIds,
+        run: withFirm,
+        clock: deps.clock ?? systemClock,
+      });
+    }),
+  );
+  await boss.schedule(TRAVEL_ESTIMATES_TICK_QUEUE, TRAVEL_ESTIMATES_CRON, null, {
+    tz: TRAVEL_ESTIMATES_TZ,
   });
 
   // Retention (docs/compliance.md): each firm's old messages and login leftovers, every night.

@@ -20,6 +20,7 @@ import { normaliseRole } from "../roster/sheets/parse";
 import { automaticEventId, createNamedEvent, EVENT_NAME_MAX } from "../roster/shift-events";
 import { isoDate, timesOn } from "../roster/shift-times";
 import type { OfficeContext } from "./quick-actions";
+import { queueTravelEstimates } from "../travel/estimate-queue";
 
 // The office's shift editor (docs/screens.md `/office/shifts`): creating shifts one at a time or
 // several for an event, and editing one. Active admins and resourcers only (checked inside the
@@ -288,6 +289,8 @@ export async function createShifts(
         data: { by: "firm" },
       });
     }
+    // Their travel estimates (12G.2), worked out by the worker.
+    await queueTravelEstimates(tx, shiftIds);
     return { status: "created", shiftIds };
   });
 }
@@ -392,12 +395,14 @@ export async function editShift(
     // marked as filled with places still free (close.ts): that stays closed until "Open it again".
     const closedByOffice = shift.status === "filled" && booked < shift.headcount;
     if (fields.includes("headcount") && !closedByOffice) await refreshShiftStatus(tx, shiftId, now);
-    // Moved with nobody booked: offers still out describe the old shift, so they've expired.
+    // Moved with nobody booked: offers still out describe the old shift, so they've expired, and
+    // its travel estimates are worked out again (12G.2).
     if (moved) {
       await tx
         .update(offers)
         .set({ response: "expired", respondedAt: now })
         .where(and(eq(offers.shiftId, shiftId), isNull(offers.response)));
+      await queueTravelEstimates(tx, [shiftId]);
     }
     await recordEvent(tx, {
       actorType: "office",

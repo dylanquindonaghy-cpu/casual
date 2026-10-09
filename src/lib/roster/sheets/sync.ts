@@ -41,6 +41,7 @@ import {
 import { markUrgentAfterDropout } from "../urgent";
 import { recheckHolders, type RecheckHolder } from "../recheck";
 import type { RuleCode } from "../../rules/eligibility";
+import { queueTravelEstimates } from "../../travel/estimate-queue";
 
 // One sync of a firm's Google Sheet with our mirror of it (docs/architecture.md, Roster plugs;
 // ADR-013). Run by the sheets-sync job, never by a request:
@@ -398,6 +399,9 @@ async function mirror(
   let booked = 0;
   let cancelled = 0;
   let notBooked = 0;
+  // Sessions added, or given a new time, role or site: their travel estimates (12G.2), queued once
+  // with the sync, so a new session has them without waiting for the nightly run.
+  const travel = new Set<string>();
   const writes: PendingWrite[] = [];
 
   for (const row of sheet.shifts) {
@@ -462,6 +466,7 @@ async function mirror(
       if (!inserted) throw new Error("shift insert returned nothing");
       shiftId = inserted.id;
       await recordEvent(tx, system("shift.created", "shift", shiftId, {}));
+      travel.add(shiftId);
     } else {
       shiftId = existing.id;
       // 1. The people the sheet took off it go first, at the shift as they knew it, so their
@@ -548,6 +553,7 @@ async function mirror(
       if (applied.length > 0) {
         const moved = applied.some((k) => k === "startsAt" || k === "endsAt" || k === "siteId");
         if (moved) await logTimeChange(tx, shiftId, existing, apply, now, verdicts);
+        if (moved || applied.includes("role")) travel.add(shiftId);
         await tx.update(shifts).set(apply).where(eq(shifts.id, shiftId));
         // A new site: a booking the office kept (Phase 10, Today's "Bookings to check") is looked
         // at again, in case its worker is blocked from the new site.
@@ -659,6 +665,7 @@ async function mirror(
     await refreshShiftStatus(tx, shiftId, now);
   }
 
+  await queueTravelEstimates(tx, [...travel]);
   return { writes, booked, cancelled, notBooked, problems };
 }
 

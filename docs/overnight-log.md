@@ -10784,3 +10784,73 @@ mid-run: read-only, findings in `docs/work-log.md`). Phase 12 so far: 17.6 hours
 rows (no estimate for Phase 12). **Commit:** "Phase 12: Postcode look-ups and the casual's travel
 area (12G.1)", pushed (its hash in the next entry). CI passed on the checkpoints (`96116c6`,
 `d3cad42`).
+
+(12G.1's commit: `3d1387b`, pushed; CI passed on its checkpoints.)
+
+## 2026-10-09 11:49 UTC — Phase 12, task 12G.2: Travel estimates
+
+**Task:** Travel estimates (§5.4; S9; D1), as written in `PLAN.md` (12G.2).
+
+**Plan:**
+- `src/lib/travel/provider.ts`: a `TravelProvider`. One search takes a site's point, an
+  arrive-by time, a way of travelling (car or public transport) and up to 2,000 start points with
+  meaningless ids. It answers minutes (and metres by car), "not within 90 minutes", or
+  "unavailable".
+  - The fake works the times out from the straight-line distance.
+  - TravelTime's `/v4/time-filter` is called with an arrival search, a 90-minute ceiling and the
+    distance by car. Its answers are checked with zod; there's a time limit and a size cap.
+  - The worker alone builds it (`workerEnv()`); TravelTime's keys go to the worker only.
+- **Migration 0041:** S9's `travel_estimates`.
+  - Columns: origin postcode, site, way, arrive-by, minutes (none when out of reach), metres,
+    provider, computed and expiry times.
+  - Keyed by postcode, site, way and arrive-by, never by person. RLS, a composite key to sites
+    (deleted with the site).
+  - The app may add and delete rows, and update only the result columns.
+- `src/lib/travel/estimates.ts`: the travel job's work.
+  - For each session: the site's point, arrive-by 30 minutes before the start (absolute time,
+    so the clock change can't shift it).
+  - The start points are the distinct postcodes of active casuals with that role. Only those with
+    no estimate yet are searched, in batches of 2,000; sessions sharing a site and arrive-by share
+    searches.
+  - Network calls happen outside transactions. The results are saved only if the site hasn't moved
+    meanwhile, with an expiry 7 days after the session ends.
+- **The job:** `travel.estimates` (ids only: the sessions, or "the window"). It's queued in the
+  same transaction as:
+  - the office's new shifts, a file import and the sheet sync (new or retimed sessions);
+  - the editor's and `moveShiftByFirm`'s changes of time or site;
+  - marking urgent (office and dropout);
+  - a site's postcode change (which also deletes that site's old estimates);
+  - a casual's postcode or ways of travelling changing (their roles' sessions in the window).
+- **Before an urgent session's first wave:** the wave job fills its missing estimates first
+  (best-effort: a provider that's down never holds an offer back).
+- **A nightly tick (02:20 London)** queues one job per firm for every session in
+  `OPEN_WINDOW_DAYS`.
+- **The retention purge** deletes estimates past their expiry.
+- **Reading them:** `travelFor(tx, workerId, shiftIds)` and `travelLineText()`, for 12G.3's pages:
+  - "7.2 miles · 18 min by car · 41 min by public transport";
+  - "… · no public transport by 09:30";
+  - with none yet but both points known: "about 7 miles (straight line) · Travel time not known
+    yet";
+  - otherwise "Distance not known yet".
+- **The planner API (12J.1)** queues the job too: carried into its task text.
+- **Tests:**
+  - contract tests against the fake and recorded TravelTime answers (hand-written to its documented
+    shape: no network);
+  - nothing personal in a request; batching at 2,000; arrive-by across the clock change;
+  - a synced session gets estimates without the nightly run; an urgent session made with under 24
+    hours to go has them before its first wave; the nightly run covers the whole window;
+  - the fallback; the purge; isolation; each trigger queues the job;
+  - pages never import the provider.
+- **Docs:** the runbook (travel provider outage), data model, jobs, DPIA, compliance.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| No call to TravelTime tonight; its answers are written by hand to its documented shape (`tests/fixtures/traveltime/`), checked live in the "Connect" step | Overnight hard limit: no outside services | Fetching real answers with the free key |
+| Estimates are worked out for both ways for every start postcode, not only the ways a casual chose | §4.3: "Both times always show, whichever ways she chose; her choice only drives the filter" | Only the casual's chosen ways (fewer searches) |
+| A provider that doesn't answer stops the job's run and fails it (pg-boss tries again); the nightly run is the safety net | No hammering a service that's down; what was saved stays | Carrying on with every search |
+| The first wave fills a session's missing estimates itself, best-effort, before choosing candidates | pg-boss gives no order between queues, and the task asks for estimates before the first wave; a provider that's down must never hold offers back (D2) | Delaying the wave until the job has run |
+| The worker alone builds the provider and gets TravelTime's keys; the wave job loads the travel code with a dynamic import | Pages never call the provider, and the web app never holds the key (a test walks every web file's imports) | The provider in the web app too |
+| Estimates are left out of the firm's data export, kept through a hold, and not deleted on erasure | Keyed by full postcodes (which the office never sees), not by person, and they expire 7 days after their last session | Exporting them; deleting by postcode on erasure |
+| Reading them (`travelFor()` and the travel line's words, with the straight-line fallback) is built now; showing them on pages is 12G.3 | The task's fallback ("(straight line)", "Travel time not known yet") needs a place to be tested | Leaving the words to 12G.3 |

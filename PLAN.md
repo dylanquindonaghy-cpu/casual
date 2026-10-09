@@ -886,7 +886,9 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       `src/lib/travel/`) and saved with its point in `sites.lat`/`lng`, with the same handling as
       `editSitePostcode` (an unknown postcode is 422 `unknown_postcode`; a failed look-up is 503
       `lookup_failed` and saves nothing; look-ups off saves the postcode without a point), tested
-      with the fake geocoder; new sites and events made with `insert … on conflict do nothing`; places lowered only as far as the
+      with the fake geocoder; sessions the API creates or changes (time, role or site) queue the
+      travel job (`queueTravelEstimates()`, 12G.2) in the same transaction, tested; new sites and
+      events made with `insert … on conflict do nothing`; places lowered only as far as the
       highest booked place, else 409 `places_below_booked`; a booked session's move or
       cancellation through `moveShiftByFirm()` or `cancelShiftByFirm()` with S11's API caller
       (`by: { type: "api", keyId }`: the key checked still live in the same transaction, API
@@ -2842,8 +2844,10 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
      TravelTime are acceptable sub-processors (Legal 2); for TravelTime, get the production quote
      and accept its data processing agreement.
   2. **Claude:** check the hand-written postcodes.io answers (`tests/fixtures/postcodes-io/`)
-     against one live answer for a public postcode (a council office's, never a casual's), and
-     correct the parser if the shape differs. Nothing personal is sent.
+     against one live answer for a public postcode (a council office's, never a casual's), and the
+     hand-written TravelTime answers (`tests/fixtures/traveltime/`, 12G.2) against one live
+     time-filter search between two public places; correct the parsers if the shapes differ.
+     Nothing personal is sent.
   3. **You:** put `TRAVEL_PROVIDER=traveltime` (and 12G.2's TravelTime keys) in the server's
      `.env`; then save one site's postcode on Settings and check it says "Location found."
   Also: `scripts/invariants.sh` checks the test setups' pins for email, AI and Twilio but not yet

@@ -37,6 +37,10 @@ import {
   type CancellationRecord,
   type RosterFixture,
 } from "../helpers/roster-contract";
+import { runFirmTask } from "@/lib/jobs/firm-job";
+import { createTravelEstimatesTask } from "@/lib/travel/estimates";
+import { fakePoint } from "@/lib/travel/geocoder";
+import { fakeTravelProvider } from "@/lib/travel/provider";
 
 // A firm's Google Sheet kept in step with our tables, both ways (PLAN.md Phase 2: "a seeded Sheet
 // syncs both ways"), on the real database as the app role, against an in-memory fake of Google
@@ -1676,5 +1680,64 @@ describe("sheets.sync: events and a session's own details (12B.1)", () => {
     });
     // ... and left ShiftDesk's own fields, both switches and the event as they were.
     expect(rows[0]).toMatchObject({ ...details, event_showing: false, event_id: before?.id });
+  });
+});
+
+describe("sheets.sync: travel estimates (12G.2)", () => {
+  const travelJobs = async (firmId: string) =>
+    (
+      await su.query<{ id: string; data: { shiftIds?: string[] } }>(
+        `select id::text, data from pgboss.job
+          where name = 'travel.estimates' and data ->> 'firmId' = $1 order by created_on, id`,
+        [firmId],
+      )
+    ).rows;
+
+  it("a new session gets its estimates without waiting for the nightly run", async () => {
+    const f = await sheetFirm([ADA].map(staffRow), [P1].map(shiftRow));
+    // The sheet's site was placed on Settings already.
+    const point = fakePoint("ZZ1 1AA");
+    await su.query(
+      `insert into sites (firm_id, name, postcode, lat, lng)
+       values ($1, 'Demo Junction', 'ZZ1 1AA', $2, $3)`,
+      [f.firmId, point?.lat, point?.lng],
+    );
+    await sync(f);
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    const ada = await idOf("workers", f.firmId, "N001");
+    const home = fakePoint("ZZ2 2BB");
+    await su.query(
+      `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes,
+                                  max_minutes, privacy_notice_version, updated_at)
+       values ($1, $2, 'ZZ2 2BB', $3, $4, 'both', 45, 'travel-v1', now())`,
+      [f.firmId, ada, home?.lat, home?.lng],
+    );
+    // The sync queued the travel job with the new session, in its own transaction.
+    const jobs = await travelJobs(f.firmId);
+    expect(jobs.map((j) => j.data.shiftIds)).toEqual([[shiftId]]);
+    // The worker runs it: the session has both ways' estimates from Ada's postcode.
+    const task = createTravelEstimatesTask(() => ({
+      provider: fakeTravelProvider,
+      clock: at(NOW),
+    }));
+    const [job] = jobs;
+    expect((await runFirmTask(task, { id: job?.id ?? "", data: job?.data }, withFirm)).status).toBe(
+      "completed",
+    );
+    const { rows } = await su.query<{ mode: string }>(
+      "select mode from travel_estimates where firm_id = $1 order by mode",
+      [f.firmId],
+    );
+    expect(rows.map((r) => r.mode)).toEqual(["car", "public_transport"]);
+
+    // A sync that changes nothing queues nothing; a new time queues it again.
+    await sync(f);
+    expect(await travelJobs(f.firmId)).toHaveLength(1);
+    f.fake.tab(f.sheetId, SHIFTS).splice(1, 1, shiftRow({ ...P1, start: "21:00" }));
+    await sync(f);
+    expect((await travelJobs(f.firmId)).map((j) => j.data.shiftIds)).toEqual([
+      [shiftId],
+      [shiftId],
+    ]);
   });
 });

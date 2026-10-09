@@ -23,3 +23,5 @@ process.env.ANTHROPIC_API_KEY = "";
 // Never postcodes.io or TravelTime, whatever .env says (the settings also refuse traveltime under
 // NODE_ENV=test).
 process.env.TRAVEL_PROVIDER = "fake";
+process.env.TRAVELTIME_APP_ID = "";
+process.env.TRAVELTIME_API_KEY = "";

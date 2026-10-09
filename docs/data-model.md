@@ -32,6 +32,7 @@ architecture.md, Tenancy).
 | worker_unavailable_days | Days a worker marked as "can't work" on their profile (one row per firm-local day) | 3 |
 | worker_site_blocks | Sites a worker may not work at (rules check 9), set by the office with a reason | 10 |
 | worker_travel | A casual's travel area: start postcode and its central point, ways of travelling, time limit (12G.1, S8) | 12 |
+| travel_estimates | Travel time (and distance by car) from a postcode to a site, by car or public transport, arriving by a time; keyed by postcode, never by person (12G.2, S9) | 12 |
 | credentials | Licences/cards per worker: type, number, expiry, status | 1 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
 | credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
@@ -257,6 +258,30 @@ create table worker_travel (
   created_at timestamptz not null default now(),
   unique (firm_id, id),
   unique (firm_id, worker_id)
+);
+
+-- Travel estimates (12G.2; S9, built narrower; docs/office-v2.md 5.4): how long from a postcode to a
+-- site by one way of travelling, arriving by a time (30 minutes before a session starts). Keyed by
+-- the postcode, never by the person; worked out by the travel job (src/lib/travel/estimates.ts),
+-- never by a page. The app adds and deletes rows and updates only the result columns
+-- (COLUMN_UPDATES). Deleted when they expire (7 days after their last session, by the retention
+-- purge, even during a hold) and with a site's old ones when its postcode changes. Not in the
+-- firm's data export (they're keyed by casuals' full postcodes, which the office never sees).
+create table travel_estimates (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  origin_postcode text not null,         -- tidy UK format, e.g. 'ZZ2 2BB'
+  site_id uuid not null,                 -- (firm_id, site_id) -> sites, on delete cascade
+  mode text not null,                    -- car | public_transport
+  arrive_by timestamptz not null,        -- the session's start minus 30 minutes
+  minutes integer,                       -- 0 to 90; null: not within 90 minutes
+  metres integer,                        -- the road distance, by car only
+  provider text not null,                -- fake | traveltime
+  computed_at timestamptz not null,
+  expires_at timestamptz not null,       -- the last session's end + 7 days
+  created_at timestamptz not null default now(),
+  unique (firm_id, id),
+  unique (firm_id, origin_postcode, site_id, mode, arrive_by)
 );
 
 create table credentials (

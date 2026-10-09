@@ -60,6 +60,8 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   // Never postcodes.io or TravelTime: the made-up points for the ZZ postcodes (the e2e servers
   // don't run with NODE_ENV=test, so this pin is what keeps them off).
   TRAVEL_PROVIDER: "fake",
+  TRAVELTIME_APP_ID: "",
+  TRAVELTIME_API_KEY: "",
 });
 const env = serverEnv(PORT, OUTBOX);
 

@@ -45,7 +45,10 @@ and TravelTime" in the Parking lot done.
   postcode, with nothing about who it belongs to (tested: `tests/unit/travel.geocoder.test.ts`).
 - The answer is checked before it's used. A postcode it doesn't know is refused with words saying
   so, and nothing is saved. A look-up that fails saves nothing either.
-- **TravelTime** (12G.2) will get coordinates and meaningless ids, never a postcode or a name.
+- **TravelTime** (12G.2, built) gets the site's point and each start point under a meaningless
+  id ("o1", "o2"), never a postcode, a name or a database id (tested:
+  `tests/unit/travel.provider.test.ts`). Only the worker calls it; no page does (tested:
+  `tests/unit/travel.boundary.test.ts`).
 - Northern Ireland (BT) postcode data needs a separate licence (`PLAN.md` Checks 16).
 
 ### Lawful basis: legitimate interests (the balancing test)
@@ -94,8 +97,11 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
   include erasing them when they ask, or removing the area.
 - The log entries (`travel.profile_changed`, `travel.profile_removed`) hold no postcode or point,
   so nothing personal about their location stays in the log.
-- Travel estimates (12G.2) are keyed by postcode, not by person, and are purged 7 days after the
-  session ends.
+- Travel estimates (12G.2, `travel_estimates`) are keyed by postcode, not by person: everyone
+  starting from a postcode shares them. They're deleted 7 days after the last session they were for
+  (the retention purge, even during a hold), and when a site's postcode changes. Erasing a casual
+  doesn't delete them (they don't say who), but they expire as above. They're left out of the
+  firm's data export, because they hold full start postcodes, which the office never sees.
 
 ### Who can see it
 

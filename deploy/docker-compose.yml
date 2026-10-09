@@ -90,7 +90,10 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-}
       # Postcodes and travel times (docs/office-v2.md 5.4): fake knows only the made-up ZZ postcodes.
+      # With traveltime, TravelTime's keys: the worker alone works out travel times (12G.2).
       TRAVEL_PROVIDER: ${TRAVEL_PROVIDER:-fake}
+      TRAVELTIME_APP_ID: ${TRAVELTIME_APP_ID:-}
+      TRAVELTIME_API_KEY: ${TRAVELTIME_API_KEY:-}
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,

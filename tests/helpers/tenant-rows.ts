@@ -31,6 +31,7 @@ export const EXPECTED_TABLES = [
   "shifts",
   "sites",
   "strikes",
+  "travel_estimates",
   "worker_site_blocks",
   "worker_travel",
   "worker_unavailable_days",
@@ -220,6 +221,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, $3, 'client_asked')`,
     [firmId, workerId, siteId],
   );
+  const estimateId = await one(
+    su,
+    `insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by, minutes,
+                                   metres, provider, computed_at, expires_at)
+     values ($1, 'ZZ1 1AA', $2, 'car', '2027-01-01T08:30:00Z', 18, 11500, 'fake', now(),
+             '2027-01-09T00:00:00Z')`,
+    [firmId, siteId],
+  );
   const travelId = await one(
     su,
     `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes, max_minutes,
@@ -302,6 +311,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       worker_unavailable_days: unavailableDayId,
       worker_site_blocks: siteBlockId,
       worker_travel: travelId,
+      travel_estimates: estimateId,
       strikes: strikeId,
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
@@ -406,6 +416,13 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   worker_site_blocks: (firmId, p) => ({
     text: "insert into worker_site_blocks (firm_id, worker_id, site_id, reason) values ($1, $2, $3, 'other')",
     values: [firmId, p.workerId, p.rosterSiteId],
+  }),
+  travel_estimates: (firmId, p) => ({
+    text: `insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by,
+                                         minutes, provider, computed_at, expires_at)
+           values ($1, 'ZZ2 2BB', $2, 'public_transport', $3, 41, 'fake', now(),
+                   $3::timestamptz + interval '8 days')`,
+    values: [firmId, p.rosterSiteId, new Date(Date.UTC(2027, 1, 1) + next() * 60_000)],
   }),
   // One per casual: a new casual, then their travel area.
   worker_travel: (firmId) => ({
@@ -559,6 +576,13 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into worker_site_blocks (firm_id, worker_id, site_id, reason, blocked_by)
            values ($1, $2, $3, 'incident', $4)`,
     values: [firmId, own.rosterWorkerId, own.rosterSiteId, other.officeUserId],
+  }),
+  travel_estimates_site_fk: (firmId, _own, other) => ({
+    text: `insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by,
+                                         minutes, provider, computed_at, expires_at)
+           values ($1, 'ZZ3 3CC', $2, 'car', $3, 20, 'fake', now(),
+                   $3::timestamptz + interval '8 days')`,
+    values: [firmId, other.rosterSiteId, new Date(Date.UTC(2027, 2, 1) + next() * 60_000)],
   }),
   worker_travel_worker_fk: (firmId, _own, other) => ({
     text: `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes,

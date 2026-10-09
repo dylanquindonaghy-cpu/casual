@@ -12,6 +12,7 @@ import { POSTCODE_INPUT_MAX, tidyPostcode } from "../travel/postcode";
 import { serverGeocoder } from "../travel/server";
 import { officeUserMay, type OfficeContext } from "./office-context";
 import { strikesEmailOf, type StrikesEmail } from "./strikes-email";
+import { siteMoved } from "../travel/estimate-queue";
 
 // Settings (docs/office-v2.md 3.10; docs/screens.md `/office/settings`; 12B.7), admins only,
 // checked here as well as on the page: the strikes team's email (src/lib/office/strikes-email.ts)
@@ -165,6 +166,7 @@ export async function editSitePostcode(
       if (off) return { status: "lookups_off" };
       // The same postcode with no point yet: the venue doesn't move, so bookings don't matter.
       await tx.update(sites).set(pointColumns(point)).where(eq(sites.id, siteId));
+      await siteMoved(tx, siteId, now); // its sessions' travel estimates (12G.2)
       await recordEvent(tx, {
         actorType: "office",
         actorId: ctx.officeUserId,
@@ -187,6 +189,8 @@ export async function editSitePostcode(
       .update(sites)
       .set({ postcode, ...pointColumns(point) })
       .where(eq(sites.id, siteId));
+    // Its old travel estimates are wrong now; its sessions to come get new ones (12G.2).
+    await siteMoved(tx, siteId, now);
     await recordEvent(tx, {
       actorType: "office",
       actorId: ctx.officeUserId,

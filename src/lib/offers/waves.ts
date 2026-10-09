@@ -168,6 +168,8 @@ export async function startOfferWaves(
 export interface OfferDeps extends NotifyDeps {
   baseDomain: string;
   clock: Clock;
+  // Before a session's first wave: its missing travel estimates (12G.2), best-effort. Absent: none.
+  travelBeforeFirstWave?: (run: WithFirm, firmId: string, shiftId: string) => Promise<void>;
 }
 
 export interface LockedShift {
@@ -382,6 +384,13 @@ export async function runOfferWave(
   if (checked.done) return checked.done;
   const { shift, firm, already } = checked;
   const settings = parseAllocationSettings(firm.settings);
+
+  // The first wave of a session (an urgent one made close to the start may have none yet): its
+  // travel estimates first, outside any transaction, so they're there before anyone is offered it.
+  // Best-effort: a travel service that doesn't answer never holds the offers back.
+  if (payload.wave === 1 && already === 0 && deps.travelBeforeFirstWave) {
+    await deps.travelBeforeFirstWave(run, payload.firmId, shift.id);
+  }
 
   // 2. Who it goes to: read with no locks held (the rules for every active worker with the role can
   // take a while). Waves only run for urgent shifts (checked above), so the daily cap doesn't hold
@@ -736,6 +745,10 @@ const workerDeps = (): OfferDeps => {
     push: getPushTransport(env),
     baseDomain: env.APP_BASE_DOMAIN,
     clock: systemClock,
+    // Loaded only here, in the worker: the web app, which queues waves, never loads the travel
+    // service's code (tests/unit/travel.boundary.test.ts).
+    travelBeforeFirstWave: async (run, firmId, shiftId) =>
+      (await import("../travel/estimates")).estimatesBeforeWave(run, firmId, shiftId),
   };
 };
 export const offerWaveTask = createOfferWaveTask(workerDeps);

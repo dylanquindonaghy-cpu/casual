@@ -54,6 +54,8 @@ const NOT_EVENTS = new Set<string>([
   "properties.locale",
   // The evidence email's job queue (src/lib/strikes/evidence-queue.ts, 12C.4; the task's own name).
   "strikes.evidence_email",
+  // The travel job's queue (src/lib/travel/estimate-queue.ts, 12G.2; the task's own name).
+  "travel.estimates",
 ]);
 const recorded = new Set(
   [...sourceFiles(ROOT), ...sourceFiles(join(process.cwd(), "scripts"))]

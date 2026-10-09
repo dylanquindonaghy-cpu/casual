@@ -9,3 +9,4 @@ export * from "./pay";
 export * from "./roster";
 export * from "./strikes";
 export * from "./tenancy";
+export * from "./travel";

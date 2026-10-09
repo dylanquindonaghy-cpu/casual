@@ -12,6 +12,8 @@ import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
 import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
 import { STRIKES_EMAIL_LINK_QUEUE } from "../../lib/office/strikes-email";
 import { STRIKE_EVIDENCE_QUEUE } from "../../lib/strikes/evidence-queue";
+import { TRAVEL_ESTIMATES_QUEUE } from "../../lib/travel/estimate-queue";
+import { TRAVEL_ESTIMATES_TICK_QUEUE } from "../../lib/travel/estimates";
 import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
 import { SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDERS_QUEUE } from "../../lib/reminders/send";
 import {
@@ -77,6 +79,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   RETENTION_PURGE_QUEUE,
   STRIKES_EMAIL_LINK_QUEUE,
   STRIKE_EVIDENCE_QUEUE,
+  TRAVEL_ESTIMATES_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
@@ -103,6 +106,10 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   {
     name: RETENTION_PURGE_TICK_QUEUE,
+    options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
+  },
+  {
+    name: TRAVEL_ESTIMATES_TICK_QUEUE,
     options: { policy: "standard", deleteAfterSeconds: 24 * 60 * 60 },
   },
   {

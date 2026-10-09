@@ -490,7 +490,14 @@ Order: web push (free) → WhatsApp template → SMS fallback.
 - The casual's travel area is `worker_travel` (S8). The office reads the district only, cut out in
   SQL. It is deleted on "They've left" and on erasure, and is never in the action log
   (`docs/dpia-travel.md`).
-- Travel times (12G.2) and the travel filter (12G.3) build on these points.
+- Travel times (12G.2): a `TravelProvider` (`src/lib/travel/provider.ts`: the fake, or
+  TravelTime's time-filter, given coordinates and meaningless ids only) used by the worker's
+  `travel.estimates` job (`src/lib/travel/estimates.ts`), queued in the same transaction as the
+  change that needs it (`src/lib/travel/estimate-queue.ts`) and nightly for the 28-day window.
+  Estimates go in `travel_estimates`, keyed by postcode. Pages read them (`travelFor()`,
+  `src/lib/travel/lines.ts`) and never reach the provider (`tests/unit/travel.boundary.test.ts`);
+  with none yet, the line falls back to the straight-line distance, labelled.
+- The travel filter (12G.3) builds on these.
 
 ## Custom domains and branding
 

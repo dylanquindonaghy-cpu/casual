@@ -9,6 +9,7 @@ import {
   otpCodes,
   requests,
   sessions,
+  travelEstimates,
 } from "../db/schema";
 import { activeFirmId, type FirmTx, type WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -34,6 +35,8 @@ const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as con
 //   same way (the app role can't delete strikes), and none during a hold; the office's reason for
 //   withdrawing one goes with its row. Their strike.issued, strike.withdrawn and strike.reviewed
 //   entries (ids, codes and hours) stay with the rest of the action log;
+// - travel estimates past their expiry, 7 days after the last session they were worked out for
+//   (12G.2): keyed by postcode, not by person, so even during a hold;
 // - the words typed into a request (payload.note, and payload.swapWith: a colleague's name), only
 //   once it's closed (approved, declined, auto-resolved) and retention.request_note_days (365) after
 //   it closed: an open or escalated request keeps them (the request itself stays: it's evidence);
@@ -88,6 +91,7 @@ export interface PurgeCounts {
   loginLinks: number;
   sessions: number;
   codes: number;
+  travelEstimates: number;
 }
 
 const daysBefore = (now: Date, days: number) => new Date(now.getTime() - days * DAY_MS);
@@ -109,6 +113,14 @@ export async function purgeExpired(tx: FirmTx, now: Date): Promise<PurgeCounts> 
   const count = async (rows: Promise<{ id: string }[]>) => (await rows).length;
   const typed = sql.raw(`array[${REQUEST_FREE_TEXT_KEYS.map((k) => `'${k}'`).join(", ")}]`);
   const counts: PurgeCounts = {
+    // Travel estimates 7 days after the last session they were for (12G.2): keyed by postcode, not
+    // by person, and no evidence of anything, so a hold doesn't keep them.
+    travelEstimates: await count(
+      tx
+        .delete(travelEstimates)
+        .where(lt(travelEstimates.expiresAt, now))
+        .returning({ id: travelEstimates.id }),
+    ),
     messages: Number(rows[0]?.n ?? 0),
     strikes: Number(strikeRows[0]?.n ?? 0),
     requestNotes: held

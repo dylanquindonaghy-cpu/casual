@@ -515,6 +515,28 @@ when it's saved (12G.1; `docs/office-v2.md` 5.4). Which service does that is the
    service was off). Save the same postcode again on Settings.
 4. Northern Ireland (BT) postcodes need a separate licence first (`PLAN.md` Checks 16).
 
+## Travel provider outage (travel times missing)
+
+Each shift's travel line ("7.2 miles · 18 min by car · 41 min by public transport") comes from
+travel estimates the worker works out (12G.2; `docs/office-v2.md` 5.4), never from a page. When
+they're missing, a casual sees "about 7 miles (straight line) · Travel time not known yet": shifts
+are never hidden because of it, and an unknown distance is still offered.
+
+1. Which service: `grep '^TRAVEL_PROVIDER=' .env`. `fake` works the times out on the server and
+   can't be down. `traveltime` asks TravelTime.
+2. The worker's log: `docker compose logs worker --since 2h | grep travel.estimates`. A failed job
+   says `travel.estimates` with a code: `TravelUnavailableError` means TravelTime didn't answer
+   (down, too slow, or an answer we couldn't read). pg-boss tries the job again by itself.
+3. A wrong or missing key: the worker refuses to start with `traveltime` and no
+   `TRAVELTIME_APP_ID` / `TRAVELTIME_API_KEY`. A key TravelTime rejects shows as the same
+   `TravelUnavailableError`: check the keys in TravelTime's developer portal, then `nano .env`,
+   save once; the deploy timer applies it within 2 minutes.
+4. Usage limits: TravelTime's plan has a monthly allowance (`docs/office-v2.md` 5.4). If it's used
+   up, every search fails until it resets or the plan changes.
+5. Once it answers again, nothing else to do: the nightly run (02:20 London) fills every session in
+   the next 28 days that's missing estimates. To fill them sooner, save any site's postcode again
+   on Settings (its sessions are queued at once).
+
 ## Google Sheets sync failing
 
 `npm run -s firm:sheet -- --firm <slug>` shows the firm's sheet, when it last synced and why it's

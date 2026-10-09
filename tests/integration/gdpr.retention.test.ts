@@ -101,6 +101,13 @@ async function aged(t: Tenant, now: Date) {
   const recentRequest = await request(WORDS_DAYS - 1, { note: "Recent words" });
   // Opened long ago and still waiting for the office: its words stay until it's closed.
   const openRequest = await request(null, { note: "Still waiting" }, "escalated");
+  // A travel estimate past its expiry (12G.2): it goes, hold or not (the tenant's own expires later).
+  await one(
+    `insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by, minutes,
+                                   provider, computed_at, expires_at)
+     values ($1, 'ZZ7 7GG', $2, 'car', $3, 20, 'fake', $3, $4)`,
+    [t.firmId, t.rows.sites, ago(10), ago(1)],
+  );
   // The office's reason for placing someone despite a rule, on a booking made long ago.
   await su.query(
     `update assignments set override_reason = 'Rang in for Priya', created_at = $2,
@@ -169,6 +176,7 @@ describe("the retention purge", () => {
       loginLinks: 1,
       sessions: 2,
       codes: 1,
+      travelEstimates: 1,
     });
 
     // The old message goes; a reply to it newer than the cut-off stays, no longer pointing at it.
@@ -218,6 +226,7 @@ describe("the retention purge", () => {
       loginLinks: 0,
       sessions: 0,
       codes: 0,
+      travelEstimates: 0,
     });
     const { rows } = await su.query(
       `select actor_type, entity_type, entity_id::text, data from events
@@ -238,6 +247,7 @@ describe("the retention purge", () => {
           loginLinks: 1,
           sessions: 2,
           codes: 1,
+          travelEstimates: 1,
         },
       },
       { actor_type: "system", entity_type: "firm", entity_id: t.firmId, data: again },
@@ -344,6 +354,7 @@ describe("the retention purge", () => {
       loginLinks: 1,
       sessions: 2,
       codes: 1,
+      travelEstimates: 1, // keyed by postcode, not personal: a hold doesn't keep them
     });
     expect(await ids("messages", t.firmId)).toContain(a.oldMessage);
     const { rows } = await su.query(

@@ -208,6 +208,10 @@ export const workerEnvSchema = z
     AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
     // A secret: never logged, never in the repo, never given to the web app.
     ANTHROPIC_API_KEY: unsetIfEmpty(z.string().max(500).optional()),
+    // TravelTime (docs/office-v2.md 5.4; 12G.2), for TRAVEL_PROVIDER=traveltime: worker only (the
+    // travel job). Secrets: never logged, never in the repo, never given to the web app.
+    TRAVELTIME_APP_ID: unsetIfEmpty(z.string().max(200).optional()),
+    TRAVELTIME_API_KEY: unsetIfEmpty(z.string().max(500).optional()),
     // Haiku (CLAUDE.md "Stack").
     AI_MODEL: unsetIfEmpty(
       z
@@ -257,7 +261,14 @@ export const workerEnvSchema = z
   .refine((e) => e.AI_TRANSPORT !== "anthropic" || e.ANTHROPIC_API_KEY, {
     path: ["ANTHROPIC_API_KEY"],
     message: "AI_TRANSPORT=anthropic needs ANTHROPIC_API_KEY",
-  });
+  })
+  .refine(
+    (e) => e.TRAVEL_PROVIDER !== "traveltime" || (e.TRAVELTIME_APP_ID && e.TRAVELTIME_API_KEY),
+    {
+      path: ["TRAVELTIME_API_KEY"],
+      message: "TRAVEL_PROVIDER=traveltime needs TRAVELTIME_APP_ID and TRAVELTIME_API_KEY (worker)",
+    },
+  );
 
 export const adminEnvSchema = z
   .object({

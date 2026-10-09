@@ -17,6 +17,7 @@ import { POSTCODE_INPUT_MAX, tidyPostcode } from "../travel/postcode";
 import { serverGeocoder } from "../travel/server";
 import { travelSettings } from "../travel/settings";
 import type { PortalContext } from "./my-shifts";
+import { casualMoved } from "../travel/estimate-queue";
 
 // The casual's travel area, "Where you work" (docs/office-v2.md 4.6, 5.4; S8; 12G.1), for the
 // logged-in casual only, inside their firm. Server only; the words are in travel-copy.ts.
@@ -181,6 +182,10 @@ export async function saveMyTravel(
       entityId: workerId,
       data: { changed, maxMinutes },
     });
+    // The sessions in the window for their roles: estimates from their (new) postcode (12G.2).
+    if (changed.includes("postcode") || changed.includes("modes")) {
+      await casualMoved(tx, workerId, now);
+    }
     return { status: "saved" };
   });
 }

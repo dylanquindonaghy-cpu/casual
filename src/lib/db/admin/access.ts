@@ -66,6 +66,9 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // office makes them inactive as "They've left" and when they're erased. Only the area's own
   // columns change (COLUMN_UPDATES): never whose it is or which firm's.
   worker_travel: ["SELECT", "INSERT", "DELETE"],
+  // Travel estimates (12G.2, S9): added and refreshed by the travel job (COLUMN_UPDATES: the result
+  // and its expiry only), deleted when a site's postcode changes and by the retention purge.
+  travel_estimates: ["SELECT", "INSERT", "DELETE"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
@@ -93,6 +96,7 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
     "privacy_notice_version",
     "updated_at",
   ],
+  travel_estimates: ["minutes", "metres", "provider", "computed_at", "expires_at"],
 };
 
 export function schemaTableNames(): string[] {

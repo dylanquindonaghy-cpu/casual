@@ -1,0 +1,7 @@
+{
+  "http_status": 422,
+  "error_code": 15,
+  "description": "Location coordinates must be valid.",
+  "documentation_link": "https://docs.traveltime.com/api/reference/error-codes",
+  "additional_info": {}
+}

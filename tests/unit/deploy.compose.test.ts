@@ -127,6 +127,13 @@ describe("deploy/docker-compose.yml", () => {
     for (const name of ["web", "caddy", "migrate"]) {
       expect(keys(name), name).not.toContain("ANTHROPIC_API_KEY");
     }
+    // Travel times (12G.2): the worker alone asks TravelTime, so only it gets the keys.
+    expect(keys("worker")).toEqual(
+      expect.arrayContaining(["TRAVEL_PROVIDER", "TRAVELTIME_APP_ID", "TRAVELTIME_API_KEY"]),
+    );
+    for (const name of ["web", "caddy", "migrate"]) {
+      expect(keys(name), name).not.toContain("TRAVELTIME_API_KEY");
+    }
     for (const name of ["web", "worker", "caddy"]) {
       expect(keys(name), name).not.toContain("DATABASE_ADMIN_URL");
     }

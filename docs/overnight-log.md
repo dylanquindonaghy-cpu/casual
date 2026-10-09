@@ -10994,3 +10994,26 @@ count's fix. Its items:
 | Home works out a count it never shows | NICE | Parked (one bounded batch per Home load) |
 | "Nearest" for a casual with one way | NICE | Tested; counting the other way now fails it |
 | TravelTime's "unreachable" must mean over 90 minutes; the prompt shows at every firm | NICE | Parked in the Parking lot (with the per-firm switch) |
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=63d457ebc306ad3c e2e=true`
+(4,160 tests, 80 browser tests, the walkthrough's 3).
+
+**Audit round 1 (claims-auditor), verbatim verdict and notes:**
+
+> VERDICT: DONE (12G.3 only; the shift page and shifts-line replies are 12H.2 and 12H.1)
+>
+> Notes for the caller (not blockers, but your call):
+> 1. "Not worked out yet" shows as straight-line miles plus "Travel time not known yet" when she has a start point and the site has coordinates (`line-copy.ts:35`). The literal "Distance not known yet" appears only for no location, no site, or no start point. `docs/office-v2.md:1582` literally says a not-yet-run job shows "Distance not known yet", while the 12G.2 text (already ticked and audited) and `docs/screens.md:18` define the straight-line variant. It is labelled and never hidden, and `travel.filter.test.ts:193` pins the behaviour.
+> 2. Past bookings carry no travel line, because the estimates expire 7 days after the session. This is logged in the decision table in `docs/overnight-log.md`, in `docs/screens.md:17`, and in the test at `travel.filter.test.ts:397`. `docs/office-v2.md` §4.3 says "Every row, Open or Booked".
+> 3. The shift page's "Getting there" block and Home's no-area prompt are deliberately left to 12H.2 and 12H.1. Their task texts name them.
+>
+> To reach DONE: nothing.
+
+(Its per-claim evidence, each PROVEN with file and line, is summarised in `docs/work-log.md`.)
+Notes 1 and 2: `docs/office-v2.md` §4.3 and §5.4 now say how it was built (after the tick, wording
+only). Note 3 stands.
+
+**Hours:** 0.8 (13:27 to 14:14 UTC). Phase 12 so far: 20.0 hours over 20 Hours-log rows (no
+estimate for Phase 12). **Commit:** "Phase 12: The travel filter and travel lines (12G.3)", pushed
+(its hash in the next entry). CI passed on the checkpoints (`6cf9fdb`, `b754ae7`). 12G.2's commit:
+`b0ec667`, pushed; CI passed on it.

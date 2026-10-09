@@ -960,7 +960,8 @@ the menu.
   (`src/app/shifts/open/page.tsx:12-41`); the 50-row cap's message still points to them ("Choose a
   day, site or role to see others"). No new filters.
 - **Every row**, Open or Booked, urgent or not, has the travel line: "7.2 miles · 18 min by car · 41
-  min by public transport".
+  min by public transport". (Built for Booked's upcoming shifts; past ones have none, as their
+  estimates expire 7 days after: 12G.3.)
   - Both times always show, whichever ways she chose; her choice only drives the filter.
   - With no public transport in time: "18 min by car · no public transport by 09:30".
 - **Where the area filter is applied.** Inside the database query, before the 50-row cap
@@ -1579,8 +1580,10 @@ Delivery is plain HTTPS from the worker, so it runs on any Docker host (5.8).
 So an urgent session added this morning for tonight has its travel lines before its first wave
 (the wave waits up to 5 seconds for them, then goes anyway: 12G.2).
 
-**An unknown estimate** (the job hasn't run yet, or the site has no postcode) is shown as "Distance
-not known yet", never hidden (D2). Offer waves still offer such a session, so the travel limit never
+**An unknown estimate** (the job hasn't run yet, or the site has no postcode) is shown, never hidden
+(D2): "Distance not known yet" when either point is missing (no travel area, a site with no
+location); while the job hasn't run but both points are known, the straight line as below (12G.2,
+12G.3). Offer waves still offer such a session, so the travel limit never
 silently stops a casual being offered work.
 
 **If the provider is down:** straight-line miles worked out from coordinates, labelled "about 7

@@ -10898,3 +10898,109 @@ rules) ran twice:
 
 Nothing new is on screen yet: 12G.3 adds the travel lines and the filter. The tests above run it
 end to end with the fake provider: `npm test -- tests/integration/travel.estimates.test.ts`.
+
+## 2026-10-09 — Phase 12, task 12G.3: The travel filter and travel lines
+
+**Time spent:** 0.8 hours (13:27 to 14:14 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=63d457ebc306ad3c e2e=true`.
+That covers 4,160 unit and database tests, 80 browser tests and the walkthrough's 3, all passing.
+The independent auditor said **DONE** in round 1. The commit is "Phase 12: The travel filter and travel
+lines (12G.3)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Casuals who set a travel area (12G.1: a start-from postcode, how they travel, and how long they'll
+travel) now only see and get offered shifts they can reach. Every shift also shows how far it is.
+
+- **The rule** (`src/lib/travel/area.ts`). A shift is:
+  - **in** her area if any way she chose gets there within her limit (with car 40 minutes, public
+    transport 50 and a 45-minute limit: in for "both" and "car", out for "public transport");
+  - **out** only when every way she chose has a travel time and none is within;
+  - **unknown** otherwise, for example when the time hasn't been worked out yet or the site has no
+    location. An unknown shift is still shown, labelled, and still offered. Nothing is hidden just
+    because a distance isn't known.
+- **Where it applies:** Open shifts, the urgent board, the urgent count on Home, and offer waves
+  (the automatic messages offering a shift). The office's own "Offer to someone" is not limited by
+  it: the office may offer anyone by hand.
+- **Before the cap:** Open shifts checks at most 50 shifts. The area filter runs inside the
+  database query (the request to the database), before those 50 are picked, so a nearby shift is
+  never pushed off the list by far-away ones.
+- **The order:** urgent shifts first, then the nearest (her quickest chosen way), then by date.
+- **The travel line** on every Open and urgent card and every upcoming booking: "7.2 miles · 18 min
+  by car · 41 min by public transport". Both times always show, whichever ways she chose.
+- **No travel area:** everything is shown, with "Add your home area to see how far each shift is and
+  only see shifts you can get to." and a link to set one.
+- **"2 more shifts are further than you travel. Change how far"** under the list, counting the
+  shifts she could otherwise take.
+- **Never blocked:** a shift opened from a direct link can still be booked, whatever her area. The
+  area is a preference, not one of the booking rules.
+
+### Key facts and numbers
+
+- One copy of the rule is plain TypeScript (`areaVerdict()`); the other is SQL (database code), so
+  the filter can run inside the query. A test checks the two agree on 25 combinations for each of
+  the three ways of travelling.
+- No new tables and no new jobs. Everything is read inside the firm's own data (row-level security,
+  the database rule that keeps each firm's rows separate).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The office's offer by hand ignores the travel area | The decision on travel areas (D2) says the office may offer outside it | Filtering the office's list too |
+| A shift is "out" only when every chosen way has a time and none is within | An unknown distance must still be shown and offered (D2) | Treating "not worked out yet" as out |
+| No travel line on past bookings | The trip is done, and travel times expire 7 days after the shift | A line on every past row |
+| The "further" count uses the same booking rules as the list, on up to 50 shifts | It should count shifts she could really take; it stays quick | Counting every far shift |
+| The shift page's "Getting there" waits for task 12H.2 | That task's text covers the shift page | Adding it now |
+
+### Problems found and fixed
+
+- **The "further" count counted a full shift.** The database code library (Drizzle) leaves the
+  table name off columns in a query with no join. A small count inside the query then compared a
+  booking's id with itself instead of with the shift's id, so every shift looked empty. Fixed by
+  writing the query the same way as the list's (with a join), with a comment explaining why. No
+  other query in the app has the same pattern.
+- **The browser test's reset tried to delete bookings,** which the app is never allowed to do
+  (bookings are evidence). It now cancels its own earlier sessions instead; bookings on cancelled
+  sessions don't count anywhere.
+
+### What the guardrails reviewer found
+
+The `guardrails-reviewer` (a checking agent that reads changes against the project's golden rules)
+said it was safe to commit. It confirmed the SQL matches the plain rule, that "first yes wins" and
+the daily offer limit are untouched, and that nothing personal leaks. Its suggestions were done: a
+test at exactly the limit (45 minutes), singular wording for "At least 1 more shift", a check that
+only the office's offer can skip the area, and an ordering test for a casual with one way. Two
+points went to the Parking lot (below).
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/travel.area.test.ts`, 12 tests): the rule's table (the 40/50/45
+  example, the exact limit, the 90-minute ceiling, ways she didn't choose, unknown), the words, and
+  the pages: the travel line on each card and booking, the prompt with no area, and the "further"
+  line. `tests/unit/copy.plain-language.test.ts` checks the new screens are in plain words.
+- **Database tests** (`tests/integration/travel.filter.test.ts`, 16 tests): a near shift is never
+  cut off by the cap; the database agrees with the plain rule; unknown distances are shown and
+  offered; no area means no filter; the order; the "further" count; the urgent board; waves skip
+  out-of-area casuals but the office's offer doesn't; a direct link still books; booked rows' travel
+  lines.
+- **Browser test** (`tests/e2e/travel.filter.spec.ts`): a casual sees one of two urgent shifts on
+  Home and the urgent board (with its travel line and "1 more urgent shift is further than you
+  travel"), and still books the far one from a direct link.
+- Break checks: removing the list filter, the order, the wave filter or the office's exception, or
+  moving the limit by one minute, each made a test fail.
+
+### What's parked or needs Dylan
+
+- **The per-firm switch** (already waiting for Dylan): the "Add your home area" prompt now shows at
+  every firm, including where real postcode look-ups are off.
+- **Before TravelTime goes live:** confirm that "unreachable" in its answer means over 90 minutes,
+  never "no timetable data", or casuals who only use public transport could miss offers.
+
+### How to see it working
+
+Run `npm run dev`, log in as a casual (see `docs/walkthrough.md`), set "Where you work" on Profile
+with a ZZ postcode, then open "See open shifts": the prompt is gone and each card shows its travel
+line. At first it's the straight-line distance ("Travel time not known yet"); the times appear
+within about 5 minutes, once the worker's travel job has run (`npm run dev` starts the worker too).

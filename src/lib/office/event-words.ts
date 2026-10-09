@@ -178,7 +178,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     }
     case "strike.issued": {
       const notice = hours(d.noticeHours);
-      const under = typeof d.thresholdHours === "number" ? ` (under ${d.thresholdHours} hours)` : "";
+      const under =
+        typeof d.thresholdHours === "number" ? ` (under ${d.thresholdHours} hours)` : "";
       const review = d.review === true ? " A person should review it." : "";
       return `${worker} got a strike for cancelling${notice ? ` with ${notice}` : ""}${under}.${review}`;
     }

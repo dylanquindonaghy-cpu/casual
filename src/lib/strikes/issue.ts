@@ -29,7 +29,10 @@ export async function bookingFacts(
   tx: FirmTx,
   booking: { assignmentId: string; shiftId: string },
 ): Promise<BookingFacts> {
-  const { rows: assigned } = await tx.execute<{ id: number | string; data: Record<string, unknown> }>(
+  const { rows: assigned } = await tx.execute<{
+    id: number | string;
+    data: Record<string, unknown>;
+  }>(
     sql`select e.id, e.data from events e
          where e.action = 'shift.assigned' and e.entity_id = ${booking.assignmentId}
          order by e.id desc limit 1`,

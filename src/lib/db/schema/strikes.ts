@@ -109,10 +109,7 @@ export const strikes = pgTable(
       sql`${t.thresholdHours} > 0 and ${t.noticeHours} < ${t.thresholdHours}`,
     ),
     check("strikes_expires_after_issue", sql`${t.expiresAt} > ${t.issuedAt}`),
-    check(
-      "strikes_reviewed_together",
-      sql`(${t.reviewedBy} is null) = (${t.reviewedAt} is null)`,
-    ),
+    check("strikes_reviewed_together", sql`(${t.reviewedBy} is null) = (${t.reviewedAt} is null)`),
     // Withdrawn: by whom and when (the reason may later be cleared by an erasure). Live: neither.
     check(
       "strikes_withdrawn_together",

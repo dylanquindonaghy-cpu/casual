@@ -20,12 +20,14 @@ export function ShowingSwitch({
   showing,
   label,
   small,
+  describedBy,
 }: {
   target: "event" | "session";
   id: string;
   showing: boolean;
   label: string;
   small?: boolean;
+  describedBy?: string; // the words beside it, when they say more than on or off
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -47,6 +49,7 @@ export function ShowingSwitch({
         role="switch"
         aria-checked={showing}
         aria-label={label}
+        aria-describedby={describedBy}
         disabled={pending || !ready}
         onClick={flip}
         className={`relative inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-60`}

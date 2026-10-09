@@ -8,6 +8,7 @@ import {
   eventSwitchLabel,
   eventWhereWhen,
   spansDays,
+  uniqueSessionNames,
 } from "@/lib/office/events-copy";
 import { SessionItem } from "./session-row";
 import { ShowingSwitch } from "./showing-switch";
@@ -19,6 +20,7 @@ import { ShowingSwitch } from "./showing-switch";
 export function EventCard({ event: e, timeZone }: { event: EventCardData; timeZone: string }) {
   const status = eventStatus(e);
   const withDay = spansDays(e, timeZone);
+  const names = uniqueSessionNames(e.sessions, timeZone, withDay);
   const href = `/office/events/${e.eventId}`;
   // An automatic event's name is its place and day already ("Acme Demo Arena · Sat 10 Oct").
   const whereWhen = eventWhereWhen(e, timeZone);
@@ -56,6 +58,7 @@ export function EventCard({ event: e, timeZone }: { event: EventCardData; timeZo
             timeZone={timeZone}
             withDay={withDay}
             eventShowing={e.showing}
+            uniqueName={names.get(s.shiftId)}
           />
         ))}
       </ul>

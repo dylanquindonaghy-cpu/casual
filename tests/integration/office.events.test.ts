@@ -63,7 +63,7 @@ async function eventsFirm() {
   // A pay record for Ann with amounts nobody should see here.
   await su.query(
     `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence, gross_pence)
-     values ($1, $2, '2026-10-26', '2026-11-01', 8, 4321, 98765)`,
+     values ($1, $2, '2026-10-26', '2026-11-01', 8, 9876543, 123456789)`,
     [f.firmId, ann],
   );
   // A hidden event with one session to come, and an event whose only session has ended.
@@ -107,7 +107,13 @@ describe("the events list", () => {
     expect(list?.hasPlanner).toBe(false);
     const card = list?.events.find((e) => e.name === "Raceday");
     expect(card?.sessions.map((s) => s.shiftId)).toEqual([t.door, t.steward]);
-    expect(card).toMatchObject({ showing: true, sessionCount: 2, placesFree: 1, urgentGap: true });
+    expect(card).toMatchObject({
+      showing: true,
+      sessionCount: 2,
+      placesFree: 1,
+      full: false,
+      urgentGap: true,
+    });
     expect(card?.sessions[0]).toMatchObject({
       role: "door_supervisor",
       booked: 1,
@@ -176,7 +182,7 @@ describe("one event's page", () => {
               withDay: false,
               eventShowing: true,
               full: true,
-              switchLabel: "x",
+              uniqueName: "x",
               booked: page.booked[s.shiftId] ?? [],
             }),
           ),
@@ -187,13 +193,15 @@ describe("one event's page", () => {
       ),
     ].join("");
     expect(html).toContain("£15.50/h");
-    // The pay record's rate and gross: in no page's data and on no page.
+    // The pay record's rate and gross (figures no id or date can hold): in no page's data, under
+    // no key, and on no page.
     for (const data of [JSON.stringify(page), JSON.stringify(list)]) {
-      expect(data).not.toContain("98765");
-      expect(data).not.toContain("4321");
+      expect(data).not.toContain("9876543");
+      expect(data).not.toContain("123456789");
+      expect(data).not.toMatch(/gross|pay_?record/i);
     }
-    expect(html).not.toContain("£987.65");
-    expect(html).not.toContain("£43.21");
+    expect(html).not.toContain("£98,765.43");
+    expect(html).not.toContain("£1,234,567.89");
   });
 
   it("only admins and resourcers, and only the firm's own events", async () => {
@@ -201,12 +209,32 @@ describe("one event's page", () => {
     expect(
       await officeEventPage(t.ctx, await t.tokenFor(await t.f.office("admin")), t.raceday),
     ).not.toBeNull();
+    const disabled = await t.f.office("resourcer");
+    const disabledToken = await t.tokenFor(disabled);
+    await su.query("update office_users set status = 'disabled' where id = $1", [disabled]);
+    expect(await officeEventPage(t.ctx, disabledToken, t.raceday)).toBeNull();
+    expect(await officeEventList(t.ctx, disabledToken, "all")).toBeNull();
     const payroll = await t.tokenFor(await t.f.office("payroll"));
     expect(await officeEventPage(t.ctx, payroll, t.raceday)).toBeNull();
     expect(await officeEventList(t.ctx, payroll, "all")).toBeNull();
     expect(await officeEventList(t.ctx, "not-a-token", "all")).toBeNull();
     const other = await eventsFirm();
+    // The other firm names its qualifications and rules its own way: none of it reaches this one.
+    await su.query(
+      "update credential_types set name = 'Other firm wording' where firm_id = $1 and code = 'SIA_DS'",
+      [other.f.firmId],
+    );
+    await su.query(
+      `update credential_rules set required_types = '{SIA_DS,MANUAL_HANDLING}'
+        where firm_id = $1 and role = 'door_supervisor'`,
+      [other.f.firmId],
+    );
     const token = await t.tokenFor(t.resourcer);
+    const mine = await officeEventPage(t.ctx, token, t.raceday);
+    expect(mine?.event.sessions.find((s) => s.shiftId === t.door)?.requirements).toEqual([
+      { code: "SIA_DS", name: "SIA door supervisor licence" },
+      { code: "FIRST_AID", name: "first aid at work certificate" },
+    ]);
     expect(await officeEventPage(t.ctx, token, other.raceday)).toBeNull();
     expect(await officeEventPage(t.ctx, token, "not-an-id")).toBeNull();
     expect(

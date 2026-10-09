@@ -6,16 +6,27 @@ import { summaryButton } from "../shifts/[id]/chevron";
 import { UrgentToggle } from "./urgent-toggle";
 
 // A session's "…" menu (docs/office-v2.md 3.3, "Card buttons"): the forms that already exist,
-// reached from here. Offer a place (Today's offer page) while it's open with a place free; Assign
+// reached from here. Offer a place (Today's offer page) while it's open with a place free and
+// shown to casuals; Assign
 // and Change or cancel on the shift's page (a Google Sheet's session can't be changed or
 // cancelled as a whole here, only its details); Mark urgent / Not urgent in place. A <details>,
-// so it opens without waiting for the page.
-export function SessionMenu({ session, name }: { session: SessionRow; name: string }) {
+// so it opens without waiting for the page. The panel lies over the row (the row is its frame):
+// the row's full width on a phone, under the button from 640px, so it never widens the page.
+export function SessionMenu({
+  session,
+  name,
+  eventShowing,
+}: {
+  session: SessionRow;
+  name: string; // unique on the page
+  eventShowing: boolean;
+}) {
   const page = `/office/shifts/${session.shiftId}`;
   const live = session.status !== "cancelled" && !session.started;
   const placeFree = session.status === "open" && session.booked < session.headcount;
+  const shown = session.showing && eventShowing;
   return (
-    <details className="group relative">
+    <details className="group">
       <summary className={`${btn.secondary} ${summaryButton} px-3`} aria-label={`More for ${name}`}>
         <svg
           aria-hidden="true"
@@ -30,8 +41,8 @@ export function SessionMenu({ session, name }: { session: SessionRow; name: stri
           <circle cx="19" cy="12" r="2" />
         </svg>
       </summary>
-      <div className="mt-2 flex w-64 max-w-[calc(100vw-3rem)] flex-col gap-2 rounded-lg border border-line bg-card p-3 shadow-md">
-        {live && placeFree && (
+      <div className="absolute inset-x-2 z-10 mt-2 flex flex-col gap-2 rounded-lg border border-line bg-card p-3 shadow-md sm:left-auto sm:w-64">
+        {live && placeFree && shown && (
           <Link
             href={`/office/offer/${session.shiftId}`}
             className={`${btn.secondary} justify-start`}

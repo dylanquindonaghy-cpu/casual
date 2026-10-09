@@ -61,13 +61,17 @@ export const eventStatus = (e: EventCardData) =>
     ? { tone: "done" as const, words: "Showing to casuals" }
     : { tone: "quiet" as const, words: "Hidden from casuals" };
 
-// "2 sessions · 3 places free", "1 session · Full".
+// "2 sessions · 3 places free", "1 session · Full" (every one booked to its places), or "No
+// places to offer" (none free in a session still to start, though not all are full: one has
+// started, or is a draft).
 export function eventSummary(e: EventCardData): string {
   const sessions = `${e.sessionCount} ${e.sessionCount === 1 ? "session" : "sessions"}`;
   const free =
-    e.placesFree === 0
-      ? "Full"
-      : `${e.placesFree} ${e.placesFree === 1 ? "place free" : "places free"}`;
+    e.placesFree > 0
+      ? `${e.placesFree} ${e.placesFree === 1 ? "place free" : "places free"}`
+      : e.full
+        ? "Full"
+        : "No places to offer";
   return `${sessions} · ${free}`;
 }
 
@@ -83,22 +87,38 @@ export function sessionTime(s: SessionRow, tz: string, withDay: boolean): string
 export const sessionName = (s: SessionRow, tz: string, withDay: boolean): string =>
   `${roleLabel(s.role)} ${sessionTime(s, tz, withDay)}`;
 
-// Each session's switch label, unique on the page ("Show Steward 08:00–16:00 to casuals"; two
-// alike get "(2)", "(3)").
-export function sessionSwitchLabels(
+// Each session's name, unique among these ("Steward 08:00–16:00"; two alike get "(2)", "(3)"):
+// for its switch, its "…" menu and its urgent button, so no two controls share a name.
+export function uniqueSessionNames(
   sessions: SessionRow[],
   tz: string,
   withDay: boolean,
 ): Map<string, string> {
   const seen = new Map<string, number>();
-  const labels = new Map<string, string>();
+  const names = new Map<string, string>();
   for (const s of sessions) {
     const name = sessionName(s, tz, withDay);
     const n = (seen.get(name) ?? 0) + 1;
     seen.set(name, n);
-    labels.set(s.shiftId, `Show ${name}${n > 1 ? ` (${n})` : ""} to casuals`);
+    names.set(s.shiftId, n > 1 ? `${name} (${n})` : name);
   }
-  return labels;
+  return names;
+}
+
+export const sessionSwitchLabel = (uniqueName: string): string => `Show ${uniqueName} to casuals`;
+
+// Each session's switch label, unique on the page ("Show Steward 08:00–16:00 (2) to casuals").
+export function sessionSwitchLabels(
+  sessions: SessionRow[],
+  tz: string,
+  withDay: boolean,
+): Map<string, string> {
+  return new Map(
+    [...uniqueSessionNames(sessions, tz, withDay)].map(([id, name]) => [
+      id,
+      sessionSwitchLabel(name),
+    ]),
+  );
 }
 
 export const isFull = (s: SessionRow): boolean => s.booked >= s.headcount || s.status === "filled";
@@ -106,6 +126,7 @@ export const isFull = (s: SessionRow): boolean => s.booked >= s.headcount || s.s
 // Beside a session's switch: whether casuals can see it, and why not.
 export function sessionShowingText(s: SessionRow, eventShowing: boolean): string {
   if (s.status === "cancelled") return "Cancelled";
+  if (s.status === "draft") return "Draft: not showing";
   if (s.started) return "Started: not showing";
   if (isFull(s)) return "Full: not showing";
   if (!s.showing) return "Hidden from casuals";

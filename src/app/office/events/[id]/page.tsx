@@ -11,8 +11,8 @@ import {
   eventSummary,
   eventSwitchLabel,
   eventWhereWhen,
-  sessionSwitchLabels,
   spansDays,
+  uniqueSessionNames,
 } from "@/lib/office/events-copy";
 import { SessionItem } from "../session-row";
 import { ShowingSwitch } from "../showing-switch";
@@ -29,7 +29,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
   const { event: e, timeZone } = data;
   const status = eventStatus(e);
   const withDay = spansDays(e, timeZone);
-  const labels = sessionSwitchLabels(e.sessions, timeZone, withDay);
+  const names = uniqueSessionNames(e.sessions, timeZone, withDay);
   return (
     <main className={page.office}>
       <PageHeader eyebrow={`${firm.name} office`} title={e.name}>
@@ -66,7 +66,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
                 withDay={withDay}
                 eventShowing={e.showing}
                 full
-                switchLabel={labels.get(s.shiftId)}
+                uniqueName={names.get(s.shiftId)}
                 booked={data.booked[s.shiftId] ?? []}
               />
             ))}

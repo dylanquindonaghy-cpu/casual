@@ -7,6 +7,7 @@ import {
   sessionDetails,
   sessionName,
   sessionShowingText,
+  sessionSwitchLabel,
   sessionTime,
 } from "@/lib/office/events-copy";
 import { PLACE_STATUS_WORDS, SHIFT_STATUS_WORDS } from "@/lib/office/shifts-copy";
@@ -26,7 +27,7 @@ export function SessionItem({
   withDay,
   eventShowing,
   full,
-  switchLabel,
+  uniqueName,
   booked = [],
 }: {
   session: SessionRow;
@@ -34,16 +35,19 @@ export function SessionItem({
   withDay: boolean;
   eventShowing: boolean;
   full?: boolean;
-  switchLabel?: string;
+  // The session's name, unique among those shown with it (uniqueSessionNames): its switch's, its
+  // menu's and its urgent button's.
+  uniqueName?: string;
   booked?: BookedCasual[];
 }) {
-  const name = sessionName(s, timeZone, withDay);
+  const name = uniqueName ?? sessionName(s, timeZone, withDay);
+  const showingId = `showing-${s.shiftId}`;
   const details = sessionDetails(s);
   const short = s.booked < s.headcount;
   const unmarked = booked.filter((b) => b.status === "confirmed").length;
   return (
     <li
-      className={`flex flex-col gap-2 rounded-lg border bg-raised px-3 py-2.5 ${
+      className={`relative flex flex-col gap-2 rounded-lg border bg-raised px-3 py-2.5 ${
         s.urgentGap ? "border-urgent" : "border-line"
       }`}
     >
@@ -76,7 +80,7 @@ export function SessionItem({
           >
             {filledText(s)}
           </span>
-          <SessionMenu session={s} name={name} />
+          <SessionMenu session={s} name={name} eventShowing={eventShowing} />
         </div>
       </div>
       {details.length > 0 && (
@@ -88,14 +92,17 @@ export function SessionItem({
       )}
       {full && (
         <>
-          {s.status !== "cancelled" && switchLabel && (
+          {s.status !== "cancelled" && (
             <div className="flex flex-wrap items-center justify-between gap-x-3">
-              <span className="text-sm text-ink-muted">{sessionShowingText(s, eventShowing)}</span>
+              <span id={showingId} className="text-sm text-ink-muted">
+                {sessionShowingText(s, eventShowing)}
+              </span>
               <ShowingSwitch
                 target="session"
                 id={s.shiftId}
                 showing={s.showing}
-                label={switchLabel}
+                label={sessionSwitchLabel(name)}
+                describedBy={showingId}
                 small
               />
             </div>

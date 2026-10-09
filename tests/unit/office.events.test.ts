@@ -89,6 +89,7 @@ const event = (o: Partial<EventCardData> = {}): EventCardData => ({
   moreSessions: 0,
   sessionCount: 2,
   placesFree: 1,
+  full: false,
   urgentGap: true,
   ...o,
 });
@@ -109,7 +110,11 @@ describe("an event card's words", () => {
     expect(eventSummary(event({ sessionCount: 1, placesFree: 3 }))).toBe(
       "1 session · 3 places free",
     );
-    expect(eventSummary(event({ placesFree: 0 }))).toBe("2 sessions · Full");
+    expect(eventSummary(event({ placesFree: 0, full: true }))).toBe("2 sessions · Full");
+    // None free to offer, but not full (one has started, or is a draft).
+    expect(eventSummary(event({ placesFree: 0, full: false }))).toBe(
+      "2 sessions · No places to offer",
+    );
     expect(eventSwitchLabel(event())).toBe("Show Northern Lights Live to casuals");
   });
 
@@ -192,6 +197,7 @@ describe("each session's switch label", () => {
     expect(sessionShowingText(session({ booked: 4 }), true)).toBe("Full: not showing");
     expect(sessionShowingText(session({ started: true }), true)).toBe("Started: not showing");
     expect(sessionShowingText(session({ status: "cancelled" }), true)).toBe("Cancelled");
+    expect(sessionShowingText(session({ status: "draft" }), true)).toBe("Draft: not showing");
   });
 });
 
@@ -215,7 +221,7 @@ describe("a session row with every field", () => {
           withDay: false,
           eventShowing: true,
           full: true,
-          switchLabel: "Show Door supervisor 08:00–16:00 to casuals",
+          uniqueName: "Door supervisor 08:00–16:00",
           booked: [
             {
               workerId: "44444444-4444-4444-8444-444444444444",
@@ -245,8 +251,10 @@ describe("a session row with every field", () => {
       expect(words).toContain(part);
     }
     expect(html).toMatch(
-      /role="switch" aria-checked="true" aria-label="Show Door supervisor 08:00–16:00 to casuals"/,
+      /role="switch" aria-checked="true" aria-label="Show Door supervisor 08:00–16:00 to casuals" aria-describedby="showing-11111111-1111-4111-8111-111111111111"/,
     );
+    // The words beside the switch are what it's described by.
+    expect(html).toContain('id="showing-11111111-1111-4111-8111-111111111111"');
     // The "…" menu reaches today's forms.
     expect(html).toContain('aria-label="More for Door supervisor 08:00–16:00"');
     expect(html).toContain('href="/office/offer/11111111-1111-4111-8111-111111111111"');
@@ -255,6 +263,34 @@ describe("a session row with every field", () => {
     expect(words).toContain("Not urgent");
     expect(html).toContain('aria-label="Not urgent: Door supervisor 08:00–16:00"');
     expect(words).toContain("Change or cancel");
+  });
+
+  it("two sessions alike get different names for their menu and urgent buttons too", () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({
+          sessions: [
+            session({ shiftId: "a1111111-1111-4111-8111-111111111111", role: "steward" }),
+            session({ shiftId: "a2222222-2222-4222-8222-222222222222", role: "steward" }),
+          ],
+        }),
+        timeZone: TZ,
+      }),
+    );
+    expect(html).toContain('aria-label="More for Steward 08:00–16:00"');
+    expect(html).toContain('aria-label="More for Steward 08:00–16:00 (2)"');
+    expect(html).toContain('aria-label="Not urgent: Steward 08:00–16:00 (2)"');
+  });
+
+  it("a session hidden from casuals isn't offered from its menu", () => {
+    const menu = (s: SessionRow, eventShowing: boolean) =>
+      renderToStaticMarkup(
+        createElement(SessionItem, { session: s, timeZone: TZ, withDay: false, eventShowing }),
+      );
+    expect(menu(session(), true)).toContain("Offer a place");
+    expect(menu(session({ showing: false }), true)).not.toContain("Offer a place");
+    expect(menu(session(), false)).not.toContain("Offer a place");
+    expect(menu(session({ showing: false }), true)).toContain("Assign someone");
   });
 
   it("leaves out what isn't set, and a sheet's session can't be changed or cancelled as a whole", () => {

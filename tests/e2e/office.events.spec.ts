@@ -1,16 +1,18 @@
-import type { Page } from "@playwright/test";
-import { addEventWithSession, addOfficeUser, addSteward } from "./db";
+import type { Browser, Page } from "@playwright/test";
+import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "./db";
 import { expect, menuLink, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
 
 // Events & sessions in a real browser (12B.5): a resourcer switches an event off on its card and a
-// casual's Open shifts loses its session; switched back on, it's there again. The event, the
-// casual and the resourcer are this spec's own (made-up details), so nothing another spec sees
-// changes.
+// casual's Open shifts loses its session; switched back on, it's there again. The event, its site,
+// the casual and the resourcer are this spec's own (made-up details), and its shift is cancelled
+// at the end, so nothing another spec sees changes. A retry makes its own event and site (the
+// run's suffix); the casual and the resourcer are found again.
 
 const acme = "http://acme.localhost:3100";
-const EVENT = "Switch Test Gala";
-const SITE = "Switch Test Hall";
+const RUN = Date.now().toString(36);
+const EVENT = `Switch Test Gala ${RUN}`;
+const SITE = `Switch Test Hall ${RUN}`;
 const RESOURCER = "events.resourcer@example.com";
 const CASUAL = { firstName: "Esme", lastName: "Switch", mobileE164: "+447700900612" };
 
@@ -47,7 +49,14 @@ test("switching an event off hides it from a casual's open shifts; on again brin
   });
   await addSteward("acme", CASUAL);
   await addOfficeUser("acme", { email: RESOURCER, name: "Events Resourcer", role: "resourcer" });
+  try {
+    await switchAndCheck(browser, shiftId);
+  } finally {
+    await cancelOwnShift("acme", shiftId);
+  }
+});
 
+async function switchAndCheck(browser: Browser, shiftId: string) {
   const office = await (await browser.newContext()).newPage();
   const casual = await (await browser.newContext()).newPage();
   await officeLogin(office);
@@ -72,10 +81,19 @@ test("switching an event off hides it from a casual's open shifts; on again brin
   ).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await expect(card.getByText("Hidden from casuals", { exact: true })).toBeVisible();
-  // The Hidden tab has it; the Showing tab doesn't.
-  await office.getByRole("link", { name: "Hidden", exact: true }).click();
+  // The Hidden tab has it; the Showing tab doesn't (each checked once its page has loaded).
+  const tab = async (name: string, view: string) => {
+    await office.getByRole("link", { name, exact: true }).click();
+    await expect(office).toHaveURL(`${acme}/office/events?view=${view}`);
+    await expect(office.getByRole("link", { name, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  };
+  await tab("Hidden", "hidden");
   await expect(office.getByRole("article", { name: EVENT })).toBeVisible();
-  await office.getByRole("link", { name: "Showing", exact: true }).click();
+  await tab("Showing", "showing");
+  await expect(office.getByRole("heading", { name: "Events & sessions", level: 1 })).toBeVisible();
   await expect(office.getByRole("article", { name: EVENT })).toHaveCount(0);
 
   // The casual's Open shifts no longer has it, and its page says it isn't available.
@@ -86,7 +104,7 @@ test("switching an event off hides it from a casual's open shifts; on again brin
   await expect(casual.getByRole("heading", { name: "This shift isn't available." })).toBeVisible();
 
   // Switched back on, from the event's own page: the casual sees it again.
-  await office.getByRole("link", { name: "Hidden", exact: true }).click();
+  await tab("Hidden", "hidden");
   await office
     .getByRole("article", { name: EVENT })
     .getByRole("link", { name: EVENT, exact: true })
@@ -98,4 +116,4 @@ test("switching an event off hides it from a casual's open shifts; on again brin
   await expect(again).toHaveAttribute("aria-checked", "true");
   await casual.goto(`${acme}/shifts/open`);
   await expect(session).toHaveCount(1);
-});
+}

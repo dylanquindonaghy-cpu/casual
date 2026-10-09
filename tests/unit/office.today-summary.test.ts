@@ -356,7 +356,7 @@ describe("Today's sections", () => {
     const links = [...render(full).matchAll(/<a [^>]*>([\s\S]*?)<\/a>/g)].map((m) =>
       words(m[1] ?? ""),
     );
-    for (const exact of ["Today", "Home", "Shifts", "Requests"]) {
+    for (const exact of ["Today", "Home", "Events & sessions", "Shifts", "Requests"]) {
       expect(links).not.toContain(exact);
     }
     for (const part of [

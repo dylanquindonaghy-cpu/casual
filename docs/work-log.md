@@ -10062,3 +10062,90 @@ was removed one at a time to confirm a test fails without it.
 
 Nothing to click yet: the switches arrive on the events page in 12B.5. The tests above are the proof
 for now (`npx vitest run tests/integration/showing.test.ts`).
+
+## 2026-10-09 — Phase 12, task 12B.5: Events & sessions pages
+
+- **Time spent:** 0.7 hours (02:47 to 03:31 UTC).
+- **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=e01fa339dae4a6e9 e2e=true`
+  (3,625 tests; browser tests: 72, then the walkthrough's 3), on the first full run.
+- The independent auditor said `VERDICT: DONE` on its **first** round, found no fakes and nothing
+  weakened.
+- Committed as "Phase 12: Events & sessions pages (12B.5)" and pushed to `build/overnight`. A
+  checkpoint commit (`5e09708`, marked WIP) went first, before the safety review.
+
+### What was built, in plain words
+
+The office has a new page, **Events & sessions** (`/office/events`), in the menu where "Shifts"
+used to be. Every **event** (a group of shifts, like "Raceday" or "Acme Demo Arena · Sat 10 Oct")
+that still has a shift to come gets a **card**. A shift inside an event is called a **session**.
+
+Each card shows:
+
+- the event's name (a link to its own page), the place and the date;
+- the event's **switch**: a toggle the office taps to show or hide the whole event from casuals
+  (the previous task made hiding actually work);
+- one tag, "Showing to casuals" or "Hidden from casuals", plus "Urgent, not filled" when a session
+  is urgent and still has a gap;
+- a line like "2 sessions · 3 places free" (or "Full");
+- each session: the role, the times, "Urgent" on an urgent gap, a small chip per requirement
+  ("SIA DS", "CSAS", "First aid"), "3/4 filled", then the pay per hour, post, meeting point and
+  uniform when they're set, and a **"…" menu**: Offer a place, Assign someone, Mark urgent or Not
+  urgent, Change or cancel. A session from a Google Sheet says to change it in the sheet.
+
+**Tabs** across the top (All, Showing, Hidden, Urgent, not filled) are plain links, so the browser's
+back button and sharing a link work.
+
+An **event's own page** lists every session, past and cancelled ones too. Each has its own switch
+with a name no other switch on the page has ("Show Door supervisor 08:00–16:00 to casuals"), who is
+booked, and once it has started, the "Mark as worked" buttons.
+
+Firms without a Google Sheet also get **"Add shifts"** and **"Import shifts"** at the top. The old
+day-by-day shift list is still there, as **"All shifts by day"**.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| "Has a planner" means an enabled Google Sheet today | It's the only planner the app has now; the planner API comes later | Showing the buttons to every firm |
+| "Add shifts" opens "Shifts for an event"; one shift on its own is under "All shifts by day" | The page is about events | A third button |
+| The "…" menu is on each session, not one per card | Its actions are per session | One card menu asking which session |
+| Requirement chips show the role's and the session's own, with short names for the known ones | That's what the rules check | Only the session's own |
+| "Mark who worked" reuses the shift page's buttons | Same actions and checks, no new code paths | A link to the shift page only |
+| At most 50 events, and 30 sessions a card ("+ N more sessions") | Keeps the page quick; the tabs narrow it | No limit |
+| "Full" only when every session is booked to its places; otherwise "No places to offer" | A started or draft session isn't "full" | Always "Full" with nothing free |
+
+### What the review found and what was fixed
+
+The safety review found nothing that had to be fixed first: no data leak between firms, only
+admins and resourcers can open the pages, and no pay record is ever read. Its eight "should fix"
+points were all fixed. Among them: a test that could fail by chance about once in a hundred runs (a
+number it looked for could appear inside a random id); browser checks that ran before a tab had
+loaded; a draft session wrongly saying "Showing to casuals"; two sessions with the same role and
+times sharing button names; and the "…" menu, which now lies over the row instead of making a
+phone's page wider.
+
+### What the new tests prove
+
+- Unit tests (`tests/unit/office.events.test.ts`): the card's words, tags and summary; each switch
+  label unique, even for two sessions alike; a session row with every field; a sheet's session
+  can't be changed or cancelled as a whole; a hidden session isn't offered from its menu.
+- Database tests (`tests/integration/office.events.test.ts`): each tab lists the right events; a
+  card holds only sessions still to come; who is booked; only admins and resourcers (payroll and a
+  disabled resourcer are refused); another firm's events and qualification names never appear;
+  and a resourcer sees a session's pay per hour but never a pay record's figures.
+- Browser test (`tests/e2e/office.events.spec.ts`): a resourcer switches an event off on its card;
+  the casual's Open shifts no longer has it and its page says "This shift isn't available";
+  switched back on from the event's page, it's back.
+- The specs that clicked "Shifts" in the menu now click "Events & sessions".
+- Checked by eye at 375, 390 and 1280 pixels wide, light and dark, with the "…" menu open: no
+  sideways scrolling.
+
+### What's parked or needs Dylan
+
+- Please confirm the decisions above.
+- Still parked: an index on `shifts (firm_id, event_id)` if the page slows down with many events.
+
+### How to see it working
+
+Run the app (`npm run dev`), log in to the office as `acme.admin@example.com` and click **Events &
+sessions**. Switch an event off, then log in as a casual: its shifts are gone from Open shifts.

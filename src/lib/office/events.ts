@@ -59,6 +59,7 @@ export interface EventCardData {
   // Over every session loaded (shown or beyond the card's limit), not cancelled:
   sessionCount: number;
   placesFree: number; // in open sessions that haven't started
+  full: boolean; // every one booked to its places (or marked filled)
   urgentGap: boolean; // a session with an urgent gap
 }
 
@@ -246,6 +247,7 @@ function cardOf(
     placesFree: live
       .filter((x) => x.status === "open" && !x.started)
       .reduce((n, x) => n + Math.max(0, x.headcount - x.booked), 0),
+    full: live.length > 0 && live.every((x) => x.status === "filled" || x.booked >= x.headcount),
     urgentGap: live.some((x) => x.urgentGap),
   };
 }

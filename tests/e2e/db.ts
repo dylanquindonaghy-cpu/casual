@@ -170,7 +170,8 @@ export async function addEventWithSession(
 }
 
 // A steward of a spec's own who may take steward shifts (the Level 2 qualification, valid, no
-// expiry). Fake details only: a drama-range number the seed doesn't use. Returns their id.
+// expiry). Fake details only: a drama-range number the seed doesn't use. Returns their id; safe to
+// call again (a retried test), when it finds them by their number.
 export async function addSteward(
   slug: string,
   o: { firstName: string; lastName: string; mobileE164: string },
@@ -181,16 +182,38 @@ export async function addSteward(
     if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
     const firmId = seedId(`firm/${slug}`);
     return await createWithFirm(pool)(firmId, async (tx) => {
-      const [row] = await tx
+      const [added] = await tx
         .insert(workers)
         .values({ firmId, ...o, roles: ["steward"] })
+        .onConflictDoNothing()
         .returning({ id: workers.id });
-      if (!row) throw new Error("worker insert returned nothing");
-      await tx
-        .insert(credentials)
-        .values({ firmId, workerId: row.id, type: "STEWARD_L2", status: "valid" });
-      return row.id;
+      if (added) {
+        await tx
+          .insert(credentials)
+          .values({ firmId, workerId: added.id, type: "STEWARD_L2", status: "valid" });
+        return added.id;
+      }
+      const [found] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(eq(workers.mobileE164, o.mobileE164));
+      if (!found) throw new Error("worker neither added nor found");
+      return found.id;
     });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Cancels a spec's own shift once it's done with it, so later specs don't see an open place.
+export async function cancelOwnShift(slug: string, shiftId: string): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), (tx) =>
+      tx.update(shifts).set({ status: "cancelled" }).where(eq(shifts.id, shiftId)),
+    );
   } finally {
     await pool.end();
   }

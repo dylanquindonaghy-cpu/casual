@@ -5,7 +5,7 @@ import { btn, card, page, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
-import { EVENT_VIEWS, officeEventList, type EventView } from "@/lib/office/events";
+import { EVENT_LIST_MAX, EVENT_VIEWS, officeEventList, type EventView } from "@/lib/office/events";
 import { EVENT_VIEW_EMPTY, EVENT_VIEW_WORDS } from "@/lib/office/events-copy";
 import { EventCard } from "./event-card";
 
@@ -82,7 +82,7 @@ export default async function EventsPage({
       )}
       {list.more && (
         <p className="mt-4 text-ink-muted">
-          Showing the first 50 events. Choose a tab to see fewer.
+          Showing the first {EVENT_LIST_MAX} events. Choose a tab to see fewer.
         </p>
       )}
     </main>

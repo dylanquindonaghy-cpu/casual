@@ -170,7 +170,7 @@ const MENU_WORDS: Record<string, string> = {
   Today: "What needs doing, most urgent first.",
 
   "Events & sessions":
-    "Every event with a session to come. Choose what casuals see and what's urgent, and add shifts.",
+    "Every event with a session to come. Choose what casuals see and what's urgent.",
   Requests: "Time changes, swaps and reviews workers have asked for.",
   Workers: "Find a worker to change their access.",
   "Action log": "Everything that happened, newest first.",

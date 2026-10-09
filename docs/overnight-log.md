@@ -10106,3 +10106,58 @@ history and its event's entries.
 | The list caps at 50 events and 30 sessions a card ("+ N more sessions") | Keeps the page bounded; the tabs narrow it | No cap |
 | An event's page keeps the firm's tab title, like a shift's page | Its name is in the page; no title list change beyond "Events & sessions" | "Event" |
 | No star (pin) | Cut from Phase 12 (Parking lot "Phase 12 cuts") | — |
+
+**12B.5 checkpoint:** `5e09708` (WIP, pushed before the review; CI passed on 12B.4's `fa83c51`).
+
+**Guardrails review (12B.5): SAFE TO COMMIT, no FIX FIRST.** Tenant isolation, who may look and
+personal data passed (no pay record is read; only names and booking status). The SHOULD items,
+all fixed:
+
+| Finding | Fix |
+|---|---|
+| S1: the pay-record test's "4321" could match a random id (about 1% of runs) | Figures no id or date can hold (9876543, 123456789), and no key named like a pay record or gross |
+| S2: the browser test's tab checks passed before the tab loaded | Each tab click waits for its address and `aria-current="page"`; the Showing check also waits for the heading |
+| S3: the browser test's helpers failed on a retry and left an open shift for later specs | The event and site carry the run's suffix, the steward is found again by number, and the shift is cancelled at the end (`cancelOwnShift`) |
+| S4: a draft session read "Showing to casuals" | "Draft: not showing" |
+| S5: "Full" when only a started or draft session was left | "Full" only when every session is booked to its places; otherwise "No places to offer" |
+| S6: two sessions alike shared "More for …" and "Mark urgent: …" names | One unique name per session on the page (its switch, menu and urgent button) |
+| S7: a session switch said "on" while the words beside it said its event is hidden | The words are the switch's `aria-describedby` |
+| S8: the open "…" menu could widen a phone's page | The panel lies over the row (its full width on a phone, under the button from 640px); checked open at 375, 390 and 1280px: no sideways scroll |
+| NICE | "Offer a place" left out for a hidden session; the "50" from `EVENT_LIST_MAX`; a disabled resourcer refused (tested); another firm's own qualification names and rules don't reach this firm (tested); "Events & sessions" in the link-name clash list; the guide's line no longer promises "add shifts" to sheet firms. Kept "Urgent, not filled" as the card's tag (the tab's words; the mock-up's chip). The `shifts (firm_id, event_id)` index stays parked |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=e01fa339dae4a6e9 e2e=true` (first full run after the
+review's fixes; 222 test files, 3,625 tests; 72 browser tests, then the walkthrough's 3).
+
+**Auditor verdict (round 1), verbatim:**
+
+```
+Audit of Phase 12, task 12B.5 (Events & sessions pages), in /home/user/casual.
+
+Stamp: `.claude/state/verified.json` has ok=true, e2e=true, tree e01fa339dae4a6e9. `./.claude/hooks/tree-hash.sh` prints the same hash. `test.log` shows 222 files and 3625 tests passed. `invariants.log` shows no skip, only or todo. `e2e.log` shows 72 passed plus the walkthrough's 3.
+
+Claims:
+- `/office/events` with All, Showing, Hidden and Urgent not filled as links: PROVEN. `src/app/office/events/page.tsx:51-64` renders the tabs as `<Link href="/office/events?view=…">`, and the words are in `src/lib/office/events-copy.ts:11-16`. Integration test "each tab lists the events with a session to come" passes (`test.log:588`). The e2e clicks the Hidden and Showing links and checks the URL and `aria-current`.
+- `/office/events/[id]` with sessions, booked casuals and "Mark who worked": PROVEN for sessions and booked casuals; the marking branch is code only. `src/app/office/events/[id]/page.tsx` renders every session, and `session-row.tsx:111-139` renders the booked list. For a started session it adds `AttendanceButtons`, with `MarkRestWorked` once ended. The integration test "every session (past and cancelled too) and who is booked on each" passes (`test.log:591`). No test renders that started-session branch. The task's test list doesn't require one, and the components are the shift page's own, covered by `tests/e2e/office.attendance.spec.ts` and the walkthrough. I count this as non-blocking.
+- Event card with the event switch, one status tag, and the "Hidden from casuals. Booked casuals keep their shifts." message after switching off: PROVEN. `event-card.tsx:23-76`, `showing-switch.tsx:37-72`, and the message at `shifts-copy.ts:152`. Unit test "renders the card" passes (`test.log:2687`). The e2e checks the status text, the tag change and the switch's `aria-checked`.
+- A uniquely labelled switch per session on the event page: PROVEN. `events-copy.ts` has `uniqueSessionNames` and `sessionSwitchLabels`, and `session-row.tsx:96-104` renders the switch with `aria-describedby`. Unit test "names the role and times, unique on the page" passes (`test.log:2688`), including the "(2)" duplicate case.
+- Session row fields (role, start–end, "Urgent", a chip per requirement, "N/M filled", £/hour, post, meeting point, uniform): PROVEN. `session-row.tsx:57-92`, `events-copy.ts` (`requirementChip`, `filledText`, `sessionDetails`) and `events.ts` (requirements are the role's plus the session's extras). The unit test "role, times, Urgent, a chip per requirement, N/M filled, £/hour, post, meeting point, uniform" asserts every field in the rendered row (`test.log:2690`). The integration test checks the loader's requirement list.
+- "…" menu reaching today's offer, assign, urgent, change and cancel, with a sheet session refused as a whole: PROVEN. `session-menu.tsx:44-76` has "Offer a place" (`/office/offer/[id]`), "Assign someone" (`/office/shifts/[id]#assign`), `UrgentToggle`, and "Change or cancel". For a sheet session it shows `SHEET_SESSION_WORDS` and "Open this session", with no cancel link. The existing shift page keeps its refusal for sheet sessions (`shifts/[id]/page.tsx:96`). Unit tests "a session hidden from casuals isn't offered…" and "…a sheet's session can't be changed or cancelled as a whole" pass (`test.log:2692-2693`).
+- "Add shifts" and "Import shifts" for firms without a planner: PROVEN. `page.tsx:34-46` shows both only when `!list.hasPlanner`, linking to `/office/shifts/event` and `/office/shifts/import`, which both exist. `events.ts` computes `hasPlanner` from an enabled sheets source. The integration test "a firm with a Google Sheet has a planner" passes (`test.log:590`).
+- "Events & sessions" replaces "Shifts" in the menu, with the shift routes staying: PROVEN. `office-menu.ts:21` points the entry at `/office/events`. The `office.shell` tests show `/office/shifts`, `/office/shifts/new` and `/office/shifts/<id>` all marking Events & sessions (`test.log:2516-2538`). `office.shifts.spec.ts:32-44` goes through "Events & sessions" and then "All shifts by day", and passes (`e2e.log:46-48`).
+- Test: a resourcer sees a session's £/hour but never a pay record's amount: PROVEN. `tests/integration/office.events.test.ts` inserts a pay record with rate 9876543 and gross 123456789. It asserts "£15.50/h" is present and that neither figure, nor "gross" or "pay_record", appears in the page data or the rendered HTML. Passes (`test.log:592`). The loader reads no pay table (`events.ts` header comment and queries).
+- Test: unit tests for card text, switch labels and a session row with every field: PROVEN. `tests/unit/office.events.test.ts`, 8 tests, all passing (`test.log:2686-2693`).
+- Test: new e2e `office.events.spec.ts`: PROVEN. It switches the event off and the casual's Open shifts count goes 1 to 0, with the shift page saying "This shift isn't available.". Switching back on from the event page brings it back. Passes (`e2e.log:32`).
+- Docs: `docs/screens.md` (12B.5): PROVEN. Rows for `/office/events` and `/office/events/[id]` are at lines 135-136 and describe the built behaviour.
+
+Fakes found: none. No `.only`, `.skip`, `.todo` or `TODO` in the new source or tests. The tests render the real components and use the real database, and mock only `next/navigation`'s router. The e2e uses its own event, site and users, and cancels its shift at the end.
+
+To reach DONE: nothing.
+
+VERDICT: DONE
+```
+
+**Ticked**, hours logged (0.7 h; Phase 12 so far 9.6 h, no estimate to compare with). The
+auditor noted the event page's "Mark who worked" branch has no test of its own (the components
+are the shift page's, covered by `office.attendance.spec.ts` and the walkthrough); non-blocking.
+Commit: "Phase 12: Events & sessions pages (12B.5)" (hash in the next entry).

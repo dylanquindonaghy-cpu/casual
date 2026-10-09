@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readCapped } from "./body";
 import { tidyPostcode } from "./postcode";
 
 // Postcode to coordinates (docs/office-v2.md 5.4): a postcode's central point, never a house or a
@@ -107,12 +108,10 @@ export function postcodesIoGeocoder(
       } catch {
         return { status: "unavailable" };
       }
-      const length = Number(response.headers.get("content-length") ?? 0);
-      if (length > POSTCODES_IO_MAX_BYTES) return { status: "unavailable" };
       let body: unknown;
       try {
-        const text = await response.text();
-        if (text.length > POSTCODES_IO_MAX_BYTES) return { status: "unavailable" };
+        const text = await readCapped(response, POSTCODES_IO_MAX_BYTES);
+        if (text === null) return { status: "unavailable" };
         body = JSON.parse(text);
       } catch {
         return { status: "unavailable" };

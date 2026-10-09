@@ -1740,4 +1740,23 @@ describe("sheets.sync: travel estimates (12G.2)", () => {
       [shiftId],
     ]);
   });
+
+  it("a draft or cancelled session needs none; back to open, it gets them", async () => {
+    const f = await sheetFirm([ADA].map(staffRow), [{ ...P1, status: "Draft" }].map(shiftRow));
+    await sync(f);
+    const shiftId = await idOf("shifts", f.firmId, "P1");
+    expect(await travelJobs(f.firmId)).toEqual([]);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "");
+    await sync(f);
+    expect((await travelJobs(f.firmId)).map((j) => j.data.shiftIds)).toEqual([[shiftId]]);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "Cancelled");
+    await sync(f);
+    expect(await travelJobs(f.firmId)).toHaveLength(1);
+    f.fake.setCell(f.sheetId, SHIFTS, 2, "Status", "");
+    await sync(f);
+    expect((await travelJobs(f.firmId)).map((j) => j.data.shiftIds)).toEqual([
+      [shiftId],
+      [shiftId],
+    ]);
+  });
 });

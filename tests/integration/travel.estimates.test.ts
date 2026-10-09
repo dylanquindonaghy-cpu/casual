@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { createLogger } from "@/lib/log";
 import { purgeExpired } from "@/lib/gdpr/retention";
 import { runImport } from "@/lib/imports/import";
 import { readTable } from "@/lib/imports/table";
@@ -12,15 +13,29 @@ import { saveMyTravel } from "@/lib/portal/travel";
 import { moveShiftByFirm } from "@/lib/roster/firm-change";
 import { setShiftUrgent } from "@/lib/roster/urgent";
 import {
+  AFTER_WAVE_DELAY_SECONDS,
+  CASUAL_CHANGE_DELAY_SECONDS,
+  TRAVEL_ESTIMATES_QUEUE,
+} from "@/lib/travel/estimate-queue";
+import {
+  BEFORE_WAVE_BUDGET_MS,
   createTravelEstimatesTask,
   estimatesBeforeWave,
   fillEstimates,
   runTravelEstimatesTick,
+  TRAVEL_JOB_BUDGET_MS,
+  TRAVEL_JOB_EXPIRE_SECONDS,
 } from "@/lib/travel/estimates";
 import { fakeGeocoder, fakePoint } from "@/lib/travel/geocoder";
 import { travelLineText } from "@/lib/travel/line-copy";
 import { travelFor } from "@/lib/travel/lines";
-import { fakeTravelProvider, type TravelProvider, type TravelSearch } from "@/lib/travel/provider";
+import {
+  fakeTravelProvider,
+  TRAVELTIME_TIMEOUT_MS,
+  type TravelProvider,
+  type TravelSearch,
+} from "@/lib/travel/provider";
+import { QUEUES } from "@/worker/jobs/queues";
 import { captureTransport, quietLogger } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -107,22 +122,48 @@ async function travelFirm() {
     ).rows;
   const queued = async () =>
     (
-      await su.query<{ id: string; data: { shiftIds?: string[]; window?: boolean } }>(
-        `select id::text, data from pgboss.job
+      await su.query<{
+        id: string;
+        data: { shiftIds?: string[]; window?: boolean };
+        delay: number; // seconds from queued to start
+        singleton_key: string | null;
+      }>(
+        `select id::text, data, singleton_key,
+                extract(epoch from start_after - created_on)::float8 as delay
+           from pgboss.job
           where name = 'travel.estimates' and data ->> 'firmId' = $1 order by created_on, id`,
         [f.firmId],
       )
     ).rows;
   const queuedIds = async () => (await queued()).flatMap((j) => j.data.shiftIds ?? []);
-  const fill = (scope: { shiftIds: string[] } | { window: true }, provider: TravelProvider) =>
-    fillEstimates(withFirm, f.firmId, scope, { provider, clock });
+  const fill = (
+    scope: { shiftIds: string[] } | { window: true },
+    provider: TravelProvider,
+    budgetMs?: number,
+  ) => fillEstimates(withFirm, f.firmId, scope, { provider, clock, budgetMs });
+  const clearQueued = () =>
+    su.query("delete from pgboss.job where name = 'travel.estimates' and data ->> 'firmId' = $1", [
+      f.firmId,
+    ]);
   const office = (officeUserId = admin) => ({
     firm: { id: f.firmId },
     officeUserId,
     run: withFirm,
     clock,
   });
-  return { f, admin, siteId, area, session, estimates, queued, queuedIds, fill, office };
+  return {
+    f,
+    admin,
+    siteId,
+    area,
+    session,
+    estimates,
+    queued,
+    queuedIds,
+    fill,
+    clearQueued,
+    office,
+  };
 }
 
 describe("working estimates out", () => {
@@ -147,6 +188,7 @@ describe("working estimates out", () => {
       searches: 2,
       saved: 4,
       unavailable: false,
+      more: false,
     });
     expect(look.searches.map((s) => [s.mode, s.from.map((o) => o.id)])).toEqual([
       ["car", ["o1", "o2"]],
@@ -185,6 +227,104 @@ describe("working estimates out", () => {
     const look = recording();
     await t.fill({ shiftIds: [a, b] }, look.provider);
     expect(look.searches.map((s) => s.from.length)).toEqual([2, 2]);
+  });
+
+  it("casuals sharing a postcode with different points: one start point for it (the latest)", async () => {
+    const t = await travelFirm();
+    const [ann, ben] = [
+      await t.f.worker({ first: "Ann", roles: ["steward"] }),
+      await t.f.worker({ first: "Ben", roles: ["steward"] }),
+    ];
+    await t.area(ann, "ZZ2 2BB");
+    await t.area(ben, "ZZ2 2BB");
+    // Ben's was looked up later, after the look-up's data for the postcode moved a little.
+    await su.query(
+      `update worker_travel set lat = lat + 0.001, updated_at = updated_at + interval '1 day'
+        where worker_id = $1`,
+      [ben],
+    );
+    const bens = await su.query<{ lat: string; lng: string }>(
+      "select lat::text, lng::text from worker_travel where worker_id = $1",
+      [ben],
+    );
+    const shiftId = await t.session(48);
+    const look = recording();
+    expect(await t.fill({ shiftIds: [shiftId] }, look.provider)).toMatchObject({
+      searches: 2,
+      saved: 2,
+    });
+    for (const s of look.searches) {
+      expect(s.from.map((o) => o.point)).toEqual([
+        { lat: Number(bens.rows[0]?.lat), lng: Number(bens.rows[0]?.lng) },
+      ]);
+    }
+    expect((await t.estimates()).map((r) => [r.origin_postcode, r.mode])).toEqual([
+      ["ZZ2 2BB", "car"],
+      ["ZZ2 2BB", "public_transport"],
+    ]);
+  });
+
+  it("a session beyond the job's window (29 days): none yet; the nightly run gives it them", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const [day28, day30] = [await t.session(28 * 24 + 1), await t.session(30 * 24)];
+    const look = recording();
+    await t.fill({ shiftIds: [day28, day30] }, look.provider);
+    expect(look.searches.map((s) => s.arriveBy)).toEqual([
+      new Date(hoursFromNow(28 * 24 + 1).getTime() - 30 * 60_000),
+      new Date(hoursFromNow(28 * 24 + 1).getTime() - 30 * 60_000),
+    ]);
+  });
+
+  it("estimates from another provider are searched again (the switch to the real one)", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const shiftId = await t.session(48);
+    await t.fill({ shiftIds: [shiftId] }, fakeTravelProvider);
+    const real = recording();
+    const named: TravelProvider = { name: "traveltime", search: real.provider.search };
+    expect(await t.fill({ shiftIds: [shiftId] }, named)).toMatchObject({ searches: 2, saved: 2 });
+    expect((await t.estimates()).map((r) => r.provider)).toEqual(["traveltime", "traveltime"]);
+  });
+
+  it("out of time: what's done is saved, and the job queues the rest as a fresh run", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const [first, second] = [await t.session(48), await t.session(72)];
+    const secondArrive = new Date(hoursFromNow(72).getTime() - 30 * 60_000).getTime();
+    // Answers the first session's searches at once; never answers the second's.
+    const slow = recording((s) =>
+      s.arriveBy.getTime() === secondArrive
+        ? new Promise(() => undefined)
+        : fakeTravelProvider.search(s),
+    );
+    expect(await t.fill({ shiftIds: [first, second] }, slow.provider, 1_000)).toEqual({
+      searches: 3,
+      saved: 2,
+      unavailable: false,
+      more: true,
+    });
+    expect(await t.estimates()).toHaveLength(2);
+    // The job: completes (it isn't the provider's fault), and queues the rest.
+    await t.clearQueued();
+    const task = createTravelEstimatesTask(() => ({
+      provider: slow.provider,
+      clock,
+      budgetMs: 1_000,
+    }));
+    for (const data of [
+      { firmId: t.f.firmId, idempotencyKey: "travel-estimates:t1", shiftIds: [first, second] },
+      { firmId: t.f.firmId, idempotencyKey: "travel-estimates:t2", window: true },
+    ]) {
+      const result = await runFirmTask(task, { id: "j1", data }, withFirm, quietLogger);
+      expect(result.status).toBe("completed");
+    }
+    const jobs = await t.queued();
+    expect(jobs.map((j) => j.data.shiftIds ?? "window")).toEqual([[first, second], "window"]);
+    for (const j of jobs) expect(j.delay).toBeCloseTo(30, 0);
   });
 
   it("2,001 start points: two searches, 2,000 and 1", async () => {
@@ -244,6 +384,7 @@ describe("working estimates out", () => {
       searches: 1,
       saved: 0,
       unavailable: true,
+      more: false,
     });
     expect(down.searches).toHaveLength(1); // no hammering: the rest aren't tried
     const task = createTravelEstimatesTask(() => ({ provider: down.provider, clock }));
@@ -379,6 +520,71 @@ describe("before an urgent session's first wave", () => {
     }
     expect(sent.length).toBeGreaterThan(0);
   });
+
+  it("a travel service that's slow: the wave waits at most its budget (5 seconds), and says so", async () => {
+    expect(BEFORE_WAVE_BUDGET_MS).toBe(5_000);
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const shiftId = await t.session(10);
+    const hanging: TravelProvider = { name: "fake", search: () => new Promise(() => undefined) };
+    const lines: string[] = [];
+    const started = Date.now();
+    await estimatesBeforeWave(
+      withFirm,
+      t.f.firmId,
+      shiftId,
+      { provider: hanging, clock, budgetMs: 300 },
+      createLogger({ write: (line) => lines.push(line) }),
+    );
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(lines.map((l) => JSON.parse(l) as { level: string; msg: string })).toEqual([
+      expect.objectContaining({
+        level: "warn",
+        msg: "travel estimates before a wave not finished",
+      }),
+    ]);
+  });
+
+  it("a travel step that throws (even loading it) never holds the offers back", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const shiftId = await t.session(10);
+    await su.query("update shifts set is_urgent = true where id = $1", [shiftId]);
+    const { transport, sent } = captureTransport();
+    await runOfferWave({ firmId: t.f.firmId, idempotencyKey: "t:1", shiftId, wave: 1 }, withFirm, {
+      transport,
+      push: {
+        name: "none",
+        async send() {
+          return { status: "sent" };
+        },
+      },
+      baseDomain: "localhost:3000",
+      clock,
+      travelBeforeFirstWave: async () => {
+        throw new Error("Cannot find module '../travel/estimates'");
+      },
+    });
+    expect(sent.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the job's queue", () => {
+  it("tries again after 5 minutes, backing off to an hour apart, 6 times; a run ends before its expiry", () => {
+    expect(QUEUES.find((q) => q.name === TRAVEL_ESTIMATES_QUEUE)?.options).toMatchObject({
+      policy: "standard",
+      retryLimit: 6,
+      retryDelay: 300,
+      retryBackoff: true,
+      retryDelayMax: 3600,
+      expireInSeconds: TRAVEL_JOB_EXPIRE_SECONDS,
+    });
+    expect(TRAVEL_JOB_EXPIRE_SECONDS * 1000).toBeGreaterThan(
+      TRAVEL_JOB_BUDGET_MS + TRAVELTIME_TIMEOUT_MS,
+    );
+  });
 });
 
 describe("the nightly run", () => {
@@ -504,6 +710,9 @@ describe("what queues the job", () => {
       ),
     ).toMatchObject({ status: expect.stringMatching(/^marked/) });
     expect(await t.queuedIds()).toEqual([a, b, a, b, a]);
+    // Marked urgent: after the first wave's own fill, so the two don't search at once.
+    expect((await t.queued()).at(-1)?.delay).toBeCloseTo(AFTER_WAVE_DELAY_SECONDS, 0);
+    expect((await t.queued())[0]?.delay).toBeCloseTo(0, 0);
     // A file import: its new sessions, in one job with the import (none for a dry run).
     const rows = readTable(
       new TextEncoder().encode(
@@ -542,12 +751,10 @@ describe("what queues the job", () => {
     const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
     await t.area(ann, "ZZ2 2BB");
     const shiftId = await t.session(48);
+    await t.session(30 * 24); // beyond the job's window: the nightly run's, later
     await t.fill({ shiftIds: [shiftId] }, fakeTravelProvider);
     expect(await t.estimates()).toHaveLength(2);
-    await su.query(
-      "delete from pgboss.job where name = 'travel.estimates' and data ->> 'firmId' = $1",
-      [t.f.firmId],
-    );
+    await t.clearQueued();
     expect(
       await editSitePostcode({ ...t.office(), geocoder: fakeGeocoder }, t.siteId, {
         postcode: "ZZ9 9ZZ",
@@ -557,16 +764,55 @@ describe("what queues the job", () => {
     expect(await t.queuedIds()).toEqual([shiftId]);
   });
 
-  it("a casual's new postcode: their roles' sessions in the window", async () => {
+  it("casuals' new postcodes: one window run, 5 minutes later, shared by every change meanwhile", async () => {
     const t = await travelFirm();
-    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    const [ann, ben] = [
+      await t.f.worker({ first: "Ann", roles: ["steward"] }),
+      await t.f.worker({ first: "Ben", roles: ["steward"] }),
+    ];
     const [soon, later, other] = [
       await t.session(48, "steward"),
       await t.session(30 * 24, "steward"), // beyond the window
-      await t.session(48, "coss"), // not one of her roles
+      await t.session(48, "coss"), // nobody's role
     ];
+    const slot = async () =>
+      (
+        await su.query<{ slot: string }>(
+          "select floor(extract(epoch from now()) / $1)::text as slot",
+          [CASUAL_CHANGE_DELAY_SECONDS],
+        )
+      ).rows[0]?.slot;
+    const before = await slot();
     await t.area(ann, "ZZ2 2BB");
-    expect(await t.queuedIds()).toEqual([soon]);
+    await t.area(ann, "ZZ3 3CC"); // changed her mind
+    await t.area(ben, "ZZ4 4DD");
+    const after = await slot();
+    const jobs = await t.queued();
+    // One per 5-minute slot (the three saves almost always fall in the same one).
+    expect(jobs).toHaveLength(before === after ? 1 : 2);
+    for (const j of jobs) {
+      expect(j.data).toMatchObject({ window: true });
+      expect(j.data.shiftIds).toBeUndefined();
+      expect(j.delay).toBeCloseTo(CASUAL_CHANGE_DELAY_SECONDS, 0);
+      expect(j.singleton_key).toBe(`${t.f.firmId}:travel-estimates-casuals`);
+    }
+    // The run: the latest postcodes, for the sessions in the window with their roles.
+    const look = recording();
+    const task = createTravelEstimatesTask(() => ({ provider: look.provider, clock }));
+    const [job] = jobs;
+    expect(
+      (await runFirmTask(task, { id: job?.id ?? "", data: job?.data }, withFirm, quietLogger))
+        .status,
+    ).toBe("completed");
+    const arrive = new Date(hoursFromNow(48).getTime() - 30 * 60_000);
+    expect(look.searches.map((s) => [s.arriveBy, s.from.length])).toEqual([
+      [arrive, 2],
+      [arrive, 2],
+    ]);
+    expect(new Set((await t.estimates()).map((r) => r.origin_postcode))).toEqual(
+      new Set(["ZZ3 3CC", "ZZ4 4DD"]),
+    );
+    void soon;
     void later;
     void other;
   });

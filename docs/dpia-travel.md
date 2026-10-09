@@ -98,10 +98,14 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 - The log entries (`travel.profile_changed`, `travel.profile_removed`) hold no postcode or point,
   so nothing personal about their location stays in the log.
 - Travel estimates (12G.2, `travel_estimates`) are keyed by postcode, not by person: everyone
-  starting from a postcode shares them. They're deleted 7 days after the last session they were for
-  (the retention purge, even during a hold), and when a site's postcode changes. Erasing a casual
-  doesn't delete them (they don't say who), but they expire as above. They're left out of the
-  firm's data export, because they hold full start postcodes, which the office never sees.
+  starting from a postcode shares them. They name no one, but a postcode only one casual uses still
+  points to them, so they're treated as personal data: the office never sees their postcodes,
+  they're never logged, and they're kept only as long as needed. They're deleted 7 days after the
+  last session they were for (the retention purge, even during a hold: they're worked out, never
+  evidence), and when a site's postcode changes. Erasing a casual doesn't delete them at once (one
+  row can be several casuals'), but nothing new is worked out from a postcode nobody uses, and the
+  old ones expire as above. They're left out of the firm's data export, because they hold full
+  start postcodes, which the office never sees.
 
 ### Who can see it
 

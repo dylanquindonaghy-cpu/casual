@@ -2847,7 +2847,12 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
      against one live answer for a public postcode (a council office's, never a casual's), and the
      hand-written TravelTime answers (`tests/fixtures/traveltime/`, 12G.2) against one live
      time-filter search between two public places; correct the parsers if the shapes differ.
-     Nothing personal is sent.
+     Nothing personal is sent. Also check against TravelTime's documented limits: the most
+     locations one time-filter search takes (the job sends up to 2,000 start points plus the site:
+     `SEARCH_MAX_ORIGINS`, `src/lib/travel/provider.ts`; lower it if the limit is smaller), and how
+     it answers for a start point it can't place (neither reachable nor unreachable: today the job
+     saves nothing for it, so every run asks again; if TravelTime does that for real, save it as
+     "not known" for the day instead).
   3. **You:** put `TRAVEL_PROVIDER=traveltime` (and 12G.2's TravelTime keys) in the server's
      `.env`; then save one site's postcode on Settings and check it says "Location found."
   Also: `scripts/invariants.sh` checks the test setups' pins for email, AI and Twilio but not yet
@@ -2855,8 +2860,11 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   Adding it changes a protected file, so it's Dylan's call: two lines like the AI ones.
   Before `traveltime` is switched on (12G.1 review): limit look-ups per casual and per firm (say 10
   an hour per casual), so one person can't get the server's address throttled by postcodes.io.
-  For 12G.2: the worker should build its geocoder from `workerEnv()`, not `appEnv()`
-  (`src/lib/travel/server.ts`).
+  The same limit caps TravelTime use (12G.2 review): each new postcode costs a search per session
+  group in the window; casuals' changes already share one run per firm every 5 minutes
+  (`casualMoved()`), but nothing yet stops one casual changing theirs all day.
+  If a worker job ever looks postcodes up (12G.2's job doesn't: it uses the saved points), build
+  its geocoder from `workerEnv()`, not `appEnv()` (`src/lib/travel/server.ts`).
 - Travel areas (12G.1 review): **Dylan to decide** whether a firm switches the travel area on
   for itself (a per-firm `travel.enabled`, off by default, hiding "Where you work"), since the DPIA's
   Part 2 is per firm and `TRAVEL_PROVIDER` is per server. Today it shows for every firm (with the

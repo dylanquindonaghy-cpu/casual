@@ -526,16 +526,20 @@ are never hidden because of it, and an unknown distance is still offered.
    can't be down. `traveltime` asks TravelTime.
 2. The worker's log: `docker compose logs worker --since 2h | grep travel.estimates`. A failed job
    says `travel.estimates` with a code: `TravelUnavailableError` means TravelTime didn't answer
-   (down, too slow, or an answer we couldn't read). pg-boss tries the job again by itself.
+   (down, too slow, or an answer we couldn't read). pg-boss tries the job again by itself: after 5
+   minutes, then 10, 20, 40 and an hour apart, 6 times (about 3 hours). Urgent shifts' offers go
+   out anyway; `travel estimates before a wave not finished` (a warning) means one went without
+   them.
 3. A wrong or missing key: the worker refuses to start with `traveltime` and no
    `TRAVELTIME_APP_ID` / `TRAVELTIME_API_KEY`. A key TravelTime rejects shows as the same
    `TravelUnavailableError`: check the keys in TravelTime's developer portal, then `nano .env`,
    save once; the deploy timer applies it within 2 minutes.
 4. Usage limits: TravelTime's plan has a monthly allowance (`docs/office-v2.md` 5.4). If it's used
    up, every search fails until it resets or the plan changes.
-5. Once it answers again, nothing else to do: the nightly run (02:20 London) fills every session in
-   the next 28 days that's missing estimates. To fill them sooner, save any site's postcode again
-   on Settings (its sessions are queued at once).
+5. Once it answers again, nothing else to do: the retries above, then the nightly run (02:20
+   London), fill every session in the next 29 days that's missing estimates (each run only
+   searches what's missing). Saving a site's postcode again doesn't hurry it: the same postcode is
+   "no change" and queues nothing.
 
 ## Google Sheets sync failing
 

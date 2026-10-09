@@ -36,7 +36,8 @@ const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as con
 //   withdrawing one goes with its row. Their strike.issued, strike.withdrawn and strike.reviewed
 //   entries (ids, codes and hours) stay with the rest of the action log;
 // - travel estimates past their expiry, 7 days after the last session they were worked out for
-//   (12G.2): keyed by postcode, not by person, so even during a hold;
+//   (12G.2), even during a hold: worked out from a postcode, not a record of anything anyone did, so
+//   never evidence (and worked out again if it's needed);
 // - the words typed into a request (payload.note, and payload.swapWith: a colleague's name), only
 //   once it's closed (approved, declined, auto-resolved) and retention.request_note_days (365) after
 //   it closed: an open or escalated request keeps them (the request itself stays: it's evidence);

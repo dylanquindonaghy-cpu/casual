@@ -399,8 +399,9 @@ async function mirror(
   let booked = 0;
   let cancelled = 0;
   let notBooked = 0;
-  // Sessions added, or given a new time, role or site: their travel estimates (12G.2), queued once
-  // with the sync, so a new session has them without waiting for the nightly run.
+  // Sessions added, back from draft or cancelled, or given a new time, role or site: their travel
+  // estimates (12G.2), queued once with the sync, so they're there without waiting for the nightly
+  // run. (Drafts and cancelled sessions need none.)
   const travel = new Set<string>();
   const writes: PendingWrite[] = [];
 
@@ -466,7 +467,7 @@ async function mirror(
       if (!inserted) throw new Error("shift insert returned nothing");
       shiftId = inserted.id;
       await recordEvent(tx, system("shift.created", "shift", shiftId, {}));
-      travel.add(shiftId);
+      if (!sheetStatus) travel.add(shiftId);
     } else {
       shiftId = existing.id;
       // 1. The people the sheet took off it go first, at the shift as they knew it, so their
@@ -613,6 +614,10 @@ async function mirror(
       after = before;
     }
     if (existing && after !== before) {
+      // Back from draft or cancelled: it needs travel lines again (12G.2).
+      if ((after === "open" || after === "filled") && before !== "open" && before !== "filled") {
+        travel.add(shiftId);
+      }
       await tx.update(shifts).set({ status: after }).where(eq(shifts.id, shiftId));
       await recordEvent(
         tx,

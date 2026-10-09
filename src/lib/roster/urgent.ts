@@ -7,7 +7,7 @@ import { recordEvent } from "../events/record";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../rules/urgent";
 import { startOfferWaves } from "../offers/waves";
 import { officeCanPlace } from "./book";
-import { queueTravelEstimates } from "../travel/estimate-queue";
+import { AFTER_WAVE_DELAY_SECONDS, queueTravelEstimates } from "../travel/estimate-queue";
 
 // The urgent flag on shifts (docs/architecture.md, "Cancel" step 3; docs/api-and-jobs.md
 // `makeUrgent`). The rules are in src/lib/rules/urgent.ts; this reads and writes the rows.
@@ -57,7 +57,7 @@ export async function markUrgentAfterDropout(
   // A place reopened close to the start: offer it out, even if the shift was urgent already. Its
   // travel estimates are filled in too (12G.2; the first wave also fills them before it goes).
   await startOfferWaves(tx, { shiftId: input.shiftId, now: input.now });
-  await queueTravelEstimates(tx, [input.shiftId]);
+  await queueTravelEstimates(tx, [input.shiftId], { startAfter: AFTER_WAVE_DELAY_SECONDS });
   if (shift.is_urgent) return true;
   await tx.update(shifts).set({ isUrgent: true }).where(eq(shifts.id, input.shiftId));
   await recordEvent(tx, {
@@ -129,7 +129,9 @@ export async function setShiftUrgent(
     const offering =
       request.urgent && (await startOfferWaves(tx, { shiftId: request.shiftId, now }));
     // Its travel estimates (12G.2), for the casuals it's offered to.
-    if (request.urgent) await queueTravelEstimates(tx, [request.shiftId]);
+    if (request.urgent) {
+      await queueTravelEstimates(tx, [request.shiftId], { startAfter: AFTER_WAVE_DELAY_SECONDS });
+    }
     await recordEvent(tx, {
       actorType: "office",
       actorId: request.by.id,

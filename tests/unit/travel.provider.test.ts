@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { OPEN_WINDOW_DAYS } from "@/lib/portal/open-shifts";
 import { parseWorkerEnv } from "@/lib/env";
-import { ESTIMATE_WINDOW_DAYS, travelEstimatesPayload } from "@/lib/travel/estimate-queue";
+import {
+  ESTIMATE_WINDOW_DAYS,
+  JOB_WINDOW_DAYS,
+  travelEstimatesPayload,
+} from "@/lib/travel/estimate-queue";
 import { straightLineMetres } from "@/lib/travel/distance";
 import { travelLineText, type TravelFacts } from "@/lib/travel/line-copy";
 import {
@@ -305,7 +309,8 @@ describe("the travel job's payload", () => {
     ).toBe(false);
   });
 
-  it("the nightly window is the open-shifts window", () => {
+  it("the job's window is the open-shifts window and a day (until the next nightly run)", () => {
     expect(ESTIMATE_WINDOW_DAYS).toBe(OPEN_WINDOW_DAYS);
+    expect(JOB_WINDOW_DAYS).toBe(OPEN_WINDOW_DAYS + 1);
   });
 });

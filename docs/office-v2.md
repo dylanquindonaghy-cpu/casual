@@ -1570,11 +1570,14 @@ Delivery is plain HTTPS from the worker, so it runs on any Docker host (5.8).
 **When estimates are worked out** (the travel job; pages never call the provider):
 - a session is created, imported, synced or sent by the planner, or marked urgent;
 - a session's time or site changes, or a site's postcode changes;
-- a casual's postcode or ways of travelling change;
+- a casual's postcode or ways of travelling change (5 minutes later, in one run shared by every
+  casual's change meanwhile);
 - nightly, for every session in the open-shifts window (`OPEN_WINDOW_DAYS`, 28 days,
-  `src/lib/portal/open-shifts.ts:23`) that is missing an estimate (a safety net).
+  `src/lib/portal/open-shifts.ts:23`) and the day after it (`JOB_WINDOW_DAYS`, 29) that is missing
+  an estimate (a safety net). Sessions further off get theirs as they come into it.
 
-So an urgent session added this morning for tonight has its travel lines before its first wave.
+So an urgent session added this morning for tonight has its travel lines before its first wave
+(the wave waits up to 5 seconds for them, then goes anyway: 12G.2).
 
 **An unknown estimate** (the job hasn't run yet, or the site has no postcode) is shown as "Distance
 not known yet", never hidden (D2). Offer waves still offer such a session, so the travel limit never

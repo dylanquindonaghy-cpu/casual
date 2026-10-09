@@ -15,6 +15,7 @@ import { workerEnv } from "../env";
 import { noticeHours } from "../roster/notice";
 import { recordEvent } from "../events/record";
 import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
+import { log } from "../log";
 import { getTransport } from "../messaging";
 import {
   shiftEscalationEmail,
@@ -389,7 +390,11 @@ export async function runOfferWave(
   // travel estimates first, outside any transaction, so they're there before anyone is offered it.
   // Best-effort: a travel service that doesn't answer never holds the offers back.
   if (payload.wave === 1 && already === 0 && deps.travelBeforeFirstWave) {
-    await deps.travelBeforeFirstWave(run, payload.firmId, shift.id);
+    try {
+      await deps.travelBeforeFirstWave(run, payload.firmId, shift.id);
+    } catch (error) {
+      log.warn("travel estimates before a wave failed", { firmId: payload.firmId, error });
+    }
   }
 
   // 2. Who it goes to: read with no locks held (the rules for every active worker with the role can

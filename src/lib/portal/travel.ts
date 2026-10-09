@@ -182,10 +182,8 @@ export async function saveMyTravel(
       entityId: workerId,
       data: { changed, maxMinutes },
     });
-    // The sessions in the window for their roles: estimates from their (new) postcode (12G.2).
-    if (changed.includes("postcode") || changed.includes("modes")) {
-      await casualMoved(tx, workerId, now);
-    }
+    // Estimates from their (new) postcode, in a shared run a few minutes later (12G.2).
+    if (changed.includes("postcode") || changed.includes("modes")) await casualMoved(tx);
     return { status: "saved" };
   });
 }

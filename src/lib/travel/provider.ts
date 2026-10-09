@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { EstimateMode } from "../db/schema/travel";
+import { readCapped } from "./body";
 import { straightLineMetres } from "./distance";
 import type { Point } from "./geocoder";
 
@@ -158,14 +159,14 @@ export function travelTimeProvider(o: {
       } catch {
         return { status: "unavailable" };
       }
-      if (response.status !== 200) return { status: "unavailable" };
-      if (Number(response.headers.get("content-length") ?? 0) > TRAVELTIME_MAX_BYTES) {
+      if (response.status !== 200) {
+        await response.body?.cancel().catch(() => undefined);
         return { status: "unavailable" };
       }
       let parsed: z.infer<typeof timeFilterAnswer>;
       try {
-        const text = await response.text();
-        if (text.length > TRAVELTIME_MAX_BYTES) return { status: "unavailable" };
+        const text = await readCapped(response, TRAVELTIME_MAX_BYTES);
+        if (text === null) return { status: "unavailable" };
         const answer = timeFilterAnswer.safeParse(JSON.parse(text));
         if (!answer.success) return { status: "unavailable" };
         parsed = answer.data;

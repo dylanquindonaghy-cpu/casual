@@ -13,7 +13,7 @@ import { OFFICE_OFFER_QUEUE } from "../../lib/offers/office-offer";
 import { STRIKES_EMAIL_LINK_QUEUE } from "../../lib/office/strikes-email";
 import { STRIKE_EVIDENCE_QUEUE } from "../../lib/strikes/evidence-queue";
 import { TRAVEL_ESTIMATES_QUEUE } from "../../lib/travel/estimate-queue";
-import { TRAVEL_ESTIMATES_TICK_QUEUE } from "../../lib/travel/estimates";
+import { TRAVEL_ESTIMATES_TICK_QUEUE, TRAVEL_JOB_EXPIRE_SECONDS } from "../../lib/travel/estimates";
 import { ESCALATE_SHIFT_QUEUE, OFFER_WAVE_QUEUE } from "../../lib/offers/waves";
 import { SHIFT_REMINDER_TICK_QUEUE, SHIFT_REMINDERS_QUEUE } from "../../lib/reminders/send";
 import {
@@ -79,10 +79,10 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   RETENTION_PURGE_QUEUE,
   STRIKES_EMAIL_LINK_QUEUE,
   STRIKE_EVIDENCE_QUEUE,
-  TRAVEL_ESTIMATES_QUEUE,
 ];
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
+const travelEstimates = firmQueue(TRAVEL_ESTIMATES_QUEUE);
 
 export const QUEUES: readonly QueueSpec[] = [
   { name: HELLO_QUEUE },
@@ -126,6 +126,21 @@ export const QUEUES: readonly QueueSpec[] = [
   {
     ...sheetsSync,
     options: { ...sheetsSync.options, expireInSeconds: SHEETS_SYNC_EXPIRE_SECONDS },
+  },
+  // The travel job (src/lib/travel/estimates.ts) fails when the provider doesn't answer: tried
+  // again after 5 minutes, then 10, 20, up to an hour apart, 6 times (about 3 hours), so an outage
+  // is waited out without hammering the provider; the nightly run catches up after that. A run
+  // stops itself at TRAVEL_JOB_BUDGET_MS (10 minutes), well inside its expiry.
+  {
+    ...travelEstimates,
+    options: {
+      ...travelEstimates.options,
+      expireInSeconds: TRAVEL_JOB_EXPIRE_SECONDS,
+      retryLimit: 6,
+      retryDelay: 5 * 60,
+      retryBackoff: true,
+      retryDelayMax: 60 * 60,
+    },
   },
 ];
 

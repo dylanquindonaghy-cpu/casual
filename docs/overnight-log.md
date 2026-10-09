@@ -11017,3 +11017,53 @@ only). Note 3 stands.
 estimate for Phase 12). **Commit:** "Phase 12: The travel filter and travel lines (12G.3)", pushed
 (its hash in the next entry). CI passed on the checkpoints (`6cf9fdb`, `b754ae7`). 12G.2's commit:
 `b0ec667`, pushed; CI passed on it.
+
+## 2026-10-09 14:16 UTC — Phase 12, task 12F.1: Qualification statuses and the Casuals pages
+
+**Task:** Qualification statuses and the Casuals pages (§3.7, §4.6; Rules 15), as written in
+`PLAN.md` (12F.1).
+
+**Plan:**
+- `src/lib/credentials/expiry.ts`: one "expiring soon" window, `EXPIRING_SOON_DAYS` (30: the expiry
+  job's first warning), used by the expiry job's thresholds, the office and My shifts (My shifts'
+  own `NOTICE_DAYS` goes).
+- `src/lib/credentials/status.ts` (pure):
+  - `qualificationStatus()` turns one type's records into Valid, Expiring soon, Expired, Missing,
+    Applied for or Suspended, the same way the rules engine reads them. Suspended beats everything,
+    then a valid record in date (the longest-lasting; Expiring soon within the window), then Applied
+    for, then Expired. No record is Missing.
+  - `listQualifications()` lists every type her roles need (from the firm's rules) with the roles
+    that need it, worst status first. Right to work stays out of the list: it's a status only
+    (`rightToWork()`, Rules 15).
+  - `needsUpdating()` gives §4.2's four levels:
+    1. blocks a booked shift: expired, suspended or missing, or expiring before the shift ends;
+    2. expired or suspended;
+    3. expiring soon;
+    4. missing ("Needed for {role} shifts").
+
+    The photo's levels join with 12F.2.
+- `src/lib/credentials/qualifications.ts` (server): one loader for many casuals at once (their
+  roles, the firm's rules and type names, their records, their confirmed bookings ahead), used by
+  Profile, My shifts and the office.
+- Profile: "Qualifications" (each status, its date line and what it means) and "Right to work"
+  ("Checked by the office on …" / "Not checked yet: ask the office").
+- My shifts: the credential banners become a "Needs updating" card in the four-level order. Words
+  in `src/lib/portal/qualification-copy.ts`; staff-facing words never say "credential".
+- Office: the `workers` area becomes `casuals` (`roles.ts`, the menu, the guide, Today's links).
+  - `/office/casuals`: All and Need updating as links with counts, Find a casual (the existing
+    form, as built), and a table (stacked cards on a phone) with the casual, qualifications (worst
+    first), travel district, live strikes and needs updating.
+  - `/office/casuals/[id]`: needs updating, qualifications, right to work, travel area, strikes,
+    bookings ahead, and the access controls moved from `/office/workers/[id]`.
+  - `/office/workers` and `/office/workers/[id]` redirect.
+  - The staff photo column, "Uploads to check", Being checked and Not accepted join with 12F.2.
+- **Tests:**
+  - unit: the full status table at the boundary dates, Missing for a needed type and nothing for a
+    type nothing needs, the four-level order, the words;
+  - `portal.profile` and `portal.my-shifts` updated;
+  - integration: the loaders, the office list's counts and views, the casual's page, access and
+    isolation;
+  - e2e: new `casual.app.spec.ts` (Profile statuses for a made-up Zoe: one Valid, one Expiring
+    soon, one Missing; the spec builds her itself until 12I.1's seed), and
+    `office.workers.spec.ts` follows the rename.
+- **Docs:** `docs/screens.md`, `docs/rules-and-credentials.md`.

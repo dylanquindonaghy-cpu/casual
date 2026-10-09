@@ -43,7 +43,7 @@ describe("office roles", () => {
     const AREA_OF_HREF: Record<string, readonly string[]> = {
       "/office": ["today"],
       "/office/pay": ["pay"],
-      "/office/shifts": ["shifts"],
+      "/office/events": ["shifts"],
       "/office/requests": ["requests"],
       "/office/workers": ["workers"],
       "/office/log": ["log"],

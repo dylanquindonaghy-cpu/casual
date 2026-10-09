@@ -4,6 +4,7 @@ import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
 import {
   assignments,
+  credentials,
   firms,
   officeUsers,
   requests,
@@ -13,7 +14,7 @@ import {
 } from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
 import type { FirmTx } from "../../src/lib/db/scoped";
-import { automaticEventId } from "../../src/lib/roster/shift-events";
+import { automaticEventId, createNamedEvent } from "../../src/lib/roster/shift-events";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
 // dev one) as the app role, inside the seeded firm, exactly as the app would.
@@ -120,6 +121,76 @@ export async function addOpenShift(
     );
     if (!row) throw new Error("shift insert returned nothing");
     return row.id;
+  } finally {
+    await pool.end();
+  }
+}
+
+// An event of a spec's own (named, as "Shifts for an event" makes) holding one open session at a
+// site of its own (`site`, so a casual's list can find it), starting `daysAhead` days from now:
+// switching it off can't hide another spec's shifts.
+export async function addEventWithSession(
+  slug: string,
+  o: { name: string; site: string; role: string; daysAhead: number; hours?: number },
+): Promise<{ eventId: string; shiftId: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    const startsAt = new Date(Date.now() + o.daysAhead * 86_400_000);
+    startsAt.setUTCMinutes(0, 0, 0);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [site] = await tx
+        .insert(sites)
+        .values({ firmId, name: o.site })
+        .returning({ id: sites.id });
+      if (!site) throw new Error("site insert returned nothing");
+      const eventId = await createNamedEvent(tx, { name: o.name, siteId: site.id });
+      const [row] = await tx
+        .insert(shifts)
+        .values({
+          firmId,
+          siteId: site.id,
+          shiftEventId: eventId,
+          role: o.role,
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + (o.hours ?? 8) * 3_600_000),
+          headcount: 1,
+          status: "open",
+          source: "native",
+        })
+        .returning({ id: shifts.id });
+      if (!row) throw new Error("shift insert returned nothing");
+      return { eventId, shiftId: row.id };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// A steward of a spec's own who may take steward shifts (the Level 2 qualification, valid, no
+// expiry). Fake details only: a drama-range number the seed doesn't use. Returns their id.
+export async function addSteward(
+  slug: string,
+  o: { firstName: string; lastName: string; mobileE164: string },
+): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [row] = await tx
+        .insert(workers)
+        .values({ firmId, ...o, roles: ["steward"] })
+        .returning({ id: workers.id });
+      if (!row) throw new Error("worker insert returned nothing");
+      await tx
+        .insert(credentials)
+        .values({ firmId, workerId: row.id, type: "STEWARD_L2", status: "valid" });
+      return row.id;
+    });
   } finally {
     await pool.end();
   }

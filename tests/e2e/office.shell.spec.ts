@@ -58,7 +58,9 @@ for (const device of ["light", "dark"] as const) {
       // Escape shuts it, and focus goes back to Menu.
       await menuButton.click();
       await expect(drawer).toBeVisible();
-      await expect(drawer.getByRole("link", { name: "Shifts", exact: true })).toBeVisible();
+      await expect(
+        drawer.getByRole("link", { name: "Events & sessions", exact: true }),
+      ).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(drawer).toBeHidden();
       await expect(menuButton).toBeFocused();
@@ -77,10 +79,13 @@ for (const device of ["light", "dark"] as const) {
       await expect(menuButton).toBeFocused();
 
       // A link takes you there and the drawer shuts; reopened, that page is marked current.
-      await (await menuLink(page, "Shifts")).click();
-      await expect(page).toHaveURL(`${acme}/office/shifts`);
+      await (await menuLink(page, "Events & sessions")).click();
+      await expect(page).toHaveURL(`${acme}/office/events`);
       await expect(drawer).toBeHidden();
-      await expect(await menuLink(page, "Shifts")).toHaveAttribute("aria-current", "page");
+      await expect(await menuLink(page, "Events & sessions")).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
       await page.keyboard.press("Escape");
 
       // On a wide screen the menu is the sidebar, and there's no Menu button.

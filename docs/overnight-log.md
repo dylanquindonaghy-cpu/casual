@@ -10073,3 +10073,36 @@ VERDICT: DONE
 text already names it. Commit: "Phase 12: What casuals see (12B.4)" (hash in the next entry).
 Parked: fair rotation's window after showing again, offers already sent while hidden, a session's
 history and its event's entries.
+
+(12B.4's commit: `fa83c51`, pushed.)
+
+## 2026-10-09 02:47 UTC — Phase 12, task 12B.5: Events & sessions pages
+
+**Task:** Events & sessions pages (§3.3), as written in `PLAN.md` (12B.5). No database change.
+
+**Plan:**
+- Loader `src/lib/office/events.ts` (admins and resourcers, RLS-scoped, reads only; never reads a
+  pay record): `officeEventList(view)` (events with a session to come; All, Showing, Hidden,
+  Urgent not filled) and `officeEventPage(id)` (every session, who is booked on each).
+- Words `src/lib/office/events-copy.ts` (pure): card text, the one status tag, "N sessions · N
+  places free", unique session switch labels, session details, requirement chips.
+- Pages `/office/events` and `/office/events/[id]`; components: the event card, the session row,
+  the switch (`setShowingAction` from 12B.4), the "…" menu (offer, assign, urgent, change or
+  cancel; a sheet session gets "This session comes from your Google Sheet. Change it there.").
+- Menu: "Events & sessions" (`/office/events`) replaces "Shifts"; the shift pages mark it.
+- Tests: unit (card text, switch labels, a session row with every field), integration (loaders,
+  tabs, who may look, the £/hour-but-never-a-pay-record test), new e2e `office.events.spec.ts`,
+  `office.shifts.spec.ts` and the other specs that clicked "Shifts" follow the menu change.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| "Has a planner" means an enabled Google Sheet today (no Add or Import buttons then); the planner API (S11) joins it later | It's the only planner the app has now | Showing the buttons to every firm |
+| "Add shifts" opens "Shifts for an event"; a single shift is under "All shifts by day" → "New shift" | The events page is about events; the day list and its forms stay | A third button |
+| The "…" menu is on each session row (list and event page), not one per card | Its actions are per session | One card menu asking which session |
+| Requirement chips show the role's qualifications and the session's extra ones, with short names for the known codes ("SIA DS", "CSAS", "First aid") | What the rules check is both; the short names are the spec's | Only the extra ones |
+| "Mark who worked" on the event page reuses the shift page's buttons per person, and "Mark the … not marked yet as worked" after it ends | Same actions, same checks, no new code paths | Only a link to the shift page |
+| The list caps at 50 events and 30 sessions a card ("+ N more sessions") | Keeps the page bounded; the tabs narrow it | No cap |
+| An event's page keeps the firm's tab title, like a shift's page | Its name is in the page; no title list change beyond "Events & sessions" | "Event" |
+| No star (pin) | Cut from Phase 12 (Parking lot "Phase 12 cuts") | — |

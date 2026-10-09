@@ -169,7 +169,8 @@ function Links({ children }: { children: ReactNode }) {
 const MENU_WORDS: Record<string, string> = {
   Today: "What needs doing, most urgent first.",
 
-  Shifts: "Every shift, 4 weeks at a time. Add, change and cancel shifts here.",
+  "Events & sessions":
+    "Every event with a session to come. Choose what casuals see and what's urgent, and add shifts.",
   Requests: "Time changes, swaps and reviews workers have asked for.",
   Workers: "Find a worker to change their access.",
   "Action log": "Everything that happened, newest first.",
@@ -397,12 +398,12 @@ function AddShifts() {
   return (
     <>
       <Para>
-        Add shifts from <Name>Shifts</Name>. There are three ways, at the top of the page.
+        Add shifts from <Name>Events &amp; sessions</Name>. There are three ways.
       </Para>
       <Task title="One shift">
         <Steps>
           <Step>
-            Select <Name>New shift</Name>.
+            Select <Name>All shifts by day</Name>, then <Name>New shift</Name>.
           </Step>
           <Step>
             Fill in the date, site, role, start, finish and places. Add instructions if needed.
@@ -416,7 +417,7 @@ function AddShifts() {
       <Task title="Several shifts for one event">
         <Steps>
           <Step>
-            Select <Name>Shifts for an event</Name>.
+            Select <Name>Add shifts</Name>.
           </Step>
           <Step>Give the event a name, and choose the date and site once.</Step>
           <Step>
@@ -433,7 +434,7 @@ function AddShifts() {
       <Task title="From a spreadsheet">
         <Steps>
           <Step>
-            Select <Name>Import from a file</Name>.
+            Select <Name>Import shifts</Name>.
           </Step>
           <Step>
             Choose a .csv or .xlsx file with Date, Start, End and Role columns. Site, Needed,
@@ -452,8 +453,8 @@ function AddShifts() {
         </Note>
       </Task>
       <Links>
-        <GoTo href="/office/shifts" icon="shifts">
-          Go to Shifts
+        <GoTo href="/office/events" icon="shifts">
+          Go to Events &amp; sessions
         </GoTo>
       </Links>
     </>
@@ -464,8 +465,24 @@ function ChangeAShift() {
   return (
     <>
       <Para>
-        Open the shift from <Name>Shifts</Name> or Today. Everything about it is on its page.
+        Open the shift from Today, or from its event on <Name>Events &amp; sessions</Name> (its{" "}
+        <Name>…</Name> menu, then <Name>Change or cancel</Name>). Everything about it is on its
+        page.
       </Para>
+      <Task title="To hide shifts from casuals">
+        <Steps>
+          <Step>
+            On <Name>Events &amp; sessions</Name>, switch the event off to hide all its sessions.
+          </Step>
+          <Step>
+            To hide one session, select <Name>View sessions</Name> and switch that session off.
+          </Step>
+        </Steps>
+        <Note>
+          People already booked keep their shifts. Casuals can&apos;t see, take or be offered a
+          hidden shift; you can still assign someone.
+        </Note>
+      </Task>
       <Task title="To change its details">
         <Steps>
           <Step>
@@ -531,8 +548,8 @@ function ChangeAShift() {
         <Note>If you choose “The client needs fewer staff”, the place goes too.</Note>
       </Task>
       <Links>
-        <GoTo href="/office/shifts" icon="shifts">
-          Go to Shifts
+        <GoTo href="/office/events" icon="shifts">
+          Go to Events &amp; sessions
         </GoTo>
       </Links>
     </>

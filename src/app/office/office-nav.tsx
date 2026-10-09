@@ -18,9 +18,13 @@ export type MenuLink = { href: string; label: string; icon: IconName; badge?: Me
 export type MenuGroup = { label: string; links: MenuLink[] };
 
 // The menu link for the page at `pathname`: Today (or Home) only for /office itself, the old
-// /office/today and the offer pages; otherwise the longest link the path is on or under, so a
-// shift marks Shifts, a worker's data page marks Data requests, and pay import isn't Pay queries.
+// /office/today and the offer pages; the shift pages for Events & sessions (its link moved to
+// /office/events in 12B.5; the shift routes stayed); otherwise the longest link the path is on or
+// under, so a worker's data page marks Data requests, and pay import isn't Pay queries.
 export function currentHref(pathname: string, hrefs: readonly string[]): string | null {
+  if (pathname === "/office/shifts" || pathname.startsWith("/office/shifts/")) {
+    return hrefs.includes("/office/events") ? "/office/events" : null;
+  }
   if (
     pathname === "/office" ||
     pathname === "/office/today" ||
@@ -38,7 +42,7 @@ export function currentHref(pathname: string, hrefs: readonly string[]): string 
 }
 
 // What a marked link tells a screen reader: "page" when it is the page you're on, "true" when
-// you're on a page inside its section (a shift marks Shifts; the offer page marks Today).
+// you're on a page inside its section (a shift marks Events & sessions; the offer page marks Today).
 export function ariaCurrent(href: string, pathname: string): "page" | "true" {
   const exact = href === pathname || (href === "/office" && pathname === "/office/today");
   return exact ? "page" : "true";

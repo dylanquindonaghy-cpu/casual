@@ -56,7 +56,7 @@ test("a resourcer can use the dashboard but not the admin-only team page", async
   await officeLogin(page, "acme.resourcer@example.com");
   await expect(page.getByText("You're logged in as Resourcer.")).toBeVisible();
   // Absent from the menu itself (opened first, so the check can't pass just because it's shut).
-  await expect(await menuLink(page, "Shifts")).toBeVisible();
+  await expect(await menuLink(page, "Events & sessions")).toBeVisible();
   await expect(await menuLink(page, "Office team")).toHaveCount(0);
   await page.keyboard.press("Escape");
   const response = await page.goto(`${acme}/office/team`);

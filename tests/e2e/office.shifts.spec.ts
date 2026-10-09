@@ -29,15 +29,20 @@ const dayFromNow = (days: number) => {
 
 test("a resourcer creates a shift and assigns someone the rules allow", async ({ page }) => {
   await officeLogin(page, "acme.resourcer@example.com");
-  await (await menuLink(page, "Shifts")).click();
-  await expect(page.getByRole("heading", { name: "Shifts", exact: true })).toBeVisible();
+  // "Events & sessions" took the menu's "Shifts" place (12B.5); the day-by-day list is a link
+  // from it.
+  await (await menuLink(page, "Events & sessions")).click();
+  await expect(page.getByRole("heading", { name: "Events & sessions", exact: true })).toBeVisible();
   // The tab names the page first (src/app/layout.tsx's template).
-  await expect(page).toHaveTitle("Shifts · Acme Events shifts");
+  await expect(page).toHaveTitle("Events & sessions · Acme Events shifts");
   // On a phone the menu is a drawer (12A.2; it was a sideways row): shut again once a link is
   // chosen, with "Menu" there to open it (tests/e2e/office.shell.spec.ts drives it fully).
   await expect(page.getByRole("dialog", { name: "Menu" })).toBeHidden();
   await expect(page.getByRole("navigation", { name: "Office menu" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "All shifts by day" }).click();
+  await expect(page.getByRole("heading", { name: "Shifts", exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("Shifts · Acme Events shifts");
   await page.getByRole("link", { name: "New shift" }).click();
   await page.getByLabel("Date").fill(dayFromNow(12));
   await page.getByLabel("Role").fill("steward");
@@ -128,8 +133,9 @@ test("payroll doesn't get the shift screens", async ({ page }) => {
   await expect(page).toHaveURL(`${acme}/office/pay`);
   // Absent from the menu itself (opened first, so the check can't pass just because it's shut).
   await expect(await menuLink(page, "Pay queries")).toBeVisible();
-  await expect(await menuLink(page, "Shifts")).toHaveCount(0);
+  await expect(await menuLink(page, "Events & sessions")).toHaveCount(0);
   await page.keyboard.press("Escape");
+  expect((await page.goto(`${acme}/office/events`))?.status()).toBe(404);
   const response = await page.goto(`${acme}/office/shifts`);
   expect(response?.status()).toBe(404);
   // The office's own not-found page (src/app/office/not-found.tsx): plain words, and the way back

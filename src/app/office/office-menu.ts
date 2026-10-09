@@ -13,7 +13,8 @@ const MENU: { label: string; items: MenuItem[] }[] = [
     label: "Operations",
     items: [
       { area: "today", href: "/office", label: "Today", icon: "home" },
-      { area: "shifts", href: "/office/shifts", label: "Shifts", icon: "shifts" },
+      // The shift pages (/office/shifts/...) stay, inside this section (office-nav.tsx).
+      { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
       { area: "requests", href: "/office/requests", label: "Requests", icon: "requests" },
     ],
   },

@@ -38,7 +38,7 @@ const text = (html: string) =>
 describe("the office menu (v2 groups)", () => {
   it("admins see every link, in groups", () => {
     expect(labels("admin")).toEqual([
-      ["Operations", ["Today", "Shifts", "Requests"]],
+      ["Operations", ["Today", "Events & sessions", "Requests"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
       ["Configuration", ["Office team", "Data requests"]],
@@ -48,7 +48,7 @@ describe("the office menu (v2 groups)", () => {
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      ["Operations", ["Today", "Shifts", "Requests"]],
+      ["Operations", ["Today", "Events & sessions", "Requests"]],
       ["Records", ["Workers", "Action log", "Notice report", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);
@@ -87,9 +87,12 @@ describe("the current page in the menu", () => {
     ["/office", "/office"],
     ["/office/today", "/office"],
     ["/office/offer/11111111-1111-4111-8111-111111111111", "/office"],
-    ["/office/shifts", "/office/shifts"],
-    ["/office/shifts/new", "/office/shifts"],
-    ["/office/shifts/11111111-1111-4111-8111-111111111111", "/office/shifts"],
+    // The shift pages sit inside Events & sessions (12B.5).
+    ["/office/events", "/office/events"],
+    ["/office/events/11111111-1111-4111-8111-111111111111", "/office/events"],
+    ["/office/shifts", "/office/events"],
+    ["/office/shifts/new", "/office/events"],
+    ["/office/shifts/11111111-1111-4111-8111-111111111111", "/office/events"],
     ["/office/workers/11111111-1111-4111-8111-111111111111", "/office/workers"],
     ["/office/data/workers/11111111-1111-4111-8111-111111111111", "/office/data"],
     ["/office/pay/import", "/office/pay/import"],
@@ -115,9 +118,10 @@ describe("the current page in the menu", () => {
     ["/office", "/office", "page"],
     ["/office", "/office/today", "page"],
     ["/office", "/office/offer/11111111-1111-4111-8111-111111111111", "true"],
-    ["/office/shifts", "/office/shifts", "page"],
-    ["/office/shifts", "/office/shifts/new", "true"],
-    ["/office/shifts", "/office/shifts/11111111-1111-4111-8111-111111111111", "true"],
+    ["/office/events", "/office/events", "page"],
+    ["/office/events", "/office/events/11111111-1111-4111-8111-111111111111", "true"],
+    ["/office/events", "/office/shifts", "true"],
+    ["/office/events", "/office/shifts/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/workers", "/office/workers/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/data", "/office/data/workers/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/pay/import", "/office/pay/import", "page"],
@@ -141,20 +145,20 @@ describe("the menu's markup", () => {
     expect(html).not.toMatch(/role="/);
     // Group names are words, not headings.
     expect(html).toContain(">Operations</p>");
-    // A shift's page is inside Shifts, not the Shifts page itself.
+    // A shift's page is inside Events & sessions, not that page itself.
     expect(html.match(/aria-current=/g)).toHaveLength(1);
     expect(marked(html, "page")).toEqual([]);
     expect(marked(html, "true")).toHaveLength(1);
-    expect(marked(html, "true")[0]).toContain('href="/office/shifts"');
+    expect(marked(html, "true")[0]).toContain('href="/office/events"');
   });
 
   it("the page itself is aria-current=page, with the bar and the soft background", () => {
-    nav.pathname = "/office/shifts";
+    nav.pathname = "/office/events";
     const html = render();
     expect(html.match(/aria-current=/g)).toHaveLength(1);
     expect(marked(html, "true")).toEqual([]);
     expect(marked(html, "page")).toHaveLength(1);
-    expect(marked(html, "page")[0]).toContain('href="/office/shifts"');
+    expect(marked(html, "page")[0]).toContain('href="/office/events"');
     expect(marked(html, "page")[0]).toMatch(/bg-quiet-soft.*before:w-\[3px\].*before:bg-ink/);
   });
 
@@ -307,6 +311,7 @@ describe("the shell", () => {
     expect(text(html)).toContain(
       "Pay Pay dashboard Pay queries Import pay records Help How-to guide",
     );
+    expect(html).not.toContain('href="/office/events"');
     expect(html).not.toContain('href="/office/shifts"');
   });
 });

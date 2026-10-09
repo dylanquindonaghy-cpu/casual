@@ -58,8 +58,9 @@ describe("office tab titles", () => {
         // Outside the shell: logging in, and the link's landing page.
         "src/app/office/l/page.tsx",
         "src/app/office/login/page.tsx",
-        // "A shift's, a worker's and a worker's data page keep "{firm} shifts"."
+        // "A shift's, an event's, a worker's and a worker's data page keep "{firm} shifts"."
         "src/app/office/data/workers/[id]/page.tsx",
+        "src/app/office/events/[id]/page.tsx",
         "src/app/office/shifts/[id]/page.tsx",
         "src/app/office/workers/[id]/page.tsx",
         // Only sends you on to /office.

@@ -346,7 +346,8 @@ test("Part 3: as the office", async ({ browser }) => {
   let booked = "";
   await test.step("25. Make a shift and book someone", async () => {
     await page.goto(`${acme}/office`);
-    await (await menuLink(page, "Shifts")).click();
+    await (await menuLink(page, "Events & sessions")).click();
+    await page.getByRole("link", { name: "All shifts by day" }).click();
     await page.getByRole("link", { name: "New shift" }).click();
     await page.getByLabel("Date").fill(daysFromToday(9));
     await page.getByLabel("Role").fill("steward");
@@ -403,8 +404,8 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("27. A whole event, and an import", async () => {
     await page.goto(`${acme}/office`);
-    await (await menuLink(page, "Shifts")).click();
-    await page.getByRole("link", { name: "Shifts for an event" }).click();
+    await (await menuLink(page, "Events & sessions")).click();
+    await page.getByRole("link", { name: "Add shifts" }).click();
     await page.getByLabel("Event name").fill("Cup final");
     await page.getByLabel("Date").fill(daysFromToday(13));
     const lines = page.getByRole("group");
@@ -416,8 +417,8 @@ test("Part 3: as the office", async ({ browser }) => {
     await lines.nth(1).getByLabel("Finish").fill("04:00");
     await page.getByRole("button", { name: "Create these shifts" }).click();
     await expect(page.getByText("2 shifts created.")).toBeVisible();
-    await page.goto(`${acme}/office/shifts`);
-    await page.getByRole("link", { name: "Import from a file" }).click();
+    await page.goto(`${acme}/office/events`);
+    await page.getByRole("link", { name: "Import shifts" }).click();
     await page.getByLabel("Your file (.csv or .xlsx)").setInputFiles({
       name: "shifts.csv",
       mimeType: "text/csv",

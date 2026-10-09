@@ -2816,6 +2816,14 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   `@pdf-lib/fontkit` and, for tests, `pdfjs-dist`). `npm audit fix` would change the Next.js
   version, which needs its own task: read the release notes, run `./scripts/verify.sh`, check the
   walkthrough.
+- Downloads started from another site (12C.3 review, 2026-10-09): the cancellations CSV and PDF
+  now refuse a download another site started (`src/lib/auth/own-pages.ts`), so nobody can be made
+  to download, and be logged downloading, a file. The older downloads (`/office/data/export`,
+  `/office/data/workers/[id]/export`, `/office/reports/notice/export`) don't check yet: one line
+  each, with a test.
+- The production image holds the dev-only packages (`COPY --from=build /app /app` after `npm ci`),
+  now including `pdfjs-dist` and its native canvas files (tests only). The worker and migrations run
+  TypeScript through `tsx`, so pruning needs care: its own task (12C.3 review, 2026-10-09).
 
 ## Hours log
 

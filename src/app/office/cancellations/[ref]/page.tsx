@@ -6,7 +6,7 @@ import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { officeCancellationRecord, type SharedReference } from "@/lib/office/cancellations";
-import { howText, recordFields } from "@/lib/office/cancellations-copy";
+import { AS_IT_IS_NOW, howText, recordFields } from "@/lib/office/cancellations-copy";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
 
 export const metadata: Metadata = { title: "Cancellation record" };
@@ -59,6 +59,7 @@ export default async function CancellationRecordPage({
           {record.row.casual}: final the moment it was made. The PDF shows a casual&apos;s reason as
           &ldquo;Casual&apos;s own reason (see ShiftDesk)&rdquo;.
         </p>
+        <p>{AS_IT_IS_NOW}</p>
       </PageHeader>
       <dl className="grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]">
         {fields.map((f) => (

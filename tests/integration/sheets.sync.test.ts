@@ -392,6 +392,16 @@ describe("sheets.sync: from the sheet into our tables", () => {
         cancelled_at: later,
       },
     ]);
+    // The open row that reopened the cancelled booking's place (its slot's one live row).
+    const { rows: reopened } = await su.query<{ id: string }>(
+      `select a.id::text as id from assignments a
+         join shifts s on s.id = a.shift_id
+         join assignments c on c.shift_id = a.shift_id and c.slot = a.slot
+                           and c.status = 'cancelled_firm'
+        where s.firm_id = $1 and s.external_ref = 'P1' and a.status = 'open'`,
+      [f.firmId],
+    );
+    expect(reopened).toHaveLength(1);
     const [event] = await eventsOf(f.firmId, "shift.cancelled");
     expect(event?.data).toEqual({
       source: "sheets",
@@ -401,6 +411,8 @@ describe("sheets.sync: from the sheet into our tables", () => {
       reason: REMOVED_ON_SHEET,
       noticeHours: 35,
       strike: "by_firm", // the sheet is the firm's: never a strike (12C.1)
+      place: "reopened", // what became of the place (12C.3)
+      reopenedId: reopened[0]?.id,
     });
     // 35 hours out is outside the 24-hour urgent window: not urgent.
     expect(await eventsOf(f.firmId, "shift.marked_urgent")).toEqual([]);

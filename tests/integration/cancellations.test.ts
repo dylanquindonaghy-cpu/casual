@@ -233,10 +233,157 @@ describe("one record", () => {
     });
     const rows = (await t.list("office")).rows;
     const byName = Object.fromEntries(rows.map((r) => [r.casual, r]));
-    expect(byName["Sam Booker"]?.then.wholeSessionCancelled).toBe(true);
+    expect(byName["Sam Booker"]?.then.place).toBe("session_cancelled");
     expect(byName["Sam Booker"]?.strikeCode).toBe("by_firm");
-    expect(byName["Jo Booker"]?.then.placeRemoved).toBe(true);
+    expect(byName["Jo Booker"]?.then.place).toBe("removed");
     expect(byName["Jo Booker"]?.via).toBe("office");
+  });
+
+  it("one booking cancelled by the office, then the whole session: the first record still says reopened", async () => {
+    const t = await recordsFirm();
+    const [sam, jo] = [await t.f.worker(), await t.f.worker({ first: "Jo" })];
+    const shiftId = await t.f.shift({ startsAt: hoursFromNow(60), headcount: 2 });
+    await t.take(sam, shiftId);
+    await t.take(jo, shiftId);
+    expect(await cancelBookingByOffice(t.office(later(1)), shiftId, sam, "weather")).toMatchObject({
+      status: "cancelled",
+    });
+    expect(await cancelShift(t.office(later(2)), shiftId, "event_cancelled")).toMatchObject({
+      status: "cancelled",
+    });
+    const byName = Object.fromEntries((await t.list()).rows.map((r) => [r.casual, r.then]));
+    expect(byName["Sam Booker"]).toMatchObject({ place: "reopened", replacement: null });
+    expect(byName["Jo Booker"]?.place).toBe("session_cancelled");
+  });
+
+  it("not reopened: the session had started, or the place was above its places by then", async () => {
+    const t = await recordsFirm();
+    const [sam, jo, kit] = [
+      await t.f.worker(),
+      await t.f.worker({ first: "Jo" }),
+      await t.f.worker({ first: "Kit" }),
+    ];
+    // Starts in 2 hours; the office cancels Sam 3 hours from now, after the start.
+    const started = await t.f.shift({ startsAt: hoursFromNow(2) });
+    await t.take(sam, started);
+    expect(await cancelBookingByOffice(t.office(later(3)), started, sam, "weather")).toMatchObject({
+      status: "cancelled",
+    });
+    // Two places, then one (as a sheet or an import lowers it): Kit's place 2 is above it.
+    const lowered = await t.f.shift({ startsAt: hoursFromNow(80), headcount: 2 });
+    await t.take(jo, lowered);
+    await t.take(kit, lowered);
+    await su.query("update shifts set headcount = 1 where id = $1", [lowered]);
+    expect(await cancelBookingByOffice(t.office(later(1)), lowered, kit, "weather")).toMatchObject({
+      status: "cancelled",
+    });
+    const byName = Object.fromEntries((await t.list()).rows.map((r) => [r.casual, r.then]));
+    expect(byName["Sam Booker"]?.place).toBe("started");
+    expect(byName["Kit Booker"]?.place).toBe("above_places");
+  });
+
+  it("a booking moved to another place (fewer staff) keeps the record of who filled the place", async () => {
+    const t = await recordsFirm();
+    const [ann, ben, cal, pat] = [
+      await t.f.worker({ first: "Ann" }),
+      await t.f.worker({ first: "Ben" }),
+      await t.f.worker({ first: "Cal" }),
+      await t.f.worker({ first: "Pat" }),
+    ];
+    const shiftId = await t.f.shift({ startsAt: hoursFromNow(100), headcount: 3 });
+    await t.take(ann, shiftId);
+    await t.take(ben, shiftId);
+    await t.take(cal, shiftId);
+    // Cal gives up place 3; Pat takes it at 11:00.
+    await t.cancel(cal, shiftId, later(1), "notice");
+    await t.take(pat, shiftId, later(2));
+    // The client needs one fewer: Ann's place 1 goes, and Pat's booking moves down into it.
+    expect(
+      await cancelBookingByOffice(t.office(later(3)), shiftId, ann, "fewer_staff"),
+    ).toMatchObject({ status: "cancelled", placesNow: 2 });
+    const { rows: pats } = await su.query<{ slot: number }>(
+      "select slot from assignments where shift_id = $1 and worker_id = $2 and status = 'confirmed'",
+      [shiftId, pat],
+    );
+    expect(pats).toEqual([{ slot: 1 }]);
+    const byName = Object.fromEntries((await t.list()).rows.map((r) => [r.casual, r.then]));
+    expect(byName["Cal Booker"]).toMatchObject({
+      place: "reopened",
+      replacement: { name: "Pat Booker", at: later(2) },
+    });
+    expect(byName["Ann Booker"]?.place).toBe("removed");
+  });
+
+  it("a rota-sheet sync's removals in one transaction share its urgent mark and later offers", async () => {
+    const t = await recordsFirm();
+    const [sam, jo, kit] = [
+      await t.f.worker(),
+      await t.f.worker({ first: "Jo" }),
+      await t.f.worker({ first: "Kit" }),
+    ];
+    const shiftId = await t.f.shift({ startsAt: hoursFromNow(20), headcount: 2 });
+    await t.take(sam, shiftId);
+    await t.take(jo, shiftId);
+    // Both names removed and the session marked urgent in one transaction, as a sync does
+    // (src/lib/roster/sheets/sync.ts): one created_at for all its log entries.
+    const client = await su.connect();
+    try {
+      await client.query("begin");
+      for (const worker of [sam, jo]) {
+        const { rows } = await client.query<{ id: string; slot: number }>(
+          `update assignments set status = 'cancelled_firm', cancelled_at = $3, notice_hours = 19,
+                  cancel_reason = 'Removed on the rota sheet', cancel_via = 'sheet'
+            where shift_id = $1 and worker_id = $2 and status = 'confirmed'
+          returning id::text as id, slot`,
+          [shiftId, worker, later(1)],
+        );
+        const booking = rows[0];
+        if (!booking) throw new Error("no booking");
+        const reopened = await client.query<{ id: string }>(
+          `insert into assignments (firm_id, shift_id, slot) values ($1, $2, $3)
+           returning id::text as id`,
+          [t.f.firmId, shiftId, booking.slot],
+        );
+        await client.query(
+          `insert into events (firm_id, actor_type, action, entity_type, entity_id, data)
+           values ($1, 'system', 'shift.cancelled', 'assignment', $2, $3)`,
+          [
+            t.f.firmId,
+            booking.id,
+            JSON.stringify({
+              by: "firm",
+              shiftId,
+              workerId: worker,
+              reason: "Removed on the rota sheet",
+              noticeHours: 19,
+              strike: "by_firm",
+              place: "reopened",
+              reopenedId: reopened.rows[0]?.id,
+            }),
+          ],
+        );
+      }
+      await client.query(
+        `insert into events (firm_id, actor_type, action, entity_type, entity_id, data)
+         values ($1, 'system', 'shift.marked_urgent', 'shift', $2, $3)`,
+        [t.f.firmId, shiftId, JSON.stringify({ by: "system", cause: "dropout", hoursToStart: 19 })],
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
+    await t.offer(shiftId, kit, 1);
+    const byName = Object.fromEntries((await t.list()).rows.map((r) => [r.casual, r.then]));
+    for (const name of ["Sam Booker", "Jo Booker"]) {
+      expect(byName[name], name).toMatchObject({
+        place: "reopened",
+        markedUrgent: true,
+        offeredTo: 1,
+      });
+    }
   });
 
   it("a later dropout on the same session: its offers go on its own record, not the first one's", async () => {
@@ -259,13 +406,13 @@ describe("one record", () => {
     const byName = Object.fromEntries((await t.list()).rows.map((r) => [r.casual, r.then]));
     // Sam's: the session marked urgent, and Kit's offer before Jo cancelled.
     expect(byName["Sam Booker"]).toMatchObject({
-      reopened: true,
+      place: "reopened",
       markedUrgent: true,
       offeredTo: 1,
     });
     // Jo's: already urgent (no new mark); Ben and Kit offered after.
     expect(byName["Jo Booker"]).toMatchObject({
-      reopened: true,
+      place: "reopened",
       markedUrgent: false,
       offeredTo: 2,
     });

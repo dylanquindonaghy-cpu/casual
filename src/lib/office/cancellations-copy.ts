@@ -3,6 +3,7 @@ import { noticeText } from "../portal/cancel-reasons";
 import { roleLabel, timeOnDay } from "../portal/format";
 import { pounds } from "../portal/pay-format";
 import { FIRM_CHANGE_REASONS } from "../roster/firm-reasons";
+import type { PlaceAfterCancel } from "../roster/native";
 import { CANCELLED_ON_SHEET, REMOVED_ON_SHEET } from "../roster/sheets/sync";
 import type { StrikeCode } from "../strikes/decide";
 import { dayLabel } from "../rules/reasons";
@@ -25,6 +26,9 @@ export const CASUAL_OWN_REASON = "Casual's own reason (see ShiftDesk)";
 export const OFFICE_OWN_REASON = "Office's own reason (see ShiftDesk)";
 // No webhook to the firm's planner exists yet (Integrations, 12J): every record says so.
 export const PLANNER_TEXT = "No webhook set up";
+// The record reads the session as it is now; the notice was counted when it was cancelled.
+export const AS_IT_IS_NOW =
+  "The session's details are as they are now; the notice is counted from when it was cancelled.";
 
 // The fixed words a firm's cancellation may carry out of ShiftDesk.
 const FIXED_FIRM_REASONS = new Set<string>([
@@ -33,10 +37,22 @@ const FIXED_FIRM_REASONS = new Set<string>([
   CANCELLED_ON_SHEET,
 ]);
 
+// What became of the place, as the cancellation recorded it in its shift.cancelled entry
+// (src/lib/roster/native.ts placeAfterCancel): reopened, not reopened (above the session's places,
+// or it had started), removed (fewer staff) or the whole session cancelled.
+export type ThenPlace = PlaceAfterCancel["place"];
+const THEN_PLACES: Record<ThenPlace, true> = {
+  reopened: true,
+  above_places: true,
+  started: true,
+  removed: true,
+  session_cancelled: true,
+};
+export const isThenPlace = (v: unknown): v is ThenPlace =>
+  typeof v === "string" && Object.hasOwn(THEN_PLACES, v);
+
 export interface ThenFacts {
-  wholeSessionCancelled: boolean; // the office cancelled the whole session
-  placeRemoved: boolean; // "The client needs fewer staff": the place went with the booking
-  reopened: boolean; // the place opened again for someone else
+  place: ThenPlace | null; // null: logged before cancellations recorded it
   markedUrgent: boolean; // marked urgent after this dropout
   offeredTo: number; // casuals offered it afterwards
   replacement: { name: string; at: Date } | null; // who took the place next, and when
@@ -183,9 +199,20 @@ export function evidenceText(r: Pick<CancellationRow, "strike">, tz: string): st
 
 // "Place reopened and marked urgent · offered to 5 casuals · filled again by Ben Fraser at 22:02".
 export function thenText(t: ThenFacts, cancelledAt: Date, tz: string): string {
-  if (t.wholeSessionCancelled) return "The whole session was cancelled";
-  if (t.placeRemoved) return "The place went: the client needs fewer staff";
-  if (!t.reopened) return "The place wasn't reopened (the session had started)";
+  switch (t.place) {
+    case null:
+      return "Not recorded";
+    case "session_cancelled":
+      return "The whole session was cancelled";
+    case "removed":
+      return "The place went: the client needs fewer staff";
+    case "started":
+      return "The place wasn't reopened: the session had started";
+    case "above_places":
+      return "The place wasn't reopened: the session had fewer places by then";
+    case "reopened":
+      break;
+  }
   const parts = [t.markedUrgent ? "Place reopened and marked urgent" : "Place reopened"];
   if (t.offeredTo > 0) {
     parts.push(`offered to ${t.offeredTo} ${t.offeredTo === 1 ? "casual" : "casuals"}`);

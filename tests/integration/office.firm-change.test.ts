@@ -125,6 +125,7 @@ describe("cancelling a shift", () => {
           reason: "The event was cancelled",
           noticeHours: 119,
           strike: "by_firm",
+          place: "session_cancelled",
         },
       ],
       [
@@ -138,6 +139,7 @@ describe("cancelling a shift", () => {
           reason: "The event was cancelled",
           noticeHours: 119,
           strike: "by_firm",
+          place: "session_cancelled",
         },
       ],
       [
@@ -213,6 +215,7 @@ describe("the office cancelling one booking", () => {
       noticeHours: 119,
       reason: "The client needs fewer staff",
       strike: "by_firm", // the office's: never a strike (12C.1)
+      place: "removed", // the place went with the booking (12C.3)
     });
     expect(await noticeJobs(t.f.firmId)).toHaveLength(1);
   });

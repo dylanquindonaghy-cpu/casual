@@ -10392,8 +10392,38 @@ tests (unit, integration, a PDF read back with `pdfjs-dist`, e2e); docs.
 | The PDF prints in black only (labels in bold) | The theme test allows no colour values outside the app's tokens, and a printed record photocopies better in black | Adding the PDF to the test's allow-list (loosens a test) |
 | Any reason a casual typed or picked reads "Casual's own reason (see ShiftDesk)" outside ShiftDesk; an office reason keeps its words only if it's one of the fixed list (or the rota sheet's two), anything else reads "Office's own reason (see ShiftDesk)" | Office reasons from before the fixed list are free text and can hold health details ("Ann rang: her mum is in hospital") | Every office reason as written |
 | "Under 48 hours" uses the firm's `strikes.notice_hours` (48 unless the owner changed it) | Same line as the strike rule, so the view and the strikes agree | A fixed 48 |
-| "Then": reopened when a later row exists for the place's slot; filled by that slot's next confirmed booking at its own confirmed time; "marked urgent" and "offered to" are log entries after the cancellation's own and before the session's next cancellation | Event ids only grow (no clock comparison); offers are for a session, not a place, so a later dropout's offers go on its own record (found re-reading the SQL; tested, mutation-checked) | Every later entry for the session (inflated the first dropout's count) |
+| "Then": what became of the place is recorded by the cancellation itself, in its `shift.cancelled` entry, in the same transaction (`place`: reopened with `reopenedId`, above_places, started, removed, session_cancelled; `placeAfterCancel()` in `src/lib/roster/native.ts`); filled again by whoever booked that reopened row, at its own confirmed time; entries from before it read "Not recorded" | The review found the first version guessed from today's state (the session's status now, the slot's later rows) and could state false things in an exported record; bookings move between slots | Guessing from slots and statuses later (the first version) |
+| "Marked urgent" and "offered to": log entries after the cancellation's own and before the session's next cancellation in a later transaction | Event ids only grow (no clock comparison); offers are for a session, not a place, so a later dropout's offers go on its own record; a rota-sheet sync's removals share one transaction and its one urgent mark (`created_at` is the transaction's time) | Every later entry for the session (inflated the first dropout's count) |
 | "Offered to" is read from the session's `offers` rows and their `offer.sent` entries (indexed), not from the log's JSON | The JSON has no index: a 20,000-row CSV would scan the whole log per row | `events.data ->> 'shiftId'` |
 | A record opens by its reference (first 8 characters) or the booking's full id; a reference two cancellations share lists both to choose from; the PDF link uses the full id; a shared reference's PDF address is refused (409) | A short reference can repeat (about 1 in 90 by 10,000 cancellations); "the newest wins" could hand over the wrong person's record | Newest wins (the first version's comment wrongly said 1 in 4 billion) |
 | The list shows the latest 100; the CSV has every row of the view, refused above 20,000 | A page stays quick on a phone; the task's limit for the CSV | Paging |
 | Each download is logged before the file is handed over (`export.downloaded`: the PDF's booking id, or the CSV's view and row count) | A download that isn't logged never happens | Logging after |
+
+**Guardrails review: FIX FIRST, 1 item, fixed; every SHOULD fixed; the cheap NICE items fixed.**
+Tenant isolation, role checks, what leaves ShiftDesk and the log's contents passed.
+
+- FIX FIRST: "The whole session was cancelled" came from the session's status now, so a booking
+  the office cancelled on Monday read that way once the whole session was cancelled on Tuesday
+  (false, in the PDF and the CSV too). Root cause: the record guessed what happened from today's
+  state. Fixed at the source: every cancellation now records what became of its place in its
+  `shift.cancelled` entry, in the same transaction (`place`, and `reopenedId` when it reopened):
+  the single cancel, the office's whole-session cancel and the rota-sheet sync. Tested (one
+  booking, then the whole session; mutation-checked).
+- SHOULD, fixed: "(the session had started)" was said without checking it, and a booking moved
+  between slots by `removeFreedPlace` could take another cancellation's place or replacement: the
+  recorded place says which (started, or above the session's places by then; tested and
+  mutation-checked), and the replacement is whoever booked the reopened row, by its id; "the
+  place went" only when the place really went (`removed`). Downloads started from another site,
+  another firm's address included, are refused with nothing logged (`src/lib/auth/own-pages.ts`,
+  `Sec-Fetch-Site`; a browser that doesn't send it is let through). The browser test now proves
+  each route logs its own download, that another site's start gets 403 and logs nothing
+  (mutation-checked), and that payroll gets 404 from the page and both files.
+- NICE, fixed: the CSV is built before it's logged; the view is counted first and nothing loaded
+  above 20,000 (no `count(*) over ()`); every answer `no-store`; a rota-sheet sync's removals share
+  its urgent mark; the record and PDF say the session's details are as they are now; a test's
+  roundabout string.
+- NICE, not done: "offered to" counts the session's offers, which on a session with other open
+  places includes theirs (offers belong to a session, not a place); `cancellations-copy.ts` imports
+  the two sheet reasons from the sync module, as `src/lib/gdpr/free-text.ts` already does; the PDF
+  route's error log keeps the error (the masking logger, as every route); dev-only packages in the
+  image (Parking lot).

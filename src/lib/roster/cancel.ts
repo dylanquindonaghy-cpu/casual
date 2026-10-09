@@ -8,7 +8,7 @@ import { recordEvent } from "../events/record";
 import { officeCanPlace, plugFor, rosterId } from "./book";
 import type { CancelResult } from "./plug";
 import { queueFirmChangeNotice } from "../notices/firm-change";
-import { removeFreedPlace } from "./native";
+import { placeAfterCancel, removeFreedPlace } from "./native";
 import { markUrgentAfterDropout } from "./urgent";
 import { FIRM_CHANGE_REASONS, SHIFT_CHANGE_REASON_CODES, firmReasonWords } from "./firm-reasons";
 import { noticeHours } from "./notice";
@@ -194,6 +194,20 @@ async function cancelInTransaction(
         })
       : null;
 
+  // What became of the place (recorded in the entry: 12C.3). The client needs fewer staff: the
+  // place goes rather than being offered to someone else, who might then need cancelling at short
+  // notice too (Phase 10 task 19, audit L20).
+  let place = await placeAfterCancel(tx, cancelled.assignmentId);
+  let lowered: Awaited<ReturnType<typeof removeFreedPlace>> = null;
+  if (fewerStaff) {
+    const [row] = await tx
+      .select({ slot: assignments.slot })
+      .from(assignments)
+      .where(eq(assignments.id, cancelled.assignmentId));
+    lowered = row ? await removeFreedPlace(tx, shiftId, row.slot, now) : null;
+    if (lowered) place = { place: "removed" };
+  }
+
   // The firm's reason is from its fixed list, so its words may go in the log; any other reason is
   // free text and stays on the row.
   const firmReason = initiator === "firm" ? firmReasonWords(reason) : null;
@@ -210,20 +224,14 @@ async function cancelInTransaction(
       noticeHours: cancelled.noticeHours,
       ...(firmReason ? { reason: firmReason } : {}),
       strike: decision.code,
+      ...place,
     },
   });
   // The firm cancelled someone's booking: they're told (golden rule 12).
   if (initiator === "firm") {
     await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });
   }
-  // The client needs fewer staff: the place goes rather than being offered to someone else, who
-  // might then need cancelling at short notice too (Phase 10 task 19, audit L20).
   if (fewerStaff) {
-    const [row] = await tx
-      .select({ slot: assignments.slot })
-      .from(assignments)
-      .where(eq(assignments.id, cancelled.assignmentId));
-    const lowered = row ? await removeFreedPlace(tx, shiftId, row.slot, now) : null;
     if (lowered) {
       await recordEvent(tx, {
         actorType: by.type,
@@ -336,6 +344,7 @@ export async function cancelShiftByFirm(
             reason,
             noticeHours: cancelled.noticeHours,
             strike: strikeDecision({ cancelledBy: "firm" }).code,
+            place: "session_cancelled",
           },
         });
         await queueFirmChangeNotice(tx, { eventId, assignmentId: cancelled.assignmentId });

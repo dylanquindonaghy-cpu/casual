@@ -6,12 +6,11 @@ import { canAccess } from "../auth/roles";
 import { credentialRules, credentialTypes, firms, type CancelVia } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
-import { FIRM_CHANGE_REASONS } from "../roster/firm-reasons";
 import type { StrikeCode } from "../strikes/decide";
 import { liveStrikeCount } from "../strikes/issue";
 import { strikeSettings } from "../strikes/settings";
 import { addDays, localDateOf, mondayOf, zonedToUtc } from "../time/zoned";
-import type { CancellationRow, CancellationView } from "./cancellations-copy";
+import { isThenPlace, type CancellationRow, type CancellationView } from "./cancellations-copy";
 
 // Cancellation records (docs/office-v2.md 3.4; docs/screens.md `/office/cancellations`; 12C.3), for
 // admins and resourcers (checked here as well as on the page). Every cancelled booking, by the
@@ -20,11 +19,14 @@ import type { CancellationRow, CancellationView } from "./cancellations-copy";
 // final when it's made (src/lib/roster/cancel.ts).
 //
 // "Then" comes from what happened next, read without comparing clocks (the app's and the
-// database's can differ): the place reopened when a later row exists for its slot; who took it
-// next is that slot's next booking, at its own confirmed time; "marked urgent" and "offered to"
-// are log entries after the cancellation's own (event ids only grow) and before the session's next
-// cancellation, if any: offers are for a session, not a place, so a later dropout's offers belong
-// to its own record. "Offered to" counts the casuals sent an offer for the session in that window.
+// database's can differ). What became of the place is what the cancellation recorded in its
+// shift.cancelled entry (`place`: src/lib/roster/native.ts placeAfterCancel), never guessed from
+// slots later (bookings move between slots); who took it next is whoever booked the row that
+// reopened it (`reopenedId`), at that booking's own confirmed time. "Marked urgent" and "offered
+// to" are log entries after the cancellation's own (event ids only grow) and before the session's
+// next cancellation in a later transaction, if any: offers are for a session, not a place, so a
+// later dropout's offers go on its own record (a rota-sheet sync's removals, in one transaction,
+// share theirs). "Offered to" counts the casuals sent an offer for the session in that window.
 //
 // A download (the CSV, a record's PDF) is logged export.downloaded with ids and counts only.
 
@@ -48,7 +50,6 @@ type Row = {
   role: string;
   starts_at: string | Date;
   ends_at: string | Date;
-  shift_status: string;
   post: string | null;
   pay_rate_pence: number | null;
   meeting_point: string | null;
@@ -65,14 +66,12 @@ type Row = {
   evidence_email_status: string | null;
   evidence_email_to: string | null;
   evidence_email_sent_at: string | Date | null;
-  reopened: boolean;
+  place: string | null;
   marked_urgent: boolean;
   offered_to: number;
   replacement_first: string | null;
   replacement_last: string | null;
   replacement_at: string | Date | null;
-  place_removed: boolean;
-  total: number;
 };
 
 const date = (v: string | Date) => new Date(v);
@@ -92,8 +91,16 @@ function viewFilter(view: CancellationView, threshold: number) {
   return sql``;
 }
 
-// The cancelled bookings, newest first (one, by its reference, when `ref` is given), with `total`
-// the number in the view.
+// The number of cancelled bookings in a view.
+async function countRows(tx: FirmTx, view: CancellationView, threshold: number): Promise<number> {
+  const { rows } = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n from assignments a
+     where a.status in ('cancelled_worker', 'cancelled_firm') ${viewFilter(view, threshold)}
+  `);
+  return Number(rows[0]?.n ?? 0);
+}
+
+// The cancelled bookings in a view, newest first (or those with a reference, or one by its id).
 async function loadRows(
   tx: FirmTx,
   o: {
@@ -108,15 +115,13 @@ async function loadRows(
     select a.id::text, a.worker_id::text, w.first_name, w.last_name, w.external_ref, a.status,
            a.confirmed_at, a.cancelled_at, a.cancel_reason, a.notice_hours::float as notice_hours,
            a.cancel_via, a.strike_warning_version, a.strike_warning_shown_at,
-           s.role, s.starts_at, s.ends_at, s.status as shift_status, s.post, s.pay_rate_pence,
+           s.role, s.starts_at, s.ends_at, s.post, s.pay_rate_pence,
            s.meeting_point, s.uniform, s.required_credentials,
            si.name as site_name, si.postcode as site_postcode, ev.name as event_name,
            ou.name as office_name, ce.data ->> 'strike' as strike_code,
            st.status as strike_status, st.expires_at as strike_expires_at, st.review_needed,
            st.evidence_email_status, st.evidence_email_to, st.evidence_email_sent_at,
-           exists (select 1 from assignments r
-                    where r.firm_id = a.firm_id and r.shift_id = a.shift_id and r.slot = a.slot
-                      and r.created_at > a.created_at) as reopened,
+           ce.data ->> 'place' as place,
            coalesce(ce.id is not null and exists (
              select 1 from events u
               where u.firm_id = a.firm_id and u.entity_id = a.shift_id
@@ -130,16 +135,13 @@ async function loadRows(
                       where ce.id is not null and o.firm_id = a.firm_id and o.shift_id = a.shift_id
                         and v.id > ce.id and (nc.id is null or v.id < nc.id)), 0) as offered_to,
            rp.first_name as replacement_first, rp.last_name as replacement_last,
-           rp.confirmed_at as replacement_at,
-           (a.status = 'cancelled_firm' and a.cancel_reason = ${FIRM_CHANGE_REASONS.fewer_staff})
-             as place_removed,
-           count(*) over ()::int as total
+           rp.confirmed_at as replacement_at
       from assignments a
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
       join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
       left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
       left join shift_events ev on ev.firm_id = s.firm_id and ev.id = s.event_id
-      left join lateral (select e.id, e.actor_type, e.actor_id, e.data from events e
+      left join lateral (select e.id, e.created_at, e.actor_type, e.actor_id, e.data from events e
                           where e.firm_id = a.firm_id and e.entity_id = a.id
                             and e.action = 'shift.cancelled'
                           order by e.id desc limit 1) ce on true
@@ -148,7 +150,8 @@ async function loadRows(
                            join events n on n.firm_id = b.firm_id and n.entity_id = b.id
                                         and n.action = 'shift.cancelled'
                           where b.firm_id = a.firm_id and b.shift_id = a.shift_id
-                            and b.id <> a.id and n.id > ce.id) nc on true
+                            and b.id <> a.id and n.id > ce.id
+                            and n.created_at <> ce.created_at) nc on true
       left join office_users ou
         on ou.firm_id = a.firm_id and ce.actor_type = 'office' and ou.id = ce.actor_id
       left join strikes st on st.firm_id = a.firm_id and st.assignment_id = a.id
@@ -156,9 +159,9 @@ async function loadRows(
                            from assignments r
                            join workers w2 on w2.firm_id = r.firm_id and w2.id = r.worker_id
                           where r.firm_id = a.firm_id and r.shift_id = a.shift_id
-                            and r.slot = a.slot and r.created_at > a.created_at
-                            and r.confirmed_at is not null
-                          order by r.created_at limit 1) rp on true
+                            and ce.data ->> 'place' = 'reopened'
+                            and r.id::text = ce.data ->> 'reopenedId'
+                            and r.confirmed_at is not null) rp on true
      where a.status in ('cancelled_worker', 'cancelled_firm')
        ${
          o.id
@@ -243,9 +246,7 @@ function toRow(r: Row, requirements: CancellationRow["requirements"]): Cancellat
         ? { version: r.strike_warning_version, shownAt: date(r.strike_warning_shown_at) }
         : null,
     then: {
-      wholeSessionCancelled: r.status === "cancelled_firm" && r.shift_status === "cancelled",
-      placeRemoved: r.place_removed,
-      reopened: r.reopened,
+      place: isThenPlace(r.place) ? r.place : null,
       markedUrgent: r.marked_urgent,
       offeredTo: Number(r.offered_to),
       replacement:
@@ -282,9 +283,10 @@ export interface CancellationList {
 }
 
 // The cancelled bookings in a view, newest first (at most `limit`), with the firm's facts.
+// `allOrNothing` (the CSV): none loaded when the view holds more than `limit`.
 export async function loadCancellations(
   tx: FirmTx,
-  o: { view: CancellationView; now: Date; limit: number },
+  o: { view: CancellationView; now: Date; limit: number; allOrNothing?: boolean },
 ): Promise<CancellationList> {
   const firm = await firmFacts(tx);
   const monday = mondayOf(localDateOf(o.now, firm.timezone));
@@ -303,7 +305,11 @@ export async function loadCancellations(
           (select count(*)::int from strikes s
             where s.issued_at >= ${from} and s.issued_at < ${to}) as strikes`,
   );
-  const rows = await loadRows(tx, { view: o.view, threshold: firm.threshold, limit: o.limit });
+  const total = await countRows(tx, o.view, firm.threshold);
+  const rows =
+    o.allOrNothing && total > o.limit
+      ? []
+      : await loadRows(tx, { view: o.view, threshold: firm.threshold, limit: o.limit });
   const requirementsOf = await requirementNames(tx, rows);
   return {
     firmName: firm.name,
@@ -316,7 +322,7 @@ export async function loadCancellations(
       strikes: Number(counts[0]?.strikes ?? 0),
     },
     rows: rows.map((r) => toRow(r, requirementsOf(r))),
-    total: Number(rows[0]?.total ?? 0),
+    total,
   };
 }
 
@@ -398,11 +404,11 @@ export async function officeCancellations(
   ctx: AuthContext,
   token: string,
   view: CancellationView,
-  limit = CANCELLATIONS_PAGE_ROWS,
+  o: { limit: number; allOrNothing?: boolean } = { limit: CANCELLATIONS_PAGE_ROWS },
 ): Promise<CancellationList | null> {
   if (!(await mayView(ctx, token))) return null;
   const { run, now } = authParts(ctx);
-  return run(ctx.firm.id, (tx) => loadCancellations(tx, { view, now, limit }));
+  return run(ctx.firm.id, (tx) => loadCancellations(tx, { view, now, ...o }));
 }
 
 export async function officeCancellationRecord(

@@ -607,9 +607,13 @@ create table events (
 -- shiftId}): the typed note and any colleague's name stay on the row (requests.payload:
 -- time_change {start, end, note} local "HH:MM" times; swap {swapWith, note}).
 -- Cancelling (src/lib/roster/cancel.ts): shift.cancelled (assignment; actor worker or office; {by:
--- worker|firm, shiftId, workerId, noticeHours}); the reason a person typed is only on the row
--- (assignments.cancel_reason). The Sheets sync's adds source and its fixed reason ("Removed on the
--- rota sheet", "Shift cancelled on the rota sheet").
+-- worker|firm, shiftId, workerId, noticeHours, strike, place, reopenedId?}); the reason a person
+-- typed is only on the row (assignments.cancel_reason). `place` (12C.3) is what became of the
+-- place, recorded in the same transaction: reopened (`reopenedId`: the new open row, whose booking
+-- is who filled it again), above_places (above the shift's places by then), started (the shift
+-- had started), removed ("The client needs fewer staff") or session_cancelled (the whole shift);
+-- entries from before it have none. The Sheets sync's adds source and its fixed reason ("Removed
+-- on the rota sheet", "Shift cancelled on the rota sheet").
 -- Booking (src/lib/roster/book.ts): shift.assigned (assignment; actor worker or office; {by:
 -- worker|firm, shiftId, workerId, slot, noticeHours, overridden?, reason?}); from the Sheets sync
 -- the same with source: sheets and reason "Put on the rota sheet by the office".

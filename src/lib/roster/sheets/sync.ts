@@ -17,7 +17,12 @@ import { acceptOwnOffer } from "../../offers/close";
 import { retryAborted } from "../../db/retry";
 import { checkBooking } from "../book";
 import { RulesSettingsError } from "../eligibility-input";
-import { refreshShiftStatus, sheetsRosterPlug } from "../native";
+import {
+  placeAfterCancel,
+  refreshShiftStatus,
+  sheetsRosterPlug,
+  type PlaceAfterCancel,
+} from "../native";
 import { automaticEventId } from "../shift-events";
 import { upsertWorker, WorkerIdentityChange, WorkerNameMismatch } from "../workers";
 import { changeNoticeHours, noticeHours } from "../notice";
@@ -925,11 +930,17 @@ function canon(value: unknown): string {
 const holdersOf = (row: SheetShift) => row.assigned.map((a) => a.staffRef);
 
 // The same shape as a person's cancellation (cancel.ts), plus the fixed reason: never free text.
+// What became of the place: the whole shift cancelled on the sheet, or (a name removed) what the
+// cancellation did to its slot, read straight after it (placeAfterCancel).
 async function logCancel(
   tx: FirmTx,
   cancel: { assignmentId: string; shiftId: string; workerId: string; noticeHours: number },
-  reason: string,
+  reason: typeof CANCELLED_ON_SHEET | typeof REMOVED_ON_SHEET,
 ): Promise<void> {
+  const place: PlaceAfterCancel =
+    reason === CANCELLED_ON_SHEET
+      ? { place: "session_cancelled" }
+      : await placeAfterCancel(tx, cancel.assignmentId);
   await recordEvent(
     tx,
     system("shift.cancelled", "assignment", cancel.assignmentId, {
@@ -940,6 +951,7 @@ async function logCancel(
       noticeHours: cancel.noticeHours,
       // The sheet is the firm's: never a strike (src/lib/strikes/decide.ts).
       strike: strikeDecision({ cancelledBy: "firm" }).code,
+      ...place,
     }),
   );
 }

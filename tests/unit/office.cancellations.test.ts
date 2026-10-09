@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { passesLogCheck } from "@/lib/events/record";
 import {
+  AS_IT_IS_NOW,
   CANCELLATIONS_CSV_HEADER,
   CASUAL_OWN_REASON,
   cancellationsCsv,
   evidenceText,
   exportReason,
   howText,
+  isThenPlace,
   OFFICE_OWN_REASON,
   recordFields,
   strikeShort,
@@ -61,9 +63,7 @@ const row = (o: Partial<CancellationRow> = {}): CancellationRow => ({
   },
   warning: { version: "v1", shownAt: at("2026-11-06T18:00:00Z") },
   then: {
-    wholeSessionCancelled: false,
-    placeRemoved: false,
-    reopened: true,
+    place: "reopened",
     markedUrgent: true,
     offeredTo: 5,
     replacement: { name: "Ben Fraser", at: at("2026-11-06T22:02:00Z") },
@@ -185,15 +185,28 @@ describe("Then", () => {
     ).toBe(
       "Place reopened and marked urgent · offered to 5 casuals · filled again by Cal Jones at 09:10 on Sat 7 Nov",
     );
-    expect(thenText({ ...base, wholeSessionCancelled: true }, when, TZ)).toBe(
+    // What the cancellation recorded about its place.
+    expect(thenText({ ...base, place: "session_cancelled" }, when, TZ)).toBe(
       "The whole session was cancelled",
     );
-    expect(thenText({ ...base, placeRemoved: true }, when, TZ)).toBe(
+    expect(thenText({ ...base, place: "removed" }, when, TZ)).toBe(
       "The place went: the client needs fewer staff",
     );
-    expect(thenText({ ...base, reopened: false }, when, TZ)).toBe(
-      "The place wasn't reopened (the session had started)",
+    expect(thenText({ ...base, place: "started" }, when, TZ)).toBe(
+      "The place wasn't reopened: the session had started",
     );
+    expect(thenText({ ...base, place: "above_places" }, when, TZ)).toBe(
+      "The place wasn't reopened: the session had fewer places by then",
+    );
+    // Logged before cancellations recorded it: nothing guessed.
+    expect(thenText({ ...base, place: null }, when, TZ)).toBe("Not recorded");
+    // What the loader accepts from the log as a place.
+    for (const p of ["reopened", "above_places", "started", "removed", "session_cancelled"]) {
+      expect(isThenPlace(p), p).toBe(true);
+    }
+    for (const p of [null, "", "Reopened", "toString", "constructor", 1]) {
+      expect(isThenPlace(p), String(p)).toBe(false);
+    }
   });
 });
 
@@ -223,7 +236,7 @@ describe("the CSV", () => {
     expect(lines[1]).toContain('"Gate ""B"", north"');
     expect(lines[1]).toContain(`${CASUAL_OWN_REASON},yes`);
     expect(lines[1]).toContain("2026-11-07,14:00,22:00");
-    expect(lines[2]).toContain("office,By the office (Sam Rota),48.00".replace("48.00", "20.00"));
+    expect(lines[2]).toContain("office,By the office (Sam Rota),20.00");
     expect(lines[2]).toContain("Weather or safety,no");
     expect(csv.toLowerCase()).not.toMatch(/unwell|health/);
   });
@@ -237,6 +250,7 @@ describe("the PDF", () => {
       firmName: "Acme Events",
       fields: recordFields(r, { tz: TZ, threshold: 48, liveStrikes: 1, forExport: true }),
       generatedAt: "09:14 on Mon 9 Nov",
+      note: AS_IT_IS_NOW,
     });
     expect(Buffer.from(bytes.subarray(0, 5)).toString()).toBe("%PDF-");
     const text = await pdfText(bytes);
@@ -252,6 +266,7 @@ describe("the PDF", () => {
       "Car park C",
       "Black, hi-vis",
       CASUAL_OWN_REASON,
+      AS_IT_IS_NOW,
       "Produced by ShiftDesk from Acme Events's data on 09:14 on Mon 9 Nov.",
     ]) {
       expect(text).toContain(shown);

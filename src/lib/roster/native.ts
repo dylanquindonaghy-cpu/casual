@@ -276,6 +276,39 @@ function tableRosterPlug(tx: FirmTx, source: "native" | "sheets", clock: Clock):
   };
 }
 
+// What a cancellation did to its place, recorded in its shift.cancelled entry (12C.3) so the
+// cancellation's record says what happened rather than guessing from slots later (bookings move
+// between slots: removeFreedPlace). Read in the same transaction, straight after markCancelled:
+// the live row in the cancelled booking's slot (one per slot) is the open row that reopened it;
+// with none, the slot was above the shift's places or the shift had started (markCancelled's two
+// reasons not to reopen). The office's whole-session cancellation and a place removed for fewer
+// staff are recorded by their callers ("session_cancelled", "removed").
+export type PlaceAfterCancel =
+  | { place: "reopened"; reopenedId: string }
+  | { place: "above_places" }
+  | { place: "started" }
+  | { place: "removed" }
+  | { place: "session_cancelled" };
+
+export async function placeAfterCancel(
+  tx: FirmTx,
+  assignmentId: string,
+): Promise<PlaceAfterCancel> {
+  const { rows } = await tx.execute<{ slot: number; headcount: number; live: string | null }>(sql`
+    select a.slot, s.headcount,
+           (select r.id::text from assignments r
+             where r.firm_id = a.firm_id and r.shift_id = a.shift_id and r.slot = a.slot
+               and r.status not in ${CANCELLED}) as live
+      from assignments a
+      join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
+     where a.id = ${assignmentId}
+  `);
+  const row = rows[0];
+  if (!row) throw new Error("the cancelled booking wasn't found");
+  if (row.live) return { place: "reopened", reopenedId: row.live };
+  return row.slot > row.headcount ? { place: "above_places" } : { place: "started" };
+}
+
 // One place fewer on a shift, after the office cancelled a booking because the client needs fewer
 // staff (Phase 10 task 19, audit L20): the place the cancellation just reopened goes, rather than
 // being offered to someone else. Its new open row is parked above every slot (rows above the

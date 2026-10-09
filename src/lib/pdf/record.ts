@@ -42,6 +42,7 @@ export interface RecordPdfInput {
   firmName: string;
   fields: PdfField[];
   generatedAt: string; // "09:14 on Mon 2 Nov 2026", the firm's local time
+  note?: string; // a line under the firm's name
 }
 
 // A4, in points.
@@ -122,6 +123,12 @@ export async function recordPdf(input: RecordPdfInput): Promise<Uint8Array> {
   drawRuns(page, input.title, { x: MARGIN, y, size: 18, font: bold, marks });
   y -= 22;
   drawRuns(page, input.firmName, { x: MARGIN, y, size: 12, font: regular, marks });
+  if (input.note) {
+    for (const text of wrap(input.note, PAGE.width - MARGIN * 2, regular, marks, SIZE)) {
+      y -= LINE + 2;
+      drawRuns(page, text, { x: MARGIN, y, size: SIZE, font: regular, marks });
+    }
+  }
   y -= 28;
 
   for (const field of input.fields) {

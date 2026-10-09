@@ -487,7 +487,7 @@ export async function strikesOn(slug: string, shiftIds: string[]): Promise<strin
 }
 
 // A spec's casual takes its own session and cancels it, through the real code (as the app does),
-// with enough notice that it's no strike. Returns the booking's reference.
+// with enough notice that it's no strike. Returns the booking's reference and its full id.
 export async function bookAndCancel(
   slug: string,
   o: { shiftId: string; workerId: string; reason: string },
@@ -543,6 +543,27 @@ export async function shareReference(slug: string, o: { id: string; like: string
     }
   } finally {
     client.release();
+    await pool.end();
+  }
+}
+
+// The export.downloaded entries an office user (by email) has in the log, oldest first: what was
+// downloaded (the entry's data: ids and counts only).
+export async function downloadsBy(slug: string, email: string): Promise<unknown[]> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    return await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      const found = await tx.execute<{ data: unknown }>(sql`
+        select e.data from events e
+          join office_users u on u.firm_id = e.firm_id and u.id = e.actor_id
+         where e.action = 'export.downloaded' and e.actor_type = 'office' and u.email = ${email}
+         order by e.id
+      `);
+      return found.rows.map((r) => r.data);
+    });
+  } finally {
     await pool.end();
   }
 }

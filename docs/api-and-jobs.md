@@ -290,7 +290,8 @@ Built in Phase 5, on the office's shift page ("Move, shorten or cancel"; each bo
   check") "They've left, or can't work here". The words go in the log; free text never does.
 - **Cancel a shift** (`cancelShiftByFirm()` in `src/lib/roster/cancel.ts`): each confirmed booking
   is cancelled through the plug (`cancelled_firm`, the reason's words on the row, notice hours from
-  the start), logged `shift.cancelled` {by: "firm", shiftId, workerId, reason, noticeHours}. Then
+  the start), logged `shift.cancelled` {by: "firm", shiftId, workerId, reason, noticeHours, strike,
+  place: "session_cancelled"}. Then
   the shift is `cancelled`, offers still out expire, and `shift.cancelled_by_firm` {by, reason,
   bookings} is logged. Not a started shift, and not a Google Sheet's.
 - **Cancel one booking**: `cancelBooking()` with `by: office` and a reason from the list, whose

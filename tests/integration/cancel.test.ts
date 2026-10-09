@@ -51,6 +51,14 @@ const cancelledEvents = async (firmId: string) =>
       [firmId],
     )
   ).rows;
+// The open row that reopened a place (one live row per slot), as the cancellation records it.
+const openRowOf = async (shiftId: string) =>
+  (
+    await su.query<{ id: string }>(
+      "select id::text as id from assignments where shift_id = $1 and status = 'open'",
+      [shiftId],
+    )
+  ).rows[0]?.id;
 const shiftStatus = async (shiftId: string) =>
   (await su.query("select status from shifts where id = $1", [shiftId])).rows[0]?.status;
 
@@ -94,7 +102,16 @@ describe("cancelBooking: a worker cancelling", () => {
         actor_id: sam,
         entity_id: assignmentId,
         // The reason is on the row above; the append-only log never holds typed text.
-        data: { by: "worker", shiftId, workerId: sam, noticeHours: 48, strike: "enough_notice" },
+        data: {
+          by: "worker",
+          shiftId,
+          workerId: sam,
+          noticeHours: 48,
+          strike: "enough_notice",
+          // What became of the place: the open row above.
+          place: "reopened",
+          reopenedId: await openRowOf(shiftId),
+        },
       },
     ]);
 
@@ -213,6 +230,8 @@ describe("cancelBooking: the office cancelling", () => {
           workerId: sam,
           noticeHours: 30,
           strike: "by_firm",
+          place: "reopened",
+          reopenedId: await openRowOf(shiftId),
         },
       },
     ]);
@@ -236,6 +255,7 @@ describe("cancelBooking: the office cancelling", () => {
     // History: nobody can take the place now, so it isn't reopened, and the shift stays as it was.
     expect((await rowsOf(shiftId)).map((r) => r.status)).toEqual(["cancelled_firm"]);
     expect(await shiftStatus(shiftId)).toBe("filled");
+    expect((await cancelledEvents(f.firmId))[0]?.data).toMatchObject({ place: "started" });
   });
 
   it("can't cancel once the shift has ended (a no-show or completed shift is Phase 5)", async () => {

@@ -12,8 +12,11 @@ import { daysUntil, EXPIRING_SOON_DAYS } from "./expiry";
 //   need it, worst first. A type nothing needs isn't listed. Right to work is a status only
 //   (rightToWork()), never in the list.
 // - needsUpdating(): what she should sort out, in §4.2's order: (1) blocks a booked shift (expired,
-//   suspended or missing, or expiring before the shift ends); (2) expired or suspended; (3)
-//   expiring soon; (4) missing. The staff photo's levels join with 12F.2.
+//   suspended or missing, applied for where the firm's rules won't accept it, or expiring before
+//   the shift ends); (2) expired or suspended; (3) expiring soon, unless she's already applied to
+//   renew it; (4) missing. The staff photo's levels join with 12F.2.
+// - rolesWithoutRule(): her roles the firm has no rule for: the rules engine refuses those shifts
+//   (fail closed), so nothing may say her roles "need none".
 
 export const RIGHT_TO_WORK = "RTW";
 
@@ -70,6 +73,10 @@ export interface Qualification extends QualificationState {
   type: string;
   name: string; // as stored, mid-sentence ("first aid at work certificate")
   neededFor: string[]; // her roles that need it, sorted
+  // Applied for: whether the rules engine may accept it (the type allows it and the firm's
+  // allowance is above 0; the share is checked per shift). Otherwise it counts for nothing.
+  appliedCounts: boolean;
+  renewing: boolean; // in date, with an application to renew it in progress
 }
 
 export function listQualifications(o: {
@@ -78,6 +85,7 @@ export function listQualifications(o: {
   names: ReadonlyMap<string, string>; // type code → name
   records: readonly ({ type: string } & CredentialRecord)[];
   today: string;
+  appliedCounts?: (type: string) => boolean; // default: never (as with no allowance)
 }): Qualification[] {
   const needed = new Map<string, Set<string>>();
   for (const rule of o.rules) {
@@ -91,27 +99,50 @@ export function listQualifications(o: {
   }
   const rank = (s: QualificationStatus) => STATUS_ORDER.indexOf(s);
   return [...needed]
-    .map(([type, roles]) => ({
-      type,
-      name: o.names.get(type) ?? type.replace(/_/g, " ").toLowerCase(),
-      neededFor: [...roles].sort(),
-      ...qualificationStatus(
-        o.records.filter((r) => r.type === type),
-        o.today,
-      ),
-    }))
+    .map(([type, roles]) => {
+      const records = o.records.filter((r) => r.type === type);
+      const state = qualificationStatus(records, o.today);
+      return {
+        type,
+        name: o.names.get(type) ?? type.replace(/_/g, " ").toLowerCase(),
+        neededFor: [...roles].sort(),
+        ...state,
+        appliedCounts: o.appliedCounts?.(type) ?? false,
+        renewing:
+          (state.status === "valid" || state.status === "expiring_soon") &&
+          records.some((r) => r.status === "applied"),
+      };
+    })
     .sort((a, b) => rank(a.status) - rank(b.status) || a.name.localeCompare(b.name));
 }
 
-// Right to work: a status only (Rules 15). Checked: a valid record; the date the office checked it
-// when it recorded one.
+// Right to work: a status only (Rules 15). Checked: a valid record in date; the date the office
+// checked it when it recorded one. Expired: there was a check, but none is in date now (a
+// time-limited right to work).
+export interface RightToWork {
+  checked: boolean;
+  checkedOn: string | null;
+  expired: boolean;
+}
+
 export function rightToWork(
   records: readonly ({ type: string; checkedOn: string | null } & CredentialRecord)[],
-): { checked: boolean; checkedOn: string | null } {
-  const checks = records.filter((r) => r.type === RIGHT_TO_WORK && r.status === "valid");
-  if (checks.length === 0) return { checked: false, checkedOn: null };
+  today: string,
+): RightToWork {
+  const all = records.filter((r) => r.type === RIGHT_TO_WORK);
+  const checks = all.filter((r) => inDate(r, today));
+  if (checks.length === 0) {
+    return { checked: false, checkedOn: null, expired: all.some((r) => r.status !== "applied") };
+  }
   const dates = checks.map((r) => r.checkedOn).filter((d): d is string => d !== null);
-  return { checked: true, checkedOn: dates.sort().at(-1) ?? null };
+  return { checked: true, checkedOn: dates.sort().at(-1) ?? null, expired: false };
+}
+
+export function rolesWithoutRule(
+  roles: readonly string[],
+  rules: readonly { role: string }[],
+): string[] {
+  return roles.filter((role) => !rules.some((r) => r.role === role)).sort();
 }
 
 export type NeedsLevel = 1 | 2 | 3 | 4;
@@ -132,7 +163,9 @@ export function needsUpdating(o: {
   const items: NeedsItem[] = [];
   const byStart = [...o.bookings].sort((a, b) => a.startDay.localeCompare(b.startDay));
   for (const q of o.qualifications) {
-    if (q.status === "applied") continue; // being processed: nothing for her to do
+    // Applied for, where the rules won't accept it: it stops a booked shift. Otherwise nothing for
+    // her to do yet.
+    const appliedStops = q.status === "applied" && !q.appliedCounts;
     // A shift it stops: the rules need it in date until the shift's last day.
     const stopped = byStart.find(
       (b) =>
@@ -140,7 +173,8 @@ export function needsUpdating(o: {
         (q.status === "expired" ||
           q.status === "suspended" ||
           q.status === "missing" ||
-          (q.expiresOn !== null && q.expiresOn < b.endDay)),
+          appliedStops ||
+          (q.status !== "applied" && q.expiresOn !== null && q.expiresOn < b.endDay)),
     );
     if (stopped) {
       items.push({
@@ -153,7 +187,7 @@ export function needsUpdating(o: {
     const level: NeedsLevel | null =
       q.status === "expired" || q.status === "suspended"
         ? 2
-        : q.status === "expiring_soon"
+        : q.status === "expiring_soon" && !q.renewing
           ? 3
           : q.status === "missing"
             ? 4

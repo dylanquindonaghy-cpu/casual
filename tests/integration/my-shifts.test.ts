@@ -219,6 +219,33 @@ describe("myNeedsUpdating", () => {
     });
   });
 
+  it("an application in progress stops a booked shift unless the firm's rules accept it", async () => {
+    // SIA licences allow an application (the pack); a firm's allowance above 0 lets one count.
+    const strict = await bookingFirm(su, withFirm);
+    const lenient = await bookingFirm(su, withFirm, {
+      settings: { credential_applied_allowance_pct: 15 },
+    });
+    const renewing = [
+      { type: "SIA_DS", status: "expired" as const, expiresOn: "2026-09-01" },
+      { type: "SIA_DS", status: "applied" as const, expiresOn: null },
+      { type: "STEWARD_L2", expiresOn: null },
+    ];
+    const kit = await strict.worker({ credentials: renewing });
+    await strict.booking(kit, await strict.shift({ startsAt: hoursFromNow(48) }));
+    const lee = await lenient.worker({ credentials: renewing });
+    await lenient.booking(lee, await lenient.shift({ startsAt: hoursFromNow(48) }));
+    expect(brief(await myNeedsUpdating(ctxFor(strict), kit))).toEqual([
+      {
+        level: 1,
+        type: "SIA_DS",
+        name: "SIA door supervisor licence",
+        status: "applied",
+        expiresOn: null,
+      },
+    ]);
+    expect(await myNeedsUpdating(ctxFor(lenient), lee)).toEqual([]);
+  });
+
   it("says nothing about a type the worker has replaced or is renewing", async () => {
     const f = await bookingFirm(su, withFirm);
     const replaced = await f.worker({

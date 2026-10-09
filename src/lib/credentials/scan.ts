@@ -19,7 +19,7 @@ import {
 import { shortDate } from "../rules/reasons";
 import { signOffFor } from "../tenancy/sign-off";
 import { addDays, localDateOf } from "../time/zoned";
-import { expiryAction, isWeeklyListDay, WARNING_DAYS } from "./expiry";
+import { EXPIRING_SOON_DAYS, expiryAction, isWeeklyListDay } from "./expiry";
 
 // The credential expiry jobs (docs/api-and-jobs.md, docs/rules-and-credentials.md "Expiry
 // warnings"):
@@ -397,7 +397,7 @@ async function warnAndExpire(
         and(
           eq(credentials.status, "valid"),
           isNotNull(credentials.expiresOn),
-          lte(credentials.expiresOn, addDays(today, Math.max(...WARNING_DAYS))),
+          lte(credentials.expiresOn, addDays(today, EXPIRING_SOON_DAYS)),
         ),
       )
       .orderBy(asc(credentials.expiresOn), asc(credentials.id)),
@@ -511,7 +511,7 @@ async function claimWeeklyList(
         eq(workers.status, "active"),
         inArray(credentials.status, ["valid", "expired"]),
         gte(credentials.expiresOn, addDays(today, -7)),
-        lte(credentials.expiresOn, addDays(today, Math.max(...WARNING_DAYS))),
+        lte(credentials.expiresOn, addDays(today, EXPIRING_SOON_DAYS)),
         sql`not ${superseded}`,
       ),
     )

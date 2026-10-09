@@ -28,6 +28,7 @@ export interface CasualRow {
   travel: { district: string; maxMinutes: number; modes: TravelMode } | null;
   liveStrikes: number;
   needs: NeedsItem[];
+  rolesWithoutRule: string[]; // roles the firm has no rule for (those shifts can't be taken)
 }
 
 export interface CasualsList {
@@ -64,6 +65,7 @@ export async function casualsList(
     const held = await qualificationsFor(tx, ids, {
       now,
       timeZone: firm?.timezone ?? "Europe/London",
+      people,
     });
     const { rows: travel } = await tx.execute<{
       worker_id: string;
@@ -97,11 +99,17 @@ export async function casualsList(
           : null,
         liveStrikes: liveOf.get(p.id) ?? 0,
         needs: q?.needs ?? [],
+        rolesWithoutRule: q?.rolesWithoutRule ?? [],
       };
     });
+    // The worst first: by level, then (level 1) the booked shift it stops soonest; then by name.
     const needing = all
       .filter((r) => r.status === "active" && r.needs.length > 0)
-      .sort((a, b) => (a.needs[0]?.level ?? 9) - (b.needs[0]?.level ?? 9));
+      .sort(
+        (a, b) =>
+          (a.needs[0]?.level ?? 9) - (b.needs[0]?.level ?? 9) ||
+          (a.needs[0]?.blocks?.day ?? "").localeCompare(b.needs[0]?.blocks?.day ?? ""),
+      );
     const shown = view === "needs" ? needing : all;
     return {
       view,

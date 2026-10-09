@@ -5,6 +5,7 @@ import {
   needsUpdating,
   qualificationStatus,
   rightToWork,
+  rolesWithoutRule,
   type CredentialRecord,
   type Qualification,
 } from "@/lib/credentials/status";
@@ -111,6 +112,8 @@ describe("which qualifications are listed", () => {
         status: "missing",
         expiresOn: null,
         neededFor: ["response_team_lead"],
+        appliedCounts: false,
+        renewing: false,
       },
       {
         type: "SIA_DS",
@@ -118,6 +121,8 @@ describe("which qualifications are listed", () => {
         status: "valid",
         expiresOn: day(400),
         neededFor: ["door_supervisor", "response_team_lead"],
+        appliedCounts: false,
+        renewing: false,
       },
     ]);
   });
@@ -160,21 +165,64 @@ describe("which qualifications are listed", () => {
     ]);
   });
 
-  it("right to work: checked with its date, or not checked (a status only)", () => {
-    expect(rightToWork([])).toEqual({ checked: false, checkedOn: null });
+  it("right to work: checked with its date, not checked, or a check that has run out", () => {
+    expect(rightToWork([], TODAY)).toEqual({ checked: false, checkedOn: null, expired: false });
     expect(
-      rightToWork([
-        { type: "RTW", ...valid(null), checkedOn: "2026-01-12" },
-        { type: "RTW", ...valid(null), checkedOn: "2025-06-01" },
-      ]),
-    ).toEqual({ checked: true, checkedOn: "2026-01-12" });
-    expect(rightToWork([{ type: "RTW", ...valid(null), checkedOn: null }])).toEqual({
+      rightToWork(
+        [
+          { type: "RTW", ...valid(null), checkedOn: "2026-01-12" },
+          { type: "RTW", ...valid(null), checkedOn: "2025-06-01" },
+        ],
+        TODAY,
+      ),
+    ).toEqual({ checked: true, checkedOn: "2026-01-12", expired: false });
+    expect(rightToWork([{ type: "RTW", ...valid(null), checkedOn: null }], TODAY)).toEqual({
       checked: true,
       checkedOn: null,
+      expired: false,
+    });
+    // Time-limited: in date until its last day, then run out (marked or not).
+    expect(rightToWork([{ type: "RTW", ...valid(TODAY), checkedOn: null }], TODAY).checked).toBe(
+      true,
+    );
+    expect(rightToWork([{ type: "RTW", ...valid(day(-1)), checkedOn: null }], TODAY)).toEqual({
+      checked: false,
+      checkedOn: null,
+      expired: true,
     });
     expect(
-      rightToWork([{ type: "RTW", status: "expired", expiresOn: day(-1), checkedOn: null }]),
-    ).toEqual({ checked: false, checkedOn: null });
+      rightToWork([{ type: "RTW", status: "expired", expiresOn: day(-1), checkedOn: null }], TODAY),
+    ).toEqual({ checked: false, checkedOn: null, expired: true });
+  });
+
+  it("roles the firm has no rule for (the rules engine refuses those shifts)", () => {
+    expect(rolesWithoutRule(["steward", "bouncer", "aaa"], RULES)).toEqual(["aaa", "bouncer"]);
+    expect(rolesWithoutRule(["steward"], RULES)).toEqual([]);
+  });
+
+  it("applied for counts only where the firm's rules accept it; renewing while in date is marked", () => {
+    const records = [
+      { type: "SIA_DS", status: "applied" as const, expiresOn: null },
+      { type: "STEWARD_L2", ...valid(day(10)) },
+      { type: "STEWARD_L2", status: "applied" as const, expiresOn: null },
+    ];
+    const listed = (counts: boolean) =>
+      listQualifications({
+        roles: ["door_supervisor", "steward"],
+        rules: RULES,
+        names: NAMES,
+        records,
+        today: TODAY,
+        appliedCounts: (type) => counts && type === "SIA_DS",
+      }).map((q) => [q.type, q.status, q.appliedCounts, q.renewing]);
+    expect(listed(true)).toEqual([
+      ["STEWARD_L2", "expiring_soon", false, true],
+      ["SIA_DS", "applied", true, false],
+    ]);
+    expect(listed(false)).toEqual([
+      ["STEWARD_L2", "expiring_soon", false, true],
+      ["SIA_DS", "applied", false, false],
+    ]);
   });
 });
 
@@ -184,6 +232,8 @@ const qual = (o: Partial<Qualification>): Qualification => ({
   status: "valid",
   expiresOn: day(400),
   neededFor: ["door_supervisor"],
+  appliedCounts: false,
+  renewing: false,
   ...o,
 });
 
@@ -229,8 +279,9 @@ describe("needsUpdating: the four levels, in order", () => {
     expect(level({ status: "valid", expiresOn: day(40) })).toBe(1);
     expect(level({ status: "valid", expiresOn: day(41) })).toBeUndefined();
     expect(level({ status: "valid", expiresOn: null })).toBeUndefined();
-    // Applied for: nothing for her to do yet, booked or not.
-    expect(level({ status: "applied", expiresOn: null })).toBeUndefined();
+    // Applied for: stops it unless the firm's rules accept an application (then nothing to do).
+    expect(level({ status: "applied", expiresOn: null })).toBe(1);
+    expect(level({ status: "applied", expiresOn: null, appliedCounts: true })).toBeUndefined();
     // A booking for a role that doesn't need it doesn't count.
     expect(
       needsUpdating({
@@ -239,6 +290,31 @@ describe("needsUpdating: the four levels, in order", () => {
         today: TODAY,
       })[0]?.level,
     ).toBe(2);
+  });
+
+  it("applied for: stops a booked shift unless the firm's rules accept it; otherwise nothing to do", () => {
+    const booking = { role: "door_supervisor", startDay: day(3), endDay: day(3) };
+    const items = (appliedCounts: boolean, bookings = [booking]) =>
+      needsUpdating({
+        qualifications: [qual({ status: "applied", expiresOn: null, appliedCounts })],
+        bookings,
+        today: TODAY,
+      });
+    expect(items(false)[0]).toMatchObject({ level: 1, blocks: { role: "door_supervisor" } });
+    expect(items(true)).toEqual([]);
+    expect(items(false, [])).toEqual([]);
+  });
+
+  it("renewing while in date: not 'expiring soon'; still level 1 if it ends before a booked shift", () => {
+    const soon = qual({ status: "expiring_soon", expiresOn: day(10), renewing: true });
+    expect(needsUpdating({ qualifications: [soon], bookings: [], today: TODAY })).toEqual([]);
+    expect(
+      needsUpdating({
+        qualifications: [soon],
+        bookings: [{ role: "door_supervisor", startDay: day(20), endDay: day(20) }],
+        today: TODAY,
+      })[0]?.level,
+    ).toBe(1);
   });
 
   it("the earliest booked shift it stops is the one named", () => {

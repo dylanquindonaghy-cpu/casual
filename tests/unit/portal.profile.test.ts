@@ -30,7 +30,8 @@ const profile = (over: Partial<Profile> = {}): Profile => ({
   offerAlerts: true,
   textsOff: false,
   qualifications: [],
-  rightToWork: { checked: false, checkedOn: null },
+  rightToWork: { checked: false, checkedOn: null, expired: false },
+  rolesWithoutRule: [],
   unavailable: [],
   today: "2026-11-02",
   ...over,
@@ -64,7 +65,7 @@ describe("ProfileView", () => {
     const page = text(html);
     expect(page).toContain("Qualifications");
     expect(page).toContain(
-      "SIA close protection licence Suspended · Suspended You can't take close protection officer shifts. Contact the office.",
+      "SIA close protection licence Suspended You can't take close protection officer shifts. Contact the office.",
     );
     expect(page).toContain(
       "First aid at work certificate Expired · Expired 1 Oct Until it's renewed you won't see response team lead shifts. Send the new details to the office.",
@@ -76,7 +77,7 @@ describe("ProfileView", () => {
       "SIA door supervisor licence Expiring soon · Expires 20 Nov Renew it before then to keep getting door supervisor shifts. Send the new details to the office.",
     );
     expect(page).toContain(
-      "SIA security guard licence Applied for · Applied for, not issued yet Send it to the office when it arrives.",
+      "SIA security guard licence Applied for · Not issued yet You won't see security officer shifts until it's issued. Send it to the office when it arrives.",
     );
     expect(page).toContain("Level 2 spectator safety qualification Valid · No expiry date");
     // Only the expired and suspended ones are red. Never "credential" (staff-facing words).
@@ -95,6 +96,8 @@ describe("ProfileView", () => {
               status: "valid",
               expiresOn: "2029-01-01",
               neededFor: ["door_supervisor"],
+              appliedCounts: false,
+              renewing: false,
             },
           ],
         }),
@@ -106,16 +109,67 @@ describe("ProfileView", () => {
   it("right to work: a status only, never 'you can't be booked'", () => {
     expect(text(render(profile()))).toContain("Right to work Not checked yet: ask the office");
     expect(
-      text(render(profile({ rightToWork: { checked: true, checkedOn: "2026-01-12" } }))),
+      text(
+        render(
+          profile({ rightToWork: { checked: true, checkedOn: "2026-01-12", expired: false } }),
+        ),
+      ),
     ).toContain("Right to work Checked by the office on 12 Jan");
     expect(
-      text(render(profile({ rightToWork: { checked: true, checkedOn: "2025-01-12" } }))),
+      text(
+        render(
+          profile({ rightToWork: { checked: true, checkedOn: "2025-01-12", expired: false } }),
+        ),
+      ),
     ).toContain("Checked by the office on 12 Jan 2025");
     expect(text(render(profile()))).not.toMatch(/can't be booked/);
   });
 
   it("says when her roles need no qualifications", () => {
     expect(text(render(profile()))).toContain("Your roles don't need any.");
+  });
+
+  it("an expired right-to-work check, an application the rules accept, renewing, and a role with no rule (review)", () => {
+    expect(
+      text(render(profile({ rightToWork: { checked: false, checkedOn: null, expired: true } }))),
+    ).toContain("Right to work The office's check has run out: ask the office");
+    const page = text(
+      render(
+        profile({
+          rolesWithoutRule: ["response_team_lead"],
+          qualifications: [
+            {
+              type: "SIA_DS",
+              name: "SIA door supervisor licence",
+              status: "applied",
+              expiresOn: null,
+              neededFor: ["door_supervisor"],
+              appliedCounts: true,
+              renewing: false,
+            },
+            {
+              type: "STEWARD_L2",
+              name: "Level 2 spectator safety qualification",
+              status: "expiring_soon",
+              expiresOn: "2026-11-20",
+              neededFor: ["steward"],
+              appliedCounts: false,
+              renewing: true,
+            },
+          ],
+        }),
+      ),
+    );
+    expect(page).toContain(
+      "Response team lead shifts aren't set up yet, so you can't take them. Ask the office.",
+    );
+    expect(page).toContain(
+      "You may be offered some door supervisor shifts while you wait. Send it to the office when it arrives.",
+    );
+    expect(page).toContain(
+      "You've applied to renew it. Send the new details to the office when they arrive.",
+    );
+    expect(page).not.toContain("Your roles don't need any.");
   });
 
   it("lists marked days with Remove, warns about a booked one, and limits the date picker", () => {

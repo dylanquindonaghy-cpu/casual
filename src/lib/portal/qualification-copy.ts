@@ -1,4 +1,9 @@
-import type { NeedsItem, Qualification, QualificationStatus } from "../credentials/status";
+import type {
+  NeedsItem,
+  Qualification,
+  QualificationStatus,
+  RightToWork,
+} from "../credentials/status";
 import { dayLabel, shortDate } from "../rules/reasons";
 
 // Qualifications in plain words (docs/office-v2.md 3.7, 4.2, 4.6; 12F.1), for the casual's Profile
@@ -38,8 +43,9 @@ export function rolesText(roles: readonly string[]): string {
   return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
 }
 
-// The line under its name: the date that matters, or what's needed.
-export function dateLine(q: Qualification, year: number): string {
+// The line under its name, after the status: the date that matters, or what's needed (null:
+// nothing to add to the status).
+export function dateLine(q: Qualification, year: number): string | null {
   const date = q.expiresOn ? shortDate(q.expiresOn, year) : null;
   switch (q.status) {
     case "valid":
@@ -51,9 +57,9 @@ export function dateLine(q: Qualification, year: number): string {
     case "missing":
       return `Needed for ${rolesText(q.neededFor)} shifts`;
     case "applied":
-      return "Applied for, not issued yet";
+      return "Not issued yet";
     case "suspended":
-      return "Suspended";
+      return date ? `Expires ${date}` : null;
   }
 }
 
@@ -64,56 +70,88 @@ export function meaning(q: Qualification): string | null {
     case "valid":
       return null;
     case "expiring_soon":
-      return `Renew it before then to keep getting ${roles} shifts. Send the new details to the office.`;
+      return q.renewing
+        ? "You've applied to renew it. Send the new details to the office when they arrive."
+        : `Renew it before then to keep getting ${roles} shifts. Send the new details to the office.`;
     case "expired":
       return `Until it's renewed you won't see ${roles} shifts. Send the new details to the office.`;
     case "missing":
       return `You won't see ${roles} shifts until the office has it.`;
     case "applied":
-      return "Send it to the office when it arrives.";
+      // Whether the firm's rules accept an application in progress for this type.
+      return q.appliedCounts
+        ? `You may be offered some ${roles} shifts while you wait. Send it to the office when it arrives.`
+        : `You won't see ${roles} shifts until it's issued. Send it to the office when it arrives.`;
     case "suspended":
       return `You can't take ${roles} shifts. Contact the office.`;
   }
 }
 
 // Right to work: a status only (Rules 15), never "you can't be booked".
-export function rightToWorkText(r: { checked: boolean; checkedOn: string | null }, year: number) {
-  if (!r.checked) return "Not checked yet: ask the office";
+export function rightToWorkText(r: RightToWork, year: number) {
+  if (!r.checked) {
+    return r.expired
+      ? "The office's check has run out: ask the office"
+      : "Not checked yet: ask the office";
+  }
   return r.checkedOn
     ? `Checked by the office on ${shortDate(r.checkedOn, year)}`
     : "Checked by the office";
 }
 
-// One row of "Needs updating" (docs/office-v2.md 4.2), in its order.
-export function needsText(item: NeedsItem, year: number): string {
+// One row of "Needs updating" (docs/office-v2.md 4.2), in its order: in her own words ("your"),
+// or the office's ("their").
+export function needsText(
+  item: NeedsItem,
+  year: number,
+  who: "casual" | "office" = "casual",
+): string {
   const q = item.qualification;
   const name = qualificationTitle(q.name);
   const date = q.expiresOn ? shortDate(q.expiresOn, year) : null;
+  const office = who === "office";
   const state =
     q.status === "missing"
       ? "is missing"
       : q.status === "suspended"
         ? "is suspended"
-        : q.status === "expired"
-          ? date
-            ? `expired on ${date}`
-            : "has expired"
-          : `expires on ${date}`;
+        : q.status === "applied"
+          ? "is applied for but not issued yet"
+          : q.status === "expired"
+            ? date
+              ? `expired on ${date}`
+              : "has expired"
+            : `expires on ${date}`;
   if (item.blocks) {
-    return `${name} ${state}, and your ${roleWords(item.blocks.role)} shift on ${dayLabel(
+    const shift = `${office ? "their" : "your"} ${roleWords(item.blocks.role)} shift on ${dayLabel(
       item.blocks.day,
-    )} needs it. Send the new details to the office, or contact them.`;
+    )}`;
+    return office
+      ? `${name} ${state}, and ${shift} needs it.`
+      : `${name} ${state}, and ${shift} needs it. Send the new details to the office, or contact them.`;
   }
+  const roles = rolesText(q.neededFor);
   switch (item.level) {
     case 2:
-      return q.status === "suspended"
-        ? `${name} is suspended. Contact the office.`
-        : `${name} ${state}. Until it's renewed you won't see ${rolesText(q.neededFor)} shifts.`;
+      if (q.status === "suspended") {
+        return office ? `${name} is suspended.` : `${name} is suspended. Contact the office.`;
+      }
+      return `${name} ${state}. Until it's renewed ${office ? "they" : "you"} won't see ${roles} shifts.`;
     case 3:
-      return `${name} ${state}. Renew it to keep getting ${rolesText(q.neededFor)} shifts.`;
+      return office
+        ? `${name} ${state}.`
+        : `${name} ${state}. Renew it to keep getting ${roles} shifts.`;
     default:
-      return `${name} is missing. Needed for ${rolesText(q.neededFor)} shifts.`;
+      return `${name} is missing. Needed for ${roles} shifts.`;
   }
+}
+
+// Her roles the firm has no rule for: the rules engine can't check them, so refuses those shifts.
+export function noRuleText(roles: readonly string[], who: "casual" | "office" = "casual"): string {
+  const list = rolesText(roles);
+  return who === "office"
+    ? `There's no qualification rule for ${list} yet, so they can't take those shifts. An admin can add one.`
+    : `${qualificationTitle(list)} shifts aren't set up yet, so you can't take them. Ask the office.`;
 }
 
 // The office's one-line summary of what a casual needs to update ("Nothing", or the first and how

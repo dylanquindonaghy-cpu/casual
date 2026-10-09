@@ -214,7 +214,7 @@ describe("one casual's page", () => {
       ["STEWARD_L2", "suspended"],
       ["SIA_DS", "expiring_soon"],
     ]);
-    expect(page?.rightToWork).toEqual({ checked: true, checkedOn: "2026-01-12" });
+    expect(page?.rightToWork).toEqual({ checked: true, checkedOn: "2026-01-12", expired: false });
     expect(page?.needs.map((n) => [n.level, n.qualification.type])).toEqual([
       [2, "STEWARD_L2"],
       [3, "SIA_DS"],
@@ -227,6 +227,18 @@ describe("one casual's page", () => {
     expect(page?.strikes[1]?.assignmentId).toBe(record);
     expect(page?.ahead).toHaveLength(1);
     expect(page?.timeZone).toBe("Europe/London");
+  });
+
+  it("live strikes counted in full, beyond the 10 strikes the page lists", async () => {
+    const t = await casualsFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    for (let i = 0; i < 12; i += 1) await t.strike(ann, 20 + i); // older, still counting
+    for (let i = 0; i < 3; i += 1) await t.strike(ann, 2 + i, "withdrawn"); // the newest
+    const page = await workerAccessView(t.ctx(), ann);
+    expect(page?.strikes).toHaveLength(10);
+    expect(page?.strikesMore).toBe(true);
+    expect(page?.liveStrikes).toBe(12);
+    expect((await t.list())?.rows.find((r) => r.id === ann)?.liveStrikes).toBe(12);
   });
 
   it("payroll, and another firm, get nothing", async () => {

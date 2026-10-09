@@ -79,7 +79,8 @@ describe("myProfile", () => {
         { day: "2026-11-04", booked: true },
         { day: "2026-11-07", booked: false },
       ],
-      rightToWork: { checked: false, checkedOn: null },
+      rightToWork: { checked: false, checkedOn: null, expired: false },
+      rolesWithoutRule: [],
     });
     expect(profile?.mobile).toMatch(/^\+447700900\d{3}$/);
     // Worst first; only the types her roles need.
@@ -90,6 +91,8 @@ describe("myProfile", () => {
         status: "expired",
         expiresOn: "2026-11-01",
         neededFor: ["close_protection_officer"],
+        appliedCounts: false,
+        renewing: false,
       },
       {
         type: "SIA_SG",
@@ -97,6 +100,8 @@ describe("myProfile", () => {
         status: "applied",
         expiresOn: null,
         neededFor: ["security_officer"],
+        appliedCounts: false,
+        renewing: false,
       },
       {
         type: "STEWARD_L2",
@@ -104,6 +109,8 @@ describe("myProfile", () => {
         status: "valid",
         expiresOn: null,
         neededFor: ["steward"],
+        appliedCounts: false,
+        renewing: false,
       },
       {
         type: "SIA_DS",
@@ -111,6 +118,8 @@ describe("myProfile", () => {
         status: "valid",
         expiresOn: "2029-01-01",
         neededFor: ["door_supervisor"],
+        appliedCounts: false,
+        renewing: false,
       },
     ]);
   });
@@ -145,11 +154,16 @@ describe("myProfile", () => {
       [f.firmId, sam],
     );
     const profile = await myProfile(ctxFor(f), sam);
-    expect(profile?.rightToWork).toEqual({ checked: true, checkedOn: "2026-01-12" });
+    expect(profile?.rightToWork).toEqual({
+      checked: true,
+      checkedOn: "2026-01-12",
+      expired: false,
+    });
     expect(profile?.qualifications.map((q) => q.type)).not.toContain("RTW");
     expect((await myProfile(ctxFor(f), kit))?.rightToWork).toEqual({
       checked: false,
       checkedOn: null,
+      expired: false,
     });
   });
 

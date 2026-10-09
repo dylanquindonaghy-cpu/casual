@@ -19,6 +19,7 @@ import { MAX_UNAVAILABLE_DAYS, UNAVAILABLE_AHEAD_DAYS } from "@/lib/portal/profi
 import {
   dateLine,
   meaning,
+  noRuleText,
   qualificationTitle,
   rightToWorkText,
   STATUS_TONES as QUALIFICATION_TONES,
@@ -78,8 +79,13 @@ export function ProfileView({
         <h2 id="qualifications-heading" className={h2}>
           Qualifications
         </h2>
+        {profile.rolesWithoutRule.length > 0 && (
+          <p className={headingGap}>{noRuleText(profile.rolesWithoutRule)}</p>
+        )}
         {profile.qualifications.length === 0 ? (
-          <p className={headingGap}>Your roles don&apos;t need any.</p>
+          profile.rolesWithoutRule.length === 0 && (
+            <p className={headingGap}>Your roles don&apos;t need any.</p>
+          )
         ) : (
           // Rows run to the card's edges; one that stops you working is red, with a red edge.
           <ul
@@ -102,8 +108,8 @@ export function ProfileView({
                   <p className={`mt-1 text-base ${nums}`}>
                     <StatusChip tone={QUALIFICATION_TONES[q.status]}>
                       {QUALIFICATION_WORDS[q.status]}
-                    </StatusChip>{" "}
-                    · {dateLine(q, year)}
+                    </StatusChip>
+                    {dateLine(q, year) && ` · ${dateLine(q, year)}`}
                   </p>
                   {means && <p className="mt-2 text-base">{means}</p>}
                 </li>

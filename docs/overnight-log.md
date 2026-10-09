@@ -11067,3 +11067,33 @@ estimate for Phase 12). **Commit:** "Phase 12: The travel filter and travel line
     soon, one Missing; the spec builds her itself until 12I.1's seed), and
     `office.workers.spec.ts` follows the rename.
 - **Docs:** `docs/screens.md`, `docs/rules-and-credentials.md`.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| A type's records read as one status, in the rules engine's order (suspended, then a valid one in date, then applied for, then expired) | A status must never say "Valid" when booking would refuse, or the reverse | Showing every record separately |
+| Profile lists only the types her roles need (it used to list every record held) | §4.6: "A type nothing needs isn't listed" | Keeping every record |
+| An application in progress counts only as check 4 allows (the type allows it, the firm's allowance is above 0); otherwise it stops a booked shift at level 1 | Otherwise a casual renewing a licence the firm won't accept would be told nothing while booked | Never flagging applications |
+| "Need updating" lists active casuals only | An inactive or blocked casual can't work | Everyone |
+| The browser test's Zoe is built by the test (a made-up "Zoe Adeyemi", the spec's persona) | The persona's full set arrives with the demo seed (12I.1) | Changing the seed now |
+| The staff photo column, "Uploads to check", "Being checked" and "Not accepted" wait for 12F.2; a session's own extra requirements show on the shift page (12H.2) | The task text says so | Empty columns now |
+
+**Guardrails review (rules, access, personal data): OK to keep, no FIX FIRST.** Isolation, access
+(payroll and disabled users get nothing; the old address's redirect reads nothing), the district
+only and the status logic against check 3 all passed. Its items:
+
+| Finding | Severity | Done |
+|---|---|---|
+| "Applied for" never flagged, though check 4 refuses it at most firms (allowance 0, or a type that doesn't allow it) | SHOULD | Counted as it is by check 4 (`appliedCounts`); level 1 when a booked shift needs it; its own words; tests at unit and database level |
+| The loader filtered every casual's records per casual (grows with the square of the firm's size) | SHOULD | Grouped once by casual; the list passes the roles it already read |
+| Renewing while still in date was told "Renew it" | NICE | Not level 3 while an application to renew is in progress; its own words |
+| A role with no rule read as "needs none" | NICE | "… shifts aren't set up yet, so you can't take them. Ask the office." (and the office's version) |
+| An expired right-to-work check read as "Not checked yet" | NICE | "The office's check has run out: ask the office" |
+| The casual's page counted live strikes from the 11 it loads | NICE | Counted in full; tested with 12 live and 3 newer withdrawn |
+| "Suspended · Suspended", "Applied for · Applied for…", the office page in the casual's voice, hard-coded 10 and 200, the list's order within level 1, the scan's window | NICE | All fixed (`EXPIRING_SOON_DAYS` in the scan too) |
+| A session's extra requirements aren't in level 1 | NICE | Noted: the shift page shows them (12H.2) |
+
+Break checks: the suspended rule, the 30-day boundary, "in date on its expiry day", the
+booked-shift boundary, listing right to work, the applied fix and the live count each made a test
+fail.

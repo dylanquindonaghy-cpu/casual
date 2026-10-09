@@ -189,7 +189,7 @@ records into one status, reading them the same way as rule 3 above. Staff-facing
 | Suspended | any record of the type is `suspended` (it fails whatever else is held) |
 | Valid | a `valid` record in date (no expiry, or expiring after the next 30 days); the longest-lasting counts |
 | Expiring soon | that record expires within `EXPIRING_SOON_DAYS` (30: the scan's first warning, `src/lib/credentials/expiry.ts`); one window for the scan, the office's Casuals pages and the casual's My shifts and Profile |
-| Applied for | no record in date, but one `applied` (an application in progress) |
+| Applied for | no record in date, but one `applied` (an application in progress). It counts towards booking only as check 4 allows: a type with `applied_allowed`, at a firm whose `credential_applied_allowance_pct` is above 0 (`appliedCounts`) |
 | Expired | records, none in date or applied (marked `expired`, or `valid` with a past date) |
 | Missing | no record of a type one of her roles needs |
 | Being checked, Not accepted | join with 12F.2's uploads |
@@ -198,13 +198,18 @@ records into one status, reading them the same way as rule 3 above. Staff-facing
   the roles that need it, worst first (suspended, expired, missing, expiring soon, applied for,
   valid). A type nothing she does needs isn't listed. A session's own extra requirements
   (`shifts.required_credentials`) show on that shift's page (12H.2).
-- **Right to work** (`RTW`) is a status only (Rules 15): "Checked by the office on {date}" (the
-  check's `verified_at`) or "Not checked yet: ask the office". It's never in the list and never
+- **Right to work** (`RTW`) is a status only (Rules 15): "Checked by the office on {date}" (a check
+  in date; its `verified_at`), "The office's check has run out: ask the office" (a time-limited
+  check past its date) or "Not checked yet: ask the office". It's never in the list and never
   enforced: no role's rule requires it, so the rules engine can book a casual without one.
+- **A role with no rule** (`credential_rules` has no row for it): check 3 refuses its shifts (fail
+  closed), so the pages say so ("… shifts aren't set up yet, so you can't take them. Ask the
+  office."), never that her roles "need none".
 - **Needs updating** (`needsUpdating()`), in four levels: (1) it stops a booked shift (expired,
-  suspended or missing, or in date only until before the shift's last day, as rule 3 reads it);
-  (2) expired or suspended; (3) expiring soon; (4) missing. Applied for isn't listed (nothing for
-  her to do yet). Within a level: the shift it stops soonest, the worst status, the soonest date,
+  suspended or missing; applied for where check 4 won't accept it; or in date only until before
+  the shift's last day, as rule 3 reads it); (2) expired or suspended; (3) expiring soon, unless
+  an application to renew it is in progress; (4) missing. Otherwise applied for isn't listed
+  (nothing for her to do yet). Within a level: the shift it stops soonest, the worst status, the soonest date,
   then the name. The staff photo's levels join with 12F.2.
 
 ## Test cases (table-driven, all must pass)

@@ -16,7 +16,13 @@ import {
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
-import { CASUAL_VIEWS, casualsList, type CasualRow, type CasualView } from "@/lib/office/casuals";
+import {
+  CASUAL_VIEWS,
+  CASUALS_PAGE_MAX,
+  casualsList,
+  type CasualRow,
+  type CasualView,
+} from "@/lib/office/casuals";
 import { STATUS_WORDS as ACCESS_WORDS } from "@/lib/office/worker-copy";
 import { roleLabel } from "@/lib/portal/format";
 import {
@@ -43,7 +49,15 @@ const hrefOf = (view: CasualView) =>
 
 // Each qualification as a tag, the worst first.
 function Tags({ row }: { row: CasualRow }) {
-  if (row.qualifications.length === 0) return <span className={meta}>None needed</span>;
+  if (row.qualifications.length === 0) {
+    return (
+      <span className={meta}>
+        {row.rolesWithoutRule.length > 0
+          ? `No rule for ${row.rolesWithoutRule.map(roleLabel).join(", ")}`
+          : "None needed"}
+      </span>
+    );
+  }
   return (
     <span className="flex flex-wrap gap-1">
       {row.qualifications.map((q) => (
@@ -180,7 +194,7 @@ export default async function OfficeCasualsPage({
             </ul>
             {list.more && (
               <p className={`${meta} mt-2`}>
-                Showing the first 200. Use Find a casual to find anyone else.
+                Showing the first {CASUALS_PAGE_MAX}. Use Find a casual to find anyone else.
               </p>
             )}
           </>

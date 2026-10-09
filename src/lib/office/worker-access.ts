@@ -402,6 +402,7 @@ export interface WorkerAccessView {
   qualifications: CasualQualifications["qualifications"];
   rightToWork: CasualQualifications["rightToWork"];
   needs: CasualQualifications["needs"];
+  rolesWithoutRule: string[];
   strikes: CasualStrike[]; // newest first, at most STRIKES_PER_CASUAL
   strikesMore: boolean;
   liveStrikes: number; // live and still counting
@@ -483,6 +484,11 @@ export async function workerAccessView(
     const timeZone = firm?.timezone ?? "Europe/London";
     const held = (await qualificationsFor(tx, [worker.id], { now, timeZone })).get(worker.id);
     const strikes = (await strikesOf(tx, [worker.id], now)).get(worker.id) ?? [];
+    // Counted on its own: the list above holds only the latest few.
+    const { rows: live } = await tx.execute<{ n: number }>(sql`
+      select count(*)::int as n from strikes st
+       where st.worker_id = ${worker.id} and st.status = 'live' and st.expires_at > ${now}
+    `);
     return {
       id: worker.id,
       name: `${worker.firstName} ${worker.lastName}`,
@@ -514,11 +520,12 @@ export async function workerAccessView(
       })),
       aheadMore: ahead.length > WORKER_AHEAD_MAX,
       qualifications: held?.qualifications ?? [],
-      rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null },
+      rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null, expired: false },
       needs: held?.needs ?? [],
+      rolesWithoutRule: held?.rolesWithoutRule ?? [],
       strikes: strikes.slice(0, STRIKES_PER_CASUAL),
       strikesMore: strikes.length > STRIKES_PER_CASUAL,
-      liveStrikes: strikes.filter((s) => s.counting).length,
+      liveStrikes: Number(live[0]?.n ?? 0),
       timeZone,
     };
   });

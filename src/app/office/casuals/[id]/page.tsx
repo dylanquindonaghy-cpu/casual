@@ -7,12 +7,14 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { dayWithYear } from "@/lib/office/action-log";
 import { STATUS_WORDS } from "@/lib/office/worker-copy";
 import { workerAccessView } from "@/lib/office/worker-access";
+import { STRIKES_PER_CASUAL } from "@/lib/office/strikes";
 import { liveCountText, strikeLine, strikeStatusText } from "@/lib/office/strikes-copy";
 import { SITE_BLOCK_REASON_WORDS } from "@/lib/office/worker-reasons";
 import { roleLabel, shiftWhen } from "@/lib/portal/format";
 import {
   dateLine,
   needsText,
+  noRuleText,
   qualificationTitle,
   rightToWorkText,
   STATUS_TONES as QUALIFICATION_TONES,
@@ -72,7 +74,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
               ) : (
                 <ul role="list" className="mt-2 flex flex-col gap-2">
                   {worker.needs.map((n) => (
-                    <li key={n.qualification.type}>{needsText(n, Number(thisYear))}</li>
+                    <li key={n.qualification.type}>{needsText(n, Number(thisYear), "office")}</li>
                   ))}
                 </ul>
               )}
@@ -82,8 +84,13 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
               <h2 id="qualifications" className={h2}>
                 Qualifications
               </h2>
+              {worker.rolesWithoutRule.length > 0 && (
+                <p className="mt-2">{noRuleText(worker.rolesWithoutRule, "office")}</p>
+              )}
               {worker.qualifications.length === 0 ? (
-                <p className="mt-2 text-ink-muted">Their roles don&apos;t need any.</p>
+                worker.rolesWithoutRule.length === 0 && (
+                  <p className="mt-2 text-ink-muted">Their roles don&apos;t need any.</p>
+                )
               ) : (
                 <ul role="list" className="mt-2 divide-y divide-line">
                   {worker.qualifications.map((q) => (
@@ -92,8 +99,8 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                       <p className="mt-1 tabular-nums">
                         <StatusChip tone={QUALIFICATION_TONES[q.status]}>
                           {QUALIFICATION_WORDS[q.status]}
-                        </StatusChip>{" "}
-                        · {dateLine(q, Number(thisYear))}
+                        </StatusChip>
+                        {dateLine(q, Number(thisYear)) && ` · ${dateLine(q, Number(thisYear))}`}
                       </p>
                     </li>
                   ))}
@@ -135,7 +142,9 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
                   ))}
                 </ul>
               )}
-              {worker.strikesMore && <p className={`${meta} mt-2`}>Showing the latest 10.</p>}
+              {worker.strikesMore && (
+                <p className={`${meta} mt-2`}>Showing the latest {STRIKES_PER_CASUAL}.</p>
+              )}
             </section>
 
             <section className={card} aria-labelledby="access">

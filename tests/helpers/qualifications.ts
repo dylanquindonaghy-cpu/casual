@@ -9,6 +9,8 @@ export const qual = (o: Partial<Qualification> = {}): Qualification => ({
   status: "valid",
   expiresOn: "2029-01-01",
   neededFor: ["door_supervisor"],
+  appliedCounts: false,
+  renewing: false,
   ...o,
 });
 

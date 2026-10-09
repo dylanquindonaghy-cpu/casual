@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { qualificationsFor } from "../credentials/qualifications";
-import type { Qualification } from "../credentials/status";
+import type { Qualification, RightToWork } from "../credentials/status";
 import { workers, workerUnavailableDays } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
@@ -41,7 +41,8 @@ export interface Profile {
   offerAlerts: boolean;
   textsOff: boolean; // they replied STOP to a text: no texts until they reply START
   qualifications: Qualification[];
-  rightToWork: { checked: boolean; checkedOn: string | null };
+  rightToWork: RightToWork;
+  rolesWithoutRule: string[]; // her roles the firm has no rule for (she can't take those shifts)
   unavailable: { day: string; booked: boolean }[];
   today: string;
 }
@@ -106,7 +107,8 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       mobile: me.mobile,
       textsOff: smsOptedOutAt !== null,
       qualifications: held?.qualifications ?? [],
-      rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null },
+      rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null, expired: false },
+      rolesWithoutRule: held?.rolesWithoutRule ?? [],
       unavailable: days.map(({ day }) => ({ day, booked: booked.has(day) })),
       today,
     };

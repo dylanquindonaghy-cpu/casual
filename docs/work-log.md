@@ -11104,3 +11104,135 @@ clear status, and the office has a new "Casuals" area.
 
 Run `npm run dev`, log in to the office as `acme.resourcer@example.com`, and open "Casuals". Try
 "Need updating", then open someone. As a casual, open "My profile" to see "Qualifications".
+
+
+## 2026-10-09 and 10 — Phase 12, task 12F.2: Uploads, the check view and the staff photo
+
+**Time spent:** 2.3 hours (16:28 to 17:54 UTC on 9 October, then 12:05 to 12:59 UTC on
+10 October). The gap was the cloud computer sitting idle after a restart, not work.
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=db42e775086e22f1 e2e=true`.
+That run passed 4,296 tests in 246 files, 83 browser tests (tests that click through the real
+pages in a browser) and the walkthrough's 3, with none skipped. The independent auditor said
+**VERDICT: DONE** on its first round. The commit is "Phase 12: Uploads, the check view and the staff photo
+(12F.2)", pushed to `build/overnight`. GitHub's own test run (CI) still can't start on this account (see
+the morning summary), so the local run above is the evidence.
+
+### What was built, in plain words
+
+Casuals can now send a photo of themselves and photos of their cards from their phone, and the
+office checks each one before it counts.
+
+- **Sending one:**
+  - On Profile, "Upload a new photo" opens the front camera.
+  - Each qualification has "Upload a certificate", which opens the back camera or her photos.
+  - The phone shrinks the picture first, to a JPEG (a common picture format) of 1,600 pixels at
+    most, so it stays under the 1 MB limit.
+- **On the server** (`src/lib/uploads/image.ts`):
+  - It reads the file's real type from its first few bytes, never from the file name. Only JPEG,
+    PNG or WebP are accepted.
+  - It refuses anything too big.
+  - It redraws the picture with `sharp` (an image library). That keeps only the pixels and drops
+    hidden details such as where the photo was taken (GPS).
+- **Checking it:**
+  - The office sees a new view, "Uploads to check" (oldest first), with a count badge on the
+    Casuals menu.
+  - On the casual's page each image has "Approve" or "Don't accept" with a reason.
+  - Approving a card takes the expiry date and number as the person reads them. For an SIA
+    licence there's a link to the GOV.UK register.
+- **Only checked items count.** A card she sent does nothing until a named office person
+  approves it. Every place that reads qualifications ignores unchecked ones. The database also
+  stores an unchecked one as "expired", so even a place that forgot to ignore it couldn't count
+  it.
+- **The staff photo:**
+  - Its status is Up to date, Due soon, Overdue, Missing or Waiting for check.
+  - It comes from the latest approved photo, renewed every 36 months (a firm setting,
+    `photo.renewal_months`).
+  - A photo waiting for the office never replaces the approved one.
+- **Some things a casual can never upload:**
+  - CSAS: the office records it, after confirming it's under the firm's own scheme.
+  - Right to work papers.
+  - Anything holding health or criminal record details: drug and alcohol tests, rail medicals,
+    DBS. The office records those itself, so we never keep a copy.
+- **The images** are only ever served by `/files/{id}`: to the casual (her own) or her firm's
+  admins and resourcers. They are never cached, and never stored on the phone.
+- **Clearing out and exporting:**
+  - A turned-down upload is deleted 30 days after the check.
+  - A replaced photo is deleted 30 days after the new one is approved.
+  - Nothing is deleted while a dispute hold is on, and erasing a casual deletes all of theirs.
+  - The data exports list each image's details and fingerprint, never the picture itself. Each
+    picture is its own download on the data page.
+- **The expiry reminders** (WhatsApp) now say "Upload your renewed card", with a link to the
+  upload page. My shifts' "Needs updating" rows link there too.
+
+### Key facts and numbers
+
+- Upload limit: 950,000 bytes per file (Next's server-action limit is 1 MB). The stored picture
+  is at most 1,000,000 bytes, and the database checks that too.
+- One waiting upload per casual, per photo or per qualification. A new one replaces it.
+- Pictures claiming more than 40 million pixels are refused (a small file can claim a huge
+  picture).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A card she sent is stored as "expired" until checked, and every reader also skips unchecked ones | Two locks on one door: if a future screen forgets the filter, the database still says "expired" (golden rule 6) | The filter alone |
+| The office records CSAS, right to work, drug and alcohol tests, rail medicals and DBS; casuals can't upload them. Each firm's list is data (`credential_types.office_recorded`) | We never keep a copy of health or criminal record papers, or right-to-work papers. CSAS belongs to the firm's own police scheme by law | Casuals upload everything |
+| The upload limit is 950,000 bytes | Next.js (the web framework) refuses form posts over 1 MB; a 1,600px JPEG is far smaller | Raising the limit for every form |
+| A new upload replaces her own one still waiting; a checked one is never touched | One thing per item for the office; she can fix a blurry photo before anyone looks | A queue of several |
+| Approving a card needs its expiry date, or a deliberate "It has no expiry date" tick; a past date, or one over 10 years ahead, is refused | A forgotten date would make a licence count for ever (found by the guardrails review) | An empty date meaning "no expiry" |
+| Reminders link to the upload page only for a card she can upload and her roles need | Otherwise the link leads to a page that can't take it (guardrails FIX FIRST) | One wording for everyone |
+| A waiting photo shows "Waiting for check", but the photo and its dates stay the approved one's | Tells the office there's something to do; an unchecked photo never becomes her staff photo | Keep "Up to date" until approved |
+| No message to the casual when the office approves or turns one down | Not in the agreed message list (those messages were cut on 2026-10-06); her Profile shows it | A new WhatsApp template |
+
+### What the new tests prove
+
+- **The pictures themselves** (`tests/unit/uploads.image.test.ts`): real images made with `sharp`.
+  A file pretending to be a JPEG by its name is refused; GPS and camera details are gone after
+  saving; a sideways phone photo is turned upright; oversize files and giant pixel counts are
+  refused.
+- **The staff photo's status** (`tests/unit/uploads.photo.test.ts`): every boundary day (31 days
+  before, 30 days before, the renew-by day, the day after), and that a waiting photo never replaces
+  the approved one.
+- **On the real database** (`tests/integration/uploads.test.ts`, 18 tests):
+  - a waiting or turned-down card can't book a shift; once approved it can;
+  - only the casual and her firm's admins and resourcers can open an image (another casual,
+    another firm, payroll and a switched-off account all get "not found");
+  - a casual can't upload CSAS, or a card her roles don't need;
+  - "Uploads to check" lists the oldest first;
+  - the 30-day clear-out deletes at 31 days, not 29, and nothing during a hold;
+  - exports carry the details but never the picture; erasing deletes them;
+  - a race test: a casual re-sending while the office approves, run 6 times. It failed 3 times
+    out of 3 on the old code, so it really catches the bug it was written for.
+- **Other firms can't see them** (`tenancy.isolation.test.ts`): the new table is in the
+  cross-firm tests like every other.
+- **In a browser** (`tests/e2e/uploads.spec.ts`): a casual uploads a 2400×3200 camera photo and a
+  card; the office sees the badge and both items in order, approves them, and the casual's
+  Profile shows "Up to date".
+- **Break checks:** I broke the code on purpose 7 ways (the rules without the "checked only"
+  filter, a casual's file without the owner check, a casual uploading CSAS, the clear-out at 20
+  days, the waiting photo status, the photo not turned upright, the race). Each time a test
+  failed, then the code was put back.
+
+### What's parked or needs Dylan
+
+Nothing here needs Dylan before it works with the fake data. Parked for later (in the
+Parking lot in `PLAN.md`):
+
+- a database link making sure a card's record and its image belong to the same casual (today the
+  code saves both together);
+- refusing CSAS recorded twice, or for a casual who isn't active;
+- a limit on how often a casual can upload;
+- which licences get the GOV.UK register link, as data instead of code;
+- not sending "expired" reminders while a renewal waits for the office;
+- how long to keep a card's image after the qualification ends (§5.5 points at a firm setting
+  that isn't defined yet).
+
+### How to see it working
+
+Run `npm run dev`. Log in at `http://acme.localhost:3000` as Maya Morgan (`07700 900129`, a door
+supervisor whose licence has expired), open "My profile" and tap "Upload a new photo" (on a
+computer it opens a file picker). Then log in to the office as `acme.resourcer@example.com`,
+open "Casuals" and then "Uploads to check", and approve it. Back on Maya's Profile, the photo
+says "Up to date".

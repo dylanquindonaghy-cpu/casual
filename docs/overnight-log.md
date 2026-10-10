@@ -11224,3 +11224,89 @@ written in `PLAN.md`.
     firm's or casual's file, the queue, the Staff photo column, purges, erase and export,
     isolation;
   - e2e: a casual uploads a photo and a card, the office checks them.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| An unchecked record is stored as `expired` with its upload (a database check), and every reader also filters `check_state = 'verified'` | Twice over: a reader that ever misses the filter still can't count an unchecked licence (golden rule 6) | The filters alone |
+| The office records RTW, CSAS, drugs and alcohol tests, rail medicals and DBS; casuals can't upload them. Per firm (`credential_types.office_recorded`, migration 0043), and the packs' list always holds | We never keep a copy of special-category or criminal-offence data, or right-to-work papers. CSAS is the firm's own scheme by law | Casuals upload everything; or CSAS only, as the spec named |
+| The upload limit is 950,000 bytes, the web import's | Next's server-action body limit is 1 MB. The phone's 1,600px JPEG is far smaller | Raising Next's limit for every action |
+| A new upload replaces her own waiting one (deleted); one already checked is never touched | One thing per item for the office to check; she can fix a bad photo before anyone looks | A queue of several |
+| Photo status "Waiting for check" while one waits, even when the current one is up to date; the current photo and dates stay the approved one's | Says what the office must do; "a waiting photo never replaces the approved one" | Keep "Up to date" until approved |
+| A renewal waiting while hers is in date counts as "renewing" (not "expiring soon" to sort out), but still stops a booked shift after the old one expires | The rules ignore it until approved | Treat it as done |
+| "Not accepted" is level 2 of Needs updating. "Being checked" isn't listed unless it stops a booked shift | She must act on a rejection; on a waiting one it's the office's turn | Both at level 4 |
+| A turned-down upload goes 30 days after the check, with its "Not accepted" record (her Profile goes back to Missing or Expired) | §5.5; a stale "Not accepted" would mislead | Keep the record |
+| A certificate's image stays with its record (no purge yet when it's superseded) | §5.5: "kept while the qualification is current, then follow the firm's retention setting". That setting isn't defined yet: parked | Purge superseded ones at 30 days |
+| Approving needs a date, or a deliberate "It has no expiry date" tick; a date past or over 10 years ahead is refused | A forgotten date would make a licence count for ever (guardrails SHOULD) | A blank date meaning no expiry |
+| Reminders link to `/profile/upload/{type}` only for types she can upload and her roles need; the rest keep the old words (`credential_expiring_to_office`, `credential_expired_to_office`) | Otherwise the link leads to a page that can't take it (guardrails FIX FIRST) | One wording for all |
+| "The three copies kept in step" are the code, `docs/messaging-templates.md` and the WhatsApp pack. The old "marked expired" banner text, unused since 12F.1's Needs updating card, was removed with its doc row; the doc row now describes the card | Dead text that described a screen that no longer exists | Keep it |
+| No message to the casual when the office approves or rejects | Not in §5.7 (`upload_rejected` and `photo_due` were cut on 2026-10-06); Profile shows it | A new template |
+| The casual's page "Uploads to check" keeps checked items on screen with their answer | The page refresh otherwise removed the confirmation (found by the browser test) | A page-level message |
+
+**Guardrails review (schema, access, rules, messaging, personal data): FIX FIRST ×2, then OK after the fixes.**
+
+| Finding | Severity | Done |
+|---|---|---|
+| A resend could delete a photo the office had just approved (unlocked read, delete by id), and approve could deadlock with erasure | FIX FIRST | Approve and reject lock the casual's row first (`lockWaiting`), as save, erase and CSAS do; save locks the old one and deletes only a waiting one. A race test (6 rounds) fails 3/3 on the old code |
+| Expiry reminders for RTW, office-recorded types and types her roles don't need linked to an upload page that 404s or refuses | FIX FIRST | No-link wording and its own templates; the upload page sends such a type to `/profile` |
+| A blank expiry date made a licence valid for ever | SHOULD | A date, or the "It has no expiry date" tick; over 10 years ahead refused |
+| Office-recorded types were code, not firm data | SHOULD | `credential_types.office_recorded` (migration 0043, backfilled per firm) |
+| A waiting upload for a type her roles no longer need couldn't be checked | SHOULD | The casual's page lists every waiting upload (`waitingUploads`) |
+| The upload action didn't use zod | SHOULD | zod at the boundary |
+| A date and "no expiry" both, far-future dates, a hand-written UUID check | NICE | Refused / refused / `z.uuid()` |
+| A worker-scoped evidence foreign key, CSAS duplicates and inactive casuals, an upload rate limit, `isSiaType` as pack data, the expired message while a renewal waits | NICE | Parked |
+
+Break checks (each made a test fail): the rules loader without the check filter, a casual's file without the owner check, a casual uploading CSAS, the 30-day purge at 20, the waiting photo status, the image not turned upright, and the race (3 of 3).
+
+**Root causes found while closing it:**
+
+- A browser test checked that the image had loaded before the page had fetched it. It now
+  fetches `/files/{id}` itself and waits for the answer (`expect.poll`).
+- After "Approve", the page refresh removed the item and its confirmation with it, so the
+  office never saw "Approved". A real usability bug, found by the browser test: "Uploads to
+  check" now keeps the list it opened with, each checked item showing its answer.
+- The office's check form imported the reject reasons from the database schema, which a page
+  running in the browser must never load (the client-boundary test caught it). It now takes them
+  from the copy file.
+- The log-words scanner read the test file name "upload.jpg" as a log action. The file is now
+  called "picture".
+- The isolation test's foreign-key probe added a second waiting photo for the same casual, which
+  the "one waiting" index refuses before the key is tested. The probe now uses a waiting
+  certificate of its own made-up type.
+- The casual's export legitimately has `data` fields (the log's). The "no image bytes" check now
+  looks for stored bytes themselves (a `Buffer`), not the word.
+- The container restarted overnight (17:54 to 12:05 UTC, nothing running). Docker, the database
+  and the test host names (`/etc/hosts`) were set up again; no repo file changed for it.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=db42e775086e22f1 e2e=true`:
+246 test files with 4,296 tests, 83 browser tests and the walkthrough's 3, none skipped.
+
+**Audit round 1 (claims-auditor), verbatim verdict:**
+
+> VERDICT: DONE
+
+It marked every claim PROVEN except the guardrails review, "PARTIAL but acceptable": only this
+log says the review ran, but both FIX FIRST fixes are in the code. Two notes, not blockers: a
+superseded certificate's image isn't purged yet (parked, not in the task), and the many-casual
+loaders (offer waves, Open shifts) are held by the same filter and the database check rather
+than a test of their own with a waiting record.
+
+**Hours:** 2.3 (16:28 to 17:54 UTC on 9 October, then 12:05 to 12:59 UTC on 10 October; the gap
+was the idle container). Phase 12 so far: 24.4 hours over 22 Hours-log rows (no estimate for
+Phase 12). **Commit:** "Phase 12: Uploads, the check view and the staff photo (12F.2)", pushed
+(its hash in the next entry). The work so far was saved first as `3cfe21d` (WIP, pushed).
+
+**CI:** GitHub Actions still can't start a job on this account (minutes or billing; already
+explained once on PR #2). The local verify above is the evidence for this task.
+
+**Parked (Parking lot):**
+
+- a foreign key tying a record's upload to the same casual (today the code sets both);
+- CSAS recorded twice, or for a casual who isn't active;
+- a limit on how often a casual can upload;
+- which types get the SIA register link, as pack data (today a code list);
+- the "expired" reminder while a renewal waits for the office, and skipping expiry warnings
+  while one waits;
+- certificate images kept after their qualification ends (§5.5's retention setting isn't
+  defined yet).

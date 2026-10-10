@@ -106,36 +106,24 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
             {/* Always there: it shows itself while it has anything to check, and keeps what was
                 checked here on screen with its answer. */}
             <UploadsToCheck
-              items={[
-                ...(worker.photo.waiting
-                  ? [
-                      {
-                        uploadId: worker.photo.waiting.id,
-                        kind: "photo" as const,
-                        type: null,
-                        title: "Staff photo",
-                        name: "staff photo",
-                        alt: `New staff photo of ${worker.name}`,
-                        sent: `Sent ${shortDate(worker.photo.waiting.uploadedOn, Number(thisYear))}`,
-                      },
-                    ]
-                  : []),
-                ...worker.qualifications.flatMap((q) =>
-                  q.waiting
-                    ? [
-                        {
-                          uploadId: q.waiting.uploadId,
-                          kind: "certificate" as const,
-                          type: q.type,
-                          title: qualificationTitle(q.name),
-                          name: q.name,
-                          alt: `${qualificationTitle(q.name)} sent by ${worker.name}`,
-                          sent: `Sent ${shortDate(q.waiting.sentOn, Number(thisYear))}`,
-                        },
-                      ]
-                    : [],
-                ),
-              ]}
+              items={worker.waitingUploads.map((u) => {
+                const title =
+                  u.kind === "photo"
+                    ? "Staff photo"
+                    : qualificationTitle(u.name ?? (u.type ?? "").replace(/_/g, " ").toLowerCase());
+                return {
+                  uploadId: u.id,
+                  kind: u.kind,
+                  type: u.type,
+                  title,
+                  name: u.kind === "photo" ? "staff photo" : (u.name ?? title),
+                  alt:
+                    u.kind === "photo"
+                      ? `New staff photo of ${worker.name}`
+                      : `${title} sent by ${worker.name}`,
+                  sent: `Sent ${shortDate(localDateOf(u.sentAt, tz), Number(thisYear))}`,
+                };
+              })}
             />
 
             <section className={card} aria-labelledby="photo">

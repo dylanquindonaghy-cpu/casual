@@ -1,17 +1,19 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
 import { endEverySession } from "../auth/sessions";
 import { qualificationsFor, type CasualQualifications } from "../credentials/qualifications";
 import {
   assignments,
+  credentialTypes,
   firms,
+  type SITE_BLOCK_REASONS,
   sites,
+  type TravelMode,
+  uploads,
   workers,
   workerSiteBlocks,
   workerTravel,
-  type SITE_BLOCK_REASONS,
-  type TravelMode,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { retryAborted } from "../db/retry";
@@ -404,6 +406,15 @@ export interface WorkerAccessView {
   needs: CasualQualifications["needs"];
   rolesWithoutRule: string[];
   photo: CasualQualifications["photo"]; // their staff photo (12F.2)
+  // Every upload of theirs waiting for the office, oldest first: each can be checked here, even one
+  // for a type their roles no longer need (otherwise it would wait for ever).
+  waitingUploads: {
+    id: string;
+    kind: "photo" | "certificate";
+    type: string | null;
+    name: string | null; // the type's name, mid-sentence
+    sentAt: Date;
+  }[];
   strikes: CasualStrike[]; // newest first, at most STRIKES_PER_CASUAL
   strikesMore: boolean;
   liveStrikes: number; // live and still counting
@@ -525,6 +536,24 @@ export async function workerAccessView(
       needs: held?.needs ?? [],
       rolesWithoutRule: held?.rolesWithoutRule ?? [],
       photo: held?.photo ?? { status: "missing", current: null, waiting: null },
+      waitingUploads: await tx
+        .select({
+          id: uploads.id,
+          kind: uploads.kind,
+          type: uploads.credentialType,
+          name: credentialTypes.name,
+          sentAt: uploads.createdAt,
+        })
+        .from(uploads)
+        .leftJoin(
+          credentialTypes,
+          and(
+            eq(credentialTypes.firmId, uploads.firmId),
+            eq(credentialTypes.code, uploads.credentialType),
+          ),
+        )
+        .where(and(eq(uploads.workerId, worker.id), eq(uploads.status, "waiting")))
+        .orderBy(asc(uploads.createdAt), asc(uploads.id)),
       strikes: strikes.slice(0, STRIKES_PER_CASUAL),
       strikesMore: strikes.length > STRIKES_PER_CASUAL,
       liveStrikes: Number(live[0]?.n ?? 0),

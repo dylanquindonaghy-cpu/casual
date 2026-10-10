@@ -128,10 +128,11 @@ const uploadId = z.uuid();
 export async function approveUploadAction(
   id: unknown,
   expiresOn: unknown,
+  noExpiry: unknown,
   number: unknown,
 ): Promise<CheckOutcome> {
   const parsedId = uploadId.safeParse(id);
-  const input = approveSchema.safeParse({ expiresOn, number });
+  const input = approveSchema.safeParse({ expiresOn, noExpiry, number });
   if (!parsedId.success || !input.success) return { status: "invalid" };
   return asOffice("approve upload", (ctx) => approveUpload(ctx, parsedId.data, input.data));
 }
@@ -146,11 +147,12 @@ export async function rejectUploadAction(id: unknown, reason: unknown): Promise<
 export async function recordCsasAction(
   workerId: unknown,
   expiresOn: unknown,
+  noExpiry: unknown,
   number: unknown,
   ownScheme: unknown,
 ): Promise<CheckOutcome> {
   const parsedId = uploadId.safeParse(workerId);
-  const input = csasSchema.safeParse({ expiresOn, number, ownScheme });
+  const input = csasSchema.safeParse({ expiresOn, noExpiry, number, ownScheme });
   if (!parsedId.success || !input.success) return { status: "invalid" };
   return asOffice("record CSAS", (ctx) => recordCsas(ctx, parsedId.data, input.data));
 }

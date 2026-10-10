@@ -190,8 +190,15 @@ the current SIA rule before enabling.
 - **What a casual can't upload** (`officeRecorded` in `src/lib/rules/packs.ts`): CSAS (only the
   firm's own scheme covers its shifts, Police Reform Act 2002 s.41: the office records it on the
   casual's page after confirming that), right to work (Rules 15), and documents holding health or
-  criminal record details (`RAIL_DA`, `RAIL_MEDICAL`, `DBS`). A firm's own type outside the packs
-  may be uploaded.
+  criminal record details (`RAIL_DA`, `RAIL_MEDICAL`, `DBS`). It's the firm's own data too
+  (`credential_types.office_recorded`, from the pack, migration 0043): a firm may mark its own types
+  so, and the packs' list always holds. The expiry reminders for one she can't upload (the office
+  records it, or none of her roles needs it) keep the words "send the new details to the office",
+  with no upload link (`credential_expiring_to_office`, `credential_expired_to_office`).
+- **Approving one** takes the expiry date as the person reads it from the card: a date already gone
+  is refused (reject it as expired), as is one more than 10 years ahead; no date only when they
+  tick "It has no expiry date". The casual's row is locked first, as saving one, erasure and
+  recording CSAS do, so a resend never deletes one just checked.
 
 ## Qualification statuses (what casuals and the office see, 12F.1)
 

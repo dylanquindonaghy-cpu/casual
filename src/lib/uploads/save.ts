@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
-import { credentialRules, credentials, uploads, workers } from "../db/schema";
+import { credentialRules, credentials, credentialTypes, uploads, workers } from "../db/schema";
 import { withFirm, type FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import type { PortalContext } from "../portal/my-shifts";
@@ -72,8 +72,15 @@ export async function saveMyUpload(
       return { status: "not_active" };
     }
     const type = target.kind === "certificate" ? target.type : null;
-    if (type !== null && !(await rolesNeed(tx, worker.roles, type))) {
-      return { status: "not_needed" };
+    if (type !== null) {
+      // The firm's own word that only the office records it (the packs' list was checked above).
+      const [kind] = await tx
+        .select({ officeRecorded: credentialTypes.officeRecorded })
+        .from(credentialTypes)
+        .where(eq(credentialTypes.code, type));
+      if (kind?.officeRecorded || !(await rolesNeed(tx, worker.roles, type))) {
+        return { status: "not_needed" };
+      }
     }
     // Her own still waiting, replaced: its waiting record first (it points at the upload).
     const sameKind = and(
@@ -82,14 +89,16 @@ export async function saveMyUpload(
       eq(uploads.status, "waiting"),
       type === null ? sql`${uploads.credentialType} is null` : eq(uploads.credentialType, type),
     );
-    const [old] = await tx.select({ id: uploads.id }).from(uploads).where(sameKind);
+    // Locked, and deleted only while still waiting: the office checks one with her row locked
+    // too (src/lib/uploads/check.ts), so one just approved or rejected is never deleted here.
+    const [old] = await tx.select({ id: uploads.id }).from(uploads).where(sameKind).for("update");
     if (old) {
       await tx
         .delete(credentials)
         .where(
           and(eq(credentials.evidenceUploadId, old.id), eq(credentials.checkState, "waiting")),
         );
-      await tx.delete(uploads).where(eq(uploads.id, old.id));
+      await tx.delete(uploads).where(and(eq(uploads.id, old.id), eq(uploads.status, "waiting")));
     }
     const [added] = await tx
       .insert(uploads)

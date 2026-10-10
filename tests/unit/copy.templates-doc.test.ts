@@ -336,6 +336,19 @@ describe("the code says what the doc says", () => {
     expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", "{link}")).toBe(
       docBody("credential_expired"),
     );
+    // One she can't upload: the row's second quote, with no link.
+    const second = (name: string) =>
+      [
+        ...(doc.split("\n").find((l) => l.startsWith(`| \`${name}\``)) ?? "").matchAll(
+          /"([^"]+)"/g,
+        ),
+      ][1]?.[1];
+    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}", null)).toBe(
+      second("credential_expiring"),
+    );
+    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", null)).toBe(
+      second("credential_expired"),
+    );
     // The screen copy is My shifts' "Needs updating" card (12F.1), not a message: the doc says so
     // and points to its words; its rows lead to the same upload page.
     const screen = doc.split("\n").find((l) => l.startsWith("| (screen only: My shifts"));
@@ -845,6 +858,20 @@ describe("the WhatsApp submission pack", () => {
         ex("credential_expired", "date"),
         ex("credential_expired", "link"),
       ),
+    credential_expiring_to_office: () =>
+      credentialExpiringMessage(
+        voice("credential_expiring_to_office"),
+        ex("credential_expiring_to_office", "credential"),
+        ex("credential_expiring_to_office", "date"),
+        null,
+      ),
+    credential_expired_to_office: () =>
+      credentialExpiredMessage(
+        voice("credential_expired_to_office"),
+        ex("credential_expired_to_office", "credential"),
+        ex("credential_expired_to_office", "date"),
+        null,
+      ),
     request_update: () =>
       requestUpdateMessage(voice("request_update"), {
         type: ex("request_update", "type"),
@@ -903,11 +930,20 @@ describe("the WhatsApp submission pack", () => {
     };
     for (const t of WHATSAPP_TEMPLATES) {
       const values = Object.fromEntries(t.variables.map((v) => [v, placeholder[v] ?? `{${v}}`]));
+      // A "_to_office" variant (12F.2) is the second wording in its doc row (no upload link).
+      const toOffice = () =>
+        [
+          ...(doc.split("\n").find((l) => l.startsWith(`| \`${t.docName}\``)) ?? "").matchAll(
+            /"([^"]+)"/g,
+          ),
+        ][1]?.[1];
       const expected = t.name.endsWith("_no_site")
         ? docBody(t.docName).replace(" at {site}", "")
         : t.name.endsWith("_no_note")
           ? docBody(t.docName).replace(" The office says: {note}", "")
-          : docBody(t.docName);
+          : t.name.endsWith("_to_office")
+            ? toOffice()
+            : docBody(t.docName);
       expect(fillWhatsAppTemplate(t, values), t.name).toBe(expected);
     }
   });

@@ -93,6 +93,10 @@ export const credentialTypes = pgTable(
     // The pack it came from; "any" for types every sector uses (right to work).
     sector: text("sector", { enum: CREDENTIAL_TYPE_SECTORS }).notNull(),
     appliedAllowed: boolean("applied_allowed").notNull().default(false),
+    // Recorded by the office only: a casual can't upload an image of it (12F.2). From the pack
+    // (src/lib/rules/packs.ts `officeRecorded`); a firm may mark its own types so too, and the
+    // pack's list always holds (casualMayUpload).
+    officeRecorded: boolean("office_recorded").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [

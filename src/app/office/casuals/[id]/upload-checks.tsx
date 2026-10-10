@@ -25,6 +25,31 @@ const failed = { status: "error" as const };
 const done = (r: CheckOutcome) =>
   r.status === "approved" || r.status === "rejected" || r.status === "recorded";
 
+// No date is a choice a person makes, never a field left empty by mistake (a licence with no expiry
+// would count for ever).
+function NoExpiry({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <label className="flex min-h-11 items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="h-5 w-5 shrink-0 accent-ink"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={disabled}
+      />
+      It has no expiry date
+    </label>
+  );
+}
+
 function useCheck() {
   const router = useRouter();
   const ready = useHydrated();
@@ -58,6 +83,7 @@ export function CheckUpload({
   const id = useId();
   const { off, ready, message, finished, run } = useCheck();
   const [expiresOn, setExpiresOn] = useState("");
+  const [noExpiry, setNoExpiry] = useState(false);
   const [number, setNumber] = useState("");
   const [reason, setReason] = useState<RejectReason | "">("");
   if (finished) {
@@ -76,7 +102,8 @@ export function CheckUpload({
           run(() =>
             approveUploadAction(
               uploadId,
-              kind === "certificate" ? expiresOn : "",
+              kind === "certificate" && !noExpiry ? expiresOn : "",
+              kind === "certificate" && noExpiry,
               kind === "certificate" ? number : "",
             ),
           );
@@ -92,14 +119,11 @@ export function CheckUpload({
                 id={`${id}-expires`}
                 type="date"
                 className={`${field} w-48`}
-                value={expiresOn}
+                value={noExpiry ? "" : expiresOn}
                 onChange={(e) => setExpiresOn(e.target.value)}
-                aria-describedby={`${id}-expires-hint`}
-                disabled={!ready}
+                disabled={!ready || noExpiry}
               />
-              <span id={`${id}-expires-hint`} className={meta}>
-                Leave empty if it doesn&apos;t expire.
-              </span>
+              <NoExpiry checked={noExpiry} onChange={setNoExpiry} disabled={!ready} />
             </div>
             <div className="flex min-w-0 flex-col gap-1">
               <label htmlFor={`${id}-number`} className={label}>
@@ -174,6 +198,7 @@ export function RecordCsas({ workerId, firmName }: { workerId: string; firmName:
   const id = useId();
   const { off, ready, message, run } = useCheck();
   const [expiresOn, setExpiresOn] = useState("");
+  const [noExpiry, setNoExpiry] = useState(false);
   const [number, setNumber] = useState("");
   const [ownScheme, setOwnScheme] = useState(false);
   return (
@@ -181,7 +206,9 @@ export function RecordCsas({ workerId, firmName }: { workerId: string; firmName:
       className="mt-3 flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        run(() => recordCsasAction(workerId, expiresOn, number, ownScheme));
+        run(() =>
+          recordCsasAction(workerId, noExpiry ? "" : expiresOn, noExpiry, number, ownScheme),
+        );
       }}
     >
       <div className="flex flex-wrap items-end gap-3">
@@ -193,10 +220,11 @@ export function RecordCsas({ workerId, firmName }: { workerId: string; firmName:
             id={`${id}-expires`}
             type="date"
             className={`${field} w-48`}
-            value={expiresOn}
+            value={noExpiry ? "" : expiresOn}
             onChange={(e) => setExpiresOn(e.target.value)}
-            disabled={!ready}
+            disabled={!ready || noExpiry}
           />
+          <NoExpiry checked={noExpiry} onChange={setNoExpiry} disabled={!ready} />
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={`${id}-number`} className={label}>

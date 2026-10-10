@@ -1,4 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
 import { uploads, workers, type UploadKind } from "../db/schema";
 import { withFirm } from "../db/scoped";
 import { officeUserMay, parts, type OfficeContext } from "../office/office-context";
@@ -13,7 +14,7 @@ export type FileResult =
   | { status: "ok"; data: Buffer; contentType: string; kind: UploadKind; createdAt: Date }
   | { status: "not_found" };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isId = (id: string) => z.uuid().safeParse(id).success;
 
 const columns = {
   data: uploads.data,
@@ -27,7 +28,7 @@ export async function casualFile(
   workerId: string,
   uploadId: string,
 ): Promise<FileResult> {
-  if (!UUID.test(uploadId)) return { status: "not_found" };
+  if (!isId(uploadId)) return { status: "not_found" };
   return (ctx.run ?? withFirm)(ctx.firm.id, async (tx): Promise<FileResult> => {
     const [row] = await tx
       .select(columns)
@@ -41,7 +42,7 @@ export async function casualFile(
 }
 
 export async function officeFile(ctx: OfficeContext, uploadId: string): Promise<FileResult> {
-  if (!UUID.test(uploadId)) return { status: "not_found" };
+  if (!isId(uploadId)) return { status: "not_found" };
   const { run, by } = parts(ctx);
   return run(ctx.firm.id, async (tx): Promise<FileResult> => {
     if (!(await officeUserMay(tx, by.id, "casuals"))) return { status: "not_found" };

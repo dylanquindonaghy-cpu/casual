@@ -79,7 +79,8 @@ export const uploadWhat = (kind: UploadKind, name: string | null) =>
 // The office's check, answered in place (src/lib/uploads/check.ts).
 export type CheckOutcome =
   | { status: "approved" | "rejected" | "recorded" | "not_waiting" | "invalid" }
-  | { status: "date_passed" | "not_confirmed" | "not_allowed" | "logged_out" | "error" };
+  | { status: "date_passed" | "date_needed" | "not_confirmed" | "not_allowed" }
+  | { status: "logged_out" | "error" };
 
 export function checkText(o: CheckOutcome): string {
   switch (o.status) {
@@ -92,9 +93,11 @@ export function checkText(o: CheckOutcome): string {
     case "not_waiting":
       return "Someone has already checked this one.";
     case "invalid":
-      return "Check the date and number, then try again.";
+      return "Check the date (no more than 10 years ahead) and the number, then try again.";
     case "date_passed":
       return "That date has passed. Reject it as expired instead.";
+    case "date_needed":
+      return "Type the expiry date on the card, or tick that it has none.";
     case "not_confirmed":
       return "Confirm it's under your own CSAS scheme first.";
     case "not_allowed":

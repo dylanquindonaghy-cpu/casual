@@ -64,8 +64,12 @@ export async function qualificationsFor(
       code: credentialTypes.code,
       name: credentialTypes.name,
       appliedAllowed: credentialTypes.appliedAllowed,
+      officeRecorded: credentialTypes.officeRecorded,
     })
     .from(credentialTypes);
+  // The firm's own word on which types only the office records (the packs' list holds as well).
+  const officeOnly = new Set(types.filter((t) => t.officeRecorded).map((t) => t.code));
+  const uploadable = (type: string) => !officeOnly.has(type);
   const names = new Map(types.map((t) => [t.code, t.name]));
   // An application in progress counts only as the rules engine counts it: a type that allows it,
   // at a firm with an allowance above 0 (src/lib/rules/eligibility.ts, check 4).
@@ -158,6 +162,7 @@ export async function qualificationsFor(
       records: mine,
       today,
       appliedCounts,
+      uploadable,
     });
     result.set(person.id, {
       qualifications,

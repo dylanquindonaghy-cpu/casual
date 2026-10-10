@@ -158,6 +158,9 @@ export function listQualifications(o: {
   records: readonly ({ type: string } & CredentialRecord)[];
   today: string;
   appliedCounts?: (type: string) => boolean; // default: never (as with no allowance)
+  // Whether she may upload it: the firm's types (office_recorded) and the packs' list together
+  // (default: the packs' list alone).
+  uploadable?: (type: string) => boolean;
 }): Qualification[] {
   const needed = new Map<string, Set<string>>();
   for (const rule of o.rules) {
@@ -183,7 +186,7 @@ export function listQualifications(o: {
         renewing:
           (state.status === "valid" || state.status === "expiring_soon") &&
           (state.waiting !== null || records.some((r) => checked(r) && r.status === "applied")),
-        uploadable: casualMayUpload(type),
+        uploadable: (o.uploadable ?? casualMayUpload)(type) && casualMayUpload(type),
       };
     })
     .sort((a, b) => rank(a.status) - rank(b.status) || a.name.localeCompare(b.name));

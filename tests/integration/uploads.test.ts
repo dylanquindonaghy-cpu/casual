@@ -125,7 +125,11 @@ describe("a casual's certificate counts only once the office approves it", () =>
 
     // Approved: the office's own record from now on.
     expect(
-      await approveUpload(t.office(), uploadId, { expiresOn: "2029-05-01", number: " 1234 5678 " }),
+      await approveUpload(t.office(), uploadId, {
+        expiresOn: "2029-05-01",
+        noExpiry: false,
+        number: " 1234 5678 ",
+      }),
     ).toEqual({ status: "approved" });
     const { rows: after } = await su.query(
       `select status, check_state, expires_on::text as expires_on, number, verified_by::text as by,
@@ -153,7 +157,11 @@ describe("a casual's certificate counts only once the office approves it", () =>
     expect(await t.book(shift, ann)).toMatchObject({ status: "booked" });
     // Checked once: a second click finds it done.
     expect(
-      await approveUpload(t.office(), uploadId, { expiresOn: "2029-05-01", number: "" }),
+      await approveUpload(t.office(), uploadId, {
+        expiresOn: "2029-05-01",
+        noExpiry: false,
+        number: "",
+      }),
     ).toEqual({ status: "not_waiting" });
   });
 
@@ -219,29 +227,58 @@ describe("a casual's certificate counts only once the office approves it", () =>
     // A shift after it expires: the waiting one doesn't count yet.
     const late = await t.f.shift({ role: "door_supervisor", startsAt: hoursFromNow(24 * 20) });
     expect(await t.book(late, di)).toMatchObject({ status: "not_eligible" });
-    await approveUpload(t.office(), renewal, { expiresOn: "2029-11-20", number: "" });
+    await approveUpload(t.office(), renewal, {
+      expiresOn: "2029-11-20",
+      noExpiry: false,
+      number: "",
+    });
     expect(await t.book(late, di)).toMatchObject({ status: "booked" });
   });
 
-  it("refuses a date already gone, a bad date, and anyone but an active admin or resourcer", async () => {
+  it("refuses a date already gone, a bad or missing date, and anyone but an active admin or resourcer", async () => {
     const t = await uploadsFirm();
     const ed = await t.f.worker({ first: "Ed", roles: ["door_supervisor"], credentials: [] });
     const id = await t.send(ed, { kind: "certificate", type: "SIA_DS" });
-    expect(await approveUpload(t.office(), id, { expiresOn: "2026-11-01", number: "" })).toEqual({
+    expect(
+      await approveUpload(t.office(), id, { expiresOn: "2026-11-01", noExpiry: false, number: "" }),
+    ).toEqual({
       status: "date_passed",
     });
-    expect(await approveUpload(t.office(), id, { expiresOn: "2026-02-30", number: "" })).toEqual({
+    expect(
+      await approveUpload(t.office(), id, { expiresOn: "2026-02-30", noExpiry: false, number: "" }),
+    ).toEqual({
       status: "invalid",
     });
     expect(
-      await approveUpload(t.office(await t.f.office("payroll")), id, { expiresOn: "", number: "" }),
+      await approveUpload(t.office(await t.f.office("payroll")), id, {
+        expiresOn: "",
+        noExpiry: false,
+        number: "",
+      }),
     ).toEqual({ status: "not_allowed" });
     expect(
       await rejectUpload(t.office(await t.f.office("resourcer", "disabled")), id, "other"),
     ).toEqual({ status: "not_allowed" });
-    // An admin may; no expiry date means it doesn't expire.
+    // No date: refused unless the person ticks that the card has none (a forgotten date must never
+    // make a licence count for ever). More than 10 years ahead is a typo.
     expect(
-      await approveUpload(t.office(await t.f.office("admin")), id, { expiresOn: "", number: "" }),
+      await approveUpload(t.office(), id, { expiresOn: "", noExpiry: false, number: "" }),
+    ).toEqual({ status: "date_needed" });
+    expect(
+      await approveUpload(t.office(), id, { expiresOn: "2207-01-01", noExpiry: false, number: "" }),
+    ).toEqual({ status: "invalid" });
+    // A date and "no expiry date" both: refused, never guessed.
+    expect(
+      await approveUpload(t.office(), id, { expiresOn: "2028-01-01", noExpiry: true, number: "" }),
+    ).toEqual({ status: "invalid" });
+    expect(await t.row("uploads", id)).toMatchObject({ status: "waiting" });
+    // An admin may; ticked as having no expiry date, it doesn't expire.
+    expect(
+      await approveUpload(t.office(await t.f.office("admin")), id, {
+        expiresOn: "",
+        noExpiry: true,
+        number: "",
+      }),
     ).toEqual({ status: "approved" });
     expect(
       (await su.query("select expires_on from credentials where worker_id = $1", [ed])).rows,
@@ -297,7 +334,7 @@ describe("what a casual may send", () => {
     expect((await t.eventsOf("upload.received")).at(-1)).toMatchObject({ replaced: true });
     // Photos: an approved one stays when a new one is sent.
     const photo = await t.send(hal, { kind: "photo" });
-    await approveUpload(t.office(), photo, { expiresOn: "", number: "" });
+    await approveUpload(t.office(), photo, { expiresOn: "", noExpiry: false, number: "" });
     const next = await t.send(hal, { kind: "photo" });
     expect(await t.row("uploads", photo)).toMatchObject({ status: "approved" });
     const view = await workerAccessView(t.office(), hal);
@@ -309,11 +346,95 @@ describe("what a casual may send", () => {
   });
 });
 
+describe("a resend while the office checks the one waiting", () => {
+  it("never deletes one the office just approved (her row is locked first by both)", async () => {
+    const t = await uploadsFirm();
+    const vi = await t.f.worker({ first: "Vi" });
+    for (let round = 0; round < 6; round += 1) {
+      const waiting = await t.send(vi, { kind: "photo" });
+      const bytes = await picture();
+      const [checked, resent] = await Promise.all([
+        approveUpload(t.office(), waiting, { expiresOn: "", noExpiry: false, number: "" }),
+        saveMyUpload(t.casual, vi, { kind: "photo" }, bytes),
+      ]);
+      expect(resent.status).toBe("sent");
+      if (checked.status === "approved") {
+        // Approved first: it stays, and the resend waits beside it.
+        expect(await t.row("uploads", waiting)).toMatchObject({ status: "approved" });
+      } else {
+        // The resend first: it replaced the waiting one, so there was nothing left to approve.
+        expect(checked).toEqual({ status: "not_waiting" });
+        expect(await t.row("uploads", waiting)).toBeUndefined();
+      }
+    }
+    // Every approval logged is of a photo that's still there.
+    const { rows } = await su.query<{ id: string }>(
+      `select e.entity_id::text as id from events e
+        where e.firm_id = $1 and e.action = 'upload.approved'
+          and not exists (select 1 from uploads u where u.id = e.entity_id)`,
+      [t.f.firmId],
+    );
+    expect(rows).toEqual([]);
+  });
+});
+
+describe("nothing waits for ever, and the firm's own word on what the office records", () => {
+  it("one sent for a type her roles no longer need can still be checked on her page", async () => {
+    const t = await uploadsFirm();
+    const wyn = await t.f.worker({ first: "Wyn", roles: ["door_supervisor"], credentials: [] });
+    const card = await t.send(wyn, { kind: "certificate", type: "SIA_DS" });
+    await su.query("update workers set roles = '{steward}' where id = $1", [wyn]);
+    const page = await workerAccessView(t.office(), wyn);
+    expect(page?.qualifications.map((q) => q.type)).toEqual(["STEWARD_L2"]);
+    expect(page?.waitingUploads).toEqual([
+      {
+        id: card,
+        kind: "certificate",
+        type: "SIA_DS",
+        name: "SIA door supervisor licence",
+        sentAt: NOW,
+      },
+    ]);
+    expect(await rejectUpload(t.office(), card, "other")).toEqual({ status: "rejected" });
+    expect((await workerAccessView(t.office(), wyn))?.waitingUploads).toEqual([]);
+  });
+
+  it("a type the firm marks as recorded by the office can't be uploaded, as the packs' list can't", async () => {
+    const t = await uploadsFirm();
+    const xan = await t.f.worker({ first: "Xan", roles: ["steward"], credentials: [] });
+    await su.query(
+      "update credential_types set office_recorded = true where firm_id = $1 and code = 'STEWARD_L2'",
+      [t.f.firmId],
+    );
+    expect(
+      (
+        await saveMyUpload(
+          t.casual,
+          xan,
+          { kind: "certificate", type: "STEWARD_L2" },
+          await picture(),
+        )
+      ).status,
+    ).toBe("not_needed");
+    const profile = await myProfile(
+      { ...t.casual, firm: { id: t.f.firmId, timezone: "Europe/London" } },
+      xan,
+    );
+    expect(profile?.qualifications[0]).toMatchObject({ type: "STEWARD_L2", uploadable: false });
+    // The packs mark their own for every new firm.
+    const { rows } = await su.query<{ code: string }>(
+      "select code from credential_types where firm_id = $1 and office_recorded order by code",
+      [t.f.firmId],
+    );
+    expect(rows.map((r) => r.code)).toEqual(["CSAS", "RTW", "STEWARD_L2"]);
+  });
+});
+
 describe("CSAS: recorded by the office only, under the firm's own scheme", () => {
   it("not without confirming the scheme; then the office's own record", async () => {
     const t = await uploadsFirm();
     const ida = await t.f.worker({ first: "Ida", roles: ["csas_officer"], credentials: [] });
-    const input = { expiresOn: "2028-01-31", number: "CS-1", ownScheme: false };
+    const input = { expiresOn: "2028-01-31", noExpiry: false, number: "CS-1", ownScheme: false };
     expect(await recordCsas(t.office(), ida, input)).toEqual({ status: "not_confirmed" });
     expect(
       await recordCsas(t.office(await t.f.office("payroll")), ida, { ...input, ownScheme: true }),
@@ -401,7 +522,7 @@ describe("the office's Casuals pages", () => {
     const ned = await t.f.worker({ first: "Ned" });
     const ola = await t.f.worker({ first: "Ola" });
     const photo = await t.send(ned, { kind: "photo" });
-    await approveUpload(t.office(), photo, { expiresOn: "", number: "" });
+    await approveUpload(t.office(), photo, { expiresOn: "", noExpiry: false, number: "" });
     // Uploaded 3 Aug 2024 (London): renew by 3 Aug 2027.
     await su.query("update uploads set created_at = '2024-08-03T10:00:00Z' where id = $1", [photo]);
     const rows = (await casualsList(t.office(), "all"))?.rows ?? [];
@@ -432,9 +553,9 @@ describe("the retention purge (none during a hold)", () => {
     const rejectedOld = await t.send(pat, { kind: "certificate", type: "SIA_DS" });
     await rejectUpload(t.office(), rejectedOld, "blurry");
     const oldPhoto = await t.send(pat, { kind: "photo" });
-    await approveUpload(t.office(), oldPhoto, { expiresOn: "", number: "" });
+    await approveUpload(t.office(), oldPhoto, { expiresOn: "", noExpiry: false, number: "" });
     const newPhoto = await t.send(pat, { kind: "photo" });
-    await approveUpload(t.office(), newPhoto, { expiresOn: "", number: "" });
+    await approveUpload(t.office(), newPhoto, { expiresOn: "", noExpiry: false, number: "" });
     await su.query("update uploads set created_at = created_at - interval '1 hour' where id = $1", [
       oldPhoto,
     ]);

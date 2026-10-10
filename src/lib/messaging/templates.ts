@@ -124,25 +124,31 @@ export function strikeEvidenceEmail(
 }
 
 // credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires. The
-// link is the casual's upload page for it (12F.2; docs/office-v2.md 5.7 item 5).
+// link is the casual's upload page for it (12F.2; docs/office-v2.md 5.7 item 5). One she can't
+// upload (the office records it, or none of her roles needs it: no link, null) is
+// credential_expiring_to_office, the words before 12F.2.
 export function credentialExpiringMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
-  link: string,
+  link: string | null,
 ): string {
-  return `Your ${credential} expires on ${date}. Upload your renewed card so you can keep taking shifts that need it: ${link} — ${firm.signOff}`;
+  return link
+    ? `Your ${credential} expires on ${date}. Upload your renewed card so you can keep taking shifts that need it: ${link} — ${firm.signOff}`
+    : `Your ${credential} expires on ${date}. Renew it and send the new details to the office so you can keep taking shifts. — ${firm.signOff}`;
 }
 
 // credential_expired (WhatsApp, utility): the day after a credential's expiry date, with the same
-// upload link.
+// upload link (credential_expired_to_office, no link, for one she can't upload).
 export function credentialExpiredMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
-  link: string,
+  link: string | null,
 ): string {
-  return `Your ${credential} expired on ${date}. You can't take shifts that need it until you upload your renewed card and the office checks it: ${link} — ${firm.signOff}`;
+  return link
+    ? `Your ${credential} expired on ${date}. You can't take shifts that need it until you upload your renewed card and the office checks it: ${link} — ${firm.signOff}`
+    : `Your ${credential} expired on ${date}. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
 }
 
 // credential_weekly_list (email to admins and resourcers, Mondays): what expires in the next 30

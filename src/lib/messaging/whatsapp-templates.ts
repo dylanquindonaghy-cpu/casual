@@ -6,7 +6,9 @@
 //   (tests/unit/copy.templates-doc.test.ts) checks the template functions in templates.ts produce
 //   exactly this text with the sample values: what we send is what we submitted.
 // - Words that are sometimes left out need their own template: "at {site}" when the shift has no
-//   site (the `_no_site` variants), and the office's note (`request_update_no_note`). In
+//   site (the `_no_site` variants), the office's note (`request_update_no_note`), and the upload
+//   link for a qualification she can't upload (`credential_expiring_to_office`,
+//   `credential_expired_to_office`). In
 //   shift_urgent, "a" or "an" before the role goes inside the role's variable (`role`); shift_offer
 //   names the role alone (`roleName`).
 // - The sign-off is a variable, because a firm may set its own (src/lib/tenancy/sign-off.ts).
@@ -312,6 +314,25 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
       link: "https://acme.shiftdesk.example/profile/upload/SIA_DS",
       signOff: SIGN_OFF,
     },
+  },
+  // One she can't upload (12F.2: the office records it, or none of her roles needs it): no link.
+  {
+    name: "credential_expiring_to_office",
+    docName: "credential_expiring",
+    category: "utility",
+    language: "en_GB",
+    variables: ["credential", "date", "signOff"],
+    body: "Your {{1}} expires on {{2}}. Renew it and send the new details to the office so you can keep taking shifts. — {{3}}",
+    example: { credential: "CSAS accreditation", date: "Sat 7 Nov", signOff: SIGN_OFF },
+  },
+  {
+    name: "credential_expired_to_office",
+    docName: "credential_expired",
+    category: "utility",
+    language: "en_GB",
+    variables: ["credential", "date", "signOff"],
+    body: "Your {{1}} expired on {{2}}. You can't take shifts that need it until you renew it and send the new details to the office. — {{3}}",
+    example: { credential: "CSAS accreditation", date: "Sat 7 Nov", signOff: SIGN_OFF },
   },
   {
     name: "pay_query_update",

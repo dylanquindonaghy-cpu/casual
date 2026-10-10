@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { card, muted, nums, page, sectionGap, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
@@ -21,14 +21,17 @@ export const metadata: Metadata = { title: "Upload a certificate" };
 
 // Upload one qualification's card or certificate (docs/office-v2.md 4.6, 5.5, 5.7 item 5;
 // docs/screens.md `/profile/upload/[type]`; 12F.2): where Profile's "Upload a certificate" and the
-// expiry reminders lead. Only a type one of her roles needs; one the office records itself (CSAS,
-// right to work, health or criminal record details) says to send it to them instead.
+// expiry reminders lead. Only a type one of her roles needs (any other goes to her Profile); one the
+// office records itself (CSAS, right to work, health or criminal record details) says to send it to
+// them instead.
 export default async function UploadPage({ params }: { params: Promise<{ type: string }> }) {
   const { firm, worker, session } = await requireWorker();
   const { type } = await params;
   const profile = await myProfile({ firm }, worker.id);
   const q = profile?.qualifications.find((x) => x.type === type);
-  if (!profile || !q) notFound();
+  if (!profile) notFound();
+  // A type she isn't asked for (an old link, or her roles changed): her Profile says what is.
+  if (!q) redirect("/profile");
   const year = Number(profile.today.slice(0, 4));
   const name = qualificationTitle(q.name);
   return (

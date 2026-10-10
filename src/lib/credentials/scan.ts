@@ -2,7 +2,15 @@ import { and, asc, eq, gte, inArray, isNotNull, lte, sql, type SQL } from "drizz
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { systemClock, type Clock } from "../auth/clock";
-import { credentials, credentialTypes, events, firms, officeUsers, workers } from "../db/schema";
+import {
+  credentialRules,
+  credentials,
+  credentialTypes,
+  events,
+  firms,
+  officeUsers,
+  workers,
+} from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
@@ -16,6 +24,7 @@ import {
   credentialWeeklyListEmail,
   type FirmVoice,
 } from "../messaging/templates";
+import { casualMayUpload } from "../rules/packs";
 import { shortDate } from "../rules/reasons";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
@@ -208,6 +217,13 @@ async function lockDue(tx: FirmTx, id: string) {
       workerStatus: workers.status,
       mobile: workers.mobileE164,
       typeName: credentialTypes.name,
+      officeRecorded: credentialTypes.officeRecorded,
+      // Whether one of the worker's roles needs it (the firm's rules): only then has she an
+      // upload page for it (12F.2).
+      needed: sql<boolean>`exists (
+        select 1 from ${credentialRules} r
+         where r.firm_id = ${credentials.firmId} and r.role = any(${workers.roles})
+           and ${credentials.type} = any(r.required_types))`,
       superseded,
     })
     .from(credentials)
@@ -336,8 +352,12 @@ async function claimCredential(
   // worker always has a mobile: only an erased one has none.)
   const mobile = c.workerStatus === "active" && !c.superseded ? c.mobile : null;
   const from = voice.line ? { from: voice.line } : {};
-  // Where she uploads the renewed card (12F.2): one the office records says to send it to them.
-  const upload = `${portal}/profile/upload/${c.type}`;
+  // Where she uploads the renewed card (12F.2). One she can't upload (the office records it, or none
+  // of her roles needs it, so her upload page wouldn't take it) says to send it to the office.
+  const upload =
+    c.needed && !c.officeRecorded && casualMayUpload(c.type)
+      ? `${portal}/profile/upload/${c.type}`
+      : null;
 
   if (action.kind === "warn") {
     // Unmarked, so a worker who comes back is warned then.

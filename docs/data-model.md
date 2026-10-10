@@ -36,7 +36,7 @@ architecture.md, Tenancy).
 | credentials | Licences/cards per worker: type, number, expiry, status; whether the office has checked it (verified, or a casual's upload waiting or turned down), and the upload it came from (12F.2, S6) | 1 |
 | uploads | A casual's staff photos and certificate images (JPEG re-encoded by the server, 1 MB at most): kind, type, size, sha256, the bytes, and the office's check (waiting, approved or rejected with a reason) (12F.2, S7) | 12 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
-| credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
+| credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count, whether only the office records it: 12F.2), seeded from its sector's pack | 2 |
 | sites | Venues/sites (address; the postcode's central point in lat/lng, looked up when the postcode is saved: 12G.1) | 1 |
 | shift_events | Events: the sessions (shifts) of one job, with a "show to casuals" switch. Not `events`, the action log | 12 |
 | shifts | Sessions: site, role, start/end, headcount, urgent flag, source; their event, pay rate, post, meeting point, uniform, extra requirements and "show to casuals" switch (12B.1) | 2 |
@@ -359,6 +359,11 @@ create table credential_types (
   name text not null,                    -- as workers know it: "SIA door supervisor licence"
   sector text not null,                  -- the pack: security | rail | construction | cleaning | any
   applied_allowed boolean not null default false,  -- "applied" may count (SIA licences)
+  -- Only the office records it (12F.2, migration 0043): a casual can't upload an image of it. From
+  -- the pack's `officeRecorded` (right to work, CSAS, drugs and alcohol tests, rail medicals, DBS),
+  -- backfilled for existing firms; a firm may mark its own types too, and the packs' list always
+  -- holds (`casualMayUpload`).
+  office_recorded boolean not null default false,
   created_at timestamptz not null default now(),
   unique (firm_id, code)
 );

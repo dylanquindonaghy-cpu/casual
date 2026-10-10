@@ -132,6 +132,9 @@ async function todayFirm() {
   await request("time_change", "open", c1);
   await request("swap", "escalated", tomorrow);
   await request("general", "declined", null);
+  // A question from the shifts line, still open: counted by Enquiries' Need a person, not here
+  // (12D.1).
+  await request("general", "open", null);
 
   // Credentials: Dee's PTS card expires on Thursday; Eve renewed hers; Fay left; Gus's is in 10 days.
   const dee = await f.worker({ first: "Dee" });

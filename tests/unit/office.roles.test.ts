@@ -12,8 +12,8 @@ describe("office roles", () => {
   it("Today's and the shift screens' roles are exactly the roles that may place staff", () => {
     expect([...OFFICE_AREAS.today].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
     expect([...OFFICE_AREAS.shifts].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
-    // Answering requests checks the same roles again inside its transaction.
-    expect([...OFFICE_AREAS.requests].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
+    // Answering requests and enquiries checks the same roles again inside its transaction.
+    expect([...OFFICE_AREAS.enquiries].sort()).toEqual([...OFFICE_ROLES_THAT_PLACE].sort());
   });
 
   it("payroll sees the dashboard but not Today", () => {
@@ -44,7 +44,7 @@ describe("office roles", () => {
       "/office": ["today"],
       "/office/pay": ["pay"],
       "/office/events": ["shifts"],
-      "/office/requests": ["requests"],
+      "/office/enquiries": ["enquiries"],
       "/office/cancellations": ["cancellations"],
       "/office/strikes": ["strikes"],
       "/office/casuals": ["casuals"],

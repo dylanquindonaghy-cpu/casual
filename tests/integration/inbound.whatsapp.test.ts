@@ -336,8 +336,10 @@ describe("replying (the inbound-message job)", () => {
       shift_id: string | null;
       payload: Record<string, unknown>;
       worker_id: string;
+      message_id: string | null;
     }>(
-      `select id::text as id, type, status, shift_id, payload, worker_id::text as worker_id
+      `select id::text as id, type, status, shift_id, payload, worker_id::text as worker_id,
+              message_id::text as message_id
          from requests where firm_id = $1`,
       [t.f.firmId],
     );
@@ -348,11 +350,9 @@ describe("replying (the inbound-message job)", () => {
         status: "open",
         shift_id: null,
         worker_id: t.ann,
-        payload: {
-          note: "I need to talk to someone about my DBS",
-          via: "whatsapp",
-          messageId: (await t.messageRows())[0]?.id,
-        },
+        payload: { note: "I need to talk to someone about my DBS", via: "whatsapp" },
+        // Linked to the message it came from (12D.1, S5), no longer by an id in the payload.
+        message_id: (await t.messageRows())[0]?.id,
       },
     ]);
     const ref = (rows[0]?.id ?? "").slice(0, 8).toUpperCase();

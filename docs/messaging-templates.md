@@ -62,7 +62,7 @@ it.
 | `cancellation_ack` | Utility | "We've recorded your cancellation of {date} {start} at {site} (ref {ref}). — {firm} Shift Team" |
 | `shift_changed_by_firm` | Utility | "Change to your shift on {date} at {site}: {change}. New time: {start}–{end}. Details: {link}. — {firm} Shift Team" ({date} and {site} are the shift as it was; {change} is "the times have changed", "it's now shorter", "it's now at {new site}" or "new times, and it's now at {new site}"; {start} names the day too when the shift moved to another day; "at {site}" left out when there was none. Sent to each booked worker when the office moves or shortens a shift, `src/lib/notices/firm-change.ts`) |
 | `shift_cancelled_by_firm` | Utility | "Your shift on {date} {start}–{end} at {site} has been cancelled by the office. Open shifts: {link}. — {firm} Shift Team" ("at {site}" left out when there's none. Sent when the office cancels a shift, or someone's booking) |
-| `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. The office says: {note} — {firm} Shift Team" ({type} is the kind in words: "time change", "swap", "availability", "question" or "review"; {status} "approved" or "declined"; {note} is the office's note on one line; "The office says: {note}" is left out when there isn't one: `request_update_no_note`. Sent when the office answers a request, `src/lib/notices/request-update.ts`) |
+| `request_update` | Utility | "Your request ({type}, ref {ref}) is {status}. The office says: {note} — {firm} Shift Team" ({type} is the kind in words: "time change", "swap", "availability", "question" or "review"; {status} "approved" or "declined", and "answered" for a question the office answered ("approved" can read as "booked"); {note} is the office's note on one line; "The office says: {note}" is left out when there isn't one: `request_update_no_note`. Sent when the office answers a request, `src/lib/notices/request-update.ts`, and as the office's reply on Enquiries outside WhatsApp's 24-hour window, below) |
 | `credential_expiring` | Utility | "Your {credential} expires on {date}. Upload your renewed card so you can keep taking shifts that need it: {link} — {firm} Shift Team" ({link}: her upload page for it, `/profile/upload/{type}`; 12F.2). One she can't upload (the office records it, or none of her roles needs it), `credential_expiring_to_office`: "Your {credential} expires on {date}. Renew it and send the new details to the office so you can keep taking shifts. — {firm} Shift Team" |
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you upload your renewed card and the office checks it: {link} — {firm} Shift Team". One she can't upload, `credential_expired_to_office`: "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
 | (screen only: My shifts' "Needs updating") | — | One row per qualification to sort out (12F.1; the words are `needsText()` in `src/lib/portal/qualification-copy.ts`, in `docs/screens.md`). A row she can sort herself ends "Upload it", linking to the same upload page (12F.2) |
@@ -106,6 +106,21 @@ the words are always these.
 | "shifts", "work", "available" | "Open shifts you're eligible for: {link}" ({link} is Open shifts). Not when the message also says they can't make it or are late ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): that's about their own shift, so the AI or the office gets it. "shift" alone isn't a keyword for the same reason |
 | "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}." + a request for the office (a question, the message as its note) |
 | anything else | Haiku picks one of the rows above (the worker's text only; an answer that isn't exactly one label counts as none); no AI, a failure, or no answer within 5 seconds: the office row. A photo with no text: the office row |
+
+## The office's reply on Enquiries
+
+Built in 12D.1 (`officeReplyMessage()`; `src/lib/office/enquiry-actions.ts`, sent by the
+`enquiry-reply` job). Someone in the office answers a message that needs a person, in their own
+words on one line (500 characters at most). The page says which way it will go before it's sent:
+
+- Inside WhatsApp's 24-hour window (their last WhatsApp to the shifts line was under 24 hours ago),
+  or by text: their words as they are, signed: "{words} — {firm} Shift Team" on WhatsApp,
+  "{words} - {firm} Shift Team" by text.
+- Outside the window: the `request_update` template, as a question answered: "Your request
+  (question, ref {ref}) is answered. The office says: {words} — {firm} Shift Team". {ref} is the
+  question's reference, or the message's when it has none (an unknown number).
+- A text to someone who replied STOP never goes; a withheld number can't be answered (the office
+  closes it instead).
 
 ## SMS (fallback only, keep under 160 characters)
 

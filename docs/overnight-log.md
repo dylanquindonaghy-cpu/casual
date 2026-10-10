@@ -11310,3 +11310,89 @@ explained once on PR #2). The local verify above is the evidence for this task.
   while one waits;
 - certificate images kept after their qualification ends (§5.5's retention setting isn't
   defined yet).
+
+## 2026-10-10 12:59 UTC — Phase 12, task 12D.1: Enquiries
+
+**Task:** Enquiries (§3.6; S5, approved), as written in `PLAN.md`.
+
+**Plan:**
+
+- **Migration 0044** (S5 as approved):
+  - `requests.message_id`, a real link to `messages` (composite, firm and id). When the 90-day
+    purge or an erasure deletes the message, only `message_id` is cleared (`ON DELETE SET NULL
+    (message_id)`, written by hand: Drizzle would clear `firm_id` too). One request per message (a
+    partial unique index, which is also the look-up index).
+  - an index on `messages (firm_id, reply_to)`;
+  - existing requests get their link from `payload.messageId`, which is then removed from the
+    payload. Per firm with `set_config`, as 0043 did, because row-level security is forced.
+- **The shifts line** (`src/lib/inbound/reply.ts`) writes `message_id` instead of the payload key.
+- **`src/lib/office/enquiries.ts`:**
+  - the loader: the last 90 days' messages to the shifts line (not bare calls), their replies (by
+    `reply_to`), their office question (`requests.message_id`) and the log entries about them;
+  - views All, Need a person, Requests from the app, Pay;
+  - counts: today, and need a person with the oldest one's age;
+  - the detail: the conversation, then "How it was answered" from logged facts.
+- **Need a person, worked out (no table):** a message passed to the office (`intent = office`)
+  or from an unknown number, with:
+  - no `enquiry.closed`;
+  - no `enquiry.answered` whose reply then failed;
+  - and, if it has a request, the request still open.
+- **Outcome labels, a pure function of logged facts:**
+  - pay → "Pay (always a person)";
+  - for a person → waiting or answered;
+  - a booking or cancellation by the casual in the app within 24 hours after a shifts or cancel
+    reply → "Done in the app";
+  - a keyword (or STOP and START) → "Answered by keyword";
+  - the AI → "Sorted by AI, answered from your data";
+  - a message no job has sorted → "Not understood".
+- **The reply box:** a server action stores the outgoing `messages` row at once (with `reply_to`,
+  `worker_id` empty for an unknown number), resolves its open question, logs `enquiry.answered`
+  (ids, the channel and the form, never the words) and queues a new `enquiry-reply` job. Only the
+  worker has the messaging transport. The job runs claim → send → record: `enquiry.reply_sent`
+  with the provider's id on the row, or `enquiry.reply_failed`, which puts the question back to
+  open and the message back in Need a person.
+  - The form is chosen by a pure function: a WhatsApp inside 24 hours of their last WhatsApp to
+    this line → free text. Outside it → the `request_update` template ("question", "answered").
+    A text → free text, refused if they replied STOP. A voicemail → their chosen channel by those
+    rules. A withheld number can only be closed.
+- **"Close without a reply":** a reason code (dealt with by phone, not for us, duplicate, spam,
+  other), `enquiry.closed` with the code only; an open question is resolved (answered for "dealt
+  with by phone", otherwise declined), with no message.
+- **Requests from the app:** today's request queue, without the shifts line's questions (type
+  `general`). A question's "approved" reads "Answered" in the queue, the answer form and
+  `request_update`. `/office/requests` redirects there. The area `requests` becomes `enquiries`
+  (same roles). The menu's Enquiries link has a Need a person badge.
+- **The honest banner:** `AI_TRANSPORT` (not a secret) is also given to the web app, which reads
+  only whether it is `none`.
+- **Seed:** a few made-up messages (a keyword reply, a question waiting for a person, an unknown
+  number) so the page has something to show.
+- **Tests:**
+  - unit: each outcome label, the window at exactly 24 hours, the reply plan, the template words,
+    the menu;
+  - database: the join (failed replies and the text fallback), each outcome from logged facts,
+    the stored reply row, an unknown number leaving Need a person when replied to or closed, no
+    typed text in the log, the job's send and failure, the purge clearing the link, the district
+    only, isolation (the new key);
+  - e2e: new `office.enquiries.spec.ts`; the walkthrough's unknown-number and voicemail steps;
+    `office.requests.spec.ts` follows the redirect.
+- **Docs:** `docs/screens.md`, `data-model.md`, `api-and-jobs.md`, `messaging-templates.md`, and the
+  office guide's requests part.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| `requests.message_id` is cleared, never the question, when its message goes (`ON DELETE SET NULL (message_id)`, written by hand in 0044) | The message goes at 90 days; the question is evidence and stays. Drizzle's plain SET NULL would clear `firm_id` too and make the purge fail | No action (the purge would fail), or cascade (the question lost) |
+| One question per message (a partial unique index) | The shifts line makes at most one; the index is also the look-up | A plain index |
+| The office's reply is stored at once (placeholder provider id) and sent by a new `enquiry-reply` job | Only the worker has the messaging transport (its settings are worker-only); claim → send → record as every notice; the page shows "Sending" until it goes | Sending from the web app (it would need Twilio's secrets) |
+| A reply that fails puts the question back to open and the message back in Need a person | The casual got nothing, so a person still needs to act | Leave it marked answered |
+| The office's reply is one line, at most 500 characters | It's the question's note (500 at most) and the template's variable can't hold a line break | Multi-line free text inside the window only |
+| No quiet hours for the office's reply | It answers the casual's own message, and a person chose to send it now | Hold it for the morning like `request_update` |
+| A voicemail's reply goes by the casual's own channel (WhatsApp after STOP); an unknown caller's by WhatsApp | A call opens no WhatsApp window; the casual chose their channel | Always WhatsApp |
+| "Close without a reply" closes an open question too: "dealt with by phone" as answered, the rest as declined, with no message | Otherwise the question would stay open and be counted for ever | Leave the question open |
+| "Done in the app": a booking or cancellation by the casual in the app within 24 hours after a shifts or cancel reply | The spec's Priya example; logged facts only | Leave it out until 12D.2 |
+| "Not understood": a message the shifts line hasn't sorted (no job has answered it) | Every other label covers a sorted message; this one is real when a job fails | Hide such messages |
+| "Requests from the app" leaves out the shifts line's questions (`general`); Today's request count does too | Those are on Enquiries with their message; Today's "See requests" now opens the app view, so its count must match | Show questions twice |
+| The office area `requests` becomes `enquiries` (same roles) | One area for the page and its views | Keep two areas |
+| `AI_TRANSPORT` goes to the web app too (not a secret; the key stays with the worker) | The banner must say what the worker does; a compose test holds web and worker to the same value | Guessing from the log |
+| No demo-seed messages | The tests and the walkthrough make their own with the fake phone; the demo seed task (12I.1) joins standing examples | Seed a few now |

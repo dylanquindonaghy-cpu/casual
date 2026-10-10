@@ -32,8 +32,14 @@ test("decline a request with a note: the confirmation, then answered and the wor
   const { ref, worker, firstName } = await addSwapRequest("acme", note);
   await officeLogin(page, email);
 
+  // Today's link still goes to /office/requests, which is Enquiries' "Requests from the app" now
+  // (12D.1).
   await page.getByRole("link", { name: "See requests" }).click();
-  await expect(page).toHaveURL(`${acme}/office/requests`);
+  await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
+  await expect(page.getByRole("link", { name: "Requests from the app" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   const waiting = page.getByRole("region", { name: "Waiting for an answer" });
   const card = waiting.locator("li", { hasText: `Reference ${ref}` });
   await expect(card.getByText(`Swap: ${worker}`)).toBeVisible();

@@ -583,9 +583,11 @@ describe("a voicemail (the inbound-message job)", () => {
         type: string;
         worker_id: string;
         payload: Record<string, unknown>;
+        message_id: string | null;
       }>(
-        `select id::text as id, type, worker_id::text as worker_id, payload from requests
-          where firm_id = $1 order by created_at`,
+        `select id::text as id, type, worker_id::text as worker_id, payload,
+                message_id::text as message_id
+           from requests where firm_id = $1 order by created_at`,
         [firmId],
       )
     ).rows;
@@ -606,11 +608,9 @@ describe("a voicemail (the inbound-message job)", () => {
         id: expect.any(String),
         type: "general",
         worker_id: t.ann,
-        payload: {
-          note: "I need to cancel my shifts next week",
-          via: "voicemail",
-          messageId: job.messageId,
-        },
+        payload: { note: "I need to cancel my shifts next week", via: "voicemail" },
+        // Linked to the voicemail it came from (12D.1, S5).
+        message_id: job.messageId,
       },
     ]);
     const ref = (requests[0]?.id ?? "").slice(0, 8).toUpperCase();

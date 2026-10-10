@@ -13,6 +13,7 @@ import {
   loginLinkMessage,
   offerPush,
   officeLoginLinkEmail,
+  officeReplyMessage,
   payDigestEmail,
   payQueryUpdateMessage,
   payQueryUpdatePush,
@@ -294,6 +295,22 @@ describe("the code says what the doc says", () => {
     expect(shiftsLineReply(docVoice, { intent: "office", ref: "{ref}" })).toBe(
       signed(replyFor("help")),
     );
+  });
+
+  it("the office's reply on Enquiries: free text signed, or request_update as a question answered", () => {
+    const office = section("The office's reply on Enquiries");
+    const [whatsapp, sms] = quotes(office, "Inside WhatsApp's 24-hour window");
+    expect(officeReplyMessage(docVoice, "{words}", "whatsapp")).toBe(whatsapp);
+    expect(officeReplyMessage(docVoice, "{words}", "sms")).toBe(sms);
+    const [template] = quotes(office, "Outside the window");
+    expect(
+      requestUpdateMessage(docVoice, {
+        type: "question",
+        ref: "{ref}",
+        status: "answered",
+        note: "{words}",
+      }),
+    ).toBe(oneLine(template ?? ""));
   });
 
   it("pay_query_update: payroll's note in the doc's words", () => {
@@ -676,6 +693,7 @@ describe("every template function is checked here", () => {
         "loginLinkMessage",
         "offerPush",
         "officeLoginLinkEmail",
+        "officeReplyMessage",
         "payDigestEmail",
         "payQueryUpdateMessage",
         "payQueryUpdatePush",

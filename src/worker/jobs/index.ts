@@ -38,6 +38,7 @@ import type { InboundMessagePayload } from "../../lib/inbound/job";
 import { inboundMessageFirmTask } from "../../lib/inbound/reply";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
+import { enquiryReplyTask, type EnquiryReplyPayload } from "../../lib/notices/enquiry-reply";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { shiftConfirmedTask, type ShiftConfirmedPayload } from "../../lib/notices/shift-confirmed";
 import { officeOfferTask, type OfficeOfferPayload } from "../../lib/offers/office-offer";
@@ -106,6 +107,7 @@ export interface JobDeps {
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
   shiftConfirmed?: FirmTask<ShiftConfirmedPayload>;
   requestUpdates?: FirmTask<RequestUpdatePayload>;
+  enquiryReplies?: FirmTask<EnquiryReplyPayload>;
   payDigest?: FirmTask<PayDigestPayload>;
   payQueryUpdates?: FirmTask<PayQueryUpdatePayload>;
   strikesEmailLinks?: FirmTask<StrikesEmailLinkPayload>;
@@ -164,6 +166,8 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // Telling a worker the office booked them onto a shift (audit L22).
   await registerFirmTask(boss, deps.shiftConfirmed ?? shiftConfirmedTask);
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
+  // The office's reply to a message on the shifts line (Enquiries, 12D.1).
+  await registerFirmTask(boss, deps.enquiryReplies ?? enquiryReplyTask);
   // Telling a worker payroll has sorted their pay query.
   await registerFirmTask(boss, deps.payQueryUpdates ?? payQueryUpdateTask);
   // The link that confirms the strikes team's email (Settings, 12B.7).

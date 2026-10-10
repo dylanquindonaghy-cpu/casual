@@ -319,6 +319,17 @@ export function requestUpdateMessage(
   return `Your request (${request.type}, ref ${request.ref}) is ${request.status}.${note} — ${firm.signOff}`;
 }
 
+// The office's own reply on Enquiries (docs/messaging-templates.md "The office's reply on Enquiries";
+// 12D.1): their words on one line, signed. Free text only inside WhatsApp's 24-hour window or by
+// text; outside the window it goes as `request_update` instead (src/lib/office/enquiry-rules.ts).
+export function officeReplyMessage(
+  firm: FirmVoice,
+  text: string,
+  channel: "whatsapp" | "sms",
+): string {
+  return channel === "sms" ? `${text} - ${firm.signOff}` : `${text} — ${firm.signOff}`;
+}
+
 // pay_query_update (WhatsApp or SMS, utility): payroll has sorted a worker's pay query
 // (src/lib/notices/pay-query-update.ts). {status} is "sorted"; {note} is payroll's note on one line
 // (always written by a person: pay disputes never get an AI answer, golden rule 9).

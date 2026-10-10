@@ -44,6 +44,9 @@ services:
       OFFLINE_COPY: ${OFFLINE_COPY:-on}
       # Postcode look-ups (Settings, Profile): fake knows only the made-up ZZ postcodes.
       TRAVEL_PROVIDER: ${TRAVEL_PROVIDER:-fake}
+      # Only whether AI sorting is on, for the Enquiries banner (not a secret; the key stays with
+      # the worker).
+      AI_TRANSPORT: ${AI_TRANSPORT:-none}
     volumes:
       - *db-ca
     healthcheck:

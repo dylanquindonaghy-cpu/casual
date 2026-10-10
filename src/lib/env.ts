@@ -100,6 +100,12 @@ const appFields = {
   // under NODE_ENV=test, so no test can reach either. Real use waits for "Connect postcodes.io and
   // TravelTime" (PLAN.md Parking lot). An empty value means not set.
   TRAVEL_PROVIDER: unsetIfEmpty(z.enum(["fake", "traveltime"]).default("fake")),
+  // AI (docs/office-v2.md 5.8): Claude through the Anthropic API (src/lib/ai/anthropic.ts), asked
+  // by the worker only, which alone gets the key. "none" (the default): no AI, and the code's
+  // fallback answers. "anthropic": refused for the worker under NODE_ENV=test, so no test can call
+  // it. Real calls wait for "Connect the Anthropic API" (PLAN.md Parking lot). The web app reads only
+  // whether it's on, for the Enquiries banner (12D.1); it never calls the AI. Not a secret.
+  AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
 };
 
 // Tests never reach postcodes.io or TravelTime.
@@ -201,11 +207,6 @@ export const workerEnvSchema = z
     SMTP_FROM: unsetIfEmpty(
       z.email({ message: "must be the email address mail comes from" }).optional(),
     ),
-    // AI, worker only (docs/office-v2.md 5.8): Claude through the Anthropic API
-    // (src/lib/ai/anthropic.ts). "none" (the default): no AI, and the code's fallback answers.
-    // "anthropic": refused under NODE_ENV=test, so no test can call it. Real calls wait for
-    // "Connect the Anthropic API" (PLAN.md Parking lot).
-    AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
     // A secret: never logged, never in the repo, never given to the web app.
     ANTHROPIC_API_KEY: unsetIfEmpty(z.string().max(500).optional()),
     // TravelTime (docs/office-v2.md 5.4; 12G.2), for TRAVEL_PROVIDER=traveltime: worker only (the

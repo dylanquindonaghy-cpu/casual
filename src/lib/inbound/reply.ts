@@ -42,7 +42,7 @@ import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from 
 //      office. A message with no text (a photo) goes to the office;
 //   3. the claim, in one transaction: the message locked and, if no one has handled it yet, marked
 //      handled (how, and what they asked); the office's `general` request (the message as its
-//      note) when it's for the office; `message.received`;
+//      note, linked by `message_id`) when it's for the office; `message.received`;
 //   4. the reply goes outside any transaction, from the number they wrote to, at once (a reply to
 //      their own message: quiet hours don't apply);
 //   5. the reply stored as an outbound message, and `message.replied`, or `message.reply_failed`
@@ -299,8 +299,8 @@ async function answerMessage(
                 ? NO_VOICE_TEXT_NOTE
                 : NO_TEXT_NOTE,
             via: via(c.channel),
-            messageId: payload.messageId,
           },
+          messageId: payload.messageId,
         })
         .returning({ id: requests.id });
       if (!request) throw new Error("request insert returned nothing");

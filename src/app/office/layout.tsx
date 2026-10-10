@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
 import { uploadsToCheck } from "@/lib/office/casuals";
+import { enquiriesWaiting } from "@/lib/office/enquiries";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
 import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
@@ -21,8 +22,15 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
   const toCheck = canAccess(s.officeUser.role, "casuals")
     ? await uploadsToCheck({ firm: s.firm, officeUserId: s.officeUser.id })
     : null;
+  // The Enquiries badge: messages that need a person (admins and resourcers; 12D.1).
+  const needPerson = canAccess(s.officeUser.role, "enquiries")
+    ? await enquiriesWaiting({ firm: s.firm, officeUserId: s.officeUser.id })
+    : null;
   const badges = {
     ...(waiting ? { "/office/pay-queries": { count: waiting, words: `${waiting} waiting` } } : {}),
+    ...(needPerson
+      ? { "/office/enquiries": { count: needPerson, words: `${needPerson} need a person` } }
+      : {}),
     ...(toCheck ? { "/office/casuals": { count: toCheck, words: `${toCheck} to check` } } : {}),
   };
   return (

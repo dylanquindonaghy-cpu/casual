@@ -161,6 +161,22 @@ const PATHS = {
       <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
     </>
   ),
+  // Enquiries' channels (12D.1), each beside its hidden word: a speech bubble (WhatsApp), a phone
+  // (a text), a tape (a voicemail).
+  whatsapp: <path d="M4 5.5h16v10H9.5L4 19.5v-14Z" />,
+  sms: (
+    <>
+      <rect x="7" y="3" width="10" height="18" rx="2" />
+      <path d="M11 17.5h2" />
+    </>
+  ),
+  voice: (
+    <>
+      <circle cx="7" cy="12" r="3.5" />
+      <circle cx="17" cy="12" r="3.5" />
+      <path d="M7 15.5h10" />
+    </>
+  ),
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.
   mark: (
     <>

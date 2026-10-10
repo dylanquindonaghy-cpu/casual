@@ -332,8 +332,10 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("23. Answer a request", async () => {
-    await (await menuLink(page, "Requests")).click();
-    await expect(page).toHaveURL(`${acme}/office/requests`);
+    // Requests made in the app are Enquiries' "Requests from the app" (12D.1).
+    await (await menuLink(page, "Enquiries")).click();
+    await page.getByRole("link", { name: "Requests from the app" }).click();
+    await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
     const card = page
       .getByRole("region", { name: "Waiting for an answer" })
       .locator("li", { hasText: SAM.name })
@@ -626,8 +628,21 @@ test("Part 4: the fake phone", async ({ browser }) => {
     expect(answer.status).toBe(200);
     await sent(stranger, asked, /^(Thanks for your message\. We don't recognise this number\.)/);
     await officeLogin(page, "acme.resourcer@example.com");
-    const unknown = page.getByRole("region", { name: "Messages from numbers we don't know" });
-    await expect(unknown.getByText("“Hi it's Sam, new phone”")).toBeVisible();
+    // Enquiries (12D.1): it needs a person; its page says how it was answered.
+    await (await menuLink(page, "Enquiries")).click();
+    await page.getByRole("link", { name: /^Need a person \(\d+\)$/ }).click();
+    const row = page
+      .getByRole("region", { name: "Need a person" })
+      .getByRole("listitem")
+      .filter({ hasText: "“Hi it's Sam, new phone”" })
+      .last();
+    await expect(row).toContainText("Unknown number");
+    await expect(row).toContainText("Passed to a person, waiting");
+    await row.getByRole("link", { name: "Unknown number" }).click();
+    await expect(page.getByRole("region", { name: "How it was answered" })).toContainText(
+      "Not one of your casuals' numbers: passed to a person.",
+    );
+    await expect(page.getByRole("region", { name: "Answer it" })).toBeVisible();
   });
 
   await test.step("39. A call with a voicemail", async () => {
@@ -646,10 +661,22 @@ test("Part 4: the fake phone", async ({ browser }) => {
       asked,
       /^(Thanks for your voicemail\. The office will see it and get back to you\. Ref [0-9A-F]{8}\.)/,
     );
-    await (await menuLink(page, "Requests")).click();
+    // Enquiries' Need a person (12D.1): the voicemail's words, then its page with the warning.
+    await (await menuLink(page, "Enquiries")).click();
+    await page.getByRole("link", { name: /^Need a person \(\d+\)$/ }).click();
+    const voicemail = page
+      .getByRole("region", { name: "Need a person" })
+      .getByRole("listitem")
+      .filter({ hasText: "“Please call me about Saturday”" })
+      .last();
+    await expect(voicemail).toContainText("Zoe Usman");
+    await voicemail.getByRole("link", { name: "Zoe Usman" }).click();
     await expect(
       page.getByText("From a voicemail on the shifts line.", { exact: false }).first(),
     ).toBeVisible();
+    await expect(page.getByRole("region", { name: "How it was answered" })).toContainText(
+      "A voicemail: always passed to a person.",
+    );
   });
 
   await test.step("40. A text: STOP, then START", async () => {

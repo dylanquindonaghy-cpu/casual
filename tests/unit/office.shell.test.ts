@@ -38,7 +38,7 @@ const text = (html: string) =>
 describe("the office menu (v2 groups)", () => {
   it("admins see every link, in groups", () => {
     expect(labels("admin")).toEqual([
-      ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
+      ["Operations", ["Today", "Events & sessions", "Cancellations", "Enquiries"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
       ["Configuration", ["Office team", "Settings", "Data requests"]],
@@ -48,7 +48,7 @@ describe("the office menu (v2 groups)", () => {
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
+      ["Operations", ["Today", "Events & sessions", "Cancellations", "Enquiries"]],
       ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);

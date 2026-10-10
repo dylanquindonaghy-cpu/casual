@@ -32,7 +32,8 @@ import { addDays, localDateOf } from "../time/zoned";
 // - cancellations: bookings cancelled in the last 24 hours, newest first, with notice hours.
 // - toMark ("Who worked?"): shifts that ended in the last 7 days with people booked not marked as
 //   worked or not attended yet, latest first.
-// - requests: open requests (and escalated ones) by kind.
+// - requests: open requests made in the app (and escalated ones) by kind (questions from the
+//   shifts line are on Enquiries, 12D.1).
 // - expiring: credentials of active workers expiring in the next 7 days (the firm's calendar),
 //   leaving out one the worker has already renewed.
 // - unknownMessages: WhatsApps on the shifts line in the last 7 days from numbers that aren't one of
@@ -393,9 +394,11 @@ export async function loadToday(tx: FirmTx, now: Date): Promise<Omit<TodayView, 
      limit ${LIST_MAX + 1}
   `);
 
+  // Requests made in the app (Enquiries' "Requests from the app", where "See requests" goes): a
+  // question from the shifts line is counted by Enquiries' Need a person instead (12D.1).
   const { rows: requestRows } = await tx.execute<{ type: string; n: number }>(sql`
     select type, count(*)::int as n from requests
-     where status in ('open', 'escalated')
+     where status in ('open', 'escalated') and type <> 'general'
      group by type
   `);
   const byType: TodayView["requests"]["byType"] = {};

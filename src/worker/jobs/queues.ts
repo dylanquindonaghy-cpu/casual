@@ -6,6 +6,7 @@ import { FIRM_CHANGE_NOTICE_QUEUE } from "../../lib/notices/firm-change";
 import { METRICS_ROLLUP_QUEUE, METRICS_ROLLUP_TICK_QUEUE } from "../../lib/metrics/rollup";
 import { INBOUND_MESSAGE_QUEUE } from "../../lib/inbound/job";
 import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
+import { ENQUIRY_REPLY_QUEUE } from "../../lib/notices/enquiry-reply";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
 import { SHIFT_CONFIRMED_QUEUE } from "../../lib/notices/shift-confirmed";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
@@ -72,6 +73,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   FIRM_CHANGE_NOTICE_QUEUE,
   SHIFT_CONFIRMED_QUEUE,
   REQUEST_UPDATE_QUEUE,
+  ENQUIRY_REPLY_QUEUE,
   METRICS_ROLLUP_QUEUE,
   PAY_DIGEST_QUEUE,
   PAY_QUERY_UPDATE_QUEUE,

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { muted, nums, row, rows, staffBtn } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
-import { KIND_NAMES, STATUS_WORDS } from "@/lib/portal/request-kinds";
+import { KIND_NAMES, statusWord } from "@/lib/portal/request-kinds";
 import type { MyRequest } from "@/lib/portal/requests";
 import { dayLabel } from "@/lib/rules/reasons";
 import { localDateOf } from "@/lib/time/zoned";
@@ -45,7 +45,7 @@ export function RequestsList({
           {requests.map((r) => (
             <li key={r.ref} className={row}>
               <StatusChip tone={TONES[r.status] ?? "quiet"}>
-                {STATUS_WORDS[r.status] ?? r.status}
+                {statusWord(r.type, r.status)}
               </StatusChip>
               <p className="mt-2 font-semibold">
                 {KIND_NAMES[r.type] ?? r.type}

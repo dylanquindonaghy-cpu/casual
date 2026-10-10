@@ -15,6 +15,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
+import { messages } from "./messages";
 import { officeUsers, workers } from "./people";
 import { firms, SECTORS, sites } from "./tenancy";
 
@@ -423,10 +424,26 @@ export const requests = pgTable(
     // The office's note to the worker with its answer (free text: stays on the row and in the
     // message to them, never in an event).
     resolutionNote: text("resolution_note"),
+    // The shifts-line message this question came from (12D.1, S5): a real link, so Enquiries can
+    // join a message to its question. Cleared, never the request, when the message is deleted
+    // (the 90-day purge, an erasure).
+    messageId: uuid("message_id"),
     createdAt: createdAt(),
   },
   (t) => [
     unique("requests_firm_id_id_key").on(t.firmId, t.id),
+    // ON DELETE SET NULL clears message_id only: the column list is written by hand in migration
+    // 0044 (Drizzle would clear firm_id too, which can't be null). The one exception to "no ON
+    // DELETE action" above: the message goes at 90 days, the question stays as evidence.
+    foreignKey({
+      name: "requests_message_fk",
+      columns: [t.firmId, t.messageId],
+      foreignColumns: [messages.firmId, messages.id],
+    }).onDelete("set null"),
+    // One question per message; also the look-up from a message to its question.
+    uniqueIndex("requests_one_per_message")
+      .on(t.firmId, t.messageId)
+      .where(sql`message_id is not null`),
     foreignKey({
       name: "requests_worker_fk",
       columns: [t.firmId, t.workerId],

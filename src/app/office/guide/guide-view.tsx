@@ -43,7 +43,7 @@ const SECTIONS: Section[] = [
     body: () => <ChangeAShift />,
   },
   { id: "after-a-shift", title: "After a shift", areas: ["shifts"], body: () => <AfterAShift /> },
-  { id: "requests", title: "Answer requests", areas: ["requests"], body: () => <Requests /> },
+  { id: "enquiries", title: "Enquiries", areas: ["enquiries"], body: () => <Enquiries /> },
   { id: "casuals", title: "Casuals", areas: ["casuals"], body: () => <Workers /> },
   {
     id: "records",
@@ -239,7 +239,7 @@ const TODAY_SECTIONS: [string, ReactNode][] = [
   [
     "Requests",
     <>
-      How many requests are waiting. <Name>See requests</Name> opens them.
+      How many requests from the app are waiting. <Name>See requests</Name> opens them on Enquiries.
     </>,
   ],
   ["Gaps in the next 7 days", "Other shifts with a place free, soonest first."],
@@ -595,44 +595,68 @@ function AfterAShift() {
   );
 }
 
-function Requests() {
+function Enquiries() {
   return (
     <>
       <Para>
-        Workers ask for time changes and swaps, or ask you to review a shift the rules refused. They
-        wait on <Name>Requests</Name>, oldest first.
+        Everything casuals send the shifts line, and what came of it, is on <Name>Enquiries</Name>.
+        Most are answered at once. The ones the shifts line can&apos;t answer wait under{" "}
+        <Name>Need a person</Name>, oldest first: the menu shows how many.
       </Para>
-      <Steps>
-        <Step>
-          Read the request under <Name>Waiting for an answer</Name>.
-        </Step>
-        <Step>
-          To say yes, select{" "}
-          <Name>
-            Approve and tell <Their />
-          </Name>
-          .
-        </Step>
-        <Step>
-          To say no, write why in{" "}
-          <Name>
-            Note to <Their /> (needed to decline)
-          </Name>
-          . Then select{" "}
-          <Name>
-            Decline and tell <Their />
-          </Name>
-          .
-        </Step>
-      </Steps>
+      <Task title="To answer a message">
+        <Steps>
+          <Step>
+            Select <Name>Need a person</Name>, then the person&apos;s name (or{" "}
+            <Name>Unknown number</Name>).
+          </Step>
+          <Step>
+            Read the conversation and <Name>How it was answered</Name>.
+          </Step>
+          <Step>
+            Write your answer in <Name>Reply</Name> and select <Name>Send reply</Name>. The line
+            above the box says how it will go: as you wrote it, or, more than 24 hours after their
+            last WhatsApp, inside the request update message.
+          </Step>
+          <Step>
+            Or, if it needs no reply (you rang them, or it&apos;s spam), choose a reason in{" "}
+            <Name>Why close it?</Name> and select <Name>Close without a reply</Name>.
+          </Step>
+        </Steps>
+      </Task>
+      <Task title="To answer a request from the app">
+        <Steps>
+          <Step>
+            Select <Name>Requests from the app</Name>: time changes, swaps, and asks to review a
+            shift the rules refused.
+          </Step>
+          <Step>
+            To say yes, select{" "}
+            <Name>
+              Approve and tell <Their />
+            </Name>
+            .
+          </Step>
+          <Step>
+            To say no, write why in{" "}
+            <Name>
+              Note to <Their /> (needed to decline)
+            </Name>
+            . Then select{" "}
+            <Name>
+              Decline and tell <Their />
+            </Name>
+            .
+          </Step>
+        </Steps>
+      </Task>
       <Note>
         Approving doesn&apos;t change the shift, or book them on it: do that on the shift&apos;s
-        page. A request from a voicemail may not be from the worker, so check anything unusual with
-        them.
+        page. A voicemail may not be from the worker, so check anything unusual with them. Pay
+        messages always go to a person: the shifts line only sends the pay page&apos;s link.
       </Note>
       <Links>
-        <GoTo href="/office/requests" icon="requests">
-          Go to Requests
+        <GoTo href="/office/enquiries" icon="requests">
+          Go to Enquiries
         </GoTo>
       </Links>
     </>

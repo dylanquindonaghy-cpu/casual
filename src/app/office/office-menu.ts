@@ -21,7 +21,8 @@ const MENU: { label: string; items: MenuItem[] }[] = [
         label: "Cancellations",
         icon: "cancel",
       },
-      { area: "requests", href: "/office/requests", label: "Requests", icon: "requests" },
+      // The Need a person badge (12D.1); /office/requests redirects to its "Requests from the app".
+      { area: "enquiries", href: "/office/enquiries", label: "Enquiries", icon: "requests" },
     ],
   },
   {

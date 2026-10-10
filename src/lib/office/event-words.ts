@@ -5,6 +5,8 @@ import { REJECT_CHOICES } from "../portal/qualification-copy";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
+import { CLOSE_REASON_WORDS } from "./enquiries-copy";
+import type { CloseReason } from "./enquiry-rules";
 import { REASON_WORDS } from "./worker-reasons";
 
 // The action log in plain words for the office (docs/screens.md: short sentences, plain words): a
@@ -395,6 +397,33 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return "Emailing the office about a message from a number we don't know failed.";
     case "message.office_alert_skipped":
       return "Nobody in the office could be emailed about a message from a number we don't know (no active admin or resourcer with an email address). It's on Today.";
+    case "enquiry.answered": {
+      const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      const how =
+        d.form === "template"
+          ? "as the request update template: outside WhatsApp's 24 hours"
+          : d.channel === "sms"
+            ? "by text"
+            : "on WhatsApp";
+      return `${officeName} replied to ${whose} (${how}).`;
+    }
+    case "enquiry.closed": {
+      const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      const reason = CLOSE_REASON_WORDS[d.reason as CloseReason] ?? "Other";
+      return `${officeName} closed ${whose} without a reply (${reason.toLowerCase()}).`;
+    }
+    case "enquiry.reply_sending":
+      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}.`;
+    case "enquiry.reply_sent":
+      return `The office's reply to ${d.workerId ? worker : "a number we don't know"} went${
+        d.fellBackFrom === "whatsapp"
+          ? " by text (WhatsApp didn't take it)"
+          : d.channel === "sms"
+            ? " by text"
+            : " on WhatsApp"
+      }.`;
+    case "enquiry.reply_failed":
+      return `The office's reply to ${d.workerId ? worker : "a number we don't know"} couldn't be sent. Their message is back in Need a person.`;
     case "request.created":
       return `${worker} sent a request (${kind(d.type)}).`;
     case "request.approved":

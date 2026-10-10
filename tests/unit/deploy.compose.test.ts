@@ -93,6 +93,7 @@ describe("deploy/docker-compose.yml", () => {
     const keys = (name: string) => Object.keys(services[name]?.environment ?? {}).sort();
     expect(keys("web")).toEqual(
       [
+        "AI_TRANSPORT", // only whether AI sorting is on, for the Enquiries banner (not a secret; 12D.1)
         "ALERTS_TRANSPORT", // where the founder's alerts go (not a secret): bad webhook signatures
         "APP_BASE_DOMAIN",
         "DATABASE_URL",
@@ -124,6 +125,10 @@ describe("deploy/docker-compose.yml", () => {
       expect.arrayContaining(["AI_TRANSPORT", "ANTHROPIC_API_KEY", "AI_MODEL"]),
     );
     expect(services.worker?.environment?.AI_TRANSPORT).toBe("none");
+    // The web app gets the same switch (12D.1): the two must never disagree.
+    expect(services.web?.environment?.AI_TRANSPORT).toBe(
+      services.worker?.environment?.AI_TRANSPORT,
+    );
     for (const name of ["web", "caddy", "migrate"]) {
       expect(keys(name), name).not.toContain("ANTHROPIC_API_KEY");
     }

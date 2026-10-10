@@ -155,7 +155,7 @@ marked; "How-to guide", near its bottom, explains each job step by step.
 22. **Offer a gap.** Under "Gaps in the next 7 days", on a shift, click "Offer to someone", then
     "Send offer to …" on the first person. It says "Offer on its way to …", and the offer appears
     in the dev window. Click "Back to Today".
-23. **Answer a request.** Click "Requests". On Sam Walsh's time change, click "Approve and tell
+23. **Answer a request.** Click "Enquiries", then "Requests from the app". On Sam Walsh's time change, click "Approve and tell
     Sam". It says "Approved. Sam will be told." The message to Sam appears in the dev window.
 24. **Mark who worked.** Go back to Today. Under "Who worked?", open one of yesterday's
     racecourse shifts. Click "Mark as worked" for the person on it: "Marked … as worked." (On a
@@ -237,8 +237,11 @@ your second Ubuntu window while `npm run dev` runs; the replies appear in the de
     ```
 
     They get "Thanks for your message. We don't recognise this number…", and the office gets an
-    email. Log in as the resourcer again (step 20): Today shows it under "Messages from numbers we
-    don't know".
+    email. Log in as the resourcer again (step 20) and click "Enquiries" in the menu (its count is
+    the messages that need a person), then "Need a person": it's there as "Unknown number", marked
+    "Passed to a person, waiting". Click "Unknown number" to see the conversation and "How it was
+    answered"; you could reply in the box ("Answer it") or close it with a reason. (Today still
+    lists it under "Messages from numbers we don't know".)
 39. **A call with a voicemail:**
 
     ```
@@ -247,7 +250,9 @@ your second Ubuntu window while `npm run dev` runs; the replies appear in the de
 
     It prints what the caller hears ("Thanks for calling Acme Events. We've just sent a link…").
     In the dev window, Zoe gets her login link, then "Thanks for your voicemail…" with a reference.
-    The office's Requests page shows the voicemail.
+    In Enquiries, "Need a person" lists Zoe's voicemail. Click her name: the page warns that a
+    caller's number can be faked, and "How it was answered" says a voicemail always goes to a
+    person.
 40. **A text:** `npm run -s sim:sms -- --from "07700 900122" --text "STOP"`. Zoe gets a text: "You
     won't get texts from Acme Events now. Reply START to turn them back on." Then
     `npm run -s sim:sms -- --from "07700 900122" --text "START"`: "Texts from Acme Events are back

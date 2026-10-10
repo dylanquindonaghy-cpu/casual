@@ -12,7 +12,9 @@ export const OFFICE_AREAS = {
   settings: ["admin"], // the strikes team's email and the sites' postcodes (12B.7)
   today: ["admin", "resourcer"], // gaps, urgent shifts, cancellations, requests, expiries
   shifts: ["admin", "resourcer"], // the shift list, creating, editing, importing, assigning
-  requests: ["admin", "resourcer"], // workers' requests: approve or decline with a note
+  // Enquiries (12D.1): the shifts line's messages (replying, closing) and the requests made in the
+  // app (approve or decline with a note). Called "requests" before 12D.1.
+  enquiries: ["admin", "resourcer"],
   cancellations: ["admin", "resourcer"], // cancellation records, their PDFs and the CSV (12C.3)
   strikes: ["admin", "resourcer"], // the Strikes page, withdrawing and keeping a strike (12C.5)
   log: ["admin", "resourcer"], // the action log, with filters

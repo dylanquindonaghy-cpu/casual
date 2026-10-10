@@ -572,6 +572,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
            values ($1, $2, 'availability', 'approved', $3, now())`,
     values: [firmId, own.rosterWorkerId, other.officeUserId],
   }),
+  requests_message_fk: (firmId, own, other) => ({
+    text: "insert into requests (firm_id, worker_id, type, message_id) values ($1, $2, 'general', $3)",
+    values: [firmId, own.rosterWorkerId, other.rows.messages],
+  }),
   offers_shift_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",
     values: [firmId, other.rows.shifts, own.rosterWorkerId, 1 + next()],

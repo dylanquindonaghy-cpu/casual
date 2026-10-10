@@ -109,6 +109,12 @@ export const LOG_TYPES = {
       "message.office_alerted",
       "message.office_alert_failed",
       "message.office_alert_skipped",
+      // The office's reply or close on Enquiries (12D.1).
+      "enquiry.answered",
+      "enquiry.closed",
+      "enquiry.reply_sending",
+      "enquiry.reply_sent",
+      "enquiry.reply_failed",
     ],
   },
   requests: {

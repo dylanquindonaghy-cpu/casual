@@ -17,7 +17,7 @@ import { QUEUES } from "@/worker/jobs/queues";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
-// The office answering workers' requests (docs/screens.md `/office/requests`; product spec P0-6)
+// The office answering workers' requests (docs/screens.md `/office/enquiries` "Requests from the app", `/office/requests` until 12D.1; product spec P0-6)
 // and the worker being told (docs/messaging-templates.md `request_update`). On the real database,
 // as the app role, with a capturing transport. NOW is Monday 2 November 2026, 09:00 London (GMT).
 
@@ -137,13 +137,10 @@ describe("the office's requests page", () => {
     await answerRequest(t.ctx(t.resourcer, hoursFromNow(-24 * 8)), old, "approved", "");
 
     const queue = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
-    expect(queue.waiting.map((r) => r.requestId)).toEqual([
-      t.swap,
-      t.timeChange,
-      escalated,
-      general,
-    ]);
-    const [swap, timeChange, review, question] = queue.waiting;
+    // A question (`general`) comes from the shifts line: it's on Enquiries with its message
+    // (12D.1), so "Requests from the app" leaves it out, open or answered.
+    expect(queue.waiting.map((r) => r.requestId)).toEqual([t.swap, t.timeChange, escalated]);
+    const [swap, timeChange, review] = queue.waiting;
     expect(timeChange).toMatchObject({
       type: "time_change",
       status: "open",
@@ -158,13 +155,16 @@ describe("the office's requests page", () => {
       status: "escalated",
       asked: { reasons: ["Your SIA licence has expired."] },
     });
-    expect(question).toMatchObject({ shift: null, asked: { note: "Can I bring a friend?" } });
-    // Answered 8 days ago: not shown.
+    // Answered 8 days ago (and a question): not shown.
     expect(queue.answered).toEqual([]);
 
     await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free that day.");
     const after = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
-    expect(after.waiting.map((r) => r.requestId)).toEqual([t.timeChange, escalated, general]);
+    expect(after.waiting.map((r) => r.requestId)).toEqual([t.timeChange, escalated]);
+    // The question answered now: still not in this view.
+    await answerRequest(t.ctx(), general, "approved", "");
+    const answeredNow = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
+    expect(answeredNow.answered.map((r) => r.requestId)).not.toContain(general);
     expect(after.answered).toMatchObject([
       {
         requestId: t.swap,
@@ -365,6 +365,23 @@ describe("telling the worker (the request-update job)", () => {
     await n.run((await jobsOf(t.f.firmId))[0] ?? {});
     expect(bodies(n.sent)).toEqual([
       `Your request (time change, ref ${ref(t.timeChange)}) is approved. — Booking Test ${n.slug} Shift Team`,
+    ]);
+  });
+
+  it('a question the office approved is told as answered ("approved" can read as "booked")', async () => {
+    const t = await requestFirm();
+    const n = await notices(t);
+    const question = await t.request(
+      t.ann,
+      "general",
+      { note: "Is parking free?" },
+      { shiftId: null },
+    );
+    await answerRequest(t.ctx(), question, "approved", "Yes, in car park B.");
+    const job = (await jobsOf(t.f.firmId)).find((j) => j.requestId === question);
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "sent" } });
+    expect(bodies(n.sent)).toEqual([
+      `Your request (question, ref ${ref(question)}) is answered. The office says: Yes, in car park B. — Booking Test ${n.slug} Shift Team`,
     ]);
   });
 

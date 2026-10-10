@@ -535,6 +535,13 @@ create table requests (
                                          -- approved/declined only, 1-500 characters; free text, so
                                          -- never copied into events
   -- open/escalated: neither set. approved/declined: both set. auto_resolved: resolved_at only.
+  -- A question (general) answered is stored approved and shown "Answered" (12D.1).
+  message_id uuid,                       -- 12D.1 (S5): the shifts-line message a question came from,
+                                         -- (firm_id, message_id) -> messages ON DELETE SET NULL
+                                         -- (message_id): the 90-day purge or an erasure clears the link,
+                                         -- never the request (migration 0044, by hand). One request per
+                                         -- message (unique (firm_id, message_id) where set). Until 0044 the
+                                         -- id was payload.messageId; 0044 moved it here
   created_at timestamptz not null default now(),
   unique (firm_id, id)
 );
@@ -631,7 +638,11 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
   handled_as text,                       -- keyword | ai | office | unknown | opt_out (inbound only)
   intent text,                           -- shifts | cancel | pay | office
   handled_at timestamptz,                -- the reply job claimed it (at most one reply)
-  reply_to uuid,                         -- outbound: (firm_id, reply_to) -> the message it answers
+  reply_to uuid,                         -- outbound: (firm_id, reply_to) -> the message it answers;
+                                         -- indexed (firm_id, reply_to) for Enquiries (12D.1, S5). The
+                                         -- office's reply on Enquiries is stored when sent from the page,
+                                         -- provider_message_id "office-reply:{uuid}" until the
+                                         -- enquiry-reply job has sent it (then the provider's id)
   twilio_opt_out text,                   -- stop | start: Twilio's own opt-out handling acted on this
                                          -- incoming text (and confirmed it); null otherwise
   created_at timestamptz not null default now(),

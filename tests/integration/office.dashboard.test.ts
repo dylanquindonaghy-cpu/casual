@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -111,6 +111,30 @@ describe("the four counts", () => {
     expect(listed.events.map((e) => e.eventId)).toEqual([on]);
   });
 
+  it("showing to casuals: the first 6 cards, 2 sessions each, and how many more there are", async () => {
+    const t = await dashFirm();
+    for (let n = 1; n <= 8; n += 1) {
+      const eventId = await t.event({ name: `Fair ${n}` });
+      for (const h of [0, 1, 2]) {
+        await t.shift({ startsAt: hoursFromNow(10 * n + h), eventId });
+      }
+    }
+    const d = await t.load();
+    if (!d.showing.ok) throw new Error("showing failed");
+    expect(d.showing.data.events.map((e) => e.name)).toEqual([
+      "Fair 1",
+      "Fair 2",
+      "Fair 3",
+      "Fair 4",
+      "Fair 5",
+      "Fair 6",
+    ]);
+    expect(d.showing.data.events.map((e) => [e.sessions.length, e.moreSessions])).toEqual(
+      Array(6).fill([2, 1]),
+    );
+    expect(d.showing.data.more).toBe(2);
+  });
+
   it("cancellations today: since London midnight, by anyone; under the notice; strikes issued", async () => {
     const t = await dashFirm();
     const cancel = async (at: Date, notice: number, status = "cancelled_worker") => {
@@ -200,6 +224,55 @@ describe("the four counts", () => {
   });
 });
 
+describe("today in British Summer Time", () => {
+  // Wednesday 15 July 2026, 10:00 in London (09:00 UTC): London's midnight was 23:00 UTC the day
+  // before. A UTC midnight would count 23:30 UTC as yesterday, and 22:59 UTC as today.
+  const SUMMER = new Date("2026-07-15T09:00:00Z");
+  const TODAY_EARLY = new Date("2026-07-14T23:30:00Z"); // 00:30 in London: today
+  const YESTERDAY_LATE = new Date("2026-07-14T22:59:00Z"); // 23:59 in London: yesterday
+
+  it("the cancellations and enquiries counts, and their lists, start at London's midnight", async () => {
+    const t = await dashFirm();
+    const cancelAt = async (at: Date) => {
+      const shiftId = await t.shift({ startsAt: new Date("2026-07-20T09:00:00Z") });
+      const id = await t.booking(await t.worker(), shiftId);
+      await t.set("assignments", id, {
+        status: "cancelled_worker",
+        cancelled_at: at,
+        cancel_reason: "Unwell",
+        notice_hours: 120,
+      });
+    };
+    await cancelAt(TODAY_EARLY);
+    await cancelAt(YESTERDAY_LATE);
+    const ann = await t.worker({ first: "Ann" });
+    for (const at of [TODAY_EARLY, YESTERDAY_LATE]) {
+      await su.query(
+        `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                               body, worker_id, handled_at, handled_as, intent, created_at)
+         values ($1, 'in', 'whatsapp', $2, '+447700900951', '+447700900952', 'shifts', $3, $4,
+                 'keyword', 'shifts', $4)`,
+        [t.firmId, `SM${randomBytes(16).toString("hex")}`, ann, at],
+      );
+    }
+    const d = await withFirm(t.firmId, (tx) => loadDashboard(tx, SUMMER));
+    expect(d.today).toBe("2026-07-15");
+    expect(d.counts.cancellations).toMatchObject({ ok: true, data: { total: 1 } });
+    expect(d.counts.enquiries).toMatchObject({ ok: true, data: { total: 1, automatic: 1 } });
+    // The lists the counts open hold the same one each.
+    const cancellations = await withFirm(t.firmId, (tx) =>
+      loadCancellations(tx, { view: "all", now: SUMMER, limit: 100, day: "today" }),
+    );
+    expect(cancellations.rows.map((r) => r.cancelledAt.toISOString())).toEqual([
+      TODAY_EARLY.toISOString(),
+    ]);
+    const enquiries = await withFirm(t.firmId, (tx) =>
+      loadEnquiries(tx, "all", SUMMER, { day: "today" }),
+    );
+    expect(enquiries.rows.map((r) => r.at.toISOString())).toEqual([TODAY_EARLY.toISOString()]);
+  });
+});
+
 describe("the sections", () => {
   it("urgent cards hold only their urgent gaps, each with its offers; a hidden event says so", async () => {
     const t = await dashFirm();
@@ -228,6 +301,59 @@ describe("the sections", () => {
       },
     });
     expect(JSON.stringify(d.urgent)).not.toContain(other);
+  });
+
+  it("a session hidden on its own, in an event casuals can see, is marked hidden on its card", async () => {
+    const t = await dashFirm();
+    const fair = await t.event({ name: "Open fair" });
+    const hiddenGap = await t.shift({ startsAt: hoursFromNow(10), eventId: fair });
+    const shownGap = await t.shift({ startsAt: hoursFromNow(12), eventId: fair });
+    for (const id of [hiddenGap, shownGap]) await t.set("shifts", id, { is_urgent: true });
+    await t.set("shifts", hiddenGap, { showing_to_casuals: false });
+    const d = await t.load();
+    expect(d.urgent).toMatchObject({
+      ok: true,
+      data: {
+        events: [
+          {
+            name: "Open fair",
+            showing: true,
+            sessions: [
+              { shiftId: hiddenGap, showing: false },
+              { shiftId: shownGap, showing: true },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("a session past the 50 soonest urgent ones still shows its own offers", async () => {
+    const t = await dashFirm();
+    const busy = await t.event({ name: "Busy day" });
+    await su.query(
+      `insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source,
+                           is_urgent)
+       select $1, $2, 'steward', $3::timestamptz + (n || ' minutes')::interval,
+              $3::timestamptz + (n || ' minutes')::interval + interval '8 hours', 1, 'open',
+              'native', true
+         from generate_series(1, 51) as n`,
+      [t.firmId, busy, hoursFromNow(5)],
+    );
+    const late = await t.shift({ startsAt: hoursFromNow(30) });
+    await t.set("shifts", late, { is_urgent: true });
+    for (const n of [1, 2]) {
+      await su.query(
+        `insert into offers (firm_id, shift_id, worker_id, wave, channel, sent_at)
+         values ($1, $2, $3, 1, 'whatsapp', $4)`,
+        [t.firmId, late, await t.worker({ first: `Late${n}` }), hoursFromNow(-1)],
+      );
+    }
+    const d = await t.load();
+    if (!d.urgent.ok) throw new Error("urgent failed");
+    const sessions = d.urgent.data.events.flatMap((e) => e.sessions);
+    expect(sessions).toHaveLength(52);
+    expect(sessions.find((s) => s.shiftId === late)).toMatchObject({ offered: 2, stopped: null });
   });
 
   it("the latest three cancellations and the latest four enquiries with their replies' first lines", async () => {
@@ -276,6 +402,41 @@ describe("the sections", () => {
         replies: { [askedId]: "Hi Ann, shifts you can take:" },
       },
     });
+  });
+});
+
+describe("the reply an enquiry got", () => {
+  it("the office's reply only once it has gone: not while it waits to be sent, or if it failed", async () => {
+    const t = await dashFirm();
+    const asked = await su.query<{ id: string }>(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, handled_at, handled_as, intent, created_at)
+       values ($1, 'in', 'whatsapp', $2, '+447700900941', '+447700900942', 'Can I bring a friend?',
+               $3, 'office', 'office', $3)
+       returning id::text as id`,
+      [t.firmId, `SM${randomBytes(16).toString("hex")}`, hoursFromNow(-2)],
+    );
+    const messageId = asked.rows[0]?.id ?? "";
+    // Stored before it's sent, under the placeholder id (src/lib/office/enquiry-actions.ts).
+    const reply = await su.query<{ id: string }>(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, reply_to, created_at)
+       values ($1, 'out', 'whatsapp', $2, '+447700900942', '+447700900941', 'Yes, bring them along.',
+               $3, $4)
+       returning id::text as id`,
+      [t.firmId, `office-reply:${randomUUID()}`, messageId, hoursFromNow(-1)],
+    );
+    const replies = async () => {
+      const d = await t.load();
+      if (!d.enquiries.ok) throw new Error("enquiries failed");
+      return d.enquiries.data.replies;
+    };
+    expect(await replies()).toEqual({ [messageId]: null });
+    // Sent: it carries the provider's id now.
+    await t.set("messages", reply.rows[0]?.id ?? "", {
+      provider_message_id: `SM${randomBytes(16).toString("hex")}`,
+    });
+    expect(await replies()).toEqual({ [messageId]: "Yes, bring them along." });
   });
 });
 
@@ -362,6 +523,17 @@ describe("Needs attention: a qualification out of date on a booked session", () 
     expect(got.items.map((i) => i.worker)).toEqual(["Eve Booker"]);
   });
 
+  it("marked expired with a later date: no date given, so it reads 'marked as expired'", async () => {
+    const t = await scene();
+    const kit = await t.worker({ first: "Kit", credentials: [{ type: "STEWARD_L2" }] });
+    // A file can say "expired" with a date still to come.
+    await t.expired(kit, "SIA_DS", "expired", "2027-06-01");
+    await t.booking(kit, await t.shift({ startsAt: hoursFromNow(30) }));
+    expect((await t.items()).items.map((i) => [i.worker, i.expiresOn])).toEqual([
+      ["Kit Booker", null],
+    ]);
+  });
+
   it("not for a cancelled booking, a cancelled or started session, or a suspended licence", async () => {
     const t = await scene();
     const gus = await t.worker({
@@ -382,6 +554,39 @@ describe("Needs attention: a qualification out of date on a booked session", () 
     await t.expired(hal, "SIA_DS", "expired", "2026-10-01");
     await t.booking(hal, await t.shift({ startsAt: hoursFromNow(30) }));
     expect((await t.items()).items).toEqual([]);
+  });
+});
+
+describe("Needs attention: an application in progress", () => {
+  it("not listed when the firm's allowance counts it, as the rules do; listed when it doesn't", async () => {
+    const t = await dashFirm();
+    // Ivy's SIA licence ran out; her renewal is in progress (an "applied" record, checked).
+    const ivy = await t.worker({
+      first: "Ivy",
+      credentials: [
+        { type: "STEWARD_L2" },
+        { type: "SIA_DS", expiresOn: "2026-10-01" },
+        { type: "SIA_DS", status: "applied" },
+      ],
+    });
+    await t.booking(ivy, await t.shift({ startsAt: hoursFromNow(30) }));
+    const items = async () =>
+      (await withFirm(t.firmId, (tx) => loadExpiredOnBookings(tx, NOW, "Europe/London"))).items;
+    // No allowance (the default): the application doesn't count, so the booking is listed.
+    expect((await items()).map((i) => i.worker)).toEqual(["Ivy Booker"]);
+    // An allowance, for a type that allows it (the security pack's SIA licences): not listed.
+    await su.query(
+      `update firms set settings = settings || '{"credential_applied_allowance_pct": 15}'::jsonb
+        where id = $1`,
+      [t.firmId],
+    );
+    expect(await items()).toEqual([]);
+    // A type that doesn't allow it: listed again.
+    await su.query(
+      "update credential_types set applied_allowed = false where firm_id = $1 and code = 'SIA_DS'",
+      [t.firmId],
+    );
+    expect((await items()).map((i) => i.worker)).toEqual(["Ivy Booker"]);
   });
 });
 
@@ -452,6 +657,104 @@ describe("who may see it", () => {
     expect(await officeDashboard(ctx(await t.office("payroll")))).toBeNull();
     expect(await officeDashboard(ctx(await t.office("admin", "disabled")))).toBeNull();
     expect(await officeDashboard(ctx(await other.office("admin"), t.firmId))).toBeNull();
+  });
+});
+
+describe("isolation", () => {
+  it("one firm's dashboard and bell never count or show another firm's rows; every part loads", async () => {
+    const a = await dashFirm();
+    const b = await dashFirm();
+    // B: an urgent gap, a cancellation today, an enquiry with its reply, a licence out of date on
+    // a booking, a booked casual made inactive, and an upload waiting.
+    const gap = await b.shift({ startsAt: hoursFromNow(5) });
+    await b.set("shifts", gap, { is_urgent: true });
+    const ben = await b.worker({
+      first: "Bertram",
+      credentials: [{ type: "STEWARD_L2" }, { type: "SIA_DS", expiresOn: "2026-11-01" }],
+    });
+    await b.booking(ben, await b.shift({ startsAt: hoursFromNow(60) }));
+    const cancelled = await b.booking(
+      await b.worker(),
+      await b.shift({ startsAt: hoursFromNow(20) }),
+    );
+    await b.set("assignments", cancelled, {
+      status: "cancelled_worker",
+      cancelled_at: new Date("2026-11-02T08:00:00Z"),
+      cancel_reason: "Unwell",
+      notice_hours: 11,
+    });
+    const asked = await su.query<{ id: string }>(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, handled_at, handled_as, intent, created_at)
+       values ($1, 'in', 'whatsapp', $2, '+447700900931', '+447700900932', 'shifts?', $3,
+               'keyword', 'shifts', $3)
+       returning id::text as id`,
+      [b.firmId, `SM${randomBytes(16).toString("hex")}`, hoursFromNow(-2)],
+    );
+    await su.query(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, reply_to, created_at)
+       values ($1, 'out', 'whatsapp', $2, '+447700900932', '+447700900931', 'Firm B reply words',
+               $3, $4)`,
+      [b.firmId, `SM${randomBytes(16).toString("hex")}`, asked.rows[0]?.id, hoursFromNow(-2)],
+    );
+    const lena = await b.worker({ first: "Lenora" });
+    await b.booking(lena, await b.shift({ startsAt: hoursFromNow(48) }));
+    await b.set("workers", lena, { status: "inactive" });
+    await su.query(
+      `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data)
+       values ($1, $2, 'photo', 'image/jpeg', 3, $3, '\\xffd8ff'::bytea)`,
+      [b.firmId, ben, randomBytes(32).toString("hex")],
+    );
+
+    const mine = await a.load();
+    const theirs = await b.load();
+    // Every part of both loads (a broken query would show "This couldn't load" and pass unseen).
+    for (const d of [mine, theirs]) {
+      const parts = [
+        ...Object.values(d.counts),
+        d.urgent,
+        d.showing,
+        d.cancellations,
+        d.enquiries,
+        d.needs,
+      ];
+      expect(parts.map((p) => p.ok)).toEqual(Array(parts.length).fill(true));
+    }
+    // B's own dashboard holds them.
+    expect(theirs.counts.urgent.ok && theirs.counts.urgent.data.sessions).toBe(1);
+    expect(theirs.counts.cancellations.ok && theirs.counts.cancellations.data.total).toBe(1);
+    expect(theirs.counts.enquiries.ok && theirs.counts.enquiries.data.total).toBe(1);
+    expect(theirs.needs.ok && theirs.needs.data.expired.map((e) => e.worker)).toEqual([
+      "Bertram Booker",
+    ]);
+    expect(theirs.needs.ok && theirs.needs.data.uploads).toBe(1);
+    expect(theirs.enquiries.ok && Object.values(theirs.enquiries.data.replies)).toEqual([
+      "Firm B reply words",
+    ]);
+    // A's counts are all 0, and nothing of B's is in A's dashboard.
+    expect(mine.counts).toEqual({
+      urgent: { ok: true, data: { sessions: 0, places: 0, firstStartsAt: null } },
+      showing: { ok: true, data: { events: 0, sessions: 0, places: 0 } },
+      cancellations: { ok: true, data: { total: 0, underNotice: 0, strikes: 0, threshold: 48 } },
+      enquiries: { ok: true, data: { total: 0, automatic: 0, needPerson: 0 } },
+    });
+    const text = JSON.stringify(mine);
+    for (const word of ["Firm B reply words", "Bertram", "Lenora", "shifts?", gap, b.firmId]) {
+      expect(text).not.toContain(word);
+    }
+    // A's bell: only its own strikes-team address, not confirmed.
+    const admin = await a.office("admin");
+    const ctx = (firmId: string, officeUserId: string) => ({
+      firm: { id: firmId },
+      officeUserId,
+      run: withFirm,
+      clock,
+    });
+    expect(await needsAttentionBell(ctx(a.firmId, admin))).toEqual({ count: 1, more: false });
+    // B's admin asking under A's firm: nothing.
+    expect(await needsAttentionBell(ctx(a.firmId, await b.office("admin")))).toBeNull();
+    expect(await officeDashboard(ctx(a.firmId, await b.office("admin")))).toBeNull();
   });
 });
 

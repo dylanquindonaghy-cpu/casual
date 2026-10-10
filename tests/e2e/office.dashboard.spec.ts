@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { addEventWithSession, addSteward, cancelOwnShift } from "./db";
+import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "./db";
 import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
@@ -51,6 +51,10 @@ test("a resourcer's dashboard: the counts, the sections in order, and nothing to
     await expect(link).toHaveAttribute("href", href);
   }
 
+  // Every count and section loaded (a failed part shows its own error and the rest still shows).
+  await expect(page.getByText("This couldn't load. Reload the page to try again.")).toHaveCount(0);
+  await expect(page.getByText("Couldn't load", { exact: true })).toHaveCount(0);
+
   // The sections, in order, and the Cancellations hint.
   await expect(page.getByRole("main").getByRole("heading", { level: 2 })).toHaveText([
     "Urgent shifts not filled",
@@ -82,8 +86,11 @@ test("a resourcer's dashboard: the counts, the sections in order, and nothing to
   await expect(page.getByText("Only today's.")).toBeVisible();
 });
 
-test("the offer page leads back to the dashboard", async ({ page }) => {
-  // A session and a steward of this spec's own, so another spec's bookings can't get in the way.
+test("the offer page leads back to the dashboard", async ({ page }, testInfo) => {
+  // A session, a steward and a resourcer of this spec's own: another spec's bookings can't get in
+  // the way, and the seeded resourcer's login links (3 per email every 15 minutes) aren't used up.
+  const email = `dashboard.offer${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Dashboard Resourcer", role: "resourcer" });
   const n = Date.now() % 100_000;
   const { shiftId } = await addEventWithSession("acme", {
     name: `Dashboard Offer Night ${n}`,
@@ -97,7 +104,7 @@ test("the offer page leads back to the dashboard", async ({ page }) => {
     mobileE164: "+447700900641",
   });
   try {
-    await officeLogin(page, "acme.resourcer@example.com");
+    await officeLogin(page, email);
     await page.goto(`${acme}/office/offer/${shiftId}`);
     await expect(page.getByRole("heading", { name: "Offer this shift" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Who can take it" })).toBeVisible();

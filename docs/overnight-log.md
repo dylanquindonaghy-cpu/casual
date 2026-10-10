@@ -11637,3 +11637,108 @@ the AI's other fallback reasons.
   and the walkthrough's Today steps follow their items; `copy.plain-language` fails on "urgently
   looking for".
 - **Docs:** `docs/screens.md` (the dashboard, the bell, the filters).
+
+**Decisions (Dylan would normally approve these):**
+
+| Decision | Why | Also considered |
+|---|---|---|
+| "Enquiries today" counts messages to the shifts line since midnight **plus** requests made in the app since midnight, and its list (`/office/enquiries?day=today`) adds "Plus {n} requests made in the app today." with "See requests from the app" | §3.2's table says so; the list holds only messages, so without the line the count and the list it opens wouldn't agree | Counting messages only (against the spec); mixing requests into the message list (two different kinds of row) |
+| "Qualifications out of date on a booking": confirmed bookings on sessions to come where a qualification the session needs (the role's rule plus the session's own extras) has only office-checked records that expired, or that run out before the session's last local day; not listed when a checked record is in date, one is suspended, or an application in progress counts as the rules count it (a type that allows it, at a firm with an allowance above 0) | Mirrors rule 3 and check 4 (only checked records count; a session ending after midnight needs the qualification on its last day; the booking was checked against the day's allowance when it was made); a suspension is a different reason, shown on the casual's page | Running the rules engine per booking (one call per booking on every page view); listing missing ones too (the task names expired ones); recounting the day's allowance share (the booking already passed it) |
+| Its line says "during their … shift" when it runs out on a day the session covers (a night shift's start) | "before" would be wrong for Cara's night shift in the tests | One wording for all |
+| Each dashboard part (each count and section) loads in its own savepoint; a failure shows "This couldn't load. Reload the page to try again." (or "Couldn't load" on a count), is logged, and the rest still shows | The spec asks for error words per section; a savepoint keeps the transaction usable after one part's SQL error | One try/catch round the whole page (one failure blanks everything) |
+| The bell: admins and resourcers only (the `today` area, as before), "Needs attention, {n}" to screen readers, "{n}+" when a list stopped at 50, no number at 0 or when it couldn't be read; a link to `/office#needs-attention` | The count is Needs attention's items, so it can't promise more than the lists hold | A red dot without a number (less useful); counting every list in full (unbounded queries in the layout on every page) |
+| "Showing to casuals" shows the first 6 events, then "And {n} more. All events showing" | §3.2 sets the 2 sessions per card, the latest 3 cancellations and the latest 4 enquiries, but no number of events; 6 keeps the page short, and the count links to them all | Every event showing (a long page on a busy weekend) |
+| What left the office home (§3.11): the 7-day gaps (Events & sessions), the last 24 hours' cancellations (Cancellations), requests and unknown numbers' messages (Enquiries), credentials expiring this week (Casuals' "Need updating") | The spec's dashboard doesn't hold them; each has its own page | Keeping them under the dashboard (the spec's sections only) |
+| Tests that read those parts of Today now read their new homes: the inbound tests check Enquiries' Need a person; `office.today.test.ts` tests the to-do loaders that remain (urgent shifts, isolation for every part, "more than 50" on Who worked? in place of the removed gaps list) | The parts they checked moved; nothing they proved about the code that's still there was dropped | Deleting those checks (would lose the unknown-number coverage) |
+| Walkthrough step 22 offers a gap through the "Events showing to casuals" count, then a session's "…" → "Offer a place" | The dashboard has no gaps list, and Wes takes the urgent shift in step 19 | Offering from an urgent card (none left by then) |
+| `docs/runbooks.md` said the office sees a failing rota-sheet sync "on Today"; it never did. It now says the action log ("Reading the rota sheet failed: …") | Found while sweeping the docs; a false claim | Leaving it |
+
+**Guardrails review** (`guardrails-reviewer`, read-only): "SAFE TO COMMIT". No FIX FIRST items.
+It ran its own cross-firm probe (firm A's dashboard counted all zeros and held none of firm B's
+names or reply words; B's admin under A's firm got nothing). Five SHOULD items, all fixed:
+
+1. No committed cross-firm test for the dashboard's new queries → added "isolation" in
+   `tests/integration/office.dashboard.test.ts` (built from the reviewer's probe): A's counts are
+   all 0, none of B's words, ids or names are in A's dashboard, A's bell counts only its own item,
+   and B's admin under A's firm gets `null` from the bell and the dashboard.
+2. A broken part would show "This couldn't load" and the tests would stay green → that test
+   checks every part of both dashboards loaded, and `office.dashboard.spec.ts` checks neither
+   error line is on the page.
+3. An application in progress that the firm's allowance counts still showed as out of date (and in
+   the bell, with no way to clear it) → left out, as the rules count it (the decision above), with
+   a test for no allowance, an allowance, and a type that doesn't allow it.
+4. Past the 50 soonest urgent sessions, a card said "Offered to 0 casuals" whatever was sent (the
+   offers came from a list that stopped at 50) → `loadUrgentOffers()` now reads the offers of the
+   sessions shown, in one query (it was one query per shift); `loadUrgentShifts()` went (nothing
+   else used it). Test: 52 urgent sessions, the last with 2 offers, says 2.
+5. The office's reply showed as "Reply: …" while it waited to be sent, or after it failed (it's
+   stored first, under a placeholder id) → only a reply that went is shown. Test: waiting, then
+   sent.
+
+Cheap notes also fixed: "And {n} more" under "Showing to casuals" now counts every event showing
+(it was capped by the card list's 50; test with 8 events); the unused `SHOWING_SESSIONS` is the
+loader's own constant; a record marked expired with a later date reads "is marked as expired"
+(test). Five break checks on these fixes (offers for only the 50 soonest, the unsent reply shown,
+the allowance never or always counted, the type's own setting ignored): all caught.
+Parked (Parking lot "Dashboard (12E.1 review)"): the CSV on today's Cancellations exports every
+day; a missing or suspended qualification on a booking; §3.9's failing sync; the bell's queries
+on every office page; read-only transactions for the dashboard.
+
+**Break checks** (each change made, its tests run, then put back): 14 on the first build (a count
+label, the urgent line, the hidden warning, "during" for a night shift, a link named like a menu
+link, the bell skipping uploads, the session's last day, midnight as 24 hours ago, "automatic"
+counting the office's, a part without its savepoint, the two today filters, payroll getting the
+bell, the turned-down wording) and 5 on the review's fixes: all 19 caught.
+
+**First verify run: NOT VERIFIED** (typecheck, lint, 4,432 tests and invariants passed; 2 of 86
+browser tests failed, on the phone-sized browser). Root causes, each fixed:
+
+1. `office.shifts.spec.ts` couldn't log in ("Too many tries"): login links are limited to 3 per
+   email every 15 minutes, and my new dashboard spec logged in as the seeded resourcer twice
+   (the old Today spec did once), making 4 with `login.office` and `office.shifts`. The offer test
+   now has its own resourcer, as the other office specs do.
+2. `office.strike-evidence.spec.ts` didn't see "Sending it again. This record shows when it has
+   gone." after "Resend evidence": an older bug (12C.4). The answer lived inside the "evidence
+   email failed" section, which the refresh after a resend removes, so it showed only until the
+   refresh landed (the test passed only when it looked first). `ResendEvidence` is now always on
+   the record page and keeps its answer when the heading and button go; the spec checks the
+   answer is still there after the button has gone. Break check: putting the old conditional back
+   fails the spec.
+
+**Second verify run:** `VERIFIED tree=a576a4c59265eb61 e2e=true` (4,432 tests in 251 files, 86
+browser tests, the walkthrough's 3).
+
+**Audit round 1** (`claims-auditor`, task text and Phase 12's Done-when only):
+
+> VERDICT: NOT DONE — gaps: (1) `docs/screens.md` says the hidden warning also covers a hidden session, but the code and tests cover only a hidden event; (2) no dashboard test runs outside GMT, so "today is the London calendar day" is not shown against UTC.
+
+Both fixed:
+
+1. The code now does what the doc said: an urgent session hidden on its own, in an event casuals
+   can see, carries the same warning on its own line (`UrgentSessionCard.showing`, the session's
+   switch). Unit test (the warning on that session only) and integration test (the switch carried).
+2. A British Summer Time test: on Wed 15 July 2026 at 10:00 in London, a cancellation and a
+   message at 00:30 London time (23:30 UTC the day before) count as today, and ones at 23:59
+   London time don't; the two `?day=today` lists hold the same one. Break checks: London's
+   midnight swapped for UTC's in the dashboard, Enquiries and Cancellations each fail it; dropping
+   the session warning or the switch fails its test.
+
+**Third verify run:** `VERIFIED tree=008346691a53db66 e2e=true` (4,435 tests in 251 files, 86
+browser tests, the walkthrough's 3).
+
+**Audit round 2:**
+
+> VERDICT: DONE
+
+(Its one minor note: the summer-time test doesn't itself check the strikes-issued number, which
+uses the same midnight.) Ticked in `PLAN.md`; the review's edges went to the Parking lot
+("Dashboard (12E.1 review)").
+
+**Hours:** 2.1 (16:19 to 18:24 UTC). Phase 12 so far: 29.8 hours over 25 Hours-log rows (no
+estimate for Phase 12, so nothing to compare). **Commit:** "Phase 12: Dashboard and Needs
+attention (12E.1)", pushed; the first build was saved as `540e3dd` (WIP, pushed).
+
+**CI:** GitHub Actions still can't start a job on this account: every check on `540e3dd` (verify,
+e2e, docker, in two runs) ended in about 3 seconds with no runner assigned (runner id 0), as every
+run has since it began (billing or minutes; explained once on PR #2, not again). The local verify
+above is the evidence.

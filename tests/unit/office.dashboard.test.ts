@@ -145,6 +145,7 @@ const full: Dashboard = {
             headcount: 3,
             placesLeft: 2,
             fromSheet: false,
+            showing: true,
             offered: 4,
             stopped: null,
             escalated: false,
@@ -165,6 +166,7 @@ const full: Dashboard = {
             headcount: 1,
             placesLeft: 1,
             fromSheet: false,
+            showing: true,
             offered: 0,
             stopped: "no_candidates",
             escalated: true,
@@ -549,6 +551,32 @@ describe("the page", () => {
     expect(urgent).toMatch(/href="\/office\/events\/e1"/);
     expect(urgent).toMatch(/href="\/office\/shifts\/u1"/);
     expect(urgent).toContain(">Offer to someone</a>");
+  });
+
+  it("a session hidden on its own, in an event casuals can see, warns on that session", () => {
+    if (!full.urgent.ok) throw new Error("fixture");
+    const shown = full.urgent.data.events[0];
+    const session = shown?.sessions[0];
+    if (!shown || !session) throw new Error("fixture");
+    const d: Dashboard = {
+      ...full,
+      urgent: ok({
+        more: false,
+        events: [
+          {
+            ...shown,
+            sessions: [session, { ...session, shiftId: "u3", showing: false, offered: 0 }],
+          },
+        ],
+      }),
+    };
+    const urgent = section(render(d), "urgent");
+    const items = [...urgent.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => m[1] ?? "");
+    const hidden = items.find((i) => i.includes('href="/office/shifts/u3"')) ?? "";
+    const other = items.find((i) => i.includes('href="/office/shifts/u1"')) ?? "";
+    expect(words(hidden)).toContain("Hidden from casuals: nobody can see this gap.");
+    expect(words(other)).not.toContain("Hidden from casuals");
+    expect(words(urgent).match(/Hidden from casuals/g)).toHaveLength(1);
   });
 
   it("showing: two sessions, then how many more; the event's switch; more events", () => {

@@ -171,6 +171,12 @@ function UrgentCards({ d }: { d: Dashboard }) {
                             {roleLabel(s.role)}, {shiftWhen(s.startsAt, s.endsAt, tz)}
                           </Link>
                         </p>
+                        {e.showing && !s.showing && (
+                          // A session hidden on its own, in an event casuals can see.
+                          <p className="mt-2 rounded-md border-l-4 border-urgent bg-urgent-soft px-3 py-2 font-semibold text-urgent">
+                            {HIDDEN_WARNING}
+                          </p>
+                        )}
                         <p className={`mt-1 ${nums}`}>{urgentLine(s)}</p>
                         {s.escalated && <p className={meta}>The office was emailed about it.</p>}
                       </div>

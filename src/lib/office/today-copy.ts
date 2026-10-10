@@ -3,7 +3,7 @@ import type { CloseShiftResult } from "../roster/close";
 import type { SetUrgentResult } from "../roster/urgent";
 import type { KeepResult } from "./worker-access";
 import { ruleWords } from "./event-words";
-import type { TodayBookingToCheck, TodaySheetIssue, UrgentShift } from "./today";
+import type { TodayBookingToCheck, TodaySheetIssue, UrgentOffers } from "./today";
 
 // The dashboard's to-do words and the shift quick actions' answers (docs/screens.md `/office`):
 // short sentences, plain words.
@@ -14,7 +14,7 @@ export function placesText(placesLeft: number, headcount: number): string {
   return `${placesLeft} of ${headcount} places free`;
 }
 
-const STOPPED: Record<NonNullable<UrgentShift["stopped"]>, string> = {
+const STOPPED: Record<NonNullable<UrgentOffers["stopped"]>, string> = {
   no_candidates: "Offers stopped: nobody else can take it.",
   filled: "Offers stopped: it was filled.",
   started: "Offers stopped: it has started.",
@@ -23,7 +23,7 @@ const STOPPED: Record<NonNullable<UrgentShift["stopped"]>, string> = {
   not_urgent: "Offers stopped: it was marked not urgent.",
 };
 
-export const stoppedText = (u: Pick<UrgentShift, "stopped">) =>
+export const stoppedText = (u: Pick<UrgentOffers, "stopped">) =>
   u.stopped ? STOPPED[u.stopped] : null;
 
 // "Who worked?": people on a shift that ended, not marked as worked or not attended yet.

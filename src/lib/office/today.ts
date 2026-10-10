@@ -1,5 +1,5 @@
 import { eq, inArray, sql } from "drizzle-orm";
-import { CANCELLED_ASSIGNMENT_STATUSES, firms, workers, type SheetIssues } from "../db/schema";
+import { firms, workers, type SheetIssues } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import type { StopReason } from "../offers/waves";
 import {
@@ -13,10 +13,9 @@ import { confirmedStrikesEmail } from "../strikes/team-email";
 // dashboard (src/lib/office/dashboard.ts), which checks the session and role. Reads only, inside
 // the firm (RLS scopes every row to it).
 //
-// - loadUrgentShifts: urgent shifts that haven't started and still have a place free, with their
-//   offers (the latest wave, how many offered, accepted, failed, sent by the office), why the waves
-//   stopped (unless an offer went in that wave or a later one since) and whether the office was
-//   emailed.
+// - loadUrgentOffers: each urgent session's offers (the latest wave, how many offered, accepted,
+//   failed, sent by the office), why the waves stopped (unless an offer went in that wave or a
+//   later one since) and whether the office was emailed, for the sessions the dashboard shows.
 // - loadBookingsToCheck: future bookings whose casual can't work them as things stand.
 // - loadSheetIssues: what the firm's rota sheet asks for that the app couldn't do.
 // - loadToMark ("Who worked?"): shifts that ended in the last 7 days with people booked not marked
@@ -28,28 +27,16 @@ import { confirmedStrikesEmail } from "../strikes/team-email";
 
 export const TODAY_MARK_DAYS = 7; // "Who worked?" looks back this far
 const LIST_MAX = 50;
-const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 
-export interface TodayShift {
-  shiftId: string;
-  role: string;
-  site: string | null;
-  startsAt: Date;
-  endsAt: Date;
-  headcount: number;
-  placesLeft: number;
-  isUrgent: boolean;
-  fromSheet: boolean; // its status is changed in the Google Sheet
-}
-
-export interface UrgentShift extends TodayShift {
+// An urgent session's offers (the dashboard's urgent cards).
+export interface UrgentOffers {
   wave: number | null; // the latest wave sent
   offered: number; // offers that went (waves and office)
   byOffice: number;
   accepted: number;
   failed: number;
-  stopped: StopReason | null;
-  escalated: boolean;
+  stopped: StopReason | null; // why the waves stopped, while that's still so
+  escalated: boolean; // the office was emailed about it
 }
 
 // A shift that ended with people on it not marked as worked or didn't attend yet.
@@ -107,97 +94,71 @@ export interface TodayEvidence {
   failedMore: boolean;
 }
 
-type ShiftRow = {
-  id: string;
-  role: string;
-  site_name: string | null;
-  starts_at: string | Date;
-  ends_at: string | Date;
-  headcount: number;
-  taken: number;
-  is_urgent: boolean;
-  source: string;
-};
-
-const shiftOf = (r: ShiftRow): TodayShift => ({
-  shiftId: r.id,
-  role: r.role,
-  site: r.site_name,
-  startsAt: new Date(r.starts_at),
-  endsAt: new Date(r.ends_at),
-  headcount: r.headcount,
-  placesLeft: Math.max(0, r.headcount - r.taken),
-  isUrgent: r.is_urgent,
-  fromSheet: r.source === "sheets",
-});
-
-// Open shifts with a place free, starting after now (and, for gaps, within the window).
-const openShifts = (tx: FirmTx, where: ReturnType<typeof sql>, limit: number) =>
-  tx.execute<ShiftRow>(sql`
-    select * from (
-      select s.id, s.role, si.name as site_name, s.starts_at, s.ends_at, s.headcount,
-             s.is_urgent, s.source,
-             (select count(*)::int from assignments a
-               where a.shift_id = s.id and a.worker_id is not null
-                 and a.status not in (${CANCELLED}) and a.slot <= s.headcount) as taken
-        from shifts s
-        left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
-       where s.status = 'open' and ${where}
-    ) open_shifts
-     where taken < headcount
-     order by starts_at, id
-     limit ${limit}
+// Each shift's offers (the latest wave, how many went, by the office, accepted, failed), why the
+// waves stopped (only while no offer has gone in that wave or a later one) and whether the office
+// was emailed: one query for all the shifts given.
+export async function loadUrgentOffers(
+  tx: FirmTx,
+  shiftIds: string[],
+): Promise<Map<string, UrgentOffers>> {
+  if (shiftIds.length === 0) return new Map();
+  const { rows } = await tx.execute<{
+    shift_id: string;
+    wave: number | null;
+    offered: number;
+    by_office: number;
+    accepted: number;
+    failed: number;
+    stopped: string | null;
+    stopped_wave: number | null;
+    escalated: boolean;
+  }>(sql`
+    select x.id::text as shift_id, o.wave, o.offered, o.by_office, o.accepted, o.failed,
+           st.reason as stopped, st.wave as stopped_wave,
+           exists (select 1 from events e
+                    where e.entity_id = x.id and e.action = 'shift.escalated') as escalated
+      from unnest(array[${sql.join(
+        shiftIds.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )}]) as x(id)
+      cross join lateral (
+        select max(o.wave) as wave,
+               count(*) filter (where o.response is distinct from 'failed')::int as offered,
+               count(*) filter (where o.wave is null
+                                  and o.response is distinct from 'failed')::int as by_office,
+               count(*) filter (where o.response = 'accepted')::int as accepted,
+               count(*) filter (where o.response = 'failed')::int as failed
+          from offers o
+         where o.shift_id = x.id
+      ) o
+      left join lateral (
+        select e.data ->> 'reason' as reason, (e.data ->> 'wave')::int as wave
+          from events e
+         where e.entity_id = x.id and e.action = 'offer.waves_stopped'
+         order by e.id desc
+         limit 1
+      ) st on true
   `);
-
-// Urgent shifts not started with a place free, soonest first (at most 50), with their offers.
-export async function loadUrgentShifts(tx: FirmTx, now: Date): Promise<UrgentShift[]> {
-  const urgentRows = await openShifts(tx, sql`s.is_urgent and s.starts_at > ${now}`, LIST_MAX);
-  const urgent: UrgentShift[] = [];
-  for (const r of urgentRows.rows) {
-    const { rows } = await tx.execute<{
-      wave: number | null;
-      offered: number;
-      by_office: number;
-      accepted: number;
-      failed: number;
-      stopped: string | null;
-      stopped_wave: number | null;
-      escalated: boolean;
-    }>(sql`
-      select max(o.wave) as wave,
-             count(*) filter (where o.response is distinct from 'failed')::int as offered,
-             count(*) filter (where o.wave is null
-                                and o.response is distinct from 'failed')::int as by_office,
-             count(*) filter (where o.response = 'accepted')::int as accepted,
-             count(*) filter (where o.response = 'failed')::int as failed,
-             (select e.data ->> 'reason' from events e
-               where e.entity_id = ${r.id} and e.action = 'offer.waves_stopped'
-               order by e.id desc limit 1) as stopped,
-             (select (e.data ->> 'wave')::int from events e
-               where e.entity_id = ${r.id} and e.action = 'offer.waves_stopped'
-               order by e.id desc limit 1) as stopped_wave,
-             exists (select 1 from events e
-                      where e.entity_id = ${r.id} and e.action = 'shift.escalated') as escalated
-        from offers o
-       where o.shift_id = ${r.id}
-    `);
-    const o = rows[0];
-    // The waves stopped at the wave the stop names, before sending it. If an offer went in that wave
-    // or a later one, a second dropout started them again: the stop is old news.
-    const stoppedNow =
-      o?.stopped != null && o.stopped_wave != null && (o.wave ?? 0) < o.stopped_wave;
-    urgent.push({
-      ...shiftOf(r),
-      wave: o?.wave ?? null,
-      offered: o?.offered ?? 0,
-      byOffice: o?.by_office ?? 0,
-      accepted: o?.accepted ?? 0,
-      failed: o?.failed ?? 0,
-      stopped: stoppedNow ? (o?.stopped as UrgentShift["stopped"]) : null,
-      escalated: o?.escalated ?? false,
-    });
-  }
-  return urgent;
+  return new Map(
+    rows.map((o) => {
+      // The waves stopped at the wave the stop names, before sending it. If an offer went in that
+      // wave or a later one, a second dropout started them again: the stop is old news.
+      const stoppedNow =
+        o.stopped != null && o.stopped_wave != null && (o.wave ?? 0) < o.stopped_wave;
+      return [
+        o.shift_id,
+        {
+          wave: o.wave,
+          offered: o.offered,
+          byOffice: o.by_office,
+          accepted: o.accepted,
+          failed: o.failed,
+          stopped: stoppedNow ? (o.stopped as StopReason) : null,
+          escalated: o.escalated,
+        },
+      ];
+    }),
+  );
 }
 
 // Future bookings whose casual can't work them as things stand (made inactive or blocked, or

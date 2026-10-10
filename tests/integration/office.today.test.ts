@@ -6,18 +6,19 @@ import {
   loadEvidence,
   loadSheetIssues,
   loadToMark,
-  loadUrgentShifts,
+  loadUrgentOffers,
 } from "@/lib/office/today";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
-// The office's to-do queries (src/lib/office/today.ts), read by the dashboard (12E.1; who may see
-// them is tested in tests/integration/office.dashboard.test.ts), on the real database as the app
-// role. Each part has its own tests too: bookings to check (office.workers), from your rota sheet
-// (sheets.sync), who worked? (office.attendance), strike evidence (strikes.evidence). Until 12E.1
-// they made the Today page, with its gaps, cancellations, requests, unknown numbers and expiring
-// credentials: those moved to Events & sessions, Cancellations, Enquiries and Casuals, each tested
-// there. NOW is Monday 2 November 2026, 09:00 London (GMT).
+// The office's to-do queries (src/lib/office/today.ts), read by the dashboard (12E.1), on the
+// real database as the app role. Who may see them, and which sessions count as urgent gaps, are
+// tested in tests/integration/office.dashboard.test.ts. Each part has its own tests too: bookings
+// to check (office.workers), from your rota sheet (sheets.sync), who worked? (office.attendance),
+// strike evidence (strikes.evidence). Until 12E.1 they made the Today page, with its gaps,
+// cancellations, requests, unknown numbers and expiring credentials: those moved to Events &
+// sessions, Cancellations, Enquiries and Casuals, each tested there. NOW is Monday 2 November
+// 2026, 09:00 London (GMT).
 
 let su: Pool;
 let app: Pool;
@@ -41,15 +42,6 @@ async function todayFirm() {
   // the waves stopped for want of people, and the office was emailed.
   const urgent = await f.shift({ startsAt: hoursFromNow(10) });
   await su.query("update shifts set is_urgent = true where id = $1", [urgent]);
-  // Not listed: an urgent one that has started, one full, one cancelled, and a plain gap.
-  const started = await f.shift({ startsAt: hoursFromNow(-1) });
-  const full = await f.shift({ startsAt: hoursFromNow(30) });
-  await f.booking(ben, full);
-  const closed = await f.shift({ startsAt: hoursFromNow(31), status: "cancelled" });
-  await su.query("update shifts set is_urgent = true where id = any($1::uuid[])", [
-    [started, full, closed],
-  ]);
-  await f.shift({ startsAt: hoursFromNow(20) });
   const cal = await f.worker({ first: "Cal" });
   const resourcer = await f.office("resourcer");
   const offer = (worker: string, wave: number | null, response: string | null, at: Date) =>
@@ -88,25 +80,31 @@ async function todayFirm() {
   return { f, urgent, tomorrow, ended, sheetShift };
 }
 
-describe("loadUrgentShifts", () => {
-  it("urgent, not started, a place free: its places, offers, why they stopped, and the email", async () => {
+describe("loadUrgentOffers", () => {
+  it("each session's offers, why they stopped, and the email", async () => {
     const t = await todayFirm();
-    const urgent = await withFirm(t.f.firmId, (tx) => loadUrgentShifts(tx, NOW));
-    expect(urgent).toEqual([
-      expect.objectContaining({
-        shiftId: t.urgent,
-        placesLeft: 1,
-        headcount: 1,
-        isUrgent: true,
-        wave: 1,
-        offered: 2, // Ann's and the office's to Cal (Ben's failed)
-        byOffice: 1,
-        accepted: 0,
-        failed: 1,
-        stopped: "no_candidates",
-        escalated: true,
-      }),
-    ]);
+    const plain = await t.f.shift({ startsAt: hoursFromNow(12) });
+    const offers = await withFirm(t.f.firmId, (tx) => loadUrgentOffers(tx, [t.urgent, plain]));
+    expect(offers.get(t.urgent)).toEqual({
+      wave: 1,
+      offered: 2, // Ann's and the office's to Cal (Ben's failed)
+      byOffice: 1,
+      accepted: 0,
+      failed: 1,
+      stopped: "no_candidates",
+      escalated: true,
+    });
+    // None sent yet: every number 0.
+    expect(offers.get(plain)).toEqual({
+      wave: null,
+      offered: 0,
+      byOffice: 0,
+      accepted: 0,
+      failed: 0,
+      stopped: null,
+      escalated: false,
+    });
+    expect(await withFirm(t.f.firmId, (tx) => loadUrgentOffers(tx, []))).toEqual(new Map());
   });
 
   it("an old stop isn't shown once a later offer went (a second dropout restarted the waves)", async () => {
@@ -117,14 +115,8 @@ describe("loadUrgentShifts", () => {
        values ($1, $2, $3, 3, 'sms', $4)`,
       [t.f.firmId, t.urgent, zed, NOW],
     );
-    const urgent = await withFirm(t.f.firmId, (tx) => loadUrgentShifts(tx, NOW));
-    expect(urgent[0]).toMatchObject({ wave: 3, offered: 3, stopped: null });
-  });
-
-  it("not once it's full", async () => {
-    const t = await todayFirm();
-    await su.query("update shifts set status = 'filled' where id = $1", [t.urgent]);
-    expect(await withFirm(t.f.firmId, (tx) => loadUrgentShifts(tx, NOW))).toEqual([]);
+    const offers = await withFirm(t.f.firmId, (tx) => loadUrgentOffers(tx, [t.urgent]));
+    expect(offers.get(t.urgent)).toMatchObject({ wave: 3, offered: 3, stopped: null });
   });
 });
 
@@ -147,16 +139,25 @@ describe("the to-do parts", () => {
 
   it("never shows another firm's rows", async () => {
     const mine = await bookingFirm(su, withFirm);
-    await todayFirm(); // another firm, with something in every part
+    const theirs = await todayFirm(); // another firm, with something in every part
     const got = await withFirm(mine.firmId, async (tx) => ({
-      urgent: await loadUrgentShifts(tx, NOW),
+      // Another firm's shift id gives nothing away: no offers, no stop, no email.
+      urgent: (await loadUrgentOffers(tx, [theirs.urgent])).get(theirs.urgent),
       toCheck: await loadBookingsToCheck(tx, NOW),
       fromSheet: await loadSheetIssues(tx, NOW),
       toMark: await loadToMark(tx, NOW),
       failed: (await loadEvidence(tx, NOW)).failed,
     }));
     expect(got).toEqual({
-      urgent: [],
+      urgent: {
+        wave: null,
+        offered: 0,
+        byOffice: 0,
+        accepted: 0,
+        failed: 0,
+        stopped: null,
+        escalated: false,
+      },
       toCheck: { items: [], more: false },
       fromSheet: { items: [], more: false },
       toMark: { items: [], more: false },

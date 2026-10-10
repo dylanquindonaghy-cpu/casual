@@ -11509,3 +11509,143 @@ Run `npm run dev`. Send a WhatsApp as Zoe with the fake phone:
 `npm run -s sim:whatsapp -- --from "07700 900122" --text "Any shifts this weekend?"`. The dev
 window shows her own reply. Log in to the office as `acme.resourcer@example.com`, click
 "Enquiries", then her message: step 3 shows every check made for each session she was offered.
+
+## 2026-10-10 — Phase 12, task 12E.1: Dashboard and Needs attention
+
+**Time spent:** 2.1 hours (16:19 to 18:24 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=008346691a53db66 e2e=true`.
+That run passed 4,435 tests in 251 files, 86 browser tests and the walkthrough's 3, with none
+skipped. The first verify run failed 2 browser tests (see "Problems found on the way"). The
+independent auditor said **VERDICT: NOT DONE** on its first round (two gaps, both fixed: see below)
+and **VERDICT: DONE** on its second. The commit is "Phase 12: Dashboard and Needs attention
+(12E.1)", pushed to `build/overnight` (the work so far was saved first as `540e3dd`). GitHub's own
+test run (CI) still can't start on this account (see the morning summary), so the local run is
+the evidence.
+
+### What was built, in plain words
+
+The office's first page used to be **"Today"**: a long list of everything, in ten sections. It is
+now the **Dashboard**, the page Dylan's mock-up and the v2 spec describe (`docs/office-v2.md`
+§3.2 and §3.9). Admins and resourcers land on it after logging in. Payroll still goes straight to
+their pay dashboard.
+
+- **The shifts line** number stays under the page title, as before.
+- **Four counts** sit at the top. Each is a link (a "filtered list": the full page, showing only
+  what the count counted):
+  - "Urgent shifts not filled" (red and larger): sessions marked urgent that haven't started and
+    still have a place free. Its line says how many places, and when the first one starts.
+  - "Events showing to casuals": events casuals can see that still have a session to come.
+  - "Cancellations today": bookings cancelled since midnight, London time. Its line says how many
+    were under the strike notice and how many strikes were issued.
+  - "Enquiries today": messages to the shifts line since midnight, plus requests made in the app.
+    Its line says how many were answered automatically and how many need a person.
+- **Five sections** come under the counts, each with a short grey hint under its heading:
+  - **Urgent shifts not filled**: a card per event. Each urgent session has its own line, written
+    by code from the offers sent: "Offered to 3 casuals", or why offers stopped. A hidden event
+    warns "Hidden from casuals: nobody can see this gap." The quick buttons (offer to someone,
+    not urgent, mark as filled) are on each session, as before.
+  - **Showing to casuals**: the first 6 events casuals can see, each with its on/off switch and
+    its first 2 sessions.
+  - **Cancellations**: the latest 3, with the notice given and any strike. The hint says
+    "Recorded automatically, never approved or declined". There is no approve, decline or deny
+    button anywhere on the page.
+  - **Enquiries**: the latest 4 messages, with the start of the reply each one got.
+  - **Needs attention**: the to-do list. Each part only shows when it has something, and each item
+    links to where it's sorted:
+    - "Bookings to check", "From your rota sheet" and "Who worked?" (moved from Today);
+    - **new:** "Qualifications out of date on a booking": someone booked on a session whose
+      required licence or card has run out, or runs out before the session ends;
+    - **new:** "Uploads to check": photos and certificates casuals sent, waiting for the office;
+    - "Strike evidence" (an email to the strikes team that failed, or no confirmed address).
+- **A bell** in the top bar of every office page shows how many Needs attention items there are
+  and jumps to them. Screen readers hear "Needs attention, 3".
+- If one part of the page can't load (a database error), only that part says "This couldn't
+  load. Reload the page to try again." The rest still shows. This uses a **savepoint**: a marker
+  inside a database transaction that lets one failed query be undone without losing the rest.
+- `/office/today` (old bookmarks) now opens the dashboard. "Back to Today" links say "Back to the
+  dashboard". The menu's first link is "Dashboard".
+- Cancellations and Enquiries have a new "today only" view (`?day=today`), which the counts open,
+  with a link back to every day.
+- What Today had that the dashboard doesn't moved to its own page: the week's gaps (Events &
+  sessions), requests and messages from unknown numbers (Enquiries), credentials expiring
+  (Casuals). The how-to guide, the walkthrough and 15 docs say so.
+
+### Key facts and numbers
+
+- "Today" means the London calendar day: from midnight in London, which is 23:00 UTC the day
+  before in summer. A test runs on a July day to prove it.
+- The counts' lists: `/office/events?view=urgent`, `/office/events?view=showing`,
+  `/office/cancellations?day=today` and `/office/enquiries?day=today`. Each new "today only" list
+  says "Only today's." with a link back to every day. Enquiries' also says how many requests were
+  made in the app today, because the count includes them.
+- Sizes: 6 event cards under "Showing to casuals" (2 sessions each), the latest 3 cancellations,
+  the latest 4 enquiries, and at most 50 items in each Needs attention list ("50+" past that).
+- A qualification is "out of date on a booking" when the session needs it (the role's rule or the
+  session's own extra requirement), every record the office has checked has expired or runs out
+  before the session's last day, and no application in progress counts for it under the firm's
+  allowance. That is how the rules engine (the code that decides who may work a shift) reads it.
+- The bell's number is the count of Needs attention items. It shows no number at 0.
+- The dashboard only reads: it writes nothing and logs no events. Its buttons are the existing
+  ones (offer, mark urgent, mark as filled, keep or cancel a booking), each with its own checks.
+
+### Decisions made
+
+| Decision | Why | Also considered |
+|---|---|---|
+| "Enquiries today" counts messages and app requests; its list adds a line for the requests | The spec says the count includes them; the list shows only messages | Counting messages only |
+| Out-of-date qualifications read as the rules read them (checked records only; the session's last day; an allowed application counts) | So the dashboard never flags a booking the rules would accept | Running the rules engine for every booking on every page view |
+| Each part of the page loads in its own savepoint | One failing part shows its own error; the rest still shows | One error for the whole page |
+| The bell only for admins and resourcers, with no number at 0 | The same people who see the dashboard | A dot without a number |
+| 6 events under "Showing to casuals" | The spec gives no number; the count links to them all | Every event (a long page) |
+| A session hidden on its own gets the same warning as a hidden event | Nobody can see that gap either (the auditor's first gap) | Warning only for a hidden event |
+
+### What the new tests prove
+
+- **The counts** (on a real database): each counts exactly what its definition says. Full,
+  started, draft and cancelled sessions aren't urgent gaps. Only today's cancellations and
+  messages count, in winter and in summer. Each count's list holds the same rows as the count.
+- **The sections:** urgent cards hold only their urgent gaps, each with its own offer numbers,
+  even past 50 sessions. The hidden warning appears on a hidden event or session. Showing to
+  casuals shows 6 cards and how many more. The latest 3 cancellations and 4 enquiries come with
+  the first line of the reply, but only a reply that was sent.
+- **Needs attention:** every kind of item appears and links to its page. A licence that runs out
+  before a night shift ends is caught. A suspended licence, a checked renewal, or an allowed
+  application is not flagged.
+- **Who may see it:** admins and resourcers do. Payroll, a disabled user and another firm's admin
+  get nothing. Another firm's rows never appear: its counts are all 0, and none of its names or
+  words are in the page.
+- **Errors:** a failing part shows "This couldn't load…" and the rest of the page still loads.
+- **Words:** the exact labels, headings and hints. No dashboard link has a menu link's name. No
+  Approve, Decline or Deny anywhere. "urgently looking for" can't appear in `src/` or the screens
+  doc.
+- **In a browser** (`office.dashboard.spec.ts`): the four labels and their links, the headings
+  in order, the shifts line, the Cancellations hint, nothing that failed to load, the bell, the
+  offer page's "Back to the dashboard", the `/office/today` redirect, and payroll's redirect.
+- 25 **break checks**: each time I broke the code on purpose (a label, a date rule, a filter, a
+  safety step), a test failed. Then the code was put back.
+
+### Problems found on the way
+
+- **A login limit in the browser tests.** The office allows 3 login links per email every 15
+  minutes. My new spec logged in as the shared demo resourcer once too often, so a later spec
+  couldn't log in. The new test now uses its own resourcer.
+- **An older bug: a confirmation that vanished.** On a cancellation record, "Resend evidence" said
+  "Sending it again…", but the page then refreshed and removed that message with the button. The
+  message now stays.
+- The **guardrails review** (a separate checker for the project's safety rules) found nothing
+  unsafe, and suggested five improvements, all made: a test that one firm never sees another's
+  rows, a check that every part loads, the application allowance, the offer numbers past 50
+  sessions, and hiding replies that weren't sent.
+
+### What's parked or needs Dylan
+
+Nothing needs a decision. The Parking lot ("Dashboard (12E.1 review)") lists the edges: a
+qualification someone never had (or a suspended one) on a booking isn't in Needs attention; the
+lists stop at 50; the unknown-number alert email still links the dashboard; the today-only
+Cancellations CSV exports every day; the bell's queries on every page.
+
+### How to see it working
+
+Run the walkthrough (`docs/walkthrough.md`, steps 20 to 24): log in as the resourcer and the
+dashboard opens, with the four counts, the sections and the bell.

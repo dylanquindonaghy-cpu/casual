@@ -86,8 +86,12 @@ test("a failed evidence email shows on the dashboard, and its record resends it"
     await expect(page.getByRole("status")).toHaveText(
       "Sending it again. This record shows when it has gone.",
     );
-    // Queued again: no longer failed, so the button goes.
+    // Queued again: no longer failed, so the button goes, and the answer stays after the refresh.
     await expect(page.getByRole("heading", { name: "The evidence email failed" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Resend evidence" })).toHaveCount(0);
+    await expect(page.getByRole("status")).toHaveText(
+      "Sending it again. This record shows when it has gone.",
+    );
   } finally {
     await cancelOwnShift("acme", shiftId);
   }

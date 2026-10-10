@@ -4,8 +4,10 @@ import { CANCELLED_ASSIGNMENT_STATUSES, firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { errorCode } from "../jobs/firm-job";
 import { log } from "../log";
+import { OFFICE_REPLY_PREFIX } from "../notices/enquiry-reply";
 import type { StopReason } from "../offers/waves";
 import { strikeSettings } from "../strikes/settings";
+import { rulesSettingsSchema } from "../roster/eligibility-input";
 import { localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { loadCancellations } from "./cancellations";
 import type { CancellationRow } from "./cancellations-copy";
@@ -18,7 +20,7 @@ import {
   loadEvidence,
   loadSheetIssues,
   loadToMark,
-  loadUrgentShifts,
+  loadUrgentOffers,
   type TodayBookingToCheck,
   type TodayEvidence,
   type TodaySheetIssue,
@@ -39,6 +41,7 @@ import {
 export const LATEST_CANCELLATIONS = 3;
 export const LATEST_ENQUIRIES = 4;
 export const SHOWING_EVENTS = 6; // cards in "Showing to casuals"; the count links to them all
+export const SHOWING_SESSIONS = 2; // sessions on each of those cards, then "+ N more"
 export const NEEDS_MAX = 50; // each Needs attention list stops here ("more" says there were others)
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
@@ -68,6 +71,7 @@ export interface UrgentSessionCard {
   headcount: number;
   placesLeft: number;
   fromSheet: boolean;
+  showing: boolean; // the session's own switch (the event's is on its card)
   offered: number; // offers that went (waves and the office)
   stopped: StopReason | null; // why the waves stopped, if they have
   escalated: boolean; // the office was emailed about it
@@ -221,10 +225,13 @@ async function cancellationCount(tx: FirmTx, now: Date, midnight: Date, threshol
 }
 
 // Urgent sessions with a gap, on their events' cards: Events' own cards (only their urgent gaps
-// kept), with each session's offers from today.ts.
+// kept), with the offers of each session shown (today.ts).
 async function urgentCards(tx: FirmTx, now: Date) {
   const { events, more } = await loadEventCards(tx, now, "urgent", Number.MAX_SAFE_INTEGER);
-  const offers = new Map((await loadUrgentShifts(tx, now)).map((u) => [u.shiftId, u]));
+  const offers = await loadUrgentOffers(
+    tx,
+    events.flatMap((e) => e.sessions.filter((s) => s.urgentGap).map((s) => s.shiftId)),
+  );
   return {
     more,
     events: events.map((e): UrgentEventCard => ({
@@ -244,6 +251,7 @@ async function urgentCards(tx: FirmTx, now: Date) {
             headcount: s.headcount,
             placesLeft: Math.max(0, s.headcount - s.booked),
             fromSheet: s.fromSheet,
+            showing: s.showing,
             offered: o?.offered ?? 0,
             stopped: o?.stopped ?? null,
             escalated: o?.escalated ?? false,
@@ -253,8 +261,9 @@ async function urgentCards(tx: FirmTx, now: Date) {
   };
 }
 
-// The first line of the reply each message got (null: none yet): an automatic reply or the
-// office's own words.
+// The first line of the reply each message got (null: none yet): an automatic reply (stored once
+// it's sent) or the office's own words once they've gone. The office's reply is stored before it's
+// sent, under a placeholder id until then; one still waiting, or that failed, isn't one they got.
 async function firstReplies(tx: FirmTx, ids: string[]): Promise<Record<string, string | null>> {
   const replies: Record<string, string | null> = Object.fromEntries(ids.map((id) => [id, null]));
   if (ids.length === 0) return replies;
@@ -265,6 +274,7 @@ async function firstReplies(tx: FirmTx, ids: string[]): Promise<Record<string, s
        ids.map((id) => sql`${id}::uuid`),
        sql`, `,
      )})
+       and not starts_with(m.provider_message_id, ${OFFICE_REPLY_PREFIX})
      order by m.reply_to, m.created_at, m.id
   `);
   for (const r of rows) {
@@ -280,6 +290,16 @@ export async function loadExpiredOnBookings(
   now: Date,
   timeZone: string,
 ): Promise<{ items: ExpiredOnBooking[]; more: boolean }> {
+  // An application in progress counts as the rules engine counts it (src/lib/rules/eligibility.ts,
+  // check 4; as src/lib/credentials/qualifications.ts reads it): a type that allows it, at a firm
+  // with an allowance above 0. The booking was checked against the day's share when it was made.
+  const [firm] = await tx
+    .select({ settings: firms.settings })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  const rulesSettings = rulesSettingsSchema.safeParse(firm?.settings ?? {});
+  const appliedCounts =
+    rulesSettings.success && rulesSettings.data.credential_applied_allowance_pct > 0;
   const { rows } = await tx.execute<{
     assignment_id: string;
     worker_id: string;
@@ -313,10 +333,12 @@ export async function loadExpiredOnBookings(
     )
     select n.assignment_id::text, n.worker_id::text, w.first_name, w.last_name,
            n.shift_id::text, n.role, n.starts_at, n.type, ct.name as type_name,
+           -- The date it ran out, from records dated before the session's last day (one marked
+           -- expired with a later date, or none, reads "marked as expired").
            (select max(c.expires_on)::text from credentials c
              where c.firm_id = w.firm_id and c.worker_id = n.worker_id and c.type = n.type
-               and c.check_state = 'verified'
-               and (c.status = 'expired' or (c.status = 'valid' and c.expires_on < n.last_day)))
+               and c.check_state = 'verified' and c.status in ('expired', 'valid')
+               and c.expires_on < n.last_day)
              as expires_on
       from needed n
       join workers w on w.firm_id = app_current_firm_id() and w.id = n.worker_id
@@ -326,13 +348,16 @@ export async function loadExpiredOnBookings(
                       and c.check_state = 'verified'
                       and (c.status = 'expired'
                            or (c.status = 'valid' and c.expires_on < n.last_day)))
-       -- Not when a checked record is in date (the rules pass), or suspended (another reason).
+       -- Not when a checked record is in date (the rules pass), an application in progress counts
+       -- (above), or one is suspended (another reason).
        and not exists (select 1 from credentials c
                         where c.firm_id = w.firm_id and c.worker_id = n.worker_id
                           and c.type = n.type and c.check_state = 'verified'
                           and (c.status = 'suspended'
                                or (c.status = 'valid'
-                                   and (c.expires_on is null or c.expires_on >= n.last_day))))
+                                   and (c.expires_on is null or c.expires_on >= n.last_day))
+                               or (${appliedCounts} and c.status = 'applied'
+                                   and coalesce(ct.applied_allowed, false))))
      order by n.starts_at, w.last_name, w.first_name, n.type
      limit ${NEEDS_MAX + 1}
   `);
@@ -411,9 +436,11 @@ export async function loadDashboard(tx: FirmTx, now: Date): Promise<Dashboard> {
     },
     urgent: await part(tx, "urgent", (sp) => urgentCards(sp, now)),
     showing: await part(tx, "showing", async (sp) => {
-      const { events, more } = await loadEventCards(sp, now, "showing", 2);
+      const { events } = await loadEventCards(sp, now, "showing", SHOWING_SESSIONS);
       const shown = events.slice(0, SHOWING_EVENTS);
-      return { events: shown, more: events.length - shown.length + (more ? 1 : 0) };
+      // The rest, counted as the count counts them (the card list itself stops at 50).
+      const total = (await showingCount(sp, now)).events;
+      return { events: shown, more: Math.max(0, total - shown.length) };
     }),
     cancellations: await part(tx, "cancellations", async (sp) => {
       const list = await loadCancellations(sp, {

@@ -102,15 +102,8 @@ export default async function CancellationRecordPage({
             )}
         </section>
       )}
-      {resend && (
-        <section aria-labelledby="evidence" className="mb-6 flex max-w-3xl flex-col gap-2">
-          <h2 id="evidence" className="font-semibold text-ink">
-            {resend.heading}
-          </h2>
-          <p className="text-ink-muted">{resend.text}</p>
-          <ResendEvidence assignmentId={record.row.assignmentId} />
-        </section>
-      )}
+      {/* Always here (it shows nothing without a note), so a resend's answer outlives the refresh. */}
+      <ResendEvidence assignmentId={record.row.assignmentId} note={resend} />
       <dl className="grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-[12rem_1fr]">
         {fields.map((f) => (
           <div key={f.label} className="contents">

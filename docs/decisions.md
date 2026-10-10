@@ -438,3 +438,62 @@ replace the AWS budget and the Lightsail alarms. Phase 12 builds the SMTP sender
 API" (PLAN.md Parking lot). **Revisit when:** a firm requires UK- or EU-only AI processing, or 5+
 paying firms (server size).
 
+
+## ADR-022: The planner integration layer: an API in by key, signed webhooks out
+
+**Context:** Dylan, 2026-10-06: "plug in and play with all planners using webhooks and apis not
+another sheet" (`docs/office-v2.md` §5.3; S11 approved the same day). A firm's planner or CRM
+should send its sessions to ShiftDesk and hear about bookings and cancellations, with no adapter
+per planner. Today every way in is a person (the office pages), a provider webhook (Twilio, signed
+and answered by jobs), the rota sheet or a file, and every look-up before a firm is known goes by
+host (`resolveFirmBySlug()`) or by shifts-line number (`resolveFirmByLine()`).
+**Decision:**
+- **A small REST API** at the platform address only (`https://{APP_BASE_DOMAIN}/api/v1`):
+  `PUT` and `GET /sessions/{ref}` (by the planner's own id) and `GET /cancellations` (keyset pages).
+  JSON only, at most 64 KB, every body checked by a strict zod schema; errors are
+  `{"error": {"code", "message", "request_id"}}` and never echo a value. Signed webhooks out follow
+  in 12J.2 (the Standard Webhooks spec).
+- **API keys:** `shiftdesk_` plus 43 random characters, shown once. Only the sha256 and the last 4
+  characters are stored, in `api_keys` (forced RLS; the app may read and add rows and change only
+  `last_used_at`, `revoked_at` and `revoked_by`; never deleted, since a key's id is the actor on
+  what it changed; left out of the firm's export). Admins create (at most 10 live) and revoke.
+- **The key decides the firm**, never the host, path or body: `app_api_key_lookup(hash)`, an
+  owner-run `SECURITY DEFINER` function like `app_firm_by_line()`, returns only the firm id and key
+  id of a key that isn't revoked; the call then runs in `withFirm()`. A key of the wrong shape is
+  refused before any look-up, and each web process counts refused keys per client address (30 a
+  minute, then 429). Each key gets 300 calls a minute through `throttle()`.
+- **Work happens in the request** (an exception to golden rule 3, written into CLAUDE.md): the
+  planner needs the answer ("the rules refused this move for 2 casuals"). Each write is one short
+  transaction, made safe to repeat by the planner's ref. Offer waves, notices, travel estimates and
+  webhooks still go to jobs.
+- **A second, narrower caller** of the office's whole-session move and cancel
+  (`moveShiftByFirm()`, `cancelShiftByFirm()`): `{ type: "api", keyId }`, checked live in the same
+  transaction, allowed only on the API's own sessions, with every failed rules check blocking (no
+  person is there to override rest, weekly hours or a day off), `cancel_via` `api` and never a
+  strike, logged with the `system` actor and `{ by: "firm", via: "api", keyId }`. The office gets a
+  "planner" refusal for those sessions, as it gets "sheet" for the rota sheet's.
+- **Gate B** applies: on a live database no key is created and no write is taken until the firm's
+  agreement is recorded. With `INTEGRATIONS_SECRET` unset, every call answers 503.
+**Amends:**
+- **ADR-008** ("no Deputy/Parim plugs planned"): still no adapter per planner, but any planner can
+  now connect through this one API and its webhooks, directly or through Zapier, Make or n8n.
+- **ADR-011:** a third owner-run look-up before a firm is known, `app_api_key_lookup()`, returning
+  ids only and only for live keys. `api_keys` has a `TABLE_ACCESS` entry of `SELECT, INSERT` plus
+  three updatable columns, so the app can never rewrite a key's hash or label.
+- **ADR-012:** on `/api/v1` the key, not the host, decides the firm. The API answers only on the
+  platform address: a firm's subdomain or own domain gets 404. The proxy's trailing-punctuation
+  redirect skips every `/api/` path (a 308 would carry the key to another address), and a ref must
+  end with a letter or a digit.
+**Options:**
+| Option | Verdict |
+|---|---|
+| An adapter per planner (Deputy, Parim, …) | Many integrations to keep up; the firms we sell to first mostly have none |
+| Another sheet, or a daily "changes for your planner" email | Ruled out by Dylan |
+| OAuth client credentials | More moving parts for small firms and their no-code tools; a revocable key does the job |
+| Signed tokens (JWT) instead of stored keys | Can't be revoked at once without a table anyway |
+| Doing the API's work in a job | The planner needs the answer in the response |
+**Consequences:** a new machine login path: keys are shown once and never logged (a test checks the
+servers' logs for any `shiftdesk_` key or `Bearer`), refused keys and calls are rate-limited, and
+each request writes one log line with the route, status, time, firm and key id. Planners must send
+one ref's PUTs one at a time with no automatic replays (`docs/integrations.md`). **Revisit when:** a
+planner needs OAuth or per-key scopes, a firm needs more than 10 keys, or `/api/v2`.

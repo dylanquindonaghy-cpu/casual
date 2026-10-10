@@ -31,8 +31,11 @@ The product sits alongside whatever the firm already uses. It never forces staff
    A model never decides who gets a shift or what someone is paid.
 2. **Tenant isolation.** Every table has `firm_id`. All queries go through the scoped data
    layer. Postgres Row Level Security is on. Cross-tenant tests must exist and pass.
-3. **Idempotent inbound.** Every webhook stores `provider_message_id` (unique). Handlers
-   verify signatures, write one row, queue a job and return 200 fast. Work happens in jobs.
+3. **Idempotent inbound.** Every provider webhook (Twilio, email) stores `provider_message_id`
+   (unique). Handlers verify signatures, write one row, queue a job and return 200 fast. Work
+   happens in jobs. The planner API (`/api/v1`) is not a provider webhook: each write is one short
+   transaction answered in the request, made idempotent by the planner's ref
+   (`docs/office-v2.md` §5.3.2; ADR-022).
 4. **First yes wins.** Assigning a shift is one conditional `UPDATE ... WHERE assigned_to IS NULL`.
    Zero rows changed means already filled. Never double-assign.
 5. **Log every state change.** Write an `events` row (append-only) for every offer, accept,

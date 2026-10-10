@@ -239,7 +239,12 @@ export interface EnquiryTimeline {
   received: { channel: Channel; at: Date; who: Who };
   sorted:
     | { how: "keyword" | "ai"; intent: Intent }
-    | { how: "person"; why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" }
+    | {
+        how: "person";
+        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted";
+        // The AI's own reason, when it was logged (12D.2).
+        ai?: "not_connected" | "no_answer" | "not_a_label";
+      }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" };
@@ -298,6 +303,42 @@ export interface EnquiryDetail {
   timeline: EnquiryTimeline;
   plan: ReplyPlan; // how a reply from the office would go now
   firm: { name: string; signOff: string };
+  // What the personal reply was built from (its `enquiry.checks` entry, 12D.2), or null: no such
+  // reply, or one sent before 12D.2 ("No checks recorded").
+  built: BuiltReply | null;
+}
+
+// A session the entry names, as the office reads it.
+export interface SessionName {
+  shiftId: string;
+  role: string;
+  eventName: string | null;
+  siteName: string | null;
+  startsAt: Date;
+  endsAt: Date;
+}
+
+export interface BuiltReply {
+  template: string;
+  sent: boolean | null;
+  area: { maxMinutes: number } | null;
+  offered: {
+    shiftId: string;
+    session: SessionName | null; // null: deleted since
+    car: number | null;
+    publicTransport: number | null;
+    checks: { code: string; passed: boolean; detail: Record<string, unknown> }[];
+  }[];
+  more: number;
+  notOffered: {
+    shiftId: string;
+    session: SessionName | null;
+    reasons: { code: string; type?: string; from?: string; to?: string }[];
+  }[];
+  notOfferedMore: number;
+  bookings: string[];
+  // The qualifications the entry names: their names for people.
+  names: Record<string, string>;
 }
 
 type EventRow = {
@@ -309,6 +350,9 @@ type EventRow = {
 };
 
 const str = (v: unknown) => (typeof v === "string" ? v : null);
+const AI_REASONS = ["not_connected", "no_answer", "not_a_label"] as const;
+const aiReason = (v: unknown) =>
+  AI_REASONS.find((r) => r === v) as (typeof AI_REASONS)[number] | undefined;
 
 export async function loadEnquiry(
   tx: FirmTx,
@@ -503,6 +547,10 @@ export async function loadEnquiry(
   then.sort((a, b) => a.at.getTime() - b.at.getTime());
 
   const received = events.find((e) => e.action === "message.received");
+  const built = await builtReply(
+    tx,
+    events.findLast((e) => e.action === "enquiry.checks"),
+  );
   const handledAs = m.handled_as;
   const intent = m.intent;
   const sorted: EnquiryTimeline["sorted"] =
@@ -524,7 +572,13 @@ export async function loadEnquiry(
                 ? { how: "person", why: "voicemail" }
                 : m.body === null
                   ? { how: "person", why: "no_text" }
-                  : { how: "person", why: "not_sorted" };
+                  : {
+                      how: "person",
+                      why: "not_sorted",
+                      ...(aiReason(received?.data.aiFallback)
+                        ? { ai: aiReason(received?.data.aiFallback) }
+                        : {}),
+                    };
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(
@@ -603,6 +657,109 @@ export async function loadEnquiry(
       name: firm?.name ?? "",
       signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
     },
+    built,
+  };
+}
+
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const obj = (v: unknown): Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+
+// The `enquiry.checks` entry, read defensively (it's the log's: never trusted to be well formed),
+// with the sessions and qualifications it names.
+async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<BuiltReply | null> {
+  if (!entry) return null;
+  const d = entry.data;
+  const offered = list(d.offered).map((o) => {
+    const x = obj(o);
+    return {
+      shiftId: str(x.shiftId) ?? "",
+      car: num(x.car),
+      publicTransport: num(x.publicTransport),
+      checks: list(x.checks).map((c) => {
+        const { code, passed, ...detail } = obj(c);
+        return { code: str(code) ?? "", passed: passed === true, detail };
+      }),
+    };
+  });
+  const notOffered = list(d.notOffered).map((n) => {
+    const x = obj(n);
+    return {
+      shiftId: str(x.shiftId) ?? "",
+      reasons: list(x.reasons).map((r) => {
+        const y = obj(r);
+        return {
+          code: str(y.code) ?? "",
+          ...(str(y.type) ? { type: str(y.type) ?? "" } : {}),
+          ...(str(y.from) ? { from: str(y.from) ?? "" } : {}),
+          ...(str(y.to) ? { to: str(y.to) ?? "" } : {}),
+        };
+      }),
+    };
+  });
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const ids = [...new Set([...offered, ...notOffered].map((x) => x.shiftId))].filter((id) =>
+    uuid.test(id),
+  );
+  const sessions = new Map<string, SessionName>();
+  if (ids.length > 0) {
+    const { rows } = await tx.execute<{
+      id: string;
+      role: string;
+      event_name: string | null;
+      site_name: string | null;
+      starts_at: string | Date;
+      ends_at: string | Date;
+    }>(sql`
+      select s.id::text as id, s.role, e.name as event_name, si.name as site_name, s.starts_at,
+             s.ends_at
+        from shifts s
+        left join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
+        left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+       where s.id in (${sql.join(
+         ids.map((id) => sql`${id}::uuid`),
+         sql`, `,
+       )})
+    `);
+    for (const r of rows) {
+      sessions.set(r.id, {
+        shiftId: r.id,
+        role: r.role,
+        eventName: r.event_name,
+        siteName: r.site_name,
+        startsAt: new Date(r.starts_at),
+        endsAt: new Date(r.ends_at),
+      });
+    }
+  }
+  const types = new Set<string>();
+  for (const o of offered) {
+    for (const c of o.checks) if (typeof c.detail.type === "string") types.add(c.detail.type);
+  }
+  for (const n of notOffered) for (const r of n.reasons) if (r.type) types.add(r.type);
+  const names: Record<string, string> = {};
+  if (types.size > 0) {
+    const { rows } = await tx.execute<{ code: string; name: string }>(sql`
+      select code, name from credential_types
+       where code in (${sql.join(
+         [...types].map((t) => sql`${t}`),
+         sql`, `,
+       )})
+    `);
+    for (const r of rows) names[r.code] = r.name;
+  }
+  const area = obj(d.area);
+  return {
+    template: str(d.template) ?? "",
+    sent: typeof d.sent === "boolean" ? d.sent : null,
+    area: num(area.maxMinutes) !== null ? { maxMinutes: num(area.maxMinutes) ?? 0 } : null,
+    offered: offered.map((o) => ({ ...o, session: sessions.get(o.shiftId) ?? null })),
+    more: num(d.more) ?? 0,
+    notOffered: notOffered.map((n) => ({ ...n, session: sessions.get(n.shiftId) ?? null })),
+    notOfferedMore: num(d.notOfferedMore) ?? 0,
+    bookings: list(d.bookings).filter((b): b is string => typeof b === "string"),
+    names,
   };
 }
 

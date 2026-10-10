@@ -11446,3 +11446,57 @@ on PR #2). The local verify above is the evidence.
 **Parked (Parking lot, "Enquiries (12D.1 review)"):** whether resourcers may read pay messages'
 words (Dylan to decide); the 90-day constant against the firm's retention setting; the template's
 wording for an unknown number; standing demo messages (12I.1).
+
+## 2026-10-10 14:17 UTC — Phase 12, task 12D.2: Personal replies
+
+**Task:** Personal replies (§3.6, §5.7 items 1–3), as written in `PLAN.md`.
+
+**Plan:**
+
+- **The rules engine** (`src/lib/rules/eligibility.ts`): `checkEligibility()` also returns
+  `checks: { code, passed, detail }[]` for every check it ran: started, account, role, each
+  qualification (type, held status, expiry, needed by the role or the session), overlap, rest gap
+  (hours either side and the minimum), weekly hours (used and the cap), days off, blocked site.
+  `ok`, `reasons` and `codes` don't change (the rules table test checks every case). A
+  rules-engine change: guardrails and the rules-doc parity test apply.
+- **`openShiftsFor()`** (the casual app's list) gains, for the reply only:
+  - each session's event, pay rate and post;
+  - an `explain` option: the rules' checks for each listed session, and the sessions considered but
+    not offered (her roles, in the window, not hers) with reason codes: hidden (the session's or
+    the event's switch), outside her travel area, full, held for others (fair rotation), or the
+    rules' codes (with the qualification for those codes).
+
+  The app's own lists don't change.
+- **`src/lib/inbound/personal-reply.ts`**, pure words plus a loader:
+  - the shifts reply: at most 5, urgent first, then the nearest; each with role · event, site,
+    date, times, £/h, post (and "you hold CSAS" for a CSAS session), and the travel line; inside a
+    1,600-character budget (names cut to set lengths, fewer shifts until it fits, then "+ N more:
+    {link}"); always "Take one here: {link}";
+  - the booked line and day words only when §5.7 says (weekday, weekend, today, tomorrow);
+  - no home area: no travel lines, and the "Add your home area" line;
+  - nothing to take: §5.7's wording;
+  - a text-message version;
+  - the cancel reply: her next booking, the strike sentence only when `strikeDecision()` says so
+    (the cancel step's own facts: `decideForWorker()`), "Your other shifts" with two or more ahead.
+- **The shifts line** (`src/lib/inbound/reply.ts`):
+  - shifts and cancel use these replies (read before the claim, as the AI's label is);
+  - every instant reply but the office's and the voicemail's (those already go to a person) ends
+    "Automatic reply. Send OFFICE to reach a person." before the sign-off;
+  - the AI's fallback reason (not connected, no answer, not a label, no text) goes in
+    `message.received`;
+  - `enquiry.checks` is logged after the send in §6.1's shape: the template, whether it was sent,
+    the offered sessions in order with their checks and travel minutes, at most 50 not-offered with
+    reason codes and a count of the rest, the bookings a cancel reply named.
+- **`/office/enquiries/[id]`:** step 3 "Checks made by code" (each offered session's checks with
+  their data, ✓ or ✗) and "Considered but not offered" ("{Role}: {reasons} · {event}, {when}") from
+  that entry; "No checks recorded" when there's none.
+- **Tests:**
+  - unit: the checks on a pass and a fail for every check, `ok` unchanged over the whole rules
+    table, the words at their longest within 1,600 on WhatsApp and by text, day words, the cancel
+    reply's variants, the pay reply, `enquiry.checks` samples through `recordEvent`'s check;
+  - database: each exclusion reason in not-offered, CSAS only to holders, the listed lines'
+    fields, the cancel reply, the event logged;
+  - e2e: `office.enquiries.spec.ts` (a casual's personal list, its checks and a not-offered line;
+    CSAS for a holder only); the specs and walkthrough step that pinned the old shifts reply.
+- **Docs:** `docs/messaging-templates.md`, `docs/rules-and-credentials.md`, `docs/screens.md`,
+  `docs/api-and-jobs.md`.

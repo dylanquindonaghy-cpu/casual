@@ -344,22 +344,16 @@ export function payQueryUpdateMessage(
 // line"): the answer to a worker's own WhatsApp, sent at once (free text: within 24 hours of their
 // message WhatsApp needs no template). The app's fixed words only: a keyword or the AI picks which
 // (src/lib/inbound/reply.ts), never what it says.
-export type ShiftsLineReply =
-  { intent: "shifts" | "cancel" | "pay"; link: string } | { intent: "office"; ref: string };
+// "shifts" and "cancel" get the personal reply instead (src/lib/inbound/personal-reply.ts, 12D.2).
+// The pay reply is automatic, so it says how to reach a person (WhatsApp's escalation rule); the
+// office's reply already goes to one.
+export type ShiftsLineReply = { intent: "pay"; link: string } | { intent: "office"; ref: string };
 
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
-  const text = (() => {
-    switch (reply.intent) {
-      case "shifts":
-        return `Open shifts you're eligible for: ${reply.link}`;
-      case "cancel":
-        return `To cancel a shift, tap here and choose the shift: ${reply.link}. It's recorded instantly.`;
-      case "pay":
-        return `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in).`;
-      case "office":
-        return `The office will see this and get back to you. Ref ${reply.ref}.`;
-    }
-  })();
+  const text =
+    reply.intent === "pay"
+      ? `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person.`
+      : `The office will see this and get back to you. Ref ${reply.ref}.`;
   return `${text} — ${firm.signOff}`;
 }
 

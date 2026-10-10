@@ -766,3 +766,151 @@ export async function addQualifiedCasual(
     await pool.end();
   }
 }
+
+// The personal replies' scene (12D.2; tests/e2e/office.enquiries.spec.ts): two casuals of the
+// spec's own in a role nobody else has, response team lead (Acme's rule: an SIA door supervisor
+// licence), both with a travel area (car, 45 minutes); `holder` also holds CSAS and is booked the day
+// before. Three sessions 10, 11 and 12 days ahead at a site of its own, each 20 minutes away by car
+// (no public transport in time): a plain one, one that also needs a first aid at work certificate
+// (neither has one), and one that also needs CSAS. A rerun cancels the last run's sessions first
+// (a booking on a cancelled session counts for nothing), so it starts the same way.
+export const REPLY_SCENE_ROLE = "response_team_lead";
+export async function personalReplyScene(
+  slug: string,
+  holder: { firstName: string; lastName: string; mobileE164: string },
+  other: { firstName: string; lastName: string; mobileE164: string },
+): Promise<{ plain: string; firstAid: string; csas: string; booked: string; names: string[] }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.execute(sql`
+        insert into credential_rules (firm_id, sector, role, required_types)
+        values (${firmId}, 'security', ${REPLY_SCENE_ROLE}, '{SIA_DS}')
+        on conflict (firm_id, role) do nothing`);
+      await tx.update(shifts).set({ status: "cancelled" }).where(eq(shifts.role, REPLY_SCENE_ROLE));
+      const point = (postcode: string) => {
+        const p = fakePoint(postcode);
+        if (!p) throw new Error(`no fake point for ${postcode}`);
+        return { lat: String(p.lat), lng: String(p.lng) };
+      };
+      const home = point("ZZ2 2BB");
+      const inDays = (days: number) =>
+        new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+      const casual = async (
+        who: { firstName: string; lastName: string; mobileE164: string },
+        held: { type: string; expiresOn: string }[],
+      ) => {
+        await tx
+          .insert(workers)
+          .values({ firmId, ...who, roles: [REPLY_SCENE_ROLE] })
+          .onConflictDoNothing();
+        const [worker] = await tx
+          .select({ id: workers.id })
+          .from(workers)
+          .where(eq(workers.mobileE164, who.mobileE164));
+        if (!worker) throw new Error("scene casual neither added nor found");
+        await tx
+          .update(workers)
+          .set({ roles: [REPLY_SCENE_ROLE] })
+          .where(eq(workers.id, worker.id));
+        await tx.delete(credentials).where(eq(credentials.workerId, worker.id));
+        for (const h of held) {
+          await tx.insert(credentials).values({
+            firmId,
+            workerId: worker.id,
+            type: h.type,
+            status: "valid",
+            expiresOn: h.expiresOn,
+          });
+        }
+        await tx
+          .insert(workerTravel)
+          .values({
+            firmId,
+            workerId: worker.id,
+            startPostcode: "ZZ2 2BB",
+            ...home,
+            modes: "car",
+            maxMinutes: 45,
+            privacyNoticeVersion: "travel-v1",
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [workerTravel.firmId, workerTravel.workerId],
+            set: { startPostcode: "ZZ2 2BB", ...home, modes: "car", maxMinutes: 45 },
+          });
+        return worker.id;
+      };
+      const holderId = await casual(holder, [
+        { type: "SIA_DS", expiresOn: inDays(300) },
+        { type: "CSAS", expiresOn: inDays(400) },
+      ]);
+      await casual(other, [{ type: "SIA_DS", expiresOn: inDays(300) }]);
+
+      const stamp = Date.now().toString(36);
+      const siteName = `Scene Hall ${stamp}`;
+      const [site] = await tx
+        .insert(sites)
+        .values({ firmId, name: siteName, postcode: "ZZ1 1AA", ...point("ZZ1 1AA") })
+        .returning({ id: sites.id });
+      if (!site) throw new Error("site insert returned nothing");
+      const eventName = `Late Show ${stamp}`;
+      const eventId = await createNamedEvent(tx, { name: eventName, siteId: site.id });
+      const base = new Date(Date.now() + 10 * 86_400_000);
+      base.setUTCHours(10, 0, 0, 0);
+      const session = async (
+        daysAfter: number,
+        o: { extra?: string[]; status?: "open" | "filled"; pay?: number; post?: string } = {},
+      ) => {
+        const at = new Date(base.getTime() + daysAfter * 86_400_000);
+        const [row] = await tx
+          .insert(shifts)
+          .values({
+            firmId,
+            siteId: site.id,
+            shiftEventId: eventId,
+            role: REPLY_SCENE_ROLE,
+            startsAt: at,
+            endsAt: new Date(at.getTime() + 8 * 3_600_000),
+            headcount: 1,
+            status: o.status ?? "open",
+            source: "native",
+            requiredCredentials: o.extra ?? [],
+            payRatePence: o.pay ?? null,
+            post: o.post ?? null,
+          })
+          .returning({ id: shifts.id });
+        if (!row) throw new Error("shift insert returned nothing");
+        const arriveBy = new Date(at.getTime() - 30 * 60_000);
+        await tx.execute(sql`
+          insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by,
+                                        minutes, metres, provider, computed_at, expires_at)
+          values (${firmId}, 'ZZ2 2BB', ${site.id}, 'car', ${arriveBy}, 20, 12070, 'fake', now(),
+                  ${new Date(at.getTime() + 8 * 86_400_000)}),
+                 (${firmId}, 'ZZ2 2BB', ${site.id}, 'public_transport', ${arriveBy}, null, null,
+                  'fake', now(), ${new Date(at.getTime() + 8 * 86_400_000)})
+          on conflict do nothing`);
+        return row.id;
+      };
+      // The day before: her booking, ending 16 hours before the plain session starts.
+      const booked = await session(-1, { status: "filled" });
+      await tx.insert(assignments).values({
+        firmId,
+        shiftId: booked,
+        slot: 1,
+        workerId: holderId,
+        status: "confirmed",
+        confirmedAt: new Date(),
+      });
+      const plain = await session(0, { pay: 1450, post: "Main gate" });
+      const firstAid = await session(1, { extra: ["FIRST_AID"] });
+      const csas = await session(2, { extra: ["CSAS"] });
+      return { plain, firstAid, csas, booked, names: [eventName, siteName] };
+    });
+  } finally {
+    await pool.end();
+  }
+}

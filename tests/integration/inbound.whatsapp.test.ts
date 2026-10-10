@@ -272,31 +272,32 @@ describe("replying (the inbound-message job)", () => {
     );
   const onlyBody = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
 
-  it("keywords: open shifts, cancelling and pay get their link, from the firm's line, signed; logged without the text", async () => {
+  it("keywords: open shifts, cancelling and pay get their reply, from the firm's line, signed; logged without the text", async () => {
     const t = await lineFirm();
     const { transport, sent } = captureTransport();
     const portal = `https://${t.slug}.shiftdesk.test`;
-    for (const [text, reply] of [
-      ["Any shifts this weekend?", `Open shifts you're eligible for: ${portal}/shifts/open`],
+    const automatic = "Automatic reply. Send OFFICE to reach a person.";
+    // Shifts and cancel: her personal reply (12D.2; tests/integration/personal-reply.test.ts has the
+    // lists); Ann has no shifts to take and none booked. Pay: the link, never a list.
+    for (const [text, body] of [
+      [
+        "Any shifts this weekend?",
+        `Hi Ann, there's nothing you can take at the weekend right now. We'll message you if something comes up. All open shifts: ${portal}/shifts/open\n${automatic}\n— ${t.name} Shift Team`,
+      ],
       [
         "Can I cancel my shift on Saturday",
-        `To cancel a shift, tap here and choose the shift: ${portal}/. It's recorded instantly.`,
+        `Hi Ann, you have no shifts booked, so there's nothing to cancel. ${automatic}\n— ${t.name} Shift Team`,
       ],
       [
         "When do wages go in",
-        `Your hours, rates and pay dates: ${portal}/pay (you'll get a code to log in).`,
+        `Your hours, rates and pay dates: ${portal}/pay (you'll get a code to log in). ${automatic} — ${t.name} Shift Team`,
       ],
     ] as const) {
       expect(await run(await t.incoming(text), transport)).toMatchObject({
         status: "replied",
         handledAs: "keyword",
       });
-      expect(sent.at(-1)).toEqual({
-        channel: "whatsapp",
-        to: t.mobile,
-        from: t.line,
-        body: `${reply} — ${t.name} Shift Team`,
-      });
+      expect(sent.at(-1)).toEqual({ channel: "whatsapp", to: t.mobile, from: t.line, body });
     }
     const rows = await t.messageRows();
     expect(rows.filter((r) => r.direction === "in").map((r) => [r.handled_as, r.intent])).toEqual([
@@ -320,7 +321,13 @@ describe("replying (the inbound-message job)", () => {
       ["message.received", "pay"],
       ["message.replied", "pay"],
     ]);
-    const text = JSON.stringify(logged);
+    // How the two personal replies were built, for the office's Enquiries page: no words of hers.
+    const built = await t.eventsOf("enquiry.checks");
+    expect(built.map((e) => [e.data.template, e.data.sent, e.data.channel])).toEqual([
+      ["shifts_none", true, "whatsapp"],
+      ["cancel_none", true, "whatsapp"],
+    ]);
+    const text = JSON.stringify([...logged, ...built]);
     expect(text).not.toMatch(/weekend|Saturday|wages/);
     expect(text).not.toContain(t.mobile);
   });
@@ -374,11 +381,11 @@ describe("replying (the inbound-message job)", () => {
         asked.push(r);
         return answer;
       });
-    // The AI says "cancel": the cancel reply, handled by AI.
+    // The AI says "cancel": the cancel reply (her own: she has nothing booked), handled by AI.
     expect(
       await run(await t.incoming("running late, can't make it"), transport, answering("cancel")),
     ).toMatchObject({ status: "replied", intent: "cancel", handledAs: "ai" });
-    expect(onlyBody(sent).at(-1)).toMatch(/^To cancel a shift, tap here/);
+    expect(onlyBody(sent).at(-1)).toMatch(/^Hi Ann, you have no shifts booked/);
     expect(asked[0]).toMatchObject({
       purpose: "classify_message",
       prompt: "running late, can't make it",

@@ -55,7 +55,14 @@ type EligibilityResult = {
   reasons: string[];                    // plain English, in check order
   codes: RuleCode[];                    // one per reason ('credential_expired', 'overlap', ...)
   overridden: ('started' | 'rest' | 'weekly_hours' | 'unavailable')[];
+  checks: RuleCheck[];                  // every check it ran, passed or not, with its figures (12D.2)
   pass?: EligibilityPass;               // only when ok; isEligibilityPass() tells a real one
+};
+
+type RuleCheck = {
+  code: CheckCode;                      // see "Checks made by code" below
+  passed: boolean;
+  detail: Record<string, string | number | boolean | null | string[]>;
 };
 ```
 
@@ -97,6 +104,34 @@ expired. Renew it, then send the new number to the office."; applied over the al
 [name] is still being processed. Only a few people waiting for theirs can work each day, and
 today's places are taken." A booking that clashes only because of the travel buffer: "This is too
 close to your booking at [time] to travel between them."
+
+## Checks made by code (what each check records, 12D.2)
+
+`checkEligibility()` also returns `checks`: one entry for every check it ran, in the order above,
+passed or failed, with the figures it used. They never change the decision: `ok`, `reasons` and
+`codes` are worked out exactly as before, and `ok` is "every check passed" (overrides aside;
+`tests/unit/rules.checks.test.ts`). The shifts line's personal replies log them in `enquiry.checks`
+for the office's Enquiries page ("Checks made by code", `docs/screens.md`), lists written as text.
+Dates are firm-local `yyyy-mm-dd`, times ISO, hours rounded to one decimal.
+
+| Code | Check | Detail |
+|---|---|---|
+| `started` | 0 | `startsAt` |
+| `active` | 1 | `status` (`active`, `inactive` or `blocked`) |
+| `role` | 2 | `role` (the shift's) |
+| `qualification` | 3–4, one per required type | `type`; `neededBy`: `role`, `session` or `both`; `held`: the record used (`valid`, `expired`, `applied`, `suspended`, or `none`); `expiresOn` (null: no expiry or none held); `until`: the last local day the shift touches. No rule for the role: one failed entry, `{ rule: "none", role }` |
+| `overlap` | 5 | `withStart`, `withEnd`: the booking it clashes with (null: none); `bufferMinutes` |
+| `rest` | 6 | `hoursBefore`, `hoursAfter`: the gaps to the nearest bookings either side (null: none loaded on that side); `minimumHours` |
+| `weekly_hours` | 7 | `hours`: the busiest week the shift touches, with it; `capHours` |
+| `days_off` | 8 | `dates`: the days off it touches (none: `[]`) |
+| `site` | 9 | `siteId` |
+
+Why a session wasn't offered (the Enquiries page's "Considered but not offered") comes from the
+same result: each failed rule's code, with the qualification's `type` for a credential code and
+the clashing booking's times for `overlap` (`ruleReasons()`, `src/lib/portal/open-shifts.ts`), plus
+the casual app's own filters, which aren't rules: `hidden` (the session or its event isn't showing
+to casuals), `outside_area` (her travel area), `full`, and `held` (fair rotation holds it for
+others until a time).
 
 ## Credential packs (data, per sector)
 

@@ -109,11 +109,34 @@ export interface EligibilityPass {
   readonly overridden: readonly OverridableCode[];
 }
 
+// Every check the engine ran, passed or not, with the figures it used (12D.2; docs/office-v2.md
+// 3.6 "Checks made by code"): for the office's "How it was answered", never for the decision itself
+// (that's `ok`, from the same failures). A qualification check per type. The detail holds ids,
+// codes, dates (yyyy-mm-dd), times (ISO) and hours only, so it can go in the log as it is.
+export const CHECK_CODES = [
+  "started",
+  "active",
+  "role",
+  "qualification",
+  "overlap",
+  "rest",
+  "weekly_hours",
+  "days_off",
+  "site",
+] as const;
+export type CheckCode = (typeof CHECK_CODES)[number];
+export interface RuleCheck {
+  code: CheckCode;
+  passed: boolean;
+  detail: Record<string, string | number | boolean | null | string[]>;
+}
+
 export interface EligibilityResult {
   ok: boolean;
   reasons: string[];
   codes: RuleCode[]; // one per reason, same order
   overridden: OverridableCode[]; // checks that failed but the office overrode
+  checks: RuleCheck[]; // every check it ran, in the doc's order
   pass?: EligibilityPass;
 }
 
@@ -181,6 +204,10 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
   const { shift, worker, settings, timeZone } = input;
   const failures: { code: RuleCode; reason: string }[] = [];
   const fail = (code: RuleCode, reason: string) => failures.push({ code, reason });
+  const checks: RuleCheck[] = [];
+  const check = (code: CheckCode, passed: boolean, detail: RuleCheck["detail"]) =>
+    checks.push({ code, passed, detail });
+  const hours = (ms: number) => Math.round((ms / HOUR) * 10) / 10;
   const name = (type: string) => input.names?.[type] ?? type.replace(/_/g, " ");
   const start = shift.startsAt.getTime();
   const end = shift.endsAt.getTime();
@@ -196,12 +223,15 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
 
   // 0. Not a shift that has already started.
   if (start <= input.now.getTime()) fail("started", REASONS.started());
+  check("started", start > input.now.getTime(), { startsAt: shift.startsAt.toISOString() });
 
   // 1. The worker's account is active.
   if (worker.status !== "active") fail("not_active", REASONS.not_active());
+  check("active", worker.status === "active", { status: worker.status });
 
   // 2. The worker has the shift's role.
   if (!worker.roles.includes(shift.role)) fail("wrong_role", REASONS.wrong_role(shift.role));
+  check("role", worker.roles.includes(shift.role), { role: shift.role });
 
   // 3-4. Every credential the role needs, and every extra requirement of the session, in date on
   // every day the shift touches, or "applied" within the firm's allowance. A suspended one fails
@@ -209,17 +239,45 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
   // session adds. A type needed twice (the role's and the session's) is checked once.
   if (shift.requiredTypes === null) {
     fail("no_rule", REASONS.no_rule());
+    check("qualification", false, { rule: "none", role: shift.role });
   } else {
     for (const type of new Set([...shift.requiredTypes, ...shift.extraTypes])) {
       const held = input.credentials.filter((c) => c.type === type);
+      const before = failures.length;
+      // What the check used: the best record held (valid with the latest expiry, else any), and
+      // whether the role or the session asks for it.
+      const valid = held
+        .filter((c) => c.status === "valid")
+        .sort((a, b) =>
+          a.expiresOn === null ? 1 : b.expiresOn === null ? -1 : a.expiresOn < b.expiresOn ? -1 : 1,
+        )
+        .at(-1);
+      const shown = valid ?? held.find((c) => c.status === "suspended") ?? held[0];
+      const detail = {
+        type,
+        neededBy:
+          shift.requiredTypes.includes(type) && shift.extraTypes.includes(type)
+            ? "both"
+            : shift.requiredTypes.includes(type)
+              ? "role"
+              : "session",
+        held: shown?.status ?? "none",
+        expiresOn: shown?.expiresOn ?? null,
+        until: lastDay, // in date to the shift's last day
+      };
+      const passedNow = () => check("qualification", failures.length === before, detail);
       if (held.some((c) => c.status === "suspended")) {
         fail("credential_suspended", REASONS.credential_suspended(name(type)));
+        passedNow();
         continue;
       }
       const inDate = held.some(
         (c) => c.status === "valid" && (c.expiresOn === null || c.expiresOn >= lastDay),
       );
-      if (inDate) continue;
+      if (inDate) {
+        passedNow();
+        continue;
+      }
       const applied = held.some((c) => c.status === "applied");
       if (applied && settings.appliedAllowedTypes.includes(type)) {
         const pct = settings.appliedAllowancePct;
@@ -248,6 +306,7 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
       } else {
         fail("credential_missing", REASONS.credential_missing(name(type)));
       }
+      passedNow();
     }
   }
 
@@ -268,6 +327,11 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
       fail("overlap", REASONS.travel(time));
     }
   }
+  check("overlap", !clash, {
+    withStart: clash ? clash.startsAt.toISOString() : null,
+    withEnd: clash ? clash.endsAt.toISOString() : null,
+    bufferMinutes: settings.travelBufferMinutes,
+  });
 
   // 6. Enough rest between this shift and the bookings either side of it.
   const minRest = settings.minRestHours * HOUR;
@@ -278,6 +342,20 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
   if (apart.some((o) => o.startsAt.getTime() >= end && o.startsAt.getTime() - end < minRest)) {
     fail("rest", REASONS.rest("next", settings.minRestHours));
   }
+  // The shortest gaps either side, in hours (null: no booking on that side within the days loaded).
+  const gapBefore = apart
+    .filter((o) => o.endsAt.getTime() <= start)
+    .map((o) => start - o.endsAt.getTime())
+    .sort((a, b) => a - b)[0];
+  const gapAfter = apart
+    .filter((o) => o.startsAt.getTime() >= end)
+    .map((o) => o.startsAt.getTime() - end)
+    .sort((a, b) => a - b)[0];
+  check("rest", !failures.some((f) => f.code === "rest"), {
+    hoursBefore: gapBefore === undefined ? null : hours(gapBefore),
+    hoursAfter: gapAfter === undefined ? null : hours(gapAfter),
+    minimumHours: settings.minRestHours,
+  });
 
   // 7. Hours within the weekly cap in every week (Monday to Sunday, local) the shift touches,
   // each booking counting only its hours inside that week.
@@ -285,20 +363,28 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
     (w) => JSON.parse(w) as { from: number; to: number },
   );
   const cap = settings.weeklyHoursCap * HOUR;
-  const over = weeks.some(
-    (w) =>
-      others.reduce((sum, o) => sum + clip(o, w.from, w.to), 0) + clip(shift, w.from, w.to) > cap,
+  const used = weeks.map(
+    (w) => others.reduce((sum, o) => sum + clip(o, w.from, w.to), 0) + clip(shift, w.from, w.to),
   );
+  const over = used.some((u) => u > cap);
   if (over) fail("weekly_hours", REASONS.weekly_hours());
+  // The busiest week this shift touches, with it.
+  check("weekly_hours", !over, {
+    hours: hours(Math.max(0, ...used)),
+    capHours: settings.weeklyHoursCap,
+  });
 
   // 8. Not on a day the worker marked unavailable.
   const unavailable = new Set(input.unavailableDates);
   if (days.some((d) => unavailable.has(d))) fail("unavailable", REASONS.unavailable());
+  check("days_off", !days.some((d) => unavailable.has(d)), {
+    dates: days.filter((d) => unavailable.has(d)),
+  });
 
   // 9. Not a site the worker is blocked from.
-  if (shift.siteId !== null && settings.blockedSites.includes(shift.siteId)) {
-    fail("blocked_site", REASONS.blocked_site());
-  }
+  const blocked = shift.siteId !== null && settings.blockedSites.includes(shift.siteId);
+  if (blocked) fail("blocked_site", REASONS.blocked_site());
+  check("site", !blocked, { siteId: shift.siteId });
 
   const allowed = new Set<RuleCode>(input.overrides ?? []);
   const overridden = [
@@ -310,6 +396,7 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
     reasons: remaining.map((f) => f.reason),
     codes: remaining.map((f) => f.code),
     overridden,
+    checks,
   };
   if (result.ok) {
     const pass = Object.freeze({

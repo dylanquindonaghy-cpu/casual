@@ -397,6 +397,20 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return "Emailing the office about a message from a number we don't know failed.";
     case "message.office_alert_skipped":
       return "Nobody in the office could be emailed about a message from a number we don't know (no active admin or resourcer with an email address). It's on Today.";
+    case "enquiry.checks": {
+      const offered = Array.isArray(d.offered) ? d.offered.length : 0;
+      const notOffered =
+        (Array.isArray(d.notOffered) ? d.notOffered.length : 0) + Number(d.notOfferedMore ?? 0);
+      const what =
+        d.template === "cancel_booking"
+          ? "the cancel reply, naming their next booking"
+          : d.template === "cancel_none"
+            ? "the cancel reply (no booking ahead)"
+            : offered > 0
+              ? `the shift list with ${offered} ${offered === 1 ? "shift" : "shifts"}${notOffered > 0 ? ` (${notOffered} not offered)` : ""}`
+              : `the shift list: nothing they could take${notOffered > 0 ? ` (${notOffered} not offered)` : ""}`;
+      return `The shifts line built ${worker}'s reply: ${what}${d.sent === false ? " (it couldn't be sent)" : ""}.`;
+    }
     case "enquiry.answered": {
       const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
       const how =

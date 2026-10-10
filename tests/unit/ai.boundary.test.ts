@@ -133,13 +133,14 @@ describe("AI never answers a dispute", () => {
       .map(rel);
     expect(importers).toEqual(["src/worker/jobs/index.ts"]);
     const reply = readFileSync(join(SRC, "lib/inbound/reply.ts"), "utf8");
-    // Every message it sends is one of the app's fixed texts: the worker's reply (`replyText`, which is
-    // shiftsLineReply()'s answer, or voicemailReceivedMessage()'s for a voicemail, through
-    // sendToWorker), the polite reply to a number we don't know
+    // Every message it sends is built by code: the worker's reply (`replyText` and its text-message
+    // version `smsText`: shiftsLineReply()'s answer, voicemailReceivedMessage()'s for a voicemail, or
+    // for "shifts" and "cancel" the personal reply, src/lib/inbound/personal-reply.ts, which no AI
+    // code reaches: checked below; through sendToWorker), the polite reply to a number we don't know
     // (`plan.reply`, from unknownNumberMessage()) and the office's alert email
     // (unknownNumberAlertEmail()).
     expect(reply.match(/sendToWorker\(deps, \{[\s\S]*?\}\)/g)).toEqual([
-      expect.stringMatching(/body: \{ whatsapp: replyText, sms: replyText \},/),
+      expect.stringMatching(/body: \{ whatsapp: replyText, sms: smsText \},/),
     ]);
     expect(reply.match(/transport\.send\(\{[\s\S]*?\}\)/g)).toEqual([
       expect.stringMatching(/body: plan\.reply,/),
@@ -150,9 +151,29 @@ describe("AI never answers a dispute", () => {
     );
     expect(reply).toMatch(/\? unknownNumberMessage\(c\.firm\)\s*: null,/);
     expect(reply).toMatch(/const email = unknownNumberAlertEmail\(/);
-    // The AI's answer is only ever a label: classifyMessage() returns an intent or null.
+    // The two texts are those builders' only: the fixed reply, or the personal reply's own.
+    expect(reply).toMatch(/const text = fixed\(\);\s*return \{ replyText: text, smsText: text \};/);
+    expect(reply).toMatch(/return \{ replyText: personal\.whatsapp, smsText: personal\.sms \};/);
+    expect(reply).toMatch(/\? await shiftsReply\(run, \{/);
+    expect(reply).toMatch(/\? await cancelReply\(run, \{/);
+    // The personal reply is code only: nothing it imports, near or far, is AI code.
+    const personal = files.find((f) => rel(f) === "src/lib/inbound/personal-reply.ts") ?? "";
+    const reached = new Set<string>();
+    const walk = (file: string) => {
+      for (const next of graph.get(file) ?? []) {
+        if (reached.has(next)) continue;
+        reached.add(next);
+        walk(next);
+      }
+    };
+    walk(personal);
+    expect(reached.size).toBeGreaterThan(10); // it was found, and its imports followed
+    expect([...reached].filter(isAi).map(rel)).toEqual([]);
+    // The AI's answer is only ever a label: classifyMessage() returns an intent or null, and
+    // sortMessage() a label or why there's none.
     const classify = readFileSync(join(SRC, "lib/ai/classify-message.ts"), "utf8");
     expect(classify).toMatch(/Promise<Intent \| null>/);
+    expect(classify).toMatch(/Promise<\{ label: Intent \} \| \{ label: null; why: AiFallback \}>/);
   });
 
   it("STOP and START get only the app's fixed confirmation texts", () => {

@@ -109,6 +109,8 @@ export const LOG_TYPES = {
       "message.office_alerted",
       "message.office_alert_failed",
       "message.office_alert_skipped",
+      // What the shifts line's personal reply was built from (12D.2).
+      "enquiry.checks",
       // The office's reply or close on Enquiries (12D.1).
       "enquiry.answered",
       "enquiry.closed",

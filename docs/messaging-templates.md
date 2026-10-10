@@ -101,11 +101,62 @@ the words are always these.
 
 | Worker types | Reply |
 |---|---|
-| "cancel" | "To cancel a shift, tap here and choose the shift: {link}. It's recorded instantly." ({link} is My shifts) |
-| "pay", "paid", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in)." ({link} is the pay page) |
-| "shifts", "work", "available" | "Open shifts you're eligible for: {link}" ({link} is Open shifts). Not when the message also says they can't make it or are late ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): that's about their own shift, so the AI or the office gets it. "shift" alone isn't a keyword for the same reason |
+| "cancel" | The personal cancel reply (below, 12D.2: their next booking, with its link) |
+| "pay", "paid", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person." ({link} is the pay page; never a list or an answer about pay) |
+| "shifts", "work", "available" | The personal shift list (below, 12D.2). Not when the message also says they can't make it or are late ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): that's about their own shift, so the AI or the office gets it. "shift" alone isn't a keyword for the same reason |
 | "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}." + a request for the office (a question, the message as its note) |
 | anything else | Haiku picks one of the rows above (the worker's text only; an answer that isn't exactly one label counts as none); no AI, a failure, or no answer within 5 seconds: the office row. A photo with no text: the office row |
+
+## Personal replies on the shifts line
+
+Built in 12D.2 (`src/lib/inbound/personal-reply.ts`; docs/office-v2.md 5.7 items 1 and 2): the
+answer to "shifts" and "cancel", by keyword or the AI's label, built by code from the firm's data
+(the AI only picks the label). Every instant reply except the office's and the voicemail's (those
+already go to a person) ends "Automatic reply. Send OFFICE to reach a person." before the sign-off
+(WhatsApp's escalation rule; "office" is a keyword).
+
+**The shift list.** The casual app's own Open shifts for them (the rules, the showing switches and
+their travel area), urgent first, then the nearest. For a casual asking about the weekend, booked
+on Sunday:
+
+```
+Hi Zoe, you're booked on Sun 11 Oct (Steward · Riverside Food Festival · 10:00–18:00). For the weekend you can take:
+1. Door supervisor · Northern Lights Live, Acme Demo Arena · Sat 10 Oct 08:00–16:00 · £15.50/h · Gate A · urgent
+   3.1 miles · 12 min by car · 24 min by public transport
+2. CSAS officer · Night patrols, Northgate Town Centre · Sat 10 Oct 17:00–23:00 · £15.00/h · town centre patrol · you hold CSAS
+   8.4 miles · 21 min by car · 38 min by public transport
+Take one here: {link}
+Automatic reply. Send OFFICE to reach a person.
+— Acme Events Shift Team
+```
+
+- The booked line only when they have a booking on a day they named; the day words ("For
+  Saturday", "For the weekend", "For today", "For tomorrow") only when code recognises a weekday,
+  "weekend", "today" or "tomorrow" in their message, and then only that day's shifts are listed.
+  No day named: "Hi Zoe, shifts you can take:".
+- Each shift: role · event, site · date and times · £/h (left out when the session has no rate) ·
+  post · "urgent" · "you hold CSAS" (a session needing CSAS), then the travel line as the app
+  shows it ("… · no public transport by 07:30", "Distance not known yet"). Never a postcode: "your
+  home area".
+- At most 5 (3 by text), then "+ N more: {link}"; never over 1,600 characters: names are cut to
+  set lengths, then fewer shifts are listed. Always "Take one here: {link}" (Open shifts; no booking
+  by reply number: D6 deferred).
+- No home area: the travel lines are left out and "Add your home area to see how far each one is:
+  {profile link}" goes before "Take one here".
+- Nothing they can take: "Hi Zoe, there's nothing you can take on Saturday within 45 minutes of
+  your home area right now. We'll message you if something comes up. All open shifts: {link}"
+  (the day and the area only when known; "We'll message you…" only when they get shift alerts).
+- By text: "Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door supervisor, Acme Demo Arena, £15.50/h, 12 min by car. 2) Sat 10 Oct 17:00-23:00 CSAS officer, Northgate Town Centre, £15.00/h, 21 min by car. Take one: {link} Automatic reply. Send OFFICE to reach a person. - Acme Events Shift Team"
+
+**The cancel reply.** Their next booking, named, with its link:
+
+- "Hi Kieran, you're booked on Steward · Raceday, Acme Demo Racecourse · Wed 7 Oct 10:30–18:30 · parade ring. To cancel, open it and tap Cancel this shift: {link}. It starts in less than 48 hours, so cancelling now gives you a strike. Automatic reply. Send OFFICE to reach a person. — Acme Events Shift Team"
+- The strike sentence only when a strike would apply (`strikeDecision()`, as the cancel step's
+  warning); with two or more bookings ahead, "Your other shifts: {Booked link}" before "Automatic
+  reply". No booking ahead: "Hi Kieran, you have no shifts booked, so there's nothing to cancel."
+
+What each reply was built from goes in the `enquiry.checks` log entry (docs/office-v2.md 3.6, 6.1):
+ids, codes, dates and minutes only. The office reads it on the message's Enquiries page.
 
 ## The office's reply on Enquiries
 

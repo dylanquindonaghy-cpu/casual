@@ -14,7 +14,7 @@ const webhook = "http://localhost:3100/api/webhooks/twilio/whatsapp";
 const worker = "+447700900112";
 const acmeLine = "+447700900000";
 
-test("a worker's WhatsApp to the shifts line gets the open shifts link at once", async ({
+test("a worker's WhatsApp to the shifts line gets her personal shifts reply at once", async ({
   request,
 }) => {
   const fields = {
@@ -34,7 +34,9 @@ test("a worker's WhatsApp to the shifts line gets the open shifts link at once",
   const reply = await sentTo(
     worker,
     asked,
-    /(Open shifts you're eligible for: http:\/\/acme\.localhost:3100\/shifts\/open — Acme Events Shift Team)/,
+    // Her own reply (12D.2): what's in it depends on the seed's shifts and today's date; its frame
+    // never does.
+    /^(Hi [A-Za-z'-]+, [\s\S]*(?:Take one here|All open shifts): http:\/\/acme\.localhost:3100\/shifts\/open\nAutomatic reply\. Send OFFICE to reach a person\.\n— Acme Events Shift Team)$/,
   );
   expect(reply).toBeTruthy();
 

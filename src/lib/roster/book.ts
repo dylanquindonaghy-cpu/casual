@@ -14,6 +14,7 @@ import {
   type EligibilityInput,
   type EligibilityResult,
   type OverridableCode,
+  type RuleCheck,
   type RuleCode,
 } from "../rules/eligibility";
 import { localDateOf } from "../time/zoned";
@@ -172,19 +173,28 @@ export async function previewBooking(
 export async function previewBookings(
   tx: FirmTx,
   request: { shiftIds: string[]; workerIds: string[]; now: Date },
-): Promise<Map<string, { ok: boolean; reasons: string[]; codes: RuleCode[] }>> {
+): Promise<Map<string, Verdict>> {
   const valid = (ids: string[]) => ids.filter((id) => uuid.safeParse(id).success);
   const inputs = await loadEligibilityInputs(tx, {
     shiftIds: valid(request.shiftIds),
     workerIds: valid(request.workerIds),
     now: request.now,
   });
-  const verdicts = new Map<string, { ok: boolean; reasons: string[]; codes: RuleCode[] }>();
+  const verdicts = new Map<string, Verdict>();
   for (const [key, input] of inputs) {
-    const { ok, reasons, codes } = checkEligibility(input);
-    verdicts.set(key, { ok, reasons, codes });
+    const { ok, reasons, codes, checks } = checkEligibility(input);
+    verdicts.set(key, { ok, reasons, codes, checks });
   }
   return verdicts;
+}
+
+// One pair's verdict, without the pass: the decision, its reasons and every check with its figures
+// (the shifts line's personal reply shows the office the checks, 12D.2).
+export interface Verdict {
+  ok: boolean;
+  reasons: string[];
+  codes: RuleCode[];
+  checks: RuleCheck[];
 }
 
 // Whether the rules may count one of the worker's applications in progress for this shift: a

@@ -228,8 +228,11 @@ your second Ubuntu window while `npm run dev` runs; the replies appear in the de
     npm run -s sim:whatsapp -- --from "07700 900122" --text "Any shifts this weekend?"
     ```
 
-    It says "WhatsApp sent to +447700900000." In the dev window, Zoe gets "Open shifts you're
-    eligible for: http://acme.localhost:3000/shifts/open — Acme Events Shift Team".
+    It says "WhatsApp sent to +447700900000." In the dev window, Zoe gets her own reply. It starts
+    "Hi Zoe," and lists the shifts she could take at the weekend (or says there's nothing), then
+    "Take one here: http://acme.localhost:3000/shifts/open", "Automatic reply. Send OFFICE to reach
+    a person." and "— Acme Events Shift Team". The office sees how it was built on the message's
+    Enquiries page (step 38 shows where).
 38. **A WhatsApp from a number nobody has:**
 
     ```

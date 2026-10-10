@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { twilioSignature } from "../../src/lib/inbound/twilio-signature";
 import { E2E_TWILIO_AUTH_TOKEN } from "../../playwright.config";
-import { addOfficeUser } from "./db";
+import { addOfficeUser, cancelOwnShift, personalReplyScene } from "./db";
 import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
@@ -24,7 +24,8 @@ const noSidewaysScroll = async (page: Page) =>
     0,
   );
 
-async function whatsApp(request: APIRequestContext, from: string, body: string) {
+// A WhatsApp to Acme's line, signed as Twilio would; returns the moment just before, for the outbox.
+async function post(request: APIRequestContext, from: string, body: string): Promise<Date> {
   const fields = {
     MessageSid: `SM${randomBytes(16).toString("hex")}`,
     From: `whatsapp:${from}`,
@@ -38,8 +39,24 @@ async function whatsApp(request: APIRequestContext, from: string, body: string) 
     headers: { "x-twilio-signature": twilioSignature(E2E_TWILIO_AUTH_TOKEN, webhook, fields) },
   });
   expect(res.status()).toBe(200);
+  return asked;
+}
+
+async function whatsApp(request: APIRequestContext, from: string, body: string) {
+  const asked = await post(request, from, body);
   // The worker has answered it: the polite reply to a number we don't know.
   await sentTo(from, asked, /^(Thanks for your message\. We don't recognise this number\.)/);
+}
+
+async function logIn(page: Page, email: string, name: string) {
+  await addOfficeUser("acme", { email, name, role: "resourcer" });
+  const loginAsked = new Date(Date.now() - 1000);
+  await page.goto(`${acme}/office/login`);
+  await page.getByLabel("Your work email").fill(email);
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await page.goto(await sentTo(email, loginAsked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
+  await page.getByRole("button", { name: "Log me in" }).click();
+  await expect(page).toHaveURL(`${acme}/office`);
 }
 
 test("Need a person: reply to one unknown number, close another with a reason", async ({
@@ -56,15 +73,7 @@ test("Need a person: reply to one unknown number, close another with a reason", 
   await whatsApp(request, pat, patWords);
   await whatsApp(request, wrong, wrongWords);
 
-  const email = "enquiries.resourcer@example.com";
-  await addOfficeUser("acme", { email, name: "Enquiries Resourcer", role: "resourcer" });
-  const loginAsked = new Date(Date.now() - 1000);
-  await page.goto(`${acme}/office/login`);
-  await page.getByLabel("Your work email").fill(email);
-  await page.getByRole("button", { name: "Send me a link" }).click();
-  await page.goto(await sentTo(email, loginAsked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
-  await page.getByRole("button", { name: "Log me in" }).click();
-  await expect(page).toHaveURL(`${acme}/office`);
+  await logIn(page, "enquiries.resourcer@example.com", "Enquiries Resourcer");
 
   // The menu's Enquiries link carries the Need a person count (outside the link's name).
   const link = await menuLink(page, "Enquiries");
@@ -173,4 +182,113 @@ test("Need a person: reply to one unknown number, close another with a reason", 
   await page.getByRole("link", { name: "Requests from the app" }).click();
   await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
   await expect(page.getByRole("region", { name: "Waiting for an answer" })).toBeVisible();
+});
+
+// Personal replies (12D.2; docs/office-v2.md 3.6, 5.7): two casuals of this spec's own ask Acme's
+// line for shifts (tests/e2e/db.ts personalReplyScene: response team lead sessions nobody else can
+// see). Zoe, who holds CSAS, gets two sessions listed, the CSAS one marked; Noor, who doesn't, gets
+// one. On Zoe's message the office reads each check made by code with its figures, the sessions
+// the reply listed, and the one left out: "Response team lead: needs first aid at work …"; on
+// Noor's, the CSAS session left out. Numbers 07700 900631 and 900632, which nothing else uses.
+const ZOE = { firstName: "Zoe", lastName: "Marsh", mobileE164: "+447700900631" };
+const NOOR = { firstName: "Noor", lastName: "Hale", mobileE164: "+447700900632" };
+const DATE = /\d{1,2} [A-Z][a-z]{2}( \d{4})?/.source;
+
+test("a casual's personal shift list: each check, the sessions listed and the one left out", async ({
+  page,
+  request,
+}) => {
+  const scene = await personalReplyScene("acme", ZOE, NOOR);
+  const [eventName = "", siteName = ""] = scene.names;
+  try {
+    // Zoe's reply: both sessions she can take, the CSAS one marked, and nothing more.
+    const zoeAsked = await post(request, ZOE.mobileE164, "Any shifts?");
+    const zoeReply = await sentTo(
+      ZOE.mobileE164,
+      zoeAsked,
+      /^(Hi Zoe, shifts you can take:[\s\S]*)$/,
+    );
+    const line = `Response team lead · ${eventName}, ${siteName} · `;
+    expect(zoeReply).toContain(`1. ${line}`);
+    expect(zoeReply).toMatch(
+      / · £14\.50\/h · Main gate\n {3}\d+\.\d miles · 20 min by car · no public transport by \d\d:\d\d\n/,
+    );
+    expect(zoeReply).toMatch(/\n2\. Response team lead · [^\n]* · you hold CSAS\n/);
+    expect(zoeReply).not.toContain("\n3. ");
+    expect(zoeReply).not.toContain("ZZ");
+    expect(zoeReply).toMatch(
+      /Take one here: http:\/\/acme\.localhost:3100\/shifts\/open\nAutomatic reply\. Send OFFICE to reach a person\.\n— Acme Events Shift Team$/,
+    );
+    // Noor's: only the plain one (no CSAS).
+    const noorAsked = await post(request, NOOR.mobileE164, "Any shifts?");
+    const noorReply = await sentTo(
+      NOOR.mobileE164,
+      noorAsked,
+      /^(Hi Noor, shifts you can take:[\s\S]*)$/,
+    );
+    expect(noorReply).toContain(`1. ${line}`);
+    expect(noorReply).not.toContain("\n2. ");
+    expect(noorReply).not.toContain("CSAS");
+
+    await logIn(page, "replies.resourcer@example.com", "Replies Resourcer");
+    await page.goto(`${acme}/office/enquiries`);
+    await page.getByRole("link", { name: "Zoe Marsh" }).first().click();
+    await expect(page.getByRole("heading", { name: "Message from Zoe Marsh" })).toBeVisible();
+    const how = page.getByRole("region", { name: "How it was answered" });
+    // Each check made by code, with its figures, for both sessions.
+    const checks = how.getByRole("listitem").filter({ hasText: "Checks made by code:" });
+    await expect(checks).toContainText(`Response team lead · ${eventName}, ${siteName}, `);
+    await expect(checks).toContainText("Has the response team lead role ✓");
+    await expect(checks).toContainText(
+      new RegExp(`SIA door supervisor licence valid to ${DATE} ✓`),
+    );
+    await expect(checks).toContainText("Rest gap 16 h ✓");
+    await expect(checks).toContainText("Clash: none ✓");
+    await expect(checks).toContainText(/Weekly hours \d+\/48 ✓/);
+    await expect(checks).toContainText("Not a day off ✓");
+    await expect(checks).toContainText("Site allowed ✓");
+    await expect(checks).toContainText("Showing to casuals ✓");
+    await expect(checks).toContainText("Inside travel area (20 min by car, limit 45 min) ✓");
+    await expect(checks).toContainText(
+      new RegExp(`CSAS accreditation valid to ${DATE} \\(this session needs it\\) ✓`),
+    );
+    // The sessions the reply listed, each a link to the session.
+    const built = how.getByRole("listitem").filter({ hasText: "Reply built:" });
+    await expect(built).toContainText("The personal shift list, with 2 sessions:");
+    // (The scene's names are letters, digits and spaces only: safe in a pattern as they are.)
+    const listed = new RegExp(`^Response team lead · ${eventName}, ${siteName}, `);
+    await expect(built.getByRole("link", { name: listed })).toHaveCount(2);
+    await expect(built.getByRole("link").first()).toHaveAttribute(
+      "href",
+      `/office/shifts/${scene.plain}`,
+    );
+    // Left out: the session that also needs first aid.
+    const left = page.getByRole("region", { name: "Considered but not offered" });
+    await expect(left).toContainText(
+      "Response team lead: needs first aid at work certificate (none on file)",
+    );
+    await expect(left.getByRole("listitem")).toHaveCount(1);
+    await noSidewaysScroll(page);
+
+    // Noor's message: the CSAS session is left out for her.
+    await page.goto(`${acme}/office/enquiries`);
+    await page.getByRole("link", { name: "Noor Hale" }).first().click();
+    const noorLeft = page.getByRole("region", { name: "Considered but not offered" });
+    await expect(noorLeft).toContainText(
+      "Response team lead: needs CSAS accreditation (none on file)",
+    );
+    await expect(noorLeft).toContainText(
+      "Response team lead: needs first aid at work certificate (none on file)",
+    );
+    await expect(
+      page
+        .getByRole("region", { name: "How it was answered" })
+        .getByRole("listitem")
+        .filter({ hasText: "Reply built:" }),
+    ).toContainText("The personal shift list, with 1 session:");
+  } finally {
+    for (const id of [scene.plain, scene.firstAid, scene.csas, scene.booked]) {
+      await cancelOwnShift("acme", id);
+    }
+  }
 });

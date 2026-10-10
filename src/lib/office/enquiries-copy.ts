@@ -187,7 +187,11 @@ export function receivedStep(
 export function sortedStep(
   s:
     | { how: "keyword" | "ai"; intent: Intent }
-    | { how: "person"; why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted" }
+    | {
+        how: "person";
+        why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted";
+        ai?: "not_connected" | "no_answer" | "not_a_label";
+      }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" },
@@ -206,6 +210,13 @@ export function sortedStep(
     case "not_yet":
       return "Not sorted yet: the shifts line hasn't answered it.";
     default:
+      if (s.why === "not_sorted" && s.ai) {
+        return {
+          not_connected: "AI not available: passed to a person (not connected).",
+          no_answer: "AI not available: passed to a person (no answer in time, or it failed).",
+          not_a_label: "AI not available: passed to a person (its answer wasn't a label).",
+        }[s.ai];
+      }
       return {
         asked: "They asked for a person (a keyword): passed to a person.",
         ai_asked: 'AI sorted it as "office": passed to a person.',
@@ -314,5 +325,155 @@ export function thenStep(
         ? `${name} took a shift in the app at ${at(t.at)}${shift}.`
         : `${name} cancelled a shift in the app at ${at(t.at)}${shift}.`;
     }
+  }
+}
+
+// Step 3, "Checks made by code" (12D.2): one check of one session, from its `enquiry.checks`
+// entry, with ✓ or ✗. `names` gives qualifications their names; dates and times are the firm's.
+type Shortdate = (isoDate: string) => string; // "9 Jun 2028"
+type Times = (fromIso: string, toIso: string) => string; // "10:00–18:00"
+
+export function checkWords(
+  c: { code: string; passed: boolean; detail: Record<string, unknown> },
+  ctx: {
+    names: Record<string, string>;
+    date: Shortdate;
+    times: Times;
+    role: (r: string) => string;
+  },
+): string {
+  const d = c.detail;
+  const mark = c.passed ? "✓" : "✗";
+  const text = (v: unknown) => (typeof v === "string" ? v : "");
+  const name = (type: unknown) => {
+    const n = ctx.names[text(type)] ?? text(type).replace(/_/g, " ").toLowerCase();
+    return n.charAt(0).toUpperCase() + n.slice(1);
+  };
+  switch (c.code) {
+    case "started":
+      return c.passed ? `Not started yet ${mark}` : `Already started ${mark}`;
+    case "active":
+      return c.passed ? `Account active ${mark}` : `Account ${text(d.status)} ${mark}`;
+    case "role":
+      return `${c.passed ? "Has" : "Doesn't have"} the ${ctx.role(text(d.role))} role ${mark}`;
+    case "qualification": {
+      if (d.rule === "none") return `No qualification rule for the role ${mark}`;
+      const who = d.neededBy === "session" ? " (this session needs it)" : "";
+      const n = name(d.type);
+      if (c.passed) {
+        if (d.held === "applied") return `${n} applied for, within the allowance${who} ${mark}`;
+        return typeof d.expiresOn === "string"
+          ? `${n} valid to ${ctx.date(d.expiresOn)}${who} ${mark}`
+          : `${n} valid, no expiry${who} ${mark}`;
+      }
+      if (d.held === "none") return `${n}: none on file${who} ${mark}`;
+      if (d.held === "suspended") return `${n} suspended${who} ${mark}`;
+      if (d.held === "applied") return `${n} applied for, not counted${who} ${mark}`;
+      return typeof d.expiresOn === "string"
+        ? `${n} out of date (${ctx.date(d.expiresOn)})${who} ${mark}`
+        : `${n} marked expired${who} ${mark}`;
+    }
+    case "overlap":
+      return c.passed || typeof d.withStart !== "string" || typeof d.withEnd !== "string"
+        ? `Clash: none ${mark}`
+        : `Clash with a booking ${ctx.times(d.withStart, d.withEnd)} ${mark}`;
+    case "rest": {
+      const gaps = [d.hoursBefore, d.hoursAfter].filter((h): h is number => typeof h === "number");
+      const min = typeof d.minimumHours === "number" ? d.minimumHours : 0;
+      if (gaps.length === 0) return `Rest gap: no booking either side ${mark}`;
+      const gap = Math.min(...gaps);
+      return c.passed ? `Rest gap ${gap} h ${mark}` : `Rest gap ${gap} h, under ${min} h ${mark}`;
+    }
+    case "weekly_hours":
+      return `Weekly hours ${String(d.hours)}/${String(d.capHours)} ${mark}`;
+    case "days_off":
+      return c.passed ? `Not a day off ${mark}` : `Marked a day off ${mark}`;
+    case "site":
+      return c.passed ? `Site allowed ${mark}` : `Blocked from this site ${mark}`;
+    default:
+      return `${c.code} ${mark}`;
+  }
+}
+
+// The travel area check for one offered session (minutes only: never where they live).
+export function travelCheckWords(
+  area: { maxMinutes: number } | null,
+  minutes: { car: number | null; publicTransport: number | null },
+): string {
+  if (!area) return "No travel area set: not filtered by distance ✓";
+  const parts = [
+    ...(minutes.car !== null ? [`${minutes.car} min by car`] : []),
+    ...(minutes.publicTransport !== null
+      ? [`${minutes.publicTransport} min by public transport`]
+      : []),
+  ];
+  return parts.length === 0
+    ? `Travel time not known yet: still offered (limit ${area.maxMinutes} min) ✓`
+    : `Inside travel area (${parts.join(", ")}, limit ${area.maxMinutes} min) ✓`;
+}
+
+// "Considered but not offered": why one session wasn't, in a few words.
+export function reasonWords(
+  r: { code: string; type?: string; from?: string; to?: string },
+  ctx: { names: Record<string, string>; times: Times; at: (iso: string) => string },
+): string {
+  const n = r.type
+    ? (ctx.names[r.type] ?? r.type.replace(/_/g, " ").toLowerCase())
+    : "a qualification";
+  switch (r.code) {
+    case "hidden":
+      return "hidden from casuals";
+    case "outside_area":
+      return "outside their travel area";
+    case "full":
+      return "full";
+    case "held":
+      return r.to ? `held for others until ${ctx.at(r.to)}` : "held for others";
+    case "started":
+      return "already started";
+    case "not_active":
+      return "account not active";
+    case "wrong_role":
+      return "not their role";
+    case "no_rule":
+      return "no qualification rule for the role";
+    case "credential_missing":
+      return `needs ${n} (none on file)`;
+    case "credential_expired":
+      return `${n} out of date`;
+    case "credential_suspended":
+      return `${n} suspended`;
+    case "applied_over_allowance":
+      return `${n} applied for, over the allowance`;
+    case "overlap":
+      return r.from && r.to
+        ? `already booked ${ctx.times(r.from, r.to)}`
+        : "clashes with a booking";
+    case "rest":
+      return "under the rest gap";
+    case "weekly_hours":
+      return "over the weekly hours";
+    case "unavailable":
+      return "a day off";
+    case "blocked_site":
+      return "blocked from the site";
+    default:
+      return r.code.replace(/_/g, " ");
+  }
+}
+
+// Step 4 for a personal reply: which reply, with how many sessions.
+export function builtWords(template: string, offered: number, more: number): string {
+  switch (template) {
+    case "shifts_list":
+      return `The personal shift list, with ${offered} ${offered === 1 ? "session" : "sessions"}${more > 0 ? ` (and ${more} more by link)` : ""}:`;
+    case "shifts_none":
+      return "The personal shift list: nothing they could take.";
+    case "cancel_booking":
+      return "The cancel reply, naming their next booking:";
+    case "cancel_none":
+      return "The cancel reply: no booking ahead.";
+    default:
+      return "The personal reply.";
   }
 }

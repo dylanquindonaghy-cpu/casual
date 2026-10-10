@@ -613,7 +613,8 @@ test("Part 4: the fake phone", async ({ browser }) => {
     await sent(
       ZOE.e164,
       asked,
-      /(Open shifts you're eligible for: http:\/\/acme\.localhost:\d+\/shifts\/open — Acme Events Shift Team)/,
+      // Her personal reply (12D.2): the list depends on the seed and today; the frame doesn't.
+      /^(Hi Zoe, [\s\S]*(?:Take one here|All open shifts): http:\/\/acme\.localhost:\d+\/shifts\/open\nAutomatic reply\. Send OFFICE to reach a person\.\n— Acme Events Shift Team)$/,
     );
   });
 

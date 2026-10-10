@@ -15,10 +15,14 @@ import {
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip } from "@/app/ui/status-chip";
 import { requireOfficeArea } from "@/lib/auth/current-office";
-import { officeEnquiry, type ConversationItem } from "@/lib/office/enquiries";
+import { officeEnquiry, type ConversationItem, type SessionName } from "@/lib/office/enquiries";
 import {
   CHANNEL_WORDS,
+  builtWords,
+  checkWords,
   NO_CHECKS,
+  reasonWords,
+  travelCheckWords,
   OUTCOME_TONES,
   OUTCOME_WORDS,
   PAY_LOCK,
@@ -31,8 +35,8 @@ import {
   whoName,
 } from "@/lib/office/enquiries-copy";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
-import { dayLabel } from "@/lib/rules/reasons";
-import { localDateOf } from "@/lib/time/zoned";
+import { dayLabel, shortDate } from "@/lib/rules/reasons";
+import { localDateOf, wallTimeOf } from "@/lib/time/zoned";
 import { EnquiryForms } from "./enquiry-forms";
 
 export const metadata: Metadata = { title: "Enquiry" };
@@ -90,6 +94,35 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
   const e = await officeEnquiry({ firm, officeUserId: officeUser.id }, id);
   if (!e) notFound();
   const at = (d: Date) => timeOnDay(d, e.timeZone);
+  const b = e.built;
+  const hhmm = (iso: string) => {
+    const w = wallTimeOf(new Date(iso), e.timeZone);
+    return `${String(w.hour).padStart(2, "0")}:${String(w.minute).padStart(2, "0")}`;
+  };
+  const times = (from: string, to: string) => `${hhmm(from)}–${hhmm(to)}`;
+  const wordsCtx = {
+    names: b?.names ?? {},
+    // "9 Jun 2028" (the year left out when it's this year's)
+    date: (iso: string) => shortDate(iso, Number(localDateOf(new Date(), e.timeZone).slice(0, 4))),
+    times,
+    role: (r: string) => roleLabel(r).toLowerCase(),
+  };
+  const reasonCtx = {
+    names: b?.names ?? {},
+    times,
+    at: (iso: string) => timeOnDay(new Date(iso), e.timeZone),
+  };
+  // "Northern Lights Live, Acme Demo Arena, Sat 10 Oct 08:00–16:00"
+  const placeWhen = (s: SessionName) =>
+    [
+      s.eventName,
+      s.siteName,
+      `${dayLabel(localDateOf(s.startsAt, e.timeZone))} ${times(s.startsAt.toISOString(), s.endsAt.toISOString())}`,
+    ]
+      .filter((x): x is string => !!x)
+      .join(", ");
+  const sessionWords = (s: SessionName | null) =>
+    s ? `${roleLabel(s.role)} · ${placeWhen(s)}` : "A session since removed";
   const name = whoName(e.who);
   const t = e.timeline;
   // "Door supervisor at Acme Demo Arena, Sat 10 Oct"
@@ -156,10 +189,50 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
             <span className="font-semibold">Sorted:</span> {sortedStep(t.sorted)}
           </li>
           <li>
-            <span className="font-semibold">Checks made by code:</span> {NO_CHECKS}
+            <span className="font-semibold">Checks made by code:</span>{" "}
+            {!b || b.offered.length === 0 ? (
+              b ? (
+                "No session passed them (see below)."
+              ) : (
+                NO_CHECKS
+              )
+            ) : (
+              <ul role="list" className="mt-1 flex flex-col gap-3">
+                {b.offered.map((o) => (
+                  <li key={o.shiftId}>
+                    <p className="font-semibold">{sessionWords(o.session)}</p>
+                    <ul role="list" className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+                      {o.checks.map((c, i) => (
+                        <li key={i}>{checkWords(c, wordsCtx)}</li>
+                      ))}
+                      <li>Showing to casuals ✓</li>
+                      <li>{travelCheckWords(b.area, o)}</li>
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
           <li>
-            <span className="font-semibold">Reply built:</span> {replyStep(t.reply)}
+            <span className="font-semibold">Reply built:</span>{" "}
+            {b ? (
+              <>
+                {builtWords(b.template, b.offered.length, b.more)}
+                {b.offered.length > 0 && (
+                  <ul role="list" className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+                    {b.offered.map((o) => (
+                      <li key={o.shiftId}>
+                        <Link href={`/office/shifts/${o.shiftId}`} className={textLink}>
+                          {sessionWords(o.session)}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              replyStep(t.reply)
+            )}
           </li>
           <li>
             <span className="font-semibold">Sent:</span> {sentStep(t.sent, at)}
@@ -189,7 +262,24 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         <h2 id="not-offered" className={h2}>
           Considered but not offered
         </h2>
-        <p className={`${card} ${headingGap} text-ink-muted`}>{NO_CHECKS}</p>
+        {!b ? (
+          <p className={`${card} ${headingGap} text-ink-muted`}>{NO_CHECKS}</p>
+        ) : b.notOffered.length === 0 ? (
+          <p className={`${card} ${headingGap} text-ink-muted`}>Nothing left out.</p>
+        ) : (
+          <ul role="list" className={`${card} ${headingGap} flex list-disc flex-col gap-1 pl-9`}>
+            {b.notOffered.map((n) => (
+              <li key={n.shiftId}>
+                {n.session ? roleLabel(n.session.role) : "A session"}:{" "}
+                {n.reasons.map((r) => reasonWords(r, reasonCtx)).join("; ")}
+                {n.session && <span className={meta}> · {placeWhen(n.session)}</span>}
+              </li>
+            ))}
+            {b.notOfferedMore > 0 && (
+              <li className={meta}>And {b.notOfferedMore} more not listed.</li>
+            )}
+          </ul>
+        )}
       </section>
 
       {e.waiting && (

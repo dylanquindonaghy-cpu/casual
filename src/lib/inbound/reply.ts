@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getAi } from "../ai/anthropic";
-import { classifyMessage } from "../ai/classify-message";
+import { sortMessage, type AiFallback } from "../ai/classify-message";
 import type { AiClient } from "../ai/client";
 import { firms, messages, officeUsers, requests, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
@@ -20,10 +20,12 @@ import {
 } from "../messaging/templates";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
+import { systemClock, type Clock } from "../auth/clock";
 import { lockUnhandled } from "./claim";
 import { inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
 import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from "./opt-out";
+import { cancelReply, shiftsReply } from "./personal-reply";
 
 // Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
 // docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
@@ -56,6 +58,7 @@ export interface InboundReplyDeps {
   ai: AiClient;
   baseDomain: string;
   aiTimeoutMs?: number; // tests pass a short one
+  clock?: Clock; // tests pass a fixed one (the personal reply's "now")
 }
 
 export type InboundResult =
@@ -266,6 +269,9 @@ async function answerMessage(
   // office.
   let intent: Intent;
   let handledAs: "keyword" | "ai" | "office";
+  // Why the AI didn't sort it (for the office's "How it was answered"): a photo with no text, or
+  // the AI's own reason.
+  let aiFallback: AiFallback | "no_text" | null = null;
   if (c.keyword) {
     intent = c.keyword;
     handledAs = "keyword";
@@ -273,18 +279,44 @@ async function answerMessage(
     intent = "office";
     handledAs = "office";
   } else {
-    const picked = c.body
-      ? await classifyMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs })
-      : null;
-    intent = picked ?? "office";
-    handledAs = picked ? "ai" : "office";
+    const sorted = c.body
+      ? await sortMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs })
+      : ({ label: null, why: "no_text" } as const);
+    intent = sorted.label ?? "office";
+    handledAs = sorted.label ? "ai" : "office";
+    if (!sorted.label) aiFallback = sorted.why;
   }
 
-  // Step 3: the claim, the office's request and the event, together.
+  // Step 2b: the personal reply to "shifts" or "cancel" (src/lib/inbound/personal-reply.ts), read
+  // before the claim like the AI's label: built by code from the firm's data, never by the AI.
   const portal = portalUrl(c.firm.slug, deps.baseDomain);
-  const replyText = await run(payload.firmId, async (tx): Promise<string | null> => {
+  const now = (deps.clock ?? systemClock).now();
+  const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
+  const personal =
+    intent === "shifts"
+      ? await shiftsReply(run, {
+          firmId: payload.firmId,
+          workerId: c.workerId,
+          text: c.body,
+          now,
+          firm: voiceOf,
+          portal,
+        })
+      : intent === "cancel"
+        ? await cancelReply(run, {
+            firmId: payload.firmId,
+            workerId: c.workerId,
+            now,
+            firm: voiceOf,
+            portal,
+          })
+        : null;
+
+  // Step 3: the claim, the office's request and the event, together.
+  const texts = await run(payload.firmId, async (tx) => {
     if (!(await lockUnhandled(tx, payload.messageId))) return null;
-    let reply: ShiftsLineReply;
+    // The fixed reply (pay, the office); null for shifts and cancel (the personal reply).
+    let built: ShiftsLineReply | null = null;
     if (intent === "office") {
       const [request] = await tx
         .insert(requests)
@@ -312,10 +344,9 @@ async function answerMessage(
         entityId: request.id,
         data: { type: "general", shiftId: null, via: via(c.channel), workerId: c.workerId },
       });
-      reply = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
-    } else {
-      const path = intent === "shifts" ? "/shifts/open" : intent === "pay" ? "/pay" : "/";
-      reply = { intent, link: `${portal}${path}` };
+      built = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
+    } else if (intent === "pay") {
+      built = { intent: "pay", link: `${portal}/pay` };
     }
     await tx
       .update(messages)
@@ -327,14 +358,31 @@ async function answerMessage(
       action: "message.received",
       entityType: "message",
       entityId: payload.messageId,
-      data: { channel: c.channel, handledAs, intent, workerId: c.workerId },
+      data: {
+        channel: c.channel,
+        handledAs,
+        intent,
+        ...(aiFallback ? { aiFallback } : {}),
+        workerId: c.workerId,
+      },
     });
+    // Shifts and cancel: the personal reply, in each channel's words.
+    if (!built) {
+      if (!personal) throw new Error("a shifts or cancel message without its personal reply");
+      return { replyText: personal.whatsapp, smsText: personal.sms };
+    }
+    const reply = built;
     const voice = { name: c.firm.name, signOff: c.firm.signOff };
-    return c.channel === "voice" && reply.intent === "office"
-      ? voicemailReceivedMessage(voice, reply.ref)
-      : shiftsLineReply(voice, reply);
+    const fixed = (): string => {
+      return c.channel === "voice" && reply.intent === "office"
+        ? voicemailReceivedMessage(voice, reply.ref)
+        : shiftsLineReply(voice, reply);
+    };
+    const text = fixed();
+    return { replyText: text, smsText: text };
   });
-  if (replyText === null) return { status: "already" };
+  if (texts === null) return { status: "already" };
+  const { replyText, smsText } = texts;
 
   // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a voicemail's by the channel the
   // worker chose. Always from the number they contacted.
@@ -342,11 +390,21 @@ async function answerMessage(
     mobile: c.mobile,
     channel: c.channel === "voice" ? c.notifyChannel : c.channel,
     smsAllowed: c.smsAllowed,
-    body: { whatsapp: replyText, sms: replyText },
+    body: { whatsapp: replyText, sms: smsText },
     from: c.line,
   });
 
   return run(payload.firmId, async (tx): Promise<InboundResult> => {
+    // What the personal reply was built from (docs/office-v2.md 3.6, 6.1), whether it went or not.
+    if (personal) {
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "enquiry.checks",
+        entityType: "message",
+        entityId: payload.messageId,
+        data: { ...personal.checks, sent: sent.ok, channel: sent.channel, workerId: c.workerId },
+      });
+    }
     if (!sent.ok) {
       await recordEvent(tx, {
         actorType: "system",
@@ -367,7 +425,7 @@ async function answerMessage(
         workerId: c.workerId,
         fromE164: c.line,
         toE164: c.mobile,
-        body: replyText,
+        body: sent.channel === "sms" ? smsText : replyText,
         intent,
         replyTo: payload.messageId,
       })

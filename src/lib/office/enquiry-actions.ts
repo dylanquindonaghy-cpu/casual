@@ -10,7 +10,7 @@ import { officeReplyMessage, requestUpdateMessage } from "../messaging/templates
 import { OFFICE_REPLY_PREFIX, queueEnquiryReply } from "../notices/enquiry-reply";
 import { signOffFor } from "../tenancy/sign-off";
 import { ENQUIRY_DAYS, needsPerson, replyPlanFor } from "./enquiries";
-import { CLOSE_REASONS, REPLY_MAX, replyLine, replyPlan, type CloseReason } from "./enquiry-rules";
+import { CLOSE_REASONS, REPLY_MAX, replyLine, type CloseReason } from "./enquiry-rules";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // The office answering a message that needs a person (docs/office-v2.md 3.6; 12D.1): a reply in

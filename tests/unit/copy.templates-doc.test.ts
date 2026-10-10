@@ -42,6 +42,7 @@ import {
   voicemailReceivedMessage,
 } from "@/lib/messaging/templates";
 import { TEXTS_OFF } from "@/app/profile/profile-view";
+import { askedDays, cancelReplyText, shiftsReplyText } from "@/lib/inbound/personal-reply";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
 
 // All copy from docs/messaging-templates.md (Phase 4). Every message the code builds is checked
@@ -289,12 +290,100 @@ describe("the code says what the doc says", () => {
       return /^\|[^|]*\| "([^"]+)"/.exec(row)?.[1];
     };
     const signed = (text: string | undefined) => `${text} — {firm} Shift Team`;
-    for (const intent of ["shifts", "cancel", "pay"] as const) {
-      expect(shiftsLineReply(docVoice, { intent, link: "{link}" })).toBe(signed(replyFor(intent)));
-    }
+    expect(shiftsLineReply(docVoice, { intent: "pay", link: "{link}" })).toBe(
+      signed(replyFor("pay")),
+    );
     expect(shiftsLineReply(docVoice, { intent: "office", ref: "{ref}" })).toBe(
       signed(replyFor("help")),
     );
+    // Shifts and cancel: the personal replies (below), not a fixed row.
+    expect(table).toMatch(/\| "cancel" \| The personal cancel reply \(below/);
+    expect(table).toMatch(/\| "shifts", "work", "available" \| The personal shift list \(below/);
+  });
+
+  it("the personal replies, exactly as the doc shows them (12D.2)", () => {
+    const personal = doc.slice(
+      doc.indexOf("## Personal replies on the shifts line"),
+      doc.indexOf("\n## ", doc.indexOf("## Personal replies on the shifts line") + 1),
+    );
+    const TZ = "Europe/London";
+    const acme = { name: "Acme Events", signOff: "Acme Events Shift Team" };
+    const est = (car: number, metres: number, pt: number) =>
+      ({
+        kind: "estimated",
+        straightMetres: metres,
+        arriveBy: new Date("2026-10-10T06:30:00Z"),
+        car: { minutes: car, metres },
+        publicTransport: { minutes: pt },
+      }) as const;
+    const shiftsInput = {
+      firstName: "Zoe",
+      firm: acme,
+      timeZone: TZ,
+      asked: askedDays("any shifts this weekend?", new Date("2026-10-09T18:00:00Z"), TZ),
+      booked: [
+        {
+          role: "steward",
+          eventName: "Riverside Food Festival",
+          startsAt: new Date("2026-10-11T09:00:00Z"),
+          endsAt: new Date("2026-10-11T17:00:00Z"),
+        },
+      ],
+      shifts: [
+        {
+          shiftId: "s1",
+          role: "door_supervisor",
+          eventName: "Northern Lights Live",
+          siteName: "Acme Demo Arena",
+          startsAt: new Date("2026-10-10T07:00:00Z"),
+          endsAt: new Date("2026-10-10T15:00:00Z"),
+          payRatePence: 1550,
+          post: "Gate A",
+          urgent: true,
+          holdsCsas: false,
+          travel: est(12, 4989, 24),
+        },
+        {
+          shiftId: "s2",
+          role: "csas_officer",
+          eventName: "Night patrols",
+          siteName: "Northgate Town Centre",
+          startsAt: new Date("2026-10-10T16:00:00Z"),
+          endsAt: new Date("2026-10-10T22:00:00Z"),
+          payRatePence: 1500,
+          post: "town centre patrol",
+          urgent: false,
+          holdsCsas: true,
+          travel: est(21, 13518, 38),
+        },
+      ],
+      area: { maxMinutes: 45 },
+      offerAlerts: true,
+      links: { take: "{link}", profile: "{profile link}" },
+    };
+    const block = /```\n([\s\S]*?)\n```/.exec(personal)?.[1];
+    expect(shiftsReplyText(shiftsInput, "whatsapp").text).toBe(block);
+    const [textVersion] = quotes(oneLine(personal), "By text:");
+    expect(shiftsReplyText({ ...shiftsInput, booked: [] }, "sms").text).toBe(textVersion);
+    const cancelInput = {
+      firstName: "Kieran",
+      firm: acme,
+      timeZone: TZ,
+      next: {
+        role: "steward",
+        eventName: "Raceday",
+        siteName: "Acme Demo Racecourse",
+        startsAt: new Date("2026-10-07T09:30:00Z"),
+        endsAt: new Date("2026-10-07T17:30:00Z"),
+        post: "parade ring",
+        link: "{link}",
+      },
+      strike: { thresholdHours: 48 },
+      others: 0,
+      links: { booked: "{Booked link}" },
+    };
+    const [cancelDoc] = quotes(oneLine(personal), `"Hi Kieran, you're booked`);
+    expect(oneLine(cancelReplyText(cancelInput, "whatsapp"))).toBe(cancelDoc);
   });
 
   it("the office's reply on Enquiries: free text signed, or request_update as a question answered", () => {

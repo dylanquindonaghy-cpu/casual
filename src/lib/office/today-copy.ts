@@ -3,29 +3,15 @@ import type { CloseShiftResult } from "../roster/close";
 import type { SetUrgentResult } from "../roster/urgent";
 import type { KeepResult } from "./worker-access";
 import { ruleWords } from "./event-words";
-import type { TodayBookingToCheck, TodaySheetIssue, TodayView, UrgentShift } from "./today";
+import type { TodayBookingToCheck, TodaySheetIssue, UrgentShift } from "./today";
 
-// The Today view's words (docs/screens.md `/office/today`): short sentences, plain words.
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+// The dashboard's to-do words and the shift quick actions' answers (docs/screens.md `/office`):
+// short sentences, plain words.
 
 // "1 place free" / "2 of 3 places free".
 export function placesText(placesLeft: number, headcount: number): string {
   if (headcount === 1) return "1 place free";
   return `${placesLeft} of ${headcount} places free`;
-}
-
-// "Wave 2 · 4 offered · 0 accepted", with the office's offers and failed sends when there are any.
-export function waveText(u: UrgentShift): string {
-  if (u.offered === 0 && u.failed === 0) return "No offers sent yet.";
-  const parts = [
-    ...(u.wave !== null ? [`Wave ${u.wave}`] : []),
-    `${u.offered} offered`,
-    `${u.accepted} accepted`,
-    ...(u.byOffice > 0 ? [`${u.byOffice} by the office`] : []),
-    ...(u.failed > 0 ? [`${u.failed} couldn't be sent`] : []),
-  ];
-  return parts.join(" · ");
 }
 
 const STOPPED: Record<NonNullable<UrgentShift["stopped"]>, string> = {
@@ -37,32 +23,12 @@ const STOPPED: Record<NonNullable<UrgentShift["stopped"]>, string> = {
   not_urgent: "Offers stopped: it was marked not urgent.",
 };
 
-export const stoppedText = (u: UrgentShift) => (u.stopped ? STOPPED[u.stopped] : null);
-
-const REQUEST_WORDS: Record<string, [string, string]> = {
-  time_change: ["time change", "time changes"],
-  swap: ["swap", "swaps"],
-  availability: ["availability change", "availability changes"],
-  general: ["question", "questions"],
-  review: ["review of a refused shift", "reviews of refused shifts"],
-};
+export const stoppedText = (u: Pick<UrgentShift, "stopped">) =>
+  u.stopped ? STOPPED[u.stopped] : null;
 
 // "Who worked?": people on a shift that ended, not marked as worked or not attended yet.
 export const toMarkText = (n: number) =>
   n === 1 ? "1 person not marked yet." : `${n} people not marked yet.`;
-
-// "3 requests waiting: 2 time changes, 1 swap." / "No requests waiting."
-export function requestsText(requests: TodayView["requests"]): string {
-  if (requests.total === 0) return "No requests waiting.";
-  // Always in the same order (the database returns the kinds in any order).
-  const kinds = Object.entries(REQUEST_WORDS)
-    .map(([type, [one, many]]) => {
-      const n = requests.byType[type as keyof TodayView["requests"]["byType"]] ?? 0;
-      return n > 0 ? plural(n, one, many) : null;
-    })
-    .filter((k): k is string => k !== null);
-  return `${plural(requests.total, "request", "requests")} waiting: ${kinds.join(", ")}.`;
-}
 
 type Common = { status: "logged_out" } | { status: "not_allowed" } | { status: "error" };
 

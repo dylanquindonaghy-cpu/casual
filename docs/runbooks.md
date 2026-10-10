@@ -168,7 +168,7 @@ first):
 
 **Every deploy after that:** merge to `main`. Within a few minutes of CI passing (outside
 05:30–09:00 UK), `journalctl -u shiftdesk-deploy` shows "Deployed … (commit <its SHA>)". Then check
-`https://<our domain>/api/health` says `{"ok":true}` and the office Today page works on a phone.
+`https://<our domain>/api/health` says `{"ok":true}` and the office dashboard works on a phone.
 Post a one-line note in the Hours log.
 
 **Changing a setting** (in `.env`): as root, `nano /opt/shiftdesk/.env`, make every change, save
@@ -294,20 +294,20 @@ fixed.
    --name "Trial Firm" --sector security --admin-email <your own email> --admin-name "<your name>"`.
    It says "Created … and its admin.". Then open `https://trial.<our domain>/office` on your phone
    (the first visit takes a few seconds while Caddy gets its certificate) and log in with the link
-   emailed to you: the Today page opens. Keep it as your own test firm afterwards (there's no
+   emailed to you: the dashboard opens. Keep it as your own test firm afterwards (there's no
    command to delete a firm yet: "Offboarding a firm").
 1. **Deploy.** After the first deploy ("Deploy", the first time), merge any small change to
    `main` (ask Claude for a harmless one). Worked if, within a few minutes of CI passing:
    `sudo journalctl -u shiftdesk-deploy --since "15 minutes ago"` shows "Deployed … (commit <the
    new commit's SHA>)"; `sudo docker compose -f /opt/shiftdesk/docker-compose.yml ps` shows web
-   "healthy"; `https://<our domain>/api/health` says `{"ok":true}`; the test firm's office Today
-   page opens on your phone.
+   "healthy"; `https://<our domain>/api/health` says `{"ok":true}`; the test firm's office
+   dashboard opens on your phone.
 2. **Rollback.** Follow "Rollback" steps 1–2 with the SHA of the version *before* the one you just
    deployed. Worked if "Deployed …" shows that older SHA, the site still works, and it's still on
    it 5 minutes later (the timer leaves a pin alone). Then step 3 (`SHIFTDESK_TAG=main`): within a
    few minutes "Deployed …" shows the newest SHA again.
 3. **Restore.** Follow "Restore the database" steps 1–3 with the newest backup, naming the new
-   database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the test firm's Today page
+   database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the test firm's dashboard
    opens, and the newest event is from just before the backup. Also note whether the passwords
    really were kept (step 2 depends on it). Then point `.env` back at the original database and run
    `docker compose up -d` again (if step 2 moved `secrets/db-ca.pem` aside: first `mv
@@ -372,7 +372,7 @@ alert…" line (a text, once the phone sender is connected).
 | Alert says | What it means | What to do |
 |---|---|---|
 | "N jobs failed after the last retry in the last hour (queue n, …)" | A background job (an offer wave, a reminder, a notice…) gave up | `docker compose logs worker --since 1h`, look for that queue's errors (codes only, no personal data). Fix the cause; a failed offer wave or notice isn't re-run by itself: tell the firm's office if a worker wasn't told something |
-| "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees the same on Today |
+| "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees each failed sync in its action log |
 | "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
 | "the web app's health check is failing (…)" | The worker can't get an OK from the web app on the same server | `docker compose ps` and `docker compose logs web --since 15m`; the outside uptime check says whether the internet sees it too. "Event-morning outage" below |
 | "N Twilio webhook requests with a bad signature in the last hour" | Twilio's messages to us are being refused: `TWILIO_AUTH_TOKEN` in `.env` no longer matches the account (someone rotated it), the address set in Twilio differs from the one the app checks against (http instead of https, or a firm's own domain instead of `<slug>.<our domain>`), or someone is probing | Compare the token with Twilio's console (Account → API keys & tokens), and the webhook addresses with "Connect Twilio". If both match, it's probing: nothing to do unless it keeps up |
@@ -430,7 +430,7 @@ but never changes an existing password. Rotate by hand as the owner:
 4. Restart `web` and `worker`. If the database is the problem, restore.
 5. When back: queued jobs resume; check the urgent shifts didn't miss escalations; re-send any
    offers marked failed. Enter every cancellation or change the manager took by phone during the
-   outage (Today → the shift → cancel or change, with the reason), so its notice is logged like any
+   outage (Events & sessions → the shift → cancel or change, with the reason), so its notice is logged like any
    other.
 6. Write a 5-line post-mortem in the Hours log.
 
@@ -763,7 +763,7 @@ Admins and resourcers can. Each change needs a reason from a list, and goes in t
 
 - **They've left:** "Make inactive", then "Yes". They're logged out at once, can't log in or
   take shifts, get no reminders, and notifications stop on their phones. Any bookings they have
-  ahead show on Today under "Bookings to check": cancel each one (they're told; the reason
+  ahead show on the dashboard under "Bookings to check": cancel each one (they're told; the reason
   "They've left, or can't work here" and the notice go in the notice report) or keep it (then
   tell them yourself: they get no reminders). A kept booking doesn't stop you moving the shift's
   time; moving it to another site asks you to cancel it first. Your rota sheet or a staff file
@@ -775,7 +775,7 @@ Admins and resourcers can. Each change needs a reason from a list, and goes in t
   too, or its next sync or import blocks them again.
 - **A client doesn't want them at a site:** "Block from a site". They can't book or be offered
   shifts there (they're told "This site isn't available to you. Contact the office."), and any
-  bookings they have there show on Today to cancel or keep; until you keep one, no reminder goes
+  bookings they have there show on the dashboard to cancel or keep; until you keep one, no reminder goes
   for it. "Unblock from {site}" lifts it.
 - **A lost phone:** "Log out on every device". Their logins and unused links end, and
   notifications stop on their phones. If someone else now has their number, change their mobile

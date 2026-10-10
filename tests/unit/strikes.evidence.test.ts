@@ -12,13 +12,13 @@ import {
 import { eventWords } from "@/lib/office/event-words";
 import { resendEvidenceText } from "@/lib/office/evidence-copy";
 import { LOG_TYPES } from "@/lib/office/log-types";
-import type { TodayView } from "@/lib/office/today";
+import { needsCount, type Dashboard, type NeedsAttention } from "@/lib/office/dashboard";
 import { EVIDENCE_RETRY_AFTER_MS } from "@/lib/strikes/evidence";
 import { EVIDENCE_MAX_ATTEMPTS, strikeEvidencePayload } from "@/lib/strikes/evidence-queue";
 
 // The evidence email to the strikes team (12C.4; docs/office-v2.md 5.6): its words (§5.6's own
 // example, word for word), the job's payload and retries, its log entries, and the Needs attention
-// item on Today. tests/integration/strikes.evidence.test.ts runs the job on the database.
+// item on the dashboard. tests/integration/strikes.evidence.test.ts runs the job on the database.
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 vi.mock("@/app/office/today-actions", () => ({
@@ -28,7 +28,13 @@ vi.mock("@/app/office/today-actions", () => ({
   offerShiftAction: vi.fn(),
   keepBookingAction: vi.fn(),
 }));
-const { TodayContent } = await import("@/app/office/today-view");
+vi.mock("@/app/office/shifts/actions", () => ({
+  setShowingAction: vi.fn(),
+  cancelBookingAction: vi.fn(),
+  cancelShiftAction: vi.fn(),
+  moveShiftAction: vi.fn(),
+}));
+const { DashboardContent } = await import("@/app/office/dashboard-view");
 
 const ACME = { name: "Acme Events", signOff: "Acme Events Shift Team" };
 const facts = {
@@ -301,28 +307,36 @@ describe("the log", () => {
   });
 });
 
-describe("the Needs attention item (on Today until the dashboard, 12E.1)", () => {
-  type View = Omit<TodayView, "officeUser">;
-  const view = (evidence: View["evidence"]): View => ({
-    timeZone: "Europe/London",
-    urgent: [],
-    gaps: [],
-    gapsMore: false,
-    cancellations: [],
+describe("the Needs attention item on the dashboard (12E.1)", () => {
+  const needs = (evidence: NeedsAttention["evidence"]): NeedsAttention => ({
     toCheck: [],
     toCheckMore: false,
     fromSheet: [],
     fromSheetMore: false,
     toMark: [],
     toMarkMore: false,
-    requests: { total: 0, byType: {} },
-    expiring: [],
-    unknownMessages: [],
-    unknownMore: false,
+    expired: [],
+    expiredMore: false,
+    uploads: 0,
     evidence,
   });
-  const render = (v: View, isAdmin: boolean) =>
-    renderToStaticMarkup(createElement(TodayContent, { view: v, isAdmin }));
+  const view = (evidence: NeedsAttention["evidence"]): Dashboard => ({
+    timeZone: "Europe/London",
+    today: "2026-11-02",
+    counts: {
+      urgent: { ok: true, data: { sessions: 0, places: 0, firstStartsAt: null } },
+      showing: { ok: true, data: { events: 0, sessions: 0, places: 0 } },
+      cancellations: { ok: true, data: { total: 0, underNotice: 0, strikes: 0, threshold: 48 } },
+      enquiries: { ok: true, data: { total: 0, automatic: 0, needPerson: 0 } },
+    },
+    urgent: { ok: true, data: { events: [], more: false } },
+    showing: { ok: true, data: { events: [], more: 0 } },
+    cancellations: { ok: true, data: { rows: [], threshold: 48 } },
+    enquiries: { ok: true, data: { rows: [], replies: {} } },
+    needs: { ok: true, data: needs(evidence) },
+  });
+  const render = (v: Dashboard, isAdmin: boolean) =>
+    renderToStaticMarkup(createElement(DashboardContent, { d: v, isAdmin }));
   const text = (html: string) =>
     html
       .replace(/<[^>]+>/g, " ")
@@ -347,11 +361,13 @@ describe("the Needs attention item (on Today until the dashboard, 12E.1)", () =>
     expect(html).not.toContain("Strike evidence");
   });
 
-  it("an unconfirmed address and a failed email: its tile, its count, each linking where it's dealt with", () => {
-    const v = view({ addressConfirmed: false, waiting: 2, failed: [failed], failedMore: false });
+  it("an unconfirmed address and a failed email: its part, its count (the bell's too), each linking where it's dealt with", () => {
+    const evidence = { addressConfirmed: false, waiting: 2, failed: [failed], failedMore: false };
+    const v = view(evidence);
     const admin = render(v, true);
-    expect(admin).toContain('href="#evidence"');
-    expect(text(admin)).toContain("2 Strike evidence");
+    expect(admin).toContain('<h3 id="evidence"');
+    expect(text(admin)).toContain("Strike evidence 2");
+    expect(needsCount(needs(evidence))).toEqual({ count: 2, more: false });
     expect(text(admin)).toContain(
       "The strikes team's email isn't set and confirmed, so strike records can't be emailed to them. 2 records wait for it.",
     );

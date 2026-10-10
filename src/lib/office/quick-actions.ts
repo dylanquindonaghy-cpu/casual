@@ -33,7 +33,7 @@ import {
   type ResolveRequestResult,
 } from "../requests/resolve";
 
-// Today's quick actions for server actions: the firm comes from the request (the session's firm),
+// The dashboard's quick actions for server actions: the firm comes from the request (the session's firm),
 // the office user from the session. Each underlying function checks the user again inside the
 // firm's transaction (an active admin or resourcer; for the payroll digest, payroll or an admin).
 

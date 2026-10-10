@@ -18,7 +18,7 @@ import { lockAppliedDay, previewBooking } from "./book";
 //   a booking on an application in progress that day and this change count the allowance in turn.
 //   The shift's lock keeps who is booked from changing meanwhile.
 // - Blocked: someone fails a check the editor can't override (`allowed`), or couldn't be checked
-//   at all (their record missing). A booking the office chose to keep (Today's "Bookings to check")
+//   at all (their record missing). A booking the office chose to keep (the dashboard's "Bookings to check")
 //   though its worker isn't active, or is blocked from the site: those two don't count unless the
 //   site changes, so a block at a new site is never kept unseen.
 

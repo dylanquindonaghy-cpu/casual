@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { eventWords, type Names } from "@/lib/office/event-words";
 import { sheetChangeText, sheetNameText } from "@/lib/office/today-copy";
 
-// Today's "From your rota sheet" (src/lib/office/today-copy.ts) and the sheet's refusals in the
+// The dashboard's "From your rota sheet" (Needs attention; src/lib/office/today-copy.ts) and the sheet's refusals in the
 // action log (event-words.ts), word for word as docs/screens.md gives them.
 
 describe("From your rota sheet", () => {

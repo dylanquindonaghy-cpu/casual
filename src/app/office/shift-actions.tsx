@@ -8,7 +8,7 @@ import { btn } from "../ui/classes";
 import { Chevron, summaryButton } from "./shifts/[id]/chevron";
 import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-actions";
 
-// Today's quick actions for one shift: offer it to someone, mark it urgent (or not), mark it as
+// The dashboard's quick actions for one shift: offer it to someone, mark it urgent (or not), mark it as
 // filled (after a second click, with an undo). Results show in place. On an urgent shift
 // "Offer to someone" is the main button; on a gap every button looks the same, so the urgent
 // ones stand out.

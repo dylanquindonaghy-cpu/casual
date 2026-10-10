@@ -295,29 +295,36 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("20. Log in as the resourcer", async () => {
     await officeLogin(page, "acme.resourcer@example.com");
-    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
   });
 
-  await test.step("21. Today", async () => {
-    await expect(page.getByRole("region", { name: "Gaps in the next 7 days" })).toBeVisible();
-    // Sam's time change and the seed's, the seed's swap, and Maya's review.
-    await expect(page.getByRole("region", { name: "Requests" })).toContainText(
-      "4 requests waiting: 2 time changes, 1 swap, 1 review of a refused shift.",
-    );
+  await test.step("21. The dashboard", async () => {
+    // The four counts, each a link to its list (12E.1).
+    await expect(page.getByRole("navigation", { name: "Counts" }).getByRole("link")).toHaveCount(4);
+    // Zoe's cancellation (step 12) is the latest; nothing there to approve or decline.
+    const cancellations = page.getByRole("region", { name: "Cancellations", exact: true });
+    await expect(cancellations.getByText(`${ZOE.name} cancelled`).first()).toBeVisible();
+    await expect(
+      cancellations.getByText("Recorded automatically, never approved or declined"),
+    ).toBeVisible();
+    // Needs attention: yesterday's racecourse shifts to mark.
     await expect(
       page.getByRole("region", { name: "Who worked?" }).getByText("Acme Demo Racecourse").first(),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Cancelled in the last 24 hours" }).getByText(ZOE.name),
     ).toBeVisible();
   });
 
   await test.step("22. Offer a gap", async () => {
-    const gap = page
-      .getByRole("region", { name: "Gaps in the next 7 days" })
-      .getByRole("article")
-      .first();
-    await gap.getByRole("link", { name: "Offer to someone" }).click();
+    // "Events showing to casuals" opens Events & sessions' Showing tab; a session's "…" menu has
+    // "Offer a place" while it has one free.
+    await page
+      .getByRole("navigation", { name: "Counts" })
+      .getByRole("link")
+      .filter({ hasText: "Events showing to casuals" })
+      .click();
+    await expect(page).toHaveURL(`${acme}/office/events?view=showing`);
+    const menu = page.locator('details:has(a[href^="/office/offer/"])').first();
+    await menu.locator("summary").click();
+    await menu.getByRole("link", { name: "Offer a place" }).click();
     await expect(page.getByRole("heading", { name: "Offer this shift" })).toBeVisible();
     const asked = justBefore();
     await page
@@ -328,7 +335,8 @@ test("Part 3: as the office", async ({ browser }) => {
       page.getByRole("status").filter({ hasText: /^Offer on its way to .+\.$/ }),
     ).toBeVisible();
     await anySent(asked, /^(Shift available|URGENT): /);
-    await page.getByRole("link", { name: "Back to Today" }).click();
+    await page.getByRole("link", { name: "Back to the dashboard" }).click();
+    await expect(page).toHaveURL(`${acme}/office`);
   });
 
   await test.step("23. Answer a request", async () => {

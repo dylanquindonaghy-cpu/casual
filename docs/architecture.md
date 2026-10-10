@@ -209,9 +209,9 @@ booked can still work it (`recheckHolders()`, the same check as the office's mov
 sheet's overrides), otherwise our copy keeps them. Shifts that have started are history: never
 booked, cancelled, re-timed, re-roled or moved by a sync (so a first sync books no old names). What
 the sheet asks for and didn't get is kept on the shift (`shifts.sheet_issues`) and shown on the
-office's Today ("From your rota sheet"); a refused change is logged once
+office dashboard's Needs attention ("From your rota sheet"); a refused change is logged once
 (`roster.sheet_change_refused`). Names the sync couldn't book stay in the sheet's cell while there
-is room, and each sync tries them again; only a name with no room left is taken out (on Today and
+is room, and each sync tries them again; only a name with no room left is taken out (on the dashboard and
 in the log). The merge base becomes the "Assigned" cell as read, less those names. Then one batch write puts our bookings back into
 every cell that differs, after re-reading (one request) each target row's id and "Assigned" cells:
 a row that moved or a cell the office edited meanwhile is left for the next sync. Each written cell
@@ -391,7 +391,7 @@ stays out of the rules engine. Personal enquiry replies (12D.2) must use the sam
 3. Unknown number → polite reply + office alert. (Built in Phase 7: the first message from a
    number in 24 hours gets `unknown_number` and emails the office's admins and resourcers, without
    the number or the message; a former worker gets no reply, the office is alerted; every such
-   message is on Today.)
+   message is on Enquiries, waiting for a person.)
 
 **Call-to-text**
 1. Twilio voice webhook returns a short recorded message.
@@ -402,7 +402,7 @@ text-to-speech from `callGreeting()`, not a recording. The link is the login pag
 only a worker's number gets one and the caller hears the same either way; a withheld number is
 told we can't send one. The voicemail's text goes through the `inbound-message` job: a worker's
 becomes a request for the office, answered by the channel they chose; a caller we don't know is
-on Today and the office is alerted, with no message to them.)
+on Enquiries and the office is alerted, with no message to them.)
 4. Twilio fallback URL forwards calls to the manager's mobile if our app is down. (Made in Phase 8,
    not set yet: `npm run firm:call-fallback` prints the TwiML for a firm's bin, `callFallbackTwiml()`:
    why, then the manager's phone for up to 30 seconds (their voicemail usually answers first), then

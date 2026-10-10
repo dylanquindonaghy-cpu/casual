@@ -12,7 +12,8 @@ const MENU: { label: string; items: MenuItem[] }[] = [
   {
     label: "Operations",
     items: [
-      { area: "today", href: "/office", label: "Today", icon: "home" },
+      // The dashboard (12E.1): the bell in the top bar links to its Needs attention.
+      { area: "today", href: "/office", label: "Dashboard", icon: "home" },
       // The shift pages (/office/shifts/...) stay, inside this section (office-nav.tsx).
       { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
       {

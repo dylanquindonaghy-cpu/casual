@@ -7,7 +7,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { INBOUND_MESSAGE_QUEUE } from "@/lib/inbound/job";
 import { receiveWhatsApp } from "@/lib/inbound/receive";
 import { runInboundMessage } from "@/lib/inbound/reply";
-import { loadToday } from "@/lib/office/today";
+import { loadEnquiries } from "@/lib/office/enquiries";
 import { twilioSignature } from "@/lib/inbound/twilio-signature";
 import { handleTwilioWhatsApp, MAX_WEBHOOK_BYTES } from "@/lib/inbound/webhook";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
@@ -424,7 +424,7 @@ describe("replying (the inbound-message job)", () => {
     expect(rows.map((r) => r.note)).toEqual(["(A photo or file, with no text.)"]);
   });
 
-  it("a number we don't know: the polite reply from the firm's line, and the office's admins and resourcers emailed (no number, no message); shown on Today", async () => {
+  it("a number we don't know: the polite reply from the firm's line, and the office's admins and resourcers emailed (no number, no message); shown on Enquiries", async () => {
     const t = await lineFirm();
     const admin = await t.f.office("admin");
     const resourcer = await t.f.office("resourcer");
@@ -483,22 +483,18 @@ describe("replying (the inbound-message job)", () => {
       ],
     ]);
     expect(JSON.stringify(logged)).not.toMatch(/900998|Sam/);
-    // Today shows it to the office.
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages).toEqual([
-      {
-        messageId: expect.any(String),
+    // Enquiries shows it to the office, waiting for a person.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows).toEqual([
+      expect.objectContaining({
         channel: "whatsapp",
-        from: stranger,
+        who: { kind: "unknown", from: stranger },
         text: "Hi, it's Sam, new phone",
-        receivedAt: expect.any(Date),
-        formerWorker: null,
-        formerWorkerActive: false,
-      },
+      }),
     ]);
   });
 
-  it("from the same number again within 24 hours: stored and on Today, but no second reply or email (no loops)", async () => {
+  it("from the same number again within 24 hours: stored and on Enquiries, but no second reply or email (no loops)", async () => {
     const t = await lineFirm();
     await t.f.office("admin");
     const stranger = "+447700900997";
@@ -512,8 +508,9 @@ describe("replying (the inbound-message job)", () => {
     });
     expect(sent).toHaveLength(before);
     expect((await t.eventsOf("message.received")).at(-1)?.data).toMatchObject({ repeat: true });
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages.map((u) => u.text)).toEqual(["Sam Smith", "hello?"]);
+    // Need a person lists the oldest first.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((u) => u.text)).toEqual(["hello?", "Sam Smith"]);
     // Another number is its own first message.
     expect(await run(await t.incoming("hi", "+447700900996"), transport)).toMatchObject({
       reply: "sent",
@@ -521,7 +518,7 @@ describe("replying (the inbound-message job)", () => {
     });
   });
 
-  it("a worker who has left: no 'we don't recognise this number'; the office is alerted, and Today names them", async () => {
+  it("a worker who has left: no 'we don't recognise this number'; the office is alerted, and Enquiries names them", async () => {
     const t = await lineFirm();
     await t.f.office("resourcer");
     await su.query("update workers set status = 'inactive' where id = $1", [t.ann]);
@@ -539,8 +536,12 @@ describe("replying (the inbound-message job)", () => {
     expect((await t.eventsOf("message.office_alerted"))[0]?.data).toMatchObject({
       reason: "former_worker",
     });
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages[0]?.formerWorker).toBe(`Ann Booker`);
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows[0]?.who).toMatchObject({
+      kind: "casual",
+      name: "Ann Booker",
+      active: false,
+    });
   });
 
   it("two messages from one stranger handled at once: one reply and one set of emails", async () => {

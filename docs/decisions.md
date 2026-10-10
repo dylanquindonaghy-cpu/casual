@@ -185,8 +185,8 @@ the rules engine with the office's overrides (ADR-014); one that fails a credent
 account, double-booking or site check isn't booked and is logged for the office; it stays in the
 sheet while there's room and is tried again at each sync. A new role, times or site on a booked
 shift is made only if everyone booked can still work it (the office editor's check), and a started
-shift is never re-timed, re-roled, moved or cancelled: what isn't done is shown on the office's
-Today (Phase 10, audit M1, M2, L12).
+shift is never re-timed, re-roled, moved or cancelled: what isn't done is shown on the office
+dashboard (Phase 10, audit M1, M2, L12; on Today until 12E.1).
 The live transport is off by default (`SHEETS_TRANSPORT=none`); `google` with the service
 account's key switches it on, once a Google account exists. Phase 10 (audit M17, L45): only a sheet
 whose locale is United Kingdom is read (its dates read day first), and a spreadsheet is bound to one

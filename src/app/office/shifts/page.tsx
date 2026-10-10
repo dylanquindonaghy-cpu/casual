@@ -190,7 +190,7 @@ export default async function ShiftsPage({
       {list.more && <p className={`${meta} mt-4`}>Showing the first 200.</p>}
       <p className={sectionGap.office}>
         <Link href="/office" className={btn.link}>
-          Back to Today
+          Back to the dashboard
         </Link>
       </p>
     </main>

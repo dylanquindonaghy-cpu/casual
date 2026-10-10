@@ -620,7 +620,7 @@ export async function clearTravel(slug: string, workerId: string): Promise<void>
 
 // The travel filter's scene (12G.3; tests/e2e/travel.filter.spec.ts): a casual of its own with a
 // role nobody else has (so no other spec's lists change) and a travel area (car, 45 minutes), and
-// two urgent sessions in that role 9 days ahead (after Today's 7-day gaps), each at a site of its
+// two urgent sessions in that role 9 days ahead (after the old Today page's 7-day gaps), each at a site of its
 // own with the travel job's estimates: one near (20 min by car), one far (80 min by car). A rerun
 // cancels the last run's sessions first, so it starts the same way (a booking on a cancelled
 // session counts for nothing and isn't listed; bookings are never deleted).

@@ -146,21 +146,25 @@ marked; "How-to guide", near its bottom, explains each job step by step.
 20. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev
     window an email ("Your Acme Events office login link") has the link: open it, then click "Log
-    me in". You see "Today".
-21. **Today.** The numbers at the top count what's in each section; click one to jump to it. It
-    shows "4 requests waiting: 2 time changes, 1 swap, 1 review of a refused shift." (Sam's and
-    the demo's time changes, the demo's swap, Maya's review), Saturday's gaps ("Gaps in the next 7
-    days"), "Who worked?" (yesterday's 5 bookings, not marked yet), and what was cancelled in the
-    last 24 hours (Zoe's).
-22. **Offer a gap.** Under "Gaps in the next 7 days", on a shift, click "Offer to someone", then
-    "Send offer to …" on the first person. It says "Offer on its way to …", and the offer appears
-    in the dev window. Click "Back to Today".
-23. **Answer a request.** Click "Enquiries", then "Requests from the app". On Sam Walsh's time change, click "Approve and tell
-    Sam". It says "Approved. Sam will be told." The message to Sam appears in the dev window.
-24. **Mark who worked.** Go back to Today. Under "Who worked?", open one of yesterday's
-    racecourse shifts. Click "Mark as worked" for the person on it: "Marked … as worked." (On a
-    shift with several people, "Mark as not attended" and "Mark the … not marked yet as worked"
-    are there too.)
+    me in". You see the "Dashboard", with Acme's shifts line under it.
+21. **The dashboard.** Four counts at the top: "Urgent shifts not filled" (red), "Events showing
+    to casuals", "Cancellations today" and "Enquiries today"; each opens its list. Below them:
+    the urgent shifts not filled, the events showing to casuals (each with its switch), the
+    latest cancellations (Zoe's first: "Recorded automatically, never approved or declined"), the
+    latest enquiries, and "Needs attention", where "Who worked?" lists yesterday's 5 racecourse
+    bookings, not marked yet. The bell at the top of the page counts what needs attention and
+    jumps there.
+22. **Offer a gap.** Click the "Events showing to casuals" count. On a session with a place free,
+    click its "…" button, then "Offer a place", then "Send offer to …" on the first person. It says
+    "Offer on its way to …", and the offer appears in the dev window. Click "Back to the
+    dashboard".
+23. **Answer a request.** Click "Enquiries", then "Requests from the app". On Sam Walsh's time
+    change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
+    appears in the dev window.
+24. **Mark who worked.** Click "Dashboard" in the menu. Under "Needs attention", "Who worked?",
+    open one of yesterday's racecourse shifts. Click "Mark as worked" for the person on it:
+    "Marked … as worked." (On a shift with several people, "Mark as not attended" and "Mark the …
+    not marked yet as worked" are there too.)
 25. **Make a shift and book someone.** Click "Events & sessions", then "All shifts by day", then
     "New shift". Pick a date next week,
     Role "steward", Start 10:00, Finish 18:00, Places 2, and click "Create shift". On the new
@@ -243,8 +247,7 @@ your second Ubuntu window while `npm run dev` runs; the replies appear in the de
     email. Log in as the resourcer again (step 20) and click "Enquiries" in the menu (its count is
     the messages that need a person), then "Need a person": it's there as "Unknown number", marked
     "Passed to a person, waiting". Click "Unknown number" to see the conversation and "How it was
-    answered"; you could reply in the box ("Answer it") or close it with a reason. (Today still
-    lists it under "Messages from numbers we don't know".)
+    answered"; you could reply in the box ("Answer it") or close it with a reason.
 39. **A call with a voicemail:**
 
     ```

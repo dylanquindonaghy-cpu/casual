@@ -28,7 +28,12 @@ const SECTIONS: Section[] = [
     areas: [],
     body: (_role, menu) => <GettingAround menu={menu} />,
   },
-  { id: "today", title: "Start your day on Today", areas: ["today"], body: () => <TodayPart /> },
+  {
+    id: "today",
+    title: "Start your day on the dashboard",
+    areas: ["today"],
+    body: () => <DashboardPart />,
+  },
   {
     id: "fill-a-gap",
     title: "Fill a gap",
@@ -167,7 +172,8 @@ function Links({ children }: { children: ReactNode }) {
 
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
-  Today: "What needs doing, most urgent first.",
+  Dashboard:
+    "Urgent gaps, what casuals can see, the latest cancellations and enquiries, and what needs attention.",
 
   "Events & sessions":
     "Every event with a session to come. Choose what casuals see and what's urgent.",
@@ -226,30 +232,22 @@ function GettingAround({ menu }: { menu: MenuGroup[] }) {
   );
 }
 
-const TODAY_SECTIONS: [string, ReactNode][] = [
-  ["Urgent shifts", "Shifts marked urgent that still have a place free. Offers go out in waves."],
+const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
-    "Bookings to check",
-    "Only when there are some: people booked who can't work the shift as things stand. Cancel the booking, or keep it.",
+    "The four counts",
+    "Urgent shifts not filled, events showing to casuals, cancellations today and enquiries today. Select one to open its list.",
   ],
   [
-    "From your rota sheet",
-    "Only for firms with a Google Sheet: changes in your sheet the app couldn't make, and why.",
+    "Urgent shifts not filled",
+    "Urgent sessions with a place free, on their event's card, with how many casuals were offered each one, or why offers stopped.",
   ],
+  ["Showing to casuals", "Events casuals can see. Switch one off to hide all its sessions."],
+  ["Cancellations", "The latest three. Recorded automatically, never approved or declined."],
+  ["Enquiries", "The latest four messages to your shifts line, and the reply each one got."],
   [
-    "Requests",
-    <>
-      How many requests from the app are waiting. <Name>See requests</Name> opens them on Enquiries.
-    </>,
+    "Needs attention",
+    "Bookings to check, changes from your rota sheet, who worked?, qualifications out of date on a booking, uploads to check and strike evidence. The bell at the top of every page counts them.",
   ],
-  ["Gaps in the next 7 days", "Other shifts with a place free, soonest first."],
-  ["Who worked?", "Shifts from the last 7 days with people not marked yet."],
-  ["Cancelled in the last 24 hours", "Who cancelled, the notice they gave, and why."],
-  [
-    "Messages from numbers we don't know",
-    "Messages to your shifts line from numbers that aren't an active worker's.",
-  ],
-  ["Credentials expiring this week", "Licences and cards that run out in the next 7 days."],
 ];
 
 const TONES: [StatusTone, string, string][] = [
@@ -267,25 +265,26 @@ const TONES: [StatusTone, string, string][] = [
   ["quiet", "Cancelled", "For information, or closed: cancelled, declined, a draft or not active."],
 ];
 
-function TodayPart() {
+function DashboardPart() {
   return (
     <>
       <Para>
-        <Name>Today</Name> is the page you land on after logging in. It shows what needs doing, most
-        urgent first.
+        The <Name>Dashboard</Name> is the page you land on after logging in. It shows what needs
+        doing today.
       </Para>
       <Steps>
+        <Step>The four counts at the top each open their list.</Step>
         <Step>
-          The numbers at the top count what&apos;s in each section. Select one to jump to it.
+          <Name>Needs attention</Name>, at the bottom, is what someone has to sort out. The bell at
+          the top of every page shows how many, and takes you there.
         </Step>
-        <Step>Work down the page: the sections are in the order things need doing.</Step>
         <Step>
           Select a shift&apos;s name to open its page, where you can change everything about it.
         </Step>
       </Steps>
       <Task title="What each section shows">
         <ul role="list" className="mt-2 max-w-prose divide-y divide-line">
-          {TODAY_SECTIONS.map(([name, words]) => (
+          {DASHBOARD_SECTIONS.map(([name, words]) => (
             <li key={name} className="py-3">
               <p className="font-semibold text-ink">{name}</p>
               <p className={meta}>{words}</p>
@@ -308,7 +307,7 @@ function TodayPart() {
       </Task>
       <Links>
         <GoTo href="/office" icon="home">
-          Go to Today
+          Go to the dashboard
         </GoTo>
       </Links>
     </>
@@ -319,8 +318,9 @@ function FillAGap({ role }: { role: OfficeRole }) {
   return (
     <>
       <Para>
-        A gap is a shift with a place free. They&apos;re on Today, under <Name>Urgent shifts</Name>{" "}
-        and <Name>Gaps in the next 7 days</Name>. Each has these buttons.
+        A gap is a shift with a place free. Urgent ones are on the dashboard, under{" "}
+        <Name>Urgent shifts not filled</Name>, with these buttons. Every session and its places free
+        is on <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
       </Para>
       <Task title="To offer it to someone">
         <Steps>
@@ -356,7 +356,7 @@ function FillAGap({ role }: { role: OfficeRole }) {
           </Step>
           <Step>
             Changed your mind? Select <Name>Open it again</Name> straight away. It&apos;s only there
-            until you leave or reload Today.
+            until you leave or reload the page.
           </Step>
         </Steps>
         <Note>A shift from your Google Sheet is changed in the sheet, not here.</Note>
@@ -391,8 +391,8 @@ function FillAGap({ role }: { role: OfficeRole }) {
         </Task>
       ) : null}
       <Links>
-        <GoTo href="/office#gaps" icon="home">
-          See the gaps on Today
+        <GoTo href="/office#urgent" icon="home">
+          See the urgent gaps
         </GoTo>
       </Links>
     </>
@@ -470,8 +470,8 @@ function ChangeAShift() {
   return (
     <>
       <Para>
-        Open the shift from Today, or from its event on <Name>Events &amp; sessions</Name> (its{" "}
-        <Name>…</Name> menu, then <Name>Change or cancel</Name>). Everything about it is on its
+        Open the shift from the dashboard, or from its event on <Name>Events &amp; sessions</Name>{" "}
+        (its <Name>…</Name> menu, then <Name>Change or cancel</Name>). Everything about it is on its
         page.
       </Para>
       <Task title="To hide shifts from casuals">
@@ -565,8 +565,8 @@ function AfterAShift() {
   return (
     <>
       <Para>
-        Mark who worked each shift. <Name>Who worked?</Name> on Today lists shifts from the last 7
-        days with people not marked yet.
+        Mark who worked each shift. <Name>Who worked?</Name>, in the dashboard&apos;s{" "}
+        <Name>Needs attention</Name>, lists shifts from the last 7 days with people not marked yet.
       </Para>
       <Steps>
         <Step>Open the shift&apos;s page.</Step>
@@ -587,8 +587,8 @@ function AfterAShift() {
         attended”.
       </Note>
       <Links>
-        <GoTo href="/office#to-mark" icon="home">
-          See who to mark on Today
+        <GoTo href="/office#needs-attention" icon="home">
+          See who to mark
         </GoTo>
       </Links>
     </>
@@ -696,10 +696,10 @@ function Workers() {
           </Step>
         </Steps>
         <Note>
-          Their bookings ahead go on Today, under “Bookings to check”. Your rota sheet or a staff
-          file can&apos;t make them active again: only you can. When they&apos;re back, select “Make
-          active again”. If your rota sheet or a staff file still says they&apos;re inactive, change
-          it there too. Otherwise the next sync or import makes them inactive again.
+          Their bookings ahead go on the dashboard, under “Bookings to check”. Your rota sheet or a
+          staff file can&apos;t make them active again: only you can. When they&apos;re back, select
+          “Make active again”. If your rota sheet or a staff file still says they&apos;re inactive,
+          change it there too. Otherwise the next sync or import makes them inactive again.
         </Note>
       </Task>
       <Task title="To keep someone off a site">
@@ -859,7 +859,7 @@ function Admin({ role }: { role: OfficeRole }) {
               <Name>Admin</Name>: everything, including the office team and data requests.
             </li>
             <li>
-              <Name>Resourcer</Name>: Today, shifts, requests, workers and records.
+              <Name>Resourcer</Name>: the dashboard, shifts, enquiries, casuals and records.
             </li>
             <li>
               <Name>Payroll</Name>: pay queries and pay records.

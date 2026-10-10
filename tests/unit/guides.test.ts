@@ -76,7 +76,7 @@ describe("the office how-to guide", () => {
   it("admins get every part, in the order of a working day", () => {
     expect(guideSections("admin").map((s) => s.title)).toEqual([
       "Getting around",
-      "Start your day on Today",
+      "Start your day on the dashboard",
       "Fill a gap",
       "Add shifts",
       "Change or cancel a shift",
@@ -93,7 +93,7 @@ describe("the office how-to guide", () => {
   it("resourcers get every part except pay and admin, in the same order", () => {
     expect(guideSections("resourcer").map((s) => s.title)).toEqual([
       "Getting around",
-      "Start your day on Today",
+      "Start your day on the dashboard",
       "Fill a gap",
       "Add shifts",
       "Change or cancel a shift",
@@ -118,9 +118,9 @@ describe("the office how-to guide", () => {
     expect(html).not.toContain("Assign anyway");
     expect(html).not.toContain('href="/office/shifts"');
     expect(html).toContain('href="/office/pay-queries"');
-    // The menu map is the role's own menu: the pay dashboard (their home, 12A.3), not Today.
+    // The menu map is the role's own menu: the pay dashboard (their home, 12A.3), not the dashboard.
     expect(words(html)).toContain("Pay dashboard");
-    expect(words(html)).not.toContain("Today: What needs doing");
+    expect(words(html)).not.toContain("Urgent gaps, what casuals can see");
     expect(words(html)).not.toContain("Casuals. Their qualifications");
   });
 
@@ -139,7 +139,7 @@ describe("the office how-to guide", () => {
 
   it("says only what the screens allow", () => {
     const text = words(guide("admin"));
-    // "Open it again" only shows on Today right after marking a shift as filled.
+    // "Open it again" only shows right after marking a shift as filled.
     expect(text).toContain("Select Open it again straight away.");
     // A started shift's page has no "Assign someone", so the override note doesn't offer it.
     expect(text).not.toContain("only when the shift has started");

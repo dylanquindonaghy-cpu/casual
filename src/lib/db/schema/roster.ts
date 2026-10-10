@@ -246,8 +246,8 @@ export const shifts = pgTable(
     // (src/lib/roster/sheets/merge.ts). Null until first synced.
     syncedHolders: text("synced_holders").array(),
     // What the firm's Google Sheet asks for that the last sync couldn't do (Phase 10, audit M1, M2,
-    // L12), for Today's "From your rota sheet": a change to a booked or started shift the rules
-    // refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
+    // L12), for the dashboard's "From your rota sheet": a change to a booked or started shift the
+    // rules refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
     sheetIssues: jsonb("sheet_issues").$type<SheetIssues>(),
     // The session's own details (docs/office-v2.md S2), set in ShiftDesk's session editor for
     // every source: the sheet sync and the file import never write them. Pay is whole pence an
@@ -333,7 +333,7 @@ export const assignments = pgTable(
     // Shift start minus cancelled_at, in hours. Negative when cancelled after the start.
     noticeHours: numeric("notice_hours", { precision: 8, scale: 2 }),
     // When the office chose to keep this booking though its worker stopped being active, or was
-    // blocked from the shift's site (Today's "Bookings to check", Phase 10). Cleared when that
+    // blocked from the shift's site (the dashboard's "Bookings to check", Phase 10). Cleared when that
     // happens again, so the booking is flagged again.
     officeKeptAt: timestamptz("office_kept_at"),
     // How it was cancelled (CANCEL_VIAS), and for a casual's own cancellation in the app, the

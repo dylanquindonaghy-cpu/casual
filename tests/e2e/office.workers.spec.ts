@@ -5,7 +5,7 @@ import { sentTo } from "./outbox";
 
 // A worker who leaves, and one barred from a site, in a real browser (audit M22, M23, L24): a
 // resourcer finds a booked worker on Casuals (Workers until 12F.1), makes them inactive, sees their
-// booking on Today and cancels it with the leaver reason; then blocks another booked worker from
+// booking on the dashboard (Needs attention) and cancels it with the leaver reason; then blocks another booked worker from
 // their site (opened from the old Workers address, which still leads to their page) and keeps that
 // booking. This spec's own resourcer, workers, shifts and sites (fresh ones on a retry).
 
@@ -23,7 +23,7 @@ async function officeLogin(page: Page, email: string) {
   await expect(page).toHaveURL(`${acme}/office`);
 }
 
-test("a leaver made inactive, their booking cancelled from Today; another kept off a site", async ({
+test("a leaver made inactive, their booking cancelled from the dashboard; another kept off a site", async ({
   page,
 }, testInfo) => {
   const n = testInfo.retry;
@@ -68,7 +68,7 @@ test("a leaver made inactive, their booking cancelled from Today; another kept o
   await page.getByRole("button", { name: `Yes, make ${lenaName} inactive` }).click();
   await expect(
     page.getByText(
-      `${lenaName} is now inactive. They've been logged out, and can't log in or take shifts. They're booked on 1 shift ahead: it's on Today to cancel or keep.`,
+      `${lenaName} is now inactive. They've been logged out, and can't log in or take shifts. They're booked on 1 shift ahead: it's on the dashboard to cancel or keep.`,
     ),
   ).toBeVisible();
   await expect(page.getByText("Not active · Steward")).toBeVisible();
@@ -81,11 +81,11 @@ test("a leaver made inactive, their booking cancelled from Today; another kept o
   await page.getByRole("button", { name: "Block from this site" }).click();
   await expect(
     page.getByText(
-      `${bramName} can't work at Barred Arena ${n} now. They're booked there on 1 shift ahead: it's on Today to cancel or keep.`,
+      `${bramName} can't work at Barred Arena ${n} now. They're booked there on 1 shift ahead: it's on the dashboard to cancel or keep.`,
     ),
   ).toBeVisible();
 
-  // Today: both bookings to check. Cancel the leaver's; keep the other's.
+  // The dashboard's Needs attention: both bookings to check. Cancel the leaver's; keep the other's.
   await page.goto(`${acme}/office`);
   const toCheck = page.getByRole("region", { name: "Bookings to check" });
   const lena = toCheck.locator("li", {

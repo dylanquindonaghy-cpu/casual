@@ -149,7 +149,8 @@ test("an office user logs in on Acme's own domain and stays logged in there", as
     await page.goto(link);
     await page.getByRole("button", { name: "Log me in" }).click();
     await expect(page).toHaveURL(`${portal}/office`);
-    await expect(page.getByText("Hello Domain Admin")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Domain Admin Admin" })).toBeVisible();
     expect(await sessionsOn(context, portal, SESSION.office)).toHaveLength(1);
     expect(await sessionsOn(context, "http://acme.localhost:3100", SESSION.office)).toHaveLength(0);
 

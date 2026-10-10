@@ -90,7 +90,8 @@ async function waitingUploads(tx: FirmTx, limit: number): Promise<WaitingUpload[
   return rows.map(({ firstName, lastName, ...r }) => ({ ...r, name: `${firstName} ${lastName}` }));
 }
 
-async function waitingCount(tx: FirmTx): Promise<number> {
+// Uploads waiting for the office's check (the Casuals badge, and Needs attention on the dashboard).
+export async function waitingCount(tx: FirmTx): Promise<number> {
   const { rows } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n
       from uploads u

@@ -37,15 +37,15 @@ import type {
 //
 // - Make inactive (they've left): status inactive, and the office's mark that it decided this
 //   (`office_deactivated_at`): no rota sheet or file makes them active again, only the office.
-//   Every session and unused login link ended. Their future bookings are flagged on Today.
+//   Every session and unused login link ended. Their future bookings are flagged on the dashboard.
 // - Make active again (inactive only) and unblock (blocked only): status active, the mark
 //   cleared, anything left from before ended. A rota sheet or file still saying "blocked" blocks
 //   them again at its next sync: the page says to change it there too.
 // - Block from a site / unblock from a site: rules check 9 (src/lib/rules/eligibility.ts). Their
-//   future bookings at that site are flagged on Today.
+//   future bookings at that site are flagged on the dashboard.
 // - Log out on every device (a lost phone): sessions and links ended, and the phone's
 //   notifications forgotten (so a reminder can't show on the lost phone).
-// - Keep a flagged booking: Today's "Bookings to check" no longer shows it, until the worker's
+// - Keep a flagged booking: the dashboard's "Bookings to check" no longer shows it, until the worker's
 //   status or a site block changes again.
 
 type WorkerStatus = "active" | "inactive" | "blocked";
@@ -62,7 +62,7 @@ export type WorkerStatusResult =
       status: "done";
       change: WorkerStatusChange["kind"];
       name: string;
-      futureBookings: number; // flagged on Today (making inactive)
+      futureBookings: number; // flagged on the dashboard (making inactive)
       // After the change: unblocking someone the office made inactive leaves them inactive.
       now: WorkerStatus;
     }
@@ -170,7 +170,7 @@ export async function changeWorkerStatus(
       // old session comes back.
       const ended = await endEverySession(tx, { kind: "worker", subjectId: worker.id, now });
       // No longer active: their phones' notifications go too (a firm-change notice's push must not
-      // reach a leaver's phone). Any change: their bookings ahead are looked at again on Today (one
+      // reach a leaver's phone). Any change: their bookings ahead are looked at again on the dashboard (one
       // kept while they were inactive may still be at a site they're blocked from).
       const phones = after === "active" ? 0 : await forgetPhones(tx, worker.id);
       // "They've left": their travel area goes (docs/office-v2.md 5.4: the start point is kept only
@@ -315,7 +315,7 @@ export async function unblockFromSite(
   );
 }
 
-// Today's "Bookings to check": the office keeps a booking whose worker isn't active, or is
+// the dashboard's "Bookings to check": the office keeps a booking whose worker isn't active, or is
 // blocked from the shift's site. Only a booking still flagged (confirmed, ahead, not kept).
 export async function keepFlaggedBooking(
   ctx: OfficeContext,

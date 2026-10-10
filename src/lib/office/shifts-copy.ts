@@ -24,7 +24,7 @@ export const SHIFT_STATUS_WORDS = {
   cancelled: "Cancelled",
 } as const;
 
-// A booked person who can't work it as things stand (Phase 10): also on Today's "Bookings to
+// A booked person who can't work it as things stand (Phase 10): also on the dashboard's "Bookings to
 // check".
 export const PLACE_FLAG_WORDS = {
   inactive: "Not active",

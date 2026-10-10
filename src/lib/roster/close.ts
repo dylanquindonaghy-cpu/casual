@@ -9,7 +9,7 @@ import { startOfferWaves } from "../offers/waves";
 import { officeCanPlace } from "./book";
 import { refreshShiftStatus } from "./native";
 
-// The office's "Mark as filled" and "Open it again" (docs/screens.md, Today's quick actions).
+// The office's "Mark as filled" and "Open it again" (docs/screens.md, The dashboard's quick actions).
 //
 // - closeShift: the office filled the free places another way (someone rang in, an agency), so
 //   nobody else should be offered it. The shift's status becomes `filled` with places still free;

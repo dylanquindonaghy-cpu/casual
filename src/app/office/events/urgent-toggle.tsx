@@ -10,7 +10,7 @@ import { setUrgentAction } from "../today-actions";
 
 const failed = { status: "error" as const };
 
-// "Mark urgent" / "Not urgent" in a session's "…" menu: Today's quick action (src/lib/roster/urgent.ts).
+// "Mark urgent" / "Not urgent" in a session's "…" menu: the dashboard's quick action (src/lib/roster/urgent.ts).
 export function UrgentToggle({
   shiftId,
   isUrgent,

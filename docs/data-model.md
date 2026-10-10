@@ -307,7 +307,7 @@ create table credentials (
   -- The office's check (S6; 12F.2): 'verified' is the office's own (imported, recorded, or an upload
   -- a named person approved: verified_at/by filled); 'waiting' and 'rejected' are a casual's upload
   -- not (yet) accepted. Only verified records count anywhere (the rules engine, the expiry scan,
-  -- Today, the import's "latest record"), and an unchecked one is always stored as expired with
+  -- the dashboard, the import's "latest record"), and an unchecked one is always stored as expired with
   -- its upload (credentials_unchecked_never_valid), so a reader that missed the filter still
   -- couldn't count it.
   check_state text not null default 'verified',  -- verified | waiting | rejected
@@ -427,7 +427,7 @@ create table shifts (
                                          -- sync couldn't book left out, so they're tried again)
   sheet_issues jsonb,                    -- Sheets only (Phase 10): what the sheet asks for that the last
                                          -- sync couldn't do ({change?: {fields, wanted, reason, workers},
-                                         -- names?: [{workerId, codes, dropped?}]}), for Today; null: none
+                                         -- names?: [{workerId, codes, dropped?}]}), for the dashboard; null: none
   -- The session's own details (12B.1, S2): set in ShiftDesk's session editor for every source;
   -- the sheet sync and the file import never write them, nor the switch.
   pay_rate_pence int,                    -- whole pence an hour, 0 or more
@@ -465,8 +465,8 @@ create table assignments (
                                          --   the retention purge)
   notice_hours numeric(8,2),             -- starts_at - cancelled_at, in hours; negative if after the start
   office_kept_at timestamptz,            -- Phase 10: the office kept it though its worker stopped being
-                                         -- active or was blocked from the site (Today's "Bookings to
-                                         -- check"); cleared when that happens again
+                                         -- active or was blocked from the site (the dashboard's "Bookings
+                                         -- to check"); cleared when that happens again
   cancel_via text,                       -- 12C.1: app | office | sheet | import (empty on older rows)
   strike_warning_version text,           -- 12C.1: on a casual's own cancellation in the app, the strike
   strike_warning_shown_at timestamptz,   --   warning on screen when they confirmed (its version) and
@@ -704,7 +704,7 @@ create table events (
   data jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
--- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (Today's
+-- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (the dashboard's
 -- wave status, the action log by shift or worker).
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs

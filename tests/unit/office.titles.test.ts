@@ -19,8 +19,8 @@ function pages(dir: string): string[] {
   });
 }
 
-// The quoted titles a page's metadata gives ("Today" and "Home" from one generateMetadata). A
-// title starts with a capital; an access area it checks ("today") doesn't.
+// The quoted titles a page's metadata gives (each of a generateMetadata's too). A title starts with
+// a capital; an access area it checks ("today") doesn't.
 function titlesOf(source: string): string[] {
   const at = source.search(/export (const metadata|async function generateMetadata)/);
   if (at === -1) return [];
@@ -30,11 +30,11 @@ function titlesOf(source: string): string[] {
 }
 
 // docs/screens.md, the office section's line: "Browser tab titles read "{page} · {firm} shifts":
-// "Today" (payroll: "Home"), "Shifts", … "How-to guide". A shift's, … keep "{firm} shifts"."
+// "Dashboard" (payroll: "Home"), "Shifts", … "How-to guide". A shift's, … keep "{firm} shifts"."
 function documentedTitles(): string[] {
   const doc = readFileSync(join(ROOT, "docs/screens.md"), "utf8");
   const lead = '- Browser tab titles read "{page} · {firm} shifts": ';
-  const at = doc.indexOf(`${lead}"Today"`);
+  const at = doc.indexOf(`${lead}"Dashboard"`);
   expect(at, "the office tab-title line in docs/screens.md").toBeGreaterThan(-1);
   const list = doc.slice(at + lead.length, doc.indexOf("A shift's", at));
   // A title can wrap onto the next line in the doc ("New\n  shift").

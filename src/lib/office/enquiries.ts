@@ -96,7 +96,12 @@ export type Who =
 
 export interface EnquiriesPage {
   timeZone: string;
+  day: "today" | null; // the list holds only today's (`?day=today`, the dashboard's link)
   today: number; // enquiries since midnight, the firm's time
+  // Of those, answered without a person (by keyword, by the AI's label, done in the app, or STOP
+  // and START): the outcomes that aren't pay, a person's, or not understood.
+  automaticToday: number;
+  appToday: number; // requests made in the app since midnight (Requests from the app)
   needPerson: { count: number; oldestAt: Date | null };
   rows: EnquiryRow[]; // the view's (empty for "app": that view is the request queue)
   more: boolean;
@@ -159,48 +164,66 @@ async function firmTime(tx: FirmTx) {
   return firm?.timezone ?? "Europe/London";
 }
 
+// Answered without a person, as SQL over `m`: handled, not pay, not for a person (the outcomes
+// "keyword", "ai" and "in_app" of enquiryOutcome(), STOP and START among them).
+const automatic = (m: string): SQL =>
+  sql.raw(`(${m}.handled_at is not null and ${m}.intent is distinct from 'pay'
+            and ${m}.handled_as is distinct from 'unknown' and ${m}.intent is distinct from 'office')`);
+
 export async function loadEnquiries(
   tx: FirmTx,
   view: EnquiryView,
   now: Date,
+  opts: { day?: "today"; limit?: number } = {},
 ): Promise<EnquiriesPage> {
   const timeZone = await firmTime(tx);
   const since = new Date(now.getTime() - ENQUIRY_DAYS * 86_400_000);
   const midnight = zonedToUtc({ ...wallTimeOf(now, timeZone), hour: 0, minute: 0 }, timeZone);
+  const limit = Math.min(opts.limit ?? LIST_MAX, LIST_MAX);
   const { rows: counts } = await tx.execute<{
     today: number;
+    automatic: number;
     waiting: number;
     oldest: string | Date | null;
+    app_today: number;
   }>(sql`
     select count(*) filter (where m.created_at >= ${midnight})::int as today,
+           count(*) filter (where m.created_at >= ${midnight} and ${automatic("m")})::int
+             as automatic,
            count(*) filter (where ${needsPerson("m")})::int as waiting,
-           min(m.created_at) filter (where ${needsPerson("m")}) as oldest
+           min(m.created_at) filter (where ${needsPerson("m")}) as oldest,
+           (select count(*)::int from requests q
+             where q.message_id is null and q.created_at >= ${midnight}) as app_today
       from messages m
      where ${isEnquiry("m", since)}
   `);
   const c = counts[0];
   let rows: ListRow[] = [];
   if (view !== "app") {
-    const where =
+    const where = sql`${
       view === "person"
         ? sql`and ${needsPerson("m")}`
         : view === "pay"
           ? sql`and m.intent = 'pay'`
-          : sql``;
+          : sql``
+    } ${opts.day === "today" ? sql`and m.created_at >= ${midnight}` : sql``}`;
     // Need a person: oldest first (first asked, first answered). The rest: newest first.
     const order = view === "person" ? sql`m.created_at, m.id` : sql`m.created_at desc, m.id`;
     ({ rows } = await tx.execute<ListRow>(sql`
       ${LIST_SELECT}
        where ${isEnquiry("m", since)} ${where}
        order by ${order}
-       limit ${LIST_MAX + 1}
+       limit ${limit + 1}
     `));
   }
   return {
     timeZone,
+    day: opts.day ?? null,
     today: c?.today ?? 0,
+    automaticToday: c?.automatic ?? 0,
+    appToday: c?.app_today ?? 0,
     needPerson: { count: c?.waiting ?? 0, oldestAt: c?.oldest ? new Date(c.oldest) : null },
-    rows: rows.slice(0, LIST_MAX).map((r) => ({
+    rows: rows.slice(0, limit).map((r) => ({
       messageId: r.id,
       at: new Date(r.created_at),
       channel: r.channel,
@@ -208,7 +231,7 @@ export async function loadEnquiries(
       who: whoOf(r),
       outcome: outcomeOf(r),
     })),
-    more: rows.length > LIST_MAX,
+    more: rows.length > limit,
   };
 }
 
@@ -854,11 +877,14 @@ export async function replyPlanFor(
 export async function officeEnquiries(
   ctx: OfficeContext,
   view: EnquiryView,
+  opts: { day?: "today" } = {},
 ): Promise<EnquiriesPage | null> {
   const { run } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
   return run(ctx.firm.id, async (tx) =>
-    (await officeUserMay(tx, ctx.officeUserId, "enquiries")) ? loadEnquiries(tx, view, now) : null,
+    (await officeUserMay(tx, ctx.officeUserId, "enquiries"))
+      ? loadEnquiries(tx, view, now, opts)
+      : null,
   );
 }
 

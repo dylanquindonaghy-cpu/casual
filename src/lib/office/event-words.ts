@@ -396,7 +396,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "message.office_alert_failed":
       return "Emailing the office about a message from a number we don't know failed.";
     case "message.office_alert_skipped":
-      return "Nobody in the office could be emailed about a message from a number we don't know (no active admin or resourcer with an email address). It's on Today.";
+      return "Nobody in the office could be emailed about a message from a number we don't know (no active admin or resourcer with an email address). It's on Enquiries.";
     case "enquiry.checks": {
       const offered = Array.isArray(d.offered) ? d.offered.length : 0;
       const notOffered =

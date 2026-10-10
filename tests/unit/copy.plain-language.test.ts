@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import vm from "node:vm";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -699,5 +700,34 @@ describe("every staff screen and state is in plain words", () => {
       vi.unstubAllGlobals();
     }
     expect(tryAgainText()).toBe("Something went wrong. Try again."); // no browser: assume signal
+  });
+});
+
+// The office dashboard's gaps are "Urgent gaps", not a casting call (Phase 12E.1: Dylan turned the
+// other wording down). Every file under src/ and the screens doc, any case, line breaks counted
+// as spaces.
+const TURNED_DOWN = /urgently\s+looking\s+for/i;
+
+function everyFile(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? everyFile(path) : [path];
+  });
+}
+
+describe("wording Dylan turned down", () => {
+  it("'urgently looking for' is nowhere in src/ or docs/screens.md", () => {
+    const files = [
+      ...everyFile(join(process.cwd(), "src")),
+      join(process.cwd(), "docs/screens.md"),
+    ];
+    expect(files.length).toBeGreaterThan(100);
+    expect(files.filter((f) => TURNED_DOWN.test(readFileSync(f, "utf8")))).toEqual([]);
+  });
+
+  it("the check itself catches it", () => {
+    expect(TURNED_DOWN.test("We're Urgently looking for stewards")).toBe(true);
+    expect(TURNED_DOWN.test("urgently\n  looking for")).toBe(true);
+    expect(TURNED_DOWN.test("Urgent gaps")).toBe(false);
   });
 });

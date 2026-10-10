@@ -169,7 +169,7 @@ export function StatusForm({
         <div className="mt-4 rounded-lg border-2 border-urgent bg-urgent-soft p-4">
           <p className="max-w-prose">
             Make {name} inactive? They&apos;re logged out at once, can&apos;t log in or take shifts,
-            and get no reminders. Their bookings ahead go on Today to cancel or keep.
+            and get no reminders. Their bookings ahead go on the dashboard to cancel or keep.
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
             <button type="button" className={btn.dangerSolid} disabled={off} onClick={go}>

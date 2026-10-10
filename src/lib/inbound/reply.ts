@@ -461,12 +461,12 @@ async function answerMessage(
 
 // Someone who isn't one of the firm's active workers (docs/messaging-templates.md
 // `unknown_number`, `unknown_number_alert`). Only the first message from a number in 24 hours gets
-// the polite reply and alerts the office: later ones are stored and shown on Today, so an
+// the polite reply and alerts the office: later ones are stored and shown on Enquiries, so an
 // auto-reply or a bot can't loop and the office gets one email, not one per message. A former
 // worker (their number is on file, not active) gets no "we don't recognise this number" (we do):
 // the office is alerted and decides. Same shape as the known path: the claim, then the sends
 // outside any transaction, then the record. The alert email holds neither the number nor the
-// message: they're on Today.
+// message: they're on Enquiries.
 async function answerUnknown(
   payload: InboundMessagePayload,
   run: WithFirm,

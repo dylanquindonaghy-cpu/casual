@@ -30,7 +30,7 @@ import { lockReachableWorkers } from "./reachable";
 import { lockOfferOutcome, logUnconfirmedOffers } from "./unconfirmed";
 import { firmVoice, lockShift, timeOf, type OfferDeps } from "./waves";
 
-// The office offering a shift to one worker ("Offer to someone" on Today, docs/screens.md). The
+// The office offering a shift to one worker ("Offer to someone" on the dashboard, docs/screens.md). The
 // same checks as every offer: the worker must be on the shift's candidate list (waveCandidates:
 // the booking rules, offer messages on, never offered it, the daily cap unless the shift is
 // urgent). The office chooses who, never whether the rules allow it (that's "manual assign"). A

@@ -16,7 +16,7 @@ import {
 import type { StrikeCode } from "../strikes/decide";
 import { liveStrikeCount } from "../strikes/issue";
 import { strikeSettings } from "../strikes/settings";
-import { addDays, localDateOf, mondayOf, zonedToUtc } from "../time/zoned";
+import { addDays, localDateOf, mondayOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { isThenPlace, type CancellationRow, type CancellationView } from "./cancellations-copy";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
@@ -107,11 +107,21 @@ function viewFilter(view: CancellationView, threshold: number) {
   return sql``;
 }
 
+// Only those cancelled from a moment on (`?day=today`: since midnight, the firm's time).
+const sinceFilter = (since: Date | undefined) =>
+  since ? sql`and a.cancelled_at >= ${since}` : sql``;
+
 // The number of cancelled bookings in a view.
-async function countRows(tx: FirmTx, view: CancellationView, threshold: number): Promise<number> {
+async function countRows(
+  tx: FirmTx,
+  view: CancellationView,
+  threshold: number,
+  since?: Date,
+): Promise<number> {
   const { rows } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from assignments a
      where a.status in ('cancelled_worker', 'cancelled_firm') ${viewFilter(view, threshold)}
+       ${sinceFilter(since)}
   `);
   return Number(rows[0]?.n ?? 0);
 }
@@ -126,6 +136,7 @@ async function loadRows(
     limit: number;
     ref?: string; // the booking's first 8 characters, upper case
     id?: string; // the booking's full id
+    since?: Date; // cancelled from then on
   },
 ): Promise<Row[]> {
   const { rows } = await tx.execute<Row>(sql`
@@ -193,7 +204,7 @@ async function loadRows(
            ? sql`and a.id = ${o.id}::uuid`
            : o.ref
              ? sql`and upper(left(a.id::text, 8)) = ${o.ref}`
-             : viewFilter(o.view, o.threshold)
+             : sql`${viewFilter(o.view, o.threshold)} ${sinceFilter(o.since)}`
        }
      order by a.cancelled_at desc, a.id
      limit ${o.limit}
@@ -313,6 +324,7 @@ export interface CancellationList {
   timeZone: string;
   threshold: number;
   view: CancellationView;
+  day: "today" | null; // only today's (since midnight, the firm's time): the dashboard's link
   week: { byCasuals: number; byOffice: number; strikes: number };
   rows: CancellationRow[];
   total: number; // in the view, beyond the rows shown
@@ -322,7 +334,13 @@ export interface CancellationList {
 // `allOrNothing` (the CSV): none loaded when the view holds more than `limit`.
 export async function loadCancellations(
   tx: FirmTx,
-  o: { view: CancellationView; now: Date; limit: number; allOrNothing?: boolean },
+  o: {
+    view: CancellationView;
+    now: Date;
+    limit: number;
+    allOrNothing?: boolean;
+    day?: "today";
+  },
 ): Promise<CancellationList> {
   const firm = await firmFacts(tx);
   const monday = mondayOf(localDateOf(o.now, firm.timezone));
@@ -341,17 +359,22 @@ export async function loadCancellations(
           (select count(*)::int from strikes s
             where s.issued_at >= ${from} and s.issued_at < ${to}) as strikes`,
   );
-  const total = await countRows(tx, o.view, firm.threshold);
+  const since =
+    o.day === "today"
+      ? zonedToUtc({ ...wallTimeOf(o.now, firm.timezone), hour: 0, minute: 0 }, firm.timezone)
+      : undefined;
+  const total = await countRows(tx, o.view, firm.threshold, since);
   const rows =
     o.allOrNothing && total > o.limit
       ? []
-      : await loadRows(tx, { view: o.view, threshold: firm.threshold, limit: o.limit });
+      : await loadRows(tx, { view: o.view, threshold: firm.threshold, limit: o.limit, since });
   const requirementsOf = await requirementNames(tx, rows);
   return {
     firmName: firm.name,
     timeZone: firm.timezone,
     threshold: firm.threshold,
     view: o.view,
+    day: o.day ?? null,
     week: {
       byCasuals: Number(counts[0]?.casuals ?? 0),
       byOffice: Number(counts[0]?.office ?? 0),
@@ -440,7 +463,7 @@ export async function officeCancellations(
   ctx: AuthContext,
   token: string,
   view: CancellationView,
-  o: { limit: number; allOrNothing?: boolean } = { limit: CANCELLATIONS_PAGE_ROWS },
+  o: { limit: number; allOrNothing?: boolean; day?: "today" } = { limit: CANCELLATIONS_PAGE_ROWS },
 ): Promise<CancellationList | null> {
   if (!(await mayView(ctx, token))) return null;
   const { run, now } = authParts(ctx);

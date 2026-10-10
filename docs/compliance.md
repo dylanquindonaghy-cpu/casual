@@ -44,7 +44,7 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   human review. (Built: "Ask the office to review" on a refused shift, `src/lib/portal/review.ts`.)
 - People who aren't staff (Phase 7): a message to the shifts line from a number that isn't an
   active worker's is kept in `messages` (the number and their words, the firm's
-  `retention.message_days`, 90 by default, with the retention job), shown to the firm's admins and resourcers on Today, and never put in the log, an email or
+  `retention.message_days`, 90 by default, with the retention job), shown to the firm's admins and resourcers on Enquiries (and among the dashboard's latest enquiries), and never put in the log, an email or
   the AI. The firm's privacy notice should cover messages to its shifts line.
 - The shifts line (Phase 7): a WhatsApp no keyword matches is sorted by AI (once the Anthropic
   API is connected) into one of four labels, from the worker's text alone; the reply is always the app's own
@@ -165,7 +165,7 @@ for the service the worker asked for): `docs/privacy-notice.md`, "On your phone"
 - Third-party check APIs exist, but the SIA doesn't endorse them. **Don't build a scraper.** The
   office's check page links the GOV.UK register for a person to look the licence up by hand.
 - **Only checked records count** (12F.2; D3). A casual may upload a photo of her card; it counts for
-  nothing (the rules, the expiry scan and Today all ignore it, and the database stores it as
+  nothing (the rules, the expiry scan and the dashboard all ignore it, and the database stores it as
   expired) until a named admin or resourcer approves it, typing the expiry date and number as they
   read them from the card. Rejecting takes a reason from a fixed list. Every check is logged
   (`upload.approved`, `upload.rejected`: ids and codes only).

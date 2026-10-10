@@ -12,9 +12,9 @@ import { seedId, type SeedFirm } from "./seed-data";
 // holds is left out (seed.ts). The workers used are ones no browser test uses. The pay queries'
 // kinds aren't any a browser test raises ("paid late"), so they never share or split its group.
 //
-// - Acme's last event: yesterday (so it's always among Today's "Who worked?", which looks back 7
-//   days), 3 stewards at the racecourse and 2 security officers at the shopping centre, all booked
-//   and none marked yet (the office's "Mark who worked"; "Past 30 days" on their My shifts).
+// - Acme's last event: yesterday (so it's always among the dashboard's "Who worked?", which looks
+//   back 7 days), 3 stewards at the racecourse and 2 security officers at the shopping centre, all
+//   booked and none marked yet (the office's "Mark who worked"; "Past 30 days" on their My shifts).
 // - Acme's pay queries: 10 open, 7 from stewards about the same week's rate (paid the old rate),
 //   2 about hours missing at the shopping centre on the last event, 1 something else (payroll's
 //   groups and digest).

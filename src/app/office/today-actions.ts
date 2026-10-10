@@ -16,7 +16,7 @@ import type { CloseShiftResult } from "@/lib/roster/close";
 import type { SetUrgentResult } from "@/lib/roster/urgent";
 import { requestLog } from "@/lib/request";
 
-// Today's quick actions. The firm comes from the request's host and the office user from their
+// The dashboard's quick actions. The firm comes from the request's host and the office user from their
 // session (an admin or resourcer: checked here, and again inside each action with the database's
 // view of the user). The browser sends only ids. Results are shown in place (no redirect()).
 
@@ -67,7 +67,7 @@ export async function offerShiftAction(
   return asOffice("office offer", (ctx) => offerTo(ctx, shiftId, workerId));
 }
 
-// "Keep the booking" on Today's "Bookings to check": the booking stays, and isn't shown again
+// "Keep the booking" on the dashboard's "Bookings to check": the booking stays, and isn't shown again
 // unless the worker's status or a site block changes again.
 export async function keepBookingAction(
   shiftId: string,

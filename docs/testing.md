@@ -262,7 +262,7 @@ before a call so it's the coming one):
 **The walkthrough's other states (Phase 10 task 20, `seed-extras.ts`).** Each on workers no browser
 test uses, and the pay queries of kinds no browser test raises (a test's own "paid late" group is
 never split or joined), so they can't change what those tests check:
-- Acme's last event: yesterday (always among Today's "Who worked?", which looks back 7 days), 3
+- Acme's last event: yesterday (always among the dashboard's "Who worked?", which looks back 7 days), 3
   stewards at the racecourse (07700 900110, 900117, 900118) and 2 security officers at the
   shopping centre (900150, 900151), all booked and none marked yet ("Past 30 days" on their My
   shifts too).
@@ -310,10 +310,12 @@ checks log in, take and cancel each finish in under 30 seconds):**
    whose SIA licence has expired: why they can't take it, and "Ask the office to review".
 
 **Office part (Phase 4 and 5):** "resourcer sees it": log in at `/office/login` as
-`acme.resourcer@example.com` (the link appears in the terminal). Today shows the urgent dropout
-(with its wave status once the worker process has sent offers), the Saturday gaps, the dropout
-under "Cancelled in the last 24 hours" with its notice, and the two requests. "Offer to someone"
-on a gap lists who could take it. "Urgent wave fills it" runs by itself with `npm run dev` (offer
+`acme.resourcer@example.com` (the link appears in the terminal). The dashboard (12E.1; Today
+until then) shows the urgent dropout under "Urgent shifts not filled" (with how many casuals it
+was offered to once the worker process has sent offers), Saturday's event under "Showing to
+casuals", and the dropout among the latest cancellations with its notice; the two requests are on
+Enquiries, "Requests from the app". "Offer to someone" on the urgent shift (or "Offer a place" in a
+session's "…" menu on Events & sessions) lists who could take it. "Urgent wave fills it" runs by itself with `npm run dev` (offer
 waves; messages print in the terminal). "Notice report shows both": "Notice report" in the office menu lists
 the worker's booking and cancellation (and the wave's offers) with the notice each had; the action
 log has every step.

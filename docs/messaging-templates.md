@@ -257,7 +257,7 @@ number isn't in use." The link is the login page's own (`requestWorkerLoginLink(
 login link by WhatsApp (by text too once the parked SMS fallback for login links is built), any
 other number nothing, and the caller hears the same either way. A voicemail's text becomes a
 request for the office (a worker gets `voicemail_received` by the channel they chose); a caller we
-don't know is shown on Today and the office is alerted, with no message to them. Twilio's
+don't know is shown on Enquiries and the office is alerted, with no message to them. Twilio's
 placeholder numbers for a hidden caller ID count as withheld.
 
 When our app doesn't answer a call (Phase 8: Twilio's own fallback, a TwiML Bin per firm made by
@@ -300,7 +300,8 @@ reach the same app, which isn't answering.
   your active staff." / "We asked them for their full name." (when they were sent `unknown_number`:
   a WhatsApp from a number nobody here has, and the reply went; otherwise "We haven't replied to
   them.") / "See the message on the office dashboard: {link}" / "— {firm} Shift Team". Neither the number nor the message is in the email
-  (previews, forwards): they're on Today, "Messages from numbers we don't know".
+  (previews, forwards): they're on Enquiries, "Need a person" (and among the dashboard's latest
+  enquiries, which the link opens).
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
   days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these

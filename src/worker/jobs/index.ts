@@ -159,7 +159,7 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
   await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask);
   await registerFirmTask(boss, deps.offers?.escalate ?? escalateShiftTask);
-  // An offer the office sends to one worker (Today's "Offer to someone").
+  // An offer the office sends to one worker (the dashboard's "Offer to someone").
   await registerFirmTask(boss, deps.offers?.office ?? officeOfferTask);
   // Telling workers the office changed or cancelled their booked shift (golden rule 12).
   await registerFirmTask(boss, deps.firmChangeNotices ?? firmChangeNoticeTask);

@@ -38,7 +38,7 @@ const text = (html: string) =>
 describe("the office menu (v2 groups)", () => {
   it("admins see every link, in groups", () => {
     expect(labels("admin")).toEqual([
-      ["Operations", ["Today", "Events & sessions", "Cancellations", "Enquiries"]],
+      ["Operations", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
       ["Configuration", ["Office team", "Settings", "Data requests"]],
@@ -48,13 +48,13 @@ describe("the office menu (v2 groups)", () => {
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      ["Operations", ["Today", "Events & sessions", "Cancellations", "Enquiries"]],
+      ["Operations", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
       ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);
   });
 
-  it("payroll gets the pay dashboard (their home, not Today) at the top of Pay, and the guide", () => {
+  it("payroll gets the pay dashboard (their home, not the dashboard) at the top of Pay, and the guide", () => {
     expect(labels("payroll")).toEqual([
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Help", ["How-to guide"]],
@@ -162,7 +162,7 @@ describe("the menu's markup", () => {
     expect(marked(html, "page")[0]).toMatch(/bg-quiet-soft.*before:w-\[3px\].*before:bg-ink/);
   });
 
-  it("the offer page marks Today as the section it's in", () => {
+  it("the offer page marks the Dashboard as the section it's in", () => {
     nav.pathname = "/office/offer/11111111-1111-4111-8111-111111111111";
     const html = render();
     expect(html.match(/aria-current=/g)).toHaveLength(1);

@@ -92,7 +92,7 @@ change and cancellation.
 | P0-6 | Change/swap requests | Request created; office approves/declines; worker sees status. |
 | P0-7 | Urgent board + offer waves | Only eligible workers notified; waves of 3–5; 15 min timeout (configurable); stops when filled; escalates to resourcer at a set time before start. |
 | P0-8 | Notifications | Web push + WhatsApp template for urgent; SMS fallback; quiet hours. |
-| P0-9 | Resourcer dashboard | Today view, requests queue, action log with filters. |
+| P0-9 | Resourcer dashboard | The dashboard (counts, urgent gaps, latest cancellations and enquiries, Needs attention), requests queue, action log with filters. |
 | P0-10 | Notice/cancellation report | Every offer/change/cancel with timestamps, notice hours, short-notice flag; CSV export. |
 | P0-11 | Tenant isolation | Cross-tenant tests pass; RLS on all tables. |
 | P0-12 | Roster source | Native mode and Google Sheets sync; CSV import. |

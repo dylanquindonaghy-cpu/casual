@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
 import { uploadsToCheck } from "@/lib/office/casuals";
+import { needsAttentionBell } from "@/lib/office/dashboard";
+import { bellLabel } from "@/lib/office/dashboard-copy";
 import { enquiriesWaiting } from "@/lib/office/enquiries";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
 import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
@@ -26,6 +28,21 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
   const needPerson = canAccess(s.officeUser.role, "enquiries")
     ? await enquiriesWaiting({ firm: s.firm, officeUserId: s.officeUser.id })
     : null;
+  // The bell: Needs attention's items (admins and resourcers; 12E.1).
+  const needs = canAccess(s.officeUser.role, "today")
+    ? await needsAttentionBell({ firm: s.firm, officeUserId: s.officeUser.id })
+    : null;
+  const bell = needs
+    ? {
+        label: bellLabel(needs.count, needs.more),
+        shown:
+          needs.count === null || needs.count === 0
+            ? null
+            : needs.more
+              ? `${needs.count}+`
+              : String(needs.count),
+      }
+    : null;
   const badges = {
     ...(waiting ? { "/office/pay-queries": { count: waiting, words: `${waiting} waiting` } } : {}),
     ...(needPerson
@@ -42,6 +59,7 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
       menu={officeMenu(s.officeUser.role, badges)}
       theme={themeFromCookie((await cookies()).get(THEME_COOKIE)?.value)}
       rotationDue={s.session.rotationDue}
+      bell={bell}
     >
       {children}
     </OfficeShell>

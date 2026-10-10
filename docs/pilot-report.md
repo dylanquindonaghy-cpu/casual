@@ -12,8 +12,8 @@ are the page's own; nothing here needs a database or a spreadsheet.
 2. Open Pilot metrics, choose From Monday To Sunday of the pilot week, press Show. If the figures
    look stale, press "Update the figures now".
 3. Copy the figures into the table below.
-4. Look at what needs a person: the office's Today (requests waiting, messages from numbers we don't
-   know), the action log filtered to Messages for anything that failed, and the server's alerts
+4. Look at what needs a person: the office dashboard's Needs attention, Enquiries' "Need a person"
+   (messages from numbers we don't know too) and "Requests from the app", the action log filtered to Messages for anything that failed, and the server's alerts
    (docs/runbooks.md "Alerts from the app").
 5. Send the firm the Friday update (below).
 

@@ -487,3 +487,8 @@ export function builtWords(template: string, offered: number, more: number): str
       return "The personal reply.";
   }
 }
+
+// On `/office/enquiries?day=today`: requests made in the app since midnight. The dashboard's
+// "Enquiries today" counts them too (docs/office-v2.md 3.2); they're listed under their own view.
+export const appTodayText = (n: number) =>
+  `Plus ${n} ${n === 1 ? "request" : "requests"} made in the app today.`;

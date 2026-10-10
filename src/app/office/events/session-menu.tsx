@@ -6,7 +6,7 @@ import { summaryButton } from "../shifts/[id]/chevron";
 import { UrgentToggle } from "./urgent-toggle";
 
 // A session's "…" menu (docs/office-v2.md 3.3, "Card buttons"): the forms that already exist,
-// reached from here. Offer a place (Today's offer page) while it's open with a place free and
+// reached from here. Offer a place (the offer page) while it's open with a place free and
 // shown to casuals; Assign
 // and Change or cancel on the shift's page (a Google Sheet's session can't be changed or
 // cancelled as a whole here, only its details); Mark urgent / Not urgent in place. A <details>,

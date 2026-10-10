@@ -11595,3 +11595,45 @@ in `enquiry.checks` (DPIA; decision 21) and the automatic line on STOP/START wit
 version; no travel line on the booked line or the cancel reply; day words fooled by ordinary
 words; a cancel reply names the next booking, not the day named; "+ N more" past 50; tests for
 the AI's other fallback reasons.
+
+## 2026-10-10 16:19 UTC — Phase 12, task 12E.1: Dashboard and Needs attention
+
+**Task:** Dashboard and Needs attention (§3.2, §3.9), as written in `PLAN.md`.
+
+**Plan:**
+
+- **`src/lib/office/dashboard.ts`** (new), reusing `today.ts`'s queries (split into exported
+  functions: the urgent shifts with their offers, bookings to check, the rota sheet's issues, who
+  worked?, the strike evidence) and the Enquiries and Cancellations loaders:
+  - the four counts, each with its small line, "today" being the London calendar day:
+    - urgent shifts not filled: sessions marked urgent, open, not started, with a place free
+      (the same test as Events' "Urgent, not filled" view, which the count links to);
+    - events showing to casuals: events switched on with a session to come (Events' "Showing"
+      view);
+    - cancellations today: bookings cancelled since midnight, by anyone;
+    - enquiries today: messages to the shifts line since midnight plus requests made in the app;
+  - the sections: urgent event cards (only their urgent sessions with a gap, each with "Offered to
+    {n} casuals" or why offers stopped; the hidden-event warning), events showing (two sessions,
+    then "+ N more"), the latest three cancellations, the latest four enquiries (with the first
+    line of the reply);
+  - **Needs attention**: bookings to check, from your rota sheet, who worked?, a qualification
+    expired on a booked session (new: a required qualification, the role's or the session's own,
+    whose only records ran out before the session's last day, read as the rules read it), uploads
+    to check (12F.2's count), and the strike evidence items (12C.4). The bell's count is the number
+    of items.
+- **`/office`**: "Dashboard" with the shifts-line number under it; the four count links (the first
+  tinted and larger); the sections in the spec's order with their hints, empty and error words.
+  The menu's "Today" becomes "Dashboard". The bell ("Needs attention, N", a link to the section)
+  goes in the top bar for admins and resourcers.
+- **Filters the counts link to:** `/office/cancellations?day=today` and
+  `/office/enquiries?day=today` (new: since London midnight).
+- **What leaves the office home** (§3.11): gaps (Events shows places free), requests and unknown
+  numbers (Enquiries), credentials expiring this week (Casuals' statuses). The specs and tests that
+  read those on Today follow them to their pages.
+- **Tests:** the count definitions and Needs attention items on the database; the words, empty
+  and error states, no dashboard link repeating a menu link's name, each card line from its data,
+  the hidden warning (unit, replacing `office.today-summary` and `office.today-view`); a new
+  `office.dashboard.spec.ts` replacing `office.today.spec.ts`; the attendance and workers specs
+  and the walkthrough's Today steps follow their items; `copy.plain-language` fails on "urgently
+  looking for".
+- **Docs:** `docs/screens.md` (the dashboard, the bell, the filters).

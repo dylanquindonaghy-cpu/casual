@@ -17,7 +17,7 @@ import {
 } from "@/lib/inbound/voice";
 import type { CallLink } from "@/lib/messaging/templates";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
-import { loadToday } from "@/lib/office/today";
+import { loadEnquiries } from "@/lib/office/enquiries";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, freeNoFirmLine, NO_FIRM_LINE, superuserPool } from "../helpers/db";
@@ -661,7 +661,7 @@ describe("a voicemail (the inbound-message job)", () => {
     ]);
   });
 
-  it("a caller we don't know: no message to them, the office alerted, the voicemail on Today", async () => {
+  it("a caller we don't know: no message to them, the office alerted, the voicemail on Enquiries", async () => {
     const t = await lineFirm();
     await t.f.office("admin");
     const { transport, sent } = captureTransport();
@@ -683,21 +683,18 @@ describe("a voicemail (the inbound-message job)", () => {
         { reason: "unknown_number", recipients: 1, failed: 0, skipped: 0 },
       ],
     ]);
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages).toEqual([
-      {
-        messageId: expect.any(String),
+    // Enquiries shows it to the office, waiting for a person.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows).toEqual([
+      expect.objectContaining({
         channel: "voice",
-        from: STRANGER,
+        who: { kind: "unknown", from: STRANGER },
         text: "Hi it's Jo, about work",
-        receivedAt: expect.any(Date),
-        formerWorker: null,
-        formerWorkerActive: false,
-      },
+      }),
     ]);
   });
 
-  it("a withheld number: no message to anyone but the office, each voicemail alerted (there's no number to match), on Today without a number", async () => {
+  it("a withheld number: no message to anyone but the office, each voicemail alerted (there's no number to match), on Enquiries without a number", async () => {
     const t = await lineFirm();
     await t.f.office("resourcer");
     const { transport, sent } = captureTransport();
@@ -710,10 +707,10 @@ describe("a voicemail (the inbound-message job)", () => {
     }
     expect(sent.map((m) => m.channel)).toEqual(["email", "email"]);
     expect(await requestsOf(t.f.firmId)).toEqual([]);
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages.map((m) => [m.channel, m.from, m.text]).sort()).toEqual([
-      ["voice", null, "Ann again"],
-      ["voice", null, "It's Ann, can someone call me"],
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((m) => [m.channel, m.who, m.text]).sort()).toEqual([
+      ["voice", { kind: "withheld" }, "Ann again"],
+      ["voice", { kind: "withheld" }, "It's Ann, can someone call me"],
     ]);
   });
 });

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 // server and client components.
 
 const PATHS = {
-  // Today, and payroll's Home: a house.
+  // The dashboard: a house.
   home: (
     <>
       <path d="M3.5 10.5 12 3.5l8.5 7" />
@@ -175,6 +175,13 @@ const PATHS = {
       <circle cx="7" cy="12" r="3.5" />
       <circle cx="17" cy="12" r="3.5" />
       <path d="M7 15.5h10" />
+    </>
+  ),
+  // The office's bell (Needs attention, 12E.1): a bell.
+  bell: (
+    <>
+      <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15l1.5-2Z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
     </>
   ),
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.

@@ -218,7 +218,7 @@ the current SIA rule before enabling.
   office's own records (imported, recorded, or an upload approved: `verified_at` and `verified_by`
   filled), `waiting` or `rejected` for a casual's upload. Every reader filters on `verified`: rule
   3's two loaders and check 4's SQL (`src/lib/roster/eligibility-input.ts`), the expiry scan (and its
-  "already replaced" test), Today's expiring list, the import's "latest record" (a file never
+  "already replaced" test), the dashboard's "Qualifications out of date on a booking", the import's "latest record" (a file never
   updates a casual's upload) and readiness. And the database stores an unchecked record as
   `expired` with its upload (`credentials_unchecked_never_valid`), so a reader that ever missed the
   filter still couldn't count it. Tested in `tests/integration/uploads.test.ts`.

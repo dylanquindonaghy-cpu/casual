@@ -53,7 +53,7 @@ import { lockLiveContact, type LiveContact } from "./reachable";
 //   (`offer.waves_stopped`); a filled shift's unanswered offers become "filled_elsewhere".
 // - escalate-shift {shiftId}: at the start minus `escalate_hours_before_start` (default 3), if a
 //   place is still free and the shift hasn't started, email the office's active admins and
-//   resourcers once (`shift.escalated`, which the Today view reads as "needs attention").
+//   resourcers once (`shift.escalated`, which the dashboard's urgent cards read).
 //
 // startOfferWaves() queues both, in the transaction that caused them (a place reopened inside the
 // urgent window, the office marking the shift urgent: src/lib/roster/urgent.ts, or showing an
@@ -608,7 +608,7 @@ export async function runOfferWave(
 export type EscalateResult =
   { status: "escalated"; notified: number } | { status: "not_needed" } | { status: "already" };
 
-// Escalation, the reminders' way: (1) checked, and `shift.escalated` recorded once (the Today view's
+// Escalation, the reminders' way: (1) checked, and `shift.escalated` recorded once (the dashboard's
 // "needs attention"; `notified` is how many office users it goes to); (2) per office user, a claim
 // (`shift.escalation_emailed` {officeUserId}, committed) and only then the email, with no
 // transaction open. A retry or a second copy emails only the office users not yet claimed, so

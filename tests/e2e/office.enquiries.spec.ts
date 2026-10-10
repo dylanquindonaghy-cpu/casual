@@ -122,7 +122,7 @@ test("Need a person: reply to one unknown number, close another with a reason", 
   await answer.getByLabel("Reply").fill(replyWords);
   await answer.getByRole("button", { name: "Send reply" }).click();
   await expect(answer.getByRole("status")).toHaveText(
-    "Reply sent to the shifts line: it goes on WhatsApp in a moment.",
+    "Your reply is on its way: it goes on WhatsApp in a moment.",
   );
   // The worker sends it from Acme's line, signed.
   const escaped = replyWords.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

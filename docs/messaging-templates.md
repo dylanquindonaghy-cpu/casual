@@ -119,8 +119,11 @@ words on one line (500 characters at most). The page says which way it will go b
 - Outside the window: the `request_update` template, as a question answered: "Your request
   (question, ref {ref}) is answered. The office says: {words} — {firm} Shift Team". {ref} is the
   question's reference, or the message's when it has none (an unknown number).
-- A text to someone who replied STOP never goes; a withheld number can't be answered (the office
-  closes it instead).
+- It always goes from the firm's shifts line as it is now, and the window runs from their last
+  WhatsApp to that line.
+- A text never goes to someone whose last word to the line was STOP (a casual's setting, or a
+  stranger's own STOP). A voicemail from a number that isn't a casual's gets no message: the office
+  phones back. A withheld number can't be answered. In those cases the office closes it instead.
 
 ## SMS (fallback only, keep under 160 characters)
 

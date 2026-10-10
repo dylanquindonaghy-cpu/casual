@@ -63,7 +63,9 @@ describe("office tab titles", () => {
         "src/app/office/events/[id]/page.tsx",
         "src/app/office/shifts/[id]/page.tsx",
         "src/app/office/casuals/[id]/page.tsx",
-        // Only send you on: to /office, and from Workers to Casuals (12F.1).
+        // Only send you on: to /office, from Workers to Casuals (12F.1), and from Requests to
+        // Enquiries' "Requests from the app" (12D.1).
+        "src/app/office/requests/page.tsx",
         "src/app/office/today/page.tsx",
         "src/app/office/workers/page.tsx",
         "src/app/office/workers/[id]/page.tsx",

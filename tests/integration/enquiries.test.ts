@@ -435,6 +435,11 @@ describe("the office's reply", () => {
     expect(await runEnquiryReply(payload, withFirm, { transport: broken })).toMatchObject({
       status: "failed",
     });
+    expect((await t.eventsOf("enquiry.reply_failed"))[0]?.data).toMatchObject({
+      replyId: out[0]?.id,
+      requestId: q[0]?.id,
+      code: expect.any(String),
+    });
     // The question is open again and the message back in Need a person.
     const { rows: reopened } = await su.query<{ status: string; resolved_by: string | null }>(
       "select status, resolved_by from requests where id = $1",
@@ -615,6 +620,89 @@ describe("what the office can see", () => {
     ]);
     expect((await t.load("all")).rows).toEqual([]);
     expect(await t.detail(old)).toBeNull();
+  });
+});
+
+describe("where a reply goes from, and who never gets one", () => {
+  it("from the firm's shifts line now, never the number an old message came in on", async () => {
+    const t = await enquiryFirm();
+    const asked = await t.incoming("office: about my old shift");
+    // The firm moves to a new line (the old number may go to another firm).
+    const newLine = await freshLine();
+    await su.query("update firms set shifts_line_e164 = $2 where id = $1", [t.f.firmId, newLine]);
+    // Their WhatsApp was to the old line: no window on the new one, so the template.
+    expect((await t.detail(asked))?.plan).toEqual({
+      ok: true,
+      channel: "whatsapp",
+      form: "template",
+    });
+    expect(await replyToEnquiry(t.ctx(), asked, "Sorted now.")).toMatchObject({
+      form: "template",
+    });
+    const { rows } = await su.query<{ from_e164: string; to_e164: string }>(
+      "select from_e164, to_e164 from messages where reply_to = $1 and provider_message_id like 'office-reply:%'",
+      [asked],
+    );
+    expect(rows).toEqual([{ from_e164: newLine, to_e164: t.mobile }]);
+
+    // No line at all: no reply.
+    const other = await enquiryFirm();
+    const q = await other.incoming("office: hello");
+    await su.query("update firms set shifts_line_e164 = null where id = $1", [other.f.firmId]);
+    expect(await replyToEnquiry(other.ctx(), q, "Hi")).toEqual({ status: "no_line" });
+  });
+
+  it("a number that isn't a casual's and texted STOP is never texted; a caller we don't know never messaged", async () => {
+    const t = await enquiryFirm();
+    const stranger = strangerFor(t.mobile);
+    await t.incoming("STOP", { from: stranger, sms: true });
+    const asked = await t.incoming("is this the shifts line?", { from: stranger, sms: true });
+    expect((await t.detail(asked))?.plan).toEqual({ ok: false, why: "texts_off" });
+    expect(await replyToEnquiry(t.ctx(), asked, "Yes it is.")).toEqual({ status: "texts_off" });
+    // START again: texts allowed.
+    await t.incoming("START", { from: stranger, sms: true });
+    expect(await replyToEnquiry(t.ctx(), asked, "Yes it is.")).toMatchObject({
+      status: "queued",
+      channel: "sms",
+    });
+
+    // A voicemail from a number nobody here has: the office phones back instead.
+    const caller = strangerFor(t.mobile);
+    const { rows } = await su.query<{ id: string }>(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, handled_at, handled_as)
+       values ($1, 'in', 'voice', $2, $3, $4, 'Ring me about work', now(), 'unknown')
+       returning id::text as id`,
+      [t.f.firmId, `RE${randomBytes(16).toString("hex")}`, caller, t.line],
+    );
+    const voicemail = rows[0]?.id ?? "";
+    expect((await t.detail(voicemail))?.plan).toEqual({ ok: false, why: "unknown_caller" });
+    expect(await replyToEnquiry(t.ctx(), voicemail, "Hi")).toEqual({ status: "unknown_caller" });
+    expect(await closeEnquiry(t.ctx(), voicemail, "by_phone")).toEqual({ status: "closed" });
+  });
+
+  it("closing a casual's question as not for us: sorted (never a bare Declined), nobody messaged", async () => {
+    const t = await enquiryFirm();
+    const asked = await t.incoming("office: can you lend me a tenner");
+    expect(await closeEnquiry(t.ctx(), asked, "not_for_us")).toEqual({ status: "closed" });
+    const { rows } = await su.query<{ status: string; resolved_by: string }>(
+      "select status, resolved_by::text as resolved_by from requests where message_id = $1",
+      [asked],
+    );
+    expect(rows).toEqual([{ status: "auto_resolved", resolved_by: t.resourcer }]);
+  });
+
+  it("a reply still sending 15 minutes on reads as not confirmed", async () => {
+    const t = await enquiryFirm();
+    const asked = await t.incoming("office: a question");
+    await replyToEnquiry(t.ctx(), asked, "Answer.");
+    const soon = await t.detail(asked, new Date(Date.now() + 60_000));
+    expect(soon?.timeline.then).toMatchObject([{ kind: "office_reply", state: "sending" }]);
+    const later = await t.detail(asked, new Date(Date.now() + 16 * 60_000));
+    expect(later?.timeline.then).toMatchObject([{ kind: "office_reply", state: "unconfirmed" }]);
+    expect(later?.conversation.at(-1)).toMatchObject({ officeReply: { state: "unconfirmed" } });
+    // Still answered: never sent twice.
+    expect(later?.waiting).toBe(false);
   });
 });
 

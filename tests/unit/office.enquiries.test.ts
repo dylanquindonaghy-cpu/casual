@@ -122,7 +122,9 @@ describe("how the office's reply goes", () => {
     replyPlan({
       channel: "whatsapp",
       from: "+447700900123",
+      line: "+447700900000",
       casual: null,
+      strangerTextsOff: false,
       lastWhatsAppAt: recent,
       now,
       ...o,
@@ -153,7 +155,7 @@ describe("how the office's reply goes", () => {
     });
   });
 
-  it("a voicemail: the casual's own channel (WhatsApp after STOP); an unknown caller by WhatsApp", () => {
+  it("a voicemail: the casual's own channel (WhatsApp after STOP); never a caller we don't know", () => {
     expect(plan({ channel: "voice", casual: casual("sms"), lastWhatsAppAt: null })).toEqual({
       ok: true,
       channel: "sms",
@@ -168,10 +170,27 @@ describe("how the office's reply goes", () => {
       channel: "whatsapp",
       form: "free_text",
     });
-    expect(plan({ channel: "voice", lastWhatsAppAt: null })).toMatchObject({
-      channel: "whatsapp",
-      form: "template",
+    expect(plan({ channel: "voice", lastWhatsAppAt: null })).toEqual({
+      ok: false,
+      why: "unknown_caller",
     });
+  });
+
+  it("an unknown number that texted STOP is never texted; its WhatsApp still can be", () => {
+    expect(plan({ channel: "sms", strangerTextsOff: true })).toEqual({
+      ok: false,
+      why: "texts_off",
+    });
+    expect(plan({ strangerTextsOff: true })).toMatchObject({ ok: true, channel: "whatsapp" });
+    // A casual's own setting counts, not a stranger's word on the same number.
+    expect(plan({ channel: "sms", casual: casual("sms"), strangerTextsOff: true })).toMatchObject({
+      ok: true,
+      channel: "sms",
+    });
+  });
+
+  it("no shifts line: no reply at all", () => {
+    expect(plan({ line: null })).toEqual({ ok: false, why: "no_line" });
   });
 
   it("a withheld number can't be answered", () => {
@@ -186,6 +205,8 @@ describe("how the office's reply goes", () => {
     expect(planLine(plan({ channel: "sms" }))).toBe("By text: your words go as they are.");
     expect(planLine({ ok: false, why: "withheld" })).toMatch(/withheld/);
     expect(planLine({ ok: false, why: "texts_off" })).toMatch(/STOP/);
+    expect(planLine({ ok: false, why: "unknown_caller" })).toMatch(/^We don't message callers/);
+    expect(planLine({ ok: false, why: "no_line" })).toMatch(/no shifts line/);
   });
 
   it("the office's words go on one line", () => {

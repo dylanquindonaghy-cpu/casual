@@ -7,9 +7,11 @@ import type { FirmTx } from "../db/scoped";
 
 // Enquiries' "Requests from the app" (docs/screens.md `/office/enquiries`; `/office/requests` until
 // 12D.1): what casuals asked in the app (time changes, swaps, reviews), for an admin or resourcer to
-// approve or decline. A question from the shifts line (`general`) isn't here: it's on Enquiries with
-// its message. The session and role are checked here as well as on the page. Reads only, inside the
-// firm (RLS scopes every row to it).
+// approve or decline. A question from the shifts line (`general`) is on Enquiries with its message
+// instead, while the message is there; once it has gone (the 90-day purge, an erasure: its
+// `message_id` cleared) an open question is answered here, so none is ever lost. The session and
+// role are checked here as well as on the page. Reads only, inside the firm (RLS scopes every row
+// to it).
 //
 // - waiting: open and escalated requests, oldest first (first asked, first answered), at most 100;
 // - answered: requests answered (or sorted) in the last 7 days, newest first, at most 50, with who
@@ -163,13 +165,14 @@ export async function loadRequestQueue(tx: FirmTx, now: Date): Promise<RequestQu
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const { rows: waiting } = await tx.execute<Row>(sql`
     ${SELECT}
-     where r.status in ('open', 'escalated') and r.type <> 'general'
+     where r.status in ('open', 'escalated') and (r.type <> 'general' or r.message_id is null)
      order by r.created_at, r.id
      limit ${WAITING_MAX + 1}
   `);
   const { rows: answered } = await tx.execute<Row>(sql`
     ${SELECT}
-     where r.status in ('approved', 'declined', 'auto_resolved') and r.type <> 'general'
+     where r.status in ('approved', 'declined', 'auto_resolved')
+       and (r.type <> 'general' or r.message_id is null)
        and r.resolved_at > ${new Date(now.getTime() - ANSWERED_DAYS * 24 * 3_600_000)}
      order by r.resolved_at desc, r.id
      limit ${ANSWERED_MAX}

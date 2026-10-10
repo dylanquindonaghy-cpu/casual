@@ -75,6 +75,8 @@ export function answerResultText(
       return "The note is too long (500 characters at most).";
     case "not_found":
       return "We can't find that request.";
+    case "on_enquiries":
+      return "Answer this question on Enquiries, with the message it came from.";
     default:
       return COMMON[result.status];
   }

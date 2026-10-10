@@ -4,8 +4,9 @@ import { messages, requests } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { recordEvent } from "../events/record";
-import { errorCode, firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
+import { firmJobEnvelope, sendFirmJob, type FirmTask } from "../jobs/firm-job";
 import { getTransport, type MessagingTransport } from "../messaging";
+import { strangerTextsOff } from "../inbound/opt-out";
 import { sendToWorker, smsAllowedFor } from "../notify/send";
 
 // Sending the office's reply on Enquiries (docs/office-v2.md 3.6; docs/api-and-jobs.md
@@ -15,12 +16,14 @@ import { sendToWorker, smsAllowedFor } from "../notify/send";
 // The payload is the reply's id only.
 //
 // At most once, like the other notices: (1) a short transaction claims it (`enquiry.reply_sending`,
-// under an advisory lock on the reply) and commits; (2) the message goes outside any transaction:
-// to a casual by the WhatsApp-to-text fallback (never a text after STOP), to an unknown number by
-// the planned channel only; (3) a second short transaction records `enquiry.reply_sent` (the row
-// gets the provider's id and the channel it went by) or `enquiry.reply_failed`, which reopens the
-// question it answered, so the message is back in Need a person. A job that stops part-way leaves
-// the claim: the message may have gone, so it's never sent again.
+// under an advisory lock on the reply) and commits; (2) the message goes outside any transaction,
+// from the firm's shifts line stored on the row, by the shared sender (`sendToWorker()`: the
+// WhatsApp-to-text fallback, never a text after STOP: a casual's own setting, or for a number that
+// isn't a casual's, its own last STOP or START to the line); (3) a second short transaction
+// records `enquiry.reply_sent` (the row gets the provider's id and the channel it went by) or
+// `enquiry.reply_failed`, which reopens the question this reply answered, so the message is back
+// in Need a person. A job that stops part-way leaves the claim: the message may have gone, so it's
+// never sent again.
 //
 // No quiet hours: it answers the casual's own message, and a person chose to send it now. Every
 // enquiry entry is on the casual's message (entity), with ids, the channel and codes only, never
@@ -55,6 +58,7 @@ type Claim =
   | {
       status: "send";
       messageId: string; // the casual's message it answers
+      requestId: string | null; // the question this reply answered (reopened if it fails)
       workerId: string | null;
       smsAllowed: boolean;
       channel: "whatsapp" | "sms";
@@ -105,6 +109,13 @@ async function claim(tx: FirmTx, p: EnquiryReplyPayload): Promise<Claim> {
   ) {
     return { status: "gone" };
   }
+  // The question this reply answered, from the office's own log entry.
+  const { rows: answered } = await tx.execute<{ request_id: string | null }>(sql`
+    select data ->> 'requestId' as request_id from events
+     where entity_id = ${o.reply_to} and action = 'enquiry.answered'
+       and data ->> 'replyId' = ${p.replyId}
+     limit 1
+  `);
   await recordEvent(tx, {
     actorType: "system",
     action: "enquiry.reply_sending",
@@ -115,8 +126,11 @@ async function claim(tx: FirmTx, p: EnquiryReplyPayload): Promise<Claim> {
   return {
     status: "send",
     messageId: o.reply_to,
+    requestId: answered[0]?.request_id ?? null,
     workerId: o.worker_id,
-    smsAllowed: o.worker_id ? smsAllowedFor({ smsOptedOutAt: o.sms_opted_out_at }) : true,
+    smsAllowed: o.worker_id
+      ? smsAllowedFor({ smsOptedOutAt: o.sms_opted_out_at })
+      : !(await strangerTextsOff(tx, o.to_e164)),
     channel: o.channel,
     to: o.to_e164,
     from: o.from_e164,
@@ -132,47 +146,36 @@ export async function runEnquiryReply(
   const c = await run(payload.firmId, (tx) => claim(tx, payload));
   if (c.status !== "send") return c;
 
-  type Sent =
-    | { ok: true; channel: "whatsapp" | "sms"; providerMessageId: string; fellBackFrom?: string }
-    | { ok: false; channel: "whatsapp" | "sms"; code: string };
-  let sent: Sent;
-  if (c.workerId) {
-    sent = await sendToWorker(deps, {
-      mobile: c.to,
-      channel: c.channel,
-      smsAllowed: c.smsAllowed,
-      body: { whatsapp: c.body, sms: c.body },
-      from: c.from,
-    });
-  } else {
-    // An unknown number: by the planned channel only (nobody chose a fallback for them).
-    try {
-      const { providerMessageId } = await deps.transport.send({
-        channel: c.channel,
-        to: c.to,
-        from: c.from,
-        body: c.body,
-      });
-      sent = { ok: true, channel: c.channel, providerMessageId };
-    } catch (err) {
-      sent = { ok: false, channel: c.channel, code: errorCode(err) };
-    }
-  }
+  const sent = await sendToWorker(deps, {
+    mobile: c.to,
+    channel: c.channel,
+    smsAllowed: c.smsAllowed,
+    body: { whatsapp: c.body, sms: c.body },
+    from: c.from,
+  });
 
   return run(payload.firmId, async (tx): Promise<EnquiryReplyResult> => {
     const who = c.workerId ? { workerId: c.workerId } : {};
     if (!sent.ok) {
       // The question it answered is open again: the message is back in Need a person.
-      await tx
-        .update(requests)
-        .set({ status: "open", resolvedBy: null, resolvedAt: null, resolutionNote: null })
-        .where(and(eq(requests.messageId, c.messageId), eq(requests.status, "approved")));
+      if (c.requestId) {
+        await tx
+          .update(requests)
+          .set({ status: "open", resolvedBy: null, resolvedAt: null, resolutionNote: null })
+          .where(and(eq(requests.id, c.requestId), eq(requests.status, "approved")));
+      }
       await recordEvent(tx, {
         actorType: "system",
         action: "enquiry.reply_failed",
         entityType: "message",
         entityId: c.messageId,
-        data: { replyId: payload.replyId, channel: sent.channel, code: sent.code, ...who },
+        data: {
+          replyId: payload.replyId,
+          channel: sent.channel,
+          code: sent.code,
+          ...(c.requestId ? { requestId: c.requestId } : {}),
+          ...who,
+        },
       });
       return { status: "failed", code: sent.code };
     }

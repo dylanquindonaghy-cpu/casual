@@ -88,9 +88,13 @@ export function countsLine(
 // How the office's reply will go, in one line, before it's sent.
 export function planLine(plan: ReplyPlan): string {
   if (!plan.ok) {
-    return plan.why === "withheld"
-      ? "The number was withheld, so a reply can't go. Close it with a reason."
-      : "They replied STOP to texts, so a reply can't go. Phone them, then close it.";
+    return {
+      no_line: "Your firm has no shifts line yet, so a reply can't go. Close it with a reason.",
+      withheld: "The number was withheld, so a reply can't go. Close it with a reason.",
+      unknown_caller:
+        "We don't message callers we don't know. Phone them back if you need to, then close it.",
+      texts_off: "They replied STOP to texts, so a reply can't go. Phone them, then close it.",
+    }[plan.why];
   }
   if (plan.channel === "sms") return "By text: your words go as they are.";
   return plan.form === "free_text"
@@ -100,19 +104,26 @@ export function planLine(plan: ReplyPlan): string {
 
 export type ReplyOutcome =
   | { status: "queued"; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
-  | { status: "empty" | "too_long" | "withheld" | "texts_off" | "not_waiting" }
+  | {
+      status: "empty" | "too_long" | "no_line" | "withheld" | "unknown_caller" | "texts_off";
+    }
+  | { status: "not_waiting" }
   | { status: "not_found" | "not_allowed" | "logged_out" | "error" };
 
 export function replyResultText(r: ReplyOutcome): string {
   switch (r.status) {
     case "queued":
-      return `Reply sent to the shifts line: it goes ${r.channel === "sms" ? "by text" : "on WhatsApp"} in a moment.`;
+      return `Your reply is on its way: it goes ${r.channel === "sms" ? "by text" : "on WhatsApp"} in a moment.`;
     case "empty":
       return "Write a reply first.";
     case "too_long":
       return "The reply is too long (500 characters at most).";
+    case "no_line":
+      return "Your firm has no shifts line yet, so a reply can't go.";
     case "withheld":
       return "The number was withheld, so a reply can't go.";
+    case "unknown_caller":
+      return "We don't message callers we don't know. Phone them back instead.";
     case "texts_off":
       return "They replied STOP to texts, so a reply can't go.";
     case "not_waiting":
@@ -243,7 +254,7 @@ type ThenLike =
       at: Date;
       channel: "whatsapp" | "sms";
       form: "free_text" | "template";
-      state: "sending" | "sent" | "failed";
+      state: "sending" | "sent" | "failed" | "unconfirmed";
       code: string | null;
       fellBackFrom: string | null;
     }
@@ -285,7 +296,9 @@ export function thenStep(
             : "sent"
           : t.state === "sending"
             ? "sending"
-            : `not sent (${t.code ?? "unknown"}): it's back in Need a person`;
+            : t.state === "unconfirmed"
+              ? "not confirmed: it may not have gone, so check with them"
+              : `not sent (${t.code ?? "unknown"}): it's back in Need a person`;
       return `${who(t.by)} replied at ${at(t.at)} (${how}): ${state}.`;
     }
     case "closed":

@@ -11396,3 +11396,53 @@ explained once on PR #2). The local verify above is the evidence for this task.
 | The office area `requests` becomes `enquiries` (same roles) | One area for the page and its views | Keep two areas |
 | `AI_TRANSPORT` goes to the web app too (not a secret; the key stays with the worker) | The banner must say what the worker does; a compose test holds web and worker to the same value | Guessing from the log |
 | No demo-seed messages | The tests and the walkthrough make their own with the fake phone; the demo seed task (12I.1) joins standing examples | Seed a few now |
+
+**Guardrails review (schema, messaging, jobs, office access): FIX FIRST ×2, then fixed.**
+
+| Finding | Severity | Done |
+|---|---|---|
+| Four unit tests pinned lists this task grows (sendToWorker's callers, the web app's settings, the office pages without a title or PageHeader) | FIX FIRST | Each list gains its new entry with the reason; nothing weakened |
+| The office's reply went from the number the old message came in on, which may be another firm's by then | FIX FIRST | Always from the firm's shifts line now (refused when there is none); WhatsApp's window runs from their last WhatsApp to that line; a test moves the firm's line and checks |
+| An open question whose message was purged or erased fell out of every view | SHOULD | "Requests from the app" and Today count a question once its message has gone; tested both ways |
+| A stranger who texted STOP could be texted; an unknown voicemail caller could get a WhatsApp template | SHOULD | `strangerTextsOff()` checks the number's own last STOP or START; every reply goes through `sendToWorker()`; unknown callers are never messaged (the office phones back); tested |
+| The old request path could answer a question still linked to its message (two answers) | SHOULD | `resolveRequest` refuses it (`on_enquiries`); tested |
+| A failed send reopened any approved question on the message; its log entry didn't name the question | NICE | Only the question this reply answered, named in `enquiry.reply_failed` |
+| A reply stuck at "Sending" for ever | NICE | After 15 minutes it reads "Not confirmed: it may not have gone, so check with them"; never sent twice; tested |
+| A rare deadlock with an erasure | NICE | Reply and close run again on a deadlock (`retryAborted()`) |
+| Closing a casual's question declined it with no note | NICE | Closed as "Sorted" (with who); "dealt with by phone" as answered |
+| Over 20,000 characters said "not found"; "Reply sent" before it was | NICE | "too long"; "Your reply is on its way" |
+| Resourcers read pay messages' words in Pay and All | NICE | Kept: the spec gives Enquiries (with its Pay view) to admins and resourcers. Parked as a data-minimisation question for Dylan |
+| Enquiries shows 90 days even if a firm keeps messages longer; a template reply to an unknown number cites a request reference | NICE | Parked (the spec's 90 days; the reference is the message's own) |
+
+The reviewer also saw `imports.files.test.ts` "refuses a Mac CSV" fail. Root cause: its shell ran
+the container's default Node v22.22.0 (`/opt/node22`), whose `windows-1252` decoder turns byte
+0x8E into a control character instead of "Ž". The project runs on v22.23.3 (the scratchpad's
+`env.sh` puts it first on the PATH), where all 2,396 unit tests pass. No code changed for it.
+
+Break checks (each made a test fail, then the code was put back): the window at 24 hours, the
+failed-reply rule in Need a person, the typed words in the log, questions in the app view, Today's
+count, putting the question back on a failed send, the "Done in the app" rule, and the
+casual-only booking check.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=2ca03abea8476d36 e2e=true`:
+248 test files with 4,358 tests, 84 browser tests and the walkthrough's 3, none skipped.
+
+**Audit round 1 (claims-auditor), verbatim verdict:**
+
+> VERDICT: DONE
+
+It marked every claim PROVEN; the redirect is proven by the browser tests only (no unit test). A
+minor note: the lint log warns about an unused import (`replyPlan` in
+`src/lib/office/enquiry-actions.ts`), left for the next task so the committed files match the
+verified ones.
+
+**Hours:** 1.3 (12:59 to 14:18 UTC). Phase 12 so far: 25.7 hours over 23 Hours-log rows (no
+estimate for Phase 12). **Commit:** "Phase 12: Enquiries (12D.1)", pushed (its hash in the next
+entry). 12F.2's commit was `e5360e8`; this task's work was saved first as `d15e203` (WIP, pushed).
+
+**CI:** GitHub Actions still can't start a job on this account (minutes or billing; explained once
+on PR #2). The local verify above is the evidence.
+
+**Parked (Parking lot, "Enquiries (12D.1 review)"):** whether resourcers may read pay messages'
+words (Dylan to decide); the 90-day constant against the firm's retention setting; the template's
+wording for an unknown number; standing demo messages (12I.1).

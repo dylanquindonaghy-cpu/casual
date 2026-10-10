@@ -157,6 +157,7 @@ describe("environment", () => {
   it("the app environment never needs the jobs or owner credentials", () => {
     expect(parseAppEnv(app).DATABASE_URL).toBe(app.DATABASE_URL);
     expect(Object.keys(parseAppEnv(admin)).sort()).toEqual([
+      "AI_TRANSPORT", // not a credential: "none" when unset; the web app shows Enquiries' banner (12D.1)
       "APP_BASE_DOMAIN",
       "DATABASE_URL",
       "NODE_ENV",

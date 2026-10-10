@@ -11236,3 +11236,123 @@ supervisor whose licence has expired), open "My profile" and tap "Upload a new p
 computer it opens a file picker). Then log in to the office as `acme.resourcer@example.com`,
 open "Casuals" and then "Uploads to check", and approve it. Back on Maya's Profile, the photo
 says "Up to date".
+
+## 2026-10-10 — Phase 12, task 12D.1: Enquiries
+
+**Time spent:** 1.3 hours (12:59 to 14:18 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=2ca03abea8476d36 e2e=true`.
+That run passed 4,358 tests in 248 files, 84 browser tests and the walkthrough's 3, with none
+skipped. The independent auditor said **VERDICT: DONE** on its first round. The commit is "Phase 12: Enquiries (12D.1)", pushed to
+`build/overnight`. GitHub's own test run (CI) still can't start on this account (see the morning
+summary), so the local run is the evidence.
+
+### What was built, in plain words
+
+The office now has one page, **Enquiries**, for everything casuals (and strangers) send the
+shifts line, and what came of each message.
+
+- **The list** (`/office/enquiries`):
+  - Views as links: All, Need a person, Requests from the app, and Pay.
+  - At the top: how many arrived today, and how many need a person (with the oldest one's age).
+  - Each row shows who sent it ("Unknown number" or "Withheld" when we don't know), a small
+    icon for WhatsApp, text or voicemail, their words, the time, and an **outcome** label.
+  - The labels are worked out by code from the log (the app's record of everything that
+    happened), never by AI: "Answered by keyword", "Sorted by AI, answered from your data",
+    "Passed to a person, waiting", "Passed to a person, answered", "Not understood", "Pay
+    (always a person)" and "Done in the app".
+  - While AI isn't switched on, a banner says so: messages without a keyword go to a person.
+  - The menu's Enquiries link shows a count of the ones that need a person.
+- **One message** (`/office/enquiries/{id}`):
+  - The conversation as the casual saw it, in WhatsApp-style bubbles.
+  - "How it was answered", step by step, only from logged facts: received, sorted, checks (none
+    recorded yet: the next task, 12D.2, adds them), the reply built, sent, and what happened
+    then.
+  - While it needs a person, a **reply box**. The page says in one line how the reply will go.
+    WhatsApp only lets a business answer in its own words for 24 hours after the person's last
+    WhatsApp. After that, only a pre-approved **template** (a fixed message with blanks) may go,
+    so the reply goes inside the `request_update` template instead.
+  - Or **"Close without a reply"**, with a reason from a fixed list (dealt with by phone, not
+    for us, duplicate, spam, other).
+- **Sending the reply:** only the background worker (the separate program that sends messages)
+  holds the messaging settings. So the page stores the reply and queues a job; the job sends it
+  once. If sending fails, the message goes back into Need a person.
+  - It always goes from the firm's shifts line as it is now. An old number might belong to
+    another firm by then.
+  - It never texts someone whose last word to the line was STOP, and never messages a caller we
+    don't know (the office phones them back instead).
+- **Requests from the app** is the old Requests page (time changes, swaps, reviews). The old
+  address `/office/requests` now leads there. For a question, "approved" now reads "answered".
+- **The database:** a question now points at the message it came from with a real link
+  (`requests.message_id`). Before, the id was tucked inside the question's data. When the
+  message is deleted after 90 days, only the link is cleared and the question stays.
+
+### Key facts and numbers
+
+- Messages from the last 90 days (the message retention), at most 100 per view.
+- A reply is one line of at most 500 characters.
+- The WhatsApp window closes at exactly 24 hours after their last WhatsApp to the shifts line.
+- Nothing the office types goes into the log: it records ids, the channel, the form and a reason
+  code only.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| When a message is deleted after 90 days, only the question's link to it is cleared | The question is evidence and stays. The database's usual "clear the link" would also clear the firm, which can't be empty, so this one line is written by hand | Delete the question too, or block the deletion |
+| The office's reply is stored straight away and sent by a background job | Only the worker holds the messaging settings (the passwords stay off the website) | Sending from the website |
+| A reply that fails puts the question back in Need a person | The casual got nothing, so someone still has to act | Leave it marked answered |
+| Replies always go from the firm's shifts line as it is now | An old number may belong to another firm later (found by the guardrails review) | The number the message came in on |
+| No message to a caller we don't know; no text after STOP, a stranger's too | The shifts line itself doesn't message unknown callers; STOP must always hold | Reply to everyone |
+| A question whose message has gone shows under "Requests from the app" | Otherwise it would vanish from every page (found by the review) | Only on Enquiries |
+| "Close without a reply" closes the question too: "dealt with by phone" as answered, the rest as "Sorted" | A bare "Declined" with no reason would confuse the casual | Leave the question open |
+| The website is told whether AI is on (not the AI key) | So the banner tells the truth about what the worker does | Guess from the log |
+
+### What the new tests prove
+
+- **The labels** (`tests/unit/office.enquiries.test.ts`): each outcome label from the facts
+  behind it; WhatsApp's window open one moment before 24 hours and closed at exactly 24 hours;
+  how a reply goes for a WhatsApp, a text, a voicemail, a withheld number, a stranger who said
+  STOP, and a firm with no shifts line.
+- **On the real database** (`tests/integration/enquiries.test.ts`, 18 tests):
+  - a question is linked to its message, and the conversation shows the automatic reply;
+  - a reply sent by text after WhatsApp refused it, and one that failed;
+  - each outcome from what was logged ("Done in the app" only for the casual's own booking);
+  - the office's reply to an unknown number: the stored row, a log entry without the words, the
+    job sending it once from the line, and the message leaving Need a person;
+  - outside the window the template goes; a failed send reopens the question;
+  - two office people replying at once: one reply;
+  - a reply goes from the firm's new line after it changes;
+  - closing as spam logs only the reason code;
+  - the 90-day purge clears the question's link and keeps the question;
+  - another firm sees nothing; the casual's postcode never appears.
+- **The old requests view and Today** (`office.requests.test.ts`, `office.today.test.ts`): a
+  question still linked to its message stays out; one whose message has gone shows; the old path
+  refuses a linked question; a question's answer reads "is answered".
+- **In a browser** (`tests/e2e/office.enquiries.spec.ts`): two strangers' WhatsApps; the badge and
+  banner; one answered (it arrives from Acme's line), one closed with a reason (nothing sent).
+  The walkthrough's steps 23, 38 and 39 now use Enquiries.
+- **Break checks:** I broke the code on purpose 8 ways (the 24-hour edge, the failed-reply rule,
+  typed words in the log, questions in the app view, Today's count, putting the question back,
+  the "Done in the app" rule, the casual-only booking check). Each time a test failed, then the
+  code was put back.
+
+### What's parked or needs Dylan
+
+Nothing here needs Dylan before it works with the fake data. One question for him and three
+small items are in the Parking lot in `PLAN.md`:
+
+- **Dylan to decide:** resourcers can read the words of pay messages in Enquiries (the spec gives
+  them Enquiries). Hide those words from them, or keep them?
+- Enquiries always shows 90 days, even when a firm keeps messages longer.
+- The template reply to an unknown number mentions "your request", though they made none.
+- Standing demo messages for Enquiries come with the demo seed (12I.1).
+- A one-line tidy-up for the next task: an unused import the lint step warns about
+  (`src/lib/office/enquiry-actions.ts`), left so the committed files match the verified ones.
+
+### How to see it working
+
+Run `npm run dev`. Send a WhatsApp from a made-up number with the fake phone:
+`npm run -s sim:whatsapp -- --from "07700 900999" --text "Hi it's Sam, new phone"`. Log in to the
+office as `acme.resourcer@example.com`, click "Enquiries", then "Need a person", then "Unknown
+number". Type a reply and click "Send reply": the dev window shows it going to that number.

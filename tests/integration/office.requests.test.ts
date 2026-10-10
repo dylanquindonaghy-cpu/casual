@@ -136,11 +136,32 @@ describe("the office's requests page", () => {
     );
     await answerRequest(t.ctx(t.resourcer, hoursFromNow(-24 * 8)), old, "approved", "");
 
+    // A question still linked to its shifts-line message is on Enquiries instead (12D.1): left out
+    // here. The one above has no message (deleted at 90 days, say): it's answered here, never lost.
+    const linked = await t.request(
+      t.ben,
+      "general",
+      { note: "Where do I park?" },
+      { shiftId: null },
+    );
+    const { rows: msg } = await su.query<{ id: string }>(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, handled_at, handled_as, intent)
+       values ($1, 'in', 'whatsapp', $2, '+447700900113', '+447700900000', 'Where do I park?', now(),
+               'office', 'office')
+       returning id::text as id`,
+      [t.f.firmId, `SM${Math.random().toString(16).slice(2)}`],
+    );
+    await su.query("update requests set message_id = $2 where id = $1", [linked, msg[0]?.id]);
+
     const queue = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
-    // A question (`general`) comes from the shifts line: it's on Enquiries with its message
-    // (12D.1), so "Requests from the app" leaves it out, open or answered.
-    expect(queue.waiting.map((r) => r.requestId)).toEqual([t.swap, t.timeChange, escalated]);
-    const [swap, timeChange, review] = queue.waiting;
+    expect(queue.waiting.map((r) => r.requestId)).toEqual([
+      t.swap,
+      t.timeChange,
+      escalated,
+      general,
+    ]);
+    const [swap, timeChange, review, question] = queue.waiting;
     expect(timeChange).toMatchObject({
       type: "time_change",
       status: "open",
@@ -155,16 +176,19 @@ describe("the office's requests page", () => {
       status: "escalated",
       asked: { reasons: ["Your SIA licence has expired."] },
     });
-    // Answered 8 days ago (and a question): not shown.
+    expect(question).toMatchObject({ shift: null, asked: { note: "Can I bring a friend?" } });
+    // Answered 8 days ago: not shown.
     expect(queue.answered).toEqual([]);
 
     await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free that day.");
     const after = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
-    expect(after.waiting.map((r) => r.requestId)).toEqual([t.timeChange, escalated]);
-    // The question answered now: still not in this view.
-    await answerRequest(t.ctx(), general, "approved", "");
-    const answeredNow = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
-    expect(answeredNow.answered.map((r) => r.requestId)).not.toContain(general);
+    expect(after.waiting.map((r) => r.requestId)).toEqual([t.timeChange, escalated, general]);
+    // The linked question can't be answered here: Enquiries answers it, with its message locked.
+    expect(await answerRequest(t.ctx(), linked, "approved", "Car park B.")).toEqual({
+      status: "on_enquiries",
+    });
+    const { rows: still } = await su.query("select status from requests where id = $1", [linked]);
+    expect(still).toEqual([{ status: "open" }]);
     expect(after.answered).toMatchObject([
       {
         requestId: t.swap,

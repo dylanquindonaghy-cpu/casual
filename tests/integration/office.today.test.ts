@@ -132,9 +132,21 @@ async function todayFirm() {
   await request("time_change", "open", c1);
   await request("swap", "escalated", tomorrow);
   await request("general", "declined", null);
-  // A question from the shifts line, still open: counted by Enquiries' Need a person, not here
-  // (12D.1).
+  // A question from the shifts line, still open and linked to its message: counted by Enquiries'
+  // Need a person, not here (12D.1).
   await request("general", "open", null);
+  const { rows: msg } = await su.query<{ id: string }>(
+    `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                           body, handled_at, handled_as, intent)
+     values ($1, 'in', 'whatsapp', $2, '+447700900113', '+447700900000', 'A question', now(),
+             'office', 'office')
+     returning id::text as id`,
+    [f.firmId, `SM${Math.random().toString(16).slice(2)}`],
+  );
+  await su.query(
+    "update requests set message_id = $2 where firm_id = $1 and type = 'general' and status = 'open'",
+    [f.firmId, msg[0]?.id],
+  );
 
   // Credentials: Dee's PTS card expires on Thursday; Eve renewed hers; Fay left; Gus's is in 10 days.
   const dee = await f.worker({ first: "Dee" });

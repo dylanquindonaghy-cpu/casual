@@ -69,7 +69,13 @@ function Bubble({ item, timeZone }: { item: ConversationItem; timeZone: string }
             <>
               {" · "}
               {item.officeReply.by ?? "The office"}
-              {state === "sending" ? " · Sending" : state === "failed" ? " · Not sent" : ""}
+              {state === "sending"
+                ? " · Sending"
+                : state === "failed"
+                  ? " · Not sent"
+                  : state === "unconfirmed"
+                    ? " · Not confirmed"
+                    : ""}
             </>
           )}
         </p>

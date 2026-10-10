@@ -2,6 +2,7 @@ import { eq, sql, type SQL } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { strangerTextsOff } from "../inbound/opt-out";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf, zonedToUtc } from "../time/zoned";
 import {
@@ -32,6 +33,7 @@ export const ENQUIRY_DAYS = 90; // the messages' retention (retention.message_da
 export const LIST_MAX = 100;
 const CONVERSATION_MAX = 5; // later messages from the same number shown on a message's page
 const IN_APP_HOURS = 24; // a booking or cancellation this soon after a reply was "done in the app"
+const UNCONFIRMED_MS = 15 * 60_000; // an office reply still "sending" this long after: unconfirmed
 
 export const ENQUIRY_VIEWS = ["all", "person", "app", "pay"] as const;
 export type EnquiryView = (typeof ENQUIRY_VIEWS)[number];
@@ -229,7 +231,7 @@ export interface ConversationItem {
   at: Date;
   // An office reply's state (an automatic reply is stored only once sent): sending until the
   // worker has sent it, then sent or failed.
-  officeReply: { by: string | null; state: "sending" | "sent" | "failed" } | null;
+  officeReply: { by: string | null; state: "sending" | "sent" | "failed" | "unconfirmed" } | null;
 }
 
 // "How it was answered", step by step, from logged facts only (docs/office-v2.md 3.6).
@@ -256,7 +258,9 @@ export type ThenFact =
       at: Date;
       channel: "whatsapp" | "sms";
       form: "free_text" | "template";
-      state: "sending" | "sent" | "failed";
+      // unconfirmed: still "sending" 15 minutes on (the job stopped part-way: it may have gone,
+      // and it's never sent again).
+      state: "sending" | "sent" | "failed" | "unconfirmed";
       code: string | null;
       fellBackFrom: string | null;
     }
@@ -386,44 +390,43 @@ export async function loadEnquiry(
   `);
   const question = questions[0] ?? null;
 
-  // The office's replies: the row is stored when the office sends it; its outcome is logged.
-  const replyState = new Map<string, { state: "sending" | "sent" | "failed"; by: string | null }>();
+  // The office's replies: the row is stored when the office sends it; its outcome is logged
+  // against it (by its id). One still "sending" 15 minutes on is unconfirmed: the job stopped
+  // part-way, so it may have gone, and it's never sent again.
+  type ReplyState = "sending" | "sent" | "failed" | "unconfirmed";
+  const replies = new Map<
+    string,
+    {
+      at: Date;
+      by: string | null;
+      state: ReplyState;
+      code: string | null;
+      channel: "whatsapp" | "sms";
+      fellBackFrom: string | null;
+      form: "free_text" | "template";
+    }
+  >();
   const then: ThenFact[] = [];
   for (const e of events) {
     const replyId = str(e.data.replyId);
+    const reply = replyId ? replies.get(replyId) : undefined;
     if (e.action === "enquiry.answered" && replyId) {
-      replyState.set(replyId, { state: "sending", by: e.actor_name });
-      then.push({
-        kind: "office_reply",
-        by: e.actor_name,
+      replies.set(replyId, {
         at: new Date(e.created_at),
-        channel: e.data.channel === "sms" ? "sms" : "whatsapp",
-        form: e.data.form === "template" ? "template" : "free_text",
+        by: e.actor_name,
         state: "sending",
         code: null,
+        channel: e.data.channel === "sms" ? "sms" : "whatsapp",
         fellBackFrom: null,
+        form: e.data.form === "template" ? "template" : "free_text",
       });
-    } else if (
-      (e.action === "enquiry.reply_sent" || e.action === "enquiry.reply_failed") &&
-      replyId
-    ) {
-      const state = e.action === "enquiry.reply_sent" ? "sent" : "failed";
-      const was = replyState.get(replyId);
-      replyState.set(replyId, { state, by: was?.by ?? null });
-      // The answer it belongs to: the latest one with this reply.
-      for (let i = then.length - 1; i >= 0; i--) {
-        const t = then[i];
-        if (t?.kind === "office_reply" && t.state === "sending") {
-          then[i] = {
-            ...t,
-            state,
-            code: state === "failed" ? (str(e.data.code) ?? "unknown") : null,
-            channel: e.data.channel === "sms" ? "sms" : t.channel,
-            fellBackFrom: str(e.data.fellBackFrom),
-          };
-          break;
-        }
-      }
+    } else if (e.action === "enquiry.reply_sent" && reply) {
+      reply.state = "sent";
+      if (e.data.channel === "sms") reply.channel = "sms";
+      reply.fellBackFrom = str(e.data.fellBackFrom);
+    } else if (e.action === "enquiry.reply_failed" && reply) {
+      reply.state = "failed";
+      reply.code = str(e.data.code) ?? "unknown";
     } else if (e.action === "enquiry.closed") {
       then.push({
         kind: "closed",
@@ -432,6 +435,12 @@ export async function loadEnquiry(
         reason: (str(e.data.reason) ?? "other") as CloseReason,
       });
     }
+  }
+  for (const r of replies.values()) {
+    if (r.state === "sending" && now.getTime() - r.at.getTime() > UNCONFIRMED_MS) {
+      r.state = "unconfirmed";
+    }
+    then.push({ kind: "office_reply", ...r });
   }
   // A question answered on its own (the request queue, before Enquiries), not by a reply here.
   const answeredHere = events.some(
@@ -549,25 +558,7 @@ export async function loadEnquiry(
         };
 
   const who = whoOf(m);
-  // Their latest WhatsApp to this line: WhatsApp's 24 hours run from it.
-  const { rows: last } = m.from_e164
-    ? await tx.execute<{ at: string | Date | null }>(sql`
-        select max(created_at) as at from messages
-         where direction = 'in' and channel = 'whatsapp'
-           and from_e164 = ${m.from_e164} and to_e164 = ${m.to_e164} and created_at <= ${now}
-      `)
-    : { rows: [] };
-  const lastWhatsApp = last[0]?.at ? new Date(last[0].at) : null;
-  const plan = replyPlan({
-    channel: m.channel,
-    from: m.from_e164,
-    casual:
-      m.worker_id && m.notify_channel
-        ? { notifyChannel: m.notify_channel, smsAllowed: m.sms_opted_out_at === null }
-        : null,
-    lastWhatsAppAt: lastWhatsApp,
-    now,
-  });
+  const { plan } = await replyPlanFor(tx, m, now);
 
   return {
     timeZone,
@@ -590,7 +581,7 @@ export async function loadEnquiry(
         }
       : null,
     conversation: talk.map((x) => {
-      const office = x.direction === "out" ? replyState.get(x.id) : undefined;
+      const office = x.direction === "out" ? replies.get(x.id) : undefined;
       return {
         id: x.id,
         direction: x.direction,
@@ -613,6 +604,49 @@ export async function loadEnquiry(
       signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
     },
   };
+}
+
+// How the office's reply to this message would go now (src/lib/office/enquiry-rules.ts
+// `replyPlan`), with the firm's shifts line it would go from. The reply action uses it too.
+export async function replyPlanFor(
+  tx: FirmTx,
+  m: {
+    channel: Channel;
+    from_e164: string | null;
+    worker_id: string | null;
+    notify_channel: "whatsapp" | "sms" | null;
+    sms_opted_out_at: string | Date | null;
+  },
+  now: Date,
+): Promise<{ plan: ReplyPlan; line: string | null }> {
+  const [firm] = await tx
+    .select({ line: firms.shiftsLineE164 })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  const line = firm?.line ?? null;
+  // Their latest WhatsApp to the line as it is now: WhatsApp's 24 hours run from it.
+  const { rows: last } =
+    m.from_e164 && line
+      ? await tx.execute<{ at: string | Date | null }>(sql`
+          select max(created_at) as at from messages
+           where direction = 'in' and channel = 'whatsapp'
+             and from_e164 = ${m.from_e164} and to_e164 = ${line} and created_at <= ${now}
+        `)
+      : { rows: [] };
+  const casual =
+    m.worker_id && m.notify_channel
+      ? { notifyChannel: m.notify_channel, smsAllowed: m.sms_opted_out_at === null }
+      : null;
+  const plan = replyPlan({
+    channel: m.channel,
+    from: m.from_e164,
+    line,
+    casual,
+    strangerTextsOff: !casual && m.from_e164 ? await strangerTextsOff(tx, m.from_e164) : false,
+    lastWhatsAppAt: last[0]?.at ? new Date(last[0].at) : null,
+    now,
+  });
+  return { plan, line };
 }
 
 // For an active admin or resourcer of the firm (checked inside the transaction), or null.

@@ -59,20 +59,25 @@ export function insideWhatsAppWindow(lastWhatsAppAt: Date | null, now: Date): bo
 }
 
 // How the office's reply goes: by which channel, and as their own words ("free_text") or as the
-// `request_update` template ("template").
+// `request_update` template ("template"). Always from the firm's shifts line as it is now (an old
+// number may belong to another firm by then), so WhatsApp's window runs from their last WhatsApp to
+// that line.
 export type ReplyPlan =
   | { ok: true; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
-  | { ok: false; why: "withheld" | "texts_off" };
+  | { ok: false; why: "no_line" | "withheld" | "unknown_caller" | "texts_off" };
 
 export function replyPlan(input: {
   channel: "whatsapp" | "sms" | "voice"; // the message's
   from: string | null; // null: a withheld number
+  line: string | null; // the firm's shifts line now (null: none)
   // The casual on file for that number (null: an unknown number). A text to one who replied STOP
   // never goes.
   casual: { notifyChannel: "whatsapp" | "sms"; smsAllowed: boolean } | null;
-  lastWhatsAppAt: Date | null; // their latest WhatsApp to this line
+  strangerTextsOff: boolean; // an unknown number whose last word to the line was STOP
+  lastWhatsAppAt: Date | null; // their latest WhatsApp to the line
   now: Date;
 }): ReplyPlan {
+  if (input.line === null) return { ok: false, why: "no_line" };
   if (input.from === null) return { ok: false, why: "withheld" };
   const whatsapp = (): ReplyPlan => ({
     ok: true,
@@ -80,15 +85,16 @@ export function replyPlan(input: {
     form: insideWhatsAppWindow(input.lastWhatsAppAt, input.now) ? "free_text" : "template",
   });
   // A text has no window: the reply is a text in the office's words.
+  const textsOff = input.casual ? !input.casual.smsAllowed : input.strangerTextsOff;
   const text = (): ReplyPlan =>
-    input.casual && !input.casual.smsAllowed
-      ? { ok: false, why: "texts_off" }
-      : { ok: true, channel: "sms", form: "free_text" };
+    textsOff ? { ok: false, why: "texts_off" } : { ok: true, channel: "sms", form: "free_text" };
   if (input.channel === "whatsapp") return whatsapp();
   if (input.channel === "sms") return text();
-  // A voicemail: by the channel the casual chose (WhatsApp if they replied STOP to texts), an
-  // unknown caller by WhatsApp.
-  if (input.casual?.notifyChannel === "sms" && input.casual.smsAllowed) return text();
+  // A voicemail: by the channel the casual chose (WhatsApp if they replied STOP to texts). Never a
+  // message to a caller we don't know (as the shifts line itself: src/lib/inbound/reply.ts): the
+  // office phones them back.
+  if (!input.casual) return { ok: false, why: "unknown_caller" };
+  if (input.casual.notifyChannel === "sms" && input.casual.smsAllowed) return text();
   return whatsapp();
 }
 

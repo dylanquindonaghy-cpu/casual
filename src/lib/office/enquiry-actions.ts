@@ -3,12 +3,13 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
 import { firms, messages, requests } from "../db/schema";
+import { retryAborted } from "../db/retry";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { officeReplyMessage, requestUpdateMessage } from "../messaging/templates";
 import { OFFICE_REPLY_PREFIX, queueEnquiryReply } from "../notices/enquiry-reply";
 import { signOffFor } from "../tenancy/sign-off";
-import { ENQUIRY_DAYS, needsPerson } from "./enquiries";
+import { ENQUIRY_DAYS, needsPerson, replyPlanFor } from "./enquiries";
 import { CLOSE_REASONS, REPLY_MAX, replyLine, replyPlan, type CloseReason } from "./enquiry-rules";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
@@ -25,14 +26,14 @@ import { officeUserMay, parts, type OfficeContext } from "./office-context";
 //   `enquiry-reply` job sends it (src/lib/notices/enquiry-reply.ts) and puts the question back if
 //   it fails.
 // - Close: a code from CLOSE_REASONS, logged `enquiry.closed`; an open question is closed with it
-//   (answered for "dealt with by phone", declined otherwise) and the casual isn't messaged.
+//   (answered for "dealt with by phone", sorted otherwise) and the casual isn't messaged.
 // Typed text never goes in the log (append-only): the words stay on the message row and the
 // question's note.
 
 export type ReplyResult =
   | { status: "queued"; channel: "whatsapp" | "sms"; form: "free_text" | "template" }
   | { status: "empty" | "too_long" }
-  | { status: "withheld" | "texts_off" }
+  | { status: "no_line" | "withheld" | "unknown_caller" | "texts_off" }
   | { status: "not_waiting" } // answered, closed or sorted already
   | { status: "not_found" | "not_allowed" };
 
@@ -94,6 +95,7 @@ export async function replyToEnquiry(
   messageId: string,
   typed: string,
 ): Promise<ReplyResult> {
+  if (typeof typed === "string" && typed.length > 20_000) return { status: "too_long" };
   const parsed = replySchema.safeParse({ messageId, text: typed });
   if (!parsed.success) return { status: "not_found" };
   const text = replyLine(parsed.data.text);
@@ -101,88 +103,78 @@ export async function replyToEnquiry(
   if (text.length > REPLY_MAX) return { status: "too_long" };
   const { run, by } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx): Promise<ReplyResult> => {
-    if (!(await officeUserMay(tx, by.id, "enquiries"))) return { status: "not_allowed" };
-    const m = await lockMessage(tx, messageId, now);
-    if (!m) return { status: "not_found" };
-    if (!m.waiting) return { status: "not_waiting" };
-    const { rows: last } = m.from_e164
-      ? await tx.execute<{ at: string | Date | null }>(sql`
-          select max(created_at) as at from messages
-           where direction = 'in' and channel = 'whatsapp'
-             and from_e164 = ${m.from_e164} and to_e164 = ${m.to_e164} and created_at <= ${now}
-        `)
-      : { rows: [] };
-    const plan = replyPlan({
-      channel: m.channel,
-      from: m.from_e164,
-      casual:
-        m.worker_id && m.notify_channel
-          ? { notifyChannel: m.notify_channel, smsAllowed: m.sms_opted_out_at === null }
-          : null,
-      lastWhatsAppAt: last[0]?.at ? new Date(last[0].at) : null,
-      now,
-    });
-    if (!plan.ok) return { status: plan.why };
-    if (!m.from_e164) return { status: "withheld" };
+  // Run again if Postgres aborts it to break a deadlock (an erasure locks the casual, then their
+  // messages): it holds everything it does, the job included.
+  return retryAborted(() =>
+    run(ctx.firm.id, async (tx): Promise<ReplyResult> => {
+      if (!(await officeUserMay(tx, by.id, "enquiries"))) return { status: "not_allowed" };
+      const m = await lockMessage(tx, messageId, now);
+      if (!m) return { status: "not_found" };
+      if (!m.waiting) return { status: "not_waiting" };
+      const { plan, line } = await replyPlanFor(tx, m, now);
+      if (!plan.ok) return { status: plan.why };
+      if (!m.from_e164 || !line) return { status: "withheld" }; // replyPlan said ok: never here
 
-    const [firm] = await tx
-      .select({ name: firms.name, settings: firms.settings })
-      .from(firms)
-      .where(eq(firms.id, sql`app_current_firm_id()`));
-    const voice = {
-      name: firm?.name ?? "",
-      signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
-    };
-    const question = await openQuestion(tx, m.id);
-    const body =
-      plan.form === "free_text"
-        ? officeReplyMessage(voice, text, plan.channel)
-        : requestUpdateMessage(voice, {
-            type: "question",
-            ref: (question?.id ?? m.id).slice(0, 8).toUpperCase(),
-            status: "answered",
-            note: text,
-          });
-    const [reply] = await tx
-      .insert(messages)
-      .values({
-        firmId: sql`app_current_firm_id()`,
-        direction: "out",
-        channel: plan.channel,
-        providerMessageId: `${OFFICE_REPLY_PREFIX}${randomUUID()}`,
-        workerId: m.worker_id,
-        fromE164: m.to_e164, // the shifts line they wrote to
-        toE164: m.from_e164,
-        body,
-        replyTo: m.id,
-        createdAt: now,
-      })
-      .returning({ id: messages.id });
-    if (!reply) throw new Error("reply insert returned nothing");
-    if (question) {
-      await tx
-        .update(requests)
-        .set({ status: "approved", resolvedBy: by.id, resolvedAt: now, resolutionNote: text })
-        .where(eq(requests.id, question.id));
-    }
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: by.id,
-      action: "enquiry.answered",
-      entityType: "message",
-      entityId: m.id,
-      data: {
-        replyId: reply.id,
-        channel: plan.channel,
-        form: plan.form,
-        ...(m.worker_id ? { workerId: m.worker_id } : {}),
-        ...(question ? { requestId: question.id } : {}),
-      },
-    });
-    await queueEnquiryReply(tx, reply.id);
-    return { status: "queued", channel: plan.channel, form: plan.form };
-  });
+      const [firm] = await tx
+        .select({ name: firms.name, settings: firms.settings })
+        .from(firms)
+        .where(eq(firms.id, sql`app_current_firm_id()`));
+      const voice = {
+        name: firm?.name ?? "",
+        signOff: signOffFor(firm?.name ?? "", firm?.settings.sign_off),
+      };
+      const question = await openQuestion(tx, m.id);
+      const body =
+        plan.form === "free_text"
+          ? officeReplyMessage(voice, text, plan.channel)
+          : requestUpdateMessage(voice, {
+              type: "question",
+              ref: (question?.id ?? m.id).slice(0, 8).toUpperCase(),
+              status: "answered",
+              note: text,
+            });
+      const [reply] = await tx
+        .insert(messages)
+        .values({
+          firmId: sql`app_current_firm_id()`,
+          direction: "out",
+          channel: plan.channel,
+          providerMessageId: `${OFFICE_REPLY_PREFIX}${randomUUID()}`,
+          workerId: m.worker_id,
+          // The firm's shifts line now, never the number an old message came in on (it may be
+          // another firm's by then).
+          fromE164: line,
+          toE164: m.from_e164,
+          body,
+          replyTo: m.id,
+          createdAt: now,
+        })
+        .returning({ id: messages.id });
+      if (!reply) throw new Error("reply insert returned nothing");
+      if (question) {
+        await tx
+          .update(requests)
+          .set({ status: "approved", resolvedBy: by.id, resolvedAt: now, resolutionNote: text })
+          .where(eq(requests.id, question.id));
+      }
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: by.id,
+        action: "enquiry.answered",
+        entityType: "message",
+        entityId: m.id,
+        data: {
+          replyId: reply.id,
+          channel: plan.channel,
+          form: plan.form,
+          ...(m.worker_id ? { workerId: m.worker_id } : {}),
+          ...(question ? { requestId: question.id } : {}),
+        },
+      });
+      await queueEnquiryReply(tx, reply.id);
+      return { status: "queued", channel: plan.channel, form: plan.form };
+    }),
+  );
 }
 
 export async function closeEnquiry(
@@ -194,34 +186,38 @@ export async function closeEnquiry(
   if (!parsed.success) return { status: "invalid" };
   const { run, by } = parts(ctx);
   const now = (ctx.clock ?? systemClock).now();
-  return run(ctx.firm.id, async (tx): Promise<CloseResult> => {
-    if (!(await officeUserMay(tx, by.id, "enquiries"))) return { status: "not_allowed" };
-    const m = await lockMessage(tx, parsed.data.messageId, now);
-    if (!m) return { status: "not_found" };
-    if (!m.waiting) return { status: "not_waiting" };
-    const question = await openQuestion(tx, m.id);
-    if (question) {
-      await tx
-        .update(requests)
-        .set({
-          status: parsed.data.reason === "by_phone" ? "approved" : "declined",
-          resolvedBy: by.id,
-          resolvedAt: now,
-        })
-        .where(eq(requests.id, question.id));
-    }
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: by.id,
-      action: "enquiry.closed",
-      entityType: "message",
-      entityId: m.id,
-      data: {
-        reason: parsed.data.reason,
-        ...(m.worker_id ? { workerId: m.worker_id } : {}),
-        ...(question ? { requestId: question.id } : {}),
-      },
-    });
-    return { status: "closed" };
-  });
+  return retryAborted(() =>
+    run(ctx.firm.id, async (tx): Promise<CloseResult> => {
+      if (!(await officeUserMay(tx, by.id, "enquiries"))) return { status: "not_allowed" };
+      const m = await lockMessage(tx, parsed.data.messageId, now);
+      if (!m) return { status: "not_found" };
+      if (!m.waiting) return { status: "not_waiting" };
+      const question = await openQuestion(tx, m.id);
+      if (question) {
+        await tx
+          .update(requests)
+          .set({
+            // Dealt with by phone: answered. Anything else: sorted (the casual sees "Sorted", never a
+            // bare "Declined" with no reason).
+            status: parsed.data.reason === "by_phone" ? "approved" : "auto_resolved",
+            resolvedBy: by.id,
+            resolvedAt: now,
+          })
+          .where(eq(requests.id, question.id));
+      }
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: by.id,
+        action: "enquiry.closed",
+        entityType: "message",
+        entityId: m.id,
+        data: {
+          reason: parsed.data.reason,
+          ...(m.worker_id ? { workerId: m.worker_id } : {}),
+          ...(question ? { requestId: question.id } : {}),
+        },
+      });
+      return { status: "closed" };
+    }),
+  );
 }

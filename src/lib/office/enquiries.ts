@@ -336,7 +336,9 @@ export interface BuiltReply {
     reasons: { code: string; type?: string; from?: string; to?: string }[];
   }[];
   notOfferedMore: number;
+  notChecked: number; // considered past the sessions read, so not checked one by one
   bookings: string[];
+  named: (SessionName | null)[]; // each booking's session (null: gone since)
   // The qualifications the entry names: their names for people.
   names: Record<string, string>;
 }
@@ -665,12 +667,26 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : n
 const obj = (v: unknown): Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+// An ISO time as the log writes them ("2026-11-09T09:00:00.000Z"), and a yyyy-mm-dd date.
+const isTime = (v: unknown): v is string =>
+  typeof v === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/.test(v) &&
+  !Number.isNaN(Date.parse(v));
+const isDate = (v: unknown): v is string =>
+  typeof v === "string" &&
+  /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+  new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+// A check's fields the page reads as times or dates (src/lib/rules/eligibility.ts).
+const TIME_FIELDS = ["startsAt", "withStart", "withEnd"];
+const DATE_FIELDS = ["expiresOn", "until"];
 
 // The `enquiry.checks` entry, read defensively (it's the log's: never trusted to be well formed),
 // with the sessions and qualifications it names.
 async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<BuiltReply | null> {
   if (!entry) return null;
   const d = entry.data;
+  // The log is read as untrusted: a check whose times or dates don't read as such is shown as
+  // one we can't read, never guessed at (and never a page that fails to load).
   const offered = list(d.offered).map((o) => {
     const x = obj(o);
     return {
@@ -679,7 +695,12 @@ async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<Buil
       publicTransport: num(x.publicTransport),
       checks: list(x.checks).map((c) => {
         const { code, passed, ...detail } = obj(c);
-        return { code: str(code) ?? "", passed: passed === true, detail };
+        const readable =
+          TIME_FIELDS.every((k) => detail[k] == null || isTime(detail[k])) &&
+          DATE_FIELDS.every((k) => detail[k] == null || isDate(detail[k]));
+        return readable
+          ? { code: str(code) ?? "", passed: passed === true, detail }
+          : { code: "unreadable", passed: passed === true, detail: {} };
       }),
     };
   });
@@ -692,16 +713,32 @@ async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<Buil
         return {
           code: str(y.code) ?? "",
           ...(str(y.type) ? { type: str(y.type) ?? "" } : {}),
-          ...(str(y.from) ? { from: str(y.from) ?? "" } : {}),
-          ...(str(y.to) ? { to: str(y.to) ?? "" } : {}),
+          ...(isTime(y.from) ? { from: y.from } : {}),
+          ...(isTime(y.to) ? { to: y.to } : {}),
         };
       }),
     };
   });
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-  const ids = [...new Set([...offered, ...notOffered].map((x) => x.shiftId))].filter((id) =>
-    uuid.test(id),
+  // The booking a cancel reply named: its session.
+  const bookings = list(d.bookings).filter(
+    (b): b is string => typeof b === "string" && uuid.test(b),
   );
+  const bookedShift = new Map<string, string>();
+  if (bookings.length > 0) {
+    const { rows } = await tx.execute<{ id: string; shift_id: string }>(sql`
+      select a.id::text as id, a.shift_id::text as shift_id from assignments a
+       where a.firm_id = app_current_firm_id()
+         and a.id in (${sql.join(
+           bookings.map((id) => sql`${id}::uuid`),
+           sql`, `,
+         )})
+    `);
+    for (const r of rows) bookedShift.set(r.id, r.shift_id);
+  }
+  const ids = [
+    ...new Set([...[...offered, ...notOffered].map((x) => x.shiftId), ...bookedShift.values()]),
+  ].filter((id) => uuid.test(id));
   const sessions = new Map<string, SessionName>();
   if (ids.length > 0) {
     const { rows } = await tx.execute<{
@@ -717,10 +754,11 @@ async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<Buil
         from shifts s
         left join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
         left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
-       where s.id in (${sql.join(
-         ids.map((id) => sql`${id}::uuid`),
-         sql`, `,
-       )})
+       where s.firm_id = app_current_firm_id()
+         and s.id in (${sql.join(
+           ids.map((id) => sql`${id}::uuid`),
+           sql`, `,
+         )})
     `);
     for (const r of rows) {
       sessions.set(r.id, {
@@ -742,10 +780,11 @@ async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<Buil
   if (types.size > 0) {
     const { rows } = await tx.execute<{ code: string; name: string }>(sql`
       select code, name from credential_types
-       where code in (${sql.join(
-         [...types].map((t) => sql`${t}`),
-         sql`, `,
-       )})
+       where firm_id = app_current_firm_id()
+         and code in (${sql.join(
+           [...types].map((t) => sql`${t}`),
+           sql`, `,
+         )})
     `);
     for (const r of rows) names[r.code] = r.name;
   }
@@ -758,7 +797,12 @@ async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<Buil
     more: num(d.more) ?? 0,
     notOffered: notOffered.map((n) => ({ ...n, session: sessions.get(n.shiftId) ?? null })),
     notOfferedMore: num(d.notOfferedMore) ?? 0,
-    bookings: list(d.bookings).filter((b): b is string => typeof b === "string"),
+    notChecked: num(d.notChecked) ?? 0,
+    bookings,
+    named: bookings.map((b) => {
+      const shiftId = bookedShift.get(b);
+      return shiftId ? (sessions.get(shiftId) ?? null) : null;
+    }),
     names,
   };
 }

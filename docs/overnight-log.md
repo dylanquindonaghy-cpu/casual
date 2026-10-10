@@ -11500,3 +11500,98 @@ wording for an unknown number; standing demo messages (12I.1).
     CSAS for a holder only); the specs and walkthrough step that pinned the old shifts reply.
 - **Docs:** `docs/messaging-templates.md`, `docs/rules-and-credentials.md`, `docs/screens.md`,
   `docs/api-and-jobs.md`.
+
+**Decisions Dylan would normally have approved:**
+
+| Decision | Why | Alternative |
+|---|---|---|
+| `checkEligibility()` returns `checks` beside `ok`, `reasons` and `codes`, which don't change (a rules change) | The office's "Checks made by code" needs every check's figures; the decision must stay byte-for-byte the same (`rules.table.test.ts` unchanged and green; `rules.checks.test.ts` proves `ok` is "every check passed") | A second function re-running the checks |
+| An "applied" qualification counted within the allowance is a passed check with `held: "applied"` | It was skipped (found by the review): the one exception the office most needs to see | Leave it unrecorded |
+| The reply uses `openShiftsFor()` (the casual app's list) with a new `explain` option | One place decides what she can take, so the reply and the app never differ; `explain` reads the hidden and out-of-area sessions too, only for the reply | A separate query |
+| The personal reply is read before the claim, like the AI's label (messaging) | Nothing written before the point of no return, so a failure retries cleanly | Build it inside the claim's transaction (a long lock) |
+| `enquiry.checks` is logged after the send, for the channel it went by, and checked against the log's rules before the claim | A text lists 3, a WhatsApp 5 (found by the review); a refused entry after the send would roll back the stored reply | Log the WhatsApp version always; check only on write |
+| Every reply is bounded by construction (names cut, fewer sessions, then the link alone), not caught after | A reply that can't fit used to throw before the claim and fail every retry (found by the review) | Catch the error and send a fixed link |
+| Past the 80 sessions read, the rest are `notChecked`, never "not offered" | The old sum counted sessions that were offered (found by the review) | One combined count |
+| A text's cut names end "..." | "…" isn't in the plain text-message alphabet | Keep "…" |
+| The new log entry keeps travel minutes and the limit (never the postcode) | The office's "Inside travel area (20 min by car, limit 45 min)" needs it; office-v2 6.1 allows minutes; the DPIA and compliance docs now say so, for Dylan to confirm | Leave travel out of the log |
+| "Automatic reply. Send OFFICE to reach a person." goes on every automatic reply the shifts line sends: the personal ones, pay, the office's, `unknown_number`, `voicemail_received` (its WhatsApp template too) and the STOP/START confirmations | §5.7 item 3 says "every other instant reply", with no exception (the audit's round 1). One sentence before the sign-off, all in the plain text alphabet | Leave out the office's and the voicemail's, as first built (they already go to a person), with no recorded approval |
+| A text lists each session's distance and both times, or why they aren't known, as the app's line does (commas for "·") | Phase 12's Done-when asks every shifts-line reply for the distance and both times "or says why it can't"; §5.7's shorter text example ("12 min by car") falls short of it (the audit's round 1) | Keep §5.7's example |
+| The pay reply gains "Automatic reply. Send OFFICE to reach a person." but nothing else | Spec 5.7; golden rule 9 (pay never answered) | Leave pay unchanged |
+
+**Guardrails review (messaging, rules): FIX FIRST ×2, then fixed.**
+
+| Finding | Severity | Done |
+|---|---|---|
+| F1: an application within the allowance recorded no qualification check; "you hold CSAS" would then reach an applicant | FIX FIRST | `passedNow()` before the allowance's `continue`; "you hold CSAS" only for `held: "valid"`; unit and database tests (an applicant is offered the session, logged as applied, never told "you hold CSAS") |
+| F2: the log always recorded the WhatsApp list, even when the text version went | FIX FIRST | One entry per channel; the sent channel's is logged; a database test sends by text (3 listed, "+ 2 more", the entry the same) and by WhatsApp (5) |
+| S1: the booked line was never cut, so a reply could pass 1,600 characters, or throw before the claim | SHOULD | At most two bookings named (cut like the list), then "and N more"; every branch checks its length, with the link alone as the last resort; first names cut to 40; unit tests with six 200-character bookings, a 300-character first name and a 2,000-character firm name |
+| S2: "not offered" counted sessions past the 80 read, offered ones included | SHOULD | `notOfferedMore` is exact; the rest is `notChecked` ("{n} more sessions in the 28 days weren't checked one by one."); a database test with 86 sessions |
+| S3: a cancel reply's page said "No session passed them" and named no booking | SHOULD | Cancel-specific words for steps 3 and "Considered but not offered"; the named booking's session as a link; a database test |
+| S4: a malformed date in the log crashed the page | SHOULD | Times and dates are checked when read; a check that doesn't read is "A check whose record can't be read"; bad reason times dropped; a database test with a damaged entry |
+| S5: a refused log entry after the send would roll back the stored reply | SHOULD | `settled()` checks it before the claim (keeping ids, minutes and counts if refused) |
+| S6: a booking on a cancelled session could be named; all future bookings were loaded | SHOULD | Only open or filled sessions, and a date range in the query; a database test |
+| N1: the new raw SQL relied on RLS alone | NOTE | `firm_id = app_current_firm_id()` added to each |
+| N3: "…" in a text | NOTE | "..." in texts; a unit test |
+| N6: the cancel reply loaded every future booking to count them | NOTE | `limit(2)`: only whether there's another is read |
+| N7: the DPIA said no location stays in the log | NOTE | `docs/dpia-travel.md` and `docs/compliance.md` updated, for Dylan to confirm |
+| N4: the "CSAS" literal | NOTE | Kept: the constant lives in `src/lib/uploads/check.ts`, which imports the office permissions code the worker shouldn't load |
+| N2, N5, N6 (rest): day words fooled by "sat", "mon"; a cancel reply ignores the day named; "+ N more" past 50 candidates | NOTE | Parked (Parking lot, "Personal replies (12D.2 review)"): each is visible to the casual and harmless (the link shows everything); N5 follows the spec |
+
+Break checks (each made a test fail, then the code was put back): the travel-area reason, the CSAS
+marker, the log entry, the strike sentence, hidden sessions listed, the applied check, the logged
+channel, the CSAS marker for an applicant, the not-checked count, cancelled bookings named,
+damaged dates, the booked-line cap. The new database test also found a real bug before any
+commit: `builtReply()` asked for `s.shift_event_id` (the column is `event_id`).
+
+**First verify run: NOT VERIFIED** (4,415 of 4,418 passed). The 3 failures were all in
+`tests/integration/eligibility.batch.test.ts`, which holds the batched rules (`previewBookings()`)
+to the one-pair rules (`previewBooking()`): same input, same verdict. Root cause: this task gave
+the batched verdict `checks` but left the one-pair verdict at `ok`, `reasons` and `codes`, so the
+two no longer matched (a real inconsistency, which is what the test is for). Fix: `previewBooking()`
+returns the same `Verdict`, checks included (every caller reads only `ok`, `reasons` or `codes`;
+none passes it to a browser). `tests/integration/open-shifts.test.ts` pinned the old shape; it
+now also requires every check present and passed, and still no pass: stricter, not weaker.
+
+**Audit round 1 (claims-auditor), verbatim verdict:**
+
+> VERDICT: NOT DONE — open items: (1) the "Automatic reply" line is missing from the office, voicemail and unknown-number replies, against "every instant reply" and with no recorded approval; (2) the text-message version doesn't show distance or public-transport time, or say why not, so it doesn't meet the Done-when travel clause; (3) no on-disk record of the `guardrails-reviewer` run for messaging and rules.
+
+Done after round 1:
+1. The automatic line on every automatic reply (above), the STOP/START confirmations included;
+   the WhatsApp `voicemail_received` template, `docs/messaging-templates.md` and the tests that
+   pinned the old words follow (6 tests in 4 database test files, 3 browser specs).
+2. The text version's travel (above); unit tests for each variant (worked out, straight line,
+   unknown, over 90 minutes) and the doc's example.
+3. This entry: the guardrails review, its findings and fixes, written before the next verify.
+4. The auditor's optional items: a database test where WhatsApp refuses the reply (the text
+   version goes, and the text's entry is logged: 3 listed, 2 more), and one where a booking she
+   took 48 hours ahead gets no strike sentence.
+
+**Verify runs** (`RUN_E2E=1 ./scripts/verify.sh`):
+1. 15:08, NOT VERIFIED: the 3 `eligibility.batch` failures above.
+2. 15:28, `VERIFIED tree=6e27171d1952ffa7 e2e=true` (4,418 tests in 251 files, 85 browser tests
+   and the walkthrough's 3): the tree audit round 1 read.
+3. 15:55, after round 1's fixes: `VERIFIED tree=55de639d472187f5 e2e=true`: 251 test files with
+   4,420 tests, 85 browser tests and the walkthrough's 3, none skipped. The task was ticked on
+   this stamp.
+
+**Audit round 2 (claims-auditor, fresh, the task text and the Done-when only), verbatim verdict:**
+
+> VERDICT: DONE — non-blocking: (a) add the "Personal replies (12D.2 review)" Parking lot entry to PLAN.md after the tick; (b) park the cancel-reply travel-line question for Dylan; (c) no tests for the AI fallback reasons other than not_connected
+
+All three went into the Parking lot after the tick (with Dylan's two confirmations: the travel
+minutes in the log against decision 21, and the automatic line on STOP/START with the longer text).
+
+**Hours:** 2.0 (14:17 to 16:17 UTC). Phase 12 so far: 27.7 hours over 24 Hours-log rows (no
+estimate for Phase 12, so nothing to compare). **Commit:** "Phase 12: Personal replies (12D.2)",
+pushed; this task's work was saved first as `1e25c06` (WIP, pushed); 12D.1's commit was `77b0585`.
+
+**CI:** GitHub Actions still can't start a job on this account: both runs for `1e25c06` ended in
+about 2 seconds with no runner assigned (runner id 0), as every run has since it began (billing
+or minutes; explained once on PR #2, not again). The local verify above is the evidence.
+
+**Parked (Parking lot, "Personal replies (12D.2 review)"):** Dylan to confirm the travel minutes
+in `enquiry.checks` (DPIA; decision 21) and the automatic line on STOP/START with the longer text
+version; no travel line on the booked line or the cancel reply; day words fooled by ordinary
+words; a cancel reply names the next booking, not the day named; "+ N more" past 50; tests for
+the AI's other fallback reasons.

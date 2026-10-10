@@ -4,10 +4,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { noAi } from "@/lib/ai/client";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { passesLogCheck } from "@/lib/events/record";
-import { cancelReply, shiftsReply, AUTOMATIC } from "@/lib/inbound/personal-reply";
+import {
+  cancelReply,
+  shiftsReply,
+  AUTOMATIC,
+  type EnquiryChecks,
+} from "@/lib/inbound/personal-reply";
 import { INBOUND_MESSAGE_QUEUE } from "@/lib/inbound/job";
-import { receiveWhatsApp } from "@/lib/inbound/receive";
+import { receiveSms, receiveWhatsApp } from "@/lib/inbound/receive";
 import { runInboundMessage } from "@/lib/inbound/reply";
+import { ChannelRefusedError, type MessagingTransport } from "@/lib/messaging/transport";
 import { loadEnquiry } from "@/lib/office/enquiries";
 import { saveMyTravel } from "@/lib/portal/travel";
 import { fakeGeocoder, fakePoint } from "@/lib/travel/geocoder";
@@ -161,7 +167,7 @@ async function replyFirm() {
   return { f, firmName, site, arena, casual, session, estimate, credential, booked, reply };
 }
 
-const reasonsOf = (checks: Awaited<ReturnType<typeof shiftsReply>>["checks"], shiftId: string) =>
+const reasonsOf = (checks: EnquiryChecks, shiftId: string) =>
   checks.notOffered.find((n) => n.shiftId === shiftId)?.reasons.map((r) => r.code);
 
 describe("the shifts reply lists exactly what she could take", () => {
@@ -209,26 +215,28 @@ describe("the shifts reply lists exactly what she could take", () => {
     await t.estimate(far, 80);
 
     const r = await t.reply(zoe);
-    expect(r.checks.offered.map((o) => o.shiftId)).toEqual([ok]);
-    expect(reasonsOf(r.checks, missing)).toEqual(["credential_missing"]);
-    expect(r.checks.notOffered.find((n) => n.shiftId === missing)?.reasons).toEqual([
+    expect(r.checks.whatsapp.offered.map((o) => o.shiftId)).toEqual([ok]);
+    expect(reasonsOf(r.checks.whatsapp, missing)).toEqual(["credential_missing"]);
+    expect(r.checks.whatsapp.notOffered.find((n) => n.shiftId === missing)?.reasons).toEqual([
       { code: "credential_missing", type: "FIRST_AID" },
     ]);
-    expect(reasonsOf(r.checks, expired)).toEqual(["credential_expired"]);
-    expect(reasonsOf(r.checks, midSession)).toEqual(["credential_expired"]);
-    expect(reasonsOf(r.checks, clash)).toEqual(["overlap"]);
-    expect(r.checks.notOffered.find((n) => n.shiftId === clash)?.reasons[0]).toMatchObject({
-      from: hoursFromNow(168).toISOString(),
-      to: hoursFromNow(176).toISOString(),
-    });
-    expect(reasonsOf(r.checks, rest)).toEqual(["rest"]);
-    expect(reasonsOf(r.checks, weekly)).toEqual(["weekly_hours"]);
-    expect(reasonsOf(r.checks, dayOff)).toEqual(["unavailable"]);
-    expect(reasonsOf(r.checks, blocked)).toEqual(["blocked_site"]);
-    expect(reasonsOf(r.checks, hiddenSession)).toEqual(["hidden"]);
-    expect(reasonsOf(r.checks, hiddenEvent)).toEqual(["hidden"]);
-    expect(reasonsOf(r.checks, far)).toEqual(["outside_area"]);
-    expect(r.checks.notOfferedMore).toBe(0);
+    expect(reasonsOf(r.checks.whatsapp, expired)).toEqual(["credential_expired"]);
+    expect(reasonsOf(r.checks.whatsapp, midSession)).toEqual(["credential_expired"]);
+    expect(reasonsOf(r.checks.whatsapp, clash)).toEqual(["overlap"]);
+    expect(r.checks.whatsapp.notOffered.find((n) => n.shiftId === clash)?.reasons[0]).toMatchObject(
+      {
+        from: hoursFromNow(168).toISOString(),
+        to: hoursFromNow(176).toISOString(),
+      },
+    );
+    expect(reasonsOf(r.checks.whatsapp, rest)).toEqual(["rest"]);
+    expect(reasonsOf(r.checks.whatsapp, weekly)).toEqual(["weekly_hours"]);
+    expect(reasonsOf(r.checks.whatsapp, dayOff)).toEqual(["unavailable"]);
+    expect(reasonsOf(r.checks.whatsapp, blocked)).toEqual(["blocked_site"]);
+    expect(reasonsOf(r.checks.whatsapp, hiddenSession)).toEqual(["hidden"]);
+    expect(reasonsOf(r.checks.whatsapp, hiddenEvent)).toEqual(["hidden"]);
+    expect(reasonsOf(r.checks.whatsapp, far)).toEqual(["outside_area"]);
+    expect(r.checks.whatsapp.notOfferedMore).toBe(0);
 
     // The listed one's line: role · event, site · date and times · £/h · post, then travel.
     expect(r.whatsapp).toContain(
@@ -240,8 +248,8 @@ describe("the shifts reply lists exactly what she could take", () => {
     expect(r.whatsapp).not.toContain("ZZ"); // never a postcode
     expect(r.whatsapp).toContain(`Take one here: ${PORTAL}/shifts/open\n${AUTOMATIC}`);
     // Every check the rules ran for it, with the travel minutes.
-    expect(r.checks.offered[0]).toMatchObject({ car: 20, publicTransport: null });
-    expect(r.checks.offered[0]?.checks.map((c) => c.code)).toEqual([
+    expect(r.checks.whatsapp.offered[0]).toMatchObject({ car: 20, publicTransport: null });
+    expect(r.checks.whatsapp.offered[0]?.checks.map((c) => c.code)).toEqual([
       "started",
       "active",
       "role",
@@ -252,7 +260,8 @@ describe("the shifts reply lists exactly what she could take", () => {
       "days_off",
       "site",
     ]);
-    expect(passesLogCheck({ ...r.checks })).toBe(true);
+    expect(passesLogCheck({ ...r.checks.whatsapp })).toBe(true);
+    expect(passesLogCheck({ ...r.checks.sms })).toBe(true);
   });
 
   it("CSAS sessions only to holders; a holder's line says so", async () => {
@@ -261,12 +270,12 @@ describe("the shifts reply lists exactly what she could take", () => {
     const other = await t.casual({ first: "Noor" });
     const patrol = await t.session(30, { role: "csas_officer", post: "town centre patrol" });
     const forHolder = await t.reply(holder);
-    expect(forHolder.checks.offered.map((o) => o.shiftId)).toEqual([patrol]);
+    expect(forHolder.checks.whatsapp.offered.map((o) => o.shiftId)).toEqual([patrol]);
     expect(forHolder.whatsapp).toContain("CSAS officer · Fixture event, Acme Test Arena");
     expect(forHolder.whatsapp).toContain("town centre patrol · you hold CSAS");
     const forOther = await t.reply(other);
-    expect(forOther.checks.offered).toEqual([]);
-    expect(forOther.checks.notOffered.find((n) => n.shiftId === patrol)?.reasons).toEqual([
+    expect(forOther.checks.whatsapp.offered).toEqual([]);
+    expect(forOther.checks.whatsapp.notOffered.find((n) => n.shiftId === patrol)?.reasons).toEqual([
       { code: "credential_missing", type: "CSAS" },
     ]);
     expect(forOther.whatsapp).toMatch(/^Hi Noor, there's nothing you can take within 45 minutes/);
@@ -279,11 +288,73 @@ describe("the shifts reply lists exactly what she could take", () => {
     await t.session(48); // Wed: not asked about
     await t.booked(zoe, 145); // Sun 8 Nov 10:00-18:00
     const r = await t.reply(zoe, "anything this weekend?");
-    expect(r.checks.days).toEqual(["2026-11-07", "2026-11-08"]);
-    expect(r.checks.offered.map((o) => o.shiftId)).toEqual([saturday]);
+    expect(r.checks.whatsapp.days).toEqual(["2026-11-07", "2026-11-08"]);
+    expect(r.checks.whatsapp.offered.map((o) => o.shiftId)).toEqual([saturday]);
     expect(r.whatsapp.split("\n")[0]).toBe(
       "Hi Zoe, you're booked on Sun 8 Nov (Door supervisor · Fixture event · 10:00–18:00). For the weekend you can take:",
     );
+  });
+});
+
+describe("counts and edges", () => {
+  it("past the sessions read: an exact not-offered count, and the rest counted as not checked", async () => {
+    const t = await replyFirm();
+    const zoe = await t.casual();
+    const ok = await t.session(20);
+    // 85 sessions needing first aid (she has none), every 3 hours from +30.
+    const first = await t.session(30, { extra: ["FIRST_AID"] });
+    await su.query(
+      `insert into shifts (firm_id, event_id, site_id, role, starts_at, ends_at, headcount, status,
+                           source, required_credentials)
+       select firm_id, event_id, site_id, role, starts_at + make_interval(hours => g * 3),
+              ends_at + make_interval(hours => g * 3), 1, 'open', 'native', required_credentials
+         from shifts, generate_series(1, 84) g
+        where id = $1`,
+      [first],
+    );
+    const r = await t.reply(zoe);
+    expect(r.checks.whatsapp.offered.map((o) => o.shiftId)).toEqual([ok]);
+    // 80 read (the listed one among them): 79 not offered, 50 shown and 29 more; 6 not read.
+    expect(r.checks.whatsapp.notOffered).toHaveLength(50);
+    expect(r.checks.whatsapp.notOfferedMore).toBe(29);
+    expect(r.checks.whatsapp.notChecked).toBe(6);
+    expect(passesLogCheck({ ...r.checks.whatsapp })).toBe(true);
+  });
+
+  it("a booking on a cancelled session isn't named as hers", async () => {
+    const t = await replyFirm();
+    const zoe = await t.casual();
+    await t.session(121); // Sat 7 Nov
+    const gone = await t.booked(zoe, 145); // Sun 8 Nov
+    await su.query("update shifts set status = 'cancelled' where id = $1", [gone.shiftId]);
+    const r = await t.reply(zoe, "anything this weekend?");
+    expect(r.whatsapp.split("\n")[0]).toBe("Hi Zoe, for the weekend you can take:");
+  });
+
+  it('an application counted within the allowance: offered, logged as applied, never "you hold CSAS"', async () => {
+    const t = await replyFirm();
+    await su.query(
+      "update credential_types set applied_allowed = true where firm_id = $1 and code = 'CSAS'",
+      [t.f.firmId],
+    );
+    await su.query(
+      `update firms set settings = settings || '{"credential_applied_allowance_pct": 100}'
+        where id = $1`,
+      [t.f.firmId],
+    );
+    const hana = await t.casual({ first: "Hana" });
+    await su.query(
+      "insert into credentials (firm_id, worker_id, type, status) values ($1, $2, 'CSAS', 'applied')",
+      [t.f.firmId, hana],
+    );
+    const patrol = await t.session(30, { role: "csas_officer" });
+    const r = await t.reply(hana);
+    expect(r.checks.whatsapp.offered.map((o) => o.shiftId)).toEqual([patrol]);
+    expect(
+      r.checks.whatsapp.offered[0]?.checks.find((c) => c.code === "qualification"),
+    ).toMatchObject({ passed: true, type: "CSAS", held: "applied" });
+    expect(r.whatsapp).toContain("CSAS officer · Fixture event");
+    expect(r.whatsapp).not.toContain("you hold CSAS");
   });
 });
 
@@ -303,7 +374,25 @@ describe("the cancel reply", () => {
     expect(r.whatsapp).toBe(
       `Hi Zoe, you're booked on Door supervisor · Fixture event, Acme Test Arena · Tue 3 Nov 15:00–23:00. To cancel, open it and tap Cancel this shift: ${PORTAL}/shifts/${soon.shiftId}. It starts in less than 48 hours, so cancelling now gives you a strike. Your other shifts: ${PORTAL}/ ${AUTOMATIC}\n— ${t.firmName} Shift Team`,
     );
-    expect(r.checks).toMatchObject({ template: "cancel_booking", bookings: [soon.assignmentId] });
+    expect(r.checks.whatsapp).toMatchObject({
+      template: "cancel_booking",
+      bookings: [soon.assignmentId],
+    });
+  });
+
+  it("one she took with 48 hours' notice or more: no strike sentence", async () => {
+    const t = await replyFirm();
+    const zoe = await t.casual();
+    await t.booked(zoe, 48); // Wed 4 Nov 09:00: exactly 48 hours ahead
+    const r = await cancelReply(withFirm, {
+      firmId: t.f.firmId,
+      workerId: zoe,
+      now: NOW,
+      firm: voice(t.firmName),
+      portal: PORTAL,
+    });
+    expect(r.whatsapp).toContain("you're booked on Door supervisor");
+    expect(r.whatsapp).not.toContain("strike");
   });
 
   it("one the office booked: no strike sentence; only one booking: no other shifts", async () => {
@@ -335,13 +424,25 @@ describe("through the shifts line's job", () => {
     );
     const mobile = rows[0]?.mobile ?? "";
     const capture = captureTransport();
-    const send = async (body: string) => {
+    const send = async (
+      body: string,
+      channel: "whatsapp" | "sms" = "whatsapp",
+      transport: MessagingTransport = capture.transport,
+    ) => {
       const messageSid = `SM${randomBytes(16).toString("hex")}`;
-      await receiveWhatsApp(
-        t.f.firmId,
-        { messageSid, from: mobile, to: line, body },
-        { run: withFirm },
-      );
+      if (channel === "sms") {
+        await receiveSms(
+          t.f.firmId,
+          { messageSid, from: mobile, to: line, body, twilioOptOut: null },
+          { run: withFirm },
+        );
+      } else {
+        await receiveWhatsApp(
+          t.f.firmId,
+          { messageSid, from: mobile, to: line, body },
+          { run: withFirm },
+        );
+      }
       // The job queued for that very message, run as the worker would.
       const { rows: queued } = await su.query<{ data: Record<string, unknown> }>(
         `select j.data from pgboss.job j
@@ -353,7 +454,7 @@ describe("through the shifts line's job", () => {
       const result = await runInboundMessage(
         job as Parameters<typeof runInboundMessage>[0],
         withFirm,
-        { transport: capture.transport, ai: noAi, baseDomain: "shiftdesk.test", clock },
+        { transport, ai: noAi, baseDomain: "shiftdesk.test", clock },
       );
       return { messageId: String(job.messageId), result };
     };
@@ -400,6 +501,106 @@ describe("through the shifts line's job", () => {
     });
     expect(e?.built?.notOffered[0]).toMatchObject({ shiftId: firstAid });
     expect(e?.built?.names).toMatchObject({ FIRST_AID: "first aid at work certificate" });
+  });
+
+  it('by text: three listed and "+ 2 more", and the entry says the same; WhatsApp lists five', async () => {
+    const t = await lined();
+    const ids: string[] = [];
+    for (const h of [30, 54, 78, 102, 126]) {
+      const id = await t.session(h);
+      await t.estimate(id, 20);
+      ids.push(id);
+    }
+    const text = await t.send("any shifts?", "sms");
+    const sent = t.capture.sent.at(-1);
+    expect(sent).toMatchObject({ channel: "sms" });
+    const body = sent && "body" in sent ? sent.body : "";
+    expect(body).toContain(" 3) ");
+    expect(body).not.toContain(" 4) ");
+    expect(body).toContain("+ 2 more.");
+    expect(body.length).toBeLessThanOrEqual(1600);
+    const [byText] = await t.eventsOf(text.messageId, "enquiry.checks");
+    expect(byText).toMatchObject({ channel: "sms", sent: true, more: 2 });
+    expect((byText?.offered as { shiftId: string }[]).map((o) => o.shiftId)).toEqual(
+      ids.slice(0, 3),
+    );
+    const whatsapp = await t.send("any shifts?");
+    const [byWhatsApp] = await t.eventsOf(whatsapp.messageId, "enquiry.checks");
+    expect(byWhatsApp).toMatchObject({ channel: "whatsapp", more: 0 });
+    expect((byWhatsApp?.offered as unknown[]).length).toBe(5);
+  });
+
+  it("WhatsApp refuses it: the text version goes, and the text's entry is logged", async () => {
+    const t = await lined();
+    for (const h of [30, 54, 78, 102, 126]) {
+      await t.estimate(await t.session(h), 20);
+    }
+    const texts: string[] = [];
+    const refusing: MessagingTransport = {
+      name: "refuses-whatsapp",
+      async send(m) {
+        if (m.channel === "whatsapp") throw new ChannelRefusedError("whatsapp");
+        if ("body" in m) texts.push(m.body);
+        return { providerMessageId: `text-${randomBytes(8).toString("hex")}` };
+      },
+    };
+    const { messageId } = await t.send("any shifts?", "whatsapp", refusing);
+    expect(texts).toHaveLength(1);
+    expect(texts[0]).toContain("+ 2 more.");
+    const [entry] = await t.eventsOf(messageId, "enquiry.checks");
+    expect(entry).toMatchObject({ channel: "sms", sent: true, more: 2 });
+    expect((entry?.offered as unknown[]).length).toBe(3);
+  });
+
+  it("cancel: the office's page names the booking the reply named", async () => {
+    const t = await lined();
+    const soon = await t.booked(t.zoe, 30);
+    const { messageId } = await t.send("can I cancel my shift");
+    const [checks] = await t.eventsOf(messageId, "enquiry.checks");
+    expect(checks).toMatchObject({ template: "cancel_booking", bookings: [soon.assignmentId] });
+    const e = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, messageId, NOW));
+    expect(e?.built?.named).toEqual([
+      expect.objectContaining({ shiftId: soon.shiftId, role: "door_supervisor" }),
+    ]);
+  });
+
+  it("a damaged entry: what can't be read is shown as such, never a page that fails", async () => {
+    const t = await lined();
+    const ok = await t.session(48);
+    const { messageId } = await t.send("any shifts?");
+    await su.query(
+      `insert into events (firm_id, actor_type, action, entity_type, entity_id, data)
+       values ($1, 'system', 'enquiry.checks', 'message', $2, $3)`,
+      [
+        t.f.firmId,
+        messageId,
+        JSON.stringify({
+          template: "shifts_list",
+          offered: [
+            {
+              shiftId: ok,
+              car: 20,
+              publicTransport: null,
+              checks: [
+                { code: "overlap", passed: false, withStart: "bad", withEnd: null },
+                { code: "qualification", passed: true, type: "SIA_DS", expiresOn: "2029-02-30" },
+                { code: "rest", passed: true, hoursBefore: null, hoursAfter: 12 },
+              ],
+            },
+          ],
+          notOffered: [{ shiftId: ok, reasons: [{ code: "overlap", from: "yesterday", to: 5 }] }],
+          bookings: ["not-an-id"],
+        }),
+      ],
+    );
+    const e = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, messageId, NOW));
+    expect(e?.built?.offered[0]?.checks.map((c) => c.code)).toEqual([
+      "unreadable",
+      "unreadable",
+      "rest",
+    ]);
+    expect(e?.built?.notOffered[0]?.reasons).toEqual([{ code: "overlap" }]);
+    expect(e?.built?.bookings).toEqual([]);
   });
 
   it("pay: the link only, never a list; no AI sorting: the reason is logged", async () => {

@@ -186,7 +186,7 @@ describe("the loader joins a message to its replies, its question and the log", 
       ["in", "Is parking free at the festival?"],
       [
         "out",
-        `The office will see this and get back to you. Ref ${q[0]?.id.slice(0, 8).toUpperCase()}. — ${t.firmName} Shift Team`,
+        `The office will see this and get back to you. Ref ${q[0]?.id.slice(0, 8).toUpperCase()}. Automatic reply. Send OFFICE to reach a person. — ${t.firmName} Shift Team`,
       ],
     ]);
     expect(e?.timeline).toMatchObject({

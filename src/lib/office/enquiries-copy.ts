@@ -390,6 +390,8 @@ export function checkWords(
       return c.passed ? `Not a day off ${mark}` : `Marked a day off ${mark}`;
     case "site":
       return c.passed ? `Site allowed ${mark}` : `Blocked from this site ${mark}`;
+    case "unreadable":
+      return `A check whose record can't be read ${mark}`;
     default:
       return `${c.code} ${mark}`;
   }
@@ -461,6 +463,14 @@ export function reasonWords(
       return r.code.replace(/_/g, " ");
   }
 }
+
+// A cancel reply checks no sessions and leaves none out: it names their next booking.
+export const CANCEL_CHECKS = "None needed: the cancel reply only names their next booking.";
+export const CANCEL_NOT_OFFERED = "None: a cancel reply doesn't offer sessions.";
+
+// Sessions considered past the ones read (the most a reply reads), so never checked one by one.
+export const notCheckedWords = (n: number) =>
+  `${n} more ${n === 1 ? "session" : "sessions"} in the 28 days ${n === 1 ? "wasn't" : "weren't"} checked one by one.`;
 
 // Step 4 for a personal reply: which reply, with how many sessions.
 export function builtWords(template: string, offered: number, more: number): string {

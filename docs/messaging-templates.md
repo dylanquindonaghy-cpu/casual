@@ -67,8 +67,8 @@ it.
 | `credential_expired` | Utility | "Your {credential} expired on {date}. You can't take shifts that need it until you upload your renewed card and the office checks it: {link} — {firm} Shift Team". One she can't upload, `credential_expired_to_office`: "Your {credential} expired on {date}. You can't take shifts that need it until you renew it and send the new details to the office. — {firm} Shift Team" |
 | (screen only: My shifts' "Needs updating") | — | One row per qualification to sort out (12F.1; the words are `needsText()` in `src/lib/portal/qualification-copy.ts`, in `docs/screens.md`). A row she can sort herself ends "Upload it", linking to the same upload page (12F.2) |
 | `pay_query_update` | Utility | "Update on your pay query (ref {ref}): {status}. {note} — {firm} Shift Team" ({status} is "sorted"; {note} is payroll's note on one line, always written by a person, never by AI. Sent to each worker when payroll marks their query sorted, `src/lib/notices/pay-query-update.ts`; quiet hours hold it) |
-| `voicemail_received` | Utility | "Thanks for your voicemail. The office will see it and get back to you. Ref {ref}. — {firm} Shift Team" (built in Phase 7, `voicemailReceivedMessage()`: a worker's voicemail on the shifts line became a request for the office; {ref} is the request's reference. By the channel the worker chose, from the firm's line. A phone call doesn't open WhatsApp's 24-hour window, so unlike the instant replies it needs a template) |
-| `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. — {firm} Shift Team" (built in Phase 7, `unknownNumberMessage()`: a WhatsApp to the shifts line from a number no worker here has; only the first from that number in 24 hours; from the firm's line. A former worker's number gets no reply: the office is alerted) |
+| `voicemail_received` | Utility | "Thanks for your voicemail. The office will see it and get back to you. Ref {ref}. Automatic reply. Send OFFICE to reach a person. — {firm} Shift Team" (built in Phase 7, `voicemailReceivedMessage()`: a worker's voicemail on the shifts line became a request for the office; {ref} is the request's reference. By the channel the worker chose, from the firm's line. A phone call doesn't open WhatsApp's 24-hour window, so unlike the instant replies it needs a template) |
+| `unknown_number` | Service reply | "Thanks for your message. We don't recognise this number. If you work with {firm}, reply with your full name and the office will get back to you. Automatic reply. Send OFFICE to reach a person. — {firm} Shift Team" (built in Phase 7, `unknownNumberMessage()`: a WhatsApp to the shifts line from a number no worker here has; only the first from that number in 24 hours; from the firm's line. A former worker's number gets no reply: the office is alerted) |
 
 ## Submitting to Meta
 
@@ -104,16 +104,17 @@ the words are always these.
 | "cancel" | The personal cancel reply (below, 12D.2: their next booking, with its link) |
 | "pay", "paid", "wages", "payslip" | "Your hours, rates and pay dates: {link} (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person." ({link} is the pay page; never a list or an answer about pay) |
 | "shifts", "work", "available" | The personal shift list (below, 12D.2). Not when the message also says they can't make it or are late ("can't", "cannot", "won't", "not", "unable", "sick", "ill", "late"): that's about their own shift, so the AI or the office gets it. "shift" alone isn't a keyword for the same reason |
-| "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}." + a request for the office (a question, the message as its note) |
+| "help", "office", "talk" | "The office will see this and get back to you. Ref {ref}. Automatic reply. Send OFFICE to reach a person." + a request for the office (a question, the message as its note) |
 | anything else | Haiku picks one of the rows above (the worker's text only; an answer that isn't exactly one label counts as none); no AI, a failure, or no answer within 5 seconds: the office row. A photo with no text: the office row |
 
 ## Personal replies on the shifts line
 
 Built in 12D.2 (`src/lib/inbound/personal-reply.ts`; docs/office-v2.md 5.7 items 1 and 2): the
 answer to "shifts" and "cancel", by keyword or the AI's label, built by code from the firm's data
-(the AI only picks the label). Every instant reply except the office's and the voicemail's (those
-already go to a person) ends "Automatic reply. Send OFFICE to reach a person." before the sign-off
-(WhatsApp's escalation rule; "office" is a keyword).
+(the AI only picks the label). Every automatic reply the shifts line sends (these, pay, the
+office's, `unknown_number`, `voicemail_received`, `sms_stopped` and `sms_started`) ends
+"Automatic reply. Send OFFICE to reach a person." before the sign-off (docs/office-v2.md 5.7 item
+3: WhatsApp's escalation rule; "office" is a keyword).
 
 **The shift list.** The casual app's own Open shifts for them (the rules, the showing switches and
 their travel area), urgent first, then the nearest. For a casual asking about the weekend, booked
@@ -130,23 +131,29 @@ Automatic reply. Send OFFICE to reach a person.
 — Acme Events Shift Team
 ```
 
-- The booked line only when they have a booking on a day they named; the day words ("For
+- The booked line only when they have a booking on a day they named (at most two named, then
+  "and N more"); the day words ("For
   Saturday", "For the weekend", "For today", "For tomorrow") only when code recognises a weekday,
   "weekend", "today" or "tomorrow" in their message, and then only that day's shifts are listed.
   No day named: "Hi Zoe, shifts you can take:".
 - Each shift: role · event, site · date and times · £/h (left out when the session has no rate) ·
-  post · "urgent" · "you hold CSAS" (a session needing CSAS), then the travel line as the app
+  post · "urgent" · "you hold CSAS" (a session needing CSAS, which they hold: never for one only
+  applied for), then the travel line as the app
   shows it ("… · no public transport by 07:30", "Distance not known yet"). Never a postcode: "your
   home area".
-- At most 5 (3 by text), then "+ N more: {link}"; never over 1,600 characters: names are cut to
-  set lengths, then fewer shifts are listed. Always "Take one here: {link}" (Open shifts; no booking
-  by reply number: D6 deferred).
+- At most 5 (3 by text), then "+ N more: {link}"; never over 1,600 characters: names (and the
+  booked line's) are cut to set lengths, then fewer shifts are listed, and if nothing else would
+  fit, only "Shifts you can take: {link}". A text's cut names end "..." (not "…", which would
+  take the whole text out of the plain text alphabet). Always "Take one here: {link}" (Open
+  shifts; no booking by reply number: D6 deferred).
 - No home area: the travel lines are left out and "Add your home area to see how far each one is:
   {profile link}" goes before "Take one here".
 - Nothing they can take: "Hi Zoe, there's nothing you can take on Saturday within 45 minutes of
   your home area right now. We'll message you if something comes up. All open shifts: {link}"
   (the day and the area only when known; "We'll message you…" only when they get shift alerts).
-- By text: "Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door supervisor, Acme Demo Arena, £15.50/h, 12 min by car. 2) Sat 10 Oct 17:00-23:00 CSAS officer, Northgate Town Centre, £15.00/h, 21 min by car. Take one: {link} Automatic reply. Send OFFICE to reach a person. - Acme Events Shift Team"
+- By text: "Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door supervisor, Acme Demo Arena, £15.50/h, 3.1 miles, 12 min by car, 24 min by public transport. 2) Sat 10 Oct 17:00-23:00 CSAS officer, Northgate Town Centre, £15.00/h, 8.4 miles, 21 min by car, 38 min by public transport. Take one: {link} Automatic reply. Send OFFICE to reach a person. - Acme Events Shift Team" (the same travel facts as the app's line, with commas instead of "·",
+  which isn't in the plain text alphabet: "distance not known yet", "about 7 miles (straight
+  line), travel time not known yet", "over 90 min by car")
 
 **The cancel reply.** Their next booking, named, with its link:
 
@@ -156,7 +163,9 @@ Automatic reply. Send OFFICE to reach a person.
   reply". No booking ahead: "Hi Kieran, you have no shifts booked, so there's nothing to cancel."
 
 What each reply was built from goes in the `enquiry.checks` log entry (docs/office-v2.md 3.6, 6.1):
-ids, codes, dates and minutes only. The office reads it on the message's Enquiries page.
+ids, codes, dates and minutes only, for the words that went (a text lists fewer than a WhatsApp,
+and when WhatsApp refuses one, the text version goes instead). The office reads it on the
+message's Enquiries page.
 
 ## The office's reply on Enquiries
 
@@ -201,9 +210,10 @@ opt-out. When Twilio's own opt-out handling acted on the text (it says so, `OptO
 sent its own confirmation; otherwise, only when the worker's setting changed, one text (a plain
 hyphen before the sign-off: text only):
 
-- `sms_stopped`: "You won't get texts from {firm} now. Reply START to turn them back on. - {firm}
-  Shift Team"
-- `sms_started`: "Texts from {firm} are back on. Reply STOP to turn them off. - {firm} Shift Team"
+- `sms_stopped`: "You won't get texts from {firm} now. Reply START to turn them back on. Automatic
+  reply. Send OFFICE to reach a person. - {firm} Shift Team"
+- `sms_started`: "Texts from {firm} are back on. Reply STOP to turn them off. Automatic reply. Send
+  OFFICE to reach a person. - {firm} Shift Team"
 
 The worker's profile says "Texts are off: you replied STOP to one of our texts. We'll send shift
 messages by WhatsApp. To turn texts back on, text START to our number." Any other text to the shifts

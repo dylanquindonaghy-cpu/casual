@@ -60,7 +60,7 @@ test("a worker rings the shifts line: they hear the message, get their login lin
     await sentTo(
       worker,
       left,
-      /(Thanks for your voicemail\. The office will see it and get back to you\. Ref [0-9A-F]{8}\. — Acme Events Shift Team)/,
+      /(Thanks for your voicemail\. The office will see it and get back to you\. Ref [0-9A-F]{8}\. Automatic reply\. Send OFFICE to reach a person\. — Acme Events Shift Team)/,
     ),
   ).toBeTruthy();
 

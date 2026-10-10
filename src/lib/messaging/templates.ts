@@ -349,19 +349,23 @@ export function payQueryUpdateMessage(
 // office's reply already goes to one.
 export type ShiftsLineReply = { intent: "pay"; link: string } | { intent: "office"; ref: string };
 
+// Before the sign-off of every automatic reply on the shifts line (docs/office-v2.md 5.7 item 3:
+// WhatsApp's rule that people can reach a person; "office" is a keyword).
+export const AUTOMATIC_REPLY = "Automatic reply. Send OFFICE to reach a person.";
+
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
   const text =
     reply.intent === "pay"
-      ? `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in). Automatic reply. Send OFFICE to reach a person.`
+      ? `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in).`
       : `The office will see this and get back to you. Ref ${reply.ref}.`;
-  return `${text} — ${firm.signOff}`;
+  return `${text} ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }
 
 // unknown_number (WhatsApp, a service reply within 24 hours of their message): someone messaged the
 // shifts line from a number that isn't any worker's here (src/lib/inbound/reply.ts). At most once
 // per number per 24 hours.
 export function unknownNumberMessage(firm: FirmVoice): string {
-  return `Thanks for your message. We don't recognise this number. If you work with ${firm.name}, reply with your full name and the office will get back to you. — ${firm.signOff}`;
+  return `Thanks for your message. We don't recognise this number. If you work with ${firm.name}, reply with your full name and the office will get back to you. ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }
 
 // unknown_number_alert (email to the office's active admins and resourcers): a message on the
@@ -404,18 +408,18 @@ export function callGreeting(firm: FirmVoice, link: CallLink): string {
 // became a request for the office (src/lib/inbound/reply.ts). A phone call doesn't open WhatsApp's
 // 24-hour window for free text, so this is a template, sent by the channel the worker chose.
 export function voicemailReceivedMessage(firm: FirmVoice, ref: string): string {
-  return `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. — ${firm.signOff}`;
+  return `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }
 
 // sms_stopped / sms_started (text only, the answer to their own text): a worker replied STOP or
 // START to a text (src/lib/inbound/opt-out.ts). A plain hyphen before the sign-off: a text-only
 // message, kept to standard text characters.
 export function smsStoppedMessage(firm: FirmVoice): string {
-  return `You won't get texts from ${firm.name} now. Reply START to turn them back on. - ${firm.signOff}`;
+  return `You won't get texts from ${firm.name} now. Reply START to turn them back on. ${AUTOMATIC_REPLY} - ${firm.signOff}`;
 }
 
 export function smsStartedMessage(firm: FirmVoice): string {
-  return `Texts from ${firm.name} are back on. Reply STOP to turn them off. - ${firm.signOff}`;
+  return `Texts from ${firm.name} are back on. Reply STOP to turn them off. ${AUTOMATIC_REPLY} - ${firm.signOff}`;
 }
 
 // After a voicemail, and when the number called isn't any firm's.

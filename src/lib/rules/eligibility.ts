@@ -282,7 +282,11 @@ export function checkEligibility(raw: EligibilityInput): EligibilityResult {
       if (applied && settings.appliedAllowedTypes.includes(type)) {
         const pct = settings.appliedAllowancePct;
         const share = (settings.appliedInUseCount + 1) / (settings.deployedCount + 1);
-        if (pct > 0 && share <= pct / 100) continue;
+        // Counted within the allowance: a passed check that says "applied".
+        if (pct > 0 && share <= pct / 100) {
+          passedNow();
+          continue;
+        }
         fail("applied_over_allowance", REASONS.applied_over_allowance(name(type)));
       } else if (
         applied &&

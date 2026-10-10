@@ -364,7 +364,7 @@ describe("replying (the inbound-message job)", () => {
     ]);
     const ref = (rows[0]?.id ?? "").slice(0, 8).toUpperCase();
     expect(onlyBody(sent)).toEqual([
-      `The office will see this and get back to you. Ref ${ref}. — ${t.name} Shift Team`,
+      `The office will see this and get back to you. Ref ${ref}. Automatic reply. Send OFFICE to reach a person. — ${t.name} Shift Team`,
     ]);
     expect((await t.eventsOf("request.created"))[0]).toMatchObject({
       actor_type: "worker",
@@ -446,7 +446,7 @@ describe("replying (the inbound-message job)", () => {
         channel: "whatsapp",
         to: stranger,
         from: t.line,
-        body: `Thanks for your message. We don't recognise this number. If you work with ${t.name}, reply with your full name and the office will get back to you. — ${t.name} Shift Team`,
+        body: `Thanks for your message. We don't recognise this number. If you work with ${t.name}, reply with your full name and the office will get back to you. Automatic reply. Send OFFICE to reach a person. — ${t.name} Shift Team`,
       },
     ]);
     const emails = sent.filter(

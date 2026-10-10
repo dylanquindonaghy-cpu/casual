@@ -23,6 +23,9 @@ import {
   NO_CHECKS,
   reasonWords,
   travelCheckWords,
+  notCheckedWords,
+  CANCEL_CHECKS,
+  CANCEL_NOT_OFFERED,
   OUTCOME_TONES,
   OUTCOME_WORDS,
   PAY_LOCK,
@@ -95,6 +98,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
   if (!e) notFound();
   const at = (d: Date) => timeOnDay(d, e.timeZone);
   const b = e.built;
+  const cancel = b?.template === "cancel_booking" || b?.template === "cancel_none";
   const hhmm = (iso: string) => {
     const w = wallTimeOf(new Date(iso), e.timeZone);
     return `${String(w.hour).padStart(2, "0")}:${String(w.minute).padStart(2, "0")}`;
@@ -190,12 +194,12 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
           </li>
           <li>
             <span className="font-semibold">Checks made by code:</span>{" "}
-            {!b || b.offered.length === 0 ? (
-              b ? (
-                "No session passed them (see below)."
-              ) : (
-                NO_CHECKS
-              )
+            {!b ? (
+              NO_CHECKS
+            ) : cancel ? (
+              CANCEL_CHECKS
+            ) : b.offered.length === 0 ? (
+              "No session passed them (see below)."
             ) : (
               <ul role="list" className="mt-1 flex flex-col gap-3">
                 {b.offered.map((o) => (
@@ -218,6 +222,21 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
             {b ? (
               <>
                 {builtWords(b.template, b.offered.length, b.more)}
+                {b.named.length > 0 && (
+                  <ul role="list" className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+                    {b.named.map((n, i) => (
+                      <li key={i}>
+                        {n ? (
+                          <Link href={`/office/shifts/${n.shiftId}`} className={textLink}>
+                            {sessionWords(n)}
+                          </Link>
+                        ) : (
+                          sessionWords(null)
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {b.offered.length > 0 && (
                   <ul role="list" className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
                     {b.offered.map((o) => (
@@ -264,8 +283,12 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         </h2>
         {!b ? (
           <p className={`${card} ${headingGap} text-ink-muted`}>{NO_CHECKS}</p>
+        ) : cancel ? (
+          <p className={`${card} ${headingGap} text-ink-muted`}>{CANCEL_NOT_OFFERED}</p>
         ) : b.notOffered.length === 0 ? (
-          <p className={`${card} ${headingGap} text-ink-muted`}>Nothing left out.</p>
+          <p className={`${card} ${headingGap} text-ink-muted`}>
+            {b.notChecked > 0 ? notCheckedWords(b.notChecked) : "Nothing left out."}
+          </p>
         ) : (
           <ul role="list" className={`${card} ${headingGap} flex list-disc flex-col gap-1 pl-9`}>
             {b.notOffered.map((n) => (
@@ -278,6 +301,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
             {b.notOfferedMore > 0 && (
               <li className={meta}>And {b.notOfferedMore} more not listed.</li>
             )}
+            {b.notChecked > 0 && <li className={meta}>{notCheckedWords(b.notChecked)}</li>}
           </ul>
         )}
       </section>

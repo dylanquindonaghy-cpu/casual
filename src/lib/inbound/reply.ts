@@ -6,7 +6,7 @@ import type { AiClient } from "../ai/client";
 import { firms, messages, officeUsers, requests, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
-import { recordEvent } from "../events/record";
+import { passesLogCheck, recordEvent } from "../events/record";
 import { errorCode, type FirmTask } from "../jobs/firm-job";
 import { log } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
@@ -25,7 +25,7 @@ import { lockUnhandled } from "./claim";
 import { inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
 import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from "./opt-out";
-import { cancelReply, shiftsReply } from "./personal-reply";
+import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 
 // Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
 // docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
@@ -311,6 +311,11 @@ async function answerMessage(
             portal,
           })
         : null;
+  // What the office's Enquiries page will read, settled before the claim: the reply goes once, so
+  // an entry the log would refuse must never roll back the stored reply after the send.
+  const logged = personal
+    ? { whatsapp: settled(personal.checks.whatsapp), sms: settled(personal.checks.sms) }
+    : null;
 
   // Step 3: the claim, the office's request and the event, together.
   const texts = await run(payload.firmId, async (tx) => {
@@ -396,13 +401,19 @@ async function answerMessage(
 
   return run(payload.firmId, async (tx): Promise<InboundResult> => {
     // What the personal reply was built from (docs/office-v2.md 3.6, 6.1), whether it went or not.
-    if (personal) {
+    // The entry for the words that went (a text lists fewer than a WhatsApp).
+    if (logged) {
       await recordEvent(tx, {
         actorType: "system",
         action: "enquiry.checks",
         entityType: "message",
         entityId: payload.messageId,
-        data: { ...personal.checks, sent: sent.ok, channel: sent.channel, workerId: c.workerId },
+        data: {
+          ...logged[sent.channel === "sms" ? "sms" : "whatsapp"],
+          sent: sent.ok,
+          channel: sent.channel,
+          workerId: c.workerId,
+        },
       });
     }
     if (!sent.ok) {
@@ -626,3 +637,24 @@ export const inboundMessageFirmTask = inboundMessageTask(() => {
   const env = workerEnv();
   return { transport: getTransport(env), ai: getAi(env), baseDomain: env.APP_BASE_DOMAIN };
 });
+
+// An `enquiry.checks` entry as the log will take it. Every sample passes the log's check
+// (tests/unit/inbound.personal-reply.test.ts), so this only guards the unforeseen: an entry the
+// check refuses keeps its ids, minutes and counts, without the checks' figures.
+function settled(checks: EnquiryChecks): EnquiryChecks {
+  const sample = {
+    ...checks,
+    sent: true,
+    channel: "whatsapp",
+    workerId: "00000000-0000-0000-0000-000000000000",
+  };
+  if (passesLogCheck(sample)) return checks;
+  return {
+    ...checks,
+    days: [],
+    area: null,
+    offered: checks.offered.map((o) => ({ ...o, checks: [] })),
+    notOffered: [],
+    notOfferedMore: checks.notOffered.length + checks.notOfferedMore,
+  };
+}

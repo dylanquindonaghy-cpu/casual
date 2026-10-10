@@ -71,7 +71,7 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
     await sentTo(
       stranger,
       asked,
-      /(Thanks for your message\. We don't recognise this number\. If you work with Acme Events, reply with your full name and the office will get back to you\. — Acme Events Shift Team)/,
+      /(Thanks for your message\. We don't recognise this number\. If you work with Acme Events, reply with your full name and the office will get back to you\. Automatic reply\. Send OFFICE to reach a person\. — Acme Events Shift Team)/,
     ),
   ).toBeTruthy();
   // The office alert (no number, no message in it), then Today shows the message.

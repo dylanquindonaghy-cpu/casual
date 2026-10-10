@@ -277,7 +277,10 @@ describe("previewBooking", () => {
     const verdict = await withFirm(f.firmId, (tx) =>
       previewBooking(tx, { shiftId, workerId: sam, now: NOW }),
     );
-    expect(verdict).toEqual({ ok: true, reasons: [], codes: [] });
+    // The rules' answer and every check they ran (12D.2), all passed; never a pass.
+    expect(verdict).toEqual({ ok: true, reasons: [], codes: [], checks: expect.any(Array) });
+    expect(verdict?.checks.length).toBeGreaterThan(0);
+    expect(verdict?.checks.every((c) => c.passed)).toBe(true);
     expect(verdict && "pass" in verdict).toBe(false);
     expect(
       await withFirm(f.firmId, (tx) =>

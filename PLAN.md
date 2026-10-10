@@ -800,7 +800,7 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       output holds more of a casual's postcode than the district; isolation; new e2e
       `office.enquiries.spec.ts`; the walkthrough's unknown-numbers step; the specs that used
       Requests (§10). Docs: `docs/screens.md` (12D.1)
-- [ ] Personal replies (§3.6, §5.7 items 1–3): the shifts and cancel replies built in
+- [x] Personal replies (§3.6, §5.7 items 1–3): the shifts and cancel replies built in
       `src/lib/inbound/personal-reply.ts` from `openShiftsFor()` with the casual app's filters
       (eligibility, `visibleToCasuals` and the travel area) and their travel lines; at most 5
       shifts, urgent first, then the nearest, inside a character budget (names cut to set lengths,
@@ -2908,6 +2908,26 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     of its own when the templates are submitted.
   - Standing demo messages for Enquiries (a keyword reply, a question waiting, an unknown number):
     with the demo seed (12I.1).
+- Personal replies (12D.2 review):
+  - **Dylan to confirm** (`docs/dpia-travel.md`): a personal reply's `enquiry.checks` entry keeps
+    the casual's travel limit and the minutes to each session offered (never the postcode), for
+    the office's "Inside travel area (20 min by car, limit 45 min)"; it stays as long as the
+    action log. Decision 21 above says the travel area is "never in the action log": keep these
+    minutes, or log only whether each session was inside the area?
+  - **Dylan to confirm:** "Automatic reply. Send OFFICE to reach a person." is on every automatic
+    reply, the STOP/START confirmations included (§5.7 item 3 says every instant reply); and a
+    text lists each session's distance and both times, longer than §5.7's text example, to meet
+    Phase 12's Done-when.
+  - The booked line ("you're booked on …") and the cancel reply name booked shifts with no travel
+    line (as §5.7 words them); the Done-when's "every shift … in shifts-line replies shows the
+    distance" may want one there too.
+  - Day words can be fooled: "sat", "mon", "wed" and "sun" also match ordinary words ("I sat my
+    test", "c'mon"); the reply then says "For Saturday" and links to all shifts.
+  - A cancel reply names the next booking, not the day she named ("cancel my Saturday shift"), as
+    the spec says.
+  - "+ N more" counts only the first 50 sessions she could take (the list's cap).
+  - Tests for the AI's other fallback reasons (no answer, not a label, no text) and for step 2's
+    words for them; only "not connected" is tested end to end.
 
 ## Hours log
 
@@ -3038,3 +3058,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-09 | 12 | 2.1 | Qualification statuses and the Casuals pages (12F.1): pure `qualificationStatus()`, `listQualifications()`, `rightToWork()` and `needsUpdating()` in `src/lib/credentials/status.ts` (Valid, Expiring soon, Expired, Missing, Applied for, Suspended, read in the rules engine's order; only the types her roles need; right to work as a status only; §4.2's four levels, an application counted only as check 4 allows); one 30-day window (`EXPIRING_SOON_DAYS`) shared by the expiry scan, the office and My shifts; one loader for every casual in five reads; Profile's "Qualifications" and My shifts' "Needs updating" card ("credential" never shown); Workers became Casuals (`/office/casuals`: All and Need updating with counts, "Find a casual", a table on a computer and cards on a phone; `/office/casuals/[id]` with needs updating, qualifications, right to work, travel area, strikes and access; the old addresses redirect); guardrails OK, every item fixed; two browser tests and the walkthrough's step 18 brought up to the new words; 4203 tests + 82 e2e + the walkthrough's 3; verified and audited DONE (round 2, after adding a browser test of the rendered office pages) (see docs/work-log.md) |
 | 2026-10-10 | 12 | 2.3 | Uploads, the check view and the staff photo (12F.2): migration 0042 (`uploads`: the bytes, sha256, one waiting per casual per photo or type; on `credentials` `check_state`, `rejected_reason` and `evidence_upload_id`, with a check that an unchecked record is always stored as expired) and 0043 (`credential_types.office_recorded`); every reader the rules and messages use counts checked records only; the phone shrinks a picture to a 1,600px JPEG, the server reads its type from the first bytes, refuses it over 950,000 bytes or 40 million pixels and redraws it with `sharp` (no location data); `/files/[id]` for the casual and their firm's admins and resourcers only (`private, no-store`, never offline); approve (expiry and number as read by a person, or a deliberate "no expiry" tick; the GOV.UK register for SIA) or reject with a reason, on the casual's page and in Casuals' "Uploads to check" (oldest first, menu badge); CSAS, right to work, health and criminal record items recorded by the office only; the staff photo's status (36 months, "Due soon" at 30 days, a firm setting); rejected and replaced images purged after 30 days; exports list image details, never the bytes; expiry reminders link to the upload page only where she can upload; guardrails FIX FIRST ×2 (a resend could delete a just-approved photo; reminder links to pages that refuse the type) and every SHOULD fixed; 4296 tests + 83 e2e + the walkthrough's 3; verified and audited DONE (round 1); 16:28–17:54 on 9 Oct and 12:05–12:59 on 10 Oct, the gap an idle container (see docs/work-log.md) |
 | 2026-10-10 | 12 | 1.3 | Enquiries (12D.1): migration 0044 (`requests.message_id`, a real link to the shifts-line message, cleared and never the question when the message goes (`ON DELETE SET NULL (message_id)`, by hand); one question per message; the `reply_to` index; the old payload id moved over, proven on the dev database); `/office/enquiries` (All, Need a person, Requests from the app, Pay; today's count and Need a person with the oldest's age; outcome labels worked out by code from the log; the AI banner while `AI_TRANSPORT=none`) and `/office/enquiries/[id]` (the conversation, "How it was answered" from logged facts, "No checks recorded" until 12D.2); the reply box (free text inside WhatsApp's 24 hours, else `request_update`, said in one line; stored at once, sent by the new `enquiry-reply` job from the firm's current line; a failed send puts it back) and "Close without a reply" with a reason code; Requests from the app ("Answered" for a question); `/office/requests` redirects; the menu badge; guardrails FIX FIRST ×2 (four unit lists; the reply went from the old number) and every SHOULD fixed (orphaned questions, a stranger's STOP, unknown callers, the old request path); 4358 tests + 84 e2e + the walkthrough's 3; verified and audited DONE (round 1) (see docs/work-log.md) |
+| 2026-10-10 | 12 | 2.0 | Personal replies (12D.2): the shifts and cancel replies built per casual by code from the casual app's own Open shifts (`src/lib/inbound/personal-reply.ts`: at most 5 on WhatsApp and 3 by text, urgent first then nearest, each with event, site, times, pay, post and the travel line; day words and her bookings on the days she named; always within 1,600 characters; the cancel reply names her next booking, with the strike sentence only when a strike would apply); "Automatic reply. Send OFFICE to reach a person." on every automatic reply; `checkEligibility()` returns every check with its figures, the decision unchanged; the `enquiry.checks` log entry for the channel that went, and the Enquiries page's "Checks made by code" and "Considered but not offered"; guardrails FIX FIRST ×2 and six SHOULDs fixed; audit round 1 NOT DONE (the automatic line, the text's travel, the review's record), round 2 DONE; 4,420 tests + 85 e2e + the walkthrough's 3 (see docs/work-log.md) |

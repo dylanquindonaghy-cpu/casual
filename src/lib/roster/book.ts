@@ -155,7 +155,7 @@ export async function lockAppliedDay(tx: FirmTx, day: string): Promise<void> {
 export async function previewBooking(
   tx: FirmTx,
   request: { shiftId: string; workerId: string; now: Date },
-): Promise<{ ok: boolean; reasons: string[]; codes: RuleCode[] } | null> {
+): Promise<Verdict | null> {
   if (!uuid.safeParse(request.shiftId).success || !uuid.safeParse(request.workerId).success) {
     return null;
   }
@@ -163,8 +163,9 @@ export async function previewBooking(
   const { shiftId, workerId, now } = request;
   const input = await loadEligibilityInput(tx, { shiftId, workerId, now });
   if (!input) return null;
-  const { ok, reasons, codes } = checkEligibility(input);
-  return { ok, reasons, codes };
+  // The same verdict as previewBookings() gives for the pair (never the pass).
+  const { ok, reasons, codes, checks } = checkEligibility(input);
+  return { ok, reasons, codes, checks };
 }
 
 // The same verdicts for many pairs at once (Open shifts, the urgent board, the offer candidate

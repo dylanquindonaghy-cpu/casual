@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, notInArray, sql, type SQL } from "drizzle-orm";
 import { DAY, systemClock } from "../auth/clock";
 import {
   CANCELLED_ASSIGNMENT_STATUSES,
@@ -87,11 +87,13 @@ export interface OpenShiftsList {
   };
   // With `explain` (the shifts line's personal reply, 12D.2): the rules' checks for each listed
   // shift, and the sessions considered (her roles, the window and filters, not hers) but not
-  // listed, each with why (at most NOT_OFFERED_MAX, and how many more).
+  // listed, each with why (at most NOT_OFFERED_MAX, and how many more); and how many more were
+  // considered than were read (CONSIDERED_MAX), so not checked one by one.
   explain?: {
     checks: Map<string, RuleCheck[]>;
     notOffered: NotOffered[];
     notOfferedMore: number;
+    notChecked: number;
   };
 }
 
@@ -379,11 +381,19 @@ export async function openShiftsFor(
         .where(and(considered, ...narrowed))
         .orderBy(asc(shifts.startsAt), asc(shifts.id))
         .limit(CONSIDERED_MAX + 1);
+      const listed = new Set(kept.map((k) => k.shiftId));
+      // Every session considered and not listed, read or not: those past the ones read weren't
+      // checked one by one, so they're counted apart, never as "not offered".
       const [total] = await tx
         .select({ n: sql<number>`count(*)::int` })
         .from(shifts)
-        .where(and(considered, ...narrowed));
-      const listed = new Set(kept.map((k) => k.shiftId));
+        .where(
+          and(
+            considered,
+            ...narrowed,
+            ...(listed.size > 0 ? [notInArray(shifts.id, [...listed])] : []),
+          ),
+        );
       const others = rows.slice(0, CONSIDERED_MAX).filter((r) => !listed.has(r.shiftId));
       const unchecked = others
         .map((r) => r.shiftId)
@@ -415,11 +425,8 @@ export async function openShiftsFor(
       explain = {
         checks,
         notOffered: shown,
-        // The rest: those beyond the list here, and beyond the sessions read at all.
-        notOfferedMore:
-          notOffered.length -
-          shown.length +
-          Math.max(0, (total?.n ?? 0) - Math.min(rows.length, CONSIDERED_MAX)),
+        notOfferedMore: notOffered.length - shown.length,
+        notChecked: Math.max(0, (total?.n ?? 0) - others.length),
       };
     }
 

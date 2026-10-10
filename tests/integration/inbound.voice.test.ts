@@ -619,7 +619,7 @@ describe("a voicemail (the inbound-message job)", () => {
         channel: "whatsapp",
         to: t.mobile,
         from: t.line,
-        body: `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. — ${t.name} Shift Team`,
+        body: `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. Automatic reply. Send OFFICE to reach a person. — ${t.name} Shift Team`,
       },
     ]);
     expect(

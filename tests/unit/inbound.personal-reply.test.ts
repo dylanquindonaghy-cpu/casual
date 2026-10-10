@@ -193,12 +193,31 @@ describe("the shifts reply on WhatsApp", () => {
 });
 
 describe("the shifts reply by text", () => {
-  it("§5.7's text version: shorter, the time by car, at most three, signed with a hyphen", () => {
+  it("the text version: shorter, at most three, the distance and both times, signed with a hyphen", () => {
     const { text, listed } = shiftsReplyText(base(), "sms");
     expect(listed).toBe(2);
     expect(text).toBe(
-      `Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door supervisor, Acme Demo Arena, £15.50/h, 12 min by car. 2) Sat 10 Oct 17:00-23:00 CSAS officer, Northgate Town Centre, £15.00/h, 21 min by car. Take one: ${LINK} ${AUTOMATIC} - Acme Events Shift Team`,
+      `Acme Events: shifts for you: 1) Sat 10 Oct 08:00-16:00 Door supervisor, Acme Demo Arena, £15.50/h, 3.1 miles, 12 min by car, 24 min by public transport. 2) Sat 10 Oct 17:00-23:00 CSAS officer, Northgate Town Centre, £15.00/h, 8.4 miles, 21 min by car, 38 min by public transport. Take one: ${LINK} ${AUTOMATIC} - Acme Events Shift Team`,
     );
+    // Or why they aren't known, as the app says it (no "·": it isn't in the plain text alphabet).
+    const why = (travel: ListedShift["travel"]) =>
+      shiftsReplyText(base({ shifts: [{ ...arena, travel }] }), "sms").text;
+    expect(why({ kind: "unknown" })).toContain("£15.50/h, distance not known yet.");
+    expect(why({ kind: "straight", straightMetres: 11000 })).toContain(
+      "£15.50/h, about 7 miles (straight line), travel time not known yet.",
+    );
+    expect(
+      why({
+        kind: "estimated",
+        straightMetres: 90000,
+        arriveBy: new Date("2026-10-10T06:30:00Z"),
+        car: null,
+        publicTransport: null,
+      }),
+    ).toContain(
+      "£15.50/h, about 56 miles (straight line), over 90 min by car, no public transport by 07:30.",
+    );
+    expect(text).not.toContain("·");
     const four = Array.from({ length: 4 }, (_, i) => ({ ...arena, shiftId: `s${i}` }));
     const many = shiftsReplyText(base({ shifts: four }), "sms");
     expect(many.listed).toBe(3);
@@ -243,6 +262,76 @@ describe("the 1,600-character limit", () => {
       expect(text).toContain(LINK);
     },
   );
+});
+
+describe("never over the limit, whatever the names", () => {
+  // Six bookings on the days she named, each with a 200-character event, and names far longer
+  // than any real one: the booked line is cut and capped too, in every branch.
+  const booked = Array.from({ length: 6 }, (_, i) => ({
+    role: "steward",
+    eventName: `${i}${"B".repeat(199)}`,
+    startsAt: new Date("2026-10-10T05:00:00Z"),
+    endsAt: new Date("2026-10-10T06:00:00Z"),
+  }));
+  it.each(["whatsapp", "sms"] as const)(
+    "six long bookings, with shifts and with none, on %s",
+    (channel) => {
+      for (const shifts of [[arena, patrol], []]) {
+        const { text } = shiftsReplyText(base({ shifts, booked }), channel);
+        expect(text.length).toBeLessThanOrEqual(MAX_BODY);
+        expect(text).toContain(LINK);
+      }
+    },
+  );
+  it("the booked line names two, then how many more", () => {
+    const { text } = shiftsReplyText(base({ shifts: [], booked }), "whatsapp");
+    expect(text).toMatch(
+      /you're booked on Sat 10 Oct \(Steward · 0B+… · 06:00–07:00\) and Sat 10 Oct \(Steward · 1B+… · 06:00–07:00\) and 4 more\./,
+    );
+  });
+  it("a first name of 300 characters, and a firm name of 2,000: still within, with the link", () => {
+    for (const channel of ["whatsapp", "sms"] as const) {
+      const long = shiftsReplyText(base({ firstName: "Z".repeat(300) }), channel);
+      expect(long.text.length).toBeLessThanOrEqual(MAX_BODY);
+      expect(long.text).not.toContain("Z".repeat(41));
+      const huge = shiftsReplyText(
+        base({ firm: { name: "A".repeat(2000), signOff: "Acme Shift Team" } }),
+        channel,
+      );
+      expect(huge.text.length).toBeLessThanOrEqual(MAX_BODY);
+      expect(huge.text).toContain(LINK);
+    }
+  });
+  it('a text\'s cut names end with three dots (GSM-7), never "…"', () => {
+    const long = { ...arena, siteName: "S".repeat(200), role: "r".repeat(100) };
+    const { text } = shiftsReplyText(base({ shifts: [long] }), "sms");
+    expect(text).toContain("SSS...");
+    expect(text).not.toContain("…");
+  });
+  it("the cancel reply with every name at its longest stays within", () => {
+    const text = cancelReplyText(
+      {
+        firstName: "K".repeat(300),
+        firm,
+        timeZone: TZ,
+        next: {
+          role: "r".repeat(300),
+          eventName: "E".repeat(200),
+          siteName: "S".repeat(200),
+          startsAt: new Date("2026-10-07T09:30:00Z"),
+          endsAt: new Date("2026-10-07T17:30:00Z"),
+          post: "P".repeat(200),
+          link: "http://acme.localhost:3000/shifts/x1",
+        },
+        strike: { thresholdHours: 48 },
+        others: 1,
+        links: { booked: "http://acme.localhost:3000/" },
+      },
+      "whatsapp",
+    );
+    expect(text.length).toBeLessThan(700);
+    expect(text).toContain("http://acme.localhost:3000/shifts/x1");
+  });
 });
 
 describe("the cancel reply", () => {
@@ -351,6 +440,7 @@ describe("enquiry.checks passes the log's check", () => {
         ],
       })),
       notOfferedMore: 12,
+      notChecked: 7,
       bookings: [id(999)],
       sent: true,
       channel: "whatsapp",

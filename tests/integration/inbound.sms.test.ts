@@ -251,7 +251,7 @@ describe("STOP and START (the inbound-message job)", () => {
         channel: "sms",
         to: t.mobile,
         from: t.line,
-        body: `You won't get texts from ${t.name} now. Reply START to turn them back on. - ${t.name} Shift Team`,
+        body: `You won't get texts from ${t.name} now. Reply START to turn them back on. Automatic reply. Send OFFICE to reach a person. - ${t.name} Shift Team`,
       },
     ]);
     expect(
@@ -337,7 +337,7 @@ describe("STOP and START (the inbound-message job)", () => {
       channel: "sms",
       to: t.mobile,
       from: t.line,
-      body: `Texts from ${t.name} are back on. Reply STOP to turn them off. - ${t.name} Shift Team`,
+      body: `Texts from ${t.name} are back on. Reply STOP to turn them off. Automatic reply. Send OFFICE to reach a person. - ${t.name} Shift Team`,
     });
     // START again, or UNSTOP, with texts on: nothing to change, nothing sent.
     expect(await run(await t.text("UNSTOP"), transport)).toMatchObject({

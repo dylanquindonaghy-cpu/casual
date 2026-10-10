@@ -1,13 +1,13 @@
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lt, sql } from "drizzle-orm";
 import { assignments, firms, shiftEvents, shifts, sites, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
-import type { FirmVoice } from "../messaging/templates";
+import { AUTOMATIC_REPLY, type FirmVoice } from "../messaging/templates";
 import { openShiftsFor, type NotOfferedReason, type OpenShift } from "../portal/open-shifts";
 import type { RuleCheck } from "../rules/eligibility";
 import { dayLabel } from "../rules/reasons";
 import { noticeHours } from "../roster/notice";
 import { decideForWorker, firmStrikeSettings } from "../strikes/issue";
-import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
+import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { travelLineText, type TravelFacts } from "../travel/line-copy";
 
 // The shifts line's personal replies (docs/office-v2.md 3.6, 5.7 items 1 and 2; 12D.2): the answer
@@ -29,7 +29,7 @@ import { travelLineText, type TravelFacts } from "../travel/line-copy";
 
 export const MAX_BODY = 1600; // a WhatsApp's or a text's limit (src/lib/messaging/transport.ts)
 export const MAX_LISTED = { whatsapp: 5, sms: 3 } as const;
-export const AUTOMATIC = "Automatic reply. Send OFFICE to reach a person.";
+export const AUTOMATIC = AUTOMATIC_REPLY;
 const CUTS = [60, 40, 25, 15]; // the longest a name may be, tried in turn until the reply fits
 
 type Channel = "whatsapp" | "sms";
@@ -37,8 +37,18 @@ type Channel = "whatsapp" | "sms";
 const signed = (firm: FirmVoice, channel: Channel, text: string) =>
   channel === "sms" ? `${text} - ${firm.signOff}` : `${text}\n— ${firm.signOff}`;
 
-const cut = (text: string, max: number) =>
-  text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+// A name cut to `max` characters. A text's cut ends "..." (GSM-7: "…" would make the whole text
+// cost 70-character parts), and never splits a character in two.
+const cut = (text: string, max: number, ellipsis = "…") => {
+  const chars = [...text];
+  return chars.length <= max
+    ? text
+    : `${chars
+        .slice(0, Math.max(1, max - ellipsis.length))
+        .join("")
+        .trimEnd()}${ellipsis}`;
+};
+const FIRST_NAME_MAX = 40;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (d: Date, tz: string) => {
@@ -48,6 +58,11 @@ const hhmm = (d: Date, tz: string) => {
 // "Sat 10 Oct 08:00–16:00" (a text: "08:00-16:00").
 const when = (s: { startsAt: Date; endsAt: Date }, tz: string, dash = "–") =>
   `${dayLabel(localDateOf(s.startsAt, tz))} ${hhmm(s.startsAt, tz)}${dash}${hhmm(s.endsAt, tz)}`;
+// Midnight at the start of a firm-local date.
+const midnight = (date: string, timeZone: string) => {
+  const [year = 2000, month = 1, day = 1] = date.split("-").map(Number);
+  return zonedToUtc({ year, month, day, hour: 0, minute: 0 }, timeZone);
+};
 const money = (pence: number) => `£${(pence / 100).toFixed(2)}/h`;
 // "Door supervisor", "CSAS officer" (an acronym stays in capitals, as on her Profile).
 const roleLabel = (role: string) => {
@@ -180,50 +195,69 @@ function whatsappLine(s: ListedShift, i: number, tz: string, max: number, area: 
   return area ? `${line}\n   ${travelLineText(s.travel, tz)}` : line;
 }
 
-// A text's travel: the time by car, else by public transport (as §5.7's text version).
-function smsTravel(f: TravelFacts): string | null {
-  if (f.kind !== "estimated") return null;
-  if (f.car) return `${f.car.minutes} min by car`;
-  if (f.publicTransport) return `${f.publicTransport.minutes} min by public transport`;
-  return null;
+// A text's travel: the app's travel line (the distance and the time by car and by public
+// transport, or why they aren't known), with commas: "·" isn't in the plain text alphabet.
+function smsTravel(f: TravelFacts, tz: string): string {
+  return travelLineText(f, tz)
+    .split(" · ")
+    .map((part) => part.charAt(0).toLowerCase() + part.slice(1))
+    .join(", ");
 }
 
 function smsLine(s: ListedShift, i: number, tz: string, max: number, area: boolean): string {
-  const travel = area ? smsTravel(s.travel) : null;
+  const travel = area ? smsTravel(s.travel, tz) : null;
   const parts = [
-    `${when(s, tz, "-")} ${cut(roleLabel(s.role), max)}`,
-    ...(s.siteName ? [cut(s.siteName, max)] : []),
+    `${when(s, tz, "-")} ${cut(roleLabel(s.role), max, "...")}`,
+    ...(s.siteName ? [cut(s.siteName, max, "...")] : []),
     ...(s.payRatePence !== null ? [money(s.payRatePence)] : []),
     ...(travel ? [travel] : []),
   ];
   return `${i + 1}) ${parts.join(", ")}.`;
 }
 
-const bookedWords = (b: BookedLine[], tz: string) =>
-  b
+// Her bookings on the days she named: at most two, names cut like the list's, then "and N more".
+const BOOKED_SHOWN = 2;
+const bookedWords = (b: BookedLine[], tz: string, max: number) => {
+  const shown = b
+    .slice(0, BOOKED_SHOWN)
     .map(
       (x) =>
-        `${dayLabel(localDateOf(x.startsAt, tz))} (${roleLabel(x.role)}${x.eventName ? ` · ${x.eventName}` : ""} · ${hhmm(x.startsAt, tz)}–${hhmm(x.endsAt, tz)})`,
-    )
-    .join(" and ");
+        `${dayLabel(localDateOf(x.startsAt, tz))} (${cut(roleLabel(x.role), max)}${x.eventName ? ` · ${cut(x.eventName, max)}` : ""} · ${hhmm(x.startsAt, tz)}–${hhmm(x.endsAt, tz)})`,
+    );
+  const rest = b.length - shown.length;
+  return [...shown, ...(rest > 0 ? [`${rest} more`] : [])].join(" and ");
+};
 
-// The shifts reply in one channel, and how many shifts it lists.
+// The shifts reply in one channel, and how many shifts it lists. Always within 1,600 characters:
+// names are cut shorter, then fewer shifts listed, and as a last resort only the link.
 export function shiftsReplyText(
   input: ShiftsReplyInput,
   channel: Channel,
 ): { text: string; listed: number } {
   const { firm, timeZone: tz, asked, area } = input;
-  const booked =
-    asked && input.booked.length > 0 ? `you're booked on ${bookedWords(input.booked, tz)}.` : null;
+  const firstName = cut(input.firstName, FIRST_NAME_MAX);
+  const booked = (max: number) =>
+    asked && input.booked.length > 0
+      ? `you're booked on ${bookedWords(input.booked, tz, max)}.`
+      : null;
+  const fits = (text: string) => {
+    const body = signed(firm, channel, text);
+    return body.length <= MAX_BODY ? body : null;
+  };
   if (input.shifts.length === 0) {
     const day = asked ? ` ${asked.onWords}` : "";
     const within = area ? ` within ${area.maxMinutes} minutes of your home area` : "";
     const alerts = input.offerAlerts ? " We'll message you if something comes up." : "";
-    const text =
-      channel === "sms"
-        ? `${firm.name}: nothing you can take${day} right now. All open shifts: ${input.links.take} ${AUTOMATIC}`
-        : `Hi ${input.firstName}, ${booked ? `${booked} There's nothing else` : "there's nothing"} you can take${day}${within} right now.${alerts} All open shifts: ${input.links.take}\n${AUTOMATIC}`;
-    return { text: signed(firm, channel, text), listed: 0 };
+    for (const max of CUTS) {
+      const b = booked(max);
+      const body = fits(
+        channel === "sms"
+          ? `${firm.name}: nothing you can take${day} right now. All open shifts: ${input.links.take} ${AUTOMATIC}`
+          : `Hi ${firstName}, ${b ? `${b} There's nothing else` : "there's nothing"} you can take${day}${within} right now.${alerts} All open shifts: ${input.links.take}\n${AUTOMATIC}`,
+      );
+      if (body) return { text: body, listed: 0 };
+    }
+    return { text: lastResort(input, channel), listed: 0 };
   }
   const most = Math.min(MAX_LISTED[channel], input.shifts.length);
   for (let n = most; n >= 1; n--) {
@@ -241,9 +275,10 @@ export function shiftsReplyText(
           AUTOMATIC,
         ].join(" ");
       } else {
+        const b = booked(max);
         const opening = asked
-          ? `Hi ${input.firstName}, ${booked ? `${booked} ` : ""}${booked ? asked.forWords : asked.forWords.replace(/^For/, "for")} you can take:`
-          : `Hi ${input.firstName}, shifts you can take:`;
+          ? `Hi ${firstName}, ${b ? `${b} ` : ""}${b ? asked.forWords : asked.forWords.replace(/^For/, "for")} you can take:`
+          : `Hi ${firstName}, shifts you can take:`;
         text = [
           opening,
           ...listed.map((s, i) => whatsappLine(s, i, tz, max, area !== null)),
@@ -255,12 +290,18 @@ export function shiftsReplyText(
           AUTOMATIC,
         ].join("\n");
       }
-      const body = signed(firm, channel, text);
-      if (body.length <= MAX_BODY) return { text: body, listed: n };
+      const body = fits(text);
+      if (body) return { text: body, listed: n };
     }
   }
-  // Never here with the cuts above (5 lines at 15 characters a name are far below the limit).
-  throw new Error("the shifts reply doesn't fit in 1,600 characters");
+  return { text: lastResort(input, channel), listed: 0 };
+}
+
+// Only the link, when nothing else fits (a firm's name or a link far longer than any real one).
+function lastResort(input: ShiftsReplyInput, channel: Channel): string {
+  const text = `Shifts you can take: ${input.links.take} ${AUTOMATIC}`;
+  const body = signed(input.firm, channel, text);
+  return body.length <= MAX_BODY ? body : text.slice(0, MAX_BODY);
 }
 
 export interface CancelReplyInput {
@@ -278,26 +319,29 @@ export interface CancelReplyInput {
     link: string;
   } | null;
   strike: { thresholdHours: number } | null;
-  others: number; // her other bookings ahead
+  others: number; // her other bookings ahead (only whether there are any is read)
   links: { booked: string };
 }
 
 export function cancelReplyText(input: CancelReplyInput, channel: Channel): string {
   const { firm, timeZone: tz, next } = input;
+  const firstName = cut(input.firstName, FIRST_NAME_MAX);
   if (!next) {
     return signed(
       firm,
       channel,
-      `Hi ${input.firstName}, you have no shifts booked, so there's nothing to cancel. ${AUTOMATIC}`,
+      `Hi ${firstName}, you have no shifts booked, so there's nothing to cancel. ${AUTOMATIC}`,
     );
   }
+  // Every part cut, so the reply stays far inside 1,600 characters.
+  const ellipsis = channel === "sms" ? "..." : "…";
   const place = [next.eventName, next.siteName]
     .filter((x): x is string => !!x)
-    .map((x) => cut(x, 60));
+    .map((x) => cut(x, 60, ellipsis));
   const what = [
-    `${roleLabel(next.role)}${place.length ? ` · ${place.join(", ")}` : ""}`,
+    `${cut(roleLabel(next.role), 60, ellipsis)}${place.length ? ` · ${place.join(", ")}` : ""}`,
     when(next, tz, channel === "sms" ? "-" : "–"),
-    ...(next.post ? [cut(next.post, 60)] : []),
+    ...(next.post ? [cut(next.post, 60, ellipsis)] : []),
   ].join(" · ");
   const strike = input.strike
     ? ` It starts in less than ${input.strike.thresholdHours} hours, so cancelling now gives you a strike.`
@@ -306,7 +350,7 @@ export function cancelReplyText(input: CancelReplyInput, channel: Channel): stri
   return signed(
     firm,
     channel,
-    `Hi ${input.firstName}, you're booked on ${what}. To cancel, open it and tap Cancel this shift: ${next.link}.${strike}${others} ${AUTOMATIC}`,
+    `Hi ${firstName}, you're booked on ${what}. To cancel, open it and tap Cancel this shift: ${next.link}.${strike}${others} ${AUTOMATIC}`,
   );
 }
 
@@ -324,7 +368,8 @@ export interface EnquiryChecks {
   }[];
   more: number; // she could take these too: "+ N more"
   notOffered: { shiftId: string; reasons: NotOfferedReason[] }[];
-  notOfferedMore: number;
+  notOfferedMore: number; // not offered, beyond the 50 listed
+  notChecked: number; // considered but past the sessions read, so not checked one by one
   bookings: string[]; // the bookings a cancel reply named (assignment ids)
 }
 
@@ -344,10 +389,12 @@ const minutesOf = (f: TravelFacts) =>
     ? { car: f.car?.minutes ?? null, publicTransport: f.publicTransport?.minutes ?? null }
     : { car: null, publicTransport: null };
 
+// The reply in each channel's words, and what each was built from: the shifts line logs the one
+// for the channel it went by (a text lists at most 3, a WhatsApp 5).
 export interface PersonalReply {
   whatsapp: string;
   sms: string;
-  checks: EnquiryChecks;
+  checks: Record<Channel, EnquiryChecks>;
 }
 
 // The shifts reply for one casual, from her own words and the casual app's list.
@@ -395,8 +442,13 @@ export async function shiftsReply(
     payRatePence: s.payRatePence ?? null,
     post: s.post ?? null,
     urgent: s.isUrgent,
+    // Held, not applied for: "you hold CSAS" only for a valid one.
     holdsCsas: checksOf(s.shiftId).some(
-      (c) => c.code === "qualification" && c.passed && c.detail.type === "CSAS",
+      (c) =>
+        c.code === "qualification" &&
+        c.passed &&
+        c.detail.type === "CSAS" &&
+        c.detail.held === "valid",
     ),
     travel: s.travel,
   }));
@@ -424,27 +476,29 @@ export async function shiftsReply(
     ...(list.explain?.notOffered ?? []).map((n) => ({ shiftId: n.shiftId, reasons: n.reasons })),
   ];
   const shown = notOffered.slice(0, 50);
+  const checksFor = (count: number): EnquiryChecks => ({
+    template: listed.length > 0 ? "shifts_list" : "shifts_none",
+    days: asked?.dates ?? [],
+    area: list.area,
+    offered: listed.slice(0, count).map((s) => ({
+      shiftId: s.shiftId,
+      ...minutesOf(s.travel),
+      checks: checksOf(s.shiftId).map(loggedCheck),
+    })),
+    more: Math.max(0, listed.length - count),
+    notOffered: shown,
+    notOfferedMore: notOffered.length - shown.length + (list.explain?.notOfferedMore ?? 0),
+    notChecked: list.explain?.notChecked ?? 0,
+    bookings: [],
+  });
   return {
     whatsapp: whatsapp.text,
     sms: sms.text,
-    checks: {
-      template: listed.length > 0 ? "shifts_list" : "shifts_none",
-      days: asked?.dates ?? [],
-      area: list.area,
-      offered: listed.slice(0, whatsapp.listed).map((s) => ({
-        shiftId: s.shiftId,
-        ...minutesOf(s.travel),
-        checks: checksOf(s.shiftId).map(loggedCheck),
-      })),
-      more: Math.max(0, listed.length - whatsapp.listed),
-      notOffered: shown,
-      notOfferedMore: notOffered.length - shown.length + (list.explain?.notOfferedMore ?? 0),
-      bookings: [],
-    },
+    checks: { whatsapp: checksFor(whatsapp.listed), sms: checksFor(sms.listed) },
   };
 }
 
-// Her confirmed bookings starting on these local dates.
+// Her confirmed bookings on sessions still on (not cancelled) starting on these local dates.
 async function bookingsOn(
   tx: FirmTx,
   workerId: string,
@@ -452,6 +506,9 @@ async function bookingsOn(
   timeZone: string,
   now: Date,
 ): Promise<BookedLine[]> {
+  const first = dates[0];
+  const last = dates.at(-1);
+  if (!first || !last) return [];
   const rows = await tx
     .select({
       role: shifts.role,
@@ -472,7 +529,11 @@ async function bookingsOn(
       and(
         eq(assignments.workerId, workerId),
         eq(assignments.status, "confirmed"),
+        inArray(shifts.status, ["open", "filled"]),
         gt(shifts.endsAt, now),
+        // From the first day's midnight to the last's end (local), then the days themselves.
+        gte(shifts.startsAt, midnight(first, timeZone)),
+        lt(shifts.startsAt, midnight(addDays(last, 1), timeZone)),
       ),
     )
     .orderBy(asc(shifts.startsAt));
@@ -525,7 +586,9 @@ export async function cancelReply(
           inArray(shifts.status, ["open", "filled"]),
         ),
       )
-      .orderBy(asc(shifts.startsAt), asc(shifts.id));
+      .orderBy(asc(shifts.startsAt), asc(shifts.id))
+      // The next one, and whether there's another ("Your other shifts").
+      .limit(2);
     const next = ahead[0];
     let strike: CancelReplyInput["strike"] = null;
     if (next) {
@@ -558,19 +621,21 @@ export async function cancelReply(
       others: Math.max(0, ahead.length - 1),
       links: { booked: `${input.portal}/` },
     };
+    const cancelChecks: EnquiryChecks = {
+      template: next ? "cancel_booking" : "cancel_none",
+      days: [],
+      area: null,
+      offered: [],
+      more: 0,
+      notOffered: [],
+      notOfferedMore: 0,
+      notChecked: 0,
+      bookings: next ? [next.assignmentId] : [], // the one it named
+    };
     return {
       whatsapp: cancelReplyText(replyInput, "whatsapp"),
       sms: cancelReplyText(replyInput, "sms"),
-      checks: {
-        template: next ? "cancel_booking" : "cancel_none",
-        days: [],
-        area: null,
-        offered: [],
-        more: 0,
-        notOffered: [],
-        notOfferedMore: 0,
-        bookings: next ? [next.assignmentId] : [], // the one it named
-      },
+      checks: { whatsapp: cancelChecks, sms: cancelChecks },
     };
   });
 }

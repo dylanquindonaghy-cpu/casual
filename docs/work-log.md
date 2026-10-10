@@ -11356,3 +11356,156 @@ Run `npm run dev`. Send a WhatsApp from a made-up number with the fake phone:
 `npm run -s sim:whatsapp -- --from "07700 900999" --text "Hi it's Sam, new phone"`. Log in to the
 office as `acme.resourcer@example.com`, click "Enquiries", then "Need a person", then "Unknown
 number". Type a reply and click "Send reply": the dev window shows it going to that number.
+
+## 2026-10-10 — Phase 12, task 12D.2: Personal replies
+
+**Time spent:** 2.0 hours (14:17 to 16:17 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=55de639d472187f5 e2e=true`.
+That run passed 4,420 tests in 251 files, 85 browser tests and the walkthrough's 3, with none
+skipped (an earlier run failed 3 tests: see "Decisions made"). The independent auditor said
+**VERDICT: NOT DONE** on its first round (three gaps, all fixed: see below) and **VERDICT: DONE**
+on its second. The commit is "Phase 12:
+Personal replies (12D.2)", pushed to `build/overnight`. GitHub's own test run (CI) still can't
+start on this account (see the morning summary), so the local run is the evidence.
+
+### What was built, in plain words
+
+When a casual asks the shifts line for work ("any shifts?") or to cancel, the answer is now
+**written for them**, by code, from the firm's own data. Before, everyone got the same link.
+
+- **The shifts reply** lists the sessions she could actually take, exactly as the casual app's
+  Open shifts would show them: right role, qualifications in date for the whole session, no clash
+  with a booking, enough rest, under the weekly hours cap, not a day off, not a blocked site,
+  showing to casuals, and inside her travel area. Urgent ones first, then the nearest.
+  - Each line: role · event, site · day and times · pay per hour · post, then how far it is
+    ("5.0 miles · 20 min by car · no public transport by 08:30"). Never her postcode.
+  - At most 5 on WhatsApp (3 by text), then "+ N more" with the link. Always "Take one here:
+    {link}": she books in the app, not by replying a number.
+  - By text, each session still has the distance and both times ("3.1 miles, 12 min by car,
+    24 min by public transport"), or says why they aren't known yet.
+  - If she names a day ("this weekend", "Saturday", "tomorrow"), only that day's sessions, and
+    her own bookings that day.
+  - A CSAS session (police-accredited patrols) shows only to people who hold CSAS, marked "you
+    hold CSAS".
+- **The cancel reply** names her next booking with its link. It warns her about a **strike**
+  (a mark for cancelling late) only when cancelling it really would give one, using the same
+  decision as the app's cancel button. "Your other shifts" only when she has another booking.
+- **Every automatic reply** the shifts line sends now ends "Automatic reply. Send OFFICE to reach
+  a person." (WhatsApp's rule that people can always reach a human): the personal replies, the
+  pay reply, the "office will get back to you" reply, the reply to a number we don't know, the
+  voicemail receipt, and the STOP/START confirmations. The pay reply is still only the link:
+  never a list, never an answer about pay.
+- **The rules engine** (the pure code that decides if someone may take a session) now also
+  reports **every check it ran**, with the figures it used: for example "SIA licence valid to
+  9 Jun 2028", "rest gap 16 hours (minimum 11)", "weekly hours 16 of 48". It still decides
+  exactly as before.
+- **The log** (the app's append-only record of what happened) gets one new kind of entry,
+  `enquiry.checks`: which sessions the reply offered, each check with its figures, the minutes
+  of travel, and every session considered but left out with the reason. Only ids, codes, dates
+  and minutes: never a postcode, a name or her words.
+- **The office's Enquiries page** for that message now shows step 3, "Checks made by code" (each
+  offered session with every check ✓ or ✗), the sessions the reply listed (links), and
+  "Considered but not offered", for example "Response team lead: needs first aid at work
+  certificate (none on file)". For a cancel reply it shows the booking it named.
+- When AI didn't sort a message, the log now says why (not connected, no answer in time, an
+  answer that wasn't a label, or no text), and the page says it in words.
+
+### Key facts and numbers
+
+- A WhatsApp or a text may hold 1,600 characters. Every reply stays inside it: names are cut
+  shorter (60, 40, 25, then 15 characters), then fewer sessions are listed, and if even that
+  can't fit (a firm name thousands of characters long), only the link goes.
+- A text's cut names end "..." rather than "…", so the text stays in the plain text-message
+  alphabet (one "…" would make every part of the text cost more).
+- At most 50 left-out sessions are logged one by one, then a count. A reply reads at most 80
+  sessions; any beyond those are counted separately as "not checked one by one", never as
+  "not offered".
+- Her bookings on the days she named: at most two named, then "and N more".
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The reply is the casual app's own Open shifts list, not a second copy of the rules | One place decides what she can take; the reply and the app can never disagree | A separate query for the reply |
+| Each channel gets its own log entry, and the one for the words that went is logged | A text lists 3, a WhatsApp 5; the office must see what she actually got (found by the guardrails review) | Always log the WhatsApp version |
+| An "applied for" qualification counted within the firm's allowance is recorded as a passed check saying "applied" | It was the one exception the office most needs to see, and it was missing (found by the review) | Leave it out |
+| "You hold CSAS" only for a valid CSAS, never one applied for | Saying "you hold" to an applicant is untrue | Any passed CSAS check |
+| The log entry is checked against the log's rules before the reply is claimed | A refused entry after the send would roll back the stored reply, and the retry would never log it (found by the review) | Check only when writing |
+| A damaged log entry shows "A check whose record can't be read" | The page must never fail to load, and must never guess (found by the review) | Trust the log |
+| The automatic line goes on every automatic reply, the office's, voicemail and STOP/START ones too | The spec says "every other instant reply" with no exceptions; I had first left two out without approval, and the auditor caught it | Leave out the replies that already go to a person |
+| A text shows the distance and both times, or why not | Phase 12's "done" rule asks for that on every shifts-line reply; the spec's shorter text example fell short of it (caught by the auditor) | Only the time by car |
+| No booking by replying a number | Spec decision D6 deferred it | "Reply 1 to book" |
+| The one-pair rules preview returns the same verdict as the batched one, checks included | The first verify run failed: a test holds the two to the same answer, and this task had changed only one | Drop the checks from the batched one |
+| Leave the old "CSAS" word in the reply code rather than import the uploads module's constant | Importing it would pull the office permissions code into the background worker | Import it |
+
+### What the new tests prove
+
+- **The rules engine's checks** (`tests/unit/rules.checks.test.ts`, 24 tests): every check on a
+  pass and on a fail, with its figures; an application within the allowance; exactly one
+  qualification check per required type whatever the outcome; the checks never change the
+  decision; the rules doc lists exactly the engine's checks, in order.
+- **The words** (`tests/unit/inbound.personal-reply.test.ts`, 21 tests): the day words; the
+  lists on WhatsApp and by text; five sessions with every name at its longest stay within 1,600
+  characters; six long bookings, a 300-character first name and a 2,000-character firm name stay
+  within it too; a text's cuts use "..."; the cancel reply's variants; the pay reply has no list;
+  the biggest possible log entry passes the log's check.
+- **On the real database** (`tests/integration/personal-reply.test.ts`, 15 tests): only the
+  session she can take is listed, and each other one is left out with its reason, one test for
+  each of: a missing qualification, an expired one, one expiring mid-session, a clash, too little
+  rest, over the weekly cap, a day off, a blocked site, a hidden session, a hidden event and
+  outside her travel area; CSAS only to holders; an applicant is offered it but never told "you
+  hold CSAS"; her booking on a day she named, and never one on a cancelled session; the cancel
+  reply with and without a strike; by text 3 listed and "+ 2 more", with the log saying the same;
+  the exact counts past 80 sessions; the office's page for a shifts reply, a cancel reply and a
+  damaged entry; the pay reply and the AI's reason.
+- **More database tests after the audit:** when WhatsApp refuses the reply, the text version
+  goes and the log entry is the text's (3 listed, 2 more); a booking she took 48 hours ahead gets
+  no strike sentence; the text version's travel words for every case (unit tests).
+- **Older tests updated** for the new replies (the shifts-line database tests for WhatsApp, texts,
+  voicemail and Enquiries, three browser specs and the walkthrough's step 37): a product change,
+  not a weakened test. One older test (`open-shifts.test.ts`) pinned the rules preview's exact
+  shape; it now also requires every check, all passed: stricter.
+- **In a browser** (`tests/e2e/office.enquiries.spec.ts`): Zoe, who holds CSAS, asks for shifts
+  and gets two sessions (the CSAS one marked); Noor, who doesn't, gets one. On Zoe's message the
+  office sees each check with its figures ("SIA door supervisor licence valid to …", "Rest gap
+  16 h", "Inside travel area (20 min by car, limit 45 min)"), the two sessions as links, and
+  "Response team lead: needs first aid at work certificate (none on file)"; on Noor's, the CSAS
+  session left out. At phone width, no sideways scrolling.
+- **Break checks:** I broke the code on purpose 12 ways (the travel-area reason, the CSAS marker,
+  the log entry, the strike sentence, hidden sessions listed, the applied check, the logged
+  channel, the CSAS marker for an applicant, the not-checked count, cancelled bookings named,
+  damaged dates, the booked-line cap). Each time a test failed, then the code was put back.
+- **A real bug the new tests caught:** the Enquiries page's loader asked the database for a
+  column by the wrong name (`shift_event_id`; it's `event_id`), so the page would have failed for
+  every personal reply. Fixed before any commit.
+
+### The audit, in plain words
+
+The first audit found three gaps. The automatic line was missing from the "office will get back
+to you", voicemail and unknown-number replies, though the spec says every reply. The text
+version gave only the time by car, though Phase 12's "done" rule asks for the distance and both
+times. And the guardrails review wasn't written down yet. All three were fixed, verify was run
+again, and the second audit said DONE.
+
+### What's parked or needs Dylan
+
+All in the Parking lot in `PLAN.md`, "Personal replies (12D.2 review)":
+
+- **Dylan to confirm** (the travel DPIA, `docs/dpia-travel.md`): the new log entry keeps a
+  casual's travel limit and the minutes to each session offered (never the postcode). Minutes to
+  a known site hint at roughly where someone lives, so it's treated as personal data and kept as
+  long as the action log. Decision 21 in `PLAN.md` said travel stays out of the log: keep the
+  minutes, or log only "inside the area"?
+- **Dylan to confirm:** the automatic line on the STOP/START confirmations too, and the longer
+  text version (distance and both times).
+- Smaller: the booked line and the cancel reply have no travel line; day words can be fooled
+  ("I sat my test" reads as Saturday); a cancel reply names the next booking, not the day she
+  named; "+ N more" counts only the first 50; the AI's other fallback reasons have no test yet.
+
+### How to see it working
+
+Run `npm run dev`. Send a WhatsApp as Zoe with the fake phone:
+`npm run -s sim:whatsapp -- --from "07700 900122" --text "Any shifts this weekend?"`. The dev
+window shows her own reply. Log in to the office as `acme.resourcer@example.com`, click
+"Enquiries", then her message: step 3 shows every check made for each session she was offered.

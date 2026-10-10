@@ -256,6 +256,69 @@ describe("every check, failed, with its figures", () => {
     expect([...new Set(r.codes.map((c) => CHECK_OF[c]))]).toEqual([code]);
   });
 
+  it("an application counted within the allowance: a passed check saying so (not left out)", () => {
+    const r = checkEligibility(
+      input({
+        credentials: [{ type: "SIA_DS", status: "applied", expiresOn: null }],
+        settings: {
+          minRestHours: 11,
+          weeklyHoursCap: 48,
+          travelBufferMinutes: 0,
+          appliedAllowancePct: 50,
+          appliedAllowedTypes: ["SIA_DS"],
+          appliedInUseCount: 0,
+          deployedCount: 3,
+          blockedSites: [],
+        },
+      }),
+    );
+    expect(r.ok).toBe(true);
+    expect(byCode(r, "qualification")).toEqual([
+      {
+        code: "qualification",
+        passed: true,
+        detail: {
+          type: "SIA_DS",
+          neededBy: "role",
+          held: "applied",
+          expiresOn: null,
+          until: "2026-11-07",
+        },
+      },
+    ]);
+  });
+
+  it("every required type gets exactly one qualification check, whatever the outcome", () => {
+    const cases = [
+      { status: "valid" as const, expiresOn: "2027-01-01" },
+      { status: "valid" as const, expiresOn: "2026-11-06" },
+      { status: "expired" as const, expiresOn: null },
+      { status: "suspended" as const, expiresOn: null },
+      { status: "applied" as const, expiresOn: null },
+    ];
+    for (const pct of [0, 50]) {
+      for (const c of cases) {
+        const r = checkEligibility(
+          input({
+            credentials: [{ type: "SIA_DS", ...c }],
+            settings: {
+              minRestHours: 11,
+              weeklyHoursCap: 48,
+              travelBufferMinutes: 0,
+              appliedAllowancePct: pct,
+              appliedAllowedTypes: ["SIA_DS"],
+              appliedInUseCount: 0,
+              deployedCount: 3,
+              blockedSites: [],
+            },
+          }),
+        );
+        expect(byCode(r, "qualification")).toHaveLength(1);
+        expect(byCode(r, "qualification")[0]?.passed).toBe(r.ok);
+      }
+    }
+  });
+
   it("no rule for the role: one failed qualification check saying so", () => {
     const r = checkEligibility(
       input({

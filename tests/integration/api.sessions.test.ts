@@ -723,6 +723,108 @@ describe("a booked session", () => {
   });
 });
 
+describe("a session nobody is booked on", () => {
+  it("a new time, role or site is applied: offers still out expire, travel estimates are queued in the same PUT, and a new time or site logs from and to", async () => {
+    const t = await plannerFirm();
+    const id = (await t.put("S-1", plain())).body.session?.id ?? "";
+    const ann = await t.f.worker({ first: "Ann" });
+    const arena = (
+      await su.query<{ id: string }>("select site_id::text as id from shifts where id = $1", [id])
+    ).rows[0]?.id;
+    // An offer still out for the session, as a wave sends it.
+    const offerOut = async (wave: number) =>
+      (
+        await su.query<{ id: string }>(
+          `insert into offers (firm_id, shift_id, worker_id, wave, channel)
+           values ($1, $2, $3, $4, 'push') returning id::text as id`,
+          [t.f.firmId, id, ann, wave],
+        )
+      ).rows[0]?.id ?? "";
+    const responseOf = async (offerId: string) =>
+      (
+        await su.query<{ response: string | null }>("select response from offers where id = $1", [
+          offerId,
+        ])
+      ).rows[0]?.response;
+    const travelJobs = async () =>
+      (await jobsFor(TRAVEL_ESTIMATES_QUEUE, t.f.firmId)).filter(
+        (j) => Array.isArray(j.shiftIds) && j.shiftIds.includes(id),
+      ).length;
+    const lastChange = async () => (await eventsOf(t.f.firmId, "shift.changed")).at(-1)?.data;
+    const api = { by: "firm", via: "api", keyId: t.key.id };
+
+    const later = { starts_at: "2026-11-07T10:00:00Z", ends_at: "2026-11-07T18:00:00Z" };
+    const steps = [
+      {
+        body: plain(later),
+        logged: {
+          ...api,
+          fields: ["startsAt", "endsAt"],
+          from: {
+            startsAt: "2026-11-07T08:00:00.000Z",
+            endsAt: "2026-11-07T16:00:00.000Z",
+            siteId: arena,
+          },
+          to: {
+            startsAt: "2026-11-07T10:00:00.000Z",
+            endsAt: "2026-11-07T18:00:00.000Z",
+            siteId: arena,
+          },
+        },
+      },
+      { body: plain({ ...later, role: "door_supervisor" }), logged: { ...api, fields: ["role"] } },
+      {
+        body: plain({ ...later, role: "door_supervisor", site: { name: "Other Hall" } }),
+        logged: {
+          ...api,
+          fields: ["siteId"],
+          from: {
+            startsAt: "2026-11-07T10:00:00.000Z",
+            endsAt: "2026-11-07T18:00:00.000Z",
+            siteId: arena,
+          },
+          to: {
+            startsAt: "2026-11-07T10:00:00.000Z",
+            endsAt: "2026-11-07T18:00:00.000Z",
+            siteId: expect.any(String),
+          },
+        },
+      },
+    ];
+    for (const [i, step] of steps.entries()) {
+      const offerId = await offerOut(i + 1);
+      const travelBefore = await travelJobs();
+      const changed = await t.put("S-1", step.body);
+      expect([changed.status, changed.body.result]).toEqual([200, "updated"]);
+      expect(changed.body.casuals_told).toBeUndefined();
+      expect(await responseOf(offerId)).toBe("expired");
+      expect(await travelJobs()).toBe(travelBefore + 1);
+      expect(await lastChange()).toEqual(step.logged);
+    }
+    const final = await t.get("S-1");
+    expect(final.body.session).toMatchObject({
+      role: "door_supervisor",
+      starts_at: "2026-11-07T10:00:00Z",
+      site: { name: "Other Hall" },
+    });
+    // The new site is really another one.
+    const { rows } = await su.query<{ moved: boolean }>(
+      "select site_id <> $2::uuid as moved from shifts where id = $1",
+      [id, arena],
+    );
+    expect(rows).toEqual([{ moved: true }]);
+  });
+
+  it("an unknown role on an update is 422 unknown_role and changes nothing", async () => {
+    const t = await plannerFirm();
+    const id = (await t.put("S-1", plain())).body.session?.id ?? "";
+    const before = await snapshot(id);
+    const refused = await t.put("S-1", plain({ role: "juggler" }));
+    expect([refused.status, refused.body.error?.code]).toEqual([422, "unknown_role"]);
+    expect(await snapshot(id)).toEqual(before);
+  });
+});
+
 describe("a session that has started", () => {
   it("is refused any change (409 session_started); the same PUT is still 200", async () => {
     const t = await plannerFirm();

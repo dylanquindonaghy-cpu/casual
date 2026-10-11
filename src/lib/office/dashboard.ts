@@ -103,8 +103,8 @@ export interface ExpiredOnBooking {
 
 // A change your planner sent for a booked session that was refused (docs/office-v2.md 5.3.2
 // step 5): a move the rules refused for some booked casuals ("move"), a role, requirements or
-// places change that a booking blocks, or a move of a booked session sent with no reason (the
-// API's own codes). The planner may ignore the 409 or 422, so the office is told here.
+// places change that a booking blocks, or a move or cancellation of a booked session sent with no
+// reason (the API's own codes). The planner may ignore the 409 or 422, so the office is told here.
 export interface PlannerRefusal {
   shiftId: string;
   role: string;

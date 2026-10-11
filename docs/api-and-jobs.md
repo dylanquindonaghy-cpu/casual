@@ -266,7 +266,9 @@ live, its row held `for share` before the session's (`firmCallerMay()`); the ses
   for one new ref: the second's insert waits on the unique key and then updates the first's.
 - **Nothing different:** 200 `unchanged`, nothing logged. **Cancelled or started:** 409
   `session_cancelled` / `session_started`.
-- **`"status": "cancelled"`:** a `change_reason` (else 422 `change_reason_required`), then
+- **`"status": "cancelled"`:** decided first, nothing else applied (the site step before the
+  transaction is skipped too); the same cancellation again is 200 `unchanged`; a `change_reason`
+  (else 422 `change_reason_required`, logged `api.change_refused` when casuals are booked), then
   `cancelShiftInTx()` with the API caller.
 - **Nobody booked:** applied, `shift.changed {fields, from/to when the times or site changed}`;
   offers still out expire and travel estimates are queued when the times, site or role changed.

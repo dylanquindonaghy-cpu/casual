@@ -491,7 +491,7 @@ describe("the words", () => {
       `${refused} it takes away places casuals are booked in. Cancel those bookings, then ask your planner to send it again.`,
     );
     expect(plannerRefusedText({ ...p, why: "change_reason_required", casuals: 0 }, TZ)).toBe(
-      `${refused} it moves a session casuals are booked on, and gave no reason. Ask your planner to send it again with a reason.`,
+      `${refused} it moves or cancels a session casuals are booked on, and gave no reason. Ask your planner to send it again with a reason.`,
     );
     // The day is the firm's: 23:30 on Saturday in British Summer Time is still Saturday.
     expect(

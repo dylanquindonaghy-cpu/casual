@@ -11808,3 +11808,113 @@ ADR-008, ADR-011 and ADR-012) and golden rule 3's exception in CLAUDE.md.
   `office.integrations.spec.ts`), plus the e2e log check learning `shiftdesk_` keys and `Bearer`.
 - **Docs:** new `docs/integrations.md`, `api-and-jobs.md`, `data-model.md`, `screens.md`, CLAUDE.md's
   allowed look-ups.
+
+### 12J.1 continued: built, reviewed, verified (2026-10-11)
+
+**Time.** Started 2026-10-10 18:26 UTC (the plan above and commit `50d9e47` by 18:29); the
+container then sat idle overnight. Work resumed 2026-10-11 15:46 UTC; the end time is at the
+bottom of this entry. Hours are the two working spans only.
+
+**How it was built.** Dylan asked mid-task for fewer tokens, so after the first build pass the
+work went back to one builder plus the two required agents (the `guardrails-reviewer` and the
+`claims-auditor`). WIP snapshots: `69d9ab2`, `868d8ab`, `f19fedc`, `12d6582`.
+
+**Decisions Dylan would normally have approved** (all written into `docs/integrations.md` too):
+
+| Decision | Why | Alternative |
+|---|---|---|
+| (a) Every API cancellation needs a `change_reason`, even with nobody booked | `cancelShiftInTx()` and golden rule 12 need a reason; one rule is easier for a planner | A reason only when someone is booked |
+| (b) A cancelling PUT applies no other field (decided first: no site or event made, no postcode filled) | The session ends there; half-applied changes would be confusing | Apply the other fields, then cancel |
+| (c) `site` can't be null; a missing or null `postcode` leaves the site as it is | Every session needs a place; postcodes only fill an empty site | Allow a session with no site |
+| (d) An empty string clears a text field (like null) | Planners often send "" for "none" | Refuse "" |
+| (e) Requirement codes are upper-cased and de-duplicated | The firm's codes are upper case | Refuse lower case |
+| (f) Places default to 1 on create | A session needs at least one place | Make `places` required |
+| (g) A rename of the planner's event is logged as `shift.changed ['eventName']`; a move to another event as `['event']` | One log line says what changed on that session | A separate event log entry |
+| (h) A session the API moves stays in its old automatic event unless the PUT sends `event: null` | Matches the office's move and the import | Re-group it automatically |
+| (i) A 500 `internal_error` code | The error shape needs one for the unexpected | Next.js's own 500 page |
+| (j) A UTF-8 BOM before the JSON is accepted | Some tools add it | Refuse with 400 |
+| Any later `shift.cancelled` on one of the session's bookings clears the "Your planner's change was refused" item | The task says a later change or cancellation clears it | Clear only on the firm's cancellations |
+| The refused item stays until the session ends (and goes when it is cancelled) | As a rota sheet's refused change does: after the start nothing can clear it | Keep it for ever |
+| The office's "keep" of a booking (inactive or blocked casual) counts for the office's own moves and the rota sheet, not for the planner (`honourKept`) | The keep was a person's judgement about that booking; the planner can't override any check | Let the keep count for the planner too (the review's FIX FIRST) |
+| A revoked key stays revoked through a database trigger (migration 0046), not a restrictive RLS policy | A restrictive UPDATE policy would also hide revoked keys from `select … for update`, so "already revoked" would turn into "not found" | A restrictive policy; or rely on the code alone |
+| The site postcode change runs again if Postgres breaks a deadlock (`retryAborted`) | The planner's PUT holds the session then the site; the postcode change holds the site then its sessions. A retry is cheap and safe (one transaction, no network inside) | Re-order the PUT's locks (larger change) |
+| A started or cancelled session's PUT only looks its site up by name, never fills a postcode | "A started session and a cancelled one are left alone" | Fill it anyway |
+| A PUT that only fills an empty site postcode still answers `unchanged` for the session | `unchanged` is about the session's own fields; `site.changed` is logged | A new `site_updated` result (parked) |
+
+**Guardrails review** (`guardrails-reviewer`, read-only): "Verdict: FIX FIRST."
+
+- FIX FIRST: a booking the office chose to keep let the planner's move through for "not active"
+  and "blocked from the site" (`recheck.ts`), though the planner may override nothing. **Fixed**:
+  `recheckHolders()` takes `honourKept` (office and sheet `true`, planner `false`); new test in
+  `tests/integration/roster.api-caller.test.ts`, which fails with the old behaviour (checked).
+- SHOULD 1, a possible deadlock between a planner PUT and the site postcode change. **Fixed** with
+  `retryAborted()` round `editSitePostcode()`'s transaction.
+- SHOULD 2, revocation reversible by an UPDATE. **Fixed**: migration 0046's trigger; test in
+  `tests/integration/api.keys.test.ts` (the app and the owner both refused; the function not
+  callable by the app, held by `rls.every-table`'s function list).
+- SHOULD 3, `auth.rate_limited` didn't say which key. **Fixed**: logged under the key's id;
+  `tests/integration/api.requests.test.ts`.
+- SHOULD 4, a booked session's move with no reason wasn't logged for the office. **Fixed**:
+  `api.change_refused {code: "change_reason_required"}`, shown in Needs attention with its own
+  words; tests in `api.sessions`, `office.dashboard` (integration and unit) and the log words.
+- SHOULD 5, a cancelling PUT could make a site or event first. **Fixed**: the cancel is decided
+  first; tests in `api.sessions` (both fail on the old order, checked).
+- Notes: golden rule 3's wording waits for Dylan (Morning summary); the stale S11 row in
+  `docs/office-v2.md` §5.1 now says approved and built.
+
+**Outside the task's text, done on the way:**
+
+- `tests/e2e/strikes.worker.spec.ts` failed in verify. Root cause: its two sessions (about 20 hours
+  and 2 days ahead) fell in the same ISO week when the run was on a Sunday, so fair rotation (ADR-015)
+  held the later one for casuals with fewer hours that week ("You can take it from 19:09"). Fixed
+  in the test: the later session is now placed on the next Monday at least 49 hours ahead
+  (`laterDaysAhead()`), so the two are never in the same week. No product change.
+- `.github/workflows/ci.yml`: one run per change (pushes to `main` and pull requests, not every
+  push twice) and a newer push cancels the older run (commit `6c92b34`), at Dylan's request to
+  cut wasted runs. CI itself still fails before any step because of the account's billing (see the
+  Morning summary).
+- `docs/testing.md`: the e2e log scan now also looks for planner keys and `Bearer`.
+
+**Re-review of the fixes** (`guardrails-reviewer` again, on `git diff 6c92b34..HEAD` and the new
+tests only): "Verdict: FIX FIRST." Five of the six fixes passed; the cancel-first fix was incomplete.
+
+- FIX FIRST: the site check before the transaction (the site's held postcode, then the look-up)
+  still ran for a cancelling PUT, so a cancellation could be refused 409 `site_postcode_differs`
+  (the office had changed the venue's postcode) or 422/503 (the look-up), unlogged, with casuals
+  left booked; and the postcode went to the look-up for nothing. **Fixed**: that step is skipped
+  for `"status": "cancelled"` (`putSession()`); test "nothing about the site stops it" (a
+  different postcode and look-ups down: still cancelled, nothing looked up).
+- SHOULD 1: a cancelling PUT with no reason on a booked session wasn't logged for Needs attention.
+  **Fixed**: logged `api.change_refused {code: "change_reason_required"}` when casuals are booked
+  (not otherwise); the item's words now say "moves or cancels"; test.
+- SHOULD 2: the same cancellation sent again got 409 `session_cancelled` when its other fields
+  differed. **Fixed**: 200 `unchanged` whatever else it says, nothing made or logged; test.
+- SHOULD 3: no test of the postcode change's retry. **Added** in `tests/integration/settings.test.ts`
+  (a deadlock on the first run: it runs twice, looks the postcode up once, logs once).
+- NOTE 3 (the trigger's comments said "by any role"; no direct check of its function's settings):
+  wording corrected (any UPDATE, whoever runs it; only a migration could drop it) and a test of
+  its `search_path`, owner-only rights and `BEFORE UPDATE OF revoked_at, revoked_by` added.
+- NOTE 4 (`docs/integrations.md` step 2 said "nothing logged" though a filled postcode is logged):
+  corrected.
+- NOTE 1 and NOTE 2: parked ("Planner API (12J.1 review)").
+- The three new cancel tests fail on the code before these fixes (checked, then put back).
+
+**Verify, first full run after the fixes:** `VERIFIED tree=61fb3f20dab9e5fe e2e=true` (4,663 tests
+in 261 files, none skipped; 88 browser tests; the walkthrough's 3). An earlier run was stopped
+by hand mid-way to add a docs line, not failed.
+
+**Audit round 1** (`claims-auditor`, given only the task's text and Phase 12's Done-when):
+"VERDICT: NOT DONE". Its two gaps, verbatim:
+
+> 1. /home/user/casual/src/lib/integrations/sessions.ts:637-684 has no test. Add integration tests in /home/user/casual/tests/integration/api.sessions.test.ts: PUT an unbooked, future API session with a changed time, then a changed (valid) role, then a changed site. Assert that each queues TRAVEL_ESTIMATES_QUEUE for that shift, expires open offers, and logs shift.changed with from/to. Optionally add an unknown_role PUT on update that changes nothing.
+> 2. Add a "Guardrails review" section to the 12J.1 entry in /home/user/casual/docs/overnight-log.md: the reviewer's verdict, its findings, and the fixes. If the reviewer did not run again after 12d6582 (migration 0046, recheckHolders/honourKept, throttle.ts), run it on the current tree and record that.
+
+Fixed: gap 1 with two tests in `api.sessions.test.ts` ("a session nobody is booked on": a new
+time, then role, then site, each expiring an offer still out, queuing one travel job and logging
+the change, with from and to for the time and the site; and an unknown role on an update changing
+nothing). The first fails when the travel queueing is taken out (checked, then put back). Gap 2
+with this section and the re-review above.
+
+**Verify after round 1's and the re-review's fixes, audit round 2, commit:** below.
+
+**Parked:** "Planner API (12J.1 review)" in `PLAN.md`'s Parking lot.

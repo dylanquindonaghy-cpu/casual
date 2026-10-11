@@ -171,7 +171,9 @@ export async function putSession(call: ApiCall, ref: string): Promise<ApiResult>
   const siteName = body.site?.name ?? null;
   try {
     let located: Located | undefined;
-    if (siteName !== null && postcode !== null) {
+    // A cancelling PUT never uses its site (a cancel applies no other field), so its postcode is
+    // neither checked nor sent out: nothing about the site can stop a cancellation (12J.1 review).
+    if (siteName !== null && postcode !== null && body.status !== "cancelled") {
       // Gate B first, so a firm that can't save yet never sends a postcode out.
       const held = await call.run(call.firmId, async (tx) => {
         await requireAgreementForImport(tx, { saving: true, localDatabase: call.localDatabase });
@@ -506,11 +508,24 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
   const cancelling = b.status === "cancelled" && held.status !== "cancelled";
   const reopening = b.status === "open" && held.status === "cancelled";
 
+  if (b.status === "cancelled" && held.status === "cancelled") {
+    // The same cancellation sent again: nothing to do, whatever its other fields say (a cancel
+    // applies none of them), so a retry is always 200.
+    return {
+      status: 200,
+      body: { result: "unchanged", session: await sessionAsHeld(p.tx, shiftId) },
+    };
+  }
   if (cancelling) {
     // Decided first: a cancelling PUT applies no other field, so no site or event is made and no
     // postcode filled (12J.1 review). The session ends here.
     if (started) throw new Refusal("session_started");
-    if (!b.change_reason) throw new Refusal("change_reason_required");
+    if (!b.change_reason) {
+      // Logged for the office when casuals are booked: they stay booked for a session the
+      // planner thinks is off.
+      const { booked } = await liveBookings(p.tx, shiftId);
+      throw new Refusal("change_reason_required", {}, booked > 0 ? shiftId : undefined);
+    }
     const result = await cancelShiftInTx(p.tx, {
       shiftId,
       reason: b.change_reason,
@@ -603,17 +618,7 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
     if (want.startsAt.getTime() <= p.now.getTime()) throw new Refusal("session_started");
   }
 
-  const [live] = await p.tx
-    .select({ n: count(), top: max(assignments.slot) })
-    .from(assignments)
-    .where(
-      and(
-        eq(assignments.shiftId, shiftId),
-        isNotNull(assignments.workerId),
-        notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
-      ),
-    );
-  const booked = Number(live?.n ?? 0);
+  const { booked, top } = await liveBookings(p.tx, shiftId);
   const reason = b.change_reason ? { reason: FIRM_CHANGE_REASONS[b.change_reason] } : {};
   let told: number | undefined;
   let rest: Field[] = changed;
@@ -623,7 +628,7 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
       throw new Refusal("session_has_bookings", {}, shiftId);
     }
     // Only places up to the number count (src/lib/roster/native.ts): never below a booked one.
-    if (differs.headcount && want.headcount < Number(live?.top ?? 0)) {
+    if (differs.headcount && want.headcount < top) {
       throw new Refusal("places_below_booked", {}, shiftId);
     }
     if (moving) {
@@ -705,6 +710,21 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
       session: await sessionAsHeld(p.tx, shiftId),
     },
   };
+}
+
+// The session's live bookings: how many, and the highest place one holds (0 with none).
+async function liveBookings(tx: FirmTx, shiftId: string): Promise<{ booked: number; top: number }> {
+  const [live] = await tx
+    .select({ n: count(), top: max(assignments.slot) })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.shiftId, shiftId),
+        isNotNull(assignments.workerId),
+        notInArray(assignments.status, [...CANCELLED_ASSIGNMENT_STATUSES]),
+      ),
+    );
+  return { booked: Number(live?.n ?? 0), top: Number(live?.top ?? 0) };
 }
 
 // A booked session's new times or site: the rules for each booked casual, every failed check

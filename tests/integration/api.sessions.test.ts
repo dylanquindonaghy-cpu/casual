@@ -723,6 +723,97 @@ describe("a booked session", () => {
   });
 });
 
+describe("cancelling through the API", () => {
+  it("nothing about the site stops it: another postcode, or look-ups down, and the postcode is never sent out", async () => {
+    let lookUps = 0;
+    const down: Geocoder = {
+      locate: async () => {
+        lookUps += 1;
+        return { status: "unavailable" };
+      },
+    };
+    const t = await plannerFirm({ geocoder: down });
+    const id = (await t.put("S-1", plain())).body.session?.id ?? "";
+    await su.query("update sites set postcode = 'ZZ1 1AA' where firm_id = $1", [t.f.firmId]);
+    await booked(t, id, 1, "Ann");
+    const cancel = { status: "cancelled", change_reason: "event_cancelled" };
+    const cancelled = await t.put(
+      "S-1",
+      plain({ ...cancel, site: { name: "Riverside Arena", postcode: "ZZ2 2BB" } }),
+    );
+    expect([cancelled.status, cancelled.body.result, cancelled.body.casuals_told]).toEqual([
+      200,
+      "cancelled",
+      1,
+    ]);
+    // A ref ShiftDesk never had, at a new site with a postcode: nothing to do, nothing looked up.
+    const fresh = await t.put(
+      "S-2",
+      plain({ ...cancel, site: { name: "New Hall", postcode: "ZZ3 3CC" } }),
+    );
+    expect([fresh.status, fresh.body.result]).toEqual([200, "unchanged"]);
+    expect(lookUps).toBe(0);
+    const { rows } = await su.query("select name, postcode from sites where firm_id = $1", [
+      t.f.firmId,
+    ]);
+    expect(rows).toEqual([{ name: "Riverside Arena", postcode: "ZZ1 1AA" }]);
+  });
+
+  it("the same cancellation sent again is 200 unchanged whatever else it says, and logs and makes nothing", async () => {
+    const t = await plannerFirm();
+    await t.put("S-1", plain());
+    const cancel = { status: "cancelled", change_reason: "event_cancelled" };
+    expect((await t.put("S-1", plain(cancel))).body.result).toBe("cancelled");
+    const logged = (await eventsOf(t.f.firmId)).length;
+    const sites = await count("select count(*) from sites where firm_id = $1", [t.f.firmId]);
+    const events = await count("select count(*) from shift_events where firm_id = $1", [
+      t.f.firmId,
+    ]);
+    const again = await t.put(
+      "S-1",
+      plain({
+        ...cancel,
+        change_reason: "weather",
+        places: 9,
+        site: { name: "Somewhere New" },
+        event: { ref: "E-NEW", name: "A New Event" },
+      }),
+    );
+    expect([again.status, again.body.result, again.body.session?.status]).toEqual([
+      200,
+      "unchanged",
+      "cancelled",
+    ]);
+    expect((await eventsOf(t.f.firmId)).length).toBe(logged);
+    expect(await count("select count(*) from sites where firm_id = $1", [t.f.firmId])).toBe(sites);
+    expect(await count("select count(*) from shift_events where firm_id = $1", [t.f.firmId])).toBe(
+      events,
+    );
+  });
+
+  it("with no reason it's 422; with casuals booked that's logged for the office's Needs attention, with nobody booked it isn't", async () => {
+    const t = await plannerFirm();
+    await t.put("S-0", plain());
+    const empty = await t.put("S-0", { status: "cancelled" });
+    expect([empty.status, empty.body.error?.code]).toEqual([422, "change_reason_required"]);
+    expect(await eventsOf(t.f.firmId, "api.change_refused")).toEqual([]);
+    const id = (await t.put("S-1", plain())).body.session?.id ?? "";
+    await booked(t, id, 1, "Ann");
+    const before = await snapshot(id);
+    const refused = await t.put("S-1", { status: "cancelled" });
+    expect([refused.status, refused.body.error?.code]).toEqual([422, "change_reason_required"]);
+    expect(await snapshot(id)).toEqual(before);
+    expect(
+      (await eventsOf(t.f.firmId, "api.change_refused")).map((e) => [e.entity_id, e.data]),
+    ).toEqual([
+      [
+        id,
+        { by: "firm", via: "api", keyId: t.key.id, shiftId: id, code: "change_reason_required" },
+      ],
+    ]);
+  });
+});
+
 describe("a session nobody is booked on", () => {
   it("a new time, role or site is applied: offers still out expire, travel estimates are queued in the same PUT, and a new time or site logs from and to", async () => {
     const t = await plannerFirm();

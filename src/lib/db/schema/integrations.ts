@@ -9,8 +9,8 @@ import { firms } from "./tenancy";
 // are kept. The app may read and add rows and change only last_used_at and the revocation
 // (TABLE_ACCESS, COLUMN_UPDATES): it can never rewrite a key's hash or label, and a row is never
 // deleted (its id is the actor on every change the key made). A revocation is final: a trigger
-// (migration 0046) refuses any later change to revoked_at or revoked_by, by any role. Left out of
-// the firm's export.
+// (migration 0046) refuses any later UPDATE of revoked_at or revoked_by, whoever runs it (only a
+// migration, as the owner, could drop the trigger). Left out of the firm's export.
 //
 // app_api_key_lookup(hash) (migration 0045), run as the owner, finds a live key's firm before any
 // firm is known; under forced RLS the owner reads rows only through the owner-only policy below.

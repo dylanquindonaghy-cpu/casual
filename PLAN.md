@@ -2944,6 +2944,44 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - The bell runs about 8 small queries on every admin and resourcer page (twice on `/office`):
     cache it per request, or count in one query, if pages get slow. The dashboard's transactions
     could be marked read only, as a backstop.
+- Planner API (12J.1 review):
+  - **Dylan to confirm:** golden rule 3's new wording in CLAUDE.md (the planner API answers in the
+    request, made idempotent by the planner's ref; ADR-022), and S11 as built (ADR-022 amends
+    ADR-008, ADR-011 and ADR-012).
+  - **Dylan to confirm:** the API's ten small choices, (a) to (j), listed in
+    `docs/integrations.md` and the 12J.1 entry of `docs/overnight-log.md` (for example: a reason is
+    needed for every API cancellation; a cancelling PUT applies nothing else; an empty string
+    clears a text field; places default to 1).
+  - A planner's cancellation reads "cancelled by the office" in the strike line and in the
+    casual's notice: true for the firm, but it doesn't say "planner". A wording choice.
+  - The office guide has a part on the Integrations page but no line on sessions "from your
+    planner" (why Edit, Move and Cancel aren't there).
+  - The worker will need `INTEGRATIONS_SECRET` in `deploy/docker-compose.yml` when 12J.2's
+    webhooks are sent from it (only the web app has it today).
+  - No index on `assignments (firm_id, cancelled_at, id)` for `GET /api/v1/cancellations`' pages:
+    fine at pilot scale; a migration when a firm has many thousands of cancellations.
+  - The Integrations page reads the action log to show each key's last change: fine at pilot
+    scale; a summary column if it gets slow.
+  - The app may update `shift_events.name` for any event, not just a planner's (a column-level
+    grant can't see the row's source); only the API code renames today.
+  - `POST` and `DELETE` on `/api/v1/sessions/{ref}` answer Next.js's own 405 without the API's
+    error shape.
+  - The planner receives rule codes when a move is refused (`rest`, `not_active`, …) with each
+    casual's id: worth a line in a DPIA when the first firm connects a planner.
+  - A key revoked while a long read is running finishes that read (reads don't hold the key);
+    writes check the key inside their transaction.
+  - The refused-key counter is per web process and in memory: with several web processes each
+    counts its own 30 a minute; a restart clears it.
+  - A PUT that only fills a site's empty postcode answers `unchanged` for the session, though
+    the site changed (`site.changed` is logged): say "site updated" in the answer if planners
+    find it confusing.
+  - A started session's otherwise unchanged PUT that names its site with a postcode still runs the
+    site check before the transaction (whether the session has started isn't known yet), so it
+    can get 409 `site_postcode_differs` or 503 `lookup_failed` instead of 200 `unchanged` or 409
+    `session_started` (re-review NOTE 1).
+  - The kept-booking test checks "not active" through the roster function the PUT uses, not
+    "blocked from the site" or the HTTP PUT itself; nothing pins the rota sheet's
+    `honourKept: true` (re-review NOTE 2).
 
 ## Hours log
 

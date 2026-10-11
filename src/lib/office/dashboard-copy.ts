@@ -157,7 +157,7 @@ export function expiredText(e: ExpiredOnBooking, today: string, tz: string): str
 // "Your planner's change to the steward session on Sat 7 Nov was refused: 2 booked casuals can't
 // work it. Cancel their bookings, then ask your planner to send it again." (docs/office-v2.md
 // 5.3.2 step 5), and the same for a role or requirements change, for places taken away and for a
-// move of a booked session sent with no reason.
+// move or cancellation of a booked session sent with no reason.
 export function plannerRefusedText(r: PlannerRefusal, tz: string): string {
   const session = `the ${roleLabel(r.role).toLowerCase()} session on ${dayLabel(localDateOf(r.startsAt, tz))}`;
   const refused = `Your planner's change to ${session} was refused`;
@@ -172,7 +172,7 @@ export function plannerRefusedText(r: PlannerRefusal, tz: string): string {
     case "places_below_booked":
       return `${refused}: it takes away places casuals are booked in. Cancel those bookings, ${again}`;
     case "change_reason_required":
-      return `${refused}: it moves a session casuals are booked on, and gave no reason. Ask your planner to send it again with a reason.`;
+      return `${refused}: it moves or cancels a session casuals are booked on, and gave no reason. Ask your planner to send it again with a reason.`;
   }
 }
 

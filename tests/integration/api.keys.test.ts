@@ -218,6 +218,33 @@ describe("what the app's login may do to api_keys", () => {
     });
   });
 
+  it("the revocation trigger's function runs as the caller with a pinned search_path, and nobody may call it", async () => {
+    const { rows } = await su.query<{ definer: boolean; config: string[]; acl: string[] }>(
+      `select prosecdef as definer, proconfig as config, proacl::text[] as acl
+         from pg_proc where oid = 'app_api_key_revocation_final()'::regprocedure`,
+    );
+    expect(rows).toEqual([
+      {
+        definer: false,
+        config: ["search_path=pg_catalog, pg_temp"],
+        acl: [expect.stringMatching(/^[a-z_]+=X\/[a-z_]+$/)],
+      },
+    ]);
+    // Only its owner's own entry: not PUBLIC, not the app or jobs roles.
+    expect(rows[0]?.acl[0]?.startsWith("=")).toBe(false);
+    expect(rows[0]?.acl.some((e) => /^shiftdesk_(app|jobs)=/.test(e))).toBe(false);
+    const { rows: fires } = await su.query<{ enabled: string; when: string }>(
+      `select tgenabled as enabled, pg_get_triggerdef(oid) as when from pg_trigger
+        where tgname = 'api_keys_revocation_final'`,
+    );
+    expect(fires).toEqual([
+      {
+        enabled: "O",
+        when: expect.stringContaining("BEFORE UPDATE OF revoked_at, revoked_by ON public.api_keys"),
+      },
+    ]);
+  });
+
   it("can't bring a revoked key back, or change who revoked it or when (migration 0046)", async () => {
     const k = await addKey(A, { revoked: true });
     const { rows: others } = await su.query<{ id: string }>(

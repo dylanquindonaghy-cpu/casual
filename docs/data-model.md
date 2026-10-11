@@ -840,6 +840,8 @@ create table api_keys (
 -- if it isn't revoked, before any firm is known (runs as the owner, through a select policy for the
 -- owner only; ids only; like app_firm_by_line for a number). Only the app role may call it, through
 -- resolveApiKey() (src/lib/db/directory.ts); the API's work then runs in withFirm() for that firm.
+-- Trigger api_keys_revocation_final (migration 0046): once revoked_at is set, any change to
+-- revoked_at or revoked_by fails (23514), for every role, so a revoked key never comes back.
 
 -- The firm for the current transaction. NULL when unset, so policies fail closed. The nullif
 -- matters: a pooled connection that ran a firm transaction returns '' afterwards, not NULL.

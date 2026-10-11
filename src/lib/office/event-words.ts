@@ -254,7 +254,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "api.change_refused":
       return d.code === "places_below_booked"
         ? "Your planner's change was refused: a booking holds a place above the new number of places."
-        : "Your planner's change was refused: casuals are booked, so its role and requirements can't change.";
+        : d.code === "change_reason_required"
+          ? "Your planner's change was refused: it moved a session with casuals booked, and gave no reason."
+          : "Your planner's change was refused: casuals are booked, so its role and requirements can't change.";
     case "shift.move_refused":
       return `${firmName} tried to move the shift. Not moved: someone booked can't work the new time.`;
     case "shift.cancelled_by_firm":

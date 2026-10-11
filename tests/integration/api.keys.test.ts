@@ -218,6 +218,39 @@ describe("what the app's login may do to api_keys", () => {
     });
   });
 
+  it("can't bring a revoked key back, or change who revoked it or when (migration 0046)", async () => {
+    const k = await addKey(A, { revoked: true });
+    const { rows: others } = await su.query<{ id: string }>(
+      `insert into office_users (firm_id, email, name, role)
+       values ($1, 'revoker.other@example.com', 'Other Admin', 'admin') returning id::text as id`,
+      [A.firmId],
+    );
+    const other = others[0]?.id ?? "";
+    for (const [statement, values] of [
+      ["update api_keys set revoked_at = null, revoked_by = null where id = $1", [k.id]],
+      ["update api_keys set revoked_at = now() + interval '1 day' where id = $1", [k.id]],
+      ["update api_keys set revoked_by = $2 where id = $1", [k.id, other]],
+    ] as const) {
+      const err = await pgError(inFirm(app, A.firmId, (c) => c.query(statement, [...values])));
+      expect(err).toMatchObject({
+        code: "23514",
+        message: "an API key's revocation is final",
+      });
+    }
+    // Not even the owner (the trigger binds every role).
+    expect(
+      await pgError(
+        su.query("update api_keys set revoked_at = null, revoked_by = null where id = $1", [k.id]),
+      ),
+    ).toEqual({ code: "23514", message: "an API key's revocation is final" });
+    const { rows } = await su.query<{ live: boolean }>(
+      "select revoked_at is null as live from api_keys where id = $1",
+      [k.id],
+    );
+    expect(rows).toEqual([{ live: false }]);
+    expect(await createKeyDirectory(app)(k.hash)).toBeNull();
+  });
+
   it("can add a key for its own firm, never with another firm's hash (one key, one firm)", async () => {
     const theirs = await addKey(B);
     const add = (hash: Buffer) =>

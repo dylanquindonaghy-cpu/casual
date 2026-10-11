@@ -698,6 +698,24 @@ describe("Needs attention: your planner's change was refused", () => {
     a.body.error?.code,
   ];
 
+  it("a booked session's move sent with no reason shows; sent again with a reason, it goes through and clears", async () => {
+    const t = await plannerFirm();
+    const id = await t.create("S-1", plain());
+    await t.booking(await t.worker({ first: "Ann" }), id, "confirmed", 1);
+    const later = plain({ starts_at: "2026-11-07T10:00:00Z", ends_at: "2026-11-07T18:00:00Z" });
+    expect(code(await t.put("S-1", later))).toEqual([422, "change_reason_required"]);
+    expect(await t.refused()).toEqual([[id, "change_reason_required", 0]]);
+    expect((await t.needs()).plannerRefused[0]).toMatchObject({
+      shiftId: id,
+      why: "change_reason_required",
+      casuals: 0,
+    });
+    expect((await t.put("S-1", { ...later, change_reason: "event_changed" })).body.result).toBe(
+      "updated",
+    );
+    expect(await t.refused()).toEqual([]);
+  });
+
   it("a role change a booking blocks shows, counted by the bell; an unchanged PUT leaves it, a later successful PUT clears it", async () => {
     const t = await plannerFirm();
     const id = await t.create("S-1", plain());

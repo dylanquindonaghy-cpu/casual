@@ -104,12 +104,19 @@ export type Throttled = { retryAfterMinutes: number; retryAfterSeconds: number; 
 export const toMinutes = (ms: number) => Math.max(1, Math.ceil(ms / MINUTE));
 
 // Logged once per window: when a limit is first reached, not on every refused attempt, so a
-// flood of refusals can't flood the (append-only, kept a year) action log.
-export async function logLimitReached(tx: FirmTx, limit: Limit, entityType: string): Promise<void> {
+// flood of refusals can't flood the (append-only, kept a year) action log. `entityId` names what
+// reached it when that's known and safe to keep (the planner's key id; never a number or email).
+export async function logLimitReached(
+  tx: FirmTx,
+  limit: Limit,
+  entityType: string,
+  entityId?: string,
+): Promise<void> {
   await recordEvent(tx, {
     actorType: "system",
     action: "auth.rate_limited",
     entityType,
+    entityId: entityId ?? null,
     data: { limit: limit.name },
   });
 }
@@ -123,13 +130,14 @@ export async function throttle(
   run: WithFirm,
   firmId: string,
   checks: { limit: Limit; value: string }[],
-  opts: { now: Date; secret: string; entityType: string },
+  opts: { now: Date; secret: string; entityType: string; entityId?: string },
 ): Promise<Throttled | null> {
   return run(firmId, async (tx) => {
     for (const check of checks) {
       const hit = await hitLimit(tx, { ...check, now: opts.now, secret: opts.secret });
       if (hit.allowed) continue;
-      if (hit.hits === hit.limit.max + 1) await logLimitReached(tx, hit.limit, opts.entityType);
+      if (hit.hits === hit.limit.max + 1)
+        await logLimitReached(tx, hit.limit, opts.entityType, opts.entityId);
       return {
         retryAfterMinutes: toMinutes(hit.retryAfterMs),
         retryAfterSeconds: Math.max(1, Math.ceil(hit.retryAfterMs / 1000)),

@@ -102,9 +102,9 @@ export interface ExpiredOnBooking {
 }
 
 // A change your planner sent for a booked session that was refused (docs/office-v2.md 5.3.2
-// step 5): a move the rules refused for some booked casuals ("move"), or a role, requirements or
-// places change that a booking blocks (the API's own codes). The planner may ignore the 409, so
-// the office is told here.
+// step 5): a move the rules refused for some booked casuals ("move"), a role, requirements or
+// places change that a booking blocks, or a move of a booked session sent with no reason (the
+// API's own codes). The planner may ignore the 409 or 422, so the office is told here.
 export interface PlannerRefusal {
   shiftId: string;
   role: string;
@@ -112,7 +112,7 @@ export interface PlannerRefusal {
   startsAt: Date;
   endsAt: Date;
   refusedAt: Date;
-  why: "move" | "session_has_bookings" | "places_below_booked";
+  why: "move" | "session_has_bookings" | "places_below_booked" | "change_reason_required";
   casuals: number; // for a move: the booked casuals who can't work it
 }
 
@@ -437,7 +437,8 @@ export async function loadPlannerRefusals(
          where e.firm_id = s.firm_id and e.entity_id = s.id and e.data ->> 'via' = 'api'
            and (e.action = 'shift.move_refused'
                 or (e.action = 'api.change_refused'
-                    and e.data ->> 'code' in ('session_has_bookings', 'places_below_booked')))
+                    and e.data ->> 'code' in ('session_has_bookings', 'places_below_booked',
+                                              'change_reason_required')))
          order by e.id desc
          limit 1
       ) r
@@ -464,8 +465,8 @@ export async function loadPlannerRefusals(
       why:
         r.action === "shift.move_refused"
           ? "move"
-          : r.code === "places_below_booked"
-            ? "places_below_booked"
+          : r.code === "places_below_booked" || r.code === "change_reason_required"
+            ? r.code
             : "session_has_bookings",
       casuals: r.action === "shift.move_refused" ? r.casuals : 0,
     })),

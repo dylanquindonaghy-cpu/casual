@@ -18,6 +18,7 @@ import {
 } from "@/lib/office/quick-actions";
 import { editShift, editShiftDetails } from "@/lib/office/shift-editor";
 import { officeShiftDetail, officeShiftList } from "@/lib/office/shift-pages";
+import { changeWorkerStatus, keepFlaggedBooking } from "@/lib/office/worker-access";
 import { cancelShiftByFirm, cancelShiftInTx } from "@/lib/roster/cancel";
 import {
   MoveBlocked,
@@ -374,6 +375,43 @@ describe("the planner moving a booked session", () => {
         reason: REASON,
         workers: [{ workerId: t.ben, codes: ["unavailable"] }],
       },
+    ]);
+  });
+
+  it("a booking the office chose to keep stops the planner's move all the same (the keep is the office's, for its own moves)", async () => {
+    // The office's own session: Ann made inactive, her booking kept, and a new time at the same
+    // site goes through (tests/integration/office.workers.test.ts has the rest of that).
+    const own = await plannerFirm("native");
+    const ownCtx = officeCtx(own.f.firmId, own.resourcer);
+    await changeWorkerStatus(ownCtx, own.ann, { kind: "deactivate", reason: "paused" });
+    await keepFlaggedBooking(ownCtx, own.shiftId, own.ann);
+    expect(
+      await moveShift(ownCtx, own.shiftId, {
+        date: "2026-11-07",
+        start: "10:00",
+        end: "18:00",
+        siteId: own.arena,
+        reason: "event_changed",
+      }),
+    ).toMatchObject({ status: "moved" });
+
+    // The same keep on the planner's session: its move to a new time at the same site is refused
+    // for Ann's "not active", and nothing changes.
+    const t = await plannerFirm();
+    const keyId = await keyOf(t.f.firmId);
+    const ctx = officeCtx(t.f.firmId, t.resourcer);
+    await changeWorkerStatus(ctx, t.ann, { kind: "deactivate", reason: "paused" });
+    expect(await keepFlaggedBooking(ctx, t.shiftId, t.ann)).toMatchObject({ status: "kept" });
+    const before = await snapshot(t.shiftId);
+    expect(await moveShiftByFirm(withFirm, t.f.firmId, apiMove(t, keyId), at(NOW))).toMatchObject({
+      status: "blocked",
+      workers: [{ workerId: t.ann, name: "Ann Booker" }],
+    });
+    expect(await snapshot(t.shiftId)).toEqual({ ...before, events: before.events + 1 });
+    expect(await eventsOf(t.f.firmId, "shift.moved")).toEqual([]);
+    expect(await noticeJobs(t.f.firmId)).toEqual([]);
+    expect((await eventsOf(t.f.firmId, "shift.move_refused")).map((e) => e.data)).toEqual([
+      expect.objectContaining({ workers: [{ workerId: t.ann, codes: ["not_active"] }] }),
     ]);
   });
 });

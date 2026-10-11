@@ -264,6 +264,7 @@ async function moveInTx(
     timeZone,
     siteChanged,
     allowed: by.type === "office" ? OVERRIDABLE_CODES : [],
+    honourKept: by.type === "office",
   });
   if (blocked.length > 0) {
     throw new MoveBlocked(

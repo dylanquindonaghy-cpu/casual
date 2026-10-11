@@ -259,7 +259,7 @@ export async function handleApiRequest(
       run,
       entry.firmId,
       [{ limit: LIMITS.apiPerKey, value: entry.keyId }],
-      { now, secret: env.SESSION_SECRET, entityType: "api_key" },
+      { now, secret: env.SESSION_SECRET, entityType: "api_key", entityId: entry.keyId },
     );
     if (limited) {
       return finish(

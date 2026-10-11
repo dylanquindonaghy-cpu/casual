@@ -273,7 +273,8 @@ live, its row held `for share` before the session's (`firmCallerMay()`); the ses
 - **People booked:** role or requirements: 409 `session_has_bookings`; places below the highest
   booked place: 409 `places_below_booked` (each also logged `api.change_refused {shiftId, code}` in
   a transaction of its own after the rollback, for the office's Needs attention); new times or
-  site: a `change_reason`, then `moveShiftInTx()` with the API caller, where any failed rules check
+  site: a `change_reason` (else 422 `change_reason_required`, also logged `api.change_refused` for
+  Needs attention), then `moveShiftInTx()` with the API caller, where any failed rules check
   throws `MoveBlocked`, everything rolls back, `shift.move_refused` is logged with `via: "api"`
   (`recordMoveRefused()`) and the answer is 409 `bookings_block_change` with each casual's id and
   codes; the rest (places, pay, post, meeting point, uniform, instructions, event) is applied and

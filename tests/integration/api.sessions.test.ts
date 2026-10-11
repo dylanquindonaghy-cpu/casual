@@ -554,6 +554,15 @@ describe("a booked session", () => {
     const later = plain({ starts_at: "2026-11-07T10:00:00Z", ends_at: "2026-11-07T18:00:00Z" });
     const noReason = await t.put("S-1", later);
     expect([noReason.status, noReason.body.error?.code]).toEqual([422, "change_reason_required"]);
+    // Logged for the office's Needs attention (casuals are booked), after the rollback.
+    expect(
+      (await eventsOf(t.f.firmId, "api.change_refused")).map((e) => [e.entity_id, e.data]),
+    ).toEqual([
+      [
+        id,
+        { by: "firm", via: "api", keyId: t.key.id, shiftId: id, code: "change_reason_required" },
+      ],
+    ]);
     const travelBefore = (await jobsFor(TRAVEL_ESTIMATES_QUEUE, t.f.firmId)).length;
     // The key alone is enough: nobody in the office can act.
     await su.query("update office_users set status = 'disabled' where firm_id = $1", [t.f.firmId]);
@@ -679,6 +688,39 @@ describe("a booked session", () => {
       expect([refused.status, refused.body.error?.code]).toEqual([409, "session_cancelled"]);
     }
   });
+
+  it("a cancelling PUT applies nothing else: no new site or event is made, no postcode filled", async () => {
+    const t = await plannerFirm();
+    const id = (await t.put("S-1", plain())).body.session?.id ?? "";
+    const sites = () => count("select count(*) from sites where firm_id = $1", [t.f.firmId]);
+    const events = () =>
+      count("select count(*) from shift_events where firm_id = $1", [t.f.firmId]);
+    const [sitesBefore, eventsBefore] = [await sites(), await events()];
+    const cancelled = await t.put(
+      "S-1",
+      plain({
+        status: "cancelled",
+        change_reason: "event_cancelled",
+        site: { name: "Riverside Arena", postcode: "ZZ4 4DD" },
+        event: { ref: "E-NEW", name: "A New Event" },
+        places: 9,
+      }),
+    );
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toMatchObject({
+      result: "cancelled",
+      session: { id, status: "cancelled", places: 2, site: { postcode: null } },
+    });
+    expect([await sites(), await events()]).toEqual([sitesBefore, eventsBefore]);
+    expect(await eventsOf(t.f.firmId, "site.changed")).toEqual([]);
+    // A new site's name too: nothing is made for a cancelled session's PUT.
+    const again = await t.put(
+      "S-1",
+      plain({ site: { name: "Somewhere New", postcode: "ZZ5 5EE" } }),
+    );
+    expect([again.status, again.body.error?.code]).toEqual([409, "session_cancelled"]);
+    expect([await sites(), await events()]).toEqual([sitesBefore, eventsBefore]);
+  });
 });
 
 describe("a session that has started", () => {
@@ -691,6 +733,20 @@ describe("a session that has started", () => {
     const cancel = await t.put("S-1", { status: "cancelled", change_reason: "weather" });
     expect([cancel.status, cancel.body.error?.code]).toEqual([409, "session_started"]);
     expect((await t.put("S-1", plain())).status).toBe(200);
+  });
+
+  it("its site isn't given a postcode by a PUT that's otherwise the same", async () => {
+    const t = await plannerFirm();
+    await t.put("S-1", plain());
+    t.at(new Date("2026-11-07T09:00:00Z"));
+    const same = await t.put(
+      "S-1",
+      plain({ site: { name: "Riverside Arena", postcode: "ZZ4 4DD" } }),
+    );
+    expect([same.status, same.body.result]).toEqual([200, "unchanged"]);
+    const { rows } = await su.query("select postcode from sites where firm_id = $1", [t.f.firmId]);
+    expect(rows).toEqual([{ postcode: null }]);
+    expect(await eventsOf(t.f.firmId, "site.changed")).toEqual([]);
   });
 
   it("and a move into the past is refused too", async () => {

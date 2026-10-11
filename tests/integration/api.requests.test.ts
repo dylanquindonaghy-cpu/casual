@@ -156,10 +156,14 @@ describe("the key", () => {
     expect((await get(other.key)).status).toBe(404);
     // Logged once a window, when the limit is reached.
     const { rows } = await su.query(
-      "select entity_type, data from events where firm_id = $1 and action = 'auth.rate_limited'",
+      `select entity_type, entity_id::text, data from events
+        where firm_id = $1 and action = 'auth.rate_limited'`,
       [t.f.firmId],
     );
-    expect(rows).toEqual([{ entity_type: "api_key", data: { limit: "api:key" } }]);
+    // Under the key that reached it (its id, never the key).
+    expect(rows).toEqual([
+      { entity_type: "api_key", entity_id: t.key.id, data: { limit: "api:key" } },
+    ]);
     t.at(new Date(NOW.getTime() + MINUTE));
     expect((await get()).status).toBe(404);
   });

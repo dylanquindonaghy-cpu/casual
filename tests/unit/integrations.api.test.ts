@@ -617,6 +617,9 @@ describe("the planner's entries in the action log", () => {
     expect(say("api.change_refused", { code: "session_has_bookings" })).toBe(
       "Your planner's change was refused: casuals are booked, so its role and requirements can't change.",
     );
+    expect(say("api.change_refused", { code: "change_reason_required" })).toBe(
+      "Your planner's change was refused: it moved a session with casuals booked, and gave no reason.",
+    );
     expect(say("shift.changed", { fields: ["headcount", "payRatePence", "eventName"] })).toBe(
       "Your planner: Changed the places, pay rate and event name.",
     );

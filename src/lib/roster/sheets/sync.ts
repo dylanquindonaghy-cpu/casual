@@ -1047,6 +1047,7 @@ async function tryRuledChange(
         timeZone: opts.timeZone,
         siteChanged: opts.ruled.siteId !== opts.existing.siteId,
         allowed: SHEET_OVERRIDES,
+        honourKept: true,
       });
       if (result.blocked.length > 0) {
         throw new ChangeRefused(

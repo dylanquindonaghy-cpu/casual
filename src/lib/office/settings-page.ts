@@ -13,6 +13,7 @@ import { serverGeocoder } from "../travel/server";
 import { officeUserMay, type OfficeContext } from "./office-context";
 import { strikesEmailOf, type StrikesEmail } from "./strikes-email";
 import { siteMoved } from "../travel/estimate-queue";
+import { retryAborted } from "../db/retry";
 
 // Settings (docs/office-v2.md 3.10; docs/screens.md `/office/settings`; 12B.7), admins only,
 // checked here as well as on the page: the strikes team's email (src/lib/office/strikes-email.ts)
@@ -148,57 +149,63 @@ export async function editSitePostcode(
     if (found.status === "off") off = true;
     else point = found.point;
   }
-  return (ctx.run ?? withFirm)(ctx.firm.id, async (tx) => {
-    if (!(await officeUserMay(tx, ctx.officeUserId, "settings"))) return { status: "not_allowed" };
-    // No booking may land between the count and the change. "for update" on the site holds back
-    // a session added at it or moved to it (their foreign-key check needs the site's key share);
-    // a booking takes its session's row first (src/lib/roster/native.ts lockShift), so locking
-    // the site's sessions still to come makes bookings in flight finish first and later ones wait
-    // for this change. The count then runs after both, so it sees every committed booking.
-    const [site] = await tx
-      .select({ postcode: sites.postcode, lat: sites.lat })
-      .from(sites)
-      .where(eq(sites.id, siteId))
-      .for("update");
-    if (!site) return { status: "not_found" };
-    if ((site.postcode ?? null) === postcode) {
-      if (postcode === null || site.lat !== null) return { status: "unchanged" };
-      if (off) return { status: "lookups_off" };
-      // The same postcode with no point yet: the venue doesn't move, so bookings don't matter.
-      await tx.update(sites).set(pointColumns(point)).where(eq(sites.id, siteId));
-      await siteMoved(tx, siteId, now); // its sessions' travel estimates (12G.2)
+  // Run again if Postgres breaks a deadlock with it: the planner's PUT holds a session and then
+  // waits on its site, the reverse of the order below (12J.1 review). Everything is in the one
+  // transaction (the jobs too), so a second run repeats nothing.
+  return retryAborted(() =>
+    (ctx.run ?? withFirm)(ctx.firm.id, async (tx) => {
+      if (!(await officeUserMay(tx, ctx.officeUserId, "settings")))
+        return { status: "not_allowed" };
+      // No booking may land between the count and the change. "for update" on the site holds back
+      // a session added at it or moved to it (their foreign-key check needs the site's key share);
+      // a booking takes its session's row first (src/lib/roster/native.ts lockShift), so locking
+      // the site's sessions still to come makes bookings in flight finish first and later ones wait
+      // for this change. The count then runs after both, so it sees every committed booking.
+      const [site] = await tx
+        .select({ postcode: sites.postcode, lat: sites.lat })
+        .from(sites)
+        .where(eq(sites.id, siteId))
+        .for("update");
+      if (!site) return { status: "not_found" };
+      if ((site.postcode ?? null) === postcode) {
+        if (postcode === null || site.lat !== null) return { status: "unchanged" };
+        if (off) return { status: "lookups_off" };
+        // The same postcode with no point yet: the venue doesn't move, so bookings don't matter.
+        await tx.update(sites).set(pointColumns(point)).where(eq(sites.id, siteId));
+        await siteMoved(tx, siteId, now); // its sessions' travel estimates (12G.2)
+        await recordEvent(tx, {
+          actorType: "office",
+          actorId: ctx.officeUserId,
+          action: "site.changed",
+          entityType: "site",
+          entityId: siteId,
+          data: { siteId, fields: ["location"] },
+        });
+        return { status: "located" };
+      }
+      await tx.execute(sql`
+      select s.id from shifts s
+       where s.site_id = ${siteId} and s.starts_at > ${now}
+       order by s.id
+         for no key update
+    `);
+      const sessions = (await bookedSessionsAt(tx, siteId, now)).get(siteId) ?? 0;
+      if (sessions > 0) return { status: "in_use", sessions };
+      await tx
+        .update(sites)
+        .set({ postcode, ...pointColumns(point) })
+        .where(eq(sites.id, siteId));
+      // Its old travel estimates are wrong now; its sessions to come get new ones (12G.2).
+      await siteMoved(tx, siteId, now);
       await recordEvent(tx, {
         actorType: "office",
         actorId: ctx.officeUserId,
         action: "site.changed",
         entityType: "site",
         entityId: siteId,
-        data: { siteId, fields: ["location"] },
+        data: { siteId, fields: ["postcode"] },
       });
-      return { status: "located" };
-    }
-    await tx.execute(sql`
-      select s.id from shifts s
-       where s.site_id = ${siteId} and s.starts_at > ${now}
-       order by s.id
-         for no key update
-    `);
-    const sessions = (await bookedSessionsAt(tx, siteId, now)).get(siteId) ?? 0;
-    if (sessions > 0) return { status: "in_use", sessions };
-    await tx
-      .update(sites)
-      .set({ postcode, ...pointColumns(point) })
-      .where(eq(sites.id, siteId));
-    // Its old travel estimates are wrong now; its sessions to come get new ones (12G.2).
-    await siteMoved(tx, siteId, now);
-    await recordEvent(tx, {
-      actorType: "office",
-      actorId: ctx.officeUserId,
-      action: "site.changed",
-      entityType: "site",
-      entityId: siteId,
-      data: { siteId, fields: ["postcode"] },
-    });
-    return { status: off ? "saved_unlocated" : "saved" };
-  });
+      return { status: off ? "saved_unlocated" : "saved" };
+    }),
+  );
 }

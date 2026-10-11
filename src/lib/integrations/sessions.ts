@@ -502,13 +502,44 @@ const pick = <T>(sent: T | undefined, held: T): T => (sent === undefined ? held 
 async function update(p: Put, held: Held): Promise<ApiResult> {
   const b = p.body;
   const shiftId = held.id;
+  const started = held.startsAt.getTime() <= p.now.getTime();
+  const cancelling = b.status === "cancelled" && held.status !== "cancelled";
+  const reopening = b.status === "open" && held.status === "cancelled";
+
+  if (cancelling) {
+    // Decided first: a cancelling PUT applies no other field, so no site or event is made and no
+    // postcode filled (12J.1 review). The session ends here.
+    if (started) throw new Refusal("session_started");
+    if (!b.change_reason) throw new Refusal("change_reason_required");
+    const result = await cancelShiftInTx(p.tx, {
+      shiftId,
+      reason: b.change_reason,
+      by: p.by,
+      now: p.now,
+    });
+    if (result.status !== "cancelled") throw new Refusal(refusalOf(result.status));
+    return {
+      status: 200,
+      body: {
+        result: "cancelled",
+        casuals_told: result.bookings,
+        session: await sessionAsHeld(p.tx, shiftId),
+      },
+    };
+  }
+
   const heldRequirements = [...held.requiredCredentials].sort();
+  // A started or cancelled session takes no change: its site is only looked up (a new one is made
+  // only to be rolled back with the refusal), never given a postcode.
+  const closed = started || held.status === "cancelled";
   // The session as asked: each field sent, the rest as held.
   const want = {
     role: pick(b.role, held.role),
     startsAt: pick(b.starts_at, held.startsAt),
     endsAt: pick(b.ends_at, held.endsAt),
-    siteId: b.site ? await siteFor(p, b.site) : held.siteId,
+    siteId: b.site
+      ? await siteFor(p, closed ? { name: b.site.name, postcode: null } : b.site)
+      : held.siteId,
     headcount: pick(b.places, held.headcount),
     payRatePence: pick(b.pay_rate_pence, held.payRatePence),
     post: pick(b.post, held.post),
@@ -548,36 +579,14 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
     eventName: rename !== null,
   };
   const changed = FIELD_ORDER.filter((f) => differs[f]);
-  const cancelling = b.status === "cancelled" && held.status !== "cancelled";
-  const reopening = b.status === "open" && held.status === "cancelled";
-  if (changed.length === 0 && !cancelling && !reopening) {
+  if (changed.length === 0 && !reopening) {
     return {
       status: 200,
       body: { result: "unchanged", session: await sessionAsHeld(p.tx, shiftId) },
     };
   }
   if (held.status === "cancelled") throw new Refusal("session_cancelled");
-  if (held.startsAt.getTime() <= p.now.getTime()) throw new Refusal("session_started");
-
-  if (cancelling) {
-    // The other fields of a cancelling PUT aren't applied: the session ends here.
-    if (!b.change_reason) throw new Refusal("change_reason_required");
-    const result = await cancelShiftInTx(p.tx, {
-      shiftId,
-      reason: b.change_reason,
-      by: p.by,
-      now: p.now,
-    });
-    if (result.status !== "cancelled") throw new Refusal(refusalOf(result.status));
-    return {
-      status: 200,
-      body: {
-        result: "cancelled",
-        casuals_told: result.bookings,
-        session: await sessionAsHeld(p.tx, shiftId),
-      },
-    };
-  }
+  if (started) throw new Refusal("session_started");
 
   if (differs.role && !(await roleKnown(p.tx, want.role))) throw new Refusal("unknown_role");
   if (differs.requirements) {
@@ -618,7 +627,8 @@ async function update(p: Put, held: Held): Promise<ApiResult> {
       throw new Refusal("places_below_booked", {}, shiftId);
     }
     if (moving) {
-      if (!b.change_reason) throw new Refusal("change_reason_required");
+      // Logged too: casuals are booked, so the office should know the planner's move didn't land.
+      if (!b.change_reason) throw new Refusal("change_reason_required", {}, shiftId);
       told = await moveBooked(p, shiftId, want, b.change_reason);
       rest = changed.filter((f) => !MOVE_FIELDS.includes(f));
     }

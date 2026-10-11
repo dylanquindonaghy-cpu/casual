@@ -130,7 +130,7 @@ or `cancelled`.
 | `site` | Required to create: `{"name", "postcode"}`. The site is found by its name (up to 200 characters), or made if it's new. A `postcode` only fills a site that has none, and is looked up then: an unknown postcode is 422 `unknown_postcode`, a look-up that fails is 503 `lookup_failed` and saves nothing. A different postcode for a site that already has one is 409 `site_postcode_differs`: change it in ShiftDesk Settings, or send a different site name. `null` or no postcode leaves the site's alone. |
 | `event` | `{"ref", "name"}`: your planner's event, found by its ref (same rules as a session's, but not starting `auto:`) or made if it's new; a different name renames it. Name up to 200 characters. Left out when creating, the session joins an automatic event for its site and day; `null` puts it back in that one. |
 | `places` | 1 to 1000. 1 when left out on create. |
-| `status` | `open` or `cancelled`. `cancelled` needs a `change_reason`, and the other fields of that PUT aren't applied. |
+| `status` | `open` or `cancelled`. `cancelled` needs a `change_reason`, and the other fields of that PUT aren't applied (no site or event is made, no postcode filled). |
 | `pay_rate_pence` | 0 to 100,000 (pence an hour). |
 | `post` | Up to 200 characters. |
 | `meeting_point`, `uniform` | Up to 300 characters each. |
@@ -148,7 +148,8 @@ session and whether it's urgent are never read from the API: they're the office'
    `unchanged`, nothing created. Otherwise the session is created with its event and site: 201.
 2. **Nothing different:** 200 `unchanged`, nothing logged.
 3. **Already started, or already cancelled:** 409 `session_started` or `session_cancelled`. A
-   cancelled session is never opened again: send a new ref.
+   cancelled session is never opened again: send a new ref. Its site is never given a postcode by
+   such a PUT.
 4. **Nobody booked:** the change is applied.
 5. **People booked:**
    - places, pay, post, meeting point, uniform, instructions and the event are applied. Places can
@@ -164,8 +165,10 @@ session and whether it's urgent are never read from the API: they're the office'
    - `"status": "cancelled"` with a `change_reason`: each booking becomes your firm's cancellation,
      with its notice hours, each casual is told, and nobody ever gets a strike for it.
 6. A refused change to a booked session (`bookings_block_change`, `session_has_bookings`,
-   `places_below_booked`) also shows in the office's Needs attention, in case your planner ignores
-   the answer.
+   `places_below_booked`, or a move with no `change_reason`) also shows in the office's Needs
+   attention, in case your planner ignores the answer. A booking the office chose to keep (a
+   casual no longer active, or blocked from the site) still blocks your move: only the office
+   can move a session past it.
 
 The status follows the number of places, as with the office's editor: more places than
 bookings opens the session again, unless the office closed it.

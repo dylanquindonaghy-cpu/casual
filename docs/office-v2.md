@@ -1294,7 +1294,8 @@ firm, so the same ref in two firms is two separate sessions.
    - **A refused change is shown in ShiftDesk too:** the planner may ignore the 409 (an automation
      step often does), and then shows a time ShiftDesk's casuals never heard about. So
      `shift.move_refused` (with `via: "api"`) and a new `api.change_refused { shiftId, code }` (for
-     `session_has_bookings` and `places_below_booked`) raise a Needs attention item (3.9), worked
+     `session_has_bookings`, `places_below_booked` and, added in 12J.1's review, a booked
+     session's move with no reason, `change_reason_required`) raise a Needs attention item (3.9), worked
      out from the log (no schema change): "Your planner's change to {session} was refused: {n}
      booked casuals can't work it. Cancel their bookings, then ask your planner to send it again."
      It clears when a later `shift.changed`, `shift.moved` or cancellation of that session is

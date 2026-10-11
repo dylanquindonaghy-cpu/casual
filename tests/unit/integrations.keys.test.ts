@@ -100,6 +100,9 @@ describe("bearerKey: the key from the Authorization header", () => {
     expect(bearerKey(`Bearer ${SHAPED}`)).toBe(SHAPED);
     expect(bearerKey(`Bearer   ${SHAPED}`)).toBe(SHAPED);
     expect(bearerKey(`Bearer ${SHAPED}  `)).toBe(SHAPED);
+    // The scheme name is case-insensitive.
+    expect(bearerKey(`bearer ${SHAPED}`)).toBe(SHAPED);
+    expect(bearerKey(`BEARER ${SHAPED}`)).toBe(SHAPED);
     // Any single word: the shape check comes next, before any look-up.
     expect(bearerKey("Bearer not-a-key")).toBe("not-a-key");
   });

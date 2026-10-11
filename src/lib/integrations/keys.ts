@@ -22,6 +22,7 @@ export const apiKeyHint = (key: string): string => key.slice(-4);
 // The key from an `Authorization: Bearer <key>` header (null: none, or not a Bearer one).
 export function bearerKey(header: string | null): string | null {
   if (!header) return null;
-  const m = /^Bearer[ ]+(\S+)[ ]*$/.exec(header);
+  // The scheme name is case-insensitive in HTTP (RFC 7235 2.1): "bearer" works too.
+  const m = /^Bearer[ ]+(\S+)[ ]*$/i.exec(header);
   return m?.[1] ?? null;
 }

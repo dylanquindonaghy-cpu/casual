@@ -152,6 +152,8 @@ without breaking a 6am cancellation.
     decimals, IP addresses, Unix times, Twilio ids and already-masked values are left alone (a
     number glued to a word, like `row_3456789012`, counts: a false alarm is checked by hand). A
     firm's own shifts line is allowed, nothing else.
+  - No planner API key (`shiftdesk_` plus 43 characters) and no `Bearer` credential anywhere
+    (12J.1).
   - No login token (`/l#…`, %-encoded too) or session cookie outside the console transport's own
     prints (only a whole print is left out: its exact first line, then its end line), and none of
     the tokens the run sent anywhere outside them.

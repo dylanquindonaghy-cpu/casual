@@ -63,3 +63,37 @@ describe("Settings (12B.7)", () => {
     expect(passesLogCheck({ siteId: "x", postcode: "ZZ1 1AA" })).toBe(false);
   });
 });
+
+describe("the planner's changes through the API (12J.1)", () => {
+  const keyId = "00000000-0000-4000-8000-000000000003";
+
+  it("passes the log check for 6.1's exact samples", () => {
+    expect(passesLogCheck({ by: "firm", via: "api", keyId })).toBe(true); // shift.changed
+    expect(passesLogCheck({ keyId })).toBe(true); // api_key.created
+  });
+
+  it("passes the log check for each entry a PUT writes", () => {
+    const api = { by: "firm", via: "api", keyId };
+    const shiftId = "00000000-0000-4000-8000-000000000004";
+    const siteId = "00000000-0000-4000-8000-000000000005";
+    for (const data of [
+      api, // shift.created, shift.reopened, site.created
+      { ...api, siteId, fields: ["postcode"] }, // site.changed
+      {
+        ...api,
+        fields: ["startsAt", "endsAt", "headcount", "payRatePence", "event", "eventName"],
+        reason: "The event's times or place changed",
+        from: { startsAt: "2026-11-07T08:00:00.000Z", endsAt: "2026-11-07T16:00:00.000Z", siteId },
+        to: { startsAt: "2026-11-07T10:00:00.000Z", endsAt: "2026-11-07T18:00:00.000Z", siteId },
+      }, // shift.changed
+      { ...api, shiftId, code: "session_has_bookings" }, // api.change_refused
+      { ...api, shiftId, code: "places_below_booked" },
+    ]) {
+      expect(passesLogCheck(data)).toBe(true);
+    }
+  });
+
+  it('names the key "keyId": a name holding "apikey" would be hidden', () => {
+    expect(passesLogCheck({ by: "firm", via: "api", apiKeyId: keyId })).toBe(false);
+  });
+});

@@ -319,6 +319,8 @@ describe("the Needs attention item on the dashboard (12E.1)", () => {
     expiredMore: false,
     uploads: 0,
     evidence,
+    plannerRefused: [],
+    plannerRefusedMore: false,
   });
   const view = (evidence: NeedsAttention["evidence"]): Dashboard => ({
     timeZone: "Europe/London",

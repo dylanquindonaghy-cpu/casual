@@ -237,7 +237,13 @@ async function requirementNames(tx: FirmTx, rows: Row[]) {
 
 function toRow(r: Row, requirements: CancellationRow["requirements"]): CancellationRow {
   const by: CancellationRow["by"] =
-    r.status === "cancelled_worker" ? "casual" : r.cancel_via === "sheet" ? "sheet" : "office";
+    r.status === "cancelled_worker"
+      ? "casual"
+      : r.cancel_via === "sheet"
+        ? "sheet"
+        : r.cancel_via === "api"
+          ? "planner"
+          : "office";
   return {
     assignmentId: r.id,
     ref: r.id.slice(0, 8).toUpperCase(),

@@ -2,10 +2,13 @@
 
 ## Principles
 
-- Public HTTP surface is tiny: webhooks, push subscription, Caddy's domain check, health.
-  Everything else is Next.js server actions behind sessions.
+- Public HTTP surface is tiny: webhooks, push subscription, Caddy's domain check, health, and the
+  planner API (`/api/v1`, 12J.1). Everything else is Next.js server actions behind sessions.
 - Webhooks: verify signature → insert message (idempotent) → enqueue job → return 200 within
   a second. Never do AI or Sheets work inside a webhook.
+- The planner API is not a provider webhook (golden rule 3; ADR-022): each write is one short
+  transaction answered in the request, made idempotent by the planner's own ref. Offer waves,
+  notices and travel estimates still go to jobs.
 - Every job payload includes `firm_id` and an idempotency key. Jobs are safe to retry.
 
 ## HTTP endpoints
@@ -22,6 +25,10 @@
 | `POST /api/push/subscribe` | Portal (session) | Save web push subscription for the worker. Built (`src/app/api/push/subscribe/route.ts`, `src/lib/push/subscriptions.ts`): the worker from the session, the firm from the host, only from the portal's own page (Origin must be this host; none: 403), zod-checked, only a browser maker's push service address (Google, Apple, Mozilla, Microsoft), body at most 4 KB (413 before reading when declared); saving the same one again is a no-op; at most 10 phones per worker (the oldest go); `DELETE` removes this phone's (also when already gone); logged `push.subscribed` / `push.unsubscribed` with no address. Logout and login forget this phone's subscription (a shared phone). The service worker re-saves a renewed one (`pushsubscriptionchange`). The real push sender isn't connected (PLAN.md Parking lot). |
 | `GET /api/caddy/ask?domain=` | Caddy | Built in Phase 8 (`src/app/api/caddy/ask/route.ts`, `approveCertificate()` in `src/lib/tenancy/caddy-ask.ts`): 200 only for a name in the firms table: a firm's verified custom domain (`app_resolve_firm_by_domain()`) or `<slug>.<base>` of a firm that exists (so subdomains get certificates on demand too, with no wildcard). 404 for anything else: our base domain (its certificate comes the ordinary way), `portal.<base>`, unknown names, a port, a malformed or over-long name. Caddy calls it at `http://web:3000`, so `src/proxy.ts` lets this one path through on any host; from outside, Caddy answers `/api/caddy/*` with a 404 itself (`deploy/Caddyfile`). `Cache-Control: no-store`; logs only whether it approved. |
 | `GET /api/health` | Uptime check, Docker | Built in Phase 8 (`src/app/api/health/route.ts`, `webHealthy()` in `src/lib/db/health.ts`): 200 `{"ok":true}` when the web app reaches its database as the app role within 3 seconds, else 503 `{"ok":false}`; nothing more said (no versions, hosts or errors); `no-store`. Let through `src/proxy.ts` on any host (Docker calls `http://localhost:3000`). The queue and the worker's own health: with the alerts task. |
+| `PUT /api/v1/sessions/{ref}` | The firm's planner (API key) | Built in 12J.1 (`src/app/api/v1/sessions/[ref]/route.ts`, `putSession()` in `src/lib/integrations/sessions.ts`): create or update a session by the planner's own ref, with its event and site; `"status": "cancelled"` cancels it. Everything below "The planner API" applies. |
+| `GET /api/v1/sessions/{ref}` | The firm's planner (API key) | Built in 12J.1 (`getSession()`): the session as held, with every booking, live and cancelled (`src/lib/integrations/records.ts`). |
+| `GET /api/v1/cancellations?since=` or `?cursor=` | The firm's planner (API key) | Built in 12J.1 (`src/app/api/v1/cancellations/route.ts`, `src/lib/integrations/cancellations.ts`): every cancelled booking, oldest first by (cancellation time, booking id), 100 a page, keyset `next_cursor`; each record is the webhooks' `data` (12J.2). |
+| Any other `/api/v1` path | – | `src/app/api/v1/[[...path]]/route.ts`: the API's JSON 404 (`not_found`), with no key look-up. |
 | Stage 2: `POST /api/webhooks/email` | The chosen email provider's inbound webhook | Inbound email → `classify-email`. Checked the way the chosen provider supports, and stored once (golden rule 3). |
 
 ### Twilio webhooks: checks and storing once (Phase 7)
@@ -196,6 +203,97 @@ kept booking's "not active" or "blocked site" doesn't stop the office moving the
 move to another site still does) (`worker.updated` {fields, sessionsRevoked, linksSpent, devicesForgotten,
 futureBookings}, each only when there were some).
 
+### The planner API (12J.1)
+
+The firm's planner or CRM sends its sessions and reads bookings and cancellations
+(`docs/office-v2.md` §5.3.2; ADR-022). The planner's own guide, with every field, error code and
+limit and a curl example of each call, is `docs/integrations.md`.
+
+Every call goes through `handleApiRequest()` (`src/lib/integrations/api.ts`), and a refusal answers
+at once, in this order:
+
+1. **The platform address only** (`parseHost()` gives "apex" for `APP_BASE_DOMAIN`): a firm's
+   subdomain or its own domain gets 404 `not_found`. The proxy never redirects an `/api/` path for
+   trailing punctuation (`src/lib/http/proxy.ts`), so a ref ending in "." gets the API's own 400
+   `bad_ref`, never a 308 that carries the key on to another address.
+2. **`INTEGRATIONS_SECRET` unset:** 503 `not_configured`.
+3. **Refused keys, counted per client address** in the web process's memory
+   (`src/lib/integrations/refused-keys.ts`: `X-Real-IP` as `clientIpFrom()` reads it, a /64 for
+   IPv6; one fixed minute; at most 10,000 addresses a minute): after 30 refusals in a minute, 429
+   `rate_limited` with `Retry-After` until the minute ends, before any look-up. `throttle()` can't
+   count these: it needs a firm.
+4. **The key's shape** (`Authorization: Bearer shiftdesk_…`, `looksLikeApiKey()`): anything else is
+   401 `invalid_key` without touching the database, and counted (3).
+5. **The look-up**, `resolveApiKey()` (`app_api_key_lookup()`, an owner-run function: the firm and
+   key id of a live key, by the key's sha256): none is the same 401 for a wrong key and a revoked
+   one, and counted (3). From here on the key's firm is the only one: every query runs in
+   `withFirm(firmId)`.
+6. **300 calls a minute per key**, through `throttle()` (`LIMITS.apiPerKey`, bucket `api:key`, the
+   key's id): 429 with `Retry-After` in seconds; `auth.rate_limited {limit: "api:key"}` logged once
+   a window.
+7. **`last_used_at`**, at most once a minute (a memo per process, and the update's own condition),
+   in a short transaction of its own that skips a locked row rather than wait for it: a change
+   under way holds the key's row (`src/lib/roster/firm-caller.ts`).
+8. **A body** (PUT): `application/json` (else 415 `not_json`), at most 64 KB by its declared length
+   before reading, then by what arrived (else 413 `too_big`), strict UTF-8 JSON (else 400
+   `bad_json`). Every body is a `z.strictObject` (`src/lib/integrations/schemas.ts`): an unknown
+   field is 400 `validation_failed`, with `fields: [{path, code}]` and never a value.
+9. **The call's handler.**
+
+Each request writes one log line ("api request": request id, route pattern, method, status,
+milliseconds, firm id, `keyId`; an error line for a 500): never the key, the `Authorization`
+header, a body or the path. Every error body is `{"error": {"code", "message", "request_id"}}`
+with fixed words (`src/lib/integrations/errors.ts`); a value sent in is never echoed back. No
+cookie is read and no CORS header is sent.
+
+**A PUT** (`putSession()`) checks the ref and the body first. A site postcode is looked up first,
+outside any transaction, only when the site has none (`serverGeocoder()`; an unknown postcode is
+422 `unknown_postcode`, a failed look-up 503 `lookup_failed`, look-ups off save it without a point),
+and a site that already has a different postcode is 409 `site_postcode_differs`. Then one
+transaction (a deadlock retries it): Gate B (`requireAgreementForImport()`: 403
+`agreement_not_recorded` on a live database without the firm's recorded agreement); the key still
+live, its row held `for share` before the session's (`firmCallerMay()`); the session locked by
+`(source "api", external_ref)`.
+- **A new ref:** role, times and site required; a start in the past is 409 `session_started`;
+  `"status": "cancelled"` creates nothing (200 `unchanged`); the role must be one of the firm's
+  role codes (`credential_rules.role`, else 422 `unknown_role`) and the requirements its
+  qualification codes (`credential_types`, else 422 `unknown_requirement`). The site is found or
+  made by name and the event by `(source "api", planner_ref)`, each with `insert … on conflict do
+  nothing` and read back (two PUTs naming one new site or event share one row); without an event,
+  the site and day's automatic event. A new site is `site.created`, a filled postcode
+  `site.changed {siteId, fields: ["postcode"]}` with `siteMoved()` (its sessions' travel
+  estimates). The session: `source "api"`, open, `shift.created`, travel estimates queued. Two PUTs
+  for one new ref: the second's insert waits on the unique key and then updates the first's.
+- **Nothing different:** 200 `unchanged`, nothing logged. **Cancelled or started:** 409
+  `session_cancelled` / `session_started`.
+- **`"status": "cancelled"`:** a `change_reason` (else 422 `change_reason_required`), then
+  `cancelShiftInTx()` with the API caller.
+- **Nobody booked:** applied, `shift.changed {fields, from/to when the times or site changed}`;
+  offers still out expire and travel estimates are queued when the times, site or role changed.
+- **People booked:** role or requirements: 409 `session_has_bookings`; places below the highest
+  booked place: 409 `places_below_booked` (each also logged `api.change_refused {shiftId, code}` in
+  a transaction of its own after the rollback, for the office's Needs attention); new times or
+  site: a `change_reason`, then `moveShiftInTx()` with the API caller, where any failed rules check
+  throws `MoveBlocked`, everything rolls back, `shift.move_refused` is logged with `via: "api"`
+  (`recordMoveRefused()`) and the answer is 409 `bookings_block_change` with each casual's id and
+  codes; the rest (places, pay, post, meeting point, uniform, instructions, event) is applied and
+  logged.
+- The status follows the places (`refreshShiftStatus()`, `shift.reopened` when it opens again),
+  unless the office closed the session (filled with places free).
+
+Every entry is logged with the system actor and `{by: "firm", via: "api", keyId}`. Field names in
+`shift.changed`: `role`, `startsAt`, `endsAt`, `siteId`, `headcount`, `payRatePence` (a casual's
+later cancellation is then exempt from a strike), `post`, `meetingPoint`, `uniform`,
+`instructions`, `requirements`, `event`, `eventName`.
+
+**Records** (`src/lib/integrations/records.ts`, shared with 12J.2's webhooks): the session (its
+planner ref, event and its ref when the planner named it, site name and postcode, role, times,
+status, places, booked, pay, post, meeting point, uniform, requirements) and the booking (id, its
+office reference, status, the casual's id, staff ref and name or `null` with `erased: true`, when
+and by whom it was booked, and for a cancellation when, by whom, how, notice hours, a reason code
+and the strike result with the casual's live strikes). Never a mobile, email, a casual's postcode
+or travel data, a typed reason, a review flag or a withdrawal reason.
+
 ### Enquiries (12D.1)
 
 `replyToEnquiry()` and `closeEnquiry()` (`src/lib/office/enquiry-actions.ts`; `replyToEnquiryAction`
@@ -308,7 +406,8 @@ that makes no sense stops the booking.
 
 ## Firm-initiated changes (compliance-critical)
 
-When the office cancels, moves or shortens a shift with workers assigned:
+When the office (or, from 12J.1, the firm's planner through the API: `src/lib/roster/firm-caller.ts`)
+cancels, moves or shortens a shift with workers assigned:
 1. Require a reason.
 2. For each assigned worker: write an event with `notice_hours` and the change type
    (`cancelled_firm`, `moved`, `curtailed`), old and new times.

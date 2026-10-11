@@ -71,6 +71,7 @@ export interface UrgentSessionCard {
   headcount: number;
   placesLeft: number;
   fromSheet: boolean;
+  fromPlanner: boolean; // sent by the firm's planner through the API (12J.1)
   showing: boolean; // the session's own switch (the event's is on its card)
   offered: number; // offers that went (waves and the office)
   stopped: StopReason | null; // why the waves stopped, if they have
@@ -100,6 +101,21 @@ export interface ExpiredOnBooking {
   expiresOn: string | null; // yyyy-mm-dd (null: marked expired by the office)
 }
 
+// A change your planner sent for a booked session that was refused (docs/office-v2.md 5.3.2
+// step 5): a move the rules refused for some booked casuals ("move"), or a role, requirements or
+// places change that a booking blocks (the API's own codes). The planner may ignore the 409, so
+// the office is told here.
+export interface PlannerRefusal {
+  shiftId: string;
+  role: string;
+  site: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  refusedAt: Date;
+  why: "move" | "session_has_bookings" | "places_below_booked";
+  casuals: number; // for a move: the booked casuals who can't work it
+}
+
 export interface NeedsAttention {
   toCheck: TodayBookingToCheck[];
   toCheckMore: boolean;
@@ -111,6 +127,8 @@ export interface NeedsAttention {
   expiredMore: boolean;
   uploads: number; // uploads waiting for a check (12F.2)
   evidence: TodayEvidence;
+  plannerRefused: PlannerRefusal[];
+  plannerRefusedMore: boolean;
 }
 
 export interface Dashboard {
@@ -137,9 +155,15 @@ export function needsCount(n: NeedsAttention): { count: number; more: boolean } 
       n.toMark.length +
       n.expired.length +
       n.uploads +
-      evidenceItems(n.evidence),
+      evidenceItems(n.evidence) +
+      n.plannerRefused.length,
     more:
-      n.toCheckMore || n.fromSheetMore || n.toMarkMore || n.expiredMore || n.evidence.failedMore,
+      n.toCheckMore ||
+      n.fromSheetMore ||
+      n.toMarkMore ||
+      n.expiredMore ||
+      n.evidence.failedMore ||
+      n.plannerRefusedMore,
   };
 }
 
@@ -251,6 +275,7 @@ async function urgentCards(tx: FirmTx, now: Date) {
             headcount: s.headcount,
             placesLeft: Math.max(0, s.headcount - s.booked),
             fromSheet: s.fromSheet,
+            fromPlanner: s.fromPlanner,
             showing: s.showing,
             offered: o?.offered ?? 0,
             stopped: o?.stopped ?? null,
@@ -377,6 +402,76 @@ export async function loadExpiredOnBookings(
   };
 }
 
+// Your planner's refused changes, worked out from the log (no schema change): each of its sessions
+// that hasn't ended or been cancelled whose latest refusal (shift.move_refused from the API, or
+// api.change_refused) has nothing logged after it that changed or cancelled the session:
+// shift.changed or shift.cancelled_by_firm on the session, or shift.moved, shift.curtailed or
+// shift.cancelled on one of its bookings (by anyone: the bookings that blocked it may be gone).
+// "After" is by entry id, the log's own order. Like a rota sheet's refused change, it stays until
+// the session ends: nothing else can clear it once it has started. Every look-up here goes through
+// the log's (firm, entity, id) index, from the planner's sessions still to come.
+export async function loadPlannerRefusals(
+  tx: FirmTx,
+  now: Date,
+): Promise<{ items: PlannerRefusal[]; more: boolean }> {
+  const { rows } = await tx.execute<{
+    shift_id: string;
+    role: string;
+    starts_at: string | Date;
+    ends_at: string | Date;
+    site_name: string | null;
+    action: string;
+    code: string | null;
+    casuals: number;
+    refused_at: string | Date;
+  }>(sql`
+    select s.id::text as shift_id, s.role, s.starts_at, s.ends_at, si.name as site_name,
+           r.action, r.code, r.casuals, r.created_at as refused_at
+      from shifts s
+      left join sites si on si.firm_id = s.firm_id and si.id = s.site_id
+      cross join lateral (
+        select e.id, e.action, e.data ->> 'code' as code, e.created_at,
+               case when jsonb_typeof(e.data -> 'workers') = 'array'
+                    then jsonb_array_length(e.data -> 'workers') else 0 end as casuals
+          from events e
+         where e.firm_id = s.firm_id and e.entity_id = s.id and e.data ->> 'via' = 'api'
+           and (e.action = 'shift.move_refused'
+                or (e.action = 'api.change_refused'
+                    and e.data ->> 'code' in ('session_has_bookings', 'places_below_booked')))
+         order by e.id desc
+         limit 1
+      ) r
+     where s.source = 'api' and s.status <> 'cancelled' and s.ends_at > ${now}
+       and not exists (select 1 from events c
+                        where c.firm_id = s.firm_id and c.entity_id = s.id and c.id > r.id
+                          and c.action in ('shift.changed', 'shift.cancelled_by_firm'))
+       and not exists (select 1 from assignments a
+                         join events c on c.firm_id = a.firm_id and c.entity_id = a.id
+                        where a.firm_id = s.firm_id and a.shift_id = s.id and c.id > r.id
+                          and c.action in ('shift.moved', 'shift.curtailed', 'shift.cancelled'))
+     order by s.starts_at, s.id
+     limit ${NEEDS_MAX + 1}
+  `);
+  return {
+    more: rows.length > NEEDS_MAX,
+    items: rows.slice(0, NEEDS_MAX).map((r) => ({
+      shiftId: r.shift_id,
+      role: r.role,
+      site: r.site_name,
+      startsAt: new Date(r.starts_at),
+      endsAt: new Date(r.ends_at),
+      refusedAt: new Date(r.refused_at),
+      why:
+        r.action === "shift.move_refused"
+          ? "move"
+          : r.code === "places_below_booked"
+            ? "places_below_booked"
+            : "session_has_bookings",
+      casuals: r.action === "shift.move_refused" ? r.casuals : 0,
+    })),
+  };
+}
+
 export async function loadNeedsAttention(
   tx: FirmTx,
   now: Date,
@@ -386,6 +481,7 @@ export async function loadNeedsAttention(
   const fromSheet = await loadSheetIssues(tx, now);
   const toMark = await loadToMark(tx, now);
   const expired = await loadExpiredOnBookings(tx, now, timeZone);
+  const plannerRefused = await loadPlannerRefusals(tx, now);
   return {
     toCheck: toCheck.items,
     toCheckMore: toCheck.more,
@@ -397,6 +493,8 @@ export async function loadNeedsAttention(
     expiredMore: expired.more,
     uploads: await waitingCount(tx),
     evidence: await loadEvidence(tx, now),
+    plannerRefused: plannerRefused.items,
+    plannerRefusedMore: plannerRefused.more,
   };
 }
 

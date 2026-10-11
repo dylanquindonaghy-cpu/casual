@@ -180,6 +180,12 @@ export default async function ShiftsPage({
                         · <StatusChip tone="quiet">From your Google Sheet</StatusChip>
                       </>
                     )}
+                    {s.fromPlanner && (
+                      <>
+                        {" "}
+                        · <StatusChip tone="quiet">From your planner</StatusChip>
+                      </>
+                    )}
                   </p>
                 </li>
               ))}

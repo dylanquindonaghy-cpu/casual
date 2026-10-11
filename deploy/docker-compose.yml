@@ -47,6 +47,9 @@ services:
       # Only whether AI sorting is on, for the Enquiries banner (not a secret; the key stays with
       # the worker).
       AI_TRANSPORT: ${AI_TRANSPORT:-none}
+      # The planner API (12J.1; docs/runbooks.md "The planner integration secret"). Empty: every
+      # call answers 503. A secret.
+      INTEGRATIONS_SECRET: ${INTEGRATIONS_SECRET:-}
     volumes:
       - *db-ca
     healthcheck:

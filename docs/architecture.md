@@ -64,7 +64,12 @@ mornings). Reliability matters far more than scale.
   firm is set, so a query outside `withFirm` sees nothing and can write nothing.
 - **Before the firm is known** (host lookup), `resolveFirmBySlug()` calls `app_resolve_firm()`,
   a `SECURITY DEFINER` function with a pinned `search_path` that returns only directory fields
-  (id, slug, name, timezone, sign-off). Only the app role may execute it.
+  (id, slug, name, timezone, sign-off). Only the app role may execute it. Two more look-ups work
+  the same way: an incoming message's number (`resolveFirmByLine()`, `app_firm_by_line()`, the
+  same directory fields) and a planner's API key (`resolveApiKey()`, `app_api_key_lookup()`, 12J.1,
+  ADR-022): given the sha256 of the key, it returns only the firm id and key id of a key that isn't
+  revoked, and a hash of any other length never reaches the database. The API's work then runs in
+  `withFirm()` for that firm: on `/api/v1` the key, never the host, path or body, decides the firm.
 - **Scheduled jobs that visit every firm** (the Sheets sync tick) list firms through
   `app_firm_ids()` (`listFirmIds()`), another `SECURITY DEFINER` function that returns ids only,
   then work inside each firm's own `withFirm` transaction.
@@ -77,7 +82,7 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 - Tests (all as `shiftdesk_app`): every table's catalogue entry (`rls.every-table`), Firm A
   can't read, change, insert into or point at Firm B's rows with a control showing Firm B can
   (`tenancy.isolation`), the same probes catch a deliberately broken policy (`rls.mutation`),
-  plus `scoped-client`, `directory`, `jobs.envelope` and `lint.db-boundary`.
+  plus `scoped-client`, `directory`, `api.keys`, `jobs.envelope` and `lint.db-boundary`.
 
 ## Login
 

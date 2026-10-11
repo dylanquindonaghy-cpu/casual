@@ -282,11 +282,12 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     [firmId, rosterWorkerId],
   );
   // A planner's API key (12J.1), made by an office user of its own: its creator link has no ON
-  // DELETE action, and the isolation tests delete rows.office_users.
+  // DELETE action, and the isolation tests delete rows.office_users. The key maker's access is
+  // off since (a key outlives its creator's), so the tenant still has one active admin.
   const apiKeyId = await one(
     su,
-    `with u as (insert into office_users (firm_id, email, name, role)
-                values ($1, $2, 'Key Maker', 'admin') returning id)
+    `with u as (insert into office_users (firm_id, email, name, role, status)
+                values ($1, $2, 'Key Maker', 'admin', 'disabled') returning id)
      insert into api_keys (firm_id, label, token_hash, hint, created_by)
      select $1, 'Our planner', $3, 'k3F9', u.id from u`,
     [firmId, `key-maker-${next()}@example.com`, hash()],

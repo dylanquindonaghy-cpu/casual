@@ -20,7 +20,8 @@ export interface DetailsDefaults {
 }
 
 // "Session details" (docs/office-v2.md S2): set here for every shift, a Google Sheet's or a
-// file's too, since the sync and the import never write them. With people booked the extra
+// file's too, since the sync and the import never write them, but not one from the firm's planner
+// (its API sends them; the page leaves this form out). With people booked the extra
 // requirements are locked (they were checked against the old list). Every field and the button
 // wait for the page (docs/ui-design.md "Forms wait for the page").
 export function SessionDetailsForm({

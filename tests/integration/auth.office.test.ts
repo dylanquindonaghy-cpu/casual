@@ -323,7 +323,12 @@ describe("roles", () => {
     );
     const team = await officeTeam(ctx(T), session.token);
     if (allowed) {
-      expect(team?.map((m) => m.role).sort()).toEqual(["admin", "admin"]);
+      // The tenant's admin, its planner key's maker (access off) and this one.
+      expect(team?.map((m) => [m.role, m.status]).sort()).toEqual([
+        ["admin", "active"],
+        ["admin", "active"],
+        ["admin", "disabled"],
+      ]);
     } else {
       expect(team).toBeNull();
     }

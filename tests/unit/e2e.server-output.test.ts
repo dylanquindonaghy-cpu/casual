@@ -92,6 +92,35 @@ describe("the e2e run's check of the servers' output", () => {
     }
   });
 
+  // 12J.1 (office.integrations.spec.ts makes a key and calls the API with it): the API never logs
+  // a key or the Authorization header, and no message ever carries one, so this counts anywhere,
+  // the console transport's prints included.
+  it("fails on a planner's API key or a Bearer credential, even inside a printed message", async () => {
+    const key = `shiftdesk_${"Kq7_Zx-Mv".repeat(4)}Pw3Ln_8`;
+    for (const leak of [
+      `{"msg":"api request","route":"PUT /api/v1/sessions/[ref]","key":"${key}"}`,
+      `authorization: Bearer ${key}`,
+      "Authorization: Bearer made-up-credential",
+    ]) {
+      const found = checkServerOutput(`started\n${leak}`, opts).findings;
+      expect(
+        found.map((f) => [f.line, f.kind]),
+        leak,
+      ).toEqual([[2, "key"]]);
+    }
+    const printed = await serverOutput(async (print) => {
+      await createConsoleTransport(print).send({
+        channel: "whatsapp",
+        to: "+447700900123",
+        from: "+447700900000",
+        body: `Your planner key: ${key}`,
+      });
+    });
+    expect(checkServerOutput(printed, opts).findings.map((f) => [f.line, f.kind])).toEqual([
+      [2, "key"],
+    ]);
+  });
+
   it("fails on a phone number or email, but not the firm's own shifts line", () => {
     const text = "from +447700900000\ncall 07700 900123.\nann.booker@example.com";
     expect(checkServerOutput(text, opts).findings.map((f) => [f.line, f.kind])).toEqual([

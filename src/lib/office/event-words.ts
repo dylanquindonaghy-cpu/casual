@@ -46,6 +46,9 @@ const FIELD_WORDS: Record<string, string> = {
   meetingPoint: "meeting point",
   uniform: "uniform",
   requirements: "extra requirements",
+  // Only the planner moves a session to another event or renames one (12J.1).
+  event: "event",
+  eventName: "event name",
 };
 
 const CODE_WORDS: Record<string, string> = {
@@ -118,6 +121,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
   const d = e.data;
   const byOffice = d.by === "firm" || e.actorType === "office";
   const officeName = e.actorType === "office" ? names.office(e.actorId) : "The office";
+  // The firm's planner changing its sessions through the API (12J.1; {via: "api", keyId}).
+  const fromPlanner = d.via === "api";
+  const firmName = fromPlanner ? "Your planner" : officeName;
   const worker = names.worker(d.workerId);
   // Whoever did it: a worker or an office user logging in, say.
   const who =
@@ -135,6 +141,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     isDay(from) && isDay(to) ? ` (${dayLabel(from)} to ${dayLabel(to)})` : "";
   switch (e.action) {
     case "shift.created":
+      if (fromPlanner) return "Created by your planner.";
       return e.actorType === "office" ? `Created by ${officeName}.` : "Shift created.";
     case "shift.changed": {
       const fields = Array.isArray(d.fields)
@@ -151,7 +158,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
           : fields.length > 0
             ? `Changed the ${list(fields)}.`
             : "Changed.";
-      return e.actorType === "office" ? `${officeName}: ${what}` : what;
+      return e.actorType === "office" || fromPlanner ? `${firmName}: ${what}` : what;
     }
     case "shift.assigned": {
       const overridden = Array.isArray(d.overridden)
@@ -176,7 +183,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker} tried before the place opened to them (fair rotation).`;
     case "shift.cancelled": {
       const notice = hours(d.noticeHours);
-      const who = byOffice ? `${officeName} cancelled ${worker}` : `${worker} cancelled`;
+      const who = byOffice ? `${firmName} cancelled ${worker}` : `${worker} cancelled`;
       const reason = byOffice && typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
       return `${who}${notice ? `, with ${notice}` : ""}.${reason}`;
     }
@@ -229,7 +236,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const reason = typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
       const rules =
         d.rulesOk === false ? " The rules said they may not be able to work the new time." : "";
-      return `${officeName} ${what} ${worker}'s shift${notice ? `, with ${notice}` : ""}.${reason}${rules}`;
+      return `${firmName} ${what} ${worker}'s shift${notice ? `, with ${notice}` : ""}.${reason}${rules}`;
     }
     case "shift.completed":
     case "shift.no_show": {
@@ -242,10 +249,16 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             : "";
       return `${officeName} marked ${worker} as ${what}${was}.`;
     }
+    // A change the planner sent for a booked session, refused (12J.1); the office's Needs
+    // attention shows it too.
+    case "api.change_refused":
+      return d.code === "places_below_booked"
+        ? "Your planner's change was refused: a booking holds a place above the new number of places."
+        : "Your planner's change was refused: casuals are booked, so its role and requirements can't change.";
     case "shift.move_refused":
-      return `${officeName} tried to move the shift. Not moved: someone booked can't work the new time.`;
+      return `${firmName} tried to move the shift. Not moved: someone booked can't work the new time.`;
     case "shift.cancelled_by_firm":
-      return `${officeName} cancelled the shift.${typeof d.reason === "string" ? ` Reason: ${d.reason}.` : ""}`;
+      return `${firmName} cancelled the shift.${typeof d.reason === "string" ? ` Reason: ${d.reason}.` : ""}`;
     case "shift.change_notice":
       return `Telling ${worker} about the change.`;
     case "shift.change_notice_sent":
@@ -304,6 +317,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "shift.closed":
       return `${officeName} marked it as filled.`;
     case "shift.reopened":
+      if (fromPlanner)
+        return "Your planner's change opened it again: it has more places than bookings.";
       return d.source === "csv"
         ? `${officeName}'s import opened it again: it needs more people than it has booked.`
         : `${officeName} opened it again.`;
@@ -558,6 +573,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             : `${person} was logged out of the office on every device.`;
       }
     }
+    // The planner's API keys (12J.1): the log holds the key's id only, never its name.
+    case "api_key.created":
+      return `${officeName} created an API key for your planner.`;
+    case "api_key.revoked":
+      return `${officeName} revoked an API key. It stopped working at once.`;
     case "firm.agreement_recorded":
       if (d.cleared === true) {
         return `The firm's recorded agreement was removed${typeof d.was === "string" ? ` (it said ${dayLabel(d.was)} ${d.was.slice(0, 4)})` : ""}.`;
@@ -755,6 +775,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "auth.otp_locked":
       return `${who}'s code stopped working after too many wrong tries.`;
     case "auth.rate_limited":
+      if (d.limit === "api:key") {
+        return "Too many calls from your planner: its API key was paused for the rest of the minute.";
+      }
       return typeof d.limit === "string" && d.limit.startsWith("strikes_link:")
         ? "Too many links to confirm the strikes team's email: sending them was paused for a while."
         : "Too many tries: logging in was paused for a while.";
@@ -855,9 +878,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "metrics.tally_saved":
       return `${officeName} saved the weekly tally${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
     case "site.created":
-      return "A site was added from the rota sheet.";
+      return fromPlanner ? "Your planner added a site." : "A site was added from the rota sheet.";
     case "site.changed": {
       const site = names.site?.(d.siteId) ?? "a site";
+      // A site's first postcode, from a planner's session (12J.1).
+      if (fromPlanner) return `Your planner gave ${site} its postcode.`;
       // The same postcode, its location found (12G.1); otherwise the postcode changed.
       const fields = Array.isArray(d.fields) ? d.fields.map(String) : [];
       return fields.includes("location") && !fields.includes("postcode")

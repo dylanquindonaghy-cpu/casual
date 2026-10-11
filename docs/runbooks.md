@@ -139,7 +139,8 @@ first):
    `chmod 700 /opt/shiftdesk/deploy.sh`.
 2. `cd /opt/shiftdesk && cp env.example .env && chmod 600 .env && nano .env`: fill in every value
    (the comments in the file say where each comes from). Generate new secrets with
-   `openssl rand -base64 32` (the session secret) and `openssl rand -hex 24` (the app and jobs
+   `openssl rand -base64 32` (the session secret, and a second one for the planner integration
+   secret: "The planner integration secret" below) and `openssl rand -hex 24` (the app and jobs
    passwords). The database's address and the owner's password come from "Set up the server
    (once)" steps 5 and 6. Keep the end of the three database addresses as it is
    (`?sslmode=verify-full&sslrootcert=/app/db-ca.pem`): the connection is encrypted and the
@@ -382,10 +383,13 @@ alert…" line (a text, once the phone sender is connected).
 The app masks phone numbers and emails before anything is logged; every e2e run checks it. On the
 server (after the dry-run day, say): `sudo -i`, `cd /opt/shiftdesk`, then (not yet tried for real)
 `docker compose logs --no-color web worker | docker compose run --rm -T --no-deps web node --import
-tsx scripts/logs-scan.ts`. It prints "no phone numbers, email addresses or login tokens", or the line
-numbers of each one it found (the value itself masked). Anything found: tell Claude which log line.
-(A login token in the logs is someone's working login for 15 minutes, or a session for 30 days:
-also tell them to log out on every device, from the office's Workers or Office team page.)
+tsx scripts/logs-scan.ts`. It prints "no phone numbers, email addresses, login tokens or keys", or
+the line numbers of each one it found (the value itself masked). Anything found: tell Claude which
+log line. (A login token in the logs is someone's working login for 15 minutes, or a session for 30
+days: also tell them to log out on every device, from the office's Workers or Office team page. A
+"key" is a planner's API key, `shiftdesk_…`, or a `Bearer` value: it works until revoked, so ask
+the firm's admin to revoke it on the office's Integrations page (`/office/settings/integrations`)
+at once and make a new one for their planner.)
 
 ## Workers at one venue can't get login links
 
@@ -417,6 +421,27 @@ Database role passwords (`shiftdesk_app`, `shiftdesk_jobs`): `db:migrate` create
 but never changes an existing password. Rotate by hand as the owner:
 `ALTER ROLE shiftdesk_app PASSWORD '...'`, update `DATABASE_URL` (or `DATABASE_JOBS_URL`) in
 `.env`, then `docker compose up -d`.
+
+The planner integration secret: only when it may have leaked (next section).
+
+## The planner integration secret (INTEGRATIONS_SECRET)
+
+The planner API (`/api/v1`, 12J.1; `docs/office-v2.md` 5.3) answers only when the server has this
+secret: unset or empty, every call gets 503 `not_configured` and the rest of the app works as
+usual. It's a server setting, the same for every firm, and nothing to do with a firm's API keys.
+
+- **Setting it (once):** `openssl rand -base64 32` (a new value: never the session secret's, never
+  `.env.example`'s, which the app refuses in production), then as root `nano /opt/shiftdesk/.env`,
+  `INTEGRATIONS_SECRET=<it>`, save, and `/opt/shiftdesk/deploy.sh --now` ("Applied the settings in
+  .env"). Keep a copy in your password manager. Check: a call with a firm's key (the curl examples
+  in `docs/integrations.md`) no longer answers 503.
+- **What rotating it means:** API keys keep working (each is stored as the sha256 of the key
+  itself, not with this secret). Once webhooks to planners are on (12J.2), the secret is what each
+  firm's webhook signing secret and every event id are made from: a new one changes both, so every
+  firm with a webhook must paste its new signing secret (from the Integrations page) into its
+  planner before deliveries are accepted again, and a delivery retried across the change comes
+  with a new event id. So rotate only if it may have leaked, after 22:00 like the others ("Rotate a
+  secret"), and tell those firms' admins first.
 
 ## Event-morning outage (the one that matters)
 

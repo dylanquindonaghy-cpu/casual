@@ -131,6 +131,14 @@ const PATHS = {
       <circle cx="9" cy="17" r="2.5" />
     </>
   ),
+  // Integrations: a plug, for the planner's connection.
+  plug: (
+    <>
+      <path d="M9 3.5v4M15 3.5v4" />
+      <path d="M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0v-3Z" />
+      <path d="M12 16v4.5" />
+    </>
+  ),
   // How-to guide: an open book.
   guide: (
     <>

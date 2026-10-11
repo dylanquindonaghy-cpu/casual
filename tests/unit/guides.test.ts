@@ -86,6 +86,7 @@ describe("the office how-to guide", () => {
       "Records",
       "Pay",
       "Admin",
+      "Connect your planner",
       "What workers see",
     ]);
   });
@@ -159,6 +160,28 @@ describe("the office how-to guide", () => {
     expect(text).toContain("Yes, make them an admin");
     // Deleting waits until their booked shifts have ended or are cancelled.
     expect(text).toContain("you can't delete them yet.");
+  });
+
+  it("Connect your planner (12J.1) is for admins, and is where Integrations' link lands", async () => {
+    const { PLANNER_GUIDE_HREF } = await import("@/lib/office/integrations-copy");
+    const [path, id] = PLANNER_GUIDE_HREF.split("#");
+    expect(path).toBe("/office/guide");
+    expect(guide("admin")).toContain(`id="${id}"`);
+    for (const role of ["resourcer", "payroll"] as const) {
+      expect(guide(role)).not.toContain(`id="${id}"`);
+      expect(words(guide(role))).not.toContain("API key");
+    }
+    const text = words(guide("admin"));
+    // The words of the page, as they read on it.
+    for (const name of [
+      "Create a key",
+      "Copy the key",
+      "Codes your planner can use",
+      "Yes, revoke it",
+    ]) {
+      expect(text).toContain(name);
+    }
+    expect(guide("admin")).toContain('href="/office/settings/integrations"');
   });
 
   it("is opened through its own area, which every office role has", () => {

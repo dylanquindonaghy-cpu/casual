@@ -10,6 +10,7 @@ import {
   countLine,
   COUNTS,
   expiredText,
+  plannerRefusedText,
   SECTION_ERROR,
   SECTIONS,
   uploadsText,
@@ -66,6 +67,8 @@ const noNeeds: NeedsAttention = {
   expiredMore: false,
   uploads: 0,
   evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
+  plannerRefused: [],
+  plannerRefusedMore: false,
 };
 
 const empty: Dashboard = {
@@ -101,6 +104,7 @@ const session = (o: Partial<SessionRow> = {}): SessionRow => ({
   uniform: null,
   requirements: [],
   fromSheet: false,
+  fromPlanner: false,
   started: false,
   ended: false,
   ...o,
@@ -145,6 +149,7 @@ const full: Dashboard = {
             headcount: 3,
             placesLeft: 2,
             fromSheet: false,
+            fromPlanner: false,
             showing: true,
             offered: 4,
             stopped: null,
@@ -166,6 +171,7 @@ const full: Dashboard = {
             headcount: 1,
             placesLeft: 1,
             fromSheet: false,
+            fromPlanner: false,
             showing: true,
             offered: 0,
             stopped: "no_candidates",
@@ -328,6 +334,18 @@ const full: Dashboard = {
       ],
       failedMore: false,
     },
+    plannerRefused: [
+      {
+        shiftId: "p1",
+        role: "steward",
+        site: "Acme Demo Racecourse",
+        startsAt: at("2026-11-07T10:00:00Z"),
+        endsAt: at("2026-11-07T18:00:00Z"),
+        refusedAt: at("2026-11-02T08:30:00Z"),
+        why: "move",
+        casuals: 2,
+      },
+    ],
   }),
 };
 
@@ -456,6 +474,34 @@ describe("the words", () => {
     expect(appTodayText(2)).toBe("Plus 2 requests made in the app today.");
     expect(uploadsText(1)).toBe("1 upload waits for a check.");
     expect(uploadsText(3)).toBe("3 uploads wait for a check.");
+    // Your planner's refused change: a move the rules refused, then what a booking blocks.
+    const p = full.needs.ok ? full.needs.data.plannerRefused[0] : undefined;
+    if (!p) throw new Error("fixture");
+    const refused = "Your planner's change to the steward session on Sat 7 Nov was refused:";
+    expect(plannerRefusedText(p, TZ)).toBe(
+      `${refused} 2 booked casuals can't work it. Cancel their bookings, then ask your planner to send it again.`,
+    );
+    expect(plannerRefusedText({ ...p, casuals: 1 }, TZ)).toBe(
+      `${refused} 1 booked casual can't work it. Cancel their booking, then ask your planner to send it again.`,
+    );
+    expect(plannerRefusedText({ ...p, why: "session_has_bookings", casuals: 0 }, TZ)).toBe(
+      `${refused} it changes the role or the qualifications needed, and casuals are booked. Cancel their bookings, then ask your planner to send it again.`,
+    );
+    expect(plannerRefusedText({ ...p, why: "places_below_booked", casuals: 0 }, TZ)).toBe(
+      `${refused} it takes away places casuals are booked in. Cancel those bookings, then ask your planner to send it again.`,
+    );
+    // The day is the firm's: 23:30 on Saturday in British Summer Time is still Saturday.
+    expect(
+      plannerRefusedText(
+        { ...p, role: "door_supervisor", startsAt: at("2026-06-06T22:30:00Z") },
+        TZ,
+      ),
+    ).toContain("the door supervisor session on Sat 6 Jun was refused");
+    // Each refused session is one of the bell's items; a list stopped at 50 shows "50+".
+    expect(needsCount({ ...noNeeds, plannerRefused: [p, p], plannerRefusedMore: true })).toEqual({
+      count: 2,
+      more: true,
+    });
     expect(bellLabel(3, false)).toBe("Needs attention, 3");
     expect(bellLabel(50, true)).toBe("Needs attention, 50+");
     expect(bellLabel(null, false)).toBe("Needs attention");
@@ -651,6 +697,14 @@ describe("the page", () => {
     );
     expect(part("evidence")).toMatch(/href="\/office\/settings"/);
     expect(part("evidence")).toMatch(/href="\/office\/cancellations\/ev1"/);
+    expect(words(part("planner-refused"))).toContain(
+      "Your planner's change to the steward session on Sat 7 Nov was refused: 2 booked casuals can't work it.",
+    );
+    expect(words(part("planner-refused"))).toContain(
+      "Steward at Acme Demo Racecourse , Sat 7 Nov, 10:00 to 18:00",
+    );
+    expect(words(part("planner-refused"))).toContain("Refused 08:30 on Mon 2 Nov");
+    expect(part("planner-refused")).toMatch(/href="\/office\/shifts\/p1"/);
     // Each part's heading, with its count.
     expect(
       [...needs.matchAll(/<h3 id="([^"]+)"[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => [
@@ -664,9 +718,10 @@ describe("the page", () => {
       ["expired", "Qualifications out of date on a booking 1"],
       ["uploads", "Uploads to check 2"],
       ["evidence", "Strike evidence 2"],
+      ["planner-refused", "Your planner's change was refused 1"],
     ]);
     // The bell counts them all.
-    expect(full.needs.ok && needsCount(full.needs.data)).toEqual({ count: 8, more: false });
+    expect(full.needs.ok && needsCount(full.needs.data)).toEqual({ count: 9, more: false });
   });
 
   it("no dashboard link repeats a menu link's name", () => {

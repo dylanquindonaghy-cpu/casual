@@ -141,7 +141,7 @@ export function weekCountsText(c: { byCasuals: number; byOffice: number; strikes
   };
 }
 
-// "In the app", "By the office (Sam Rota)", "Removed on the rota sheet", …
+// "In the app", "By the office (Sam Rota)", "Removed on the rota sheet", "By your planner", …
 export function howText(r: Pick<CancellationRow, "by" | "via" | "officeName" | "reason">): string {
   if (r.via === "sheet") {
     return r.reason === CANCELLED_ON_SHEET
@@ -149,6 +149,8 @@ export function howText(r: Pick<CancellationRow, "by" | "via" | "officeName" | "
       : "Removed on the rota sheet";
   }
   if (r.via === "import") return "From a file import";
+  // The firm's planner cancelled the session through the API (12J.1): no office user did.
+  if (r.via === "api") return "By your planner";
   if (r.by === "casual") return "In the app";
   return r.officeName ? `By the office (${r.officeName})` : "By the office";
 }

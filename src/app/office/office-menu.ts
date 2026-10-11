@@ -51,6 +51,13 @@ const MENU: { label: string; items: MenuItem[] }[] = [
     items: [
       { area: "team", href: "/office/team", label: "Office team", icon: "team" },
       { area: "settings", href: "/office/settings", label: "Settings", icon: "settings" },
+      // The planner's API keys (12J.1; docs/office-v2.md 5.3.4).
+      {
+        area: "integrations",
+        href: "/office/settings/integrations",
+        label: "Integrations",
+        icon: "plug",
+      },
       { area: "data", href: "/office/data", label: "Data requests", icon: "data" },
     ],
   },

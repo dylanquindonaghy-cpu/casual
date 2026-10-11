@@ -33,6 +33,20 @@ describe("office roles", () => {
     expect(canAccess("payroll", "reports")).toBe(false);
   });
 
+  it("Integrations (the planner's API keys, 12J.1) is for admins only", () => {
+    expect(canAccess("admin", "integrations")).toBe(true);
+    expect(canAccess("resourcer", "integrations")).toBe(false);
+    expect(canAccess("payroll", "integrations")).toBe(false);
+    expect(officeMenu("admin").flatMap((g) => g.links.map((l) => l.href))).toContain(
+      "/office/settings/integrations",
+    );
+    for (const role of ["resourcer", "payroll"] as const) {
+      expect(officeMenu(role).flatMap((g) => g.links.map((l) => l.href))).not.toContain(
+        "/office/settings/integrations",
+      );
+    }
+  });
+
   it("pay queries are for payroll and admins", () => {
     expect(canAccess("payroll", "pay")).toBe(true);
     expect(canAccess("admin", "pay")).toBe(true);
@@ -56,6 +70,7 @@ describe("office roles", () => {
       "/office/pay/import": ["pay"],
       "/office/team": ["team"],
       "/office/settings": ["settings"],
+      "/office/settings/integrations": ["integrations"],
       "/office/data": ["data"],
       "/office/guide": ["guide"],
     };

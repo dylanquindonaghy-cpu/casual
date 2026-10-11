@@ -56,6 +56,7 @@ export interface ShiftListItem {
   status: "draft" | "open" | "filled" | "cancelled";
   isUrgent: boolean;
   fromSheet: boolean;
+  fromPlanner: boolean; // sent by the firm's planner through the API (12J.1)
 }
 
 export async function officeShiftList(
@@ -103,6 +104,7 @@ export async function officeShiftList(
         status: r.status,
         isUrgent: r.is_urgent,
         fromSheet: r.source === "sheets",
+        fromPlanner: r.source === "api",
       })),
     };
   });
@@ -163,12 +165,17 @@ export interface ShiftDetail {
     status: ShiftListItem["status"];
     isUrgent: boolean;
     fromSheet: boolean;
+    fromPlanner: boolean; // sent by the firm's planner through the API (12J.1)
     fromImport: boolean;
     started: boolean;
     ended: boolean;
   };
+  // The whole session's edit, move and cancel: not a sheet's or the planner's (changed there).
   edit: { date: string; start: string; end: string; editable: boolean };
-  // The session's own details (docs/office-v2.md S2), editable on sheet and file shifts too.
+  // Assigning someone and cancelling one booking: on the planner's sessions too (5.3.2).
+  canPlace: boolean;
+  // The session's own details (docs/office-v2.md S2), editable on sheet and file shifts too, not
+  // on the planner's (its PUTs send them).
   details: {
     payRate: string; // pounds an hour, "12.50"; "" for none
     post: string;
@@ -370,6 +377,7 @@ export async function officeShiftDetail(
     }
 
     const started = s.startsAt.getTime() <= now.getTime();
+    const changeable = !started && s.status !== "cancelled";
     return {
       form,
       shift: {
@@ -385,6 +393,7 @@ export async function officeShiftDetail(
         status: s.status,
         isUrgent: s.isUrgent,
         fromSheet: s.source === "sheets",
+        fromPlanner: s.source === "api",
         fromImport: s.source === "csv",
         started,
         ended: s.endsAt.getTime() <= now.getTime(),
@@ -393,15 +402,16 @@ export async function officeShiftDetail(
         date: localDateOf(s.startsAt, tz),
         start: hhmm(s.startsAt, tz),
         end: hhmm(s.endsAt, tz),
-        editable: !started && s.status !== "cancelled" && s.source !== "sheets",
+        editable: changeable && s.source !== "sheets" && s.source !== "api",
       },
+      canPlace: changeable && s.source !== "sheets",
       details: {
         payRate: s.payRatePence === null ? "" : (s.payRatePence / 100).toFixed(2),
         post: s.post ?? "",
         meetingPoint: s.meetingPoint ?? "",
         uniform: s.uniform ?? "",
         requirements: s.requiredCredentials,
-        editable: !started && s.status !== "cancelled",
+        editable: changeable && s.source !== "api",
         // As editShiftDetails counts: any live booking, whatever its slot.
         requirementsLocked: live.length > 0,
       },

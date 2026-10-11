@@ -41,6 +41,9 @@ export const LOG_TYPES = {
       "shift.moved",
       "shift.curtailed",
       "shift.move_refused",
+      // The planner's change to a booked session refused (12J.1): role or requirements, or places
+      // below a booked one ({shiftId, code}).
+      "api.change_refused",
       "shift.status_changed",
       "shift.closed",
       "shift.reopened",
@@ -223,6 +226,9 @@ export const LOG_TYPES = {
       "firm.domain_changed",
       "firm.shifts_line_changed",
       "firm.agreement_recorded",
+      // The planner's API keys (12J.1): the key's id only.
+      "api_key.created",
+      "api_key.revoked",
     ],
   },
   sheet: {

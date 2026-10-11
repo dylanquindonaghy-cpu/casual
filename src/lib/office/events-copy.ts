@@ -147,5 +147,7 @@ export function sessionDetails(s: SessionRow): string[] {
   ].filter((x): x is string => x !== null);
 }
 
-// The "…" menu's words for a session from a Google Sheet: it can't be changed or cancelled here.
+// The "…" menu's words for a session from a Google Sheet or the firm's planner (the API): it can't
+// be changed or cancelled here.
 export const SHEET_SESSION_WORDS = "This session comes from your Google Sheet. Change it there.";
+export const PLANNER_SESSION_WORDS = "This session comes from your planner. Change it there.";

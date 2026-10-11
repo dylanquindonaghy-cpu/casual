@@ -1,7 +1,12 @@
 import { roleLabel } from "../portal/format";
 import { dayLabel } from "../rules/reasons";
 import { localDateOf, wallTimeOf } from "../time/zoned";
-import type { DashboardCounts, ExpiredOnBooking, UrgentSessionCard } from "./dashboard";
+import type {
+  DashboardCounts,
+  ExpiredOnBooking,
+  PlannerRefusal,
+  UrgentSessionCard,
+} from "./dashboard";
 import { stoppedText } from "./today-copy";
 
 // The dashboard's words (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`): short sentences,
@@ -131,6 +136,7 @@ export const NEEDS_HEADINGS = {
   expired: "Qualifications out of date on a booking",
   uploads: "Uploads to check",
   evidence: "Strike evidence",
+  "planner-refused": "Your planner's change was refused",
 } as const;
 export type NeedsKey = keyof typeof NEEDS_HEADINGS;
 
@@ -146,6 +152,25 @@ export function expiredText(e: ExpiredOnBooking, today: string, tz: string): str
   const when = e.expiresOn < today ? "expired on" : "runs out on";
   const relation = e.expiresOn < shiftDay ? "before" : "during";
   return `${e.worker}'s ${e.credential} ${when} ${dayLabel(e.expiresOn)}, ${relation} their ${shift}.`;
+}
+
+// "Your planner's change to the steward session on Sat 7 Nov was refused: 2 booked casuals can't
+// work it. Cancel their bookings, then ask your planner to send it again." (docs/office-v2.md
+// 5.3.2 step 5), and the same for a role or requirements change and for places taken away.
+export function plannerRefusedText(r: PlannerRefusal, tz: string): string {
+  const session = `the ${roleLabel(r.role).toLowerCase()} session on ${dayLabel(localDateOf(r.startsAt, tz))}`;
+  const refused = `Your planner's change to ${session} was refused`;
+  const again = "then ask your planner to send it again.";
+  switch (r.why) {
+    case "move":
+      return r.casuals === 1
+        ? `${refused}: 1 booked casual can't work it. Cancel their booking, ${again}`
+        : `${refused}: ${r.casuals > 1 ? `${r.casuals} ` : ""}booked casuals can't work it. Cancel their bookings, ${again}`;
+    case "session_has_bookings":
+      return `${refused}: it changes the role or the qualifications needed, and casuals are booked. Cancel their bookings, ${again}`;
+    case "places_below_booked":
+      return `${refused}: it takes away places casuals are booked in. Cancel those bookings, ${again}`;
+  }
 }
 
 // "3 uploads wait for a check."

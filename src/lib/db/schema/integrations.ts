@@ -46,10 +46,7 @@ export const apiKeys = pgTable(
     ),
     check("api_keys_hint_format", sql`${t.hint} ~ '^[A-Za-z0-9_-]{4}$'`),
     check("api_keys_token_hash_length", sql`octet_length(${t.tokenHash}) = 32`),
-    check(
-      "api_keys_revoked_together",
-      sql`(${t.revokedAt} is null) = (${t.revokedBy} is null)`,
-    ),
+    check("api_keys_revoked_together", sql`(${t.revokedAt} is null) = (${t.revokedBy} is null)`),
     firmIsolation(t.firmId),
     // The migrating owner may read keys; app_api_key_lookup() runs as the owner. The app role
     // gets no such policy: it only sees its own firm's keys.

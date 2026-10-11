@@ -12,6 +12,7 @@ import {
   moreSessionsText,
   NEEDS_HEADINGS,
   noticeChip,
+  plannerRefusedText,
   SECTION_ERROR,
   SECTIONS,
   uploadsText,
@@ -165,6 +166,7 @@ function UrgentCards({ d }: { d: Dashboard }) {
                           {s.fromSheet && (
                             <StatusChip tone="quiet">From your Google Sheet</StatusChip>
                           )}
+                          {s.fromPlanner && <StatusChip tone="quiet">From your planner</StatusChip>}
                         </div>
                         <p className="mt-2 font-semibold">
                           <Link href={`/office/shifts/${s.shiftId}`} className={textLink}>
@@ -184,6 +186,7 @@ function UrgentCards({ d }: { d: Dashboard }) {
                         shiftId={s.shiftId}
                         isUrgent
                         fromSheet={s.fromSheet}
+                        fromPlanner={s.fromPlanner}
                         className="lg:shrink-0"
                       />
                     </li>
@@ -539,6 +542,23 @@ function NeedsItems({
                 >
                   Open the record to resend it
                 </Link>
+              </li>
+            ))}
+          </ul>
+        </Need>
+      )}
+
+      {n.plannerRefused.length > 0 && (
+        <Need id="planner-refused" n={n.plannerRefused.length} more={n.plannerRefusedMore}>
+          <ul role="list" className={`${headingGap} ${rows}`}>
+            {n.plannerRefused.map((r) => (
+              <li key={r.shiftId} className={`${row} flex max-w-prose flex-col gap-1`}>
+                <p>{plannerRefusedText(r, tz)}</p>
+                <p>
+                  <ShiftTitle shift={r} />
+                  <span className={nums}>, {shiftWhen(r.startsAt, r.endsAt, tz)}</span>
+                </p>
+                <p className={`${meta} ${nums}`}>Refused {timeOnDay(r.refusedAt, tz)}</p>
               </li>
             ))}
           </ul>

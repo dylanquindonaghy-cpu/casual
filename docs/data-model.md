@@ -51,6 +51,7 @@ architecture.md, Tenancy).
 | events | Append-only action log (the evidence trail) | 1 |
 | magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
 | auth_throttle | Rate-limit counters for login and OTP requests (HMAC-keyed buckets) | 1 |
+| api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
@@ -382,7 +383,8 @@ create table credential_rules (
 );
 
 -- Events (Phase 12, 12B.1; docs/office-v2.md 3.3, S1). Every shift belongs to one. "Shifts for an
--- event" makes its own (planner_ref empty). The sheet sync, the file import, "New shift" and
+-- event" makes its own (planner_ref empty); the planner API finds or makes its own by the
+-- planner's ref (source api, 12J.1). The sheet sync, the file import, "New shift" and
 -- migration 0035 put a new shift in its site and day's automatic event: named "Acme Demo Arena ·
 -- Sat 10 Oct" ("Sat 10 Oct" with no site; a long site name is cut to fit 200 characters), the day
 -- being the shift's start in the firm's time zone, and found again by its key in planner_ref,
@@ -390,19 +392,23 @@ create table credential_rules (
 -- the shifts already there the same way (the first migration that changes data). A shift whose
 -- date or site later changes keeps its event. The switch is ShiftDesk's own, never read from or
 -- written to a planner. Never deleted, only hidden: the app may insert rows and update only
--- showing_to_casuals (TABLE_ACCESS SELECT, INSERT; COLUMN_UPDATES), so a key, site or firm can't
--- be rewritten. 'auto:' keys are reserved: S11's planner refs must never start with it.
+-- showing_to_casuals and name (the planner renames its own events: TABLE_ACCESS SELECT, INSERT;
+-- COLUMN_UPDATES), so a key, site, source or firm can't be rewritten. 'auto:' keys are reserved:
+-- the planner API refuses a ref that starts with it.
 create table shift_events (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   name text not null,                    -- 1..200 characters
   site_id uuid,                          -- (firm_id, site_id) -> sites(firm_id, id)
-  source text not null default 'native', -- native | sheets | csv: who made it (an automatic
-                                         -- event's earliest shift)
-  planner_ref text,                      -- 1..200; an automatic event's 'auto:' key
+  source text not null default 'native', -- native | sheets | csv | api: who made it (an
+                                         -- automatic event's earliest shift; api: the planner)
+  planner_ref text,                      -- 1..200; an automatic event's 'auto:' key, or the
+                                         -- planner's own id for its event (source api)
   showing_to_casuals boolean not null default true,
   created_at timestamptz not null default now(),
-  unique (firm_id, id)
+  unique (firm_id, id),
+  unique (firm_id, source, planner_ref)  -- one event per planner ref (12J.1; NULLs don't collide),
+                                         -- so two PUTs naming one new event share its row
 );
 create unique index shift_events_auto_key on shift_events (firm_id, planner_ref)
   where planner_ref like 'auto:%';       -- one automatic event per firm, site and day
@@ -419,8 +425,11 @@ create table shifts (
   headcount int not null default 1,      -- 1..1000
   is_urgent boolean not null default false, -- a dropout inside urgent_window_hours, or the office (src/lib/roster/urgent.ts)
   status text not null default 'open',   -- draft | open | filled | cancelled
-  source text not null default 'native', -- native | sheets | csv
-  external_ref text,                     -- the row's key in the firm's sheet or import
+  source text not null default 'native', -- native | sheets | csv | api (the planner API, 12J.1:
+                                         -- the office's whole-session edits, moves and cancels
+                                         -- of these get "planner")
+  external_ref text,                     -- the row's key in the firm's sheet or import, or the
+                                         -- planner's ref for the session (source api)
   instructions text,
   synced_holders text[],                 -- Sheets: the "Assigned" cell's staff ids after the last
                                          -- successful sync (the three-way merge's base; names the
@@ -444,7 +453,8 @@ create table shifts (
                                          -- (src/lib/roster/visibility.ts, 12B.4)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
-  unique (firm_id, source, external_ref) -- one shift per sheet/import row (NULLs don't collide)
+  unique (firm_id, source, external_ref) -- one shift per sheet/import row or planner ref (NULLs
+                                         -- don't collide)
 );
 
 -- One row per holder of a slot. A cancellation keeps its row (worker, reason, notice hours) and
@@ -467,7 +477,8 @@ create table assignments (
   office_kept_at timestamptz,            -- Phase 10: the office kept it though its worker stopped being
                                          -- active or was blocked from the site (the dashboard's "Bookings
                                          -- to check"); cleared when that happens again
-  cancel_via text,                       -- 12C.1: app | office | sheet | import (empty on older rows)
+  cancel_via text,                       -- 12C.1: app | office | sheet | import | api (the planner
+                                         -- API, 12J.1); empty on older rows
   strike_warning_version text,           -- 12C.1: on a casual's own cancellation in the app, the strike
   strike_warning_shown_at timestamptz,   --   warning on screen when they confirmed (its version) and
                                          --   then; both or neither, only on cancelled_worker
@@ -804,6 +815,32 @@ create table auth_throttle (
   unique (firm_id, bucket, window_start)
 );
 
+-- A planner's API keys (12J.1, S11; docs/office-v2.md 5.3.2; ADR-022). The key itself
+-- (`shiftdesk_` and 43 random characters, src/lib/integrations/keys.ts) is shown once and never
+-- stored or logged. The app may only read and add rows and change last_used_at, revoked_at and
+-- revoked_by (TABLE_ACCESS SELECT, INSERT; COLUMN_UPDATES), so a key's hash, label or maker can
+-- never be rewritten; never deleted (its id is the actor on every change it made); left out of the
+-- firm's data export. At most 10 live per firm (in code). Logged: api_key.created and
+-- api_key.revoked (actor office; {keyId}: never the label, which is typed text); the API's own
+-- changes carry {by: "firm", via: "api", keyId} with the system actor.
+create table api_keys (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  label text not null,                   -- 1..60 characters, trimmed; the admin's name for it
+  token_hash bytea not null unique,      -- sha256 of the whole key (32 bytes)
+  hint text not null,                    -- the key's last 4 characters ([A-Za-z0-9_-]), shown "…k3F9"
+  created_by uuid not null,              -- (firm_id, created_by) -> office_users
+  revoked_by uuid,                       -- (firm_id, revoked_by) -> office_users
+  last_used_at timestamptz,              -- updated at most once a minute
+  revoked_at timestamptz,                -- revoked_at and revoked_by: both or neither
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
+);
+-- app_api_key_lookup(hash) (migration 0045): the firm id and key id of the key with this sha256,
+-- if it isn't revoked, before any firm is known (runs as the owner, through a select policy for the
+-- owner only; ids only; like app_firm_by_line for a number). Only the app role may call it, through
+-- resolveApiKey() (src/lib/db/directory.ts); the API's work then runs in withFirm() for that firm.
+
 -- The firm for the current transaction. NULL when unset, so policies fail closed. The nullif
 -- matters: a pooled connection that ran a firm transaction returns '' afterwards, not NULL.
 create function app_current_firm_id() returns uuid language sql stable as
@@ -824,11 +861,11 @@ create policy firm_isolation on workers for all to public
 **Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`
 applies `src/lib/db/admin/access.ts` after the migrations: FORCE on every table and exactly the
 listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS; no DELETE on `events`,
-`shift_events`, `shifts`, `assignments`, `requests`, `offers`, `shift_reminders` or `strikes`; on
-`shift_events` only its switch may be updated, and on `strikes` only the review, withdrawal and
-evidence columns). A new table without an
-entry there fails the migrate. Adding a table: Drizzle schema + `.enableRLS()` + the tenant
-policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
+`shift_events`, `shifts`, `assignments`, `requests`, `offers`, `shift_reminders`, `strikes` or
+`api_keys`; on `shift_events` only its switch and name may be updated, on `strikes` only the
+review, withdrawal and evidence columns, and on `api_keys` only when it was last used and its
+revocation). A new table without an entry there fails the migrate. Adding a table: Drizzle schema +
+`.enableRLS()` + the tenant policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 `tests/helpers/tenant-rows.ts` (the isolation tests fail by name until they exist).
 
 ## Retention (defaults, per firm)
@@ -852,6 +889,7 @@ owner's; `src/lib/gdpr/retention-settings.ts`): `message_days` (default 90), `re
 | Magic links and OTP codes | 7 days after expiry | Yes |
 | Sessions | 30 days after expiry or revocation | Yes (their codes go with them) |
 | Rate-limit counters (auth_throttle) | 1 day | Yes (a day after the window started; the longest window is a day) |
+| A planner's API keys (`api_keys`, 12J.1) | For good: a revoked key stays, since its id is the actor on what it changed (only the key's hash and last 4 characters are kept) | Nothing to purge |
 | Finished pg-boss jobs | 1 day (ids-only payloads) | Yes (queue option) |
 
 The nightly `retention-purge` job (`src/lib/gdpr/retention.ts`, 03:30 London, one per firm)

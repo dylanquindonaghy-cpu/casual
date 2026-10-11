@@ -34,6 +34,9 @@ export const LIMITS = {
   // 5 guesses, so the daily cap bounds guessing over a long, noisy attack).
   codePerWorker: { name: "otp:worker", max: 3, windowMs: 15 * MINUTE },
   codePerWorkerDaily: { name: "otp:worker_day", max: 10, windowMs: 24 * 60 * MINUTE },
+  // The planner API (12J.1; docs/office-v2.md 5.3.2): 300 calls a minute per key, counted by the
+  // key's id. Its answer gives the wait in seconds (Retry-After).
+  apiPerKey: { name: "api:key", max: 300, windowMs: MINUTE },
 } as const satisfies Record<string, Limit>;
 
 export function bucketFor(limit: Limit, value: string, secret: string): string {
@@ -96,7 +99,7 @@ export async function peekLimit(
   };
 }
 
-export type Throttled = { retryAfterMinutes: number; limit: string };
+export type Throttled = { retryAfterMinutes: number; retryAfterSeconds: number; limit: string };
 
 export const toMinutes = (ms: number) => Math.max(1, Math.ceil(ms / MINUTE));
 
@@ -127,7 +130,11 @@ export async function throttle(
       const hit = await hitLimit(tx, { ...check, now: opts.now, secret: opts.secret });
       if (hit.allowed) continue;
       if (hit.hits === hit.limit.max + 1) await logLimitReached(tx, hit.limit, opts.entityType);
-      return { retryAfterMinutes: toMinutes(hit.retryAfterMs), limit: hit.limit.name };
+      return {
+        retryAfterMinutes: toMinutes(hit.retryAfterMs),
+        retryAfterSeconds: Math.max(1, Math.ceil(hit.retryAfterMs / 1000)),
+        limit: hit.limit.name,
+      };
     }
     return null;
   });

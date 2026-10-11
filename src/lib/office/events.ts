@@ -43,6 +43,7 @@ export interface SessionRow {
   // The role's qualifications, then the session's extra ones (each once).
   requirements: { code: string; name: string }[];
   fromSheet: boolean;
+  fromPlanner: boolean; // sent by the firm's planner through the API (12J.1)
   started: boolean;
   ended: boolean;
 }
@@ -211,6 +212,7 @@ function sessionOf(
     uniform: r.uniform,
     requirements,
     fromSheet: r.source === "sheets",
+    fromPlanner: r.source === "api",
     started: startsAt.getTime() <= now.getTime(),
     ended: endsAt.getTime() <= now.getTime(),
   };

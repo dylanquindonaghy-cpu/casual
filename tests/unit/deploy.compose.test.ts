@@ -97,6 +97,7 @@ describe("deploy/docker-compose.yml", () => {
         "ALERTS_TRANSPORT", // where the founder's alerts go (not a secret): bad webhook signatures
         "APP_BASE_DOMAIN",
         "DATABASE_URL",
+        "INTEGRATIONS_SECRET", // the planner API answers only with it set (12J.1)
         "NODE_ENV",
         "OFFLINE_COPY", // the phones' offline copy on or off (not a secret; Phase 10 task 17)
         "SESSION_SECRET",

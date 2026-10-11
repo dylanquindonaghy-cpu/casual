@@ -62,6 +62,10 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   TRAVEL_PROVIDER: "fake",
   TRAVELTIME_APP_ID: "",
   TRAVELTIME_API_KEY: "",
+  // A made-up planner integration secret (12J.1), never .env's own; not .env.example's either,
+  // which a production build (CI's web app) refuses. The planner API answers only with one set
+  // (tests/e2e/office.integrations.spec.ts). scripts/invariants.sh checks this line stays.
+  INTEGRATIONS_SECRET: "e2e-only-integrations-secret-not-for-any-real-use",
 });
 const env = serverEnv(PORT, OUTBOX);
 

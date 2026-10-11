@@ -41,7 +41,7 @@ describe("the office menu (v2 groups)", () => {
       ["Operations", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
-      ["Configuration", ["Office team", "Settings", "Data requests"]],
+      ["Configuration", ["Office team", "Settings", "Integrations", "Data requests"]],
       ["Help", ["How-to guide"]],
     ]);
   });
@@ -101,6 +101,9 @@ describe("the current page in the menu", () => {
     ["/office/reports/notice", "/office/reports/notice"],
     ["/office/reports/pilot", "/office/reports/pilot"],
     ["/office/guide", "/office/guide"],
+    // Integrations (12J.1) sits under Settings' address but marks its own link.
+    ["/office/settings", "/office/settings"],
+    ["/office/settings/integrations", "/office/settings/integrations"],
     ["/office/login", null],
     ["/office/shiftsx", null],
   ])("%s marks %s", (pathname, expected) => {

@@ -2,7 +2,9 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createKeyDirectory } from "@/lib/db/directory";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { putSessionRequest } from "@/lib/integrations/sessions";
 import {
   loadDashboard,
   loadExpiredOnBookings,
@@ -14,23 +16,29 @@ import {
 import { loadCancellations } from "@/lib/office/cancellations";
 import { loadEnquiries } from "@/lib/office/enquiries";
 import { loadEventCards } from "@/lib/office/events";
+import { cancelBooking } from "@/lib/roster/cancel";
+import { recordMoveRefused } from "@/lib/roster/firm-change";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
+import { answer, apiDeps, apiRequest, plannerKey } from "../helpers/planner-api";
 
 // The office dashboard (docs/office-v2.md 3.2, 3.9; 12E.1) on the real database, as the app role:
 // what each of the four counts counts ("today" is the London calendar day), the sections' data,
 // Needs attention's items (a qualification out of date on a booked session read as the rules read
-// it), the bell's number, who may see it, and that one part failing leaves the rest. NOW is Monday
+// it; the planner's refused changes worked out from the log, through the planner API itself), the
+// bell's number, who may see it, and that one part failing leaves the rest. NOW is Monday
 // 2 November 2026, 09:00 London (GMT), so midnight was 00:00 UTC.
 
 let su: Pool;
 let app: Pool;
 let withFirm: WithFirm;
+let resolveKey: ReturnType<typeof createKeyDirectory>;
 
 beforeAll(() => {
   su = superuserPool();
   app = appRolePool(4);
   withFirm = createWithFirm(app);
+  resolveKey = createKeyDirectory(app);
 });
 afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
@@ -638,6 +646,202 @@ describe("Needs attention and the bell", () => {
     const payroll = await t.office("payroll");
     expect(
       await needsAttentionBell({ firm: { id: t.firmId }, officeUserId: payroll, run: withFirm }),
+    ).toBeNull();
+  });
+});
+
+describe("Needs attention: your planner's change was refused", () => {
+  // A firm with a planner key; the planner's PUTs (at NOW), and the refused changes Needs
+  // attention shows at `at`, as [session, why, casuals].
+  async function plannerFirm() {
+    const t = await dashFirm();
+    const admin = await t.office("admin");
+    const key = await plannerKey(su, t.firmId, admin);
+    const deps = apiDeps({ run: withFirm, resolveKey, now: () => NOW });
+    const put = async (ref: string, body: unknown) =>
+      answer<{ result?: string; session?: { id: string } | null; error?: { code: string } }>(
+        await putSessionRequest(
+          apiRequest("PUT", `/api/v1/sessions/${ref}`, { key: key.key, body }),
+          ref,
+          deps,
+        ),
+      );
+    const create = async (ref: string, body: unknown) => {
+      const made = await put(ref, body);
+      const id = made.body.session?.id;
+      if (made.status !== 201 || !id) throw new Error(`not created: ${made.status}`);
+      return id;
+    };
+    const needs = async (at = NOW) => {
+      const d = await withFirm(t.firmId, (tx) => loadDashboard(tx, at));
+      if (!d.needs.ok) throw new Error("needs couldn't load");
+      return d.needs.data;
+    };
+    const refused = async (at = NOW) =>
+      (await needs(at)).plannerRefused.map((r) => [r.shiftId, r.why, r.casuals]);
+    const bell = async () =>
+      needsAttentionBell({ firm: { id: t.firmId }, officeUserId: admin, run: withFirm, clock });
+    return { ...t, admin, key, put, create, needs, refused, bell };
+  }
+
+  // A plain session: steward, Saturday 7 November 08:00 to 16:00, at the arena.
+  const plain = (o: Record<string, unknown> = {}) => ({
+    site: { name: "Riverside Arena" },
+    role: "steward",
+    starts_at: "2026-11-07T08:00:00Z",
+    ends_at: "2026-11-07T16:00:00Z",
+    places: 2,
+    ...o,
+  });
+  const code = (a: { status: number; body: { error?: { code: string } } }) => [
+    a.status,
+    a.body.error?.code,
+  ];
+
+  it("a role change a booking blocks shows, counted by the bell; an unchanged PUT leaves it, a later successful PUT clears it", async () => {
+    const t = await plannerFirm();
+    const id = await t.create("S-1", plain());
+    await t.booking(await t.worker({ first: "Ann" }), id, "confirmed", 1);
+    expect(await t.refused()).toEqual([]);
+    expect(code(await t.put("S-1", plain({ role: "door_supervisor" })))).toEqual([
+      409,
+      "session_has_bookings",
+    ]);
+    expect(await t.refused()).toEqual([[id, "session_has_bookings", 0]]);
+    expect((await t.needs()).plannerRefused[0]).toEqual({
+      shiftId: id,
+      role: "steward",
+      site: "Riverside Arena",
+      startsAt: new Date("2026-11-07T08:00:00Z"),
+      endsAt: new Date("2026-11-07T16:00:00Z"),
+      refusedAt: expect.any(Date),
+      why: "session_has_bookings",
+      casuals: 0,
+    });
+    // The strikes team's address isn't set (one item), plus the refused change.
+    expect(await t.bell()).toEqual({ count: 2, more: false });
+    // Sent again as it is now: nothing changes or is logged, so it stays.
+    expect((await t.put("S-1", plain())).body.result).toBe("unchanged");
+    expect(await t.refused()).toEqual([[id, "session_has_bookings", 0]]);
+    // A later change that went through (shift.changed) clears it.
+    expect((await t.put("S-1", plain({ pay_rate_pence: 1500 }))).body.result).toBe("updated");
+    expect(await t.refused()).toEqual([]);
+    expect(await t.bell()).toEqual({ count: 1, more: false });
+  });
+
+  it("places taken away from a booking show; a booking cancelled after it clears it, and a newer refusal shows again", async () => {
+    const t = await plannerFirm();
+    const id = await t.create("S-1", plain({ places: 3 }));
+    await t.booking(await t.worker({ first: "Ann" }), id, "confirmed", 1);
+    const cal = await t.worker({ first: "Cal" });
+    await t.booking(cal, id, "confirmed", 3);
+    expect(code(await t.put("S-1", plain({ places: 2 })))).toEqual([409, "places_below_booked"]);
+    expect(await t.refused()).toEqual([[id, "places_below_booked", 0]]);
+    // The office cancels the booking in the place it takes away (shift.cancelled on the booking).
+    expect(
+      await cancelBooking(
+        withFirm,
+        t.firmId,
+        {
+          shiftId: id,
+          workerId: cal,
+          reason: "They can't work it now",
+          by: { type: "office", id: t.admin },
+        },
+        { clock },
+      ),
+    ).toMatchObject({ status: "cancelled" });
+    expect(await t.refused()).toEqual([]);
+    // A refusal logged after that shows again: the latest one counts.
+    expect(code(await t.put("S-1", plain({ requirements: ["FIRST_AID"] })))).toEqual([
+      409,
+      "session_has_bookings",
+    ]);
+    expect(await t.refused()).toEqual([[id, "session_has_bookings", 0]]);
+  });
+
+  it("a move the rules refuse shows how many casuals can't work it; a later move clears it, and so does cancelling the session", async () => {
+    const t = await plannerFirm();
+    const evening = plain({ starts_at: "2026-11-07T18:00:00Z", ends_at: "2026-11-07T22:00:00Z" });
+    const id = await t.create("S-1", evening);
+    const ann = await t.worker({ first: "Ann" });
+    await t.booking(ann, id, "confirmed", 1);
+    // Ann works until 06:00 that morning elsewhere: 4 hours' rest before a 10:00 start.
+    const night = await t.shift({ startsAt: new Date("2026-11-06T22:00:00Z"), role: "steward" });
+    await t.booking(ann, night, "confirmed", 1);
+    const tooSoon = plain({
+      starts_at: "2026-11-07T10:00:00Z",
+      ends_at: "2026-11-07T14:00:00Z",
+      change_reason: "event_changed",
+    });
+    expect(code(await t.put("S-1", tooSoon))).toEqual([409, "bookings_block_change"]);
+    expect(await t.refused()).toEqual([[id, "move", 1]]);
+    // A later move the rules allow (shift.moved for Ann, then shift.changed) clears it.
+    const later = plain({
+      starts_at: "2026-11-07T19:00:00Z",
+      ends_at: "2026-11-07T23:00:00Z",
+      change_reason: "event_changed",
+    });
+    expect((await t.put("S-1", later)).status).toBe(200);
+    expect(await t.refused()).toEqual([]);
+    // Refused again, then the planner cancels the session (shift.cancelled_by_firm).
+    expect(code(await t.put("S-1", tooSoon))).toEqual([409, "bookings_block_change"]);
+    expect(await t.refused()).toEqual([[id, "move", 1]]);
+    const cancelled = await t.put("S-1", { ...later, status: "cancelled" });
+    expect([cancelled.status, cancelled.body.result]).toEqual([200, "cancelled"]);
+    expect(await t.refused()).toEqual([]);
+  });
+
+  it("stays until the session ends; only the planner's own refusals count", async () => {
+    const t = await plannerFirm();
+    const id = await t.create("S-1", plain());
+    await t.booking(await t.worker({ first: "Ann" }), id, "confirmed", 1);
+    expect(code(await t.put("S-1", plain({ role: "door_supervisor" })))).toEqual([
+      409,
+      "session_has_bookings",
+    ]);
+    expect(await t.refused(new Date("2026-11-07T15:59:00Z"))).toEqual([
+      [id, "session_has_bookings", 0],
+    ]);
+    expect(await t.refused(new Date("2026-11-07T16:00:00Z"))).toEqual([]);
+    // The office's own refused move of its own session is the office's to see on the session: not
+    // a planner's change.
+    const native = await t.shift({ startsAt: hoursFromNow(48) });
+    const ben = await t.worker({ first: "Ben" });
+    await t.booking(ben, native, "confirmed", 1);
+    await recordMoveRefused(withFirm, t.firmId, {
+      shiftId: native,
+      reason: "event_changed",
+      by: { type: "office", id: t.admin },
+      workers: [{ workerId: ben, codes: ["rest"] }],
+    });
+    expect(await t.refused()).toEqual([[id, "session_has_bookings", 0]]);
+  });
+
+  it("is each firm's own: the same ref refused in one firm shows nothing in the other", async () => {
+    const a = await plannerFirm();
+    const b = await plannerFirm();
+    const mine = await a.create("S-1", plain());
+    const theirs = await b.create("S-1", plain());
+    expect(mine).not.toBe(theirs);
+    await b.booking(await b.worker({ first: "Bertram" }), theirs, "confirmed", 1);
+    expect(code(await b.put("S-1", plain({ role: "door_supervisor" })))).toEqual([
+      409,
+      "session_has_bookings",
+    ]);
+    expect(await b.refused()).toEqual([[theirs, "session_has_bookings", 0]]);
+    expect(await b.bell()).toEqual({ count: 2, more: false });
+    expect(await a.refused()).toEqual([]);
+    expect(await a.bell()).toEqual({ count: 1, more: false });
+    expect(JSON.stringify(await a.needs())).not.toContain(theirs);
+    // B's admin asking under A's firm: nothing.
+    expect(
+      await needsAttentionBell({
+        firm: { id: a.firmId },
+        officeUserId: b.admin,
+        run: withFirm,
+        clock,
+      }),
     ).toBeNull();
   });
 });

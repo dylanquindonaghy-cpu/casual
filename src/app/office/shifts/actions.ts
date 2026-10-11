@@ -75,7 +75,7 @@ export async function editShiftAction(
 }
 
 // A session's own details (pay rate, post, meeting point, uniform, extra requirements), on any
-// shift that hasn't started, a sheet's or a file's too.
+// shift that hasn't started, a sheet's or a file's too, but not one from the firm's planner.
 export async function editShiftDetailsAction(
   shiftId: string,
   raw: unknown,

@@ -71,6 +71,8 @@ export function closeResultText(result: CloseShiftResult | Common): string {
       return "This shift isn't open any more.";
     case "sheet":
       return "This shift comes from your Google Sheet. Change it there.";
+    case "planner":
+      return "This session comes from your planner. Change it there.";
     default:
       return COMMON[result.status];
   }

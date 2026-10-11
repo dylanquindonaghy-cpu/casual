@@ -58,6 +58,12 @@ const SECTIONS: Section[] = [
   },
   { id: "pay", title: "Pay", areas: ["pay"], body: () => <Pay /> },
   { id: "admin", title: "Admin", areas: ["team", "data"], body: (role) => <Admin role={role} /> },
+  {
+    id: "connect-your-planner",
+    title: "Connect your planner",
+    areas: ["integrations"],
+    body: () => <ConnectPlanner />,
+  },
   { id: "what-workers-see", title: "What workers see", areas: [], body: () => <WorkersSee /> },
 ];
 
@@ -191,6 +197,7 @@ const MENU_WORDS: Record<string, string> = {
   "Import pay records": "Load payroll's spreadsheet, so workers see their pay.",
   "Office team": "Who can log in to the office, and their roles.",
   Settings: "The strikes team's email, and your sites' postcodes.",
+  Integrations: "Connect your planner: its API keys, and the codes it can send.",
   "Data requests": "Download or delete a worker's data when they ask.",
   "How-to guide": "This page.",
 };
@@ -924,6 +931,50 @@ function Admin({ role }: { role: OfficeRole }) {
           </div>
         </Task>
       ) : null}
+    </>
+  );
+}
+
+// Integrations (12J.1; docs/office-v2.md 5.3.4): the page's "How to connect your planner" lands
+// here. The technical side, for whoever sets the planner up, is docs/integrations.md.
+function ConnectPlanner() {
+  return (
+    <>
+      <Para>
+        Your planner can send its sessions to ShiftDesk, and read their bookings and cancellations.
+        It needs an API key: a long password for a machine.
+      </Para>
+      <Steps>
+        <Step>
+          On Integrations, under <Name>API keys</Name>, type a <Name>Name</Name> you&apos;ll
+          recognise, like your planner&apos;s name. Select <Name>Create a key</Name>.
+        </Step>
+        <Step>
+          Select <Name>Copy the key</Name> and paste it into your planner straight away. You
+          won&apos;t see it again.
+        </Step>
+        <Step>
+          Your planner names roles and qualifications with your own codes. Find them under{" "}
+          <Name>Codes your planner can use</Name>.
+        </Step>
+        <Step>
+          Once your planner sends a session, <Name>Your planner</Name> says{" "}
+          <Name>Connected by API</Name>, with the time of its last change.
+        </Step>
+      </Steps>
+      <Note>
+        Change your planner&apos;s sessions in your planner. Here you can still show or hide them,
+        mark them urgent, offer them and assign people to them.
+      </Note>
+      <Note>
+        A key you no longer use, or one someone else may have seen: select <Name>Revoke</Name>, then{" "}
+        <Name>Yes, revoke it</Name>. It stops working at once.
+      </Note>
+      <div className="mt-2">
+        <GoTo href="/office/settings/integrations" icon="plug">
+          Go to Integrations
+        </GoTo>
+      </div>
     </>
   );
 }

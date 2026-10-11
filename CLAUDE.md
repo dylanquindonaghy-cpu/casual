@@ -129,12 +129,15 @@ docs/
 - Every new table gets `firm_id`, `created_at`, `.enableRLS()` with the tenant policy, a
   `TABLE_ACCESS` entry (`src/lib/db/admin/access.ts`) and isolation fixtures
   (`tests/helpers/tenant-rows.ts`). Links between firm tables are composite `(firm_id, x_id)` FKs.
-- App code reaches the database only through `withFirm()` (and `resolveFirmBySlug()` for host
-  lookup). Firm jobs extend `firmJobEnvelope`; payloads carry ids only.
+- App code reaches the database only through `withFirm()` (and, before a firm is known,
+  `resolveFirmBySlug()` for a host, `resolveFirmByLine()` for a shifts line's number and
+  `resolveApiKey()` for a planner's API key). Firm jobs extend `firmJobEnvelope`; payloads carry ids
+  only.
 - Dev messaging uses `MESSAGING_TRANSPORT=console` and `EMAIL_TRANSPORT=console` (prints
   outbound messages). Never hit Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a
   planner from tests: the settings refuse each real sender under `NODE_ENV=test`, and
-  `scripts/invariants.sh` checks the test setups' pins (email, AI and Twilio today).
+  `scripts/invariants.sh` checks the test setups' pins (email, AI and Twilio today, and a made-up
+  `INTEGRATIONS_SECRET`).
 
 ## How to work each task
 

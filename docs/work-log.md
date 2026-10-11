@@ -11649,3 +11649,154 @@ Cancellations CSV exports every day; the bell's queries on every page.
 
 Run the walkthrough (`docs/walkthrough.md`, steps 20 to 24): log in as the resourcer and the
 dashboard opens, with the four counts, the sections and the bell.
+
+## 2026-10-11 — Phase 12, task 12J.1: Planner API and API keys
+
+**Time spent:** 3.9 hours: 18:26 to 18:29 UTC on 10 October (the plan, the ADR and golden
+rule 3's wording), then 15:46 to 19:35 UTC on 11 October. The container sat idle in between, and
+that gap isn't counted.
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=911818ee7f997fb3 e2e=true`.
+That run passed 4,670 tests in 261 files, 88 browser tests and the walkthrough's 3, with none
+skipped. The independent auditor said **VERDICT: NOT DONE** on its first round (an untested path
+and the review not written down: both fixed, see below) and **VERDICT: DONE** on its second. The
+commit is "Phase 12: Planner API and API keys (12J.1)", pushed to `build/overnight`. GitHub's own
+test run (CI) still can't start on this account (see the morning summary), so the local run is
+the evidence.
+
+### What was built, in plain words
+
+A firm's **planner** (the system it already uses to plan events and staff, or a CRM) can now send
+its sessions straight into ShiftDesk, instead of someone typing them in or keeping a rota sheet.
+This is S11 in the v2 spec (`docs/office-v2.md` §5.3), approved by Dylan on 6 October.
+
+- **An API** (a way for one program to talk to another over the web, with fixed addresses and
+  JSON messages). It has three calls, all under `/api/v1` on ShiftDesk's own address:
+  - `PUT /api/v1/sessions/{ref}`: "here is my session". The planner sends it with its own id for
+    the session (the "ref"). The first time, ShiftDesk creates the session (with its site and
+    event if they are new); after that, the same call updates it. Sending the same thing twice
+    changes nothing, so a planner can safely send again after a network hiccup. This is what
+    "idempotent" means.
+  - `GET /api/v1/sessions/{ref}`: the session as ShiftDesk has it, with who is booked (names and
+    staff refs only).
+  - `GET /api/v1/cancellations`: every cancellation since a time, oldest first, 100 a page.
+- **API keys.** A key is a long secret password for a program: `shiftdesk_` and 43 random
+  characters. An admin makes one on the new **Integrations** page (`/office/settings/integrations`,
+  admins only). It is shown once and never again. ShiftDesk keeps only a fingerprint of it (a
+  **sha256 hash**: a one-way scramble, so the key can't be read back) and its last 4 characters.
+  A firm can have 10 live keys. Revoking one stops it at once.
+- **The key decides the firm.** Before any firm is known, one database look-up
+  (`app_api_key_lookup`) turns the key's fingerprint into the firm's id and the key's id, and
+  nothing else. Everything after that runs inside that firm's walls, as every other page does
+  (`withFirm()`, row level security: the database itself hides other firms' rows).
+- **The same rules as the office.** When a planner moves or cancels a session people are booked
+  on, it goes through the very code the office's own Move and Cancel use: each casual's notice
+  hours are logged, each is told, nobody gets a strike for the firm's cancellation. One
+  difference: the planner can't override anything. If a move breaks a casual's rest gap or their
+  day off, it is refused (409) and nothing changes.
+- **The office stays in charge of its own sessions,** and the planner of its. The office can't
+  edit, move or cancel a whole session that came from the planner ("This session comes from your
+  planner. Change it there."), but can still assign people and cancel one booking. The planner
+  can't touch sessions it didn't send.
+- **Needs attention** gets a new item: "Your planner's change to the steward session on Sat 7
+  Nov was refused …", so the office knows when the planner tried a change that didn't go through.
+  It goes once a later change or cancellation lands, or when the session ends.
+- **Limits that protect the system:** JSON only, at most 64 KB a call; 300 calls a minute per key;
+  an address that sends 30 wrong keys in a minute is turned away for the rest of that minute
+  before any look-up. Errors always have the same shape, `{"error": {"code", "message",
+  "request_id"}}`, and never repeat back what was sent.
+- **The database:** migration 0045 adds the `api_keys` table and `api` as a source for sessions,
+  events and cancellations. Migration 0046 (added after the review) makes a revocation final: a
+  **trigger** (a small rule the database runs on every change) refuses any later change to who
+  revoked a key or when.
+- **A new setting,** `INTEGRATIONS_SECRET` (at least 32 characters). Without it the API answers 503
+  "not configured". Tests use a made-up value, checked by `scripts/invariants.sh`.
+- **Docs:** a new `docs/integrations.md` ("Connecting your planner": three steps, each call with
+  an example, every error), ADR-022 in `docs/decisions.md` (why it's built this way), golden rule 3
+  in `CLAUDE.md` (the API answers in the request rather than in a background job), and
+  `api-and-jobs.md`, `data-model.md`, `screens.md`, `runbooks.md` and `testing.md`.
+
+Key numbers: 3 calls; keys of 53 characters; 10 live keys a firm; 300 calls a minute a key; 30
+wrong keys a minute an address; 64 KB a call; 100 cancellations a page.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The API does its work during the call, not in a background job | A planner needs a yes or no at once (for example "a casual can't work the new time"); each call is one short database transaction | Queue a job and answer "accepted" (the planner would never hear about refusals) |
+| The planner can override no rule | Nobody is there to read a warning | Let it override what the office may override |
+| A booking the office chose to keep still blocks the planner's move | The keep was a person's decision about that booking, not the planner's | Let the keep count for the planner (the review said no) |
+| A revoked key can never come back, enforced by the database | No bug can bring it back to life | Trust the code alone |
+| A cancelling call applies nothing else, and nothing about its site can stop it | The session ends there; casuals must not stay booked because of a postcode | Apply the other fields first |
+| Ten small API choices, (a) to (j) | Listed in `docs/integrations.md` and the decision log, for Dylan to confirm | Each has its alternative in the decision log |
+
+### What the new tests prove
+
+235 more tests than before the task (4,435 after 12E.1, 4,670 now), and 2 new browser tests.
+Among them:
+
+- `tests/unit/integrations.keys.test.ts` and `integrations.api.test.ts`: the key's shape, its
+  fingerprint and last 4 characters; every field's limits; errors never echo what was sent.
+- `tests/integration/api.keys.test.ts`: the look-up returns only live keys and only ids; the app
+  can't rewrite a key's fingerprint or name, delete a key, or un-revoke one; one firm can't see
+  another's keys.
+- `tests/integration/api.requests.test.ts`: the address, size, type and rate limits; a revoked key
+  gets 401 at once.
+- `tests/integration/api.sessions.test.ts` and `api.cancellations.test.ts`: create, update and
+  "unchanged"; refusals change nothing; two calls at once give one session; another firm's key
+  sees nothing; 250 cancellations come back exactly once across 3 pages.
+- `tests/integration/roster.api-caller.test.ts`: the planner's move and cancel with no office
+  user, the office refused on planner sessions, a just-revoked key refused, and a kept booking
+  still blocking the planner.
+- `tests/e2e/office.integrations.spec.ts` (a real browser): an admin makes a key, it's shown once,
+  the key sends a session that then shows on Events & sessions, revoking it gives 401, other
+  roles can't open the page, it works at phone width, and no key or `Bearer` appears in the
+  servers' logs.
+
+### Problems found on the way
+
+- **A browser test failed only on Sundays.** `strikes.worker.spec.ts` makes two sessions, one
+  about 20 hours ahead and one 2 days ahead. On a Sunday both fell in the same week, so the
+  fairness rule (casuals with fewer hours that week get first pick) held the second one back.
+  The test now puts the second session on the following Monday. The app was right; the test's
+  dates were wrong.
+- **The safety review** (the `guardrails-reviewer`, a read-only checker of the project's golden
+  rules) found one thing to fix first (a booking the office chose to keep let the planner's move
+  through) and five smaller ones (a rare lock **deadlock**, where two changes each wait for the
+  other; revocation not final; the key missing from the rate limit log; a refused move with no
+  reason not shown to the office; a cancelling call making a site first). All six were fixed.
+- **A second review of those fixes** found one more thing to fix first: a cancellation could still
+  be stopped by its site's postcode check, which ran before anything else. Now nothing about the
+  site can stop a cancellation. It also asked for three smaller things (a cancellation with no
+  reason shown to the office, the same cancellation sent twice answered "unchanged", a test of
+  the deadlock retry), all done.
+- **The auditor's first round** found a path with no test (the planner changing a session nobody
+  is booked on) and the reviews not written in the decision log. Both fixed.
+- Every fix has a test, and each new test was checked to fail on the code before the fix.
+
+### What's parked or needs Dylan
+
+- **Dylan to confirm:** golden rule 3's new wording, and the ten small API choices (a) to (j).
+- Parked in `PLAN.md` ("Planner API (12J.1 review)"): wording for the planner's cancellations,
+  a guide line on planner sessions, the worker's setting for 12J.2, an index for very large
+  cancellation lists, and a few smaller notes.
+- Webhooks (ShiftDesk telling the planner when something happens) are the next task, 12J.2.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`. (If the call in
+   step 3 answers `503` with `not_configured`, copy the `INTEGRATIONS_SECRET` line from
+   `.env.example` into your `.env` and start `npm run dev` again.)
+2. Log in as `acme.admin@example.com` at `http://acme.localhost:3000/office/login` (the link
+   prints in the terminal), open **Integrations**, and press "Create a key". Copy it.
+3. In a terminal, with the key in `SHIFTDESK_KEY`, send a session:
+
+   ```sh
+   curl -X PUT http://localhost:3000/api/v1/sessions/DEMO-1 \
+     -H "authorization: Bearer $SHIFTDESK_KEY" -H "content-type: application/json" \
+     -d '{"role":"steward","starts_at":"2026-12-05T10:00:00Z","ends_at":"2026-12-05T18:00:00Z","site":{"name":"Demo Hall"}}'
+   ```
+
+   You should get `201` and the session back. It now shows on **Events & sessions**, marked as
+   from your planner.
+4. Revoke the key on the Integrations page and send the same call: you get `401`.

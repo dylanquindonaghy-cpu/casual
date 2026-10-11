@@ -11918,3 +11918,29 @@ with this section and the re-review above.
 **Verify after round 1's and the re-review's fixes, audit round 2, commit:** below.
 
 **Parked:** "Planner API (12J.1 review)" in `PLAN.md`'s Parking lot.
+
+**Verify after round 1's and the re-review's fixes:** `VERIFIED tree=911818ee7f997fb3 e2e=true`
+(4,670 tests in 261 files, none skipped; 88 browser tests; the walkthrough's 3).
+
+**Audit round 2** (`claims-auditor`, given only the task's text and Phase 12's Done-when):
+"VERDICT: DONE". The notes it listed, verbatim ("none blocks DONE; none is a missing claim"):
+
+> 1. `docs/overnight-log.md:11814-11816` promises "the end time is at the bottom of this entry", and `:11918` says "Verify after ... audit round 2, commit: below". Nothing is below (`:11920` is the last line). Add the end time, the final VERIFIED hash and this audit result. That edit changes the tree hash, so `scripts/verify.sh` has to be re-run before the task is ticked.
+> 2. The last guardrails run (the re-review, `:11878`) ended FIX FIRST. Its fixes (skip the site step for a cancelling PUT, and so on) have tests that fail on the old code, but no reviewer run is recorded after them. Optional: one more `guardrails-reviewer` pass on 43b76b0.
+> 3. `PLAN.md:1300` (decisions row 19) still says "Not built; 12J.1 and 12J.2 wait (Parking lot 'Waiting for Dylan: S11')". No such Parking-lot entry exists, and `PLAN.md:1231` says the same. Update the status text, which the build did not touch.
+> 4. Minor: the task lists "the 31st bad key" under integration tests. It is a unit test with an injected look-up (`tests/unit/integrations.api.test.ts:452`). The 301st-call limit and the host matrix are real-database integration tests. This is acceptable.
+
+What was done with them: 1, this ending, written after the tick (as every task's log is: the tick
+needs the stamp to match the files, and the stamp can't include its own record). 2, not run: a
+third review would cost more than it checks, since each of the re-review's fixes has a test that
+fails on the code before it; recorded here so it's visible. 3, both rows of `PLAN.md`'s decisions
+table now say what was built and what waits for Dylan. 4, nothing to do.
+
+**Ended:** 2026-10-11 19:35 UTC. **Hours:** 3.9 (18:26–18:29 on 10 October and 15:46–19:35 on
+11 October; the idle container in between not counted). Phase 12 so far: 33.7 hours over 26
+Hours-log rows (no estimate for Phase 12, so nothing to compare).
+
+**Commit:** "Phase 12: Planner API and API keys (12J.1)", pushed to `build/overnight` (the work
+on the way was saved as `50d9e47`, `69d9ab2`, `868d8ab`, `f19fedc`, `12d6582`, `768bddd`,
+`fc5d3a7` and `43b76b0`; `6c92b34` is the CI change). CI: not run (the GitHub Actions billing
+problem; Morning summary).

@@ -50,6 +50,8 @@ const tlsInProduction =
 
 // The value in .env.example: fine locally, refused in production.
 const EXAMPLE_SECRET = "dev-only-secret-change-me-in-prod-0123456789";
+// The planner integration secret in .env.example (12J.1): fine locally, refused in production.
+export const EXAMPLE_INTEGRATIONS_SECRET = "dev-only-integrations-secret-change-me-0123";
 
 const appFields = {
   NODE_ENV: nodeEnv,
@@ -106,6 +108,14 @@ const appFields = {
   // it. Real calls wait for "Connect the Anthropic API" (PLAN.md Parking lot). The web app reads only
   // whether it's on, for the Enquiries banner (12D.1); it never calls the AI. Not a secret.
   AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
+  // The planner integration layer (docs/office-v2.md 5.3.6; ADR-022): keys the webhooks' signing
+  // secrets and event ids (12J.2). Unset (or empty): every planner API call answers 503
+  // not_configured. 32+ characters; the .env.example value is refused in production. A secret:
+  // never in the repo. Rotating it means every firm with a webhook pastes its new secret.
+  INTEGRATIONS_SECRET: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().min(32, { message: "must be at least 32 characters" }).optional(),
+  ),
 };
 
 // Tests never reach postcodes.io or TravelTime.
@@ -122,6 +132,12 @@ const realSecretMessage = {
   path: ["SESSION_SECRET"],
   message: "the .env.example value must never be used in production",
 };
+const realIntegrationsSecret = (e: { NODE_ENV: string; INTEGRATIONS_SECRET?: string }) =>
+  e.NODE_ENV !== "production" || e.INTEGRATIONS_SECRET !== EXAMPLE_INTEGRATIONS_SECRET;
+const realIntegrationsSecretMessage = {
+  path: ["INTEGRATIONS_SECRET"],
+  message: "the .env.example value must never be used in production",
+};
 
 // Alerts can't be switched off in production (they'd stop without anyone noticing).
 const alertsOn = (e: { NODE_ENV: string; ALERTS_TRANSPORT?: string }) =>
@@ -135,6 +151,7 @@ export const appEnvSchema = z
   .object(appFields)
   .superRefine(tlsInProduction("DATABASE_URL"))
   .refine(realSecret, realSecretMessage)
+  .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   // The test-only pages never on a real address, even if the switch were copied into one.
@@ -224,6 +241,7 @@ export const workerEnvSchema = z
   })
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
+  .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine((e) => e.SHEETS_TRANSPORT !== "google" || e.GOOGLE_SERVICE_ACCOUNT_JSON_PATH, {

@@ -154,3 +154,40 @@ export function listFirmIds(): Promise<string[]> {
   defaultLister ??= createFirmIdLister(appPool());
   return defaultLister();
 }
+
+// A planner's API key -> firm (12J.1; ADR-022): the firm and key id of a key that isn't revoked,
+// through app_api_key_lookup() (drizzle/0045_planner_api.sql), given the key's sha256. The third
+// look-up allowed before a firm is known; the call then runs in withFirm(). Anything but a 32-byte
+// hash is null without asking the database.
+export interface ApiKeyEntry {
+  firmId: string;
+  keyId: string;
+}
+
+export type ResolveApiKey = (hash: Buffer) => Promise<ApiKeyEntry | null>;
+
+const keyRowSchema = z.object({ firm_id: z.uuid(), key_id: z.uuid() });
+
+export function createKeyDirectory(pool: Pool): ResolveApiKey {
+  const db = drizzleFor(pool);
+  let ready: Promise<void> | undefined;
+  return async (hash) => {
+    if (hash.length !== 32) return null;
+    ready ??= assertSafeAppConnection(pool).catch((err: unknown) => {
+      ready = undefined;
+      throw err;
+    });
+    await ready;
+    const result = await db.execute(sql`select * from app_api_key_lookup(${hash})`);
+    if (result.rows.length === 0) return null;
+    const row = keyRowSchema.parse(result.rows[0]);
+    return { firmId: row.firm_id, keyId: row.key_id };
+  };
+}
+
+let defaultKeyDirectory: ResolveApiKey | undefined;
+
+export function resolveApiKey(hash: Buffer): Promise<ApiKeyEntry | null> {
+  defaultKeyDirectory ??= createKeyDirectory(appPool());
+  return defaultKeyDirectory(hash);
+}

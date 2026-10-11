@@ -11742,3 +11742,69 @@ attention (12E.1)", pushed; the first build was saved as `540e3dd` (WIP, pushed)
 e2e, docker, in two runs) ended in about 3 seconds with no runner assigned (runner id 0), as every
 run has since it began (billing or minutes; explained once on PR #2, not again). The local verify
 above is the evidence.
+
+## 2026-10-10 18:26 UTC — Phase 12, task 12J.1: Planner API and API keys
+
+**Task:** Planner API and API keys (S11; §5.3.2, §5.3.4), as written in `PLAN.md` (12J.1). The task
+says its short plan goes to Dylan first (an auth and schema change). Dylan asked for the rest of
+Phase 12 without questions (2026-10-08), so, as for 12B.1 and every schema task since, the plan is
+decided here and written down for him to confirm.
+
+**Done first, before any code** (commit `50d9e47`): ADR-022 in `docs/decisions.md` (amending
+ADR-008, ADR-011 and ADR-012) and golden rule 3's exception in CLAUDE.md.
+
+**Plan:**
+
+- **Migration 0045** (schema in a new `src/lib/db/schema/integrations.ts`):
+  - `api_keys`: id, firm_id, label (1–60, trimmed), token_hash (bytea, unique), hint (4
+    characters), created_by and revoked_by (composite links to `office_users`), last_used_at,
+    revoked_at (with revoked_by, both or neither), created_at; forced RLS with the tenant policy;
+    `TABLE_ACCESS` `SELECT, INSERT` plus `COLUMN_UPDATES` `last_used_at, revoked_at, revoked_by`.
+  - `app_api_key_lookup(hash bytea)`: owner-run `SECURITY DEFINER`, `search_path` pinned,
+    returns only `firm_id, key_id` of a key that isn't revoked; execute for the app role only.
+    Under forced RLS the owner sees no rows without a policy, so `api_keys` gets an owner-only
+    read policy, as `firms` has for `app_resolve_firm()`.
+  - `api` added to the checks on `shifts.source`, `shift_events.source` and
+    `assignments.cancel_via`; `shift_events` gets the unique key `(firm_id, source, planner_ref)`;
+    the app may also update `shift_events.name` (an API event's name follows the planner).
+  - Isolation fixtures, the "every table" checks, the function list, and `api_keys` left out of the
+    firm's export.
+- **Keys** (`src/lib/integrations/keys.ts`): `shiftdesk_` + `newToken()`; the sha256 of the whole
+  key; the last 4 characters as the hint; create (admin, at most 10 live, Gate B, logged
+  `api_key.created { keyId }`) and revoke (logged `api_key.revoked { keyId }`); the look-up through
+  `resolveApiKey()` in `src/lib/db/directory.ts`, beside the slug and line look-ups.
+- **The request** (`src/lib/integrations/api.ts`, `handleApiRequest()`): the platform address
+  only (`parseHost()` says apex; else 404); `INTEGRATIONS_SECRET` unset gives 503; JSON at most
+  64 KB (413) and `application/json` (415); a key of the wrong shape refused before any look-up,
+  with a per-address count of refused keys in memory (30 a minute, then 429); the look-up (401
+  `invalid_key` for a bad or revoked key); 300 calls a minute per key (`throttle()`), 429 with
+  `Retry-After`; `last_used_at` at most once a minute; one log line (route, status, ms, firm,
+  `keyId`); the error shape `{"error": {"code", "message", "request_id"}}`, never echoing a value.
+- **Calls:** `PUT` and `GET /api/v1/sessions/{ref}` (`src/lib/integrations/sessions.ts`) and
+  `GET /api/v1/cancellations` (`records.ts`, the cancellation record 12J.2's webhook will reuse),
+  with thin route handlers under `src/app/api/v1/` (the app folder may not open a firm
+  transaction itself). The PUT follows §5.3.2 step by step: strict zod schemas (`schemas.ts`); the
+  role read with `normaliseRole()` and checked against the firm's role codes
+  (`credential_rules`); requirements against `credential_types`; a site found or created by name
+  (a postcode only fills an empty one, looked up first, outside the transaction, through
+  `serverGeocoder()`); an event found or created by its ref (`insert … on conflict do nothing`);
+  booked sessions moved or cancelled only through `moveShiftByFirm()` and `cancelShiftByFirm()`.
+- **The API caller** in `moveShiftByFirm()` and `cancelShiftByFirm()`: `by: { type: "api",
+  keyId }` (the key checked live with `for share` in the same transaction; API sessions only;
+  nothing overridable; `cancel_via` `api`; the `system` actor with `{ by: "firm", via: "api",
+  keyId }`). The office gets a `planner` refusal on API sessions wherever it gets `sheet` today
+  (move, cancel, edit, mark as filled, reopen, a booking cancelled for fewer staff), with "This
+  session comes from your planner. Change it there."
+- **Needs attention:** "Your planner's change was refused" from the log (`shift.move_refused` with
+  `via: "api"`, or `api.change_refused`), cleared by a later change, move or cancellation of that
+  session.
+- **The Integrations page** (`/office/settings/integrations`, admin only, a Configuration link):
+  "Your planner", "API keys" (create, shown once; revoke after a question) and "Codes your planner
+  can use". Webhooks are 12J.2.
+- **Settings:** `INTEGRATIONS_SECRET` (at least 32 characters, the example refused in
+  production), pinned for tests and both browser runs; `scripts/invariants.sh` checks the pins.
+  `/api/` paths skip the proxy's trailing-punctuation redirect.
+- **Tests:** everything the task lists (unit, integration and the new
+  `office.integrations.spec.ts`), plus the e2e log check learning `shiftdesk_` keys and `Bearer`.
+- **Docs:** new `docs/integrations.md`, `api-and-jobs.md`, `data-model.md`, `screens.md`, CLAUDE.md's
+  allowed look-ups.

@@ -7,6 +7,7 @@ import { uniqueSlug } from "./db";
 // entry here fails those tests by name, so a new table can't be left untested.
 
 export const EXPECTED_TABLES = [
+  "api_keys",
   "assignments",
   "auth_throttle",
   "credential_rules",
@@ -280,6 +281,16 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, '2026-10-26', 'missing_hours')`,
     [firmId, rosterWorkerId],
   );
+  // A planner's API key (12J.1), made by an office user of its own: its creator link has no ON
+  // DELETE action, and the isolation tests delete rows.office_users.
+  const apiKeyId = await one(
+    su,
+    `with u as (insert into office_users (firm_id, email, name, role)
+                values ($1, $2, 'Key Maker', 'admin') returning id)
+     insert into api_keys (firm_id, label, token_hash, hint, created_by)
+     select $1, 'Our planner', $3, 'k3F9', u.id from u`,
+    [firmId, `key-maker-${next()}@example.com`, hash()],
+  );
   // A WhatsApp from the rota worker (no ON DELETE action on its worker link either); the reply
   // link is tested in FK_CASES.
   const messageId = await one(
@@ -298,6 +309,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     rosterWorkerId,
     rosterSiteId,
     rows: {
+      api_keys: apiKeyId,
       firms: firmId,
       workers: workerId,
       office_users: officeUserId,
@@ -434,6 +446,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
                    $3::timestamptz + interval '8 days')`,
     values: [firmId, p.rosterSiteId, new Date(Date.UTC(2027, 1, 1) + next() * 60_000)],
   }),
+  api_keys: (firmId, p) => ({
+    text: `insert into api_keys (firm_id, label, token_hash, hint, created_by)
+           values ($1, 'Probe planner', $2, 'ab_-', $3)`,
+    values: [firmId, hash(), p.officeUserId],
+  }),
   // One per casual: a new casual, then their travel area.
   worker_travel: (firmId) => ({
     text: `with w as (insert into workers (firm_id, first_name, last_name, mobile_e164)
@@ -486,6 +503,16 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
 // Every composite foreign key between firm tables. `own` supplies the row's other parents;
 // `other` supplies the parent under test. Negative case: firm A's row, firm B's parent.
 export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenant) => Statement> = {
+  api_keys_created_by_fk: (firmId, _own, other) => ({
+    text: `insert into api_keys (firm_id, label, token_hash, hint, created_by)
+           values ($1, 'Probe planner', $2, 'ab_-', $3)`,
+    values: [firmId, hash(), other.officeUserId],
+  }),
+  api_keys_revoked_by_fk: (firmId, own, other) => ({
+    text: `insert into api_keys (firm_id, label, token_hash, hint, created_by, revoked_by, revoked_at)
+           values ($1, 'Probe planner', $2, 'ab_-', $3, $4, now())`,
+    values: [firmId, hash(), own.officeUserId, other.officeUserId],
+  }),
   credentials_worker_fk: (firmId, _own, other) => ({
     text: "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'PTS')",
     values: [firmId, other.workerId],

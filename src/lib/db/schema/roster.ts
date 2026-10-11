@@ -37,7 +37,8 @@ if (/['\\]/.test(ROLE_PATTERN)) throw new Error("ROLE_PATTERN must not contain '
 const roleFormat = (column: AnyPgColumn) => sql`${column} ~ ${sql.raw(`'${ROLE_PATTERN}'`)}`;
 
 export const SHIFT_STATUSES = ["draft", "open", "filled", "cancelled"] as const;
-export const SHIFT_SOURCES = ["native", "sheets", "csv"] as const;
+// `api`: sent by the firm's planner through the API (S11, 12J.1; docs/office-v2.md 5.3.2).
+export const SHIFT_SOURCES = ["native", "sheets", "csv", "api"] as const;
 
 export const ASSIGNMENT_STATUSES = [
   "open",
@@ -51,8 +52,9 @@ export const ASSIGNMENT_STATUSES = [
 // A cancelled row keeps its worker, reason and notice hours; a new open row reopens the slot.
 export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_firm"] as const;
 // Where a cancellation was made (12C.1, S3): the casual in the app, the office, the firm's rota
-// sheet or a file import (`api` comes with the planner API, S11). Empty on rows from before.
-export const CANCEL_VIAS = ["app", "office", "sheet", "import"] as const;
+// sheet, a file import or the firm's planner through the API (S11, 12J.1). Empty on rows from
+// before.
+export const CANCEL_VIAS = ["app", "office", "sheet", "import", "api"] as const;
 export type CancelVia = (typeof CANCEL_VIAS)[number];
 
 // review: the worker asks the office to look again at a shift the rules won't let them take.
@@ -205,13 +207,15 @@ export const shiftEvents = pgTable(
     uniqueIndex("shift_events_auto_key")
       .on(t.firmId, t.plannerRef)
       .where(sql`${t.plannerRef} like 'auto:%'`),
+    // A planner's event by its own id (S11): two PUTs naming one new event share one row.
+    unique("shift_events_firm_id_source_planner_ref_key").on(t.firmId, t.source, t.plannerRef),
     foreignKey({
       name: "shift_events_site_fk",
       columns: [t.firmId, t.siteId],
       foreignColumns: [sites.firmId, sites.id],
     }),
     check("shift_events_name_length", sql`char_length(${t.name}) between 1 and 200`),
-    check("shift_events_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check("shift_events_source_check", sql`${t.source} in ('native', 'sheets', 'csv', 'api')`),
     check(
       "shift_events_planner_ref_length",
       sql`${t.plannerRef} is null or char_length(${t.plannerRef}) between 1 and 200`,
@@ -284,7 +288,7 @@ export const shifts = pgTable(
     check("shifts_ends_after_start", sql`${t.endsAt} > ${t.startsAt}`),
     check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
     check("shifts_status_check", sql`${t.status} in ('draft', 'open', 'filled', 'cancelled')`),
-    check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv', 'api')`),
     check("shifts_pay_rate_range", sql`${t.payRatePence} is null or ${t.payRatePence} >= 0`),
     check("shifts_post_length", sql`${t.post} is null or char_length(${t.post}) between 1 and 200`),
     check(
@@ -392,7 +396,7 @@ export const assignments = pgTable(
     ),
     check(
       "assignments_cancel_via_check",
-      sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import')`,
+      sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import', 'api')`,
     ),
     // A warning is stored whole (its version and when), only on a casual's own cancellation.
     check(

@@ -35,6 +35,8 @@ export const FIRM_EXPORT_EXCLUDED: Readonly<Record<string, string>> = {
   // Worked out from casuals' start postcodes (12G.2): the full postcodes the office never sees
   // (docs/dpia-travel.md), and the job works them out again from the firm's own data.
   travel_estimates: "travel estimates, worked out from casuals' full postcodes",
+  // The planner's API keys (12J.1; docs/office-v2.md 5.3.6): key hashes, never the firm's data.
+  api_keys: "API key hashes",
 };
 
 // Tables exported with some columns cut, and why (the rest of each row as stored).

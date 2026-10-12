@@ -11994,3 +11994,79 @@ The casual's phone app got the layout of `docs/office-v2.md` §4.1–4.2.
    link"; open the link printed in the terminal and press "Log me in".
 3. You should see "Hello Sam", his next shift in full, and the tab bar at the bottom. Tap
    "Shifts", then "Past 30 days", to see yesterday's race day. Tap "Profile": Log out is last.
+
+## 2026-10-12 — Phase 12, task 12H.2: Shifts list and shift page
+
+**Time spent:** 0.7 hours (13:21 to 14:03 UTC).
+
+**Result:** `scripts/verify.sh` (with the browser tests) printed
+`VERIFIED tree=c3248ad6080a44dc e2e=true`: 4,820 tests in 264 files, 91 browser tests and the
+walkthrough's 3, none flaky. The independent auditor (`claims-auditor`) said **DONE** in round 1.
+Commit "Phase 12: Shifts list and shift page (12H.2)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+- **Open shifts rows** now read, top to bottom: "Urgent" (if it is), the role and event (tap it
+  to open the shift), the site, "date and time · £/hour · post", small labels (*chips*) for what
+  the shift needs ("SIA DS", "CSAS"), places left, and how far it is ("3.1 miles · 12 min by car ·
+  24 min by public transport"). The day, site and role filters work as before. The urgent board and
+  Home's cards use the same rows and chips.
+- **A shift's page** (`/shifts/{id}`) now shows, for a shift she could take or is booked on: the
+  chips and the role; the place; the facts (when, pay with an estimate such as "£15.50 an hour,
+  about £124.00", where to meet, post, uniform, "1 of 4 left"); "Getting there" from her home area
+  ("8.4 miles away", "About 21 min by car", "About 38 min by public transport", "Open in maps");
+  "What it needs", each with her own status ("You have it, valid until 3 Mar 2027", "Expires
+  before this shift", "Missing: upload it", "Being checked"); then "Take shift" or the plain reasons
+  she can't; and "Cancelling less than 48 hours before the start gives you a strike."
+- **One reading of "what a shift needs"**: a small shared module now answers this for the office's
+  Events and Cancellations pages and the casual app, so the labels always match.
+- An **automatic event** (made by the system, named "{site} · {day}") isn't named on the casual's
+  pages any more, because the page already shows the site and day.
+
+Only reads: the *rules engine* (the code that decides who may take a shift) is unchanged and still
+decides. The page only shows.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One shared reader for a shift's requirements | Office and casual see the same labels | Separate copies (there were two already) |
+| Short chip names ("SIA DS") | Fit on a phone row; match the office | Full names |
+| No address on the Open row | §4.3 lists what the row holds; it's on the shift page | Keeping it |
+| Booked shift pages show the facts and distance too | The phase's goal: every shift page shows the distance | Leaving booked pages as they were |
+| "upload it" only where her roles need the type | The upload page refuses anything else | Widening the upload page (Dylan's call, parked) |
+
+### What the safety review found and what changed
+
+The `guardrails-reviewer` (an automatic reviewer that checks the project's golden rules) found one
+thing to fix first: "upload it" could lead to an upload page that refuses that type. Fixed, with
+tests. It also found four smaller things, all fixed: right to work (the legal check that someone
+may work in the UK) is shown when a shift needs it, a waiting renewal no longer asks for another
+upload, a test proves she only sees her own records, and one database read was doubled.
+
+### What the new tests prove
+
+- `tests/unit/portal.shift-page-copy.test.ts`: every Getting there wording and every status wording.
+- `tests/unit/portal.shift-detail.test.ts`, `portal.open-shifts.test.ts`: the page and the row in
+  §4.3–4.4's order, the chips, the strike note with a firm's own hours.
+- `tests/integration/shift-detail.test.ts` and `open-shifts.test.ts` (on a real database): the facts
+  and requirements as stored; "upload it" only where she may; a waiting renewal; another casual's
+  or another firm's records never count as hers; automatic events left unnamed.
+- `tests/e2e/casual.app.spec.ts` (a real browser, phone-sized): Zoe's Arena row with "3.1 miles · 12
+  min by car · 24 min by public transport", the site filter narrowing the list, the shift page's
+  facts, Getting there and What it needs, a blocked shift's four statuses, and "upload it" opening
+  the real upload page.
+
+### What's parked or needs Dylan
+
+- **Your call:** should a casual be able to upload a qualification that a shift needs as an
+  "extra" but none of her roles needs? Today she's told to ask the office.
+- Parked: the shifts line's replies still name automatic events; right to work as a shift extra.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
+2. Log in at `http://acme.localhost:3000/login` as `07700 900122` (Zoe), then tap "Shifts" and
+   "Open". Each row shows its pay, post, chips and travel line.
+3. Tap a row's role and event: the shift's page shows the facts, "Getting there" and "What it
+   needs".

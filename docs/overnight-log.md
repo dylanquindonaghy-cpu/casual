@@ -12259,3 +12259,21 @@ container, so the CI run isn't noted.
 - **S3** Added a database test: another casual in her firm and one in another firm hold CSAS; hers
   stays Missing.
 - **S4** The type list is read once (the reader returns `officeRecorded`).
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=c3248ad6080a44dc e2e=true` (4,820 tests in 264 files; 91
+browser tests and the walkthrough's 3, none flaky).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. Its notes, not blockers: the three
+parked items are outside the task's text; one lint warning in `tests/unit/inbound.signature.test.ts`
+was there before this task.
+
+**Ended:** 2026-10-12 14:03 UTC. **Hours:** 0.7. Phase 12 so far: 38.0 hours over 29 Hours-log rows
+(no estimate for Phase 12, so nothing to compare).
+
+**Commit:** "Phase 12: Shifts list and shift page (12H.2)", pushed to `build/overnight`, after WIP
+commits 0052f8f, 5ecda16 and d0c709a. CI: `gh` isn't available in this container.
+
+**Parked** (`PLAN.md`, "Shifts list and shift page (12H.2)"): automatic event names in the shifts
+line's replies; uploads for a session's extras her roles don't need (Dylan's call); right to work as
+a session extra (refuse it at input?).

@@ -105,7 +105,8 @@ the demo.
     `+44*******122` says "Here's your Acme Events shifts link…": open that link, then click
     "Log me in". You see "Hello Zoe" and "No shifts booked yet."
 11. **Take a shift.** On Home, click "See all open shifts". The coming Saturday's open steward shifts are
-    listed. On the one at "Acme Demo Arena", click "Take shift". It says "You're booked." with a
+    listed, each with its pay, post, chips for what it needs and how far it is. On the one at "Acme
+    Demo Arena", click "Take shift". It says "You're booked." with a
     reference and "— Acme Events Shift Team".
 12. **Cancel it.** Click "See my shifts" (Home). Under "Your next shift", click "Cancel this shift",
     choose "I'm unwell", then "Confirm cancellation". It says "Cancelled. Reference …" and whether a
@@ -131,7 +132,8 @@ the demo.
 18. **Log in as Maya Morgan** (`07700 900129`), a door supervisor whose SIA licence has expired.
     A red "Needs updating" card on Home says so. Open the urgent shift's page: the link
     printed at the end of `npm run db:reset` (step 7; it isn't in her open shifts, because she
-    can't take it). It says "You can't take this shift:" and why. Click "Ask the office to review": it gives a
+    can't take it). "What it needs" shows her licence as "Expired on …: upload it", and it says
+    "You can't take this shift:" and why. Click "Ask the office to review": it gives a
     reference. Log out.
 19. **Log in as Wes Doyle** (`07700 900139`), a door supervisor with a valid licence. Home's
     "Urgent: needed now, and you can take them" lists the 08:00 arena shift (and, from Friday noon,

@@ -8,6 +8,7 @@ import { createKeyDirectory } from "@/lib/db/directory";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { recordEvent, recordEvents } from "@/lib/events/record";
 import { collectFirmData } from "@/lib/gdpr/firm-export";
+import { eraseWorker } from "@/lib/gdpr/worker-erase";
 import { createWebhookDeliverTask, WEBHOOK_RETRY_LIMIT } from "@/lib/integrations/deliver";
 import { cancellationPage } from "@/lib/integrations/records";
 import { WEBHOOK_DELIVER_QUEUE } from "@/lib/integrations/outbox";
@@ -634,6 +635,146 @@ describe("delivering", () => {
     const all = fake.sent.map((s) => s.body).join("\n");
     expect(all).not.toMatch(/unwell|health|car broke|Travel problem|Family/i);
     expect(all).not.toMatch(/\+44|07700|@/);
+  });
+
+  it("real bodies: a casual's cancel at 15 hours, the office's of one booking, the planner's of the session, an erasure", async () => {
+    const t = await webhookFirm();
+    const key = await plannerKey(su, t.f.firmId, t.admin);
+    let now = NOW;
+    const deps = apiDeps({ run: withFirm, resolveKey, now: () => now });
+    const put = async (body: unknown) =>
+      answer(
+        await putSessionRequest(
+          apiRequest("PUT", "/api/v1/sessions/RACE-STW-1", { key: key.key, body }),
+          "RACE-STW-1",
+          deps,
+        ),
+      );
+    const session = {
+      event: { ref: "RACEDAY-2026", name: "Raceday" },
+      site: { name: "Acme Demo Racecourse", postcode: "ZZ9 9ZZ" },
+      role: "steward",
+      starts_at: hoursFromNow(16).toISOString(),
+      ends_at: hoursFromNow(24).toISOString(),
+      places: 3,
+      pay_rate_pence: 1260,
+      post: "Gate B",
+      meeting_point: "Staff entrance, Gate B",
+      uniform: "Black trousers, boots. Hi-vis provided.",
+      requirements: ["STEWARD_L2"],
+    };
+    expect((await put(session)).status).toBe(201);
+    const { rows } = await su.query<{ id: string }>(
+      "select id::text from shifts where firm_id = $1 and external_ref = 'RACE-STW-1'",
+      [t.f.firmId],
+    );
+    const shiftId = rows[0]?.id ?? "";
+    const casual = async (ref: string) => {
+      const id = await t.f.worker();
+      await su.query("update workers set external_ref = $2 where id = $1", [id, ref]);
+      return id;
+    };
+    const [ann, ben, cal] = [
+      await casual("ST-0041"),
+      await casual("ST-0042"),
+      await casual("ST-0043"),
+    ];
+    // Ann takes it and cancels 15 hours before the start: a strike. Ben is placed by the office,
+    // which then cancels his booking. Cal takes it; then the planner cancels the whole session.
+    expect(await takeShift(t.portal(), ann, shiftId)).toMatchObject({ status: "booked" });
+    expect(
+      await cancelMyShift(t.portal(later(1)), ann, shiftId, "I'm unwell", saw("strike")),
+    ).toMatchObject({
+      status: "cancelled",
+      noticeHours: 15,
+      strike: expect.anything(),
+    });
+    expect(await assignWorker(t.office(), shiftId, ben, null)).toMatchObject({ status: "booked" });
+    expect(await cancelBookingByOffice(t.office(later(2)), shiftId, ben, "other")).toMatchObject({
+      status: "cancelled",
+    });
+    expect(await takeShift(t.portal(), cal, shiftId)).toMatchObject({ status: "booked" });
+    now = later(3);
+    expect(
+      (await put({ ...session, status: "cancelled", change_reason: "event_cancelled" })).status,
+    ).toBe(200);
+
+    const fake = fakeTransport();
+    for (const job of await deliveries(t.f.firmId))
+      await deliver(job, fake.transport, { now: later(3) });
+    const cancelled = fake.sent
+      .map((r) => JSON.parse(r.body) as { type: string })
+      .filter((b) => b.type === "booking.cancelled")
+      .map((b) => WEBHOOK_SCHEMAS["booking.cancelled"].parse(b));
+    const of = (staffRef: string) => {
+      const body = cancelled.find((b) => b.data.booking.casual?.staff_ref === staffRef);
+      if (!body) throw new Error(`no body for ${staffRef}`);
+      return body.data;
+    };
+    for (const staffRef of ["ST-0041", "ST-0042", "ST-0043"]) {
+      const data = of(staffRef);
+      expect(data.session).toMatchObject({
+        ref: "RACE-STW-1",
+        source: "api",
+        event: { ref: "RACEDAY-2026", name: "Raceday" },
+        site: { name: "Acme Demo Racecourse", postcode: "ZZ9 9ZZ" },
+        role: "steward",
+        starts_at: session.starts_at.replace(".000Z", "Z"),
+        ends_at: session.ends_at.replace(".000Z", "Z"),
+        pay_rate_pence: 1260,
+        post: "Gate B",
+        meeting_point: "Staff entrance, Gate B",
+        uniform: "Black trousers, boots. Hi-vis provided.",
+        requirements: ["STEWARD_L2"],
+      });
+      expect(data.booking.ref).toBe(data.booking.id.slice(0, 8).toUpperCase());
+      expect(data.booking.casual).toMatchObject({
+        staff_ref: staffRef,
+        first_name: "Sam",
+        last_name: "Booker",
+      });
+    }
+    expect(of("ST-0041").booking.cancellation).toEqual({
+      at: later(1).toISOString().replace(".000Z", "Z"),
+      by: "casual",
+      via: "app",
+      notice_hours: 15,
+      reason_code: "casual_own_reason",
+      strike: { status: "issued", live_strikes: 1 },
+    });
+    expect(of("ST-0042").booking).toMatchObject({
+      booked_by: "office",
+      cancellation: {
+        by: "office",
+        via: "office",
+        reason_code: "other",
+        strike: { status: "none" },
+      },
+    });
+    expect(of("ST-0043").booking).toMatchObject({
+      booked_by: "casual",
+      cancellation: {
+        by: "planner",
+        via: "api",
+        reason_code: "event_cancelled",
+        strike: { status: "none" },
+      },
+    });
+    const all = fake.sent.map((r) => r.body).join("\n");
+    expect(all).not.toMatch(/unwell|health|\+44|07700|@example/i);
+
+    // After Ann's details are erased, her cancellation's body (built when sent) names nobody.
+    expect(await eraseWorker(t.office(later(4), t.admin), ann)).toMatchObject({ status: "erased" });
+    const again = fakeTransport();
+    for (const job of await deliveries(t.f.firmId))
+      await deliver(job, again.transport, { now: later(4) });
+    const erased = again.sent
+      .map((r) => WEBHOOK_SCHEMAS["booking.cancelled"].safeParse(JSON.parse(r.body)))
+      .flatMap((p) => (p.success ? [p.data.data.booking] : []))
+      .filter((b) => b.casual === null);
+    expect(erased.length).toBeGreaterThan(0);
+    for (const b of erased) expect(b).toMatchObject({ casual: null, erased: true });
+    expect(again.sent.map((r) => r.body).join("\n")).not.toContain("ST-0041");
   });
 
   it("firm B never receives firm A's events: a job naming A's entry under B finds nothing", async () => {

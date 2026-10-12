@@ -11800,3 +11800,115 @@ Among them:
    You should get `201` and the session back. It now shows on **Events & sessions**, marked as
    from your planner.
 4. Revoke the key on the Integrations page and send the same call: you get `401`.
+
+## 2026-10-12 — Phase 12, task 12J.2: Webhooks to the planner
+
+**Time spent:** 2.4 hours (09:42–12:06 UTC).
+
+**Result:** `VERIFIED tree=a6f3e94db476e8a1 e2e=true` from `scripts/verify.sh`: 4,775 tests in
+263 files, none skipped or failed; 89 browser tests; the walkthrough's 3. The independent auditor
+(the `claims-auditor`) said **DONE** in its first round. Committed and pushed to `build/overnight`
+(the commit is named in `docs/overnight-log.md`).
+
+### What was built, in plain words
+
+A firm's planner (the system the firm already uses to plan events) can now be told the moment
+something happens in ShiftDesk. When a casual books a shift, cancels one, or the office withdraws
+a strike, ShiftDesk sends a **webhook**: an automatic message from one computer to another, posted
+to a web address the firm gives us. It carries the session, the booking and, for a cancellation,
+the full record and the strike result.
+
+- **Where the address goes in.** An admin opens **Integrations** and presses "Add a webhook". They
+  see a **signing secret** once (a password their planner uses to check a message really came from
+  ShiftDesk). After that the page only ever shows the address's start and last 4 characters,
+  because some addresses have a key hidden in them. There are buttons for a new secret, a test
+  message and removing it.
+- **Nothing can be missed.** Every change is already written to the **action log** (ShiftDesk's
+  record of everything that happens). Now, writing a booking or cancellation to the log also puts
+  a job in the **queue** (a to-do list the background worker works through), in the same
+  **transaction** (a group of database changes that all happen or none do). So if the change is
+  undone, no message goes; and no booking path can forget to send one.
+- **Built when sent.** The queue holds only ids, never names. The message is put together when it
+  is sent, from the records as they are then. If a casual's details have been erased, the message
+  says so and names nobody.
+- **Never sent:** a phone number, an email address, a casual's postcode or travel times, health
+  details, or anything anyone typed. A casual's own reason is always "casual_own_reason", because
+  "I'm unwell" is health data.
+- **Signed.** Each message carries a signature made with the open **Standard Webhooks** method, so
+  the planner can check it with ready-made code.
+- **Sent safely.** The worker shares a network with the database, so an address must never point
+  inside it. Before each send, ShiftDesk looks up the name and refuses any private or special
+  address (home networks, the server itself, cloud settings addresses). It then connects only to
+  the address it checked, follows no redirects, and gives up after 5 seconds to connect or 10 in
+  all.
+- **Retries.** If the planner doesn't answer, the worker tries 6 more times over about an hour.
+  After the last try the office sees "Your planner's webhook is failing", and the cancellation's
+  record says "Couldn't reach your planner". When it works, the record says "Sent to your planner
+  at 19:06".
+
+Key facts: migration 0047; 7 new files in `src/lib/integrations/` (`outbox.ts`, `webhooks.ts`,
+`deliver.ts`, `send.ts`, `sign.ts`, `secrets.ts`, `webhook-transport.ts`) and
+`src/lib/office/webhook-settings.ts`; a new worker setting, `WEBHOOK_TRANSPORT` (`console` prints
+messages in development and tests; `https` really sends, and is required in production).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The action log is the outbox | Every booking path already writes to it, so none can be missed | Each path queuing its own message (one forgotten path, one planner never told) |
+| Build the message when it's sent | No names sit in the queue; an erasure needs nothing extra | Building it when queued |
+| Event ids made of letters only | The log refuses anything that looks like a phone number (10 digits in a row) | Mixed letters and digits (would fail now and then) |
+| One message at a time per worker loop | A batch runs its jobs in turn, so one firm's slow planner held up another's in the same batch | Batches of 5, like the shifts line |
+| Two block lists, one for each address type (IPv4 and IPv6) | A test showed one list refused every normal IPv4 address | One list |
+| DNS through Node's own resolver, with a 5-second limit | The usual look-up can hang and uses threads the rest of the worker needs | The usual look-up |
+| A test message at most every 30 seconds per firm | Pressing it again and again can't keep the worker busy | No limit |
+| The firm's data export shows the address's hint only | The address can hold a key | The whole address |
+
+### What the new tests prove
+
+- `tests/unit/integrations.webhooks.test.ts` (77 tests): the signer gives the exact answer the
+  Standard Webhooks spec publishes; every listed private range is refused, one by one, in all its
+  forms; a name with one public and one private address is refused; a redirect isn't followed; a
+  slow server times out; at most 1 KB of the answer is read; the guide prints exactly the code's
+  schemas; the worker setting's rules; every new log entry passes the log check.
+- `tests/integration/webhooks.test.ts` (23 tests, on a real database): each of the 9 booking and
+  cancellation paths queues exactly one message, and none after an undo; real messages for a
+  casual's cancel at 15 hours (strike issued), the office's and the planner's carry every listed
+  field and pass their schema; a cancellation's message equals what `GET /api/v1/cancellations`
+  returns; one firm never gets another's; with one firm's planner hanging, another's message
+  arrives within 5 seconds; through a real queue worker, a failing planner gets 7 tries, one
+  "failed" entry, one Needs attention item and no failed job.
+- `tests/e2e/office.integrations.spec.ts` (in a real browser): an admin adds a webhook, sees the
+  secret once, a casual cancels, and the record says "Sent to your planner".
+
+### Problems found on the way
+
+- **The new tests caught two real bugs** before they shipped (the IPv4 block list and the batch
+  hold-up above).
+- **The safety review** (`guardrails-reviewer`) found nothing to fix first and four smaller things,
+  all fixed: the DNS time limit, two test settings missing from the invariants check, the address
+  in the data export, and the test-message limit.
+- **This cloud machine** needed setting up again, and three things went wrong that weren't the
+  code: Docker Hub refused to download Caddy (too many requests), so it came from Google's copy of
+  Docker Hub; the browser tests' development server was stopped by the machine for using too
+  much memory, so the browser tests ran on a production build, as GitHub's CI runs them; and that
+  build needed the local `.env`'s `NODE_ENV` line left out, as on CI. No file in the repo changed
+  for any of these.
+
+### What's parked or needs Dylan
+
+- **Webhooks need the worker running in production**, which waits for "Connect Twilio". Until then
+  messages wait in the queue, and planners can catch up with `GET /api/v1/cancellations`.
+- Parked in `PLAN.md` ("Planner webhooks (12J.2 review)"): a faster status look-up if it gets slow,
+  staff refs that might hold personal data, and a few smaller notes.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev` (the web app and
+   the worker).
+2. Log in as `acme.admin@example.com` at `http://acme.localhost:3000/office/login` (the link prints
+   in the terminal), open **Integrations**, and add the address `https://hooks.example/test/k3F9`.
+   You should see "Signing secret: whsec_…" once.
+3. Press **Send test event**. In the terminal you should see `[webhook:console] POST
+   https://hooks.example/…` with the signed headers and a `test.ping` body (the console transport:
+   nothing is really sent). Reload the page: the status says "Working · last delivered …".

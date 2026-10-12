@@ -12046,3 +12046,72 @@ after them); integration suite 2,126 passed, 4 skipped, 1 file failed only becau
 refused to download `caddy:2.10` (429 Too Many Requests): pulled from Google's Docker Hub mirror
 (`mirror.gcr.io/library/caddy:2.10`, tagged `caddy:2.10`), then its 4 tests passed. The
 integrations e2e spec: 3 passed, both server logs clean.
+
+**Real-body test added before the audit:** checking the task's test list against the tests found
+one gap: real bodies (not samples) for a casual's cancel at 15 hours, an office cancel of one
+booking and an API session cancel, each checked field by field, and an erased casual's real body.
+Added in `tests/integration/webhooks.test.ts` ("real bodies: …"); it passed first time.
+
+**Verify rounds** (`RUN_E2E=1 ./scripts/verify.sh`):
+1. NOT VERIFIED: e2e 13 failed. Root causes, none in the code: this new container's Node couldn't
+   resolve `*.localhost` (`ENOTFOUND acme.localhost`) and its browser sent the made-up `.test`
+   domain to the agent proxy (`ERR_TUNNEL_CONNECTION_FAILED`). The 2026-10-07 entry's fixes were
+   applied again: the test host names in `/etc/hosts`, `.test` added to `no_proxy`. The failed
+   specs then passed (13 of 13).
+2. NOT VERIFIED: e2e 1 failed (`whatsapp.inbound.spec.ts`, connection reset). Root cause, from
+   `dmesg`: the container's memory limit killed the Next.js **development** server (about 12 GB)
+   near the end of the run, both here and in round 1. Its memory jumped from about 2.4 GB to 10 GB
+   in 30 seconds while compiling the voice routes late in the run; compiling the same routes on a
+   fresh dev server used under 1 GB, so it isn't those routes' code.
+3. NOT VERIFIED: the same kill with `NODE_OPTIONS=--max-old-space-size=4096` (it's not the
+   JavaScript heap). (My shell slip: that run's log went to `/verify3.log`; moved.)
+4. NOT VERIFIED: with `CI=1` (the e2e run on a production build, as GitHub CI runs it), the build
+   failed to prerender ("reading 'useContext'"). Root cause: in CI mode the main e2e config builds
+   with the local `.env`'s `NODE_ENV=development` (the walkthrough config overrides it; GitHub has
+   no `.env`). The build passes on its own. Fixed in this container only: `NODE_ENV` commented out
+   in the git-ignored `.env`, as on CI.
+5. `VERIFIED tree=849c3cdf0c9a69a3 e2e=true` (4,774 tests; 89 e2e, none flaky, so CI mode's one
+   retry never fired; the walkthrough's 3).
+6. After the real-body test: `VERIFIED tree=a6f3e94db476e8a1 e2e=true` (4,775 tests in 263 files,
+   none skipped; 89 e2e, none flaky; the walkthrough's 3).
+
+No repo file changed for any of the environment fixes, and no test, config or `.claude/` file was
+touched to pass. **For later runs here:** run verify with `CI=1` and `.env` without `NODE_ENV`
+(the dev server outgrows this container's memory), after the `/etc/hosts` and `no_proxy` steps;
+and pull Caddy as `mirror.gcr.io/library/caddy:2.10` tagged `caddy:2.10` if Docker Hub says 429.
+
+**Audit round 1** (`claims-auditor`, given only the task's text and Phase 12's Done-when),
+verbatim:
+
+> VERDICT: DONE
+> Verify gate: `.claude/state/verified.json` has ok:true, e2e:true, tree a6f3e94db476e8a1. That matches `./.claude/hooks/tree-hash.sh`. test.log: 263 files and 4775 tests passed, with no failures. e2e.log: 89 passed, plus 3 passed on the walkthrough.
+> Claims:
+> - Settings `webhook.url`, `webhook.rotate` and the self-raised `webhook.signing_version` in `app_set_firm_setting()` — PROVEN — `drizzle/0047_webhook_settings.sql`; tests/integration/webhooks.test.ts:204 and :233 (the version can't be set, lowered or raised by name; direct `firms` updates are refused with 42501).
+> - `queueWebhooks()` in `src/lib/integrations/outbox.ts`, called from `recordEvent()` for the three actions, one job with ids only, one group per firm, in the same transaction; `recordEvents()` throws on them — PROVEN — `src/lib/events/record.ts:54` and `:62-69`; outbox.ts (payload schema, GROUP). Tests at webhooks.test.ts:378-527 cover take shift, assign, casual cancel, office cancel of one booking, office cancel of a session, API cancel, strike withdrawn, and sheet book and removal. Test :529 covers rollback, no address, and `recordEvents` refusing all three actions. It checks rollback on one path (`shift.cancelled`) only, not on each path.
+> - Body built at send time by 12J.1's record builder; one zod schema per type, the same ones printed in `docs/integrations.md`; no personal data; `casual_own_reason`; erased casual reads `null` — PROVEN — unit tests integrations.webhooks.test.ts:351-531 (the docs-equals-code test is at :521). Integration tests at :614 (all four quick reasons, `data` equals the `GET /cancellations` record, and no "unwell"/"health"/mobile/email in any body) and :640 (real bodies: casual cancel at 15 hours with strike issued, office cancel with strike none and `by: "office"`, API session cancel with `by: "planner"`, plus erasure). Those bodies carry the session, booking, staff ref, cancellation and strike fields the task lists.
+> - Event ids stay the same within a firm and differ between firms — PROVEN — unit test :84.
+> - Standard Webhooks signing with the derived secret — PROVEN — `sign.ts`, `secrets.ts`; unit test :41 reproduces the spec example.
+> - Safe HTTPS sender (BlockList, `lookup` returning only the checked address, no redirects, 5s connect and 10s total, error codes, host-only logs) — PROVEN — `src/lib/integrations/send.ts`; unit tests :136-232 (each range listed one by one, IPv4-mapped, NAT64 and 6to4 forms, the metadata address, a name resolving to one public and one private address) and :293 (redirect). The failing-delivery test (integration :801) checks no address path appears in log lines.
+> - `WEBHOOK_TRANSPORT` — PROVEN — `src/lib/env.ts:237` and `:281-287`; `tests/setup/env.ts:34`; `playwright.config.ts:71` (the `serverEnv()` pin); `scripts/invariants.sh:71-74`; unit test :582.
+> - `webhook-deliver` queue retries (6, 60, backoff, 1800), `includeMetadata`, `localConcurrency` 4, `localGroupConcurrency` 1, try number passed on, last try logs `webhook.failed` and completes — PROVEN — `src/worker/jobs/queues.ts:157-160`; `src/worker/jobs/index.ts:355-362`; `src/lib/jobs/firm-job.ts` (`JobAttempt`); `src/lib/integrations/deliver.ts:100-170`. The real pg-boss test at integration :955 checks 7 sends, one `webhook.failed`, the job `completed`, `failedJobCounts` unchanged, and one extra Needs attention item.
+> - A hanging endpoint for firm A doesn't block firm B; firm B never receives firm A's events — PROVEN — integration :997 (B delivered within 5s) and :780.
+> - `webhook.delivered` logged, test event, removal stops deliveries — PROVEN — integration :561, :843, :315.
+> - Log entries pass the log check, including `firm.settings_changed` for adding a webhook and for a new signing secret — PROVEN — unit test :602-651.
+> - Integrations page "Webhook" section and the record's "Your planner" line — PROVEN — `src/app/office/settings/integrations/webhook-forms.tsx`, `src/lib/office/integrations-copy.ts`, `cancellations-copy.ts:32` and `:360`, `dashboard-copy.ts:140` ("Your planner's webhook is failing"). Integration test :273 covers the secret shown once and the address hint; :872 covers the record line and Needs attention. The e2e test (`tests/e2e/office.integrations.spec.ts:142`) shows "Sent to your planner at …" with the console transport, in the 89 passed.
+> - `guardrails-reviewer` run — PROVEN — `docs/overnight-log.md` ~12024: SAFE TO COMMIT, the SHOULDs fixed and tested, the NOTEs parked in PLAN.md.
+> - Docs — PROVEN — `docs/integrations.md` (Webhooks section, schemas, verification code, retries, needs the worker); `docs/compliance.md:24-44`; `docs/runbooks.md:427-490` (failing webhook, leaked key, rotating `INTEGRATIONS_SECRET`); `docs/architecture.md:419` ("The action log is the outbox"); `docs/decisions.md:442-470` (ADR-022 webhook part).
+> Fakes found: none (no `.skip`, `.only` or `.todo` in the three webhook test files; no stubs or hard-coded returns in the delivery path). The tests use a fake transport as the task allows, and the real HTTP path is exercised against a local server in the unit tests.
+> To reach DONE: nothing. Known caveat, parked in PLAN.md and documented: webhooks are queued and not sent in production until the worker runs, which waits for "Connect Twilio".
+
+Its one observation (rollback checked on one path, not each) is met in spirit: every path goes
+through the same `recordEvent()` → `queueWebhooks()` call inside the caller's transaction, which
+the rollback test exercises; not changed.
+
+**Ended:** 2026-10-12 12:06 UTC. **Hours:** 2.4. Phase 12 so far: 36.1 hours over 27 Hours-log
+rows (no estimate for Phase 12, so nothing to compare).
+
+**Commit:** "Phase 12: Webhooks to the planner (12J.2)", pushed to `build/overnight` (the work on
+the way was saved as `97cc6b6`, `bc83597` and `aa88f36`). CI: not run (the GitHub Actions billing
+problem; Morning summary).
+
+**Parked:** "Planner webhooks (12J.2 review)" in `PLAN.md`'s Parking lot.

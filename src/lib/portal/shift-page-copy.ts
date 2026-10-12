@@ -56,10 +56,11 @@ export interface RequirementWords {
 
 // Her status for one thing the shift needs ("What it needs"), read as Profile reads it
 // (qualificationStatus()), against the shift's last day: one valid today that runs out before then
-// "Expires before this shift". `uploadable`: she may send it herself (not one the office records).
+// "Expires before this shift" (unless her renewal is waiting: `renewing`). `uploadable`: she may send
+// it herself (one of her roles needs it, and the office doesn't record it).
 // `year`: the shift's year (a date in another year shows its year).
 export function requirementWords(
-  q: Pick<QualificationState, "status" | "expiresOn">,
+  q: Pick<QualificationState, "status" | "expiresOn"> & { renewing?: boolean },
   o: { lastDay: string; year: number; uploadable: boolean },
 ): RequirementWords {
   const date = (d: string) => shortDate(d, o.year);
@@ -71,7 +72,17 @@ export function requirementWords(
     case "valid":
     case "expiring_soon":
       if (q.expiresOn === null) return { words: "You have it", upload: false, tone: "done" };
-      if (q.expiresOn < o.lastDay) return fix("Expires before this shift", "ask the office.");
+      if (q.expiresOn < o.lastDay) {
+        // Her new one is already with the office: nothing more for her to send.
+        if (q.renewing) {
+          return {
+            words: "Expires before this shift: your new one is being checked.",
+            upload: false,
+            tone: "attention",
+          };
+        }
+        return fix("Expires before this shift", "ask the office.");
+      }
       return {
         words: `You have it, valid until ${date(q.expiresOn)}`,
         upload: false,

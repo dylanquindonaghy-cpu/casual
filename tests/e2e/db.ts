@@ -881,14 +881,16 @@ export async function homeScene(
 }
 
 // The shifts list and shift page's scene (12H.2; tests/e2e/casual.app.spec.ts): a casual of its own
-// in a role nobody else has (its rule: an SIA door supervisor licence), holding that licence (300
-// days to run) and a steward qualification that runs out in 5 days, with a travel area (car or
+// in a role nobody else has (its rule: an SIA door supervisor licence) and a second role of its own
+// with no sessions (its rule: a manual handling certificate, so that's one she may upload), holding
+// the licence (300 days to run) and a steward qualification that runs out in 5 days, with a travel area (car or
 // public transport, 45 minutes). Three sessions in that role, 9 to 11 days ahead: one at "Arena
 // {stamp}" she can take (an event of its own, pay, post, meeting point, uniform, 4 places, 3.1 miles
 // · 12 min by car · 24 min by public transport); one at the same site needing a steward
 // qualification, CSAS and manual handling too (she can't take it: a direct link shows why); and
 // one at another site, for the site filter. A rerun cancels the last run's sessions first.
 export const SHIFTS_SCENE_ROLE = "arena_check";
+const SHIFTS_SCENE_SECOND_ROLE = "arena_lead";
 export async function shiftsScene(
   slug: string,
   casual: { firstName: string; lastName: string; mobileE164: string },
@@ -901,17 +903,20 @@ export async function shiftsScene(
     return await createWithFirm(pool)(firmId, async (tx) => {
       await tx.execute(sql`
         insert into credential_rules (firm_id, sector, role, required_types)
-        values (${firmId}, 'security', ${SHIFTS_SCENE_ROLE}, '{SIA_DS}')
+        values (${firmId}, 'security', ${SHIFTS_SCENE_ROLE}, '{SIA_DS}'),
+               (${firmId}, 'security', ${SHIFTS_SCENE_SECOND_ROLE}, '{MANUAL_HANDLING}')
         on conflict (firm_id, role) do nothing`);
+      const roles = [SHIFTS_SCENE_ROLE, SHIFTS_SCENE_SECOND_ROLE];
       await tx
         .insert(workers)
-        .values({ firmId, ...casual, roles: [SHIFTS_SCENE_ROLE] })
+        .values({ firmId, ...casual, roles })
         .onConflictDoNothing();
       const [worker] = await tx
         .select({ id: workers.id })
         .from(workers)
         .where(eq(workers.mobileE164, casual.mobileE164));
       if (!worker) throw new Error("shifts scene casual neither added nor found");
+      await tx.update(workers).set({ roles }).where(eq(workers.id, worker.id));
       await tx.delete(credentials).where(eq(credentials.workerId, worker.id));
       const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
       await tx.insert(credentials).values([

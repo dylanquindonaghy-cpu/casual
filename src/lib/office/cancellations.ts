@@ -1,9 +1,10 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { AuthContext } from "../auth/link-login";
 import { authParts } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
-import { credentialRules, credentialTypes, firms, type CancelVia } from "../db/schema";
+import { firms, type CancelVia } from "../db/schema";
+import { readRequirements } from "../credentials/requirements";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { webhookOf } from "../integrations/outbox";
@@ -233,27 +234,14 @@ async function loadRows(
   return rows;
 }
 
+// What each cancelled session needed: the shared reader (src/lib/credentials/requirements.ts), as
+// on Events & sessions.
 async function requirementNames(tx: FirmTx, rows: Row[]) {
-  const roles = [...new Set(rows.map((r) => r.role))];
-  const rules = roles.length
-    ? await tx
-        .select({ role: credentialRules.role, types: credentialRules.requiredTypes })
-        .from(credentialRules)
-        .where(inArray(credentialRules.role, roles))
-    : [];
-  const byRole = new Map<string, string[]>();
-  for (const r of rules) byRole.set(r.role, [...(byRole.get(r.role) ?? []), ...r.types]);
-  const names = new Map(
-    (
-      await tx
-        .select({ code: credentialTypes.code, name: credentialTypes.name })
-        .from(credentialTypes)
-    ).map((t) => [t.code, t.name]),
+  const requirements = await readRequirements(
+    tx,
+    rows.map((r) => r.role),
   );
-  return (r: Row) =>
-    [...new Set([...(byRole.get(r.role) ?? []), ...(r.required_credentials ?? [])])].map(
-      (code) => ({ code, name: names.get(code) ?? code }),
-    );
+  return (r: Row) => requirements.of(r.role, r.required_credentials ?? []);
 }
 
 // Whether the cancellation reached the firm's planner by webhook (12J.2), from the log: its

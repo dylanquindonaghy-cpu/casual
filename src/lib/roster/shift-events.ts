@@ -20,7 +20,9 @@ const SITE_PART_MAX = EVENT_NAME_MAX - 13;
 // An event's name as the casual app shows it (12H.2): an automatic event's name only repeats the
 // site and the day the page shows already, so it's left out (null); the office's own and a
 // planner's events keep theirs. For a query with `shift_events` joined.
-export const casualEventName = sql<string | null>`case when ${shiftEvents.plannerRef} like 'auto:%' then null else ${shiftEvents.name} end`;
+export const casualEventName = sql<
+  string | null
+>`case when ${shiftEvents.plannerRef} like 'auto:%' then null else ${shiftEvents.name} end`;
 
 export function automaticEventKey(siteId: string | null, day: string): string {
   return `auto:${siteId ?? "none"}:${day}`;

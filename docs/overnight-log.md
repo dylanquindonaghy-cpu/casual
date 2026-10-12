@@ -12232,3 +12232,30 @@ container, so the CI run isn't noted.
   words, the Getting there words, the card and the page; the plain-language test; integration
   tests for the requirement reading.
 - **Docs:** `docs/screens.md` (`/shifts/open`, `/shifts/[id]`, `/urgent`).
+
+**Decisions** (each one Dylan would normally approve)
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A session's requirements = its role's rule, then its extras, read by one shared reader (`src/lib/credentials/requirements.ts`) for Events & sessions, Cancellations and the casual app | The office and the casual see the same chips; the rules engine checks exactly these | Three copies of the same query (there were two already) |
+| Chips use the office's short names ("SIA DS", "CSAS") | Same words on both sides; short enough for a phone row | Full names (too long for a row) |
+| An automatic event isn't named on casual pages (`casualEventName`) | Its name is "{site} · {day}", which the page already shows: "Steward · Arena · Sat 10 Oct, Arena" read twice | Showing it (repeats); renaming automatic events (changes office pages and data) |
+| The shifts line's replies keep the stored event name | 12D.2's replies and their tests are out of this task's scope | Changing them too (parked) |
+| The Open row drops the address (on the shift page instead) | §4.3 lists what the row holds, and the row stays short | Keeping it |
+| The booked shift page gets the facts and Getting there too | The phase's Done when: every shift page she sees shows the distance and times | Booked page unchanged |
+| "upload it" only for types her roles need and the office doesn't record | The upload page and `saveMyUpload()` refuse anything else (guardrails F1) | Widening the upload page to a session's extras (a scope decision for Dylan; parked) |
+| Right to work shown when the office adds it as an extra | The rules engine enforces it, so hiding it would leave a reason with no row (guardrails S1) | Refusing it as an extra at input (a rules change; parked) |
+
+**Guardrails review (round 1): FIX FIRST**, all fixed:
+- **F1** "upload it" could link to an upload page that refuses the type (a session's extra her roles
+  don't need). Fixed: `uploadable` now also needs one of her roles' rules to need it (the reader's
+  `rolesNeed`, the same test as the upload page). The tests that expected the dead-end link changed
+  to "ask the office", and the browser test now follows a real "upload it" link to its page.
+- **S1** Right to work was filtered out but still enforced, and the Events page lost its chip (a
+  regression). Fixed: no filter; Cancellations now uses the shared reader too, so the two office
+  pages agree.
+- **S2** "upload it" showed while her renewal was already waiting (a second upload would replace it).
+  Fixed: "Expires before this shift: your new one is being checked.", no link.
+- **S3** Added a database test: another casual in her firm and one in another firm hold CSAS; hers
+  stays Missing.
+- **S4** The type list is read once (the reader returns `officeRecorded`).

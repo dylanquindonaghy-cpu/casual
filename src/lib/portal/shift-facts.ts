@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { readRequirements, requirementChip, type Requirement } from "../credentials/requirements";
 import { qualificationStatus, type QualificationState } from "../credentials/status";
-import { credentials, credentialTypes, firms, uploads } from "../db/schema";
+import { credentials, firms, uploads, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { casualMayUpload } from "../rules/packs";
 import { strikeSettings } from "../strikes/settings";
@@ -16,8 +16,11 @@ import { travelFor } from "../travel/lines";
 
 export interface ShiftRequirement extends Requirement {
   chip: string; // "SIA DS", "CSAS"
-  status: Pick<QualificationState, "status" | "expiresOn">;
-  uploadable: boolean; // she may send it herself (not one the office records)
+  // Her status, and whether her new one is waiting for the office (a renewal on its way).
+  status: Pick<QualificationState, "status" | "expiresOn"> & { renewing: boolean };
+  // She may send it herself: one of her roles needs it (the upload page and saveMyUpload() take
+  // only those) and the office doesn't record it itself.
+  uploadable: boolean;
 }
 
 export interface ShiftFacts {
@@ -61,10 +64,13 @@ export async function shiftFacts(
     .where(eq(firms.id, sql`app_current_firm_id()`));
   const zone = firm?.timezone ?? "Europe/London";
   const today = localDateOf(o.now, zone);
-  const needed = (await readRequirements(tx, [session.role])).of(
-    session.role,
-    session.requiredCredentials,
-  );
+  const [me] = await tx
+    .select({ roles: workers.roles })
+    .from(workers)
+    .where(eq(workers.id, o.workerId));
+  const myRoles = me?.roles ?? [];
+  const reader = await readRequirements(tx, [session.role, ...myRoles]);
+  const needed = reader.of(session.role, session.requiredCredentials);
   const codes = needed.map((r) => r.code);
   const records = codes.length
     ? await tx
@@ -84,18 +90,6 @@ export async function shiftFacts(
         )
         .where(and(eq(credentials.workerId, o.workerId), inArray(credentials.type, codes)))
     : [];
-  const officeOnly = new Set(
-    codes.length
-      ? (
-          await tx
-            .select({ code: credentialTypes.code })
-            .from(credentialTypes)
-            .where(
-              and(inArray(credentialTypes.code, codes), eq(credentialTypes.officeRecorded, true)),
-            )
-        ).map((t) => t.code)
-      : [],
-  );
   const travel = (await travelFor(tx, o.workerId, [o.shiftId])).get(o.shiftId) ?? {
     kind: "unknown",
   };
@@ -109,7 +103,7 @@ export async function shiftFacts(
     headcount: session.headcount,
     travel,
     requirements: needed.map((r) => {
-      const { status, expiresOn } = qualificationStatus(
+      const { status, expiresOn, waiting } = qualificationStatus(
         records
           .filter((x) => x.type === r.code)
           .map((x) => ({
@@ -126,8 +120,11 @@ export async function shiftFacts(
       return {
         ...r,
         chip: requirementChip(r),
-        status: { status, expiresOn },
-        uploadable: !officeOnly.has(r.code) && casualMayUpload(r.code),
+        status: { status, expiresOn, renewing: waiting !== null },
+        uploadable:
+          reader.rolesNeed(myRoles, r.code) &&
+          !reader.officeRecorded(r.code) &&
+          casualMayUpload(r.code),
       };
     }),
     noticeHours: strikeSettings(firm?.settings ?? {}).noticeHours,

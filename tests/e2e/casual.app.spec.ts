@@ -240,13 +240,17 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   const blockedNeeds = page.getByRole("region", { name: "What it needs" }).getByRole("listitem");
   await expect(blockedNeeds).toHaveText([
     new RegExp(`^SIA door supervisor licenceYou have it, valid until ${DAY}$`),
-    /^Level 2 spectator safety qualificationExpires before this shift: upload it$/,
+    // Not one her roles need, so she can't send it herself: the office.
+    /^Level 2 spectator safety qualificationExpires before this shift: ask the office\.$/,
     /^CSAS accreditationMissing: ask the office\.$/,
     /^Manual handling certificateMissing: upload it$/,
   ]);
+  // "upload it" opens a page that takes it (her second role needs it).
+  await page.getByRole("link", { name: "Upload your manual handling certificate" }).click();
+  await expect(page).toHaveURL(`${acme}/profile/upload/MANUAL_HANDLING`);
   await expect(
-    page.getByRole("link", { name: "Upload your Level 2 spectator safety qualification" }),
-  ).toHaveAttribute("href", "/profile/upload/STEWARD_L2");
+    page.getByRole("heading", { level: 1, name: "Upload your manual handling certificate" }),
+  ).toBeVisible();
 });
 
 // The count in a view's link: "Need updating (3)" is 3.

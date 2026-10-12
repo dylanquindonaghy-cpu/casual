@@ -82,6 +82,20 @@ describe("What it needs: her status for each", () => {
     ).toBe("Expires before this shift: ask the office.");
   });
 
+  it("expires before the shift, with her new one already sent: being checked, no upload", () => {
+    expect(
+      requirementWords({ status: "expiring_soon", expiresOn: "2026-11-06", renewing: true }, on),
+    ).toEqual({
+      words: "Expires before this shift: your new one is being checked.",
+      upload: false,
+      tone: "attention",
+    });
+    // Valid through the shift: her renewal changes nothing she reads.
+    expect(
+      requirementWords({ status: "valid", expiresOn: "2027-03-03", renewing: true }, on).words,
+    ).toBe("You have it, valid until 3 Mar 2027");
+  });
+
   it("missing, expired and not accepted: upload it, or ask the office for one she can't send", () => {
     expect(requirementWords({ status: "missing", expiresOn: null }, on)).toEqual({
       words: "Missing:",

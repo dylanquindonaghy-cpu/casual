@@ -2132,7 +2132,11 @@ of 12C.1; 12D.4 is part of 12D.1; 12E.2 is part of 12E.1; the old 12F.1 and 12F.
 - **Cancellations and strikes:** the mock-up's records, including one office cancellation; one
   strike withdrawn with a reason, one flagged for review.
 - **Enquiries:** Zoe's personal list, Ben's pay question and Kieran's cancel, each with its reply
-  built by the real reply functions and its log entries, all inside the 90-day window.
+  built by the real reply functions and its log entries, all inside the 90-day window. As built
+  (12I.1): the seed stores the three messages as the webhook does and queues their jobs; the job
+  worker (`npm run dev` runs it) answers them with the real reply job and its log entries. The seed
+  can't run that job itself: golden rule 1's boundary test lets only the job worker run it
+  (`tests/unit/ai.boundary.test.ts`). Dylan to accept (`PLAN.md` Parking lot, 12I.1).
 - **Times shown come from rows, not the log.** Log entries are stamped when the seed runs and can't
   be backdated (`src/lib/db/admin/seed-saturday.ts:20-21`, `docs/testing.md:250`), so the loaders
   take times from row timestamps the seed can set; the log only says what happened.

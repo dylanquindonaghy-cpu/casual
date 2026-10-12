@@ -3005,6 +3005,11 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - In a browser test, "no signal" (Playwright's offline switch) didn't reach the service worker's
     own request when opening a different page; the offline test reloads each page instead. A real
     phone with no signal fails both ways the same.
+- Demo seed (12I.1, 2026-10-12), **for Dylan to accept**: the seed stores Zoe's, Ben's and
+  Kieran's messages and queues their jobs; the job worker answers them (`npm run dev`), not the
+  seed, because the AI boundary test lets only the job worker run the reply job. Until the worker
+  has run, Enquiries shows them unanswered. Accept, or allow the seed script to run that one job
+  (widening the boundary test's list, with the reason).
 - Shifts list and shift page (12H.2, 2026-10-12):
   - The shifts line's replies still name an automatic event ("Door supervisor · Arena · Sat 10 Oct,
     Arena"); the app leaves it out (`casualEventName`). Use it in `personal-reply.ts` too (12D.2's

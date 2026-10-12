@@ -326,6 +326,26 @@ describe("the demo story", () => {
     ]);
   });
 
+  it("after the worker has answered them, running the seed again adds no message, reply or job", async () => {
+    const ids = STORY.messages.map((x) => x.id);
+    const state = async () =>
+      (
+        await su.query<{ messages: number; replies: number; jobs: number; replied: number }>(
+          `select (select count(*)::int from messages where id = any($1::uuid[])) as messages,
+                  (select count(*)::int from messages where reply_to = any($1::uuid[])) as replies,
+                  (select count(*)::int from pgboss.job where name = 'inbound-message'
+                     and data ->> 'messageId' = any($2::text[])) as jobs,
+                  (select count(*)::int from events where action = 'message.replied'
+                     and firm_id = $3) as replied`,
+          [ids, ids, ACME],
+        )
+      ).rows[0];
+    const before = await state();
+    expect(before).toMatchObject({ messages: 3, replies: 3, jobs: 3 });
+    await run();
+    expect(await state()).toEqual(before);
+  });
+
   it("pay: the two groups payroll has sorted, each with its note; the 10 open queries as they were", async () => {
     const { rows } = await su.query<{ key: string; n: number; note: string }>(
       `select group_key as key, count(*)::int as n, min(resolution_note) as note from pay_queries

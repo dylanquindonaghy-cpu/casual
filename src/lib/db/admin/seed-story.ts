@@ -8,7 +8,7 @@ export { STRIKES_TEAM } from "./seed-data";
 
 // The demo's made-up story (docs/office-v2.md §9 "Demo seed"; 12I.1): Acme Events as the mock-up
 // shows it, with dates relative to the day the seed runs, so weekdays are always right. Pure
-// builders, loaded by seed.ts (loadStory, then answerStoryMessages). Fake data only (golden rule 7):
+// builders, loaded by seed.ts (seed-story-load.ts: loadStory). Fake data only (golden rule 7):
 // invented people, places and numbers (07700 900400-900407), example addresses.
 //
 // - Six events: Northern Lights Live at the Arena tomorrow (door supervisor urgent 3/4, steward,

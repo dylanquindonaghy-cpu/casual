@@ -7,12 +7,19 @@ import { resolveFirmBySlug } from "@/lib/db/directory";
 import { withFirm } from "@/lib/db/scoped";
 import { superuserPool, urls } from "../helpers/db";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
+import { seedFirms } from "@/lib/db/admin/seed-data";
+import { acmeStory } from "@/lib/db/admin/seed-story";
 
 // The demo seed (docs/testing.md): Acme Events and Northline Rail Labour, fake data only.
 
 const ACME = seedId("firm/acme");
 const NORTHLINE = seedId("firm/northline");
 const run = () => seed({ adminUrl: urls.admin, appUrl: urls.app, nodeEnv: "test" });
+// The demo story's own rows (seed-story.ts, 12I.1; its ids are fixed and undated): the tests of the
+// Saturday and the walkthrough's other states leave them out, and the story has tests of its own.
+const STORY = acmeStory(seedFirms().find((f) => f.slug === "acme") ?? seedFirms()[0]!, new Date());
+const STORY_SHIFTS = STORY.sessions.map((x) => x.id);
+const STORY_PAY = STORY.payQueries.map((x) => x.id);
 
 let su: Pool;
 let other: Tenant;
@@ -69,7 +76,7 @@ describe("the demo seed", () => {
     expect(otherAfter.rows).toEqual(otherBefore.rows);
   });
 
-  it("Acme Events: 60 workers (5 with an expired SIA licence, 3 applied), 3 sites, 3 office roles", async () => {
+  it("Acme Events: 60 workers and the story's 8 (5 with an expired SIA licence, 3 applied), 3 sites and the story's 4, 3 office roles", async () => {
     const { rows } = await su.query(
       `select
          (select count(*)::int from workers where firm_id = $1) as workers,
@@ -82,10 +89,11 @@ describe("the demo seed", () => {
       [ACME],
     );
     expect(rows[0]).toEqual({
-      workers: 60,
-      sites: 3,
+      workers: 68,
+      sites: 7,
       roles: ["admin", "payroll", "resourcer"],
-      expired_sia: 5,
+      // The generated workers' 5, and the story's Kieran.
+      expired_sia: 6,
       applied_sia: 3,
     });
   });
@@ -127,7 +135,7 @@ describe("the demo seed", () => {
     const northline = await withFirm(NORTHLINE, (tx) =>
       tx.execute<{ n: number }>(sql`select count(*)::int as n from workers`),
     );
-    expect([acme.rows[0]?.n, northline.rows[0]?.n]).toEqual([60, 30]);
+    expect([acme.rows[0]?.n, northline.rows[0]?.n]).toEqual([68, 30]);
     expect((await resolveFirmBySlug("acme"))?.signOff).toBe("Acme Events Shift Team");
     expect((await resolveFirmBySlug("northline"))?.signOff).toBe(
       "Northline Rail Labour Shift Team",
@@ -223,9 +231,12 @@ describe("Acme's Saturday event day", () => {
   // seed-extras.ts, tested below).
   const acmeRows = async <T extends Record<string, unknown>>(text: string) =>
     (await su.query<T>(text, [ACME])).rows;
+  // The same, with the story's sessions as $2 (each query leaves them out).
+  const saturdayRows = async <T extends Record<string, unknown>>(text: string) =>
+    (await su.query<T>(text, [ACME, STORY_SHIFTS])).rows;
 
   it("is the next Saturday, with 40 shifts across the three sites, 32 booked and 8 open", async () => {
-    const [counts] = await acmeRows<{
+    const [counts] = await saturdayRows<{
       shifts: number;
       days: string[];
       sites: number;
@@ -241,7 +252,7 @@ describe("Acme's Saturday event day", () => {
               count(*) filter (where status = 'open')::int as open,
               count(*) filter (where is_urgent)::int as urgent,
               count(*) filter (where instructions is null)::int as no_instructions
-         from shifts where firm_id = $1 and starts_at > now()`,
+         from shifts where firm_id = $1 and starts_at > now() and id <> all($2::uuid[])`,
     );
     expect(counts).toMatchObject({
       shifts: 40,
@@ -260,16 +271,17 @@ describe("Acme's Saturday event day", () => {
       new Date(`${saturday}T12:00:00Z`).getTime() - new Date(`${today}T12:00:00Z`).getTime(),
     ).toBeLessThanOrEqual(7 * 86_400_000);
     // A filled shift has its booking, and every booking is confirmed on a filled shift.
-    const [consistent] = await acmeRows<{ bad: number }>(
+    const [consistent] = await saturdayRows<{ bad: number }>(
       `select count(*)::int as bad from shifts s
-        where s.firm_id = $1 and s.starts_at > now() and (s.status = 'filled') <> exists (
+        where s.firm_id = $1 and s.starts_at > now() and s.id <> all($2::uuid[])
+          and (s.status = 'filled') <> exists (
           select 1 from assignments a where a.shift_id = s.id and a.status = 'confirmed')`,
     );
     expect(consistent).toEqual({ bad: 0 });
   });
 
   it("has the urgent dropout: booked, then cancelled at 6am with a reason and the notice given", async () => {
-    const rows = await acmeRows<{
+    const rows = await saturdayRows<{
       role: string;
       starts: string;
       status: string;
@@ -287,7 +299,7 @@ describe("Acme's Saturday event day", () => {
               round(extract(epoch from (s.starts_at - a.cancelled_at)) / 3600, 2) = a.notice_hours as notice_matches,
               exists (select 1 from assignments b where b.shift_id = s.id and b.status = 'confirmed') as another_booking
          from assignments a join shifts s on s.id = a.shift_id
-        where a.firm_id = $1 and a.status = 'cancelled_worker'`,
+        where a.firm_id = $1 and a.status = 'cancelled_worker' and s.id <> all($2::uuid[])`,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -305,9 +317,10 @@ describe("Acme's Saturday event day", () => {
   });
 
   it("books only workers the rules allow, and never the five kept free for demo logins", async () => {
-    const booked = await acmeRows<{ shift_id: string; worker_id: string }>(
+    const booked = await saturdayRows<{ shift_id: string; worker_id: string }>(
       `select a.shift_id::text, a.worker_id::text from assignments a join shifts s on s.id = a.shift_id
-        where a.firm_id = $1 and a.status = 'confirmed' and s.starts_at > now()`,
+        where a.firm_id = $1 and a.status = 'confirmed' and s.starts_at > now()
+          and s.id <> all($2::uuid[])`,
     );
     expect(booked).toHaveLength(32);
     const { previewBooking } = await import("@/lib/roster/book");
@@ -319,8 +332,8 @@ describe("Acme's Saturday event day", () => {
       expect({ ...b, reasons: verdict?.reasons }).toEqual({ ...b, reasons: [] });
     }
     // The dropout's worker could have worked it too (the rules would still allow it).
-    const [dropout] = await acmeRows<{ shift_id: string; worker_id: string }>(
-      "select shift_id::text, worker_id::text from assignments where firm_id = $1 and status = 'cancelled_worker'",
+    const [dropout] = await saturdayRows<{ shift_id: string; worker_id: string }>(
+      "select shift_id::text, worker_id::text from assignments where firm_id = $1 and status = 'cancelled_worker' and shift_id <> all($2::uuid[])",
     );
     const again = await run(ACME, (tx) =>
       previewBooking(tx, {
@@ -387,13 +400,14 @@ describe("Acme's Saturday event day", () => {
   });
 
   it("logs the day as the app would: each booking, the cancellation with its notice, each request", async () => {
-    const rows = await acmeRows<{ action: string; n: number }>(
+    const rows = await saturdayRows<{ action: string; n: number }>(
       `select action, count(*)::int as n from events
         where firm_id = $1
           and action in ('shift.created', 'shift.assigned', 'shift.cancelled', 'request.created',
                          'shift.marked_urgent')
           and coalesce(data ->> 'shiftId', entity_id::text) in (
-                select id::text from shifts where firm_id = $1 and starts_at > now())
+                select id::text from shifts where firm_id = $1 and starts_at > now()
+                   and id <> all($2::uuid[]))
         group by action order by action`,
     );
     expect(rows).toEqual([
@@ -406,16 +420,16 @@ describe("Acme's Saturday event day", () => {
     // The dropout is always more than 24 hours before the start (06:00 on the seed day, the
     // Saturday at 08:00, at least a day later), outside Acme's urgent window: the system wouldn't
     // mark it, so the log says Acme's resourcer marked it by hand.
-    const [gap] = await acmeRows<{ hours: string }>(
-      "select notice_hours::text as hours from assignments where firm_id = $1 and status = 'cancelled_worker'",
+    const [gap] = await saturdayRows<{ hours: string }>(
+      "select notice_hours::text as hours from assignments where firm_id = $1 and status = 'cancelled_worker' and shift_id <> all($2::uuid[])",
     );
     expect(Number(gap?.hours)).toBeGreaterThan(24);
-    const [marked] = await acmeRows<{
+    const [marked] = await saturdayRows<{
       actor_type: string;
       actor_id: string;
       data: Record<string, unknown>;
     }>(
-      "select actor_type, actor_id::text, data from events where firm_id = $1 and action = 'shift.marked_urgent'",
+      "select actor_type, actor_id::text, data from events where firm_id = $1 and action = 'shift.marked_urgent' and entity_id <> all($2::uuid[])",
     );
     expect(marked).toMatchObject({
       actor_type: "office",
@@ -423,13 +437,13 @@ describe("Acme's Saturday event day", () => {
       data: { by: "firm", cause: "office" },
     });
     expect(Number(marked?.data.hoursToStart)).toBeGreaterThan(0);
-    const [cancelled] = await acmeRows<{ data: Record<string, unknown> }>(
-      "select data from events where firm_id = $1 and action = 'shift.cancelled'",
+    const [cancelled] = await saturdayRows<{ data: Record<string, unknown> }>(
+      "select data from events where firm_id = $1 and action = 'shift.cancelled' and (data ->> 'shiftId')::uuid <> all($2::uuid[])",
     );
     expect(cancelled?.data).toMatchObject({ by: "worker", workerId: seedId("acme/worker/37") });
     // The same notice as the booking's row records.
-    const [row] = await acmeRows<{ notice_hours: string }>(
-      "select notice_hours::text from assignments where firm_id = $1 and status = 'cancelled_worker'",
+    const [row] = await saturdayRows<{ notice_hours: string }>(
+      "select notice_hours::text from assignments where firm_id = $1 and status = 'cancelled_worker' and shift_id <> all($2::uuid[])",
     );
     expect(cancelled?.data.noticeHours).toBe(Number(row?.notice_hours));
     // Every seeded shift was there before anyone booked it.
@@ -465,10 +479,13 @@ describe("Acme's Saturday event day", () => {
 describe("the demo's past event, pay queries and Northline's night", () => {
   const rowsOf = async <T extends Record<string, unknown>>(firmId: string, text: string) =>
     (await su.query<T>(text, [firmId])).rows;
+  // With the story's sessions ($2) and pay queries ($3), which these leave out.
+  const extrasOf = async <T extends Record<string, unknown>>(text: string) =>
+    (await su.query<T>(text, [ACME, STORY_SHIFTS, STORY_PAY])).rows;
   const london = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/London" });
 
   it("Acme's last event: yesterday, 3 stewards at the racecourse and 2 officers at the centre, booked, nobody marked yet", async () => {
-    const rows = await rowsOf<{
+    const rows = await extrasOf<{
       day: string;
       site: string;
       role: string;
@@ -476,12 +493,13 @@ describe("the demo's past event, pay queries and Northline's night", () => {
       booking: string;
       worker: string;
     }>(
-      ACME,
       `select (s.starts_at at time zone 'Europe/London')::date::text as day, si.name as site,
               s.role, s.status, a.status as booking, a.worker_id::text as worker
          from shifts s join sites si on si.id = s.site_id
          join assignments a on a.shift_id = s.id
-        where s.firm_id = $1 and s.ends_at < now() order by s.role, a.worker_id`,
+        where s.firm_id = $1 and s.ends_at < now() and s.id <> all($2::uuid[])
+          and $3::uuid[] is not null
+        order by s.role, a.worker_id`,
     );
     expect(rows).toHaveLength(5);
     const yesterday = london(new Date(Date.now() - 86_400_000));
@@ -496,22 +514,22 @@ describe("the demo's past event, pay queries and Northline's night", () => {
       ].sort(),
     );
     // Logged as the app would: each shift's creation and each booking.
-    const [logged] = await rowsOf<{ created: number; assigned: number }>(
-      ACME,
+    const [logged] = await extrasOf<{ created: number; assigned: number }>(
       `select count(*) filter (where action = 'shift.created')::int as created,
               count(*) filter (where action = 'shift.assigned')::int as assigned
-         from events where firm_id = $1
+         from events where firm_id = $1 and $3::uuid[] is not null
           and coalesce(data ->> 'shiftId', entity_id::text) in (
-                select id::text from shifts where firm_id = $1 and ends_at < now())`,
+                select id::text from shifts where firm_id = $1 and ends_at < now()
+                   and id <> all($2::uuid[]))`,
     );
     expect(logged).toEqual({ created: 5, assigned: 5 });
   });
 
   it("Acme's pay queries: 10 open, 7 about one week's steward rate, 2 hours missing at the centre, 1 something else, each logged", async () => {
-    const groups = await rowsOf<{ key: string; n: number; status: string[] }>(
-      ACME,
+    const groups = await extrasOf<{ key: string; n: number; status: string[] }>(
       `select group_key as key, count(*)::int as n, array_agg(distinct status) as status
-         from pay_queries where firm_id = $1 group by group_key order by count(*) desc`,
+         from pay_queries where firm_id = $1 and id <> all($3::uuid[]) and $2::uuid[] is not null
+        group by group_key order by count(*) desc`,
     );
     expect(groups.map((g) => g.n)).toEqual([7, 2, 1]);
     expect(groups.every((g) => g.status.join() === "open")).toBe(true);
@@ -523,10 +541,10 @@ describe("the demo's past event, pay queries and Northline's night", () => {
     // Not "paid late": a browser test raises one, and two such groups (different weeks) would both
     // match its search for its own (the adversarial review).
     expect(groups[2]?.key).toMatch(/^pay1:other:\d{4}-\d{2}-\d{2}$/);
-    const [logged] = await rowsOf<{ n: number }>(
-      ACME,
+    const [logged] = await extrasOf<{ n: number }>(
       `select count(*)::int as n from events e join pay_queries q on q.id = e.entity_id
-        where e.firm_id = $1 and e.action = 'pay_query.created' and e.data ->> 'groupKey' = q.group_key`,
+        where e.firm_id = $1 and e.action = 'pay_query.created' and e.data ->> 'groupKey' = q.group_key
+          and q.id <> all($3::uuid[]) and $2::uuid[] is not null`,
     );
     expect(logged).toEqual({ n: 10 });
   });
@@ -614,13 +632,15 @@ describe("the seed run again a week later", () => {
       [[ACME, NORTHLINE]],
     );
     expect(overlaps).toEqual([]);
-    // Every shift's status still says whether its place is held.
+    // Every shift's status still says whether its places are held: filled exactly when every
+    // place has someone (a session of several places stays open while one is free; a cancelled
+    // booking's open row is a free place).
     const { rows: wrong } = await su.query<{ n: number }>(
       `select count(*)::int as n from shifts s
         where s.firm_id = any($1) and s.status in ('open', 'filled')
-          and (s.status = 'filled') <> exists (
-            select 1 from assignments a where a.shift_id = s.id
-              and a.status not in ('cancelled_worker', 'cancelled_firm'))`,
+          and (s.status = 'filled') <> ((
+            select count(*) from assignments a where a.shift_id = s.id and a.worker_id is not null
+              and a.status not in ('cancelled_worker', 'cancelled_firm')) >= s.headcount)`,
       [[ACME, NORTHLINE]],
     );
     expect(wrong).toEqual([{ n: 0 }]);

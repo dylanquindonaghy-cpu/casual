@@ -221,9 +221,10 @@ without breaking a 6am cancellation.
 
 **Acme Events (security/events, native mode):** a fake shifts line (+44 7700 900000, Ofcom's drama
 range; Northline has none), 60 workers (5 with expired SIA, 3 "applied"),
-3 sites (stadium, racecourse, shopping centre), a Saturday event with 40 shifts, one 6am
+3 sites (stadium, racecourse, shopping centre) and the story's 4, a Saturday event with 40 shifts, one 6am
 cancellation that becomes urgent, two open requests, pay records for 8 weeks, yesterday's event
-(5 bookings not marked yet), 10 pay queries (7 about one rate change).
+(5 bookings not marked yet), 10 pay queries (7 about one rate change), and the mock-up's story
+(below: 8 more casuals, six events, cancellations and strikes, enquiries, sorted pay groups).
 
 **Northline Rail Labour (rail):** 30 workers with PTS/Sentinel/D&A dates, tomorrow night's
 possession with one short-notice firm cancellation. (Its mocked rota sheet is still to come: no
@@ -278,6 +279,29 @@ never split or joined), so they can't change what those tests check:
   under Northline's 48-hour threshold: the notice report's short-notice firm cancellation (audit
   L25).
 
+**The mock-up's story (Phase 12 task 12I.1, `seed-story.ts`, loaded by `seed-story-load.ts`).**
+Acme as `docs/office-v2.md` §9 tells it, with dates from the day the seed runs:
+- Acme's strikes team `strikes@acme-events.example`, already confirmed.
+- Six events, each session with its pay, post, meeting point and uniform: Northern Lights Live at
+  the Arena tomorrow (door supervisor urgent 3/4, steward, response team lead needing first aid),
+  Night patrols at Northgate Demo Town Centre the day after (CSAS officer, urgent 3/4), Riverside
+  Food Festival, Raceday, Northgate Charity 10K, and Hillside Christmas Market, switched off.
+- Eight casuals (07700 900400 to 900407): Zoe Adeyemi (SIA, CSAS, manual handling expiring in 22
+  days, photo due soon), Kieran Doyle (SIA expired, 2 strikes), Ben Fraser (new photo waiting),
+  Priya Shah (1 strike, flagged for review), Leah Ward (SIA expiring in 12 days, her new one
+  waiting, no photo), Jamal Morgan, Mo Rahman (a strike the office withdrew) and Tom Hale (the
+  office cancelled one of his bookings). Four hold CSAS. Each has a travel area, with fixed travel
+  times to every story session (Zoe to the Arena: 3.1 miles, 12 min by car, 24 min by public
+  transport).
+- Every open place needs something only these eight hold (their own roles, or a manual handling
+  certificate as an extra), so the generated workers' lists, and the walkthrough, are unchanged.
+  (Three generated workers whose names matched the story's were renamed: 07700 900105, 900137
+  and 900152.)
+- The shifts line: Zoe's "Hi, any shifts for me?", Ben's pay question and Kieran's cancel, answered
+  by the shifts line's own job (nothing sent), each reply 4 seconds after its message.
+- Pay: two groups payroll has sorted, each with its note (the 10 open queries as before).
+- Added once, by fixed ids: a re-run changes nothing; `npm run db:reset` moves the story to today.
+
 **Demo logins (Acme, `http://acme.localhost:3000/login`):**
 
 | Mobile | Who | Good for |
@@ -288,6 +312,9 @@ never split or joined), so they can't change what those tests check:
 | 07700 900130 to 900136 | Door supervisors, booked at the arena | A booked shift with instructions |
 | 07700 900137 | The door supervisor who dropped out | Nothing booked; the dropout's page shows it's open again |
 | 07700 900138 to 900144 | Door supervisors with a valid licence, never booked | Home's "Urgent: needed now, and you can take them" lists the dropout; the urgent board (`/urgent`) shows the dropout with "Take shift" |
+| 07700 900400 | Zoe Adeyemi (the story) | Home as the mock-up: Needs updating (photo due soon), the Arena and Northgate urgent cards with their travel lines, her next shift (Riverside Food Festival), three to apply for and "2 more shifts are further than you travel" |
+| 07700 900401 | Kieran Doyle | Profile: SIA expired, 2 strikes |
+| 07700 900404 | Leah Ward | Needs updating: SIA expiring, new one being checked; no photo |
 
 The login link appears in the `npm run dev` terminal (console messaging).
 

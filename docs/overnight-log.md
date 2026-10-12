@@ -12318,3 +12318,46 @@ f41968b. CI: `gh` isn't available in this container.
 
 **Needs Dylan:** two calls recorded above for him to confirm: the details sentence changed in two
 existing checks, and the attribution's exact words let off the plain-language test.
+
+## 2026-10-12 14:32 UTC — Phase 12, task 12I.1: Demo seed
+
+**Started:** 2026-10-12 14:32 UTC (same container, right after 12H.3).
+
+**Task:** `PLAN.md` Phase 12, "Demo seed, after every task above (§9 "Demo seed")" (12I.1).
+
+**Plan.** No Phase 12 task seeded anything yet, so the story is built here, in a new
+`src/lib/db/admin/seed-story.ts` (pure builders, as `seed-extras.ts`) loaded by `seed.ts`:
+- **Firm:** Acme's settings gain the strikes team `strikes@acme-events.example`, confirmed (its
+  confirmation time the seed day's midnight, so a same-day re-run writes the same settings).
+- **Sites** (new, ZZ postcodes the fake geocoder places): Northgate Demo Town Centre, Northgate
+  Demo Common, Riverside Demo Park, Hillside Demo Square; the Arena and Racecourse as they are.
+  Every site keeps " Demo " in its name (the seed test's rule for invented places).
+- **Events and sessions** (named events, each session with pay, post, meeting point and uniform):
+  Northern Lights Live at the Arena tomorrow (door supervisor urgent 3/4, steward, response team
+  lead needing first aid); Night patrols at Northgate (CSAS officer, urgent 3/4); Riverside Food
+  Festival (Zoe's next shift); Raceday; Northgate Charity 10K; Hillside Christmas Market, switched
+  off. Past sessions for the cancellations, strikes and the two sorted pay groups.
+- **Casuals** (fixed ids `acme/story/{name}`, numbers 07700 900400–900407, none of the free
+  demo-login workers 0–4): Zoe Adeyemi, Kieran Doyle, Ben Fraser, Priya Shah, Leah Ward, Jamal
+  Morgan, Mo Rahman, Tom Hale, with the §9 qualifications, photos (Zoe's due soon, Leah none, Ben's
+  new one waiting), travel areas and strikes. Three of these names were already given to
+  generated workers (07700 900105, 900137, 900152): only those three get another name from the same
+  shuffled list, so every other generated name (and every test naming one) stays the same.
+- **Keeping the walkthrough's lists as they are:** every open place in the story needs something
+  only the story's casuals hold (their own roles, CSAS officer and response team lead, or a manual
+  handling certificate as an extra), so no generated worker's Open, urgent or Home list changes.
+- **Cancellations and strikes:** Kieran's two live strikes, Priya's flagged for review ("I'm
+  unwell"), Mo's withdrawn with a reason, and an office cancellation of Tom's; rows with the times
+  the story needs, logged once as the app logs them.
+- **Enquiries:** Zoe's "Any shifts for me?", Ben's pay question and Kieran's cancel, stored as
+  incoming WhatsApps and answered by the real inbound job (`runInboundMessage`) with a seed-only
+  sender that sends nothing, so the replies and their log entries are the app's own; the rows'
+  times are then set to when each message came in (the log keeps the seed's time).
+- **Travel:** the story casuals' areas and fixed estimates for each story session (provider
+  "fake"); the travel job only fills missing estimates, so it never overwrites them.
+- **Pay:** the existing 10 queries, plus two groups payroll has sorted. **Uploads waiting:** Ben's
+  photo and Leah's new licence.
+- **Ids** fixed and undated (`seedId("acme/story/…")`), added once: a re-run the same day changes
+  nothing; `npm run db:reset` moves the story to a new day.
+- **Tests:** the seed test's "running it again changes nothing" covers the new tables; a test per
+  part of the story; the walkthrough's own run (verify) proves every step still has its data.

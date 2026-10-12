@@ -31,7 +31,7 @@ import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeStory } from "./seed-story";
-import { answerStoryMessages, loadStory } from "./seed-story-load";
+import { loadStory } from "./seed-story-load";
 import { isLocalHost } from "./urls";
 
 // Loads the demo firms (docs/testing.md). Firms are created through the owner connection (the
@@ -61,8 +61,6 @@ export async function seed(opts: {
   appUrl: string;
   nodeEnv: string;
   today?: Date;
-  // Where the story's replies point (the shifts line's links): the app's own address.
-  baseDomain?: string;
 }): Promise<SeedSummary> {
   // Checked before any connection is made (golden rule 7: fake data, never near real data).
   if (opts.nodeEnv === "production")
@@ -93,18 +91,11 @@ export async function seed(opts: {
           await loadExtraShifts(tx, firm, past);
           await loadPayQueries(tx, acmePayQueries(firm.workers, past, now));
         }
-        if (story) await loadStory(tx, firm, story);
+        if (story) await loadStory(tx, firm, story, now);
         if (firm.slug === "northline") {
           await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now));
         }
       });
-      // Its messages answered by the shifts line's own job, once the story is in.
-      if (story) {
-        await answerStoryMessages(withFirm, firm.id, story, {
-          baseDomain: opts.baseDomain ?? process.env.APP_BASE_DOMAIN ?? "localhost:3000",
-          now,
-        });
-      }
       summary.firms.push({
         slug: firm.slug,
         sites: firm.sites.length,

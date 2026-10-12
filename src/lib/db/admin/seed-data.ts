@@ -86,10 +86,14 @@ const LAST = [
 ];
 
 // The firm's strikes team, confirmed (docs/office-v2.md 3.10; the demo story, 12I.1): confirmed at
-// the seed day's midnight (London), so a re-run the same day writes the same settings.
+// midnight (London) 60 days before the seed day, before any of the story's strike evidence went to
+// it, and the same on a re-run the same day.
 export const STRIKES_TEAM = "strikes@acme-events.example";
 export function storyStrikesSettings(today: Date): Record<string, unknown> {
-  const [year = 2000, month = 1, day = 1] = localDateOf(today, "Europe/London")
+  const [year = 2000, month = 1, day = 1] = localDateOf(
+    new Date(today.getTime() - 60 * 86_400_000),
+    "Europe/London",
+  )
     .split("-")
     .map(Number);
   const midnight = zonedToUtc({ year, month, day, hour: 0, minute: 0 }, "Europe/London");

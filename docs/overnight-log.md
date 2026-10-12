@@ -12361,3 +12361,45 @@ existing checks, and the attribution's exact words let off the plain-language te
   nothing; `npm run db:reset` moves the story to a new day.
 - **Tests:** the seed test's "running it again changes nothing" covers the new tables; a test per
   part of the story; the walkthrough's own run (verify) proves every step still has its data.
+
+**Guardrails review (round 1): FIX FIRST**, all fixed:
+- **AI boundary (golden rule 1):** the seed imported the reply job and the AI client, which the
+  boundary test forbids (only the job worker may run the reply job). Not widened: the seed now
+  stores the three messages as the webhook does and queues their jobs in the same transaction;
+  the job worker answers them with the real job when it runs. The story test plays the worker's
+  part (the real job, a sender that records).
+- **Kieran's bookings the rules would have refused (golden rule 6):** his licence now runs out 5
+  days ago, after both past shifts. New test: every story booking passes the rules engine as of
+  when it was made.
+- **`shift.marked_urgent` data (golden rule 5):** now `{by: "firm", cause: "office", hoursToStart}`
+  as the app writes it; the three dropouts inside the urgent window are marked urgent by the system
+  (`cause: "dropout"`), as the app does.
+- **Tests:** the story's open-pay count scoped to the run's own day; the seed summary's new line.
+- **Two "Zoe Adeyemi"s in the browser tests:** the full browser run passed with both, so nothing
+  renamed.
+
+**SHOULDs fixed:** log entries the app writes for the same states (uploads received and approved,
+attendance marked, Hillside switched off, strike evidence sent, Tom told of the office's
+cancellation); the strikes team confirmed 60 days before the seed day (before any evidence went to
+it); a later day's re-run no longer makes empty automatic events or stray travel estimates; towns
+invented ("Exampleton", "Sampleford"; the mock-up's event and site names kept, each site with
+" Demo "); the strike threshold and length from the firm's settings; tests that no casual's own
+words reach the log and that none of the 60 generated workers sees a story place.
+
+**Dylan's decisions (2026-10-12, in chat), from here on:**
+1. A fresh session per task (after 12I.1): this one starts it on `build/overnight` with the setup
+   notes below, then stops its loop.
+2. The `claims-auditor` and `guardrails-reviewer` run on Sonnet.
+3. 12I.3 and 12I.4 share one full `verify.sh` run (each still gets its own audit and tick).
+4. Fewer, shorter progress messages.
+
+**Setup notes for a fresh container** (what this one needed): Node at
+`/opt/node-v22.23.3-linux-x64/bin` (put it first on PATH); start Postgres with
+`pg_ctlcluster 16 main start` (superuser `shiftdesk`), then `npm run db:reset`; Docker Hub may refuse
+Caddy (429): `docker pull mirror.gcr.io/library/caddy:2.10 && docker tag mirror.gcr.io/library/caddy:2.10 caddy:2.10`;
+Playwright's browser: `PLAYWRIGHT_BROWSERS_PATH=/root/pw-compat` (a folder linking the build the
+installed Playwright asks for to the one in `/opt/pw-browsers`); add
+`127.0.0.1 acme.localhost northline.localhost no-such-firm.localhost nobody-here.localhost` to
+`/etc/hosts`; `no_proxy`/`NO_PROXY` plus `,.test`; in `.env`, `NODE_ENV=development` commented out.
+Run verify as `RUN_E2E=1 CI=1 ./scripts/verify.sh` (CI mode: the dev server is killed for memory
+here), in the background, one test run at a time.

@@ -1,14 +1,19 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { qualificationsFor } from "@/lib/credentials/qualifications";
+import { noAi } from "@/lib/ai/client";
 import { seed } from "@/lib/db/admin/seed";
+import { acmePastEvent, acmePayQueries } from "@/lib/db/admin/seed-extras";
 import { seedFirms, seedId, STRIKES_TEAM } from "@/lib/db/admin/seed-data";
 import { acmeStory } from "@/lib/db/admin/seed-story";
-import { withFirm } from "@/lib/db/scoped";
+import { createWithFirm, withFirm } from "@/lib/db/scoped";
+import { runInboundMessage } from "@/lib/inbound/reply";
+import type { MessagingTransport } from "@/lib/messaging/transport";
+import { previewBooking } from "@/lib/roster/book";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { confirmedStrikesEmail } from "@/lib/strikes/team-email";
 import { travelLineText } from "@/lib/travel/line-copy";
-import { superuserPool, urls } from "../helpers/db";
+import { appRolePool, superuserPool, urls } from "../helpers/db";
 
 // The demo's made-up story (src/lib/db/admin/seed-story.ts; docs/office-v2.md §9 "Demo seed";
 // 12I.1), on the real database after `seed()`: each part the mock-up shows has its rows, read the
@@ -197,8 +202,8 @@ describe("the demo story", () => {
     expect(list.shifts.map((s) => s.casualEvent)).not.toContain("Hillside Christmas Market");
   });
 
-  it("the walkthrough's own workers see none of the story's open places", async () => {
-    for (const i of [0, 30, 38]) {
+  it("none of the 60 generated workers (the walkthrough's) sees any of the story's open places", async () => {
+    for (let i = 0; i < 60; i += 1) {
       const list = await openShiftsFor(ctx, seedId(`acme/worker/${i}`));
       const ids = new Set(list.shifts.map((s) => s.shiftId));
       expect(STORY.sessions.filter((x) => ids.has(x.id))).toEqual([]);
@@ -257,45 +262,62 @@ describe("the demo story", () => {
     ]);
   });
 
-  it("the enquiries: Zoe's list, Ben's pay question and Kieran's cancel, answered by the shifts line's own job", async () => {
+  it("the enquiries: Zoe's list, Ben's pay question and Kieran's cancel, queued for the shifts line's own job, which answers them", async () => {
+    const ids = STORY.messages.map((x) => x.id);
+    // Stored as the webhook stores them, each with its job queued (nothing answered by the seed).
+    const { rows: queued } = await su.query<{ n: number }>(
+      `select count(*)::int as n from pgboss.job
+        where name = 'inbound-message' and data ->> 'messageId' = any($1::text[])`,
+      [ids],
+    );
+    expect(queued).toEqual([{ n: 3 }]);
+    // The job worker's part: the real job, with a sender that records instead of sending.
+    const app = appRolePool(2);
+    const sent: string[] = [];
+    const transport: MessagingTransport = {
+      name: "test",
+      async send(m) {
+        sent.push(m.body);
+        return { providerMessageId: `test-${sent.length}` };
+      },
+    };
+    try {
+      for (const messageId of ids) {
+        await runInboundMessage(
+          { firmId: ACME, messageId, idempotencyKey: `inbound-message:${messageId}` },
+          createWithFirm(app),
+          { transport, ai: noAi, baseDomain: "localhost:3000" },
+        );
+      }
+    } finally {
+      await app.end();
+    }
     const { rows } = await su.query<{
       who: string;
       intent: string;
       handled: string;
       reply: string;
-      gap: number;
     }>(
-      `select w.first_name as who, m.intent, m.handled_as as handled, r.body as reply,
-              extract(epoch from (r.created_at - m.created_at))::int as gap
+      `select w.first_name as who, m.intent, m.handled_as as handled, r.body as reply
          from messages m join workers w on w.id = m.worker_id
          join messages r on r.reply_to = m.id
         where m.id = any($1::uuid[]) order by w.first_name`,
-      [STORY.messages.map((x) => x.id)],
+      [ids],
     );
     expect(rows.map((r) => [r.who, r.intent, r.handled])).toEqual([
       ["Ben", "pay", "keyword"],
       ["Kieran", "cancel", "keyword"],
       ["Zoe", "shifts", "keyword"],
     ]);
-    // Zoe's personal list names her shifts (the Arena's urgent one first); every reply is the
-    // app's, signed by the firm, a few seconds after the message.
+    // Zoe's personal list names her shifts; every reply is the app's, signed by the firm.
     expect(rows.find((r) => r.who === "Zoe")?.reply).toContain("Acme Demo Arena");
-    for (const r of rows) {
-      expect(r.reply).toContain("Acme Events Shift Team");
-      expect(r.gap).toBe(4);
-    }
-    const { rows: inside } = await su.query<{ n: number }>(
-      `select count(*)::int as n from messages
-        where id = any($1::uuid[]) and created_at > now() - interval '90 days'`,
-      [STORY.messages.map((x) => x.id)],
-    );
-    expect(inside).toEqual([{ n: 3 }]);
-    const { rows: logged } = await su.query<{ action: string; n: number }>(
-      `select action, count(*)::int as n from events
+    for (const r of rows) expect(r.reply).toContain("Acme Events Shift Team");
+    const { rows: logged } = await su.query<{ action: string }>(
+      `select distinct action from events
         where firm_id = $1 and action in ('message.received', 'message.replied', 'enquiry.checks')
           and (entity_id = any($2::uuid[]) or data ->> 'messageId' = any($3::text[]))
-        group by action order by action`,
-      [ACME, STORY.messages.map((x) => x.id), STORY.messages.map((x) => x.id)],
+        order by action`,
+      [ACME, ids, ids],
     );
     expect(logged.map((l) => l.action)).toEqual([
       "enquiry.checks",
@@ -312,9 +334,17 @@ describe("the demo story", () => {
     );
     expect(rows.map((r) => r.n)).toEqual([2, 2]);
     expect(rows.every((r) => r.note.length > 0)).toBe(true);
+    // The walkthrough's 10 for this run's day (another file's run for a later day adds its own).
+    const firm = acmeFirm();
+    const now = new Date();
+    const today = acmePayQueries(
+      firm.workers,
+      acmePastEvent(firm.workers, firm.sites, now),
+      now,
+    ).map((q) => q.id);
     const { rows: open } = await su.query<{ n: number }>(
-      "select count(*)::int as n from pay_queries where firm_id = $1 and status = 'open'",
-      [ACME],
+      "select count(*)::int as n from pay_queries where id = any($1::uuid[]) and status = 'open'",
+      [today],
     );
     expect(open).toEqual([{ n: 10 }]);
   });
@@ -329,5 +359,36 @@ describe("the demo story", () => {
       { who: "Ben", kind: "photo" },
       { who: "Leah", kind: "certificate" },
     ]);
+  });
+  it("every story booking is one the rules allowed when it was made", async () => {
+    for (const b of STORY.bookings) {
+      const verdict = await withFirm(ACME, (tx) =>
+        previewBooking(tx, { shiftId: b.shiftId, workerId: b.workerId, now: b.confirmedAt }),
+      );
+      expect({ booking: b.id, reasons: verdict?.reasons }).toEqual({ booking: b.id, reasons: [] });
+    }
+  });
+
+  it("urgent as the app marks it: the office's two, and the system's after each dropout inside the window", async () => {
+    const { rows } = await su.query<{ actor: string; cause: string; n: number }>(
+      `select actor_type as actor, data ->> 'cause' as cause, count(*)::int as n from events
+        where firm_id = $1 and action = 'shift.marked_urgent' and entity_id = any($2::uuid[])
+        group by 1, 2 order by 1, 2`,
+      [ACME, STORY.sessions.map((x) => x.id)],
+    );
+    expect(rows).toEqual([
+      { actor: "office", cause: "office", n: 2 },
+      { actor: "system", cause: "dropout", n: 3 },
+    ]);
+  });
+
+  it("no casual's own words reach the log: cancel reasons, the review reason and the withdrawal reason stay on their rows", async () => {
+    const { rows } = await su.query<{ n: number }>(
+      `select count(*)::int as n from events
+        where firm_id = $1 and (data::text ilike '%unwell%' or data::text ilike '%overslept%'
+          or data::text ilike '%broke down%' or data::text ilike '%travel problem%')`,
+      [ACME],
+    );
+    expect(rows).toEqual([{ n: 0 }]);
   });
 });

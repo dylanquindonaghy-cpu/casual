@@ -2,6 +2,7 @@ import { FIRM_CHANGE_REASONS } from "../../roster/firm-reasons";
 import { addDays, localDateOf, zonedToUtc } from "../../time/zoned";
 import { fakePoint } from "../../travel/geocoder";
 import { fakeTrip } from "../../travel/provider";
+import { strikeSettings } from "../../strikes/settings";
 import { seedId, type SeedFirm } from "./seed-data";
 export { STRIKES_TEAM } from "./seed-data";
 
@@ -73,6 +74,9 @@ export interface StorySession {
   uniform: string;
   requiredCredentials: string[];
   createdAt: Date;
+  // Why it's urgent: the office marked it, or the system did when someone dropped out inside the
+  // firm's urgent window (as src/lib/roster/urgent.ts does). Null: not urgent.
+  urgentCause: "office" | "dropout" | null;
 }
 
 export interface StoryBooking {
@@ -246,13 +250,13 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     {
       id: id("site/northgate"),
       name: "Northgate Demo Town Centre",
-      town: "Northgate",
+      town: "Exampleton",
       postcode: "ZZ6 1AA",
     },
     {
       id: id("site/common"),
       name: "Northgate Demo Common",
-      town: "Northgate",
+      town: "Exampleton",
       postcode: "ZZ6 5CC",
     },
     {
@@ -264,7 +268,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     {
       id: id("site/hillside"),
       name: "Hillside Demo Square",
-      town: "Hillside",
+      town: "Sampleford",
       postcode: "ZZ8 1AA",
     },
   ];
@@ -362,7 +366,8 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
   held("zoe", "STEWARD_L2", null);
   held("zoe", "CSAS", iso(510));
   held("zoe", "MANUAL_HANDLING", iso(22)); // expiring in 22 days; no first aid
-  held("kieran", "SIA_DS", iso(-20), "expired");
+  // Ran out 5 days ago: after his two past shifts (the rules allowed those bookings).
+  held("kieran", "SIA_DS", iso(-5));
   held("ben", "STEWARD_L2", null);
   held("ben", "MANUAL_HANDLING", iso(300));
   held("priya", "SIA_DS", iso(600));
@@ -464,6 +469,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       headcount: number;
       booked: number;
       urgent?: boolean;
+      dropout?: boolean; // made urgent by a dropout (its booking cancelled inside the urgent window)
       post: string;
       meet: string;
       needs?: string[];
@@ -478,7 +484,8 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     endsAt: new Date(o.start.getTime() + o.hours * HOUR),
     headcount: o.headcount,
     status: o.booked >= o.headcount ? "filled" : "open",
-    isUrgent: o.urgent ?? false,
+    isUrgent: (o.urgent ?? false) || (o.dropout ?? false),
+    urgentCause: o.dropout ? "dropout" : o.urgent ? "office" : null,
     payRatePence: o.pay.payRatePence,
     post: o.post,
     meetingPoint: o.meet,
@@ -648,6 +655,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       hours: 8,
       headcount: 1,
       booked: 1,
+      dropout: true,
       post: "Gate C",
       meet: "Staff entrance on Arena Way",
       pay: S.ds,
@@ -660,6 +668,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       hours: 8,
       headcount: 1,
       booked: 1,
+      dropout: true,
       post: "Gate A",
       meet: "Staff entrance on Arena Way",
       pay: S.ds,
@@ -684,6 +693,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       hours: 6,
       headcount: 1,
       booked: 1,
+      dropout: true,
       post: "Market Square patrol",
       meet: "The Demo Town Centre police box",
       pay: S.csas,
@@ -811,7 +821,9 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
   book("past-riverside", "ben", 1, { status: "completed" });
   book("past-riverside", "priya", 2, { status: "completed" });
 
-  // Strikes: each casual's own cancellation inside 48 hours, issued as it was cancelled.
+  // Strikes: each casual's own cancellation inside the firm's notice, issued as it was cancelled,
+  // counting for the firm's strikes.live_days.
+  const { liveDays } = strikeSettings(firm.settings);
   const strikeFor = (
     session: string,
     key: StoryKey,
@@ -829,7 +841,7 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
       shiftId: b.shiftId,
       noticeHours: b.noticeHours,
       issuedAt: b.cancelledAt,
-      expiresAt: new Date(b.cancelledAt.getTime() + 90 * DAY),
+      expiresAt: new Date(b.cancelledAt.getTime() + liveDays * DAY),
       reviewReasons: o.review ?? [],
       withdrawn: o.withdrawn
         ? {
@@ -910,25 +922,26 @@ export function acmeStory(firm: SeedFirm, now: Date): StorySeed {
     }
   }
 
-  // The shifts line: Zoe asks for shifts, Ben about his pay, Kieran to cancel.
+  // The shifts line: Zoe asks for shifts, Ben about his pay, Kieran to cancel, just before the seed
+  // ran. The job worker answers them with the app's own replies when it runs (seed-story-load.ts).
   const messages: StoryMessage[] = [
     {
       id: id("message/zoe"),
       workerKey: "zoe",
       body: "Hi, any shifts for me?",
-      receivedAt: new Date(now.getTime() - 2 * HOUR),
+      receivedAt: new Date(now.getTime() - 3 * 60_000),
     },
     {
       id: id("message/ben"),
       workerKey: "ben",
       body: "When will I get paid for the food festival?",
-      receivedAt: new Date(now.getTime() - 5 * HOUR),
+      receivedAt: new Date(now.getTime() - 2 * 60_000),
     },
     {
       id: id("message/kieran"),
       workerKey: "kieran",
       body: "I need to cancel please",
-      receivedAt: new Date(now.getTime() - 26 * HOUR),
+      receivedAt: new Date(now.getTime() - 60_000),
     },
   ];
 

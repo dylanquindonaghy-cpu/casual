@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { recordEvent } from "../../events/record";
-import { noAi } from "../../ai/client";
-import { runInboundMessage } from "../../inbound/reply";
-import type { MessagingTransport } from "../../messaging/transport";
+import { queueInboundMessage } from "../../inbound/job";
 import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { TRAVEL_NOTICE_VERSION } from "../../portal/travel";
 import { automaticEventId } from "../../roster/shift-events";
+import { hoursToStart } from "../../rules/urgent";
+import { strikeSettings } from "../../strikes/settings";
 import { STRIKE_WARNING_VERSION } from "../../strikes/words";
 import { fakePoint } from "../../travel/geocoder";
 import {
@@ -23,7 +23,7 @@ import {
   workers,
   workerTravel,
 } from "../schema";
-import type { FirmTx, WithFirm } from "../scoped";
+import type { FirmTx } from "../scoped";
 import type { SeedFirm } from "./seed-data";
 import {
   STORY_CERTIFICATE_JPEG,
@@ -52,8 +52,14 @@ const pointOf = (postcode: string) => {
 };
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 
-export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): Promise<void> {
+export async function loadStory(
+  tx: FirmTx,
+  firm: SeedFirm,
+  story: StorySeed,
+  now: Date,
+): Promise<void> {
   const firmId = firm.id;
+  const strikeRules = strikeSettings(firm.settings);
   const resourcer = officeId(firm, "resourcer");
   const payroll = officeId(firm, "payroll");
 
@@ -108,7 +114,7 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
   // demo's to do (Ben's photo, Leah's new licence).
   const office = (u: StorySeed["uploads"][number]) =>
     u.status === "approved" ? { checkedBy: resourcer, checkedAt: u.checkedAt } : {};
-  await tx
+  const addedUploads = await tx
     .insert(uploads)
     .values(
       story.uploads.map((u) => {
@@ -129,7 +135,35 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
         };
       }),
     )
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: uploads.id });
+  // Each sent by the casual, and the office's check of the approved ones, as the app logs them.
+  const freshUploads = new Set(addedUploads.map((u) => u.id));
+  for (const u of story.uploads.filter((x) => freshUploads.has(x.id))) {
+    const what = {
+      workerId: u.workerId,
+      kind: u.kind,
+      ...(u.credentialType ? { qualificationType: u.credentialType } : {}),
+    };
+    await recordEvent(tx, {
+      actorType: "worker",
+      actorId: u.workerId,
+      action: "upload.received",
+      entityType: "upload",
+      entityId: u.id,
+      data: what,
+    });
+    if (u.status === "approved") {
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: resourcer,
+        action: "upload.approved",
+        entityType: "upload",
+        entityId: u.id,
+        data: what,
+      });
+    }
+  }
 
   // Qualifications: put back as seeded. Her renewal waiting is only added (the office's check is
   // the demo's).
@@ -203,7 +237,7 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
   }
 
   // The six events, added once (a demo's switch stays as the demo left it).
-  await tx
+  const addedEvents = await tx
     .insert(shiftEvents)
     .values(
       story.events.map((e) => ({
@@ -215,12 +249,38 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
         showingToCasuals: e.showing,
       })),
     )
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: shiftEvents.id, showing: shiftEvents.showingToCasuals });
+  // One switched off: the office's switch, logged as the app logs it.
+  for (const e of addedEvents.filter((x) => !x.showing)) {
+    await recordEvent(tx, {
+      actorType: "office",
+      actorId: resourcer,
+      action: "event.hidden",
+      entityType: "shift_event",
+      entityId: e.id,
+      data: { by: "firm" },
+    });
+  }
 
   // Sessions: added once. One whose booking was cancelled has its place open again.
   const reopened = new Set(story.bookings.filter((b) => b.reopenedId).map((b) => b.shiftId));
+  const there = new Set(
+    (
+      await tx
+        .select({ id: shifts.id })
+        .from(shifts)
+        .where(
+          inArray(
+            shifts.id,
+            story.sessions.map((x) => x.id),
+          ),
+        )
+    ).map((x) => x.id),
+  );
   const rows = [];
-  for (const s of story.sessions) {
+  // Only the sessions not there yet: a later day's re-run makes no empty automatic events.
+  for (const s of story.sessions.filter((x) => !there.has(x.id))) {
     rows.push({
       id: s.id,
       firmId,
@@ -248,13 +308,12 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
       createdAt: s.createdAt,
     });
   }
-  const added = await tx
-    .insert(shifts)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({ id: shifts.id, isUrgent: shifts.isUrgent });
+  const added =
+    rows.length > 0
+      ? await tx.insert(shifts).values(rows).onConflictDoNothing().returning({ id: shifts.id })
+      : [];
   const fresh = new Set(added.map((s) => s.id));
-  for (const s of added) {
+  for (const s of story.sessions.filter((x) => fresh.has(x.id))) {
     await recordEvent(tx, {
       actorType: "system",
       action: "shift.created",
@@ -262,14 +321,16 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
       entityId: s.id,
       data: { source: "seed" },
     });
-    if (s.isUrgent) {
+    // Marked urgent by the office (as src/lib/roster/urgent.ts logs it); one made urgent by a
+    // dropout is logged with its cancellation, below.
+    if (s.urgentCause === "office") {
       await recordEvent(tx, {
         actorType: "office",
         actorId: resourcer,
         action: "shift.marked_urgent",
         entityType: "shift",
         entityId: s.id,
-        data: { by: "office" },
+        data: { by: "firm", cause: "office", hoursToStart: hoursToStart(s.startsAt, now) },
       });
     }
   }
@@ -328,9 +389,20 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
         noticeHours: b.bookedNoticeHours,
       },
     });
+    if (b.status === "completed") {
+      // Marked worked by the office after the shift (src/lib/roster/attendance.ts).
+      await recordEvent(tx, {
+        actorType: "office",
+        actorId: resourcer,
+        action: "shift.completed",
+        entityType: "assignment",
+        entityId: b.id,
+        data: { by: "firm", shiftId: b.shiftId, workerId: b.workerId, from: "confirmed" },
+      });
+    }
     if (b.status !== "cancelled_worker" && b.status !== "cancelled_firm") continue;
     const byFirm = b.status === "cancelled_firm";
-    await recordEvent(tx, {
+    const cancelEvent = await recordEvent(tx, {
       actorType: byFirm ? "office" : "worker",
       actorId: byFirm ? resourcer : b.workerId,
       action: "shift.cancelled",
@@ -347,6 +419,33 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
         reopenedId: b.reopenedId,
       },
     });
+    const session = story.sessions.find((x) => x.id === b.shiftId);
+    // A dropout inside the urgent window: the system marked the place urgent (as urgent.ts does).
+    if (!byFirm && session?.urgentCause === "dropout" && b.noticeHours !== null) {
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "shift.marked_urgent",
+        entityType: "shift",
+        entityId: b.shiftId,
+        data: { by: "system", cause: "dropout", hoursToStart: b.noticeHours },
+      });
+    }
+    // The office's cancellation: the casual was told (golden rule 12; src/lib/notices/firm-change.ts).
+    if (byFirm) {
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "shift.change_notice_sent",
+        entityType: "assignment",
+        entityId: b.id,
+        data: {
+          changeEventId: cancelEvent,
+          workerId: b.workerId,
+          channel: "whatsapp",
+          providerMessageId: `seed-story-notice-${b.id.slice(0, 8)}`,
+          pushes: 0,
+        },
+      });
+    }
   }
 
   // Strikes for those cancellations: issued as they were cancelled, their evidence sent to the
@@ -360,7 +459,7 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
       assignmentId: s.bookingId,
       shiftId: s.shiftId,
       noticeHours: s.noticeHours.toFixed(2),
-      thresholdHours: 48,
+      thresholdHours: strikeRules.noticeHours,
       issuedAt: s.issuedAt,
       expiresAt: s.expiresAt,
       status: s.withdrawn ? "withdrawn" : "live",
@@ -384,7 +483,15 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
       action: "strike.issued",
       entityType: "strike",
       entityId: s.id,
-      data: { ...data, noticeHours: s.noticeHours, thresholdHours: 48 },
+      data: { ...data, noticeHours: s.noticeHours, thresholdHours: strikeRules.noticeHours },
+    });
+    // Its evidence emailed to the strikes team (src/lib/strikes/evidence.ts).
+    await recordEvent(tx, {
+      actorType: "system",
+      action: "strike.evidence_sent",
+      entityType: "strike",
+      entityId: s.id,
+      data: { request: `strike-evidence:${s.id}`, attempt: 1 },
     });
     if (s.withdrawn) {
       await recordEvent(tx, {
@@ -399,11 +506,17 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
   }
 
   // Fixed travel times (the travel job only fills what's missing, so it never overwrites them).
-  if (story.estimates.length > 0) {
+  const freshSites = new Set(
+    story.sessions.filter((x) => fresh.has(x.id)).map((x) => `${x.siteId}|${x.startsAt.getTime()}`),
+  );
+  const estimates = story.estimates.filter((e) =>
+    freshSites.has(`${e.siteId}|${e.arriveBy.getTime() + 30 * 60_000}`),
+  );
+  if (estimates.length > 0) {
     await tx
       .insert(travelEstimates)
       .values(
-        story.estimates.map((e) => ({
+        estimates.map((e) => ({
           firmId,
           originPostcode: e.originPostcode,
           siteId: e.siteId,
@@ -462,9 +575,11 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
     });
   }
 
-  // The shifts line's messages, stored as the webhook stores them (answered after this
-  // transaction: answerStoryMessages).
-  await tx
+  // The shifts line's messages, stored as the webhook stores them, each with its job queued in the
+  // same transaction (src/lib/inbound/receive.ts): the job worker answers them with the app's own
+  // replies and log entries when it runs (`npm run dev`, or `npm run worker`). Nothing is sent from
+  // here, and no AI is near the seed.
+  const addedMessages = await tx
     .insert(messages)
     .values(
       story.messages.map((m) => {
@@ -483,58 +598,9 @@ export async function loadStory(tx: FirmTx, firm: SeedFirm, story: StorySeed): P
         };
       }),
     )
-    .onConflictDoNothing();
-}
-
-// A sender for the seed's own replies: it sends nothing, and gives each reply an id of its own.
-const seedTransport: MessagingTransport = {
-  name: "seed",
-  async send() {
-    return { providerMessageId: `seed-reply-${crypto.randomUUID()}` };
-  },
-};
-
-// The story's messages answered by the shifts line's own job (src/lib/inbound/reply.ts): the same
-// reply text, request and log entries the app makes, with no AI and nothing sent. Only those not
-// answered yet; then each answer is timed to its message (a few seconds after it came in), as it
-// would have been.
-export async function answerStoryMessages(
-  run: WithFirm,
-  firmId: string,
-  story: StorySeed,
-  o: { baseDomain: string; now: Date },
-): Promise<void> {
-  const ids = story.messages.map((m) => m.id);
-  const open = await run(firmId, (tx) =>
-    tx
-      .select({ id: messages.id })
-      .from(messages)
-      .where(and(inArray(messages.id, ids), isNull(messages.handledAt))),
-  );
-  for (const { id } of open) {
-    await runInboundMessage(
-      { firmId, messageId: id, idempotencyKey: `inbound-message:${id}` },
-      run,
-      {
-        transport: seedTransport,
-        ai: noAi,
-        baseDomain: o.baseDomain,
-        clock: { now: () => o.now },
-      },
-    );
-    const m = story.messages.find((x) => x.id === id);
-    if (!m) continue;
-    await run(firmId, async (tx) => {
-      await tx
-        .update(messages)
-        .set({ handledAt: new Date(m.receivedAt.getTime() + 2_000) })
-        .where(eq(messages.id, id));
-      await tx
-        .update(messages)
-        .set({ createdAt: new Date(m.receivedAt.getTime() + 4_000) })
-        .where(eq(messages.replyTo, id));
-    });
-  }
+    .onConflictDoNothing()
+    .returning({ id: messages.id });
+  for (const m of addedMessages) await queueInboundMessage(tx, m.id);
 }
 
 function officeId(firm: SeedFirm, role: "admin" | "resourcer" | "payroll"): string {

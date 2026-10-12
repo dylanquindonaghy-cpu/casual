@@ -297,8 +297,10 @@ Acme as `docs/office-v2.md` §9 tells it, with dates from the day the seed runs:
   certificate as an extra), so the generated workers' lists, and the walkthrough, are unchanged.
   (Three generated workers whose names matched the story's were renamed: 07700 900105, 900137
   and 900152.)
-- The shifts line: Zoe's "Hi, any shifts for me?", Ben's pay question and Kieran's cancel, answered
-  by the shifts line's own job (nothing sent), each reply 4 seconds after its message.
+- The shifts line: Zoe's "Hi, any shifts for me?", Ben's pay question and Kieran's cancel, stored
+  as the webhook stores them, a few minutes before the seed ran, each with its job queued: the job
+  worker (`npm run dev` runs it) answers them with the app's own replies (the console transport
+  prints them; nothing is sent from the seed, and no AI is near it).
 - Pay: two groups payroll has sorted, each with its note (the 10 open queries as before).
 - Added once, by fixed ids: a re-run changes nothing; `npm run db:reset` moves the story to today.
 

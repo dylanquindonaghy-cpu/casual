@@ -11912,3 +11912,85 @@ messages in development and tests; `https` really sends, and is required in prod
 3. Press **Send test event**. In the terminal you should see `[webhook:console] POST
    https://hooks.example/…` with the signed headers and a `test.ping` body (the console transport:
    nothing is really sent). Reload the page: the status says "Working · last delivered …".
+
+## 2026-10-12 — Phase 12, task 12H.1: Casual app tab bar and Home
+
+**Time spent:** 1.2 hours (12:09 to 13:18 UTC).
+
+**Result:** `scripts/verify.sh` (with the browser tests) printed
+`VERIFIED tree=a53b3f99c5efcd74 e2e=true`: 4,797 tests in 263 files, 90 browser tests and the
+walkthrough's 3, none flaky. The independent auditor (`claims-auditor`) said **DONE** in round 1.
+Commit "Phase 12: Casual app tab bar and Home (12H.1)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+The casual's phone app got the layout of `docs/office-v2.md` §4.1–4.2.
+
+- **A tab bar** at the bottom of every page a logged-in casual sees: Home, Shifts, Pay, Profile.
+  The page you're on is in bold and underlined. A small red dot sits on Profile when something
+  needs her (a qualification, or her staff photo overdue or due soon). A screen reader (software
+  that reads the screen aloud for blind users) hears "Profile, something needs updating".
+- **Home** (`/`), top to bottom: "Hello {first name}"; a "Needs updating" box, one thing to do per
+  row, the most urgent first, now including her staff photo; up to 3 urgent shifts she can take,
+  each with its role and event, site, time, pay per hour, post and how far it is ("3.1 miles · 12
+  min by car · 24 min by public transport"); her next shift in full (post, pay with an estimate
+  such as "£12.60 an hour, about £100.80", where to report, what to wear, getting there, a maps
+  button, "Ask for a change" and "Cancel this shift"); then the top 3 other shifts she could apply
+  for, with how many more are further than she travels.
+- **Booked** moved to `/shifts`, with an "Open | Booked" switch at the top. Old links to
+  `/?view=past` are sent on (a *redirect*) to `/shifts?view=past`.
+- **No signal:** the phone keeps a copy of both Home and Booked (the *service worker*, a small
+  script the browser runs in the background, stores them), each marked "No signal." when shown.
+- **Profile** now ends with My requests, Help and then Log out (moved from Home).
+- **Help** was rewritten to point at the tabs, and one sentence on Profile that said "Cancel it on
+  My shifts" now says "Cancel it under Shifts".
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Keep Booked offline as its own copy | The task asks for it, and Home stays short | A full Booked list on Home |
+| One page's 14-day expiry deletes only that copy; logging out deletes both | Leaving must leave nothing; one old page shouldn't take the other with it | Both always expiring together |
+| The tab bar is four plain links, not a list | Read as "Main" navigation with 4 links; pages that count list items aren't affected | A list of tabs |
+| The Profile tab carries its whole spoken name | Hidden words inside the link were read with a gap ("Profile , something…") | Hidden text inside the link |
+| No safety review (`guardrails-reviewer`) | Only screens, the offline page list, Help and tests changed | Running it anyway |
+
+### What the new tests prove
+
+- `tests/unit/portal.my-shifts.test.ts`: the tab bar's four links, the current one marked, the
+  dot and its spoken name; Home's order; the photo row; the urgent and apply lists (at most 3);
+  the next shift's facts; Booked's views.
+- `tests/unit/offline.sw.test.ts`: 7 new tests that Booked is kept, shown and deleted on its own
+  terms, next to Home.
+- `tests/e2e/casual.app.spec.ts` (a real browser, on a phone-sized screen): a made-up casual,
+  Holly, with a photo uploaded 1,130 days ago, a booked shift and an urgent one. Home shows
+  "Your staff photo is overdue. Last uploaded {that date} · renew by …", the urgent card's site
+  and "3.1 miles · 12 min by car · 24 min by public transport", her next shift's site, post, pay
+  estimate, where to report, what to wear and "5.0 miles · 15 min by car · 30 min by public
+  transport", and the Profile dot.
+- `tests/e2e/offline.worker.spec.ts`: Home and Booked each open with no signal, showing her next
+  shift; logging out from Profile deletes both copies.
+- 11 other browser specs follow the links to their new places (none weakened).
+
+### Problems found on the way
+
+- The new test's set-up broke a database rule (a distance is stored for car times only). Fixed
+  in the test helper.
+- The offline browser test opened Home "with no signal" and the server still answered: the
+  recording (*trace*) showed the background script's own request reaching the server. The test
+  switch for "no signal" didn't cover that request. The test now reloads each page with no
+  signal, the way that's proven to work.
+- The first full check failed on formatting in five test files. Formatted and run again.
+
+### What's parked or needs Dylan
+
+- Nothing needs Dylan. Parked in `PLAN.md` ("Casual app Home (12H.1 audit)"): requirement chips on
+  Home's urgent cards (they come with 12H.2), and two notes on tests.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
+2. Open `http://acme.localhost:3000/login`, type `07700 900110` (Sam Walsh) and press "Send me a
+   link"; open the link printed in the terminal and press "Log me in".
+3. You should see "Hello Sam", his next shift in full, and the tab bar at the bottom. Tap
+   "Shifts", then "Past 30 days", to see yesterday's race day. Tap "Profile": Log out is last.

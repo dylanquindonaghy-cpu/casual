@@ -12150,3 +12150,45 @@ problem; Morning summary).
 - **Tests:** the task's list; every spec that used Home's old links ("See open shifts", "My
   profile", "See your pay", "My requests", "Past 30 days", "Log out" on `/`) moves to the tab bar,
   Profile or `/shifts`, because the product moved them (none weakened).
+
+**Decisions** (each one Dylan would normally approve)
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Keep Booked (`/shifts`) offline too, as its own copy (ADR-016 update) | The task says the offline copy covers Home's next shift **and** Booked; §4.2 keeps Home short | A full Booked list on Home (more than §4.2 asks for) |
+| A page's 14-day expiry deletes only that copy; logout, login and "not logged in" delete both | One stale page shouldn't take the other with it; leaving must leave nothing | Both copies always expiring together |
+| Only Home swaps in the fresh page after a slow load | The swap watcher was built for Home; Booked shows the same notice | Watching both pages |
+| The tab bar is four plain links, not a list | Screen readers then announce it as "Main" navigation with 4 links, and pages that count list items aren't changed | A `<ul>` of tabs |
+| The Profile tab's name is "Profile, something needs updating" (an `aria-label`) | The browser read hidden words inside the link with a gap ("Profile , something…"); the test caught it | Hidden text inside the link |
+| "See my shifts" after taking a shift still opens Home | Home shows the next shift in full, with its actions | Opening Booked |
+| The availability note now says "Cancel it under Shifts" and Help is rewritten for the tabs | Both named the old My shifts page and links that moved | Leaving them (wrong directions) |
+| No guardrails review | Only screens, the service worker's page list, Help and tests changed: no schema, auth, tenancy, messaging, jobs or rules | Running it anyway |
+
+**Problems found on the way (root cause first)**
+- The new Home browser test's set-up broke a database rule: a distance is stored for car estimates
+  only (`travel_estimates_metres_check`). Fixed in the helper: public transport gets no distance.
+- The offline browser test opened Home with "no signal" after Booked, and the server answered
+  anyway. The trace showed the service worker's own request reaching the server (a request id and
+  a 200) while the page was set offline: Playwright's offline switch didn't reach that request.
+  The test now reloads each page with no signal, the way the original test did (which works), and
+  uses a casual of its own so a retry can't see an earlier attempt's booking.
+- The first full verify failed at lint: five browser specs edited earlier weren't formatted.
+  Formatted; nothing else changed.
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=a53b3f99c5efcd74 e2e=true` (4,797 tests in 263 files; 90
+browser tests and the walkthrough's 3, none flaky).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. Its notes, not blockers: §4.2 item
+3 mentions requirement chips on Home's urgent cards (the task text doesn't list them, and 12H.2
+builds chips for the shifts list); "the theme follows the phone" rests on the CSS media query,
+with no test of its own.
+
+**Ended:** 2026-10-12 13:18 UTC. **Hours:** 1.2. Phase 12 so far: 37.3 hours over 28 Hours-log rows
+(no estimate for Phase 12, so nothing to compare).
+
+**Commit:** "Phase 12: Casual app tab bar and Home (12H.1)", pushed to `build/overnight`, after
+WIP commits 092194d, aa88f36, de46cde, 577eb7d and 3c02c92. CI: `gh` isn't available in this
+container, so the CI run isn't noted.
+
+**Parked:** requirement chips on Home's urgent cards go with 12H.2's chips (Parking lot).

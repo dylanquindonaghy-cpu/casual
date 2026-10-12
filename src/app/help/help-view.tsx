@@ -88,15 +88,20 @@ export function HelpView({ firmName }: { firmName: string }) {
 
       <Section id="your-shifts">
         <p className="mt-3">
-          <Name>My shifts</Name> is the first page you see.
+          <Name>Home</Name> is the first page you see. The tabs at the bottom take you to{" "}
+          <Name>Home</Name>, <Name>Shifts</Name>, <Name>Pay</Name> and <Name>Profile</Name>.
         </p>
         <Points>
-          <li>Your next shift is at the top: the day and times, the site, and any instructions.</li>
+          <li>
+            Home shows your next shift in full: the day and times, the site, your pay and any
+            instructions.
+          </li>
           <li>
             Tap <Name>Open in maps</Name> for directions to the site.
           </li>
           <li>
-            <Name>Coming up</Name> lists your other shifts. Tap one to see its details.
+            Tap <Name>Shifts</Name>, then <Name>Booked</Name>, to see all your shifts. Tap one to
+            see its details.
           </li>
           <li>
             Tap <Name>Past 30 days</Name> to see shifts you&apos;ve worked. Tap{" "}
@@ -108,7 +113,7 @@ export function HelpView({ firmName }: { firmName: string }) {
       <Section id="taking-a-shift">
         <Steps>
           <Step>
-            On My shifts, tap <Name>See open shifts</Name>.
+            On Home, tap <Name>See all open shifts</Name>.
           </Step>
           <Step>
             To narrow the list, choose a day, site or role. Then tap <Name>Show shifts</Name>.
@@ -117,7 +122,8 @@ export function HelpView({ firmName }: { firmName: string }) {
             Tap <Name>Take shift</Name> on the one you want.
           </Step>
           <Step>
-            You&apos;ll see “You&apos;re booked.” and a reference. The shift is now on My shifts.
+            You&apos;ll see “You&apos;re booked.” and a reference. The shift is now in your booked
+            shifts.
           </Step>
         </Steps>
         <p className="mt-4">You only see shifts you can take. A shift won&apos;t show if:</p>
@@ -140,7 +146,7 @@ export function HelpView({ firmName }: { firmName: string }) {
 
       <Section id="urgent-shifts">
         <p className="mt-3">
-          When a shift you could take starts soon and needs someone, My shifts shows a red box at
+          When a shift you could take starts soon and needs someone, Home shows it in a red box near
           the top.
         </p>
         <Steps>
@@ -157,7 +163,8 @@ export function HelpView({ firmName }: { firmName: string }) {
       <Section id="cant-make-it">
         <Steps>
           <Step>
-            On My shifts, find the shift and tap <Name>Cancel this shift</Name>.
+            On Home or under <Name>Shifts</Name>, find the shift and tap{" "}
+            <Name>Cancel this shift</Name>.
           </Step>
           <Step>Choose why you can&apos;t make it.</Step>
           <Step>
@@ -179,7 +186,7 @@ export function HelpView({ firmName }: { firmName: string }) {
       <Section id="changes">
         <Steps>
           <Step>
-            On My shifts, tap <Name>Ask for a change</Name> under the shift.
+            Find the shift on Home or under <Name>Shifts</Name>. Tap <Name>Ask for a change</Name>.
           </Step>
           <Step>
             Choose <Name>Change the times</Name> or <Name>Swap with someone</Name>.
@@ -198,7 +205,7 @@ export function HelpView({ firmName }: { firmName: string }) {
       <Section id="your-pay">
         <Steps>
           <Step>
-            On My shifts, tap <Name>See your pay</Name>.
+            Tap the <Name>Pay</Name> tab.
           </Step>
           <Step>
             Tap <Name>Send me a code</Name>. We send a 6‑digit code by WhatsApp. It works for 10
@@ -226,7 +233,8 @@ export function HelpView({ firmName }: { firmName: string }) {
 
       <Section id="your-profile">
         <p className="mt-3">
-          Tap <Name>My profile</Name> on My shifts.
+          Tap the <Name>Profile</Name> tab. <Name>My requests</Name> and <Name>Log out</Name> are
+          there too.
         </p>
         <Points>
           <li>
@@ -244,7 +252,8 @@ export function HelpView({ firmName }: { firmName: string }) {
 
       <Section id="no-signal">
         <p className="mt-3">
-          Open My shifts once with signal. After that, it opens on that phone with no signal too.
+          Open Home and your booked shifts once with signal. After that, they open on that phone
+          with no signal too.
         </p>
         <p className="mt-3">
           You&apos;ll see “No signal.” and when your shifts were saved. They may have changed since.

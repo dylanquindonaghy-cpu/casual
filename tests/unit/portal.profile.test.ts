@@ -259,7 +259,7 @@ describe("the answer to marking a day", () => {
       alert: false,
     });
     expect(say({ status: "added", day: "2026-11-04", bookedThatDay: true }).text).toBe(
-      "Marked Wed 4 Nov as unavailable. You're booked that day: marking it doesn't cancel that shift. Cancel it on My shifts if you can't work it.",
+      "Marked Wed 4 Nov as unavailable. You're booked that day: marking it doesn't cancel that shift. Cancel it under Shifts if you can't work it.",
     );
     expect(say({ status: "removed", day: "2026-11-04" }).text).toBe(
       "Wed 4 Nov is available again.",

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Icon, type IconName } from "./ui/icons";
 
 // The casual app's bottom tab bar (docs/office-v2.md 4.1; docs/screens.md "Casual app"; 12H.1):
-// Home · Shifts · Pay · Profile, each a link with its icon and its word, on every page a logged-in
+// Home · Shifts · Pay · Profile, four links (not a list: a page's own lists are counted alone), each with its icon and its word, on every page a logged-in
 // casual uses (not Help, which anyone may open, nor the login pages). The current tab is marked
 // (aria-current="page", bold and underlined, not by colour alone). Profile carries a dot, with
 // words for screen readers, when something there needs her (a qualification to sort out, or her
@@ -33,40 +33,39 @@ export function TabBar({
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-card pb-[env(safe-area-inset-bottom)]"
     >
-      <ul role="list" className="mx-auto grid max-w-md grid-cols-4">
+      <div className="mx-auto grid max-w-md grid-cols-4">
         {TABS.map(({ tab, href, words, icon }) => {
           const here = tab === current;
           return (
-            <li key={tab}>
-              <Link
-                href={href}
-                aria-current={here ? "page" : undefined}
-                className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-sm focus-visible:-outline-offset-4 ${
-                  here
-                    ? "font-bold text-ink underline decoration-2 underline-offset-4"
-                    : "font-semibold text-ink-muted hover:text-ink"
-                }`}
-              >
-                <span className="relative">
-                  <Icon name={icon} className="h-6 w-6" />
-                  {tab === "profile" && profileDot && (
-                    <span
-                      data-profile-dot=""
-                      className="absolute -top-0.5 -right-1 h-2.5 w-2.5 rounded-full bg-urgent-fill ring-2 ring-card"
-                    />
-                  )}
-                </span>
-                <span>
-                  {words}
-                  {tab === "profile" && profileDot && (
-                    <span className="sr-only">, {PROFILE_DOT_WORDS}</span>
-                  )}
-                </span>
-              </Link>
-            </li>
+            <Link
+              key={tab}
+              href={href}
+              aria-current={here ? "page" : undefined}
+              className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-sm focus-visible:-outline-offset-4 ${
+                here
+                  ? "font-bold text-ink underline decoration-2 underline-offset-4"
+                  : "font-semibold text-ink-muted hover:text-ink"
+              }`}
+            >
+              <span className="relative">
+                <Icon name={icon} className="h-6 w-6" />
+                {tab === "profile" && profileDot && (
+                  <span
+                    data-profile-dot=""
+                    className="absolute -top-0.5 -right-1 h-2.5 w-2.5 rounded-full bg-urgent-fill ring-2 ring-card"
+                  />
+                )}
+              </span>
+              <span>
+                {words}
+                {tab === "profile" && profileDot && (
+                  <span className="sr-only">, {PROFILE_DOT_WORDS}</span>
+                )}
+              </span>
+            </Link>
           );
         })}
-      </ul>
+      </div>
     </nav>
   );
 }

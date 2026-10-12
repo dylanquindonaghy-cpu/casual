@@ -5,6 +5,7 @@ import {
   addQualifiedCasual,
   bookAndCancel,
   cancelOwnShift,
+  homeScene,
 } from "./db";
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
@@ -30,6 +31,8 @@ const ZOE_QUALIFICATIONS = {
   ],
 };
 const DAY = /\d{1,2} [A-Z][a-z]{2}( \d{4})?/.source;
+// Home's casual (12H.1): one of this spec's own, with a booked session, an urgent one and an old photo.
+const HOLLY = { firstName: "Holly", lastName: "Grant", mobileE164: "+447700900621" };
 // Her qualifications as tags on Casuals, worst first.
 const TAGS =
   /CSAS accreditation: Missing.*Level 2 spectator safety qualification: Expiring soon.*SIA door supervisor licence: Valid/;
@@ -82,6 +85,74 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await expect(qualifications).toContainText("Right to work");
   await expect(qualifications).toContainText("Not checked yet: ask the office");
   expect((await page.locator("body").innerText()).toLowerCase()).not.toContain("credential");
+  await noSidewaysScroll(page);
+});
+
+// Home (12H.1; docs/office-v2.md 4.2): the photo row in Needs updating with its seeded upload date,
+// the urgent card and the next shift each with their site and both travel times, the next shift's
+// facts, and the tab bar with the Profile dot.
+test("Home shows Holly's photo row, the urgent card and her next shift in full", async ({
+  page,
+}) => {
+  const scene = await homeScene("acme", HOLLY);
+  const asked = new Date(Date.now() - 1000);
+  await page.goto(`${acme}/login`);
+  await page.getByLabel("Your mobile number").fill("07700 900621");
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await page.goto(await loginLinkSentTo(HOLLY.mobileE164, asked));
+  await page.getByRole("button", { name: "Log me in" }).click();
+  await expect(page.getByRole("heading", { name: "Hello Holly" })).toBeVisible();
+
+  // Needs updating: her photo, overdue, with the date it was uploaded (the firm's calendar).
+  // ("3 Sep 2023": the app's own short months, not the browser's "Sept".)
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" })
+    .format(scene.photoOn)
+    .split("-")
+    .map(Number);
+  const months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+  const uploaded = `${d} ${months[(m ?? 1) - 1]} ${y}`;
+  const needs = page.getByRole("region", { name: "Needs updating" });
+  await expect(needs.getByRole("listitem")).toHaveText([
+    new RegExp(
+      `^Your staff photo is overdue\\. Last uploaded ${uploaded} · renew by ${DAY}\\. Take a new photo$`,
+    ),
+  ]);
+  await expect(needs.getByRole("link", { name: "Take a new photo" })).toHaveAttribute(
+    "href",
+    "/profile#photo-heading",
+  );
+
+  // The urgent card: role · event, the site, and both travel times.
+  const urgent = page.getByRole("region", { name: "Urgent: needed now, and you can take them" });
+  await expect(urgent.getByRole("listitem")).toHaveCount(1);
+  await expect(urgent).toContainText("Home check");
+  await expect(urgent).toContainText(scene.urgent.site);
+  await expect(urgent).toContainText("£13.00/hour");
+  await expect(urgent).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
+
+  // Her next shift, in full.
+  const next = page.getByRole("region", { name: "Your next shift" });
+  await expect(next).toContainText("Home check");
+  await expect(next).toContainText(scene.booked.site);
+  await expect(next).toContainText("Gate 3");
+  await expect(next).toContainText(/£12\.60 an hour, about £100\.80/);
+  await expect(next).toContainText("Staff entrance on Mill Lane");
+  await expect(next).toContainText("Black trousers and your hi-vis");
+  await expect(next).toContainText("5.0 miles · 15 min by car · 30 min by public transport");
+  await expect(next.getByRole("link", { name: "Ask for a change" })).toBeVisible();
+  await expect(next.getByRole("button", { name: "Cancel this shift" })).toBeVisible();
+
+  // Nothing else in her role is open, so the apply list says so.
+  const apply = page.getByRole("region", { name: "Shifts you can apply for" });
+  await expect(apply).toContainText(
+    "Only shifts your licences and hours allow, up to 45 minutes from your home area.",
+  );
+  await expect(apply.getByRole("link", { name: "See all open shifts" })).toBeVisible();
+
+  // The tab bar: Home is current; Profile carries the dot for her photo.
+  const tabs = page.getByRole("navigation", { name: "Main" });
+  await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+  await expect(tabs.getByRole("link", { name: "Profile, something needs updating" })).toBeVisible();
   await noSidewaysScroll(page);
 });
 

@@ -271,6 +271,11 @@ revisiting. Since web push (Phase 4), a phone with notifications on keeps the se
 when `OFFLINE_COPY=off` (it carries the notifications), and that service worker still keeps the
 copy; turning notifications off removes it. **Revisit when:** the real web push sender is
 connected.
+**Update (12H.1):** My shifts became Home (`/`) and a Booked list (`/shifts`), so the service worker
+keeps both, each as its own copy with the same notice and the same 14-day limit (only Home swaps in
+the fresh page by itself after a slow load). A page's expiry deletes only that copy; logout, login
+and "not logged in" delete both. The alternative, a full Booked list on Home, would have put more
+than docs/office-v2.md 4.2 asks for on Home. Every other page is still never cached.
 
 ## ADR-017: Shift reminders come from a 5-minute tick and a table of what was sent
 

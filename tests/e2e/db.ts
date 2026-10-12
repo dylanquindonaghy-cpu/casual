@@ -1,4 +1,5 @@
 import { and, arrayContains, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { Pool } from "pg";
 import { seedId } from "../../src/lib/db/admin/seed-data";
 import { databaseName, isLocalHost, withDatabase } from "../../src/lib/db/admin/urls";
@@ -11,6 +12,7 @@ import {
   shifts,
   sites,
   strikes,
+  uploads,
   workers,
   workerTravel,
 } from "../../src/lib/db/schema";
@@ -446,6 +448,26 @@ export async function addBookedShift(
   }
 }
 
+// A seeded worker's id, by mobile, in the e2e database (12H.1: the offline spec books one of them).
+export async function workerIdOf(slug: string, mobileE164: string): Promise<string> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      const [row] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(eq(workers.mobileE164, mobileE164));
+      if (!row) throw new Error("no such worker");
+      return row.id;
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
 // How many of these shifts-line messages (by Twilio's id) have been answered (a reply stored for
 // each), in the e2e database: the load smoke's check that the queue drains.
 export async function answeredMessages(slug: string, providerIds: string[]): Promise<number> {
@@ -717,6 +739,161 @@ export async function travelScene(
         96560,
       );
       return { workerId: worker.id, near, far };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
+// Home's scene (12H.1; tests/e2e/casual.app.spec.ts): a casual of its own in a role nobody else
+// has (no qualification needed, so no other spec's lists change), with a travel area (car or public
+// transport, 45 minutes) and a staff photo the office approved 1,130 days ago (overdue: photos last
+// 36 months). She is booked on a session 9 days ahead with every fact Home shows (post, pay, where
+// to report, uniform), and an urgent session in her role is open the day after. Each at a site of its own, with the travel job's
+// estimates by car and by public transport (no travel service is called). A rerun cancels the last
+// run's sessions first, so it starts the same way (bookings are never deleted).
+export const HOME_SCENE_ROLE = "home_check";
+export async function homeScene(
+  slug: string,
+  casual: { firstName: string; lastName: string; mobileE164: string },
+): Promise<{
+  workerId: string;
+  photoOn: Date;
+  booked: { site: string };
+  urgent: { site: string };
+}> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.execute(sql`
+        insert into credential_rules (firm_id, sector, role, required_types)
+        values (${firmId}, 'security', ${HOME_SCENE_ROLE}, '{}')
+        on conflict (firm_id, role) do nothing`);
+      await tx
+        .insert(workers)
+        .values({ firmId, ...casual, roles: [HOME_SCENE_ROLE] })
+        .onConflictDoNothing();
+      const [worker] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(eq(workers.mobileE164, casual.mobileE164));
+      if (!worker) throw new Error("home scene casual neither added nor found");
+      await tx.update(shifts).set({ status: "cancelled" }).where(eq(shifts.role, HOME_SCENE_ROLE));
+      const point = (postcode: string) => {
+        const p = fakePoint(postcode);
+        if (!p) throw new Error(`no fake point for ${postcode}`);
+        return { lat: String(p.lat), lng: String(p.lng) };
+      };
+      const home = point("ZZ2 2BB");
+      await tx
+        .insert(workerTravel)
+        .values({
+          firmId,
+          workerId: worker.id,
+          startPostcode: "ZZ2 2BB",
+          ...home,
+          modes: "both",
+          maxMinutes: 45,
+          privacyNoticeVersion: "travel-v1",
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [workerTravel.firmId, workerTravel.workerId],
+          set: { startPostcode: "ZZ2 2BB", ...home, modes: "both", maxMinutes: 45 },
+        });
+
+      // Her staff photo, approved by one of the firm's office team 1,130 days ago.
+      const [checker] = await tx.select({ id: officeUsers.id }).from(officeUsers).limit(1);
+      if (!checker) throw new Error("no office user to approve the photo");
+      const photoOn = new Date(Date.now() - 1130 * 86_400_000);
+      photoOn.setUTCHours(12, 0, 0, 0);
+      const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9]);
+      await tx.insert(uploads).values({
+        firmId,
+        workerId: worker.id,
+        kind: "photo",
+        contentType: "image/jpeg",
+        size: jpeg.length,
+        sha256: createHash("sha256").update(jpeg).digest("hex"),
+        data: jpeg,
+        status: "approved",
+        checkedBy: checker.id,
+        checkedAt: photoOn,
+        createdAt: photoOn,
+      });
+
+      const stamp = Date.now().toString(36);
+      const session = async (
+        o: { site: string; at: Date; car: number; publicTransport: number; metres: number },
+        facts: Partial<typeof shifts.$inferInsert>,
+      ) => {
+        const [site] = await tx
+          .insert(sites)
+          .values({ firmId, name: o.site, postcode: "ZZ1 1AA", ...point("ZZ1 1AA") })
+          .returning({ id: sites.id });
+        if (!site) throw new Error("site insert returned nothing");
+        const [row] = await tx
+          .insert(shifts)
+          .values({
+            firmId,
+            siteId: site.id,
+            shiftEventId: await eventFor(tx, site.id, o.at),
+            role: HOME_SCENE_ROLE,
+            startsAt: o.at,
+            endsAt: new Date(o.at.getTime() + 8 * 3_600_000),
+            headcount: 1,
+            source: "native",
+            ...facts,
+          })
+          .returning({ id: shifts.id });
+        if (!row) throw new Error("shift insert returned nothing");
+        const arriveBy = new Date(o.at.getTime() - 30 * 60_000);
+        const expiresAt = new Date(o.at.getTime() + 8 * 86_400_000);
+        await tx.execute(sql`
+          insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by,
+                                        minutes, metres, provider, computed_at, expires_at)
+          values (${firmId}, 'ZZ2 2BB', ${site.id}, 'car', ${arriveBy}, ${o.car}, ${o.metres},
+                  'fake', now(), ${expiresAt}),
+                 (${firmId}, 'ZZ2 2BB', ${site.id}, 'public_transport', ${arriveBy},
+                  ${o.publicTransport}, ${o.metres}, 'fake', now(), ${expiresAt})`);
+        return row.id;
+      };
+      const bookedAt = new Date(Date.now() + 9 * 86_400_000);
+      bookedAt.setUTCHours(10, 0, 0, 0);
+      const booked = { site: `Home Booked Hall ${stamp}` };
+      const bookedId = await session(
+        { site: booked.site, at: bookedAt, car: 15, publicTransport: 30, metres: 8047 },
+        {
+          status: "filled",
+          payRatePence: 1260,
+          post: "Gate 3",
+          meetingPoint: "Staff entrance on Mill Lane",
+          uniform: "Black trousers and your hi-vis",
+        },
+      );
+      await tx.insert(assignments).values({
+        firmId,
+        shiftId: bookedId,
+        slot: 1,
+        workerId: worker.id,
+        status: "confirmed",
+        confirmedAt: new Date(),
+      });
+      const urgent = { site: `Home Urgent Hall ${stamp}` };
+      await session(
+        {
+          site: urgent.site,
+          at: new Date(bookedAt.getTime() + 86_400_000),
+          car: 12,
+          publicTransport: 24,
+          metres: 5000,
+        },
+        { status: "open", isUrgent: true, payRatePence: 1300 },
+      );
+      return { workerId: worker.id, photoOn, booked, urgent };
     });
   } finally {
     await pool.end();

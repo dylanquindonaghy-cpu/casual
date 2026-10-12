@@ -112,9 +112,9 @@ async function officeLogin(page: Page, email: string, base = acme) {
   await expect(page).toHaveURL(new RegExp(`^${base.replace(/\./g, "\\.")}/office(/pay)?$`));
 }
 
-// "Log out" is at the bottom of My shifts, and in the office's account menu (12A.2).
+// "Log out" is the last thing on a casual's Profile (12H.1), and in the office's account menu (12A.2).
 async function logOut(page: Page, home: string) {
-  await page.goto(home);
+  await page.goto(home.includes("/office") ? home : `${home.replace(/\/$/, "")}/profile`);
   const where = home.includes("/office") ? await accountMenu(page) : page;
   await where.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/(office\/)?login/);
@@ -159,7 +159,7 @@ test("Part 2: as a worker", async ({ browser }) => {
   });
 
   await test.step("11. Take a shift", async () => {
-    await page.getByRole("link", { name: "See open shifts" }).click();
+    await page.getByRole("link", { name: "See all open shifts" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     const arena = page.getByRole("listitem").filter({ hasText: "Acme Demo Arena" }).first();
     await arena.getByRole("button", { name: "Take shift" }).click();
@@ -186,7 +186,7 @@ test("Part 2: as a worker", async ({ browser }) => {
   });
 
   await test.step("13. Your pay", async () => {
-    await page.getByRole("link", { name: "See your pay" }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
     const asked = justBefore();
     await page.getByRole("button", { name: "Send me a code" }).click();
     const code = await sent(ZOE.e164, asked, /^Your Acme Events code is (\d{6})\./);
@@ -207,8 +207,10 @@ test("Part 2: as a worker", async ({ browser }) => {
   });
 
   await test.step("15. Your profile", async () => {
-    await page.goto(`${acme}/`);
-    await page.getByRole("link", { name: "My profile" }).click();
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Profile" })
+      .click();
     await expect(page).toHaveURL(`${acme}/profile`);
     await expect(page.getByText("Level 2 spectator safety qualification")).toBeVisible();
     await expect(page.getByText(/^Valid/).first()).toBeVisible();
@@ -225,8 +227,13 @@ test("Part 2: as a worker", async ({ browser }) => {
     await workerLogin(page, SAM);
     await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Instructions" }).first()).toBeVisible();
+    // Her bookings are on the Shifts tab (12H.1).
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Shifts" })
+      .click();
     await page.getByRole("link", { name: "Past 30 days" }).click();
-    await expect(page).toHaveURL(`${acme}/?view=past`);
+    await expect(page).toHaveURL(`${acme}/shifts?view=past`);
     await expect(
       page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" }).first(),
     ).toBeVisible();
@@ -273,10 +280,9 @@ test("Part 2: as a worker", async ({ browser }) => {
     await workerLogin(page, WES);
     // One, the 08:00 dropout; two from Friday noon, when Zoe's cancelled Saturday shift (step 12)
     // is inside the urgent window too.
-    await expect(
-      page.getByRole("heading", { name: /^\d+ urgent shifts? needs? someone$/ }),
-    ).toBeVisible();
-    await page.getByRole("link", { name: "See urgent shifts" }).click();
+    const onHome = page.getByRole("region", { name: "Urgent: needed now, and you can take them" });
+    await expect(onHome.getByRole("listitem").filter({ hasText: "08:00" })).toHaveCount(1);
+    await onHome.getByRole("link", { name: "See urgent shifts" }).click();
     await expect(page.getByRole("heading", { name: "Urgent shifts" })).toBeVisible();
     await page
       .getByRole("listitem")

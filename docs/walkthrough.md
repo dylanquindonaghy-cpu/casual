@@ -92,10 +92,10 @@ work for 15 minutes, once.
 
 ## Part 2: as a worker
 
-"Log out" is at the bottom of My shifts (`http://acme.localhost:3000/`); for the office, under
-your name at the top right. The office menu is on the left on a laptop; on a phone, open it with
-"Menu" at the top. "Help",
-at the bottom of My shifts, explains the worker's pages in plain words. The worker's side is made for phones. In Chrome you can see it as a phone: press
+A worker's pages have a tab bar at the bottom: Home, Shifts, Pay and Profile. "Log out" is the
+last thing on Profile (`http://acme.localhost:3000/profile`), with "Help", which explains the
+worker's pages in plain words; for the office, "Log out" is under your name at the top right. The
+office menu is on the left on a laptop; on a phone, open it with "Menu" at the top. The worker's side is made for phones. In Chrome you can see it as a phone: press
 F12, then Ctrl+Shift+M (press them again to go back). Each worker below is a made-up person from
 the demo.
 
@@ -104,37 +104,39 @@ the demo.
     "Send me a link". The page says "Check your phone." In the dev window, a WhatsApp to
     `+44*******122` says "Here's your Acme Events shifts link…": open that link, then click
     "Log me in". You see "Hello Zoe" and "No shifts booked yet."
-11. **Take a shift.** Click "See open shifts". The coming Saturday's open steward shifts are
+11. **Take a shift.** On Home, click "See all open shifts". The coming Saturday's open steward shifts are
     listed. On the one at "Acme Demo Arena", click "Take shift". It says "You're booked." with a
     reference and "— Acme Events Shift Team".
-12. **Cancel it.** Click "See my shifts". Under "Your next shift", click "Cancel this shift",
+12. **Cancel it.** Click "See my shifts" (Home). Under "Your next shift", click "Cancel this shift",
     choose "I'm unwell", then "Confirm cancellation". It says "Cancelled. Reference …" and whether a
     strike was recorded (a box above the reasons said which before you confirmed), with the notice
     you gave. Click "Back to my shifts": "No shifts booked yet." again.
-13. **Your pay.** Click "See your pay", then "Send me a code". A 6-digit code arrives in the dev
+13. **Your pay.** Click "Pay" in the tab bar, then "Send me a code". A 6-digit code arrives in the dev
     window ("Your Acme Events code is …"). Type it in "Your code" and click "Check code". You see
     "The last 8 weeks, from Acme Events's payroll." with the hours and rates.
 14. **Raise a pay query.** On the pay page, click "Raise a pay query". In "Which shift?" choose "A
     day not in the list", pick any day last week in "Which day?", choose "Paid late or not paid",
     type a note if you like, and click "Send pay query". It says "Pay query sent." with a
     reference.
-15. **Your profile.** Go to `http://acme.localhost:3000/`, click "My profile". Zoe's "Level 2
-    spectator safety qualification" shows as Valid. Mark a day you can't work, then "Remove" it.
-    Go back to My shifts and click "Log out".
-16. **Log in as Sam Walsh** (`07700 900110`), a steward booked on Saturday. "Your next shift"
-    shows it, with the day's "Instructions" under it. Click "Past 30 days": yesterday's race day
-    at "Acme Demo Racecourse" is listed. Click "Upcoming" to go back.
-17. **Ask for a change.** On My shifts, click "Ask for a change", choose "Change the times", set
+15. **Your profile.** Click "Profile" in the tab bar. Zoe's "Level 2 spectator safety
+    qualification" shows as Valid. Mark a day you can't work, then "Remove" it. Then click "Log
+    out", the last thing on the page.
+16. **Log in as Sam Walsh** (`07700 900110`), a steward booked on Saturday. Home's "Your next
+    shift" shows it in full, with the day's "Instructions" under it. Click "Shifts" in the tab bar
+    (his bookings), then "Past 30 days": yesterday's race day at "Acme Demo Racecourse" is listed.
+    Click "Upcoming" to go back.
+17. **Ask for a change.** On Home, click "Ask for a change", choose "Change the times", set
     "New start" to 13:00 and "New finish" to 18:30, and click "Send request". It says "Request
     sent." Click "See my requests": it's "Waiting for the office". Log out.
 18. **Log in as Maya Morgan** (`07700 900129`), a door supervisor whose SIA licence has expired.
-    A red "Needs updating" card on My shifts says so. Open the urgent shift's page: the link
+    A red "Needs updating" card on Home says so. Open the urgent shift's page: the link
     printed at the end of `npm run db:reset` (step 7; it isn't in her open shifts, because she
     can't take it). It says "You can't take this shift:" and why. Click "Ask the office to review": it gives a
     reference. Log out.
-19. **Log in as Wes Doyle** (`07700 900139`), a door supervisor with a valid licence. My shifts
-    says "1 urgent shift needs someone" (2 from Friday noon: Zoe's cancelled shift is then less
-    than a day away, so it's urgent too). Click "See urgent shifts", then "Take shift" on the 08:00
+19. **Log in as Wes Doyle** (`07700 900139`), a door supervisor with a valid licence. Home's
+    "Urgent: needed now, and you can take them" lists the 08:00 arena shift (and, from Friday noon,
+    Zoe's cancelled shift too: it's then less than a day away, so it's urgent). Click "See urgent
+    shifts", then "Take shift" on the 08:00
     arena shift: "You're booked." Log out.
 
 ## Part 3: as the office

@@ -20,8 +20,12 @@ async function logIn(page: Page, typed: string, e164: string) {
 
 test("a free door supervisor sees the urgent dropout and takes it", async ({ page }) => {
   await logIn(page, "07700 900138", "+447700900138"); // Acme worker 38: valid SIA, unbooked
-  await expect(page.getByRole("heading", { name: "1 urgent shift needs someone" })).toBeVisible();
-  await page.getByRole("link", { name: "See urgent shifts" }).click();
+  // Home's urgent shifts (12H.1): the dropout, with its role · event and site.
+  const onHome = page.getByRole("region", { name: "Urgent: needed now, and you can take them" });
+  await expect(onHome.getByRole("listitem")).toHaveCount(1);
+  await expect(onHome).toContainText("Door supervisor");
+  await expect(onHome).toContainText("Acme Demo Arena");
+  await onHome.getByRole("link", { name: "See urgent shifts" }).click();
   await expect(page).toHaveURL(`${acme}/urgent`);
   await expect(page.getByRole("heading", { name: "Urgent shifts" })).toBeVisible();
   const card = page.getByRole("listitem");
@@ -35,7 +39,9 @@ test("a free door supervisor sees the urgent dropout and takes it", async ({ pag
   await page.getByRole("link", { name: "See my shifts" }).click();
   await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
   // Filled now: no urgent gap left for anyone.
-  await expect(page.getByRole("heading", { name: /urgent shifts? needs? someone/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Urgent: needed now, and you can take them" }),
+  ).toHaveCount(0);
 });
 
 test("a steward sees no urgent gaps: the urgent shift needs a door supervisor", async ({

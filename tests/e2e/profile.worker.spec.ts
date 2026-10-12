@@ -18,7 +18,7 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
 
-  await page.getByRole("link", { name: "My profile" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profile" }).click();
   await expect(page).toHaveURL(`${acme}/profile`);
   // Each section has its own confirmation.
   const days = page.getByRole("region", { name: "Days you can't work" });

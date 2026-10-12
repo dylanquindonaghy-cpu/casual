@@ -287,7 +287,7 @@ never split or joined), so they can't change what those tests check:
 | 07700 900125 to 900129 | Door supervisors (and stewards) whose SIA licence has expired | Profile's red licence. Open the urgent dropout's link (the seed prints it): the page says why they can't take it, with "Ask the office to review" |
 | 07700 900130 to 900136 | Door supervisors, booked at the arena | A booked shift with instructions |
 | 07700 900137 | The door supervisor who dropped out | Nothing booked; the dropout's page shows it's open again |
-| 07700 900138 to 900144 | Door supervisors with a valid licence, never booked | My shifts says "1 urgent shift needs someone"; the urgent board (`/urgent`) shows the dropout with "Take shift" |
+| 07700 900138 to 900144 | Door supervisors with a valid licence, never booked | Home's "Urgent: needed now, and you can take them" lists the dropout; the urgent board (`/urgent`) shows the dropout with "Take shift" |
 
 The login link appears in the `npm run dev` terminal (console messaging).
 

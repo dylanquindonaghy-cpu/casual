@@ -12302,3 +12302,19 @@ tests (plain language, guides, `portal.profile.test.ts`, and the Profile photo c
 | The attribution is the ONSPD licence's words, with the current year, last on Help | The licence requires it word for word where the data is used | A shorter credit (not what the licence asks) |
 | The plain-language test takes out the attribution's exact words before its checks, and a new test holds Help to them | "database right" is the licence's wording, not ours to change; the same word anywhere else still fails (tested) | Rewording the licence line; moving it off the tested page (hiding it from the test) |
 | No guardrails review | Screens, copy and one read of the firm's own settings inside its transaction; no schema, auth, tenancy, messaging, jobs or rules change | Running it anyway |
+
+**Verify:** `== typecheck ... ok`, `== lint ... ok`, `== test ... ok`, `== e2e ... ok`,
+`== invariants ... ok`, `VERIFIED tree=a1d6ea242b8460e4 e2e=true` (4,823 tests in 265 files; 91
+browser tests and the walkthrough's 3, none flaky).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. Its caveat, not a blocker: the e2e
+log prints totals, not test names, so the Profile check's pass is read from the 91-passed total.
+
+**Ended:** 2026-10-12 14:30 UTC. **Hours:** 0.4. Phase 12 so far: 38.4 hours over 30 Hours-log rows
+(no estimate for Phase 12, so nothing to compare).
+
+**Commit:** "Phase 12: Profile and help (12H.3)", pushed to `build/overnight`, after WIP commit
+f41968b. CI: `gh` isn't available in this container.
+
+**Needs Dylan:** two calls recorded above for him to confirm: the details sentence changed in two
+existing checks, and the attribution's exact words let off the plain-language test.

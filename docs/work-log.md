@@ -12070,3 +12070,62 @@ upload, a test proves she only sees her own records, and one database read was d
    "Open". Each row shows its pay, post, chips and travel line.
 3. Tap a row's role and event: the shift's page shows the facts, "Getting there" and "What it
    needs".
+
+## 2026-10-12 — Phase 12, task 12H.3: Profile and help
+
+**Time spent:** 0.4 hours (14:06 to 14:30 UTC).
+
+**Result:** `scripts/verify.sh` (with the browser tests) printed
+`VERIFIED tree=a1d6ea242b8460e4 e2e=true`: 4,823 tests in 265 files, 91 browser tests and the
+walkthrough's 3, none flaky. The independent auditor (`claims-auditor`) said **DONE** in round 1.
+Commit "Phase 12: Profile and help (12H.3)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Most of the Profile page was already there from earlier tasks (the staff photo, qualifications,
+right to work, travel area, strikes, days off, and the links at the end). This task finished it:
+
+- **"Your details"** now says "To change your name or number, ask the office.", the spec's words.
+- **The Help page** gained three sections:
+  - "Cancelling and strikes": cancelling less than 48 hours before a shift gives a strike; a strike
+    is a record, not a fine; how long it counts; when there isn't one; "Tell us what happened";
+    how the office withdraws one.
+  - "Your travel area": how to set it, what it changes, and that the office sees only the first
+    part of the postcode.
+  - "Qualifications and photos": uploading, what the office records itself, how often the staff
+    photo is renewed, and that only checked ones count.
+
+  The numbers (48 hours, 90 days, 36 months) are each firm's own settings, read from the database
+  when the page opens, so Help always matches what the app does.
+- **A credit line for the postcode data** at the bottom of Help. postcodes.io's data comes from
+  the Office for National Statistics, and its *licence* (the terms for using it) requires this exact
+  wording.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Use the spec's sentence for "Your details" | The task and spec quote it | Keeping the old sentence |
+| Help shows each firm's own numbers | A firm can change them | Fixed numbers |
+| The licence's exact words are let off the plain-language check, and only them | "database right" can't be reworded; a new test proves the same word elsewhere still fails | Rewording it, or hiding it from the test |
+
+### What the new tests prove
+
+- `tests/unit/guides.test.ts`: Help has the three new sections, states the firm's own numbers (for
+  a firm with 48/90/36 and one with 24/30/24), and ends with the credit line.
+- `tests/unit/copy.plain-language.test.ts`: every new Help sentence is plain and short; the credit
+  line is there word for word, and nothing else is let off.
+- `tests/integration/help-facts.test.ts` (real database): the defaults, and a firm's own settings.
+- `tests/e2e/casual.app.spec.ts` (real browser): Holly's Profile shows her photo, "Last uploaded
+  {date} · renew by {date}" and "Overdue", and the new details sentence.
+
+### What's parked or needs Dylan
+
+Two calls to confirm (in `docs/overnight-log.md`): the details sentence changed in two existing
+checks, and the licence's words are let off the plain-language test.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
+2. Open `http://acme.localhost:3000/help`: the three new sections are in "On this page", and the
+   credit line is at the very bottom.

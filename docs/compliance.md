@@ -39,7 +39,8 @@ recipient.
   casual is `null` with `"erased": true`. The runbook tells the firm to remove the person from its
   planner too.
 - **Only to public https addresses** the admin added; the address is treated as a secret and never
-  logged. `api_keys` is left out of the firm's data export.
+  logged. `api_keys` is left out of the firm's data export, and the export shows the webhook address
+  as its hint only.
 - The strikes DPIA lists the firm's planner as a recipient of strike status.
 
 ## Data processing agreement (must cover)

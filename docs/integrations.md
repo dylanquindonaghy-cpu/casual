@@ -335,6 +335,9 @@ ShiftDesk's records as they are then (so a late retry shows the booking as it is
 - **Never sent:** a mobile number, an email address, a casual's postcode or travel times, their
   health, anything anyone typed about a booking, or review notes.
 - **Order isn't promised**, and a webhook can arrive twice: apply the latest `booking.status`.
+- **Sent to the address set when it goes:** a webhook waiting for a retry when the admin changes
+  the address goes to the new one, signed with the new secret; one waiting when the address is
+  removed isn't sent at all.
 
 **The contract.** Every body is checked against its type's schema before it is signed, and
 ShiftDesk's tests check real bodies against the same schemas: this block is copied from the code
@@ -515,8 +518,9 @@ characters, and no log holds it.
 
 **The secret.** Shown once, when the webhook is added or "New signing secret" is pressed: the old
 one stops working at once, so paste the new one into your planner straight away. Changing the
-address makes a new secret too. "Send test event" sends a `test.ping`; the page then shows "Working
-· last delivered …" or "Failing since …".
+address makes a new secret too. "Send test event" sends a `test.ping` (at most one every 30 seconds); the page then shows
+"Working · last delivered …" or "Failing since …". The firm's data export shows the address as its
+hint only.
 
 ## Errors
 

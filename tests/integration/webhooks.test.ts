@@ -7,6 +7,7 @@ import { HOUR } from "@/lib/auth/clock";
 import { createKeyDirectory } from "@/lib/db/directory";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { recordEvent, recordEvents } from "@/lib/events/record";
+import { collectFirmData } from "@/lib/gdpr/firm-export";
 import { createWebhookDeliverTask, WEBHOOK_RETRY_LIMIT } from "@/lib/integrations/deliver";
 import { cancellationPage } from "@/lib/integrations/records";
 import { WEBHOOK_DELIVER_QUEUE } from "@/lib/integrations/outbox";
@@ -299,6 +300,10 @@ describe("the Integrations page's webhook", () => {
     );
     expect(rows[0]?.all).not.toContain("hooks.example");
     expect(rows[0]?.all).not.toContain(PATH_SECRET);
+    // The firm's data export keeps the address's hint only, as the page shows it (a secret).
+    const exported = JSON.stringify(await withFirm(t.f.firmId, (tx) => collectFirmData(tx, NOW)));
+    expect(exported).not.toContain(PATH_SECRET);
+    expect(exported).toContain(`"url":"https://${new URL(t.url).hostname}/…k3F9"`);
     const page = await integrationsPage({ ...t.ctx() });
     expect(page?.webhook).toEqual({
       hint: `https://${new URL(t.url).hostname}/…k3F9`,
@@ -698,6 +703,9 @@ describe("delivering", () => {
     const t = await webhookFirm();
     expect(await sendTestWebhook(t.ctx())).toEqual({ status: "queued" });
     expect(await sendTestWebhook(t.ctx(t.resourcer))).toEqual({ status: "not_allowed" });
+    // Pressed again straight away: nothing more queued (one every 30 seconds per firm).
+    expect(await sendTestWebhook(t.ctx())).toEqual({ status: "too_soon" });
+    expect(await deliveries(t.f.firmId)).toHaveLength(1);
     const [job] = await deliveries(t.f.firmId);
     if (!job) throw new Error("no delivery");
     const fake = fakeTransport();

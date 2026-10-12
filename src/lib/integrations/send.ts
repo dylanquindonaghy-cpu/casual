@@ -1,4 +1,4 @@
-import { lookup as dnsLookup } from "node:dns/promises";
+import { Resolver } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
 import type { ClientRequest, IncomingMessage, RequestOptions } from "node:http";
 import { BlockList, isIP, type LookupFunction } from "node:net";
@@ -21,6 +21,7 @@ import { isCustomDomain, normaliseHost } from "../tenancy/host";
 //   from here is a WebhookSendError carrying a code only, never the address or a raw error (whose
 //   message may quote it); log lines name the host only.
 
+export const LOOKUP_TIMEOUT_MS = 5_000;
 export const CONNECT_TIMEOUT_MS = 5_000;
 export const TOTAL_TIMEOUT_MS = 10_000;
 export const MAX_ANSWER_BYTES = 1024;
@@ -142,18 +143,41 @@ export function isPublicAddress(address: string): boolean {
 
 export type Resolve = (host: string) => Promise<{ address: string; family: number }[]>;
 
-const resolveAll: Resolve = (host) => dnsLookup(host, { all: true, verbatim: true });
+// The name's A and AAAA records, asked of DNS directly (Node's c-ares resolver, with its own
+// timeout and tries), not through getaddrinfo: that runs on libuv's 4 shared threads, which the
+// worker's other outbound work (Twilio, email, new database connections) also needs, so a firm's
+// name server that never answers could slow everything else.
+const resolver = new Resolver({ timeout: 2_000, tries: 2 });
+const resolveAll: Resolve = async (host) => {
+  const [v4, v6] = await Promise.allSettled([resolver.resolve4(host), resolver.resolve6(host)]);
+  const found = [
+    ...(v4.status === "fulfilled" ? v4.value.map((address) => ({ address, family: 4 })) : []),
+    ...(v6.status === "fulfilled" ? v6.value.map((address) => ({ address, family: 6 })) : []),
+  ];
+  if (found.length === 0) throw new Error("no address");
+  return found;
+};
 
-// Every address the name resolves to, all public, or a WebhookSendError.
+// Every address the name resolves to, all public, or a WebhookSendError. At most
+// LOOKUP_TIMEOUT_MS (then "dns"), before the POST's own limits start.
 export async function publicAddressOf(
   host: string,
   resolve: Resolve = resolveAll,
+  timeoutMs = LOOKUP_TIMEOUT_MS,
 ): Promise<{ address: string; family: 4 | 6 }> {
   let found: { address: string; family: number }[];
+  let timer: NodeJS.Timeout | undefined;
   try {
-    found = await resolve(host);
+    found = await Promise.race([
+      resolve(host),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("lookup timed out")), timeoutMs);
+      }),
+    ]);
   } catch {
     throw new WebhookSendError("dns");
+  } finally {
+    clearTimeout(timer);
   }
   if (found.length === 0) throw new WebhookSendError("dns");
   if (!found.every((a) => isPublicAddress(a.address))) {

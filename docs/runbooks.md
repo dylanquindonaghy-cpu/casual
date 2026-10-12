@@ -465,7 +465,13 @@ delivery is tried 7 times over about an hour; the last try logs `webhook.failed`
    `GET /api/v1/cancellations?since=` (`docs/integrations.md`).
 4. Nothing ever reaches us: the worker log has one `webhook not delivered` line per failed try with
    the firm, the host and the code (`docker compose logs worker | grep "webhook not delivered"`),
-   never the address.
+   never the address. Some catch-hook services put their key in the host name itself (a Pipedream
+   address, say): treat those log lines as you would the address.
+5. **Ours, not theirs:** `not_configured` means the worker has no `INTEGRATIONS_SECRET` (fix it, then
+   their admin presses "Send test event"). And two cases fail the job instead of logging
+   `webhook.failed`, so they come to you as a failed-job alert, not to the firm: the worker stopping
+   during the last try, and a body that doesn't match its contract or a database error (a bug: the
+   worker log names the error). Their planner catches up with `GET /api/v1/cancellations`.
 
 ## A planner's API key or webhook secret may have leaked
 

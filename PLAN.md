@@ -1297,7 +1297,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 16 | S8, a new `worker_travel` table (start postcode and its central point, ways of travelling, time limit; a separate table so the erased-worker check is unchanged; in deletion and export) | **Approved** (Dylan, 2026-10-06). Built in 12G.1 | `docs/office-v2.md` §5.1 S8; Data 21 |
 | 17 | S9, a new `travel_estimates` table (keyed by postcode and site, not by person; purged 7 days after the session) | **Approved** (Dylan, 2026-10-06), built narrower: no trip home, route or leave-by columns. Built in 12G.2 | `docs/office-v2.md` §5.1 S9 |
 | 18 | S10, for the Settings page (Office 1): an owner-run database function, `app_set_firm_setting(key, value)`, the only way the app may change `firms.settings`; it refuses `retention.*` and every key it doesn't list, so the promise that the app can't shorten retention or lift a hold (migration 0034, `docs/compliance.md`) still holds | **Approved** (Dylan, 2026-10-06), built narrower: it lists only the strikes-team email and its confirmed time (S11 adds the webhook address and its signing version). Built in 12B.7 | `docs/office-v2.md` §5.1 S10, §3.10; Office 1 |
-| 19 | **Approved** (Dylan, 2026-10-06: "Yes, add S11"). S11, the planner integration layer, in plain words: (1) a new `api_keys` table (only each key's hash and last 4 characters are kept; the app can add keys and mark them used or revoked, never rewrite or delete one) and an owner-run `app_api_key_lookup(hash)` that turns a key into its firm, which is **a new machine login path** (an auth change: a request is trusted because it carries a key); (2) a guard before that look-up: a key of the wrong shape is refused without touching the database, and an address that sends 30 wrong keys in a minute is turned away; (3) the office's whole-session cancel and move (golden rule 12 code that today only an admin or resourcer can run) gain a second caller, the API: it acts with no office user, only on sessions the planner sent, only while its key is still live, and every failed rules check blocks the change (nobody is there to override one); the office in turn can't edit, move or cancel the planner's sessions as a whole; (4) the webhook address added to S10's keys, with a signing version the database raises itself (never set by the app, so an old signing secret can't come back); (5) `api` added to the session, event and cancel source values; (6) the API answers in the request rather than in a job: an exception to golden rule 3 (CLAUDE.md and ADR-022, written in 12J.1 before the code). Reply "yes, approve S11" to start 12J.1 and 12J.2 | The API and keys built in 12J.1 (2026-10-11); the webhooks are 12J.2. Golden rule 3's new wording and the API's small choices (a) to (j) wait for Dylan to confirm (Parking lot "Planner API (12J.1 review)") | `docs/office-v2.md` §5.1 S11, §5.3 |
+| 19 | **Approved** (Dylan, 2026-10-06: "Yes, add S11"). S11, the planner integration layer, in plain words: (1) a new `api_keys` table (only each key's hash and last 4 characters are kept; the app can add keys and mark them used or revoked, never rewrite or delete one) and an owner-run `app_api_key_lookup(hash)` that turns a key into its firm, which is **a new machine login path** (an auth change: a request is trusted because it carries a key); (2) a guard before that look-up: a key of the wrong shape is refused without touching the database, and an address that sends 30 wrong keys in a minute is turned away; (3) the office's whole-session cancel and move (golden rule 12 code that today only an admin or resourcer can run) gain a second caller, the API: it acts with no office user, only on sessions the planner sent, only while its key is still live, and every failed rules check blocks the change (nobody is there to override one); the office in turn can't edit, move or cancel the planner's sessions as a whole; (4) the webhook address added to S10's keys, with a signing version the database raises itself (never set by the app, so an old signing secret can't come back); (5) `api` added to the session, event and cancel source values; (6) the API answers in the request rather than in a job: an exception to golden rule 3 (CLAUDE.md and ADR-022, written in 12J.1 before the code). Reply "yes, approve S11" to start 12J.1 and 12J.2 | The API and keys built in 12J.1 (2026-10-11); the webhooks in 12J.2 (2026-10-12). Golden rule 3's new wording and the API's small choices (a) to (j) wait for Dylan to confirm (Parking lot "Planner API (12J.1 review)") | `docs/office-v2.md` §5.1 S11, §5.3 |
 
 ### Product and scope
 
@@ -2956,8 +2956,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     casual's notice: true for the firm, but it doesn't say "planner". A wording choice.
   - The office guide has a part on the Integrations page but no line on sessions "from your
     planner" (why Edit, Move and Cancel aren't there).
-  - The worker will need `INTEGRATIONS_SECRET` in `deploy/docker-compose.yml` when 12J.2's
-    webhooks are sent from it (only the web app has it today).
+  - ~~The worker will need `INTEGRATIONS_SECRET` in `deploy/docker-compose.yml`~~ done in 12J.2
+    (with `WEBHOOK_TRANSPORT`, `https` by default).
   - No index on `assignments (firm_id, cancelled_at, id)` for `GET /api/v1/cancellations`' pages:
     fine at pilot scale; a migration when a firm has many thousands of cancellations.
   - The Integrations page reads the action log to show each key's last change: fine at pilot
@@ -2982,6 +2982,22 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - The kept-booking test checks "not active" through the roster function the PUT uses, not
     "blocked from the site" or the HTTP PUT itself; nothing pins the rota sheet's
     `honourKept: true` (re-review NOTE 2).
+- Planner webhooks (12J.2 review, 2026-10-12):
+  - **Needs the worker in production**, which waits for "Connect Twilio": until then webhooks are
+    queued and not sent, and records say "Sending" (planners catch up with `GET /cancellations`).
+  - `webhookStatus()` (the dashboard's item and the page's status) reads the action log by
+    `action`, which no index covers: fine at pilot scale; a partial index or a summary column if
+    it gets slow.
+  - `staff_ref` is free-form: a firm using mobiles or NI numbers as staff refs would send them to
+    its planner. Worth a line in the onboarding checklist.
+  - The local seed (`db:seed`) rewrites `firms.settings` whole, which puts the signing version back
+    to 0 on a dev database only; nothing in the app can lower it.
+  - TEST-NET ranges and Teredo (`2001::/32`) aren't in the refused list (§5.3.3 doesn't list them;
+    not routable from Docker). Add them if the host's network ever routes them.
+  - An unset `INTEGRATIONS_SECRET` in the worker shows the firm "Your planner's webhook is failing"
+    (code `not_configured`), though it's ours: its own words on the dashboard if it ever happens.
+  - The console webhook transport prints whole bodies (names) in development, with no end line for
+    the log scan to skip; production refuses it.
 
 ## Hours log
 

@@ -5,6 +5,7 @@ import { retryAborted } from "../db/retry";
 import * as schema from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { addressHint } from "../integrations/send";
 import { officeUserMay, parts, type OfficeContext } from "../office/office-context";
 import { uploadDetails } from "../uploads/details";
 import { renumberEvents } from "./event-numbers";
@@ -95,7 +96,18 @@ export async function collectFirmData(tx: FirmTx, now: Date): Promise<FirmExport
     // The action log's own numbers stay out of the file (src/lib/gdpr/event-numbers.ts).
     tables[getTableName(table)] = table === schema.events ? renumberEvents(rows) : rows;
   }
-  return { exportedAt: now, firm: firm ?? {}, tables };
+  return { exportedAt: now, firm: firm ? withoutWebhookAddress(firm) : {}, tables };
+}
+
+// The planner's webhook address is a secret (a catch-hook address carries its key in its path:
+// docs/office-v2.md 5.3.3), like the API keys left out above: the file keeps its hint only
+// ("https://hooks.example/…k3F9"), as the Integrations page shows it (12J.2).
+function withoutWebhookAddress<T extends { settings: Record<string, unknown> }>(firm: T): T {
+  const hook = firm.settings.webhook;
+  if (typeof hook !== "object" || hook === null || !("url" in hook)) return firm;
+  const { url, ...rest } = hook as Record<string, unknown>;
+  const hint = typeof url === "string" ? addressHint(url) : null;
+  return { ...firm, settings: { ...firm.settings, webhook: { ...rest, url: hint } } };
 }
 
 export function firmExportFileName(slug: string, now: Date): string {

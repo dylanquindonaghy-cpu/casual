@@ -91,9 +91,20 @@ export async function queueWebhooks(
 }
 
 // "Send test event" on the Integrations page: a test.ping delivery, queued like any other (the web
-// app never sends to the internet itself). False when there's no address.
-export async function queueTestWebhook(tx: FirmTx, testId: string): Promise<boolean> {
-  if (!(await webhookAddressSet(tx))) return false;
-  await sendFirmJob(tx, job, { idempotencyKey: keyFor({ testId }), testId }, GROUP);
-  return true;
+// app never sends to the internet itself). At most one per firm every TEST_EVERY_SECONDS (a
+// pg-boss singleton, firm-scoped by sendFirmJob()), so repeated presses can't keep a worker loop
+// busy or fill the action log.
+export const TEST_EVERY_SECONDS = 30;
+export async function queueTestWebhook(
+  tx: FirmTx,
+  testId: string,
+): Promise<"queued" | "too_soon" | "no_webhook"> {
+  if (!(await webhookAddressSet(tx))) return "no_webhook";
+  const id = await sendFirmJob(
+    tx,
+    job,
+    { idempotencyKey: keyFor({ testId }), testId },
+    { ...GROUP, singletonKey: "webhook-test", singletonSeconds: TEST_EVERY_SECONDS },
+  );
+  return id ? "queued" : "too_soon";
 }

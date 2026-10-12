@@ -12007,3 +12007,42 @@ uncommitted).
   failing" (one item while the latest outcome is a failure and the address is still set);
   `log-types.ts` and `event-words.ts` for the new entries.
 - **Tests:** the task's unit, integration and e2e lists. **Docs:** the task's list.
+
+**Built** (checkpoint `97cc6b6`, pushed): as planned above, with these decisions found on the way.
+
+| Decision | Why | Alternative |
+|---|---|---|
+| The webhook worker takes one job per fetch (`batchSize` 1), not the shifts line's 5 | pg-boss runs a fetched batch's jobs one after another, whatever their group, so a batch holding a hanging firm's job and another firm's would hold the other up for 10 seconds | Batches of 5, as the spec's "as the shifts line does" reads; it breaks "one firm can't hold up another" |
+| Two `BlockList`s, one per address family | Root cause of a failing test: Node's `BlockList` checks an IPv4 address against IPv6 rules through its IPv4-mapped form, so `::ffff:0:0/96` in one list refused every IPv4 address (all public IPv4 webhooks would have failed with `refused_address`) | One list, as written in §5.3.3 |
+| `type` added to `webhook.delivered`/`webhook.failed` (spec: `{eventRef, bookingId}`) | The record's "Your planner" line must tell the cancellation's delivery from the booking's | Matching on the event id (needs the secret in SQL) |
+| The record's "Sending": the firm has an address now and had one when it was cancelled (`firm.settings_changed` gains `webhook: "added"/"replaced"/"removed"/"new_secret"`) | Worked out from the log, with no new table or entry per delivery | A `webhook.queued` entry per delivery (twice the log rows) |
+| Adding a webhook needs Gate B | It sends staff names out, as an API key lets a planner read them | No gate |
+| A job whose address was removed sends nothing and logs nothing | "Removing the address stops new deliveries"; nothing to report | Logging a failure |
+| The spec's existing test row "refuses `webhook.url` through the function" now checks `webhook.signing_version` (and the new tests cover `webhook.url` itself) | S11 adds `webhook.url` to the accepted keys: the old row tested the 12B.7 product. Not weakened: the refused key is now the one the app must never set | Deleting the row |
+| `office.log-types.test.ts`'s list of strings that look like actions but aren't log entries gains the webhook types and setting keys | The test scans the code for `"x.y"` strings; these are webhook type names and setting keys, not entries | — |
+
+**Guardrails review** (`guardrails-reviewer` on `git diff 7353c30..97cc6b6`, told not to run tests):
+"Verdict: SAFE TO COMMIT. No blockers; fix the SHOULDs before closing the task." No FIX FIRST.
+
+- SHOULD 1: the DNS look-up had no time limit and used getaddrinfo on libuv's 4 shared threads.
+  **Fixed:** Node's c-ares `Resolver` (A and AAAA, 2-second timeout, 2 tries), raced against a
+  5-second limit (`LOOKUP_TIMEOUT_MS`), then `dns`. Checked against real DNS once (example.com
+  resolves; `localhost`, only in the hosts file, is refused). Unit test with a name server that
+  never answers.
+- SHOULD 2: `scripts/invariants.sh` didn't check the two new `WEBHOOK_TRANSPORT: "console"` pins.
+  **Fixed:** added to the existing pin checks (a stricter check, as 12J.1 added its secret's; no
+  check was loosened, and the invariants still pass).
+- SHOULD 3: the firm's data export held the whole webhook address. **Fixed:** the export keeps its
+  hint only (`src/lib/gdpr/firm-export.ts`); integration test.
+- SHOULD 4: "Send test event" had no throttle. **Fixed:** one per firm every 30 seconds (a
+  firm-scoped pg-boss singleton); a second press answers "A test event was sent less than 30
+  seconds ago…"; integration test.
+- NOTEs 5, 7 and 9 (the last try's two failed-job cases, a replaced address getting older events,
+  a host name that is itself a key): written into `docs/runbooks.md` and `docs/integrations.md`.
+  NOTEs 6, 8, 10–13: parked ("Planner webhooks (12J.2 review)" in `PLAN.md`).
+
+**Tests so far:** unit suite 2,643 passed before the review fixes (77 in the new webhooks file
+after them); integration suite 2,126 passed, 4 skipped, 1 file failed only because Docker Hub
+refused to download `caddy:2.10` (429 Too Many Requests): pulled from Google's Docker Hub mirror
+(`mirror.gcr.io/library/caddy:2.10`, tagged `caddy:2.10`), then its 4 tests passed. The
+integrations e2e spec: 3 passed, both server logs clean.

@@ -195,6 +195,8 @@ export function testWebhookResultText(result: TestWebhookResult | Common): strin
   switch (result.status) {
     case "queued":
       return "Test event on its way. Reload in a minute to see if it was delivered.";
+    case "too_soon":
+      return "A test event was sent less than 30 seconds ago. Wait a moment, then try again.";
     case "no_webhook":
       return "Add a webhook first.";
     case "not_allowed":

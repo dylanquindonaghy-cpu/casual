@@ -200,6 +200,14 @@ describe("the address, on each try: only public addresses", () => {
     ).rejects.toMatchObject({ code: "dns" });
   });
 
+  it("a name server that never answers: dns, within the look-up's own limit", async () => {
+    const started = Date.now();
+    await expect(
+      publicAddressOf("hooks.example", () => new Promise(() => undefined), 200),
+    ).rejects.toMatchObject({ code: "dns" });
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
   it("a stored address that's no longer acceptable is refused before any look-up", async () => {
     let looked = 0;
     const resolve = async () => {

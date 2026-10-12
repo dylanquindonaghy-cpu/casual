@@ -52,7 +52,11 @@ export type RenewSecretResult =
 
 export type RemoveWebhookResult = { status: "removed" } | { status: "no_webhook" } | Common;
 
-export type TestWebhookResult = { status: "queued" } | { status: "no_webhook" } | Common;
+export type TestWebhookResult =
+  | { status: "queued" }
+  | { status: "too_soon" } // one was queued in the last 30 seconds
+  | { status: "no_webhook" }
+  | Common;
 
 export interface WebhookContext extends OfficeContext {
   secret?: string | undefined; // INTEGRATIONS_SECRET (tests pass their own)
@@ -195,9 +199,7 @@ export async function sendTestWebhook(ctx: WebhookContext): Promise<TestWebhookR
     if (!(await officeUserMay(tx, ctx.officeUserId, "integrations"))) {
       return { status: "not_allowed" };
     }
-    return (await queueTestWebhook(tx, randomUUID()))
-      ? { status: "queued" }
-      : { status: "no_webhook" };
+    return { status: await queueTestWebhook(tx, randomUUID()) };
   });
 }
 

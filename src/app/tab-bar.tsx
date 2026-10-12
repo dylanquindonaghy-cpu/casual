@@ -36,11 +36,15 @@ export function TabBar({
       <div className="mx-auto grid max-w-md grid-cols-4">
         {TABS.map(({ tab, href, words, icon }) => {
           const here = tab === current;
+          const dot = tab === "profile" && profileDot;
           return (
             <Link
               key={tab}
               href={href}
               aria-current={here ? "page" : undefined}
+              // One name, read as written: hidden words inside the link would be read after a gap
+              // ("Profile , something…"), as the browser puts space around them.
+              aria-label={dot ? `${words}, ${PROFILE_DOT_WORDS}` : undefined}
               className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-sm focus-visible:-outline-offset-4 ${
                 here
                   ? "font-bold text-ink underline decoration-2 underline-offset-4"
@@ -49,19 +53,14 @@ export function TabBar({
             >
               <span className="relative">
                 <Icon name={icon} className="h-6 w-6" />
-                {tab === "profile" && profileDot && (
+                {dot && (
                   <span
                     data-profile-dot=""
                     className="absolute -top-0.5 -right-1 h-2.5 w-2.5 rounded-full bg-urgent-fill ring-2 ring-card"
                   />
                 )}
               </span>
-              <span>
-                {words}
-                {tab === "profile" && profileDot && (
-                  <span className="sr-only">, {PROFILE_DOT_WORDS}</span>
-                )}
-              </span>
+              <span>{words}</span>
             </Link>
           );
         })}

@@ -448,26 +448,6 @@ export async function addBookedShift(
   }
 }
 
-// A seeded worker's id, by mobile, in the e2e database (12H.1: the offline spec books one of them).
-export async function workerIdOf(slug: string, mobileE164: string): Promise<string> {
-  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
-  try {
-    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
-    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
-    const firmId = seedId(`firm/${slug}`);
-    return await createWithFirm(pool)(firmId, async (tx) => {
-      const [row] = await tx
-        .select({ id: workers.id })
-        .from(workers)
-        .where(eq(workers.mobileE164, mobileE164));
-      if (!row) throw new Error("no such worker");
-      return row.id;
-    });
-  } finally {
-    await pool.end();
-  }
-}
-
 // How many of these shifts-line messages (by Twilio's id) have been answered (a reply stored for
 // each), in the e2e database: the load smoke's check that the queue drains.
 export async function answeredMessages(slug: string, providerIds: string[]): Promise<number> {
@@ -858,7 +838,7 @@ export async function homeScene(
           values (${firmId}, 'ZZ2 2BB', ${site.id}, 'car', ${arriveBy}, ${o.car}, ${o.metres},
                   'fake', now(), ${expiresAt}),
                  (${firmId}, 'ZZ2 2BB', ${site.id}, 'public_transport', ${arriveBy},
-                  ${o.publicTransport}, ${o.metres}, 'fake', now(), ${expiresAt})`);
+                  ${o.publicTransport}, null, 'fake', now(), ${expiresAt})`);
         return row.id;
       };
       const bookedAt = new Date(Date.now() + 9 * 86_400_000);

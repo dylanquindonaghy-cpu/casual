@@ -58,7 +58,7 @@ address has no bar.
   a shift's page and the urgent board count as Shifts), "Pay" (`/pay`) and "Profile" (`/profile`;
   requests and uploads count as Profile). The current tab is marked (bold, `aria-current`). A red
   dot on Profile when something needs updating (a qualification, or her photo overdue or due soon),
-  read out as ", something needs updating". Not on Help or the login pages.
+  read out as "Profile, something needs updating". Not on Help or the login pages.
 - Every logged-in page and `/help` open the same way (Phase 11, `src/app/ui/page-header.tsx`):
   the firm's name above the page's title, then a line. Status words carry a colour and a small
   icon, never the colour alone (`docs/ui-design.md`).

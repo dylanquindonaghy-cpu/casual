@@ -1,7 +1,7 @@
 import { devices, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { OFFLINE_CACHE } from "../../src/lib/portal/offline";
-import { addBookedShift, workerIdOf } from "./db";
+import { addBookedShift, addWorker } from "./db";
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
 
@@ -32,43 +32,56 @@ const keptText = (page: Page) =>
   }, OFFLINE_CACHE);
 
 const hasCopy = (page: Page, path = "/") =>
-  page.evaluate(
-    async ([name, at]) => !!(await (await caches.open(name)).match(at)),
-    [OFFLINE_CACHE, path] as const,
-  );
+  page.evaluate(async ([name, at]) => !!(await (await caches.open(name)).match(at)), [
+    OFFLINE_CACHE,
+    path,
+  ] as const);
 
 test("Home (her next shift) and Booked open with no signal, marked as copies; logging out deletes them", async ({
   page,
   context,
-}) => {
+}, testInfo) => {
+  // A casual of this spec's own (a retry gets another), so her next shift is this one.
+  const n = testInfo.retry;
+  const mobile = `+4477009006${22 + n}`;
   const site = `Offline Test Hall ${RUN}`;
   await addBookedShift("acme", {
-    workerId: await workerIdOf("acme", "+447700900103"),
+    workerId: await addWorker("acme", {
+      firstName: "Olive",
+      lastName: `Offline${n || ""}`,
+      mobileE164: mobile,
+    }),
     daysAhead: 3,
     site,
   });
-  await logIn(page, "07700 900103", "+447700900103");
+  await logIn(page, `07700 9006${22 + n}`, mobile);
   // Arriving on Home after logging in (no full page load) is enough to keep a copy.
   await expect.poll(() => hasCopy(page), { timeout: 15_000 }).toBe(true);
   await expect(page.getByText("No signal.")).toBeHidden();
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);
-  // Booked, on the Shifts tab, is kept too.
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Shifts" }).click();
-  await expect(page).toHaveURL(`${acme}/shifts`);
-  await expect.poll(() => hasCopy(page, "/shifts"), { timeout: 15_000 }).toBe(true);
 
+  // Each page is checked by reloading it with no signal. (Opening a different address with no
+  // signal isn't: the browser's offline switch doesn't reliably reach the service worker's own
+  // request then, and the server answered it.)
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
-  await expect(page.getByText("No signal.")).toBeVisible();
-  await expect(page.getByText(site).first()).toBeVisible();
-  await page.goto(`${acme}/`);
   await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
   await expect(page.getByText("No signal.")).toBeVisible();
   await expect(page.getByText(/^These are your shifts from \d\d:\d\d on /)).toBeVisible();
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
   // The copy still has her next shift in full.
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);
+  await context.setOffline(false);
+
+  // Booked, on the Shifts tab, is kept too.
+  await page.goto(`${acme}/shifts`);
+  await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
+  await expect.poll(() => hasCopy(page, "/shifts"), { timeout: 15_000 }).toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
+  await expect(page.getByText("No signal.")).toBeVisible();
+  await expect(page.getByText(site).first()).toBeVisible();
   await context.setOffline(false);
 
   await page.reload();

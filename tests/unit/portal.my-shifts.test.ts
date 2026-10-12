@@ -262,7 +262,10 @@ describe("Booked: the bookings themselves", () => {
       createElement(TabBar, { current: "home", profileDot: true }),
     );
     expect(dotted).toContain("data-profile-dot");
-    expect(text(dotted)).toContain("Profile , something needs updating");
+    // The Profile link's whole name, with no gap before the comma; the other tabs keep their word.
+    const profileTag = /<a [^>]*href="\/profile"[^>]*>/.exec(dotted)?.[0] ?? "";
+    expect(profileTag).toContain('aria-label="Profile, something needs updating"');
+    expect(dotted.match(/aria-label="[^"]*something needs updating"/g)).toHaveLength(1);
   });
 
   it("names the later list 'Coming up', with its count beside the heading, not in it", () => {

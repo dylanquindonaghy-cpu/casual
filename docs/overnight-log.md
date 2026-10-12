@@ -12409,3 +12409,12 @@ came from the job worker, not the seed. Recorded for Dylan (round 2 kept it open
 `VERDICT: NOT DONE`). **Dylan decided (2026-10-12, in chat): "Allow the seed"**: the seed runs the
 reply job itself (no AI, nothing sent), and `tests/unit/ai.boundary.test.ts` lists
 `src/lib/db/admin/seed-story-load.ts` in its two lists, with the reason.
+
+**Verify:** `VERIFIED tree=f0cafeb8020923a2 e2e=true` (all five checks ok; 4,837 tests in 267
+files; 91 browser tests and the walkthrough's 3).
+
+**Auditor (round 3), verbatim verdict line:** `VERDICT: DONE`.
+
+**Ended:** 2026-10-12 16:07 UTC. **Hours:** 1.6. Phase 12 so far: 40.0 hours over 31 Hours-log rows
+(no estimate for Phase 12). **Commit:** "Phase 12: Demo seed (12I.1)", pushed to `build/overnight`.
+**Next:** 12I.3 and 12I.4 in a fresh session (Dylan's decisions above).

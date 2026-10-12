@@ -12129,3 +12129,47 @@ checks, and the licence's words are let off the plain-language test.
 1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
 2. Open `http://acme.localhost:3000/help`: the three new sections are in "On this page", and the
    credit line is at the very bottom.
+
+## 2026-10-12 — Phase 12, task 12I.1: Demo seed
+
+**Time spent:** 1.6 hours (14:32 to 16:07 UTC). **Result:** `VERIFIED tree=f0cafeb8020923a2
+e2e=true` (4,837 tests, 91 browser tests and the walkthrough's 3); the auditor said **DONE** in
+round 3. Commit "Phase 12: Demo seed (12I.1)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+`npm run db:seed` (the command that fills the local database with made-up demo data) now also
+loads the story the design mock-up tells about "Acme Events": six events (one switched off so
+casuals can't see it), eight named casual workers with their licences, photos, strikes and travel
+areas, past cancellations (some giving a strike, one withdrawn by the office, one flagged for a
+person to review), two pay questions payroll has sorted, uploads waiting for the office to check,
+and three WhatsApp messages answered by the app's own reply code (nothing is really sent). All
+dates are relative to the day it runs, so "tomorrow" is always tomorrow.
+
+The shifts the story leaves open need something only the story's people have, so the older demo
+workers (and the step-by-step walkthrough built on them) see exactly what they saw before.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Story places need what only the story's casuals hold | The walkthrough and its tests stay as they were | Letting everyone see them (many tests and steps would change) |
+| Three older demo workers renamed (900105, 900137, 900152) | They shared a name with a story person | Renaming the story's people (they're the mock-up's) |
+| The seed runs the reply code once (Dylan's decision) | Replies are there straight after `db:seed` | Leaving them for the job worker (unanswered until it runs) |
+| Rows added once by fixed ids | A re-run never duplicates or undoes a demo | Dated ids (a re-run another day would duplicate the story) |
+
+### What the new tests prove
+
+`tests/integration/seed.story.test.ts` (14 tests, real database): each part of the story is there
+as the app reads it; Zoe's Home matches the mock-up ("3.1 miles · 12 min by car · 24 min by public
+transport"); none of the 60 older workers sees a story shift; every story booking is one the rules
+allowed when it was made; no casual's own words reach the log; a second run changes nothing.
+
+### What's parked or needs Dylan
+
+Nothing open. Your choice ("Allow the seed") is recorded in `PLAN.md` and in the AI boundary test.
+
+### How to see it working
+
+`npm run db:reset`, then `npm run dev`; log in at `http://acme.localhost:3000/login` as
+`07700 900400` (Zoe Adeyemi): Home looks like the mock-up.

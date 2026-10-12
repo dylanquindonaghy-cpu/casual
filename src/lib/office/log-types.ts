@@ -229,6 +229,10 @@ export const LOG_TYPES = {
       // The planner's API keys (12J.1): the key's id only.
       "api_key.created",
       "api_key.revoked",
+      // The planner's webhook (12J.2): each delivery's outcome ({eventRef, bookingId, type}, and
+      // the failure's code), never the address.
+      "webhook.delivered",
+      "webhook.failed",
     ],
   },
   sheet: {

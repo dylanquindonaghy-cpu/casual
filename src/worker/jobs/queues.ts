@@ -24,6 +24,8 @@ import {
 } from "../../lib/roster/sheets/jobs";
 import { RETENTION_PURGE_QUEUE, RETENTION_PURGE_TICK_QUEUE } from "../../lib/gdpr/retention";
 import { OPS_ALERT_QUEUE, OPS_ALERTS_TICK_QUEUE } from "../../lib/ops/tick";
+import { WEBHOOK_DELIVER_QUEUE } from "../../lib/integrations/outbox";
+import { WEBHOOK_RETRY_LIMIT } from "../../lib/integrations/deliver";
 import { HELLO_QUEUE } from "./hello";
 
 // Every queue the app uses. db:migrate creates them (so the web can enqueue before the worker
@@ -85,6 +87,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
 const travelEstimates = firmQueue(TRAVEL_ESTIMATES_QUEUE);
+const webhookDeliver = firmQueue(WEBHOOK_DELIVER_QUEUE);
 
 export const QUEUES: readonly QueueSpec[] = [
   { name: HELLO_QUEUE },
@@ -144,6 +147,20 @@ export const QUEUES: readonly QueueSpec[] = [
       retryDelay: 5 * 60,
       retryBackoff: true,
       retryDelayMax: 60 * 60,
+    },
+  },
+  // The planner's webhooks (12J.2; src/lib/integrations/deliver.ts): a failed try is tried again
+  // 6 times, from a minute later and doubling (pg-boss adds a random part), at most 30 minutes
+  // apart: about an hour in all. The last try logs webhook.failed and completes the job, so a
+  // firm's own endpoint is never a failed job (failedJobCounts()).
+  {
+    ...webhookDeliver,
+    options: {
+      ...webhookDeliver.options,
+      retryLimit: WEBHOOK_RETRY_LIMIT,
+      retryDelay: 60,
+      retryBackoff: true,
+      retryDelayMax: 30 * 60,
     },
   },
 ];

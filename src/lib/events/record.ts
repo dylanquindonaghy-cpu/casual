@@ -1,5 +1,6 @@
 import { activeFirmId, type FirmTx } from "../db/scoped";
 import { events } from "../db/schema";
+import { isWebhookAction, queueWebhooks } from "../integrations/outbox";
 import { redact } from "../log/mask";
 
 // The action log (golden rule 5): one append-only row per state change, written in the same
@@ -39,7 +40,9 @@ function eventRow(firmId: string, event: EventInput) {
   };
 }
 
-// Returns the new event's id (a job can then carry it instead of the event's details).
+// Returns the new event's id (a job can then carry it instead of the event's details). A booking,
+// a cancellation or a withdrawn strike also queues the firm's planner webhook, in this same
+// transaction, when the firm has one (the action log is the outbox: src/lib/integrations/outbox.ts).
 export async function recordEvent(tx: FirmTx, event: EventInput): Promise<number> {
   const firmId = activeFirmId();
   if (!firmId) throw new Error("recordEvent must be called inside withFirm");
@@ -48,14 +51,23 @@ export async function recordEvent(tx: FirmTx, event: EventInput): Promise<number
     .values(eventRow(firmId, event))
     .returning({ id: events.id });
   if (!row) throw new Error("event insert returned nothing");
+  if (isWebhookAction(event.action)) await queueWebhooks(tx, row.id, event.action);
   return row.id;
 }
 
 // Many events at once (one per row a bulk change touched: the pay queries in a digest, say), with
 // the same check on each, in inserts of up to 500 rows. Every event is checked before any is written.
+// Never a booking, cancellation or withdrawn strike: those queue a webhook each (recordEvent), and
+// this returns no ids to queue them with, so a bulk path can't skip a delivery silently.
 export async function recordEvents(tx: FirmTx, list: EventInput[]): Promise<void> {
   const firmId = activeFirmId();
   if (!firmId) throw new Error("recordEvents must be called inside withFirm");
+  const outboxed = list.find((event) => isWebhookAction(event.action));
+  if (outboxed) {
+    throw new Error(
+      `recordEvents can't write ${outboxed.action}: use recordEvent (it queues a webhook)`,
+    );
+  }
   const rows = list.map((event) => eventRow(firmId, event));
   for (let i = 0; i < rows.length; i += 500) {
     await tx.insert(events).values(rows.slice(i, i + 500));

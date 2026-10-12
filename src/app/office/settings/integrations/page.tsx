@@ -11,16 +11,20 @@ import {
   keyLastUsedText,
   PLANNER_GUIDE_HREF,
   plannerLine,
+  WEBHOOK_INTRO,
+  webhookStatusText,
 } from "@/lib/office/integrations-copy";
 import { roleLabel } from "@/lib/portal/format";
 import { ApiKeyTable, CreateKeyForm } from "./key-forms";
+import { WebhookPanel } from "./webhook-forms";
 
 export const metadata: Metadata = { title: "Integrations" };
 
 // Integrations (docs/office-v2.md 5.3.4; docs/screens.md `/office/settings/integrations`; 12J.1).
 // Admins only (others: not found; checked here, in the loader and again in every change). How the
 // planner is connected, its API keys (a new key is shown once, in the create answer: never on this
-// page) and the codes it may send. The webhook section comes with 12J.2.
+// page), its webhook (12J.2: the address shown as its host and last 4 characters; the signing
+// secret shown once, in the add or renewal answer) and the codes it may send.
 export default async function IntegrationsPage() {
   const { firm, officeUser } = await requireOfficeArea("integrations");
   const data = await integrationsPage({ firm, officeUserId: officeUser.id });
@@ -69,6 +73,19 @@ export default async function IntegrationsPage() {
               created: keyCreatedText(k, tz),
               lastUsed: keyLastUsedText(k, data.now, tz),
             }))}
+          />
+        </div>
+      </section>
+
+      <section className={sectionGap.office} aria-labelledby="webhook">
+        <h2 id="webhook" className={h2}>
+          Webhook
+        </h2>
+        <p className={`${muted} mt-1 max-w-prose`}>{WEBHOOK_INTRO}</p>
+        <div className={`${card} ${headingGap} max-w-2xl`}>
+          <WebhookPanel
+            hint={data.webhook.hint}
+            status={webhookStatusText(data.webhook.status, data.now, tz)}
           />
         </div>
       </section>

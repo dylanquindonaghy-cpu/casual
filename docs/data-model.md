@@ -96,6 +96,16 @@ never a word like `now` or `infinity`), refuses every other key (`retention.*` f
 clears the confirmed time when the address changes, needs an address before a time, and refuses
 `settings` or `settings.strikes` that aren't JSON objects rather than replacing them. Every other setting stays with the owner (`npm run firm:settings`).
 
+`webhook` (12J.2, S11 (b); migration 0047): `{ "url": "https://…", "signing_version": 3 }`, the
+firm's planner's webhook address (no default; a secret: never logged, shown on the page as its host
+and last 4 characters) and the version its signing secret is derived from
+(`src/lib/integrations/secrets.ts`; the secret itself is never stored). `app_set_firm_setting()`
+also accepts `webhook.url` (an `https://` address of at most 500 characters, or NULL to remove it;
+the same address again changes nothing) and `webhook.rotate` (NULL only, and only while an address
+is set). Each adds 1 to `signing_version`, which no call can set or lower, so an old signing secret
+never comes back. Admins change it on Integrations (`src/lib/office/webhook-settings.ts`), logged
+`firm.settings_changed` with the keys, what changed and the version's old and new numbers.
+
 The owner's strike settings (12C.1), in the same object, read by `src/lib/strikes/settings.ts`
 (a value out of range is ignored for the default) and set with `npm run firm:settings`:
 `strikes.notice_hours` (48, 1 to 336: a casual's own cancellation with less notice is a strike;

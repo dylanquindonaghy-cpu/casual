@@ -58,6 +58,15 @@ const NOT_EVENTS = new Set<string>([
   "strikes.evidence_email",
   // The travel job's queue (src/lib/travel/estimate-queue.ts, 12G.2; the task's own name).
   "travel.estimates",
+  // The planner's webhook types (src/lib/integrations/outbox.ts, 12J.2): what a delivery is
+  // called, not a log entry ("strike.withdrawn" is both, and is an entry).
+  "booking.created",
+  "booking.cancelled",
+  "test.ping",
+  // The webhook's keys, changed only through app_set_firm_setting() (12J.2).
+  "webhook.url",
+  "webhook.rotate",
+  "webhook.signing_version",
 ]);
 const recorded = new Set(
   [...sourceFiles(ROOT), ...sourceFiles(join(process.cwd(), "scripts"))]

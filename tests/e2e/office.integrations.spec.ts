@@ -1,5 +1,5 @@
 import type { APIRequestContext, Page } from "@playwright/test";
-import { addOfficeUser } from "./db";
+import { addEventWithSession, addOfficeUser, addSteward, bookAndCancel } from "./db";
 import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
@@ -132,6 +132,81 @@ test("an admin creates a key (shown once); the planner sends a session with it; 
   expect((await call.get(ref)).status()).toBe(401);
   expect((await call.put(ref, { places: 3 })).status()).toBe(401);
   await noSidewaysScroll(page);
+});
+
+// The planner's webhook (12J.2; docs/office-v2.md 5.3.3, 5.3.4): an admin adds one (its signing
+// secret shown once, gone after a reload; the address shown as its host and last 4 characters); a
+// casual cancels; the e2e worker sends it through the console transport (WEBHOOK_TRANSPORT=console in
+// serverEnv(): nothing leaves this machine) and the cancellation's record says it was sent. The
+// address is made up (.example) and removed again at the end, so no other spec's bookings are sent.
+test("an admin adds a webhook (secret shown once); a casual cancels; the record says it was sent", async ({
+  page,
+}) => {
+  const admin = `webhook.admin.${RUN}@example.com`;
+  await addOfficeUser("acme", { email: admin, name: "Webhook Admin", role: "admin" });
+  await officeLogin(page, admin);
+  await page.goto(`${acme}/office/settings/integrations`);
+  await expect(page.getByRole("heading", { name: "Webhook", exact: true })).toBeVisible();
+  const address = `https://hooks.example/e2e/${RUN}/k3F9`;
+  try {
+    await page.getByRole("textbox", { name: "Address" }).fill(address);
+    await page.getByRole("button", { name: "Add a webhook" }).click();
+    await expect(page.getByText("Signing secret:")).toBeVisible();
+    await expect(
+      page.getByText("Copy it into your planner now. You won't see it again."),
+    ).toBeVisible();
+    const secret = (
+      (await page
+        .locator("code")
+        .filter({ hasText: /^whsec_/ })
+        .textContent()) ?? ""
+    ).trim();
+    expect(secret).toMatch(/^whsec_[A-Za-z0-9+/]{43}=$/);
+    await expect(page.getByText("https://hooks.example/…k3F9")).toBeVisible();
+    await expect(page.getByText("Added · nothing sent yet")).toBeVisible();
+    await noSidewaysScroll(page);
+    // Gone after a reload: neither the secret nor the whole address is ever on the page again.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Webhook", exact: true })).toBeVisible();
+    const html = await page.content();
+    expect(html).not.toContain(secret);
+    expect(html).not.toContain(`/e2e/${RUN}/`);
+    await expect(page.getByText("https://hooks.example/…k3F9")).toBeVisible();
+
+    // A casual cancels their booking: the worker tells the planner, and the record says so.
+    const { shiftId } = await addEventWithSession("acme", {
+      name: `Webhook Test Event ${RUN}`,
+      site: `Webhook Test Ground ${RUN}`,
+      role: "steward",
+      daysAhead: 9,
+    });
+    const workerId = await addSteward("acme", {
+      firstName: "Wendy",
+      lastName: `Webhook${RUN}`,
+      mobileE164: "+447700900651",
+    });
+    const { ref } = await bookAndCancel("acme", { shiftId, workerId, reason: "Travel problem" });
+    const planner = page.locator("dt", { hasText: /^Your planner$/ }).locator("+ dd");
+    await expect(async () => {
+      await page.goto(`${acme}/office/cancellations/${ref}`);
+      await expect(planner).toHaveText(/^Sent to your planner at \d\d:\d\d on /, {
+        timeout: 1_000,
+      });
+    }).toPass({ timeout: 30_000 });
+    await page.goto(`${acme}/office/settings/integrations`);
+    await expect(page.getByText(/^Working · last delivered /)).toBeVisible();
+  } finally {
+    await page.goto(`${acme}/office/settings/integrations`);
+    const remove = page.getByRole("button", { name: "Remove", exact: true });
+    if (await remove.isVisible()) {
+      await remove.click();
+      await page.getByRole("button", { name: "Yes, remove it" }).click();
+      await expect(
+        page.getByRole("status").filter({ hasText: "Removed. Nothing more goes to your planner" }),
+      ).toBeVisible();
+    }
+  }
+  await expect(page.getByRole("button", { name: "Add a webhook" })).toBeVisible();
 });
 
 test("resourcers and payroll don't get Integrations", async ({ page }) => {

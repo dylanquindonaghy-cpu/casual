@@ -321,6 +321,7 @@ describe("the Needs attention item on the dashboard (12E.1)", () => {
     evidence,
     plannerRefused: [],
     plannerRefusedMore: false,
+    webhookFailing: null,
   });
   const view = (evidence: NeedsAttention["evidence"]): Dashboard => ({
     timeZone: "Europe/London",

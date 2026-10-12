@@ -580,6 +580,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${officeName} created an API key for your planner.`;
     case "api_key.revoked":
       return `${officeName} revoked an API key. It stopped working at once.`;
+    // The planner's webhook (12J.2): the outcome of one delivery, never the address.
+    case "webhook.delivered":
+      return `Your planner was told by webhook ${webhookWhat(d.type)}.`;
+    case "webhook.failed":
+      return `Your planner couldn't be reached by webhook ${webhookWhat(d.type)}, after an hour of tries (${webhookFailure(d.code)}). It can catch up from ShiftDesk.`;
     case "firm.agreement_recorded":
       if (d.cleared === true) {
         return `The firm's recorded agreement was removed${typeof d.was === "string" ? ` (it said ${dayLabel(d.was)} ${d.was.slice(0, 4)})` : ""}.`;
@@ -595,6 +600,19 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         return keys.includes("strikes.email")
           ? `${officeName} changed the strikes team's email.`
           : `${officeName} changed whether the strikes team's email is confirmed.`;
+      }
+      // The planner's webhook (12J.2): what changed, never the address.
+      if (keys.length > 0 && keys.every((k) => k.startsWith("webhook."))) {
+        switch (d.webhook) {
+          case "added":
+            return `${officeName} added a webhook for your planner.`;
+          case "replaced":
+            return `${officeName} changed your planner's webhook address. Its signing secret changed too.`;
+          case "removed":
+            return `${officeName} removed your planner's webhook.`;
+          default:
+            return `${officeName} made a new signing secret for your planner's webhook. The old one stopped working.`;
+        }
       }
       const n = keys.length;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
@@ -893,5 +911,44 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     }
     default:
       return `Recorded: ${e.action}.`;
+  }
+}
+
+// What a webhook was about, for its log entry (12J.2).
+function webhookWhat(type: unknown): string {
+  switch (type) {
+    case "booking.created":
+      return "about a booking";
+    case "booking.cancelled":
+      return "about a cancellation";
+    case "strike.withdrawn":
+      return "about a withdrawn strike";
+    case "test.ping":
+      return "with a test event";
+    default:
+      return "about a change";
+  }
+}
+
+// Why a webhook failed, in plain words.
+function webhookFailure(code: unknown): string {
+  if (typeof code === "string" && /^http_\d{3}$/.test(code)) {
+    return `it answered with an error, ${code.slice(5)}`;
+  }
+  switch (code) {
+    case "timeout":
+      return "it didn't answer in time";
+    case "dns":
+      return "its address couldn't be found";
+    case "tls":
+      return "its security certificate wasn't valid";
+    case "refused_address":
+      return "its address points somewhere ShiftDesk won't send to";
+    case "redirect":
+      return "it tried to send us somewhere else";
+    case "not_configured":
+      return "webhooks aren't switched on for ShiftDesk";
+    default:
+      return "it couldn't be reached";
   }
 }

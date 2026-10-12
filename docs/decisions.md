@@ -451,8 +451,24 @@ host (`resolveFirmBySlug()`) or by shifts-line number (`resolveFirmByLine()`).
 - **A small REST API** at the platform address only (`https://{APP_BASE_DOMAIN}/api/v1`):
   `PUT` and `GET /sessions/{ref}` (by the planner's own id) and `GET /cancellations` (keyset pages).
   JSON only, at most 64 KB, every body checked by a strict zod schema; errors are
-  `{"error": {"code", "message", "request_id"}}` and never echo a value. Signed webhooks out follow
-  in 12J.2 (the Standard Webhooks spec).
+  `{"error": {"code", "message", "request_id"}}` and never echo a value.
+- **Signed webhooks out** (12J.2): `booking.created`, `booking.cancelled` (the full record and the
+  strike result), `strike.withdrawn` and `test.ping`, signed by the open Standard Webhooks spec, so
+  receivers can use its libraries. **The action log is the outbox:** `recordEvent()` queues one
+  `webhook-deliver` job (ids only) in the same transaction as each `shift.assigned`,
+  `shift.cancelled` and `strike.withdrawn` entry when the firm has an address, so no booking path can
+  skip one and a rollback queues nothing; `recordEvents()` refuses those actions. The body is built
+  when it is sent, from the rows, by the API's own record builder (so `booking.cancelled`'s `data`
+  is `GET /cancellations`' record), and checked against a strict zod contract that
+  `docs/integrations.md` prints. The signing secret and event ids are HMACs of `INTEGRATIONS_SECRET`
+  (`whsec_…` from the firm and `webhook.signing_version`, which only `app_set_firm_setting()` raises:
+  on each add, change, removal and "New signing secret"), never stored and shown once. Delivery is
+  from the worker only (`WEBHOOK_TRANSPORT`, `https` in production), through a sender that resolves
+  the name, refuses any non-public address (an explicit `BlockList`), connects only to the address it
+  checked, follows no redirect and times out at 5 and 10 seconds. Retries are the queue's own (6,
+  from a minute, doubling to at most 30 minutes: about an hour); the last try logs `webhook.failed`,
+  raises a Needs attention item and completes the job, so a firm's own endpoint never alerts Dylan.
+  One firm's deliveries are one pg-boss group, run one at a time on 4 loops of one job each.
 - **API keys:** `shiftdesk_` plus 43 random characters, shown once. Only the sha256 and the last 4
   characters are stored, in `api_keys` (forced RLS; the app may read and add rows and change only
   `last_used_at`, `revoked_at` and `revoked_by`; never deleted, since a key's id is the actor on
@@ -492,8 +508,17 @@ host (`resolveFirmBySlug()`) or by shifts-line number (`resolveFirmByLine()`).
 | OAuth client credentials | More moving parts for small firms and their no-code tools; a revocable key does the job |
 | Signed tokens (JWT) instead of stored keys | Can't be revoked at once without a table anyway |
 | Doing the API's work in a job | The planner needs the answer in the response |
+| Webhooks queued by each booking path itself | One path forgotten would be one planner never told; the log entry already exists on every path |
+| An outbox table of its own | A second record of the same change; the action log is append-only and already in the transaction |
+| Webhook bodies built when queued | Personal data in the queue (no RLS there), and a retry would send an erased casual's name |
+| Our own signing scheme | Receivers would need our code; Standard Webhooks has libraries in most languages |
+| pg-boss's default retries (2, no wait) | An endpoint down for a minute would lose the webhook |
 **Consequences:** a new machine login path: keys are shown once and never logged (a test checks the
 servers' logs for any `shiftdesk_` key or `Bearer`), refused keys and calls are rate-limited, and
-each request writes one log line with the route, status, time, firm and key id. Planners must send
+each request writes one log line with the route, status, time, firm and key id. Webhooks are a new
+way out to an address a firm chooses: it is treated as a secret (host and last 4 characters only on
+the page; never logged), and only public addresses are ever reached. A webhook can arrive twice
+(receivers drop repeats by `webhook-id`) and out of order (they apply the latest status). Rotating
+`INTEGRATIONS_SECRET` changes every firm's signing secret (`docs/runbooks.md`). Planners must send
 one ref's PUTs one at a time with no automatic replays (`docs/integrations.md`). **Revisit when:** a
 planner needs OAuth or per-key scopes, a firm needs more than 10 keys, or `/api/v2`.

@@ -330,6 +330,13 @@
       "when": 1791742669252,
       "tag": "0046_api_key_revocation_final",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791798485072,
+      "tag": "0047_webhook_settings",
+      "breakpoints": true
     }
   ]
 }

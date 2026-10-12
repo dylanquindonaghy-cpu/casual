@@ -1,10 +1,18 @@
 import { soonLabel, timeOnDay } from "../portal/format";
+import type { AddressProblem } from "../integrations/send";
 import type {
   ApiKeyRow,
   CreateApiKeyResult,
   PlannerLink,
   RevokeApiKeyResult,
 } from "./integrations";
+import type {
+  AddWebhookResult,
+  RemoveWebhookResult,
+  RenewSecretResult,
+  TestWebhookResult,
+  WebhookStatus,
+} from "./webhook-settings";
 
 // Integrations in plain words (docs/office-v2.md 5.3.4; docs/screens.md
 // `/office/settings/integrations`; 12J.1). Pure, and safe in the browser: the limits are written
@@ -85,6 +93,114 @@ export function revokeKeyResultText(result: RevokeApiKeyResult | Common): string
       return "Only admins can revoke API keys.";
     case "unknown":
       return "Something went wrong. Reload the page to see if the key was revoked.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+// ---- The webhook (12J.2; docs/office-v2.md 5.3.4) ----
+
+export const WEBHOOK_INTRO =
+  "Your planner hears about each booking, cancellation and withdrawn strike the moment it happens, with the full record. Give it an https address your planner gives you.";
+
+export const NO_WEBHOOK = "No webhook yet.";
+
+// "Working · last delivered 09:42" / "Failing since 03:10" / "Added · nothing sent yet".
+export function webhookStatusText(status: WebhookStatus, now: Date, timeZone: string): string {
+  switch (status.kind) {
+    case "none":
+      return NO_WEBHOOK;
+    case "new":
+      return "Added · nothing sent yet";
+    case "working":
+      return `Working · last delivered ${soonLabel(status.lastDeliveredAt, now, timeZone)}`;
+    case "failing":
+      return `Failing since ${soonLabel(status.since, now, timeZone)}`;
+  }
+}
+
+export const SECRET_SHOWN_ONCE = "Copy it into your planner now. You won't see it again.";
+
+export const removeWebhookQuestion =
+  "Remove the webhook? Your planner stops hearing about bookings and cancellations at once.";
+
+export const renewSecretQuestion =
+  "Make a new signing secret? The old one stops working at once: paste the new one into your planner straight away.";
+
+const ADDRESS_PROBLEMS: Record<AddressProblem | "firm_domain", string> = {
+  not_an_address: "That isn't a web address. Paste the https address your planner gives you.",
+  not_https: "The address must start with https://.",
+  port: "The address can't name a port. Use your planner's usual https address.",
+  credentials: "The address can't hold a user name or password.",
+  ip_address: "The address must be a name, like hooks.example.com, not a number.",
+  too_long: "That address is too long (500 characters at most).",
+  ours: "That's a ShiftDesk address. Use your planner's address.",
+  firm_domain: "That's a ShiftDesk address. Use your planner's address.",
+};
+
+export function addWebhookResultText(result: AddWebhookResult | Common): string {
+  switch (result.status) {
+    case "added":
+      return SECRET_SHOWN_ONCE;
+    case "unchanged":
+      return "That address is already set. Nothing changed.";
+    case "invalid":
+      return ADDRESS_PROBLEMS[result.problem];
+    case "agreement_needed":
+      return "No webhook was added. Your planner can connect once your firm's agreement and data processing agreement with us are signed and recorded. Ask us to record them.";
+    case "not_configured":
+      return "Webhooks aren't switched on for ShiftDesk yet. Nothing was changed. Ask us to switch them on.";
+    case "not_allowed":
+      return "Only admins can add a webhook.";
+    case "unknown":
+      return "Something went wrong. Reload the page to see if the webhook was added. If it was, make a new signing secret.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+export function renewSecretResultText(result: RenewSecretResult | Common): string {
+  switch (result.status) {
+    case "renewed":
+      return SECRET_SHOWN_ONCE;
+    case "no_webhook":
+      return "There's no webhook to make a secret for.";
+    case "not_configured":
+      return "Webhooks aren't switched on for ShiftDesk yet. Nothing was changed.";
+    case "not_allowed":
+      return "Only admins can make a new signing secret.";
+    case "unknown":
+      return "Something went wrong. Make a new signing secret again: only the newest one works.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+export function removeWebhookResultText(result: RemoveWebhookResult | Common): string {
+  switch (result.status) {
+    case "removed":
+      return "Removed. Nothing more goes to your planner by webhook.";
+    case "no_webhook":
+      return "There was no webhook to remove.";
+    case "not_allowed":
+      return "Only admins can remove the webhook.";
+    case "unknown":
+      return "Something went wrong. Reload the page to see if the webhook was removed.";
+    default:
+      return COMMON[result.status];
+  }
+}
+
+export function testWebhookResultText(result: TestWebhookResult | Common): string {
+  switch (result.status) {
+    case "queued":
+      return "Test event on its way. Reload in a minute to see if it was delivered.";
+    case "no_webhook":
+      return "Add a webhook first.";
+    case "not_allowed":
+      return "Only admins can send a test event.";
+    case "unknown":
+      return "Something went wrong. Try again.";
     default:
       return COMMON[result.status];
   }

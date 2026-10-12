@@ -11944,3 +11944,66 @@ Hours-log rows (no estimate for Phase 12, so nothing to compare).
 on the way was saved as `50d9e47`, `69d9ab2`, `868d8ab`, `f19fedc`, `12d6582`, `768bddd`,
 `fc5d3a7` and `43b76b0`; `6c92b34` is the CI change). CI: not run (the GitHub Actions billing
 problem; Morning summary).
+
+## 2026-10-12 09:42 UTC — Phase 12, task 12J.2: Webhooks to the planner
+
+**Started:** 2026-10-12 09:42 UTC, in a fresh cloud container (set up as the 2026-10-07 entry's
+"Cloud environment notes" say: Node v22.23.3 from nodejs.org with its checksum checked, the
+container's Postgres 16 with the `shiftdesk` superuser, `dockerd` with `caddy:2.10`, and
+`/root/pw-compat` linking Playwright's Chromium build 1243 paths to the installed 141). The branch
+was `main` when the run began; switched to `build/overnight` (26 commits ahead of `main`, nothing
+uncommitted).
+
+**Task:** `PLAN.md` Phase 12, "Webhooks to the planner (S11, approved 2026-10-06)" (12J.2).
+
+**Plan**
+- **Migration 0047** (custom SQL, `drizzle-kit generate --custom`): `app_set_firm_setting()`
+  also accepts `webhook.url` (an `https://` address of at most 500 characters, or NULL to remove
+  it) and `webhook.rotate` (value NULL; refused when no address is set). Both add 1 to
+  `settings.webhook.signing_version`, which no call can set: an old signing secret never comes
+  back. Stored nested, like `strikes`: `settings.webhook.url` and `settings.webhook.signing_version`.
+- **`src/lib/integrations/secrets.ts`:** the signing secret (`whsec_` + base64 of
+  HMAC-SHA256(`INTEGRATIONS_SECRET`, `webhook|{firmId}|{version}`)) and the event id (`evt_` + 22
+  letters from an HMAC of the firm id and the log entry's id). **Decision:** the 22 characters are
+  letters only (base 52, about 125 bits), not base64url: the action log refuses any value with a run
+  of 10 digits (it would be taken for a phone number), and a base64url id could, rarely, hold one,
+  which would make `webhook.delivered` throw. Alternative: base64url and accept a rare failed log
+  write.
+- **`src/lib/integrations/sign.ts`:** Standard Webhooks headers and the `v1,` signature.
+- **`src/lib/integrations/send.ts`:** the address check on save (https, port 443, a DNS name, no
+  IP, no user:password, not ShiftDesk's own domain or a firm's subdomain), and on each try: resolve
+  every address, refuse if any is in §5.3.3's `BlockList` (or IPv6 outside 2000::/3), then one POST
+  through `https.request` whose `lookup` returns only the checked address; no redirects; 5 s to
+  connect, 10 s in all; reads at most 1 KB of the answer. Errors carry a code only.
+- **Transports** (`src/lib/integrations/webhook-transport.ts`): `console` (prints the signed
+  request with the address cut to its host) and `https`. `WEBHOOK_TRANSPORT` is a worker setting:
+  `https` required in production, refused under `NODE_ENV=test`; pinned to `console` in
+  `tests/setup/env.ts` and `serverEnv()`.
+- **Outbox** (`src/lib/integrations/outbox.ts`): `recordEvent()` calls `queueWebhooks(tx, eventId,
+  action)` for `shift.assigned`, `shift.cancelled` and `strike.withdrawn`; when the firm has an
+  address, it queues one `webhook-deliver` job (ids only, `group: webhook`) in the same
+  transaction. `recordEvents()` throws when handed one of those actions.
+- **Bodies** (`src/lib/integrations/webhooks.ts`): one zod schema per type (`booking.created`,
+  `booking.cancelled`, `strike.withdrawn`, `test.ping`), built when sent from 12J.1's
+  `bookingWithSession()`, so a `booking.cancelled` body's `data` is the `GET /cancellations` object.
+- **The job** (`src/lib/integrations/deliver.ts`): a firm task. One short transaction reads the
+  address, the signing version and the log entry and builds the body; the POST goes with no
+  transaction open; a second transaction logs `webhook.delivered {eventRef, bookingId, type}`. A
+  failure throws (pg-boss retries) until the last try, which logs `webhook.failed {eventRef,
+  bookingId, type, code}` and completes the job. **Decision:** `type` is added to both entries
+  (the spec lists `{eventRef, bookingId}`), so the record's "Your planner" line can tell the
+  cancellation's delivery from the booking's. No address any more (removed while a job waited):
+  nothing is sent or logged. Queue: `retryLimit` 6, `retryDelay` 60, `retryBackoff`,
+  `retryDelayMax` 1800; registered with `includeMetadata`, `localConcurrency` 4 and
+  `localGroupConcurrency` 1; `runFirmTask()` passes the try number and the limit on.
+- **Page:** the Integrations page's "Webhook" section (add, the secret shown once; the address as
+  its host and last 4 characters; "Working · last delivered …" / "Failing since …"; "Send test
+  event", "New signing secret", "Remove"). Adding needs Gate B, as creating a key does (it sends
+  staff data out). Each change logs `firm.settings_changed` with the key only for the address and
+  the signing version's old and new numbers.
+- **Elsewhere:** the cancellation record's "Your planner" line ("Sent to your planner at 19:06" /
+  "Sending" / "Couldn't reach your planner (gave up at …)" / "No webhook set up"), from the log;
+  the CSV's "Sent to planner at" column filled; Needs attention's "Your planner's webhook is
+  failing" (one item while the latest outcome is a failure and the address is still set);
+  `log-types.ts` and `event-words.ts` for the new entries.
+- **Tests:** the task's unit, integration and e2e lists. **Docs:** the task's list.

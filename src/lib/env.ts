@@ -230,6 +230,11 @@ export const workerEnvSchema = z
     // travel job). Secrets: never logged, never in the repo, never given to the web app.
     TRAVELTIME_APP_ID: unsetIfEmpty(z.string().max(200).optional()),
     TRAVELTIME_API_KEY: unsetIfEmpty(z.string().max(500).optional()),
+    // The planner's webhooks (docs/office-v2.md 5.3.3; 12J.2), worker only: the web app never sends
+    // one. "console" (the default) prints the signed request with the address cut to its host;
+    // "https" sends it (src/lib/integrations/send.ts): required in production, refused under
+    // NODE_ENV=test, so no test can reach a real address. An empty value means not set.
+    WEBHOOK_TRANSPORT: unsetIfEmpty(z.enum(["console", "https"]).default("console")),
     // Haiku (CLAUDE.md "Stack").
     AI_MODEL: unsetIfEmpty(
       z
@@ -272,6 +277,14 @@ export const workerEnvSchema = z
   .refine((e) => !e.SMTP_USER === !e.SMTP_PASS, {
     path: ["SMTP_PASS"],
     message: "SMTP_USER and SMTP_PASS go together",
+  })
+  .refine((e) => e.NODE_ENV !== "production" || e.WEBHOOK_TRANSPORT === "https", {
+    path: ["WEBHOOK_TRANSPORT"],
+    message: "webhooks must really be sent in production: WEBHOOK_TRANSPORT=https",
+  })
+  .refine((e) => e.NODE_ENV !== "test" || e.WEBHOOK_TRANSPORT !== "https", {
+    path: ["WEBHOOK_TRANSPORT"],
+    message: "tests never send real webhooks: https is refused when NODE_ENV=test",
   })
   .refine((e) => e.NODE_ENV !== "test" || e.AI_TRANSPORT !== "anthropic", {
     path: ["AI_TRANSPORT"],

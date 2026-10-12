@@ -436,12 +436,49 @@ usual. It's a server setting, the same for every firm, and nothing to do with a 
   .env"). Keep a copy in your password manager. Check: a call with a firm's key (the curl examples
   in `docs/integrations.md`) no longer answers 503.
 - **What rotating it means:** API keys keep working (each is stored as the sha256 of the key
-  itself, not with this secret). Once webhooks to planners are on (12J.2), the secret is what each
-  firm's webhook signing secret and every event id are made from: a new one changes both, so every
+  itself, not with this secret). The secret is also what each firm's webhook signing secret and
+  every event id are made from (12J.2), and the worker needs the same value as the web app
+  (`deploy/docker-compose.yml` passes it to both): a new one changes both, so every
   firm with a webhook must paste its new signing secret (from the Integrations page) into its
   planner before deliveries are accepted again, and a delivery retried across the change comes
   with a new event id. So rotate only if it may have leaked, after 22:00 like the others ("Rotate a
   secret"), and tell those firms' admins first.
+
+## A firm's planner webhook is failing
+
+What the office sees: "Your planner's webhook is failing" in Needs attention, "Failing since …" on
+Integrations, and "Couldn't reach your planner (gave up at …)" on a cancellation's record. Each
+delivery is tried 7 times over about an hour; the last try logs `webhook.failed` with a code
+(the action log on `/office/log`, under "Firm settings and office team", says it in words).
+
+1. Read the code: `http_4xx`/`http_5xx` (their planner answered with an error), `timeout` (no answer
+   in 10 seconds), `dns` (the name doesn't resolve), `tls` (its certificate isn't valid),
+   `refused_address` (the name points at a private address: never sent), `redirect` (it answered
+   with a redirect, which is never followed), `not_configured` (`INTEGRATIONS_SECRET` isn't set for
+   the worker: see "The planner integration secret").
+2. Their admin checks the address with whoever runs their planner (the page shows only its host and
+   last 4 characters: they compare with the address in their planner). If the planner checks
+   signatures, a 401 or 403 usually means an old signing secret: "New signing secret", then paste
+   it in.
+3. "Send test event". The page shows "Working · last delivered …" once one gets through, and the
+   Needs attention item goes. What failed in between isn't sent again: their planner catches up with
+   `GET /api/v1/cancellations?since=` (`docs/integrations.md`).
+4. Nothing ever reaches us: the worker log has one `webhook not delivered` line per failed try with
+   the firm, the host and the code (`docker compose logs worker | grep "webhook not delivered"`),
+   never the address.
+
+## A planner's API key or webhook secret may have leaked
+
+1. **An API key:** their admin revokes it on Integrations (it stops at once: the next call gets
+   401), creates a new one and gives it to their planner. Every change a key made is in the action
+   log with its `keyId`.
+2. **A webhook signing secret:** "New signing secret" (the old one stops at once), then paste the new
+   one into their planner. A leaked secret lets someone forge webhooks to their planner, not read
+   anything from ShiftDesk.
+3. **The webhook address itself** (some carry a key in their path): they make a new address in
+   their planner or Zapier, then add it on Integrations (that also makes a new secret).
+4. **`INTEGRATIONS_SECRET`:** see "The planner integration secret" above: rotate it, then every firm
+   with a webhook pastes its new signing secret.
 
 ## Event-morning outage (the one that matters)
 

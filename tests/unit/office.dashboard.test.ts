@@ -69,6 +69,7 @@ const noNeeds: NeedsAttention = {
   evidence: { addressConfirmed: true, waiting: 0, failed: [], failedMore: false },
   plannerRefused: [],
   plannerRefusedMore: false,
+  webhookFailing: null,
 };
 
 const empty: Dashboard = {
@@ -216,6 +217,7 @@ const full: Dashboard = {
           reviewNeeded: false,
           evidence: { status: "sent", to: null, sentAt: null },
         },
+        planner: { status: "none" },
         warning: null,
         then: { place: "reopened", markedUrgent: false, offeredTo: 0, replacement: null },
       },
@@ -245,6 +247,7 @@ const full: Dashboard = {
         noticeHours: 240,
         strikeCode: "by_firm",
         strike: null,
+        planner: { status: "none" },
         warning: null,
         then: { place: "reopened", markedUrgent: false, offeredTo: 0, replacement: null },
       },

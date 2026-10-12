@@ -19,10 +19,12 @@ import {
   newApiKey,
 } from "../integrations/keys";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
+import { webhookStatus, type WebhookStatus } from "./webhook-settings";
 
 // Integrations (docs/office-v2.md 5.3.4; docs/screens.md `/office/settings/integrations`; 12J.1),
 // admins only, checked here as well as on the page and in the actions: how the firm's planner is
-// connected, its API keys and the codes it may send. A key is made here and returned once, in the
+// connected, its API keys, its webhook (12J.2: src/lib/office/webhook-settings.ts) and the codes
+// it may send. A key is made here and returned once, in the
 // create answer: only its sha256 and its last 4 characters are stored (src/lib/integrations/keys.ts),
 // and the action log holds the key's id only (`api_key.created` / `api_key.revoked` {keyId}), never
 // the key or its name (typed text). A key row is never deleted: revoking stamps it, and it stops
@@ -49,6 +51,9 @@ export interface IntegrationsPage {
   keys: ApiKeyRow[]; // live keys only, oldest first
   roles: string[]; // the firm's role codes (credential_rules), for `role`
   qualifications: { code: string; name: string }[]; // for `requirements`
+  // The planner's webhook (12J.2): its address as a hint ("https://hooks.example/…k3F9"), never
+  // whole, and how its deliveries are going.
+  webhook: { hint: string | null; status: WebhookStatus };
 }
 
 export async function integrationsPage(ctx: OfficeContext): Promise<IntegrationsPage | null> {
@@ -98,7 +103,8 @@ export async function integrationsPage(ctx: OfficeContext): Promise<Integrations
       .select({ code: credentialTypes.code, name: credentialTypes.name })
       .from(credentialTypes)
       .orderBy(asc(credentialTypes.code));
-    return { now, planner, keys, roles: rules.map((r) => r.role), qualifications };
+    const webhook = await webhookStatus(tx);
+    return { now, planner, keys, roles: rules.map((r) => r.role), qualifications, webhook };
   });
 }
 

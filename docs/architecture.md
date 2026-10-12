@@ -414,6 +414,33 @@ on Enquiries and the office is alerted, with no message to them.)
    a closing line true however that call went; Twilio serves it itself. Messages aren't covered:
    WhatsApps and texts reach the same app.)
 
+## Webhooks to a firm's planner (12J.2)
+
+**The action log is the outbox.** `recordEvent()` (`src/lib/events/record.ts`) writes every state
+change in the transaction that makes it. For the three entries a planner hears about
+(`shift.assigned`, `shift.cancelled`, `strike.withdrawn`) it also calls `queueWebhooks()`
+(`src/lib/integrations/outbox.ts`): when the firm has a webhook address, one `webhook-deliver` job
+(ids only) is queued in the same transaction. A rollback queues nothing; every path that books or
+cancels (the app, the office, the rota sheet, the planner's API, an offer accepted) already writes
+these entries, so none is missed. `recordEvents()` (bulk, no ids back) refuses them.
+
+```
+ booking change ──► recordEvent() ──► events row ─┐ same transaction
+                                     queueWebhooks() ──► pgboss.job (ids only)
+ worker: webhook-deliver ──► build the body from the rows ──► sign (Standard Webhooks)
+        ──► resolve, check public, POST to that address (no redirects, 5 s / 10 s)
+        ──► 2xx: webhook.delivered │ else retry (6, ~1 h) │ last try: webhook.failed, Needs attention
+```
+
+The body is the API's own record (`src/lib/integrations/records.ts`) under a strict zod contract
+(`src/lib/integrations/webhooks.ts`, printed in `docs/integrations.md`). Delivery runs in the worker
+only (`WEBHOOK_TRANSPORT`: `console` in development and tests, `https` in production), on 4 loops of
+one job, one at a time per firm (a pg-boss group), so one firm's hanging endpoint can't hold up
+another's. The safe sender (`src/lib/integrations/send.ts`) refuses every private, loopback,
+link-local (the cloud metadata address), multicast and reserved range, IPv4 and IPv6 (mapped,
+NAT64 and 6to4 forms too), and connects only to the address it checked. The address is a secret:
+log lines name the host only.
+
 ## Notifications
 
 Order: web push (free) → WhatsApp template → SMS fallback.

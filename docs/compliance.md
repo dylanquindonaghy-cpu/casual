@@ -21,6 +21,27 @@ reviewed once by a solicitor before the first pilot.
   transfer terms. **Dylan to confirm** the Google line with
   the solicitor (added in Phase 10 task 10).
 
+## The firm's planner (12J.2)
+
+A firm's admin can connect its planner: the planner sends sessions with an API key and hears about
+bookings, cancellations and withdrawn strikes by signed webhook (`docs/integrations.md`). The firm
+is the controller and its admin chooses where the data goes; the planner is the firm's own
+recipient.
+- **Sent:** the session's facts (event, site name and postcode, role, times, pay rate, post,
+  meeting point, uniform, requirements), the booking's facts (status, who booked it, times), the
+  casual's first and last name and staff ref, and the cancellation and strike result (notice hours,
+  a reason code, the strike's status and how many count). A casual's own reason is always
+  `casual_own_reason`: "I'm unwell" is health data and never leaves ShiftDesk.
+- **Never sent:** a mobile number, an email address, a casual's postcode or travel data, health,
+  free text (anyone's typed reason or note), review flags or withdrawal reasons. Each webhook type
+  is a strict schema, so nothing can be added without the schema changing and its tests.
+- **Built when sent:** the queue holds ids only, so an erasure needs no extra work: after it the
+  casual is `null` with `"erased": true`. The runbook tells the firm to remove the person from its
+  planner too.
+- **Only to public https addresses** the admin added; the address is treated as a secret and never
+  logged. `api_keys` is left out of the firm's data export.
+- The strikes DPIA lists the firm's planner as a recipient of strike status.
+
 ## Data processing agreement (must cover)
 
 Instructions only · confidentiality · security measures · sub-processors and notice of changes ·

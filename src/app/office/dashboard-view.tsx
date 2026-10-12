@@ -13,6 +13,7 @@ import {
   NEEDS_HEADINGS,
   noticeChip,
   plannerRefusedText,
+  webhookFailingText,
   SECTION_ERROR,
   SECTIONS,
   uploadsText,
@@ -545,6 +546,21 @@ function NeedsItems({
               </li>
             ))}
           </ul>
+        </Need>
+      )}
+
+      {n.webhookFailing && (
+        <Need id="webhook" n={1} more={false}>
+          <div className={`${headingGap} ${row} flex max-w-prose flex-col gap-2`}>
+            <p className={nums}>{webhookFailingText(n.webhookFailing.since, tz)}</p>
+            {isAdmin ? (
+              <Link href="/office/settings/integrations" className={`${textLink} self-start`}>
+                Open Integrations
+              </Link>
+            ) : (
+              <p className={meta}>An admin can check it in Integrations.</p>
+            )}
+          </div>
         </Need>
       )}
 

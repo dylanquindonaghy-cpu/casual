@@ -1,4 +1,4 @@
-import { roleLabel } from "../portal/format";
+import { roleLabel, timeOnDay } from "../portal/format";
 import { dayLabel } from "../rules/reasons";
 import { localDateOf, wallTimeOf } from "../time/zoned";
 import type {
@@ -137,6 +137,7 @@ export const NEEDS_HEADINGS = {
   uploads: "Uploads to check",
   evidence: "Strike evidence",
   "planner-refused": "Your planner's change was refused",
+  webhook: "Your planner's webhook is failing",
 } as const;
 export type NeedsKey = keyof typeof NEEDS_HEADINGS;
 
@@ -200,3 +201,8 @@ export function cancelledByText(r: {
 
 // "2 hours' notice" as a chip ("Less than an hour's notice", "3 days' notice").
 export const noticeChip = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+
+// Your planner's webhook (12J.2): "Since 03:10 on Mon 12 Oct, bookings and cancellations haven't
+// reached your planner by webhook. …"
+export const webhookFailingText = (since: Date, tz: string): string =>
+  `Since ${timeOnDay(since, tz)}, bookings and cancellations haven't reached your planner by webhook. Check its address with whoever runs your planner, then send a test event. Your planner can catch up on what it missed from ShiftDesk.`;

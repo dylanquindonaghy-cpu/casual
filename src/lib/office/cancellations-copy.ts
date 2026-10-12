@@ -24,8 +24,20 @@ export type CancellationView = (typeof CANCELLATION_VIEWS)[number];
 
 export const CASUAL_OWN_REASON = "Casual's own reason (see ShiftDesk)";
 export const OFFICE_OWN_REASON = "Office's own reason (see ShiftDesk)";
-// No webhook to the firm's planner exists yet (Integrations, 12J): every record says so.
-export const PLANNER_TEXT = "No webhook set up";
+// Whether the cancellation reached the firm's planner by webhook (docs/office-v2.md 3.4; 12J.2).
+export const NO_WEBHOOK_TEXT = "No webhook set up";
+export function plannerText(p: CancellationRow["planner"], tz: string): string {
+  switch (p.status) {
+    case "sent":
+      return `Sent to your planner at ${timeOnDay(p.at, tz)}`;
+    case "failed":
+      return `Couldn't reach your planner (gave up at ${timeOnDay(p.at, tz)})`;
+    case "sending":
+      return "Sending";
+    case "none":
+      return NO_WEBHOOK_TEXT;
+  }
+}
 // The record reads the session as it is now; the notice was counted when it was cancelled.
 export const AS_IT_IS_NOW =
   "The session's details are as they are now; the notice is counted from when it was cancelled.";
@@ -102,6 +114,9 @@ export interface CancellationRow {
       nothingSent?: boolean;
     };
   } | null;
+  // Its booking.cancelled webhook to the firm's planner (12J.2): delivered, given up on after the
+  // last try, on its way, or no webhook was set up when it was cancelled.
+  planner: { status: "sent" | "failed"; at: Date } | { status: "sending" } | { status: "none" };
   warning: { version: string; shownAt: Date } | null;
   then: ThenFacts;
 }
@@ -342,7 +357,7 @@ export function recordFields(
     { label: "Strike", value: strikeText(r, o.tz) },
     { label: "Live strikes now", value: String(o.liveStrikes) },
     { label: "Evidence email", value: evidenceText(r, o.tz) },
-    { label: "Your planner", value: PLANNER_TEXT },
+    { label: "Your planner", value: plannerText(r.planner, o.tz) },
     { label: "Then", value: thenText(r.then, r.cancelledAt, o.tz, o.replacementName ?? true) },
     { label: "Warning on the cancel screen", value: warningText(r, o.tz) },
   ];
@@ -404,7 +419,7 @@ export function cancellationsCsv(
         exportReason(r),
         strikeShort(r),
         r.strike?.evidence.sentAt ? isoLocal(r.strike.evidence.sentAt, o.tz) : null,
-        null,
+        r.planner.status === "sent" ? isoLocal(r.planner.at, o.tz) : null,
         thenText(r.then, r.cancelledAt, o.tz),
       ]
         .map(csvCell)

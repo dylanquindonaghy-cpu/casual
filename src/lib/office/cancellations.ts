@@ -6,6 +6,7 @@ import { canAccess } from "../auth/roles";
 import { credentialRules, credentialTypes, firms, type CancelVia } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { webhookOf } from "../integrations/outbox";
 import {
   evidenceStuckSql,
   lastEvidenceCodeSql,
@@ -88,6 +89,9 @@ type Row = {
   replacement_first: string | null;
   replacement_last: string | null;
   replacement_at: string | Date | null;
+  planner_action: string | null;
+  planner_at: string | Date | null;
+  planner_set: string | null;
 };
 
 const date = (v: string | Date) => new Date(v);
@@ -169,7 +173,9 @@ async function loadRows(
                       where ce.id is not null and o.firm_id = a.firm_id and o.shift_id = a.shift_id
                         and v.id > ce.id and (nc.id is null or v.id < nc.id)), 0) as offered_to,
            rp.first_name as replacement_first, rp.last_name as replacement_last,
-           rp.confirmed_at as replacement_at
+           rp.confirmed_at as replacement_at,
+           wh.action as planner_action, wh.created_at as planner_at,
+           ${o.id || o.ref ? sql`wset.change` : sql`null::text`} as planner_set
       from assignments a
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
       join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
@@ -198,6 +204,21 @@ async function loadRows(
                             and ce.data ->> 'place' = 'reopened'
                             and r.id::text = ce.data ->> 'reopenedId'
                             and r.confirmed_at is not null) rp on true
+      left join lateral (select e.action, e.created_at from events e
+                          where e.firm_id = a.firm_id and e.entity_id = a.id
+                            and e.action in ('webhook.delivered', 'webhook.failed')
+                            and e.data ->> 'type' = 'booking.cancelled'
+                            and (ce.id is null or e.id > ce.id)
+                          order by e.id desc limit 1) wh on true
+      ${
+        o.id || o.ref
+          ? sql`left join lateral (select e.data ->> 'webhook' as change from events e
+                                    where e.firm_id = a.firm_id and ce.id is not null
+                                      and e.id < ce.id and e.action = 'firm.settings_changed'
+                                      and e.data -> 'keys' ? 'webhook.url'
+                                    order by e.id desc limit 1) wset on true`
+          : sql``
+      }
      where a.status in ('cancelled_worker', 'cancelled_firm')
        ${
          o.id
@@ -235,7 +256,27 @@ async function requirementNames(tx: FirmTx, rows: Row[]) {
     );
 }
 
-function toRow(r: Row, requirements: CancellationRow["requirements"]): CancellationRow {
+// Whether the cancellation reached the firm's planner by webhook (12J.2), from the log: its
+// booking.cancelled delivery's outcome; else, for one record (`webhookOn`: the firm has an address
+// now), "sending" when an address was set when it was cancelled.
+function plannerOf(r: Row, webhookOn: boolean): CancellationRow["planner"] {
+  if (r.planner_at && r.planner_action === "webhook.delivered") {
+    return { status: "sent", at: date(r.planner_at) };
+  }
+  if (r.planner_at && r.planner_action === "webhook.failed") {
+    return { status: "failed", at: date(r.planner_at) };
+  }
+  if (webhookOn && (r.planner_set === "added" || r.planner_set === "replaced")) {
+    return { status: "sending" };
+  }
+  return { status: "none" };
+}
+
+function toRow(
+  r: Row,
+  requirements: CancellationRow["requirements"],
+  webhookOn = false,
+): CancellationRow {
   const by: CancellationRow["by"] =
     r.status === "cancelled_worker"
       ? "casual"
@@ -294,6 +335,7 @@ function toRow(r: Row, requirements: CancellationRow["requirements"]): Cancellat
             },
           }
         : null,
+    planner: plannerOf(r, webhookOn),
     warning:
       r.strike_warning_version && r.strike_warning_shown_at
         ? { version: r.strike_warning_version, shownAt: date(r.strike_warning_shown_at) }
@@ -322,6 +364,7 @@ async function firmFacts(tx: FirmTx) {
     name: firm?.name ?? "",
     timezone: firm?.timezone ?? "Europe/London",
     threshold: strikeSettings(firm?.settings ?? {}).noticeHours,
+    webhookOn: webhookOf(firm?.settings).url !== null,
   };
 }
 
@@ -453,7 +496,7 @@ export async function loadCancellationRecord(
       firmName: firm.name,
       timeZone: firm.timezone,
       threshold: firm.threshold,
-      row: toRow(row, requirementsOf(row)),
+      row: toRow(row, requirementsOf(row), firm.webhookOn),
       liveStrikes: await liveStrikeCount(tx, row.worker_id, now),
     },
   };

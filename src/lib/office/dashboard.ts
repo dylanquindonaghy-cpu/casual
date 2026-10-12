@@ -26,6 +26,7 @@ import {
   type TodaySheetIssue,
   type TodayToMark,
 } from "./today";
+import { webhookStatus } from "./webhook-settings";
 
 // The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`): four counts, each a
 // link to its list, then urgent shifts not filled, events showing to casuals, the latest
@@ -129,6 +130,9 @@ export interface NeedsAttention {
   evidence: TodayEvidence;
   plannerRefused: PlannerRefusal[];
   plannerRefusedMore: boolean;
+  // Your planner's webhook is failing (12J.2): its latest delivery gave up after the last try, and
+  // the address is still set. One item, from the first failure since it last worked.
+  webhookFailing: { since: Date } | null;
 }
 
 export interface Dashboard {
@@ -156,7 +160,8 @@ export function needsCount(n: NeedsAttention): { count: number; more: boolean } 
       n.expired.length +
       n.uploads +
       evidenceItems(n.evidence) +
-      n.plannerRefused.length,
+      n.plannerRefused.length +
+      (n.webhookFailing ? 1 : 0),
     more:
       n.toCheckMore ||
       n.fromSheetMore ||
@@ -483,6 +488,7 @@ export async function loadNeedsAttention(
   const toMark = await loadToMark(tx, now);
   const expired = await loadExpiredOnBookings(tx, now, timeZone);
   const plannerRefused = await loadPlannerRefusals(tx, now);
+  const webhook = await webhookStatus(tx);
   return {
     toCheck: toCheck.items,
     toCheckMore: toCheck.more,
@@ -496,6 +502,7 @@ export async function loadNeedsAttention(
     evidence: await loadEvidence(tx, now),
     plannerRefused: plannerRefused.items,
     plannerRefusedMore: plannerRefused.more,
+    webhookFailing: webhook.status.kind === "failing" ? { since: webhook.status.since } : null,
   };
 }
 

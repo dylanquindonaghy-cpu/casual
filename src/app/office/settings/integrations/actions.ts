@@ -9,11 +9,22 @@ import {
   type RevokeApiKeyResult,
 } from "@/lib/office/integrations";
 import type { OfficeContext } from "@/lib/office/office-context";
+import {
+  addWebhook,
+  removeWebhook,
+  renewSigningSecret,
+  sendTestWebhook,
+  type AddWebhookResult,
+  type RemoveWebhookResult,
+  type RenewSecretResult,
+  type TestWebhookResult,
+} from "@/lib/office/webhook-settings";
 import { requestLog } from "@/lib/request";
 
 // Integrations (docs/screens.md `/office/settings/integrations`; 12J.1). The firm comes from the
 // request's host and the office user from their session: admins only, checked here and again
-// inside each change. A new key comes back in the create answer only, once; it is never logged.
+// inside each change. A new key, and a webhook's signing secret (12J.2), come back in the answer
+// only, once; neither is ever logged, and nor is the webhook's address.
 
 type Common = { status: "logged_out" } | { status: "not_allowed" } | { status: "error" };
 
@@ -39,4 +50,23 @@ export async function createApiKeyAction(label: unknown): Promise<CreateApiKeyRe
 
 export async function revokeApiKeyAction(keyId: unknown): Promise<RevokeApiKeyResult | Common> {
   return asAdmin("revoke api key", (ctx) => revokeApiKey(ctx, { keyId }));
+}
+
+export async function addWebhookAction(address: unknown): Promise<AddWebhookResult | Common> {
+  if (typeof address !== "string" || address.length > 1000) {
+    return { status: "invalid", problem: "not_an_address" };
+  }
+  return asAdmin("add webhook", (ctx) => addWebhook(ctx, { address }));
+}
+
+export async function renewSigningSecretAction(): Promise<RenewSecretResult | Common> {
+  return asAdmin("renew webhook secret", (ctx) => renewSigningSecret(ctx));
+}
+
+export async function sendTestWebhookAction(): Promise<TestWebhookResult | Common> {
+  return asAdmin("send test webhook", (ctx) => sendTestWebhook(ctx));
+}
+
+export async function removeWebhookAction(): Promise<RemoveWebhookResult | Common> {
+  return asAdmin("remove webhook", (ctx) => removeWebhook(ctx));
 }

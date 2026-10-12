@@ -167,7 +167,9 @@ describe("app_set_firm_setting(): the only way the app may change firms.settings
     ["retention.request_note_days", "30"],
     ["wave_size", "1"],
     ["strikes.notice_hours", "1"],
-    ["webhook.url", "https://hooks.example.com/x"],
+    // 12J.2: the webhook's address is accepted now (its own tests below), but its signing version
+    // is only ever raised by the function itself.
+    ["webhook.signing_version", "0"],
     ["strikes", '{"email":"a@example.com"}'],
     [null, "x"],
   ])("refuses %s through the function", async (key, value) => {

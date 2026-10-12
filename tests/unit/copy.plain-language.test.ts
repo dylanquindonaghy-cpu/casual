@@ -28,7 +28,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-const { MyShiftsView } = await import("@/app/my-shifts-view");
+const { BookedView } = await import("@/app/shifts/booked-view");
+const { HomeView } = await import("@/app/home-view");
 const { OpenShiftsView } = await import("@/app/shifts/open/open-shifts-view");
 const { UrgentView } = await import("@/app/urgent/urgent-view");
 const { TakeShiftResult } = await import("@/app/shifts/open/take-shift-result");
@@ -174,15 +175,12 @@ const shiftPages: ShiftPage[] = [
   { state: "started", shift: summary },
   { state: "cancelled", shift: summary },
 ];
-const myShifts = (o: Partial<Parameters<typeof MyShiftsView>[0]>) =>
-  createElement(MyShiftsView, {
-    firstName: "Sam",
-    voice,
+const myShifts = (o: Partial<Parameters<typeof BookedView>[0]>) =>
+  createElement(BookedView, {
     timeZone: TZ,
     now: NOW,
     view: "upcoming",
     shifts: [],
-    needs: [],
     ...o,
   });
 const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {}) => ({
@@ -194,13 +192,45 @@ const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {})
   choices: { days: [], sites: [], roles: [] },
   ...o,
 });
+// Home (12H.1): her next shift, Needs updating, urgent shifts and the shifts she can apply for.
+const homeScreen = (o: Partial<Parameters<typeof HomeView>[0]>) =>
+  createElement(HomeView, {
+    firstName: "Sam",
+    voice,
+    timeZone: TZ,
+    now: NOW,
+    next: null,
+    needs: [],
+    photo: { status: "up_to_date", current: null, waiting: null },
+    open: openList(),
+    ...o,
+  });
+const urgentOpen = (n: number) =>
+  openList({
+    further: { count: 2, atLeast: false },
+    shifts: Array.from({ length: n }, (_, i) => ({
+      shiftId: `3333333${i}-3333-4333-8333-333333333333`,
+      role: "door_supervisor",
+      startsAt: booked.startsAt,
+      endsAt: booked.endsAt,
+      placesLeft: 1,
+      opensAt: null,
+      travel: { kind: "unknown" as const },
+      isUrgent: i === 0,
+      site: { id: "33333333-3333-4333-8333-333333333333", ...site },
+      eventName: "Raceday",
+      payRatePence: 1260,
+      post: "Gate B",
+    })),
+  });
 const paragraph = (s: string) => createElement("p", null, s);
 
 const SCREENS: [string, ReactElement][] = [
-  ["My shifts, nothing booked", myShifts({})],
-  ["My shifts, past, nothing", myShifts({ view: "past" })],
-  ["My shifts, one urgent shift", myShifts({ urgentCount: 1 })],
-  ["My shifts, several urgent shifts", myShifts({ urgentCount: 3 })],
+  ["Booked, nothing booked", myShifts({})],
+  ["Booked, past, nothing", myShifts({ view: "past" })],
+  ["Home, nothing booked or open", homeScreen({})],
+  ["Home, one urgent shift and others to apply for", homeScreen({ open: urgentOpen(4) })],
+  ["Home, no home area", homeScreen({ open: openList({ area: null }) })],
   ["Urgent board, none", createElement(UrgentView, { list: openList(), timeZone: TZ, now: NOW })],
   [
     "Urgent board, one urgent shift",
@@ -224,9 +254,18 @@ const SCREENS: [string, ReactElement][] = [
       now: NOW,
     }),
   ],
+  ["Booked, a booking", myShifts({ shifts: [booked] })],
   [
-    "My shifts, a booking and every level of Needs updating (12F.1)",
-    myShifts({ shifts: [booked], needs: EVERY_LEVEL }),
+    "Home, her next shift and every level of Needs updating, the photo due soon (12F.1, 12H.1)",
+    homeScreen({
+      next: { ...booked, eventName: "Raceday", post: "Gate B", payRatePence: 1260 },
+      needs: EVERY_LEVEL,
+      photo: {
+        status: "due_soon",
+        current: { id: "p1", uploadedOn: "2023-11-20", renewBy: "2026-11-20" },
+        waiting: null,
+      },
+    }),
   ],
   [
     "Open shifts, no travel area (12G.3)",

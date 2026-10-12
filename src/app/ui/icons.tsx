@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-// The few icons the office's top bar, its menu and the office guide use: 20px line drawings in
+// The few icons the office's top bar, its menu, the office guide and the casual app's tab bar use: 20px line drawings in
 // the text colour, hand-written (no icon library; inline SVG also works in the offline copy).
 // Always beside words or purely visual cues, so hidden from screen readers. Hook-free: safe in
 // server and client components.
@@ -78,6 +78,13 @@ const PATHS = {
     </>
   ),
   // Pay queries: a banknote.
+  // The casual's Profile tab (12H.1): one person.
+  profile: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20.5c.8-4 3.8-6.5 7.5-6.5s6.7 2.5 7.5 6.5" />
+    </>
+  ),
   pay: (
     <>
       <rect x="2.5" y="6" width="19" height="12" rx="2" />

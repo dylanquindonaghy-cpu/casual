@@ -3,7 +3,8 @@ import vm from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MyShiftsView } from "@/app/my-shifts-view";
+import { HomeView } from "@/app/home-view";
+import { BookedView } from "@/app/shifts/booked-view";
 import { offlineCopyOn } from "@/lib/env";
 import { logOutOfThisPhone } from "@/lib/portal/logout-client";
 import {
@@ -711,6 +712,120 @@ describe("with a slow network, logging out, logging in and the fresh page (audit
   });
 });
 
+describe("Booked (`/shifts`) is kept too, on its own (12H.1)", () => {
+  const BOOKED = PAGE.replace("Hello Sam", "Booked shifts").replace(
+    "/_next/static/chunks/main.js",
+    "/_next/static/chunks/booked.js",
+  );
+  const online = () =>
+    loadWorker(
+      async (r) => {
+        const path = new URL(key(r)).pathname;
+        return path === "/" ? answer(PAGE) : path === "/shifts" ? answer(BOOKED) : answer("file");
+      },
+      { now: 1000 },
+    );
+
+  it("answers opening `/shifts` with no query, nothing else under it", () => {
+    const w = online();
+    const answers = (r: Req) => dispatch(w, r).handled !== null;
+    expect(answers(navigate("/shifts"))).toBe(true);
+    expect(answers(navigate("/shifts?view=past"))).toBe(false);
+    expect(answers(navigate("/shifts/open"))).toBe(false);
+    expect(answers(navigate("/shifts?fresh"))).toBe(false); // the fresh copy is Home's alone
+  });
+
+  it("keeps each page under its own address, with the files both name", async () => {
+    const w = online();
+    await dispatch(w, navigate("/")).settled();
+    await dispatch(w, navigate("/shifts")).settled();
+    const cache = await w.caches.open(OFFLINE_CACHE);
+    expect(cache.paths()).toEqual([
+      "/",
+      "/_next/static/chunks/booked.js",
+      "/_next/static/chunks/flight.js",
+      "/_next/static/chunks/main.js",
+      "/_next/static/css/app.css",
+      "/shifts",
+    ]);
+    expect(await (await cache.match("/shifts"))?.text()).toContain("Booked shifts");
+    expect(await (await cache.match("/"))?.text()).toContain("Hello Sam");
+  });
+
+  it("with no signal, each opens its own copy with the notice showing", async () => {
+    const w = online();
+    await dispatch(w, navigate("/")).settled();
+    await dispatch(w, navigate("/shifts")).settled();
+    const offline = loadWorker(
+      () => Promise.reject(new TypeError("offline")),
+      { now: 2000 },
+      w.caches,
+    );
+    const booked = await (await dispatch(offline, navigate("/shifts")).handled)?.text();
+    expect(booked).toContain("Booked shifts");
+    expect(booked).toContain('<div data-offline-notice="" role="status" data-kept-at="1000">');
+    expect(await (await dispatch(offline, navigate("/")).handled)?.text()).toContain("Hello Sam");
+  });
+
+  it("the page's keep message names its page; any other path is ignored", async () => {
+    const w = online();
+    const send = async (data: unknown) => {
+      const pending: Promise<unknown>[] = [];
+      w.listeners.message?.({ data, waitUntil: (p: Promise<unknown>) => pending.push(p) });
+      await Promise.all(pending);
+    };
+    await send({ type: "keep-my-shifts", path: "/shifts" });
+    expect(w.fetched[0]).toBe("/shifts");
+    const cache = await w.caches.open(OFFLINE_CACHE);
+    expect(await cache.match("/")).toBeUndefined();
+    expect(await (await cache.match("/shifts"))?.text()).toContain("Booked shifts");
+    const before = w.fetched.length;
+    await send({ type: "keep-my-shifts", path: "/pay" });
+    await send({ type: "keep-my-shifts", path: "https://example.com/" });
+    expect(w.fetched.length).toBe(before);
+    // An older page's message names no page: Home, as before.
+    await send({ type: "keep-my-shifts" });
+    expect(await (await cache.match("/"))?.text()).toContain("Hello Sam");
+  });
+
+  it("logged out on either page: every copy goes", async () => {
+    const w = online();
+    await dispatch(w, navigate("/")).settled();
+    const out = loadWorker(async () => opaqueRedirect(), { now: 2000 }, w.caches);
+    await dispatch(out, navigate("/shifts")).settled();
+    expect((await w.caches.open(OFFLINE_CACHE)).paths()).toEqual([]);
+  });
+
+  it("one page too old is dropped alone; the other and its files stay", async () => {
+    const w = online();
+    await dispatch(w, navigate("/shifts")).settled(); // kept at 1000
+    const later = loadWorker(
+      async (r) => (new URL(key(r)).pathname === "/" ? answer(PAGE) : answer("file")),
+      { now: 14 * DAY },
+      w.caches,
+    );
+    await dispatch(later, navigate("/")).settled(); // kept at 14 days
+    const offline = loadWorker(
+      () => Promise.reject(new TypeError("offline")),
+      { now: 15 * DAY + 1001 },
+      w.caches,
+    );
+    expect((await dispatch(offline, navigate("/shifts")).handled)?.status).toBe(503);
+    const paths = (await w.caches.open(OFFLINE_CACHE)).paths();
+    expect(paths).toContain("/");
+    expect(paths).not.toContain("/shifts");
+    expect(paths).toContain("/_next/static/css/app.css");
+    expect(await (await dispatch(offline, navigate("/")).handled)?.text()).toContain("Hello Sam");
+  });
+
+  it("the page side names the same two pages", () => {
+    expect(SOURCE).toContain('const PAGES = [PAGE, "/shifts"];');
+    expect(readFileSync("src/lib/portal/offline.ts", "utf8")).toContain(
+      'export const OFFLINE_PAGES = ["/", "/shifts"] as const;',
+    );
+  });
+});
+
 describe("a new version of the service worker", () => {
   it("deletes older ShiftDesk caches and leaves the current one and anyone else's", async () => {
     const w = loadWorker(async () => answer("x"));
@@ -730,29 +845,48 @@ describe("a new version of the service worker", () => {
 });
 
 describe("My shifts and the kept copy together", () => {
-  it("the page carries its time and a hidden notice; the worker unhides only that notice", () => {
-    const html = renderToStaticMarkup(
-      createElement(MyShiftsView, {
-        firstName: "Sam",
-        voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
-        timeZone: "Europe/London",
-        now: new Date("2026-11-02T09:05:00Z"),
-        view: "upcoming",
-        shifts: [],
-        needs: [],
-      }),
-    );
-    expect(html).toContain("Updated 09:05 on Mon 2 Nov");
-    const notice = html.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0] ?? "";
-    expect(notice).toContain('hidden=""');
-    const { sandbox } = loadWorker(async () => answer("x"));
-    const show = sandbox.showNoSignalNotice as (html: string, keptAt: number) => string;
-    const shown = show(html, 1000);
-    expect(shown.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0]).not.toContain("hidden");
-    expect(shown.replace(/<[^>]+>/g, "")).toContain(
-      "No signal.These are your shifts from 09:05 on Mon 2 Nov. They may have changed.Taking or cancelling a shift needs signal.",
-    );
-  });
+  it.each(["Home", "Booked"])(
+    "%s carries its time and a hidden notice; the worker unhides only that notice",
+    (which) => {
+      const now = new Date("2026-11-02T09:05:00Z");
+      const html = renderToStaticMarkup(
+        which === "Home"
+          ? createElement(HomeView, {
+              firstName: "Sam",
+              voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
+              timeZone: "Europe/London",
+              now,
+              next: null,
+              needs: [],
+              photo: { status: "up_to_date", current: null, waiting: null },
+              open: {
+                shifts: [],
+                truncated: false,
+                offerAlerts: true,
+                area: null,
+                further: { count: 0, atLeast: false },
+                choices: { days: [], sites: [], roles: [] },
+              },
+            })
+          : createElement(BookedView, {
+              timeZone: "Europe/London",
+              now,
+              view: "upcoming",
+              shifts: [],
+            }),
+      );
+      expect(html).toContain("Updated 09:05 on Mon 2 Nov");
+      const notice = html.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0] ?? "";
+      expect(notice).toContain('hidden=""');
+      const { sandbox } = loadWorker(async () => answer("x"));
+      const show = sandbox.showNoSignalNotice as (html: string, keptAt: number) => string;
+      const shown = show(html, 1000);
+      expect(shown.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0]).not.toContain("hidden");
+      expect(shown.replace(/<[^>]+>/g, "")).toContain(
+        "No signal.These are your shifts from 09:05 on Mon 2 Nov. They may have changed.Taking or cancelling a shift needs signal.",
+      );
+    },
+  );
 });
 
 describe("switching the offline copy on and off (OFFLINE_COPY)", () => {

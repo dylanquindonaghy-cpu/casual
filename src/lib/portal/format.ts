@@ -1,6 +1,7 @@
 import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf } from "../time/zoned";
 import type { MyShift } from "./my-shifts";
+import { pounds } from "./pay-format";
 
 // How the staff portal shows a shift (docs/screens.md copy rules: short, plain, readable). Pure
 // functions: the page passes the firm's time zone (times are stored in UTC, shown in London time).
@@ -24,6 +25,21 @@ export function shiftWhen(startsAt: Date, endsAt: Date, timeZone: string): strin
   }
   return `${start} to ${end} ${dayLabel(endDay).split(" ")[0]}`;
 }
+
+// "Steward · Raceday": the role and, when the session has one, its event.
+export function roleAndEvent(role: string, eventName: string | null | undefined): string {
+  return eventName ? `${roleLabel(role)} · ${eventName}` : roleLabel(role);
+}
+
+// "£12.60 an hour, about £100.80": the rate, and the rate times the session's length (a guide:
+// breaks and the firm's own rounding can change it).
+export function payWords(ratePence: number, startsAt: Date, endsAt: Date): string {
+  const hours = Math.max(0, endsAt.getTime() - startsAt.getTime()) / 3_600_000;
+  return `${pounds(ratePence)} an hour, about ${pounds(Math.round(ratePence * hours))}`;
+}
+
+// "£12.60/hour", for a line of facts.
+export const perHour = (ratePence: number): string => `${pounds(ratePence)}/hour`;
 
 // "door_supervisor" -> "Door supervisor".
 export function roleLabel(role: string): string {

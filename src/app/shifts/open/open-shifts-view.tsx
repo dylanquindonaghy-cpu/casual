@@ -4,6 +4,7 @@ import type { OpenShiftFilters, OpenShiftsList } from "@/lib/portal/open-shifts"
 import { dayLabel } from "@/lib/rules/reasons";
 import { btn, field, labelStack, muted, staffBtn } from "../../ui/classes";
 import { PageHeader } from "../../ui/page-header";
+import { ShiftsSwitch } from "../../my-shifts-view";
 import { OpenShiftCard } from "./open-shift-card";
 import { AreaPrompt, FurtherNote } from "./travel-notes";
 
@@ -33,6 +34,7 @@ export function OpenShiftsView({
   return (
     <>
       <PageHeader eyebrow={eyebrow} title="Open shifts" />
+      <ShiftsSwitch current="open" />
       <AreaPrompt list={list} />
       {(choices.days.length > 1 || choices.sites.length > 1 || choices.roles.length > 1) && (
         <form method="get" className="mb-6 grid grid-cols-2 gap-3 rounded-xl bg-quiet-soft p-3">

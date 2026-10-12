@@ -10,13 +10,14 @@ import { myPay, StepUpRequiredError, type PayLine } from "@/lib/portal/pay";
 import { myPayQueries, type MyPayQuery } from "@/lib/portal/pay-queries";
 import { CodeGate } from "./code-gate";
 import { PayQueries, PayView } from "./pay-view";
+import { CasualTabBar } from "../casual-tab-bar";
 
 export const metadata: Metadata = { title: "Your pay" };
 
 // Pay (docs/screens.md): behind a 6-digit code, valid for 30 minutes. Then the imported pay
 // records, loaded only for a stepped-up session (steppedUpWorker(), and myPay() checks again).
 export default async function PayPage() {
-  const { firm, session } = await requireWorker();
+  const { firm, worker, session } = await requireWorker();
   const stepped = await steppedUpWorker();
   // myPay checks the code window again; if it ran out a moment ago, the code gate shows.
   const lines: PayLine[] | null = stepped
@@ -47,6 +48,7 @@ export default async function PayPage() {
       <Link href="/" className={`${staffBtn.secondary} mt-8`}>
         Back to my shifts
       </Link>
+      <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
     </main>
   );
 }

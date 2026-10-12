@@ -2,10 +2,11 @@ import { and, asc, desc, eq, gt, inArray, lte, ne } from "drizzle-orm";
 import { DAY, systemClock, type Clock } from "../auth/clock";
 import { qualificationsFor } from "../credentials/qualifications";
 import type { NeedsItem } from "../credentials/status";
-import { assignments, firms, shifts, sites } from "../db/schema";
+import { assignments, firms, shiftEvents, shifts, sites } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
 import type { TravelFacts } from "../travel/line-copy";
 import { travelFor } from "../travel/lines";
+import type { StaffPhoto } from "../uploads/photo";
 
 // What the staff portal's My shifts page shows (docs/screens.md, `/`), for the logged-in worker
 // only, inside their firm (RLS scopes every row to it).
@@ -38,6 +39,12 @@ export interface MyShift {
   endsAt: Date;
   status: "confirmed" | "completed" | "no_show";
   instructions: string | null;
+  // The session's own facts (12H.1: Home's next shift, in full).
+  eventName?: string | null;
+  post?: string | null;
+  payRatePence?: number | null;
+  meetingPoint?: string | null;
+  uniform?: string | null;
   site: {
     name: string;
     addressLine1: string | null;
@@ -79,6 +86,11 @@ export async function myShifts(
         endsAt: shifts.endsAt,
         status: assignments.status,
         instructions: shifts.instructions,
+        eventName: shiftEvents.name,
+        post: shifts.post,
+        payRatePence: shifts.payRatePence,
+        meetingPoint: shifts.meetingPoint,
+        uniform: shifts.uniform,
         siteName: sites.name,
         addressLine1: sites.addressLine1,
         addressLine2: sites.addressLine2,
@@ -91,6 +103,10 @@ export async function myShifts(
         and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
       )
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
+      .leftJoin(
+        shiftEvents,
+        and(eq(shiftEvents.firmId, shifts.firmId), eq(shiftEvents.id, shifts.shiftEventId)),
+      )
       .where(and(eq(assignments.workerId, workerId), when))
       .orderBy(
         view === "upcoming" ? asc(shifts.startsAt) : desc(shifts.startsAt),
@@ -119,6 +135,15 @@ export async function myShifts(
 // "Needs updating" (docs/office-v2.md 4.2; 12F.1): what the worker should sort out about their
 // qualifications, in its four levels (src/lib/credentials/status.ts).
 export async function myNeedsUpdating(ctx: PortalContext, workerId: string): Promise<NeedsItem[]> {
+  return (await myNeedsAndPhoto(ctx, workerId)).needs;
+}
+
+// The same, with her staff photo (12F.2): Home's card shows the photo too when it's overdue or due
+// soon (12H.1), and the tab bar's Profile dot counts both.
+export async function myNeedsAndPhoto(
+  ctx: PortalContext,
+  workerId: string,
+): Promise<{ needs: NeedsItem[]; photo: StaffPhoto }> {
   const now = (ctx.clock ?? systemClock).now();
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx) => {
@@ -130,6 +155,22 @@ export async function myNeedsUpdating(ctx: PortalContext, workerId: string): Pro
       now,
       timeZone: firm?.timezone ?? "Europe/London",
     });
-    return held.get(workerId)?.needs ?? [];
+    const mine = held.get(workerId);
+    return {
+      needs: mine?.needs ?? [],
+      photo: mine?.photo ?? { status: "missing", current: null, waiting: null },
+    };
   });
+}
+
+// Something on Profile needs her: a qualification to sort out, or her photo overdue or due soon.
+export const somethingNeedsUpdating = (n: { needs: NeedsItem[]; photo: StaffPhoto }): boolean =>
+  n.needs.length > 0 || photoNeedsUpdating(n.photo);
+
+export const photoNeedsUpdating = (photo: StaffPhoto): boolean =>
+  photo.status === "overdue" || photo.status === "due_soon";
+
+// The tab bar's Profile dot (12H.1), for the pages that don't load Needs updating themselves.
+export async function profileNeedsYou(ctx: PortalContext, workerId: string): Promise<boolean> {
+  return somethingNeedsUpdating(await myNeedsAndPhoto(ctx, workerId));
 }

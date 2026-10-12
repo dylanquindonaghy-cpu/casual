@@ -16,6 +16,7 @@ import { CARD_GUIDANCE } from "@/lib/portal/upload-copy";
 import { refreshSessionAction } from "../../../session-actions";
 import { SessionKeeper } from "../../../session-keeper";
 import { UploadForm } from "../../upload-form";
+import { CasualTabBar } from "../../../casual-tab-bar";
 
 export const metadata: Metadata = { title: "Upload a certificate" };
 
@@ -62,6 +63,7 @@ export default async function UploadPage({ params }: { params: Promise<{ type: s
           Back to my profile
         </Link>
       </p>
+      <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
     </main>
   );
 }

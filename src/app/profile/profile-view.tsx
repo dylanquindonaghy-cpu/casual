@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { LogoutButton } from "../logout-button";
+import { Icon } from "../ui/icons";
 import { btn, card, h2, headingGap, muted, nums, sectionGap, staffBtn } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
@@ -232,9 +234,27 @@ export function ProfileView({
         {push && <PushSetting publicKey={push.publicKey} firmName={push.firmName} />}
       </section>
 
-      <Link href="/" className={`${staffBtn.secondary} mt-8`}>
-        Back to my shifts
-      </Link>
+      {/* Her requests, help, and last, Log out (docs/office-v2.md 4.1; 12H.1). */}
+      <ul role="list" className="mt-8 flex flex-col gap-3 border-t border-line pt-8">
+        <li>
+          <Link href="/requests" className={staffBtn.secondary}>
+            My requests
+          </Link>
+        </li>
+        <li>
+          <Link href="/help" className={staffBtn.secondary}>
+            Help
+          </Link>
+        </li>
+        <li>
+          <LogoutButton
+            kind="worker"
+            after="/login?out=1"
+            className={`${staffBtn.secondary} w-full`}
+            icon={<Icon name="logout" />}
+          />
+        </li>
+      </ul>
     </>
   );
 }

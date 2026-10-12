@@ -12115,3 +12115,38 @@ the way was saved as `97cc6b6`, `bc83597` and `aa88f36`). CI: not run (the GitHu
 problem; Morning summary).
 
 **Parked:** "Planner webhooks (12J.2 review)" in `PLAN.md`'s Parking lot.
+
+## 2026-10-12 12:09 UTC — Phase 12, task 12H.1: Casual app tab bar and Home
+
+**Started:** 2026-10-12 12:09 UTC (same container, right after 12J.2).
+
+**Task:** `PLAN.md` Phase 12, "Casual app tab bar and Home (§4.1–§4.2)" (12H.1).
+
+**Plan**
+- **Tab bar** (`src/app/tab-bar.tsx`): a bottom bar on every logged-in casual page (Home `/`,
+  Shifts `/shifts`, Pay `/pay`, Profile `/profile`), each with an icon and its word, the current
+  one marked (`aria-current`), and a dot on Profile when something needs updating (a qualification
+  in Needs updating, or the staff photo overdue or due soon). Fixed to the bottom, with room left at
+  the end of each page so nothing hides under it. The firm's bar stays at the top. Not on `/help`
+  (open to anyone, logged in or not) or the login pages.
+- **Theme:** casual pages have no switch, so the phone decides (the `sd-theme` cookie is only ever
+  set by the office's own switch). No change.
+- **Booked at `/shifts`** (Upcoming / Past 30 days, `?view=past`), with "Open | Booked" between the
+  two lists of the Shifts tab (`/shifts/open` and `/shifts`); `/?view=past` redirects to
+  `/shifts?view=past`.
+- **Home `/`:** "Hello {first name}" and "Updated …"; the no-signal notice; Needs updating (one
+  action per row, §4.2's order; the staff photo's row when overdue or due soon, "Last uploaded …
+  · renew by …" with "Take a new photo"); the urgent shifts she can take (role · event, site, date
+  and time · £/hour · post, the travel line, places left, "See urgent shifts"); her next shift in
+  full (role · event, site and address, post, pay with its estimate, report to, bring, getting
+  there, "Open in maps", "Ask for a change", "Cancel this shift"); the top 3 shifts she can apply
+  for, with "Only shifts your licences and hours allow…", "N more shifts are further than you
+  travel. Change how far" and "See all open shifts".
+- **Profile:** "My requests" and, last, "Log out" (moved from `/`). "Ask for a change" (the new
+  request page) links to My requests.
+- **Offline copy** (`public/sw.js`): kept for `/` and `/shifts` (Home's next shift and Booked), each
+  with its own copy, both deleted together on logout and login. **Decision:** extend the service
+  worker to a second page rather than put a Booked list on Home (§4.2 lists what Home holds).
+- **Tests:** the task's list; every spec that used Home's old links ("See open shifts", "My
+  profile", "See your pay", "My requests", "Past 30 days", "Log out" on `/`) moves to the tab bar,
+  Profile or `/shifts`, because the product moved them (none weakened).

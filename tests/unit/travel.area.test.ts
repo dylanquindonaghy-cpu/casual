@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() 
 
 const { OpenShiftsView } = await import("@/app/shifts/open/open-shifts-view");
 const { UrgentView } = await import("@/app/urgent/urgent-view");
-const { MyShiftsView } = await import("@/app/my-shifts-view");
+const { BookedView } = await import("@/app/shifts/booked-view");
 
 const TZ = "Europe/London";
 const NOW = new Date("2026-11-02T09:00:00Z");
@@ -193,14 +193,11 @@ describe("Booked (My shifts' upcoming)", () => {
   const render = (shifts: MyShift[]) =>
     text(
       renderToStaticMarkup(
-        createElement(MyShiftsView, {
-          firstName: "Zoe",
-          voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
+        createElement(BookedView, {
           timeZone: TZ,
           now: NOW,
           view: "upcoming",
           shifts,
-          needs: [],
         }),
       ),
     );

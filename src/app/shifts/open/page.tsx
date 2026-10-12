@@ -6,6 +6,7 @@ import { SessionKeeper } from "../../session-keeper";
 import { page } from "../../ui/classes";
 import { openShiftsFor, type OpenShiftFilters } from "@/lib/portal/open-shifts";
 import { OpenShiftsView } from "./open-shifts-view";
+import { CasualTabBar } from "../../casual-tab-bar";
 
 export const metadata: Metadata = { title: "Open shifts" };
 
@@ -50,6 +51,7 @@ export default async function OpenShiftsPage({
         now={new Date()}
         eyebrow={firm.name}
       />
+      <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
     </main>
   );
 }

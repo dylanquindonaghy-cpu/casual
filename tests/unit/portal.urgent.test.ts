@@ -3,13 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 
-// The urgent board (docs/screens.md, `/urgent`), the "Urgent" label on Open shifts and the
-// banner on My shifts, rendered to HTML. The "Take shift" button needs a stand-in router.
+// The urgent board (docs/screens.md, `/urgent`), the "Urgent" label on Open shifts and Home's
+// urgent shifts (12H.1), rendered to HTML. The "Take shift" button needs a stand-in router.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
 
 const { UrgentView } = await import("@/app/urgent/urgent-view");
 const { OpenShiftsView } = await import("@/app/shifts/open/open-shifts-view");
-const { MyShiftsView } = await import("@/app/my-shifts-view");
+const { HomeView } = await import("@/app/home-view");
 
 const TZ = "Europe/London";
 const NOW = new Date("2026-11-07T06:00:00Z");
@@ -92,29 +92,33 @@ describe("Open shifts", () => {
   });
 });
 
-describe("My shifts", () => {
-  const home = (urgentCount?: number) =>
+describe("Home", () => {
+  const home = (shifts: OpenShift[]) =>
     text(
       renderToStaticMarkup(
-        createElement(MyShiftsView, {
+        createElement(HomeView, {
           firstName: "Sam",
           voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
           timeZone: TZ,
           now: NOW,
-          view: "upcoming",
-          shifts: [],
+          next: null,
           needs: [],
-          urgentCount,
+          photo: { status: "up_to_date", current: null, waiting: null },
+          open: list(shifts),
         }),
       ),
     );
 
-  it("shows the urgent shifts the worker could take, in plain words", () => {
-    expect(home(1)).toContain("1 urgent shift needs someone See urgent shifts");
-    expect(home(3)).toContain("3 urgent shifts need someone See urgent shifts");
+  it("shows the urgent shifts the worker could take, in plain words, then the urgent board", () => {
+    const words = home([shift(), shift({ shiftId: "33333333-3333-4333-8333-333333333333" })]);
+    expect(words).toContain("Urgent: needed now, and you can take them");
+    expect(words).toContain("Urgent Door supervisor Acme Demo Arena Sat 7 Nov, 08:00 to 16:00");
+    expect(words.match(/1 place left/g)).toHaveLength(2);
+    expect(words).toContain("See urgent shifts");
   });
 
-  it("says nothing when there are none", () => {
-    for (const none of [0, undefined]) expect(home(none)).not.toContain("urgent");
+  it("says nothing about urgent shifts when there are none", () => {
+    expect(home([])).not.toContain("Urgent");
+    expect(home([shift({ isUrgent: false })])).not.toContain("Urgent");
   });
 });

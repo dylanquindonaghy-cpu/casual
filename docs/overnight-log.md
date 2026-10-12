@@ -12498,3 +12498,84 @@ pass (Dylan's decision 3 asked for one verify).
 
 **Ended:** 2026-10-12 16:51 UTC (shared). **Hours:** 0.4. **Commit:** "Phase 12: Guides and docs
 (12I.3)" (push: see 12I.4's entry).
+
+## 2026-10-12 — Phase 12, task 12I.4: Verify and the walkthrough
+
+**Task:** `PLAN.md` Phase 12, "Verify and the walkthrough" (12I.4).
+
+**Plan and what was built**
+- `docs/walkthrough.md`: Part 3's opening says where the menu is (and "Menu"/"Close menu" in a
+  narrow window) and what's at the top right (bell, moon/sun, your name with How-to guide and Log
+  out); step 35 logs out from your name. New steps for every Phase 12 page not walked yet: 20 Zoe
+  Adeyemi (travel lines on her shifts; `/profile/travel`), 21 Kieran Doyle (his strikes on Profile;
+  `/profile/upload/SIA_DS`), 25 Enquiries' messages, 30 Cancellations (a record and its PDF), 31
+  Strikes ("Needs review", "Keep strike"), 32 Casuals' "Uploads to check" (approve Ben's photo), 36
+  the Pay dashboard, 40 Settings (change the strikes team's email and confirm it on
+  `/confirm-email`), 41 Connect a planner (create a key, a `curl` PUT to `/api/v1`, "Connected by
+  API", the session on Events & sessions, revoke). Steps after 19 renumbered (old 20-43 are now
+  22-49); every "step N" reference moved with them.
+- `tests/e2e/walkthrough.spec.ts`: the same steps, in the same order, with the same numbers.
+- **Root causes on the way:** run 1 failed at step 41 because the API answers
+  `{"result":"created","session":…}`, not `{"session":…}` as I had written (doc and test fixed to the
+  real answer); run 2 because at desktop size the keys are a table, not list items (the test now
+  finds the "Revoke Demo planner" button on the page). Run 3: `3 passed`.
+- **Decision:** the walkthrough changes the strikes team's address (step 40) instead of only looking
+  at it, so `/confirm-email` is walked too. Why: "every new page". Later steps send no strike
+  evidence, so nothing depends on the old address. Alternative: look only (leaves the page unwalked).
+
+**Verify:** the shared run above: `VERIFIED tree=389b478374c80191 e2e=true` (the walkthrough's run
+inside it: `3 passed`, on the production build).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE (for 12I.4). The Phase 12 "Done when"
+line is not fully closed, because 12I.3 is still unticked.` 12I.3's own audit had already returned
+`VERDICT: DONE`, and both were ticked together in the next edit, so every Phase 12 task is now
+ticked. The auditor spot-checked the phase's "Done when" (no AWS, with its test; the e2e specs for
+travel, strikes, integrations, the shell and theme; the isolation tests) and said it didn't trace
+four items to code itself: the 48-hour strike transaction, the signed webhooks, hidden events and
+sessions, and the travel line on every shift view. Each was audited DONE in its own task (12C.1,
+12J.2, 12B.4, 12G.3 above).
+
+**Ended:** 2026-10-12 16:51 UTC (shared). **Hours:** 0.4. Phase 12 in total: 40.8 hours over 33
+Hours-log rows (no estimate for Phase 12, so nothing to compare). **Commits:** `86383ae` "Phase 12:
+Guides and docs (12I.3)", pushed; "Phase 12: Verify and the walkthrough (12I.4)", pushed with this
+entry. The two tasks are two commits: the first carries 12I.3's files and its tick, the second the
+walkthrough and 12I.4's tick.
+
+## Morning summary (2026-10-12, written 16:55 UTC)
+
+**Phase 12 is finished: every task is ticked**, each audited DONE by the independent auditor. The
+last two (12I.3 Guides and docs, 12I.4 Verify and the walkthrough) shared one full check, as you
+decided: `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=389b478374c80191 e2e=true`. That's
+4,839 tests in 266 files, 91 browser tests, and the walkthrough's 3 on a production build. Both
+commits are pushed to `build/overnight`.
+
+**Hours:** this session 0.8 (0.4 each). Phase 12: 40.8 hours over 33 rows. Phase 12 had no
+estimate in `PLAN.md`, so there's nothing to be over or under.
+
+**Blocked:** nothing in Phase 12. The unticked tasks left in `PLAN.md` are the earlier ones that
+need a real account or a real firm. Examples: Twilio, Meta's templates, the server, Gate B
+paperwork, the pilot. They stay parked until you create those accounts.
+
+**What needs you** (none of it is urgent):
+1. **Try the new walkthrough steps.** Run `npm run db:reset`, then `npm run dev`, and follow
+   `docs/walkthrough.md`. The new steps are 20, 21, 30, 31, 40 and 41.
+   - Step 41 has you paste a key into a `curl` command in your second Ubuntu window.
+   - You should see `{"result":"created","session":…`, and then "Connected by API" on Integrations.
+2. **For the solicitor**, with the DPA:
+   - `docs/compliance.md`'s two new sections ("Health reasons" and "Strikes: the cautions").
+   - The planner and strikes paragraphs in `docs/privacy-notice.md`.
+   - The legal references (Article 9(2)(b), DPA 2018 Schedule 1 paragraph 1, s.13 ERA 1996, the
+     6-month tribunal limit) were copied from `docs/office-v2.md`. Nobody has checked them on
+     their own.
+3. **Parking lot, new:** "Appropriate policy document template". Each firm needs this document
+   before it records "I'm unwell". Ask for it when you're ready, and the solicitor checks it.
+4. **CI:** GitHub Actions still can't start a job on this account (minutes or billing, as before).
+   The local full check above is the record.
+5. **A fresh container** needs the setup notes earlier in this log. This session also had to:
+   - make the `shiftdesk` database superuser;
+   - start `dockerd`;
+   - build `/root/pw-compat` (the links for the right browser build).
+   None of this changes the repo.
+
+**Next:** Phase 12 is done, and no unblocked task is left in the build order, so the loop stops
+here. Start the next piece of work yourself (`/next-task` or `/overnight`) once you've picked it.

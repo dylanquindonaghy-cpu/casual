@@ -12240,3 +12240,58 @@ Two new cases in `tests/unit/guides.test.ts`:
 
 `npm run dev`, log in to the office, open your name at the top right, then "How-to guide". Make the
 window narrow to see the "Menu" button the guide describes.
+
+## 2026-10-12 — Verify and the walkthrough (12I.4)
+
+**Time spent:** 0.4 hours (shared with 12I.3; see above).
+
+**Result:** `VERIFIED tree=389b478374c80191 e2e=true`: typecheck, lint, 4,839 tests in 266 files,
+91 browser tests, the walkthrough's 3 on the production build, and the invariants all passed.
+Auditor: `VERDICT: DONE` (first round). Commit "Phase 12: Verify and the walkthrough (12I.4)",
+pushed to `build/overnight` (see the decision log for the push result).
+
+### What was built
+
+`docs/walkthrough.md` is your step-by-step tour of the app. A **browser test**
+(`tests/e2e/walkthrough.spec.ts`: a program that clicks through a real browser) does every step
+the same way. Phase 12 added pages the tour didn't visit yet. There are 8 new steps:
+- **20, Zoe Adeyemi:** each shift says how far it is, and how long by car and by public
+  transport. She changes her travel area.
+- **21, Kieran Doyle:** his two strikes on his profile, and the page where he'd upload his new
+  licence.
+- **25:** Enquiries now shows the shifts line's messages first.
+- **30, Cancellations:** a cancellation's record and its PDF.
+- **31, Strikes:** casuals' strikes. You keep one that was marked for review.
+- **32, Casuals:** "Uploads to check". You approve Ben's new photo.
+- **36:** payroll lands on the Pay dashboard.
+- **40, Settings:** change the strikes team's email, then confirm it from the emailed link.
+- **41, Connect a planner:** make a key, then act as the planner with a `curl` command (a tool
+  that sends a web request from the terminal). Check "Connected by API" and see the session on
+  Events & sessions. Then revoke the key.
+
+The part about the office now explains the menu ("Menu" in a narrow window) and what's at the top
+right, including Log out. Steps after 19 moved up (the old 20 to 43 are now 22 to 49).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Step 40 really changes the strikes email and confirms it | So the confirm page is visited too ("every new page") | Only looking at Settings |
+| The planner is played with `curl` | It's how `docs/integrations.md` shows planners calling; nothing outside your computer is touched | A new script just for the tour (more code) |
+
+### What the new tests prove
+
+The browser test now passes every new step on a fresh demo, on a **production build** (the app
+built as the server runs it). Two of my own mistakes failed it on the way, and both were fixed in
+the test and the guide:
+1. The planner API answers `{"result":"created","session":…}`, not `{"session":…}`.
+2. On a computer screen the keys are a table, not a list.
+
+### What's parked or needs Dylan
+
+Nothing new. Note: Phase 12's tasks are all ticked now.
+
+### How to see it working
+
+Follow `docs/walkthrough.md` from step 7 (`npm run db:reset`). Steps 20, 21, 30, 31, 40 and 41 are
+the new pages.

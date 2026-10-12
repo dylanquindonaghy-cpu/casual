@@ -140,47 +140,64 @@ the demo.
     Zoe's cancelled shift too: it's then less than a day away, so it's urgent). Click "See urgent
     shifts", then "Take shift" on the 08:00
     arena shift: "You're booked." Log out.
+20. **Log in as Zoe Adeyemi** (`07700 900400`), one of the mock-up's casuals (a door supervisor,
+    steward and CSAS officer who starts from ZZ1 4DE). Home's urgent shifts each say how far they
+    are, and how long by car and by public transport (for example "7.2 miles · 18 min by car · 41
+    min by public transport"). Click "Profile" in the tab bar: her staff photo is "Due soon", and
+    each qualification has its status. Under "Where you work", click "Change your travel area":
+    choose "60 minutes" and click "Save travel area". It says "Saved. This is your travel area
+    now." Click "Back to my profile", then log out.
+21. **Log in as Kieran Doyle** (`07700 900401`), a door supervisor whose SIA licence ran out 5 days
+    ago. Click "Profile": "Strikes" says "You have 2 strikes in the last 90 days.", with each one
+    and where it stands. On Home, the "Needs updating" card's "Upload your SIA door supervisor
+    licence" opens the page where he'd send a photo of his new card (don't send one). Log out.
 
 ## Part 3: as the office
 
 The office is made for a laptop or desktop: if you switched Chrome to a phone view, press F12
 again to go back. Every office page has the same menu on the left, with the page you're on
-marked; "How-to guide", near its bottom, explains each job step by step.
+marked; "How-to guide", near its bottom, explains each job step by step. (In a narrow window the
+menu hides behind "Menu" at the top left, and "Close menu" puts it away.) At the top right: the
+bell (what needs attention), the moon or sun (dark or light) and your name, which opens "How-to
+guide" and "Log out".
 
-20. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
+22. **Log in as the resourcer.** Go to `http://acme.localhost:3000/office/login`, type
     `acme.resourcer@example.com` in "Your work email", and click "Send me a link". In the dev
     window an email ("Your Acme Events office login link") has the link: open it, then click "Log
     me in". You see the "Dashboard", with Acme's shifts line under it.
-21. **The dashboard.** Four counts at the top: "Urgent shifts not filled" (red), "Events showing
+23. **The dashboard.** Four counts at the top: "Urgent shifts not filled" (red), "Events showing
     to casuals", "Cancellations today" and "Enquiries today"; each opens its list. Below them:
     the urgent shifts not filled, the events showing to casuals (each with its switch), the
     latest cancellations (Zoe's first: "Recorded automatically, never approved or declined"), the
     latest enquiries, and "Needs attention", where "Who worked?" lists yesterday's 5 racecourse
     bookings, not marked yet. The bell at the top of the page counts what needs attention and
     jumps there.
-22. **Offer a gap.** Click the "Events showing to casuals" count. On a session with a place free,
+24. **Offer a gap.** Click the "Events showing to casuals" count. On a session with a place free,
     click its "…" button, then "Offer a place", then "Send offer to …" on the first person. It says
     "Offer on its way to …", and the offer appears in the dev window. Click "Back to the
     dashboard".
-23. **Answer a request.** Click "Enquiries", then "Requests from the app". On Sam Walsh's time
+25. **Enquiries, and answer a request.** Click "Enquiries": the shifts line's messages, newest
+    first, each with how it was answered. Kieran Doyle's "I need to cancel please", Ben Fraser's
+    pay question ("Pay (always a person)") and Zoe Adeyemi's "Hi, any shifts for me?" came in just
+    before the demo was made. Click "Requests from the app". On Sam Walsh's time
     change, click "Approve and tell Sam". It says "Approved. Sam will be told." The message to Sam
     appears in the dev window.
-24. **Mark who worked.** Click "Dashboard" in the menu. Under "Needs attention", "Who worked?",
+26. **Mark who worked.** Click "Dashboard" in the menu. Under "Needs attention", "Who worked?",
     open one of yesterday's racecourse shifts. Click "Mark as worked" for the person on it:
     "Marked … as worked." (On a shift with several people, "Mark as not attended" and "Mark the …
     not marked yet as worked" are there too.)
-25. **Make a shift and book someone.** Click "Events & sessions", then "All shifts by day", then
+27. **Make a shift and book someone.** Click "Events & sessions", then "All shifts by day", then
     "New shift". Pick a date next week,
     Role "steward", Start 10:00, Finish 18:00, Places 2, and click "Create shift". On the new
     shift's page, under "Assign someone", choose a person in "Who?" and click "Check" (if it says
     they can't work it, and why, choose someone else), then "Assign …". It says "… is booked on this shift. They'll get a message to say so.", and the "Confirmed:
     …" message appears in the dev window.
-26. **Move it, then cancel the booking.** Under "Move, shorten or cancel", set "New start" to 11:00
+28. **Move it, then cancel the booking.** Under "Move, shorten or cancel", set "New start" to 11:00
     and "New finish" to 19:00, choose the reason "The event's times or place changed", and click
     "Move for everyone booked". It says "Moved. 1 person booked will be told." Then click "Cancel
     …'s booking", choose "Weather or safety", and click "Yes, cancel …'s booking": "Cancelled
     …'s booking with … notice. They'll be told."
-27. **A whole event, and an import.** Click "Events & sessions", then "Add shifts": give the event a
+29. **A whole event, and an import.** Click "Events & sessions", then "Add shifts": give the event a
     name (for example "Cup final"), pick a date and fill in two lines (for example a steward 08:00 to 16:00 and a door supervisor 20:00 to 04:00),
     then click "Create these shifts". It says "2 shifts created." Then make the sample files in
     your second Ubuntu window:
@@ -191,33 +208,72 @@ marked; "How-to guide", near its bottom, explains each job step by step.
 
     On "Events & sessions", click "Import shifts", choose `shifts.csv` (see "Opening the sample files"
     below), click "Check the file", then "Import these shifts".
-28. **Casuals.** Click "Casuals" (everyone, with their qualifications, travel areas and strikes;
+30. **Cancellations.** Click "Cancellations": every cancellation, newest first, each with the
+    notice given and whether it was a strike. They're recorded automatically, never approved or
+    declined. Open Zoe Usman's (step 12): the record as it was, with "Download PDF" for the
+    evidence.
+31. **Strikes.** Click "Strikes": the casuals with strikes that still count, most first. Kieran
+    Doyle has 2. Click "Needs review": Priya Shah's strike is there, because she cancelled for a
+    reason a person should look at. Click her latest strike to open its record, then click "Keep
+    strike": "Kept, and marked as reviewed." (Or "Withdraw strike…", with a reason: it then stops
+    counting.)
+32. **Casuals.** Click "Casuals" (everyone, with their qualifications, travel areas and strikes;
     "Need updating" lists who has something to sort out). Under "Find a casual", type `Zoe` in
     "Name or mobile number", and click "Find". Open Zoe Usman: what needs updating, her
     qualifications, travel area, strikes, bookings and access. (Don't make her inactive: later
-    steps use her.)
-29. **The action log.** Click "Action log". Everything you've done is there, newest first. Choose
+    steps use her.) Then click "Uploads to check": Ben Fraser's new staff photo and Leah Ward's
+    new licence wait for a person. Click "Check it" on Ben's, look at the picture, and click
+    "Approve staff photo".
+33. **The action log.** Click "Action log". Everything you've done is there, newest first. Choose
     Type "Cancellations" and click "Show".
-30. **The notice report.** Click "Notice report". The cancellations are listed with the notice each
+34. **The notice report.** Click "Notice report". The cancellations are listed with the notice each
     worker had, short notice flagged (under 48 hours). Click "Download as a spreadsheet (CSV)" to
     see the file.
-31. **Pilot metrics.** Click "Pilot metrics". Under "Baseline (week 0)", fill in "Staff emails per
-    day" (say 40) and click "Save the baseline": "Baseline saved." Then click "Log out".
-32. **Log in as payroll** (`acme.payroll@example.com`, as in step 20). Click "Pay queries". The
+35. **Pilot metrics.** Click "Pilot metrics". Under "Baseline (week 0)", fill in "Staff emails per
+    day" (say 40) and click "Save the baseline": "Baseline saved." Then click your name at the top
+    right, and "Log out".
+36. **Log in as payroll** (`acme.payroll@example.com`, as in step 22). You land on the "Pay
+    dashboard": what's waiting for payroll, the next digest and the next pay date. Click "Pay
+    queries". The
     queries are grouped by likely cause, biggest first: 7 stewards about one week's rate, 2 about
     hours missing at the shopping centre, 1 "something else", and Zoe's "paid late" from step 14.
     Click "Send the digest now": it says how many new queries it's sending, and an email with the
     list attached appears in the dev window. (On a weekday after 09:00, the day's digest goes by
     itself soon after `npm run dev` starts: then "Send the digest now" sends only the ones since.)
-33. **Answer a group.** On the stewards' rate group, type a note in "Tell them what payroll did"
+37. **Answer a group.** On the stewards' rate group, type a note in "Tell them what payroll did"
     (for example "We've added the difference to Friday's pay.") and click "Mark as sorted and tell
     them". Each of them is told (the dev window).
-34. **Import pay records.** Click "Import pay records", choose `pay.csv`, click "Check the file",
+38. **Import pay records.** Click "Import pay records", choose `pay.csv`, click "Check the file",
     then "Import these pay records". Log out.
-35. **Log in as the admin** (`acme.admin@example.com`). Click "Office team": the three demo office
+39. **Log in as the admin** (`acme.admin@example.com`). Click "Office team": the three demo office
     users. Click "Data requests", find `07700 900122`, open Zoe Usman, and
-    click "Download (CSV, opens in Excel)": everything kept about her. (Don't delete her.) Log out.
-36. **Northline.** Go to `http://northline.localhost:3000/office/login` and log in as
+    click "Download (CSV, opens in Excel)": everything kept about her. (Don't delete her.)
+40. **Settings.** Click "Settings". The strikes team's email, `strikes@acme-events.example`, is
+    "Confirmed": records of late cancellations go there. Change it to
+    `strikes.team@acme-events.example` and click "Save and send a link". It says "Saved. We've sent a
+    link to that address to confirm it", and the address shows "Not confirmed". In the dev window,
+    an email to that address has a link: open it and click "Confirm this address": "Confirmed. Acme
+    Events can now send records of late cancellations to this address." Reload Settings: it says
+    "Confirmed". Below, each site has its postcode.
+41. **Connect a planner.** Click "Integrations". Under "API keys", type `Demo planner` in "Name"
+    and click "Create a key". Click "Copy the key" (you won't see it again). In your second
+    Ubuntu window, play the planner: paste these lines, putting the key between the quotes on the
+    first one:
+
+    ```
+    KEY='paste the key here'
+    DAY=$(date -d '+10 days' +%F)
+    curl -X PUT "http://localhost:3000/api/v1/sessions/DEMO-STEWARD-1" \
+      -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+      -d '{"event":{"ref":"DEMO-EVENT","name":"Planner demo day"},"site":{"name":"Acme Demo Arena"},"role":"steward","starts_at":"'$DAY'T10:00:00+00:00","ends_at":"'$DAY'T16:00:00+00:00","places":2,"status":"open"}'
+    ```
+
+    It answers that it was created, with the session (`{"result":"created","session":{…`). Reload Integrations: "Your planner" says
+    "Connected by API", with the time of its last change. Click "Events & sessions": "Planner
+    demo day" is there. Back on Integrations, click "Revoke" beside "Demo planner", then "Yes,
+    revoke it":
+    "Revoked. That key stopped working at once." Log out.
+42. **Northline.** Go to `http://northline.localhost:3000/office/login` and log in as
     `northline.admin@example.com`. Click "Notice report": tomorrow night's possession at the
     junction has a short-notice cancellation by the office ("Weather or safety"). Log out.
 
@@ -230,7 +286,7 @@ the file onto "Your file (.csv or .xlsx)").
 Workers can WhatsApp, text or ring the firm's number. Here a command plays the phone. Run these in
 your second Ubuntu window while `npm run dev` runs; the replies appear in the dev window.
 
-37. **A WhatsApp from a worker:**
+43. **A WhatsApp from a worker:**
 
     ```
     npm run -s sim:whatsapp -- --from "07700 900122" --text "Any shifts this weekend?"
@@ -240,19 +296,19 @@ your second Ubuntu window while `npm run dev` runs; the replies appear in the de
     "Hi Zoe," and lists the shifts she could take at the weekend (or says there's nothing), then
     "Take one here: http://acme.localhost:3000/shifts/open", "Automatic reply. Send OFFICE to reach
     a person." and "— Acme Events Shift Team". The office sees how it was built on the message's
-    Enquiries page (step 38 shows where).
-38. **A WhatsApp from a number nobody has:**
+    Enquiries page (step 44 shows where).
+44. **A WhatsApp from a number nobody has:**
 
     ```
     npm run -s sim:whatsapp -- --from "07700 900999" --text "Hi it's Sam, new phone"
     ```
 
     They get "Thanks for your message. We don't recognise this number…", and the office gets an
-    email. Log in as the resourcer again (step 20) and click "Enquiries" in the menu (its count is
+    email. Log in as the resourcer again (step 22) and click "Enquiries" in the menu (its count is
     the messages that need a person), then "Need a person": it's there as "Unknown number", marked
     "Passed to a person, waiting". Click "Unknown number" to see the conversation and "How it was
     answered"; you could reply in the box ("Answer it") or close it with a reason.
-39. **A call with a voicemail:**
+45. **A call with a voicemail:**
 
     ```
     npm run -s sim:call -- --from "07700 900122" --voicemail "Please call me about Saturday"
@@ -263,7 +319,7 @@ your second Ubuntu window while `npm run dev` runs; the replies appear in the de
     In Enquiries, "Need a person" lists Zoe's voicemail. Click her name: the page warns that a
     caller's number can be faked, and "How it was answered" says a voicemail always goes to a
     person.
-40. **A text:** `npm run -s sim:sms -- --from "07700 900122" --text "STOP"`. Zoe gets a text: "You
+46. **A text:** `npm run -s sim:sms -- --from "07700 900122" --text "STOP"`. Zoe gets a text: "You
     won't get texts from Acme Events now. Reply START to turn them back on." Then
     `npm run -s sim:sms -- --from "07700 900122" --text "START"`: "Texts from Acme Events are back
     on."
@@ -272,7 +328,7 @@ your second Ubuntu window while `npm run dev` runs; the replies appear in the de
 
 This runs the app as the server will: built once, faster, no developer tools.
 
-41. In the dev window, press Ctrl+C. Then:
+47. In the dev window, press Ctrl+C. Then:
 
     ```
     npm run build
@@ -280,7 +336,7 @@ This runs the app as the server will: built once, faster, no developer tools.
 
     It takes a few minutes and ends with a list of pages, each marked `ƒ`. If it stops with an
     error, that's a bug (use the template).
-42. Start the built app, and in your second Ubuntu window the worker (it sends the messages):
+48. Start the built app, and in your second Ubuntu window the worker (it sends the messages):
 
     ```
     npm start
@@ -296,7 +352,7 @@ This runs the app as the server will: built once, faster, no developer tools.
     `SESSION_SECRET=` in `.env` (open it with `nano .env`; Ctrl+O, Enter, Ctrl+X to save and
     close). Then start both again (Ctrl+C, then `npm start` and `npm run worker`): they read `.env`
     only when they start.
-43. **When you're done:** Ctrl+C in both windows. `npm run db:down` stops the database (your data
+49. **When you're done:** Ctrl+C in both windows. `npm run db:down` stops the database (your data
     stays until the next `npm run db:reset`). You can close Docker Desktop.
 
 ## Found a bug?

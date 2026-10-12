@@ -6,6 +6,7 @@ import {
   bookAndCancel,
   cancelOwnShift,
   homeScene,
+  shiftsScene,
 } from "./db";
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
@@ -31,6 +32,8 @@ const ZOE_QUALIFICATIONS = {
   ],
 };
 const DAY = /\d{1,2} [A-Z][a-z]{2}( \d{4})?/.source;
+// The shifts list and shift page's casual (12H.2): one of this spec's own, in a role of her own.
+const ZOE_PARK = { firstName: "Zoe", lastName: "Park", mobileE164: "+447700900624" };
 // Home's casual (12H.1): one of this spec's own, with a booked session, an urgent one and an old photo.
 const HOLLY = { firstName: "Holly", lastName: "Grant", mobileE164: "+447700900621" };
 // Her qualifications as tags on Casuals, worst first.
@@ -154,6 +157,96 @@ test("Home shows Holly's photo row, the urgent card and her next shift in full",
   await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
   await expect(tabs.getByRole("link", { name: "Profile, something needs updating" })).toBeVisible();
   await noSidewaysScroll(page);
+});
+
+// The shifts list and shift page (12H.2; docs/office-v2.md 4.3, 4.4): Zoe's Open row for the Arena
+// session (role · event, site, date and time · £/hour · post, the chip, places, the travel line),
+// the site filter narrowing the list, the shift's page in full, and a session she can't take with
+// her status for each thing it needs.
+test("Shifts: Zoe sees the Arena shift with its travel line, and its page in full", async ({
+  page,
+}) => {
+  const scene = await shiftsScene("acme", ZOE_PARK);
+  const asked = new Date(Date.now() - 1000);
+  await page.goto(`${acme}/login`);
+  await page.getByLabel("Your mobile number").fill("07700 900624");
+  await page.getByRole("button", { name: "Send me a link" }).click();
+  await page.goto(await loginLinkSentTo(ZOE_PARK.mobileE164, asked));
+  await page.getByRole("button", { name: "Log me in" }).click();
+  await expect(page.getByRole("heading", { name: "Hello Zoe" })).toBeVisible();
+
+  // Open: two of her three sessions (the third needs what she hasn't got).
+  await page.goto(`${acme}/shifts/open`);
+  const rows = page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("button", { name: "Take shift" }) });
+  await expect(rows).toHaveCount(2);
+  const arena = rows.filter({ hasText: "Gate A" });
+  await expect(arena).toContainText(`Arena check · ${scene.event}`);
+  await expect(arena).toContainText(scene.arena);
+  await expect(arena).toContainText(
+    /\d{1,2} [A-Z][a-z]{2}, \d\d:\d\d to \d\d:\d\d · £15\.50\/hour · Gate A/,
+  );
+  await expect(arena).toContainText("Needs: SIA DS");
+  await expect(arena).toContainText("4 places left");
+  await expect(arena).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
+  await expect(page.getByText("Manual handling")).toHaveCount(0);
+  await noSidewaysScroll(page);
+
+  // The site filter, as built, narrows the list: the other hall, then the Arena.
+  await page.getByLabel("Site").selectOption({ label: scene.arena.replace("Arena", "Other Hall") });
+  await page.getByRole("button", { name: "Show shifts" }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows).not.toContainText("Gate A");
+  await page.getByLabel("Site").selectOption({ label: scene.arena });
+  await page.getByRole("button", { name: "Show shifts" }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText("Gate A");
+
+  // Its page in full.
+  await rows.getByRole("link", { name: `Arena check · ${scene.event}` }).click();
+  await expect(page).toHaveURL(`${acme}/shifts/${scene.takeable}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Arena check" })).toBeVisible();
+  await expect(page.getByText(`${scene.arena} · ${scene.event}`)).toBeVisible();
+  await expect(page.getByText("1 Example Road, Exampleton, ZZ1 1AA")).toBeVisible();
+  const fact = (label: string) =>
+    page.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) });
+  await expect(fact("Pay")).toBeVisible();
+  await expect(page.getByText("£15.50 an hour, about £124.00")).toBeVisible();
+  await expect(page.getByText("Staff entrance on Mill Lane")).toBeVisible();
+  await expect(fact("Post")).toBeVisible();
+  await expect(page.getByText("Black trousers and your hi-vis")).toBeVisible();
+  await expect(page.getByText("4 of 4 left")).toBeVisible();
+  const there = page.getByRole("region", { name: "Getting there" });
+  await expect(there.getByRole("listitem")).toHaveText([
+    "3.1 miles away",
+    "About 12 min by car",
+    "About 24 min by public transport",
+  ]);
+  await expect(there.getByRole("link", { name: "Open in maps" })).toBeVisible();
+  const needs = page.getByRole("region", { name: "What it needs" });
+  await expect(needs.getByRole("listitem")).toHaveText([
+    new RegExp(`^SIA door supervisor licenceYou have it, valid until ${DAY}$`),
+  ]);
+  await expect(page.getByRole("button", { name: "Take shift" })).toBeVisible();
+  await expect(
+    page.getByText("Cancelling less than 48 hours before the start gives you a strike."),
+  ).toBeVisible();
+  await noSidewaysScroll(page);
+
+  // A session she can't take, from a direct link: her status for each thing it needs.
+  await page.goto(`${acme}/shifts/${scene.blocked}`);
+  await expect(page.getByRole("heading", { name: "You can't take this shift:" })).toBeVisible();
+  const blockedNeeds = page.getByRole("region", { name: "What it needs" }).getByRole("listitem");
+  await expect(blockedNeeds).toHaveText([
+    new RegExp(`^SIA door supervisor licenceYou have it, valid until ${DAY}$`),
+    /^Level 2 spectator safety qualificationExpires before this shift: upload it$/,
+    /^CSAS accreditationMissing: ask the office\.$/,
+    /^Manual handling certificateMissing: upload it$/,
+  ]);
+  await expect(
+    page.getByRole("link", { name: "Upload your Level 2 spectator safety qualification" }),
+  ).toHaveAttribute("href", "/profile/upload/STEWARD_L2");
 });
 
 // The count in a view's link: "Need updating (3)" is 3.

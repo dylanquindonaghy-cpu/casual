@@ -5,6 +5,7 @@ import type { NeedsItem } from "../credentials/status";
 import { assignments, firms, shiftEvents, shifts, sites } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
 import type { TravelFacts } from "../travel/line-copy";
+import { casualEventName } from "../roster/shift-events";
 import { travelFor } from "../travel/lines";
 import type { StaffPhoto } from "../uploads/photo";
 
@@ -39,7 +40,8 @@ export interface MyShift {
   endsAt: Date;
   status: "confirmed" | "completed" | "no_show";
   instructions: string | null;
-  // The session's own facts (12H.1: Home's next shift, in full).
+  // The session's own facts (12H.1: Home's next shift, in full). The event as the casual app names
+  // it: null for an automatic event, whose name only repeats the site and day (12H.2).
   eventName?: string | null;
   post?: string | null;
   payRatePence?: number | null;
@@ -86,7 +88,7 @@ export async function myShifts(
         endsAt: shifts.endsAt,
         status: assignments.status,
         instructions: shifts.instructions,
-        eventName: shiftEvents.name,
+        eventName: casualEventName,
         post: shifts.post,
         payRatePence: shifts.payRatePence,
         meetingPoint: shifts.meetingPoint,

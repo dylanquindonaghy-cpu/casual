@@ -9,11 +9,13 @@ import {
   workers,
   workerTravel,
 } from "../db/schema";
+import { readRequirements, type Requirement } from "../credentials/requirements";
 import { withFirm } from "../db/scoped";
 import { loadAllocationGates, parseAllocationSettings } from "../roster/allocation-input";
 import { previewBookings, type Verdict } from "../roster/book";
 import { pairKey } from "../roster/eligibility-input";
 import type { RuleCheck } from "../rules/eligibility";
+import { casualEventName } from "../roster/shift-events";
 import { visibleToCasuals } from "../roster/visibility";
 import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
 import { nearestMinutes, outsideArea } from "../travel/area";
@@ -60,6 +62,11 @@ export interface OpenShift {
   eventName?: string | null;
   payRatePence?: number | null;
   post?: string | null;
+  // The casual app's own (12H.2): the event as its pages name it (null for an automatic event,
+  // whose name only repeats the site and day), and what the session needs (its role's
+  // qualifications, then its extras), for the chips.
+  casualEvent?: string | null;
+  requirements?: Requirement[];
 }
 
 export interface OpenShiftFilters {
@@ -276,8 +283,10 @@ export async function openShiftsFor(
         town: sites.town,
         postcode: sites.postcode,
         eventName: shiftEvents.name,
+        casualEvent: casualEventName,
         payRatePence: shifts.payRatePence,
         post: shifts.post,
+        requiredCredentials: shifts.requiredCredentials,
       })
       .from(shifts)
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
@@ -324,6 +333,10 @@ export async function openShiftsFor(
       workerId,
       allowed.map((c) => c.shiftId),
     );
+    const requirements = await readRequirements(
+      tx,
+      allowed.map((c) => c.role),
+    );
     const kept: OpenShift[] = [];
     for (const c of allowed) {
       const gate = gates.get(c.shiftId) ?? ({ ok: true } as const);
@@ -337,8 +350,10 @@ export async function openShiftsFor(
         isUrgent: c.isUrgent,
         travel: travelOf.get(c.shiftId) ?? { kind: "unknown" },
         eventName: c.eventName,
+        casualEvent: c.casualEvent,
         payRatePence: c.payRatePence,
         post: c.post,
+        requirements: requirements.of(c.role, c.requiredCredentials),
         site:
           c.siteId && c.siteName
             ? {

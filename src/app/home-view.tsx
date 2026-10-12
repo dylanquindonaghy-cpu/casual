@@ -20,6 +20,7 @@ import type { StaffPhoto } from "@/lib/uploads/photo";
 import { HomeScreenHint } from "./home-screen-hint";
 import { OfflineNotice, ShiftActions, ShiftMapAndInstructions } from "./my-shifts-view";
 import { AreaPrompt, FurtherNote } from "./shifts/open/travel-notes";
+import { RequirementChips } from "./shifts/requirement-chips";
 import { card, h2, headingGap, muted, sectionGap, staffBtn } from "./ui/classes";
 import { PageHeader } from "./ui/page-header";
 import { StatusChip } from "./ui/status-chip";
@@ -208,8 +209,8 @@ function NeedsUpdating({
   );
 }
 
-// A shift she could take, in short: role · event, site; when · pay · post; places left; the travel
-// line. The whole card opens the shift's page, where she can take it.
+// A shift she could take, in short: role · event, site; when · pay · post; what it needs (chips,
+// 12H.2); places left; the travel line. The whole card opens the shift's page, where she can take it.
 function ShiftSummary({ shift: s, timeZone }: { shift: OpenShift; timeZone: string }) {
   const facts = [
     shiftWhen(s.startsAt, s.endsAt, timeZone),
@@ -225,10 +226,11 @@ function ShiftSummary({ shift: s, timeZone }: { shift: OpenShift; timeZone: stri
           </span>
         )}
         <span className="block font-semibold text-ink underline decoration-line-strong underline-offset-4">
-          {roleAndEvent(s.role, s.eventName)}
+          {roleAndEvent(s.role, s.casualEvent)}
         </span>
         {s.site && <span className="block">{s.site.name}</span>}
         <span className={`block ${muted} tabular-nums`}>{facts.join(" · ")}</span>
+        <RequirementChips requirements={s.requirements} as="span" className="mt-1" />
         <span className={`block ${muted}`}>
           {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
         </span>

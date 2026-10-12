@@ -15,6 +15,7 @@ import {
 } from "@/lib/portal/upload-copy";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
+import type { ShiftFacts } from "@/lib/portal/shift-facts";
 import { REASONS } from "@/lib/rules/reasons";
 import { EVERY_LEVEL, EVERY_STATUS } from "../helpers/qualifications";
 
@@ -159,15 +160,74 @@ const everyReason = [
   REASONS.unavailable(),
   REASONS.blocked_site(),
 ];
+// The page in full (12H.2), with a requirement in every status and every way of getting there.
+const requirementIn = (
+  status: ShiftFacts["requirements"][number]["status"],
+  uploadable = true,
+): ShiftFacts["requirements"][number] => ({
+  code: `T_${status.status.toUpperCase()}_${uploadable ? "U" : "O"}`,
+  name: "SIA door supervisor licence",
+  chip: "SIA DS",
+  status,
+  uploadable,
+});
+const pageFacts = (travel: ShiftFacts["travel"]): ShiftFacts => ({
+  eventName: "Riverside Festival",
+  payRatePence: 1550,
+  post: "Gate A",
+  meetingPoint: "Staff entrance",
+  uniform: "Black trousers",
+  isUrgent: true,
+  headcount: 4,
+  travel,
+  requirements: [
+    requirementIn({ status: "valid", expiresOn: "2027-03-03" }),
+    requirementIn({ status: "valid", expiresOn: null }),
+    requirementIn({ status: "expiring_soon", expiresOn: "2026-11-05" }),
+    requirementIn({ status: "expiring_soon", expiresOn: "2026-11-05" }, false),
+    requirementIn({ status: "being_checked", expiresOn: null }),
+    requirementIn({ status: "applied", expiresOn: null }),
+    requirementIn({ status: "missing", expiresOn: null }),
+    requirementIn({ status: "missing", expiresOn: null }, false),
+    requirementIn({ status: "expired", expiresOn: "2026-10-01" }),
+    requirementIn({ status: "expired", expiresOn: null }, false),
+    requirementIn({ status: "rejected", expiresOn: null }),
+    requirementIn({ status: "suspended", expiresOn: null }),
+  ],
+  noticeHours: 48,
+  lastDay: "2026-11-07",
+});
+const arriveBy = new Date("2026-11-07T13:30:00Z");
+const facts = pageFacts({
+  kind: "estimated",
+  straightMetres: 4000,
+  arriveBy,
+  car: { minutes: 12, metres: 5000 },
+  publicTransport: { minutes: 24 },
+});
 const shiftPages: ShiftPage[] = [
   { state: "missing" },
-  { state: "booked", shift: booked },
-  { state: "open", shift: summary },
-  { state: "held", shift: summary, opensAt: new Date("2026-11-02T09:15:00Z") },
-  { state: "blocked", shift: summary, reasons: everyReason, review: null },
+  { state: "booked", shift: booked, facts },
+  { state: "open", shift: summary, facts },
+  {
+    state: "open",
+    shift: summary,
+    facts: pageFacts({
+      kind: "estimated",
+      straightMetres: 4000,
+      arriveBy,
+      car: null,
+      publicTransport: null,
+    }),
+  },
+  { state: "open", shift: summary, facts: pageFacts({ kind: "straight", straightMetres: 11000 }) },
+  { state: "open", shift: summary, facts: pageFacts({ kind: "unknown" }) },
+  { state: "held", shift: summary, facts, opensAt: new Date("2026-11-02T09:15:00Z") },
+  { state: "blocked", shift: summary, facts, reasons: everyReason, review: null },
   {
     state: "blocked",
     shift: summary,
+    facts,
     reasons: everyReason.slice(0, 1),
     review: { ref: "3F2A9C1B", askedAt: NOW },
   },

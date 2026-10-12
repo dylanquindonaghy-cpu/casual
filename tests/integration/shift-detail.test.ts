@@ -81,6 +81,87 @@ describe("shiftForWorker", () => {
     });
   });
 
+  it("the page in full (12H.2): the session's facts, what it needs with her status, the firm's notice", async () => {
+    const f = await bookingFirm(su, withFirm, { settings: { strikes: { notice_hours: 24 } } });
+    // Her SIA licence runs well past the shift; her first aid ends the day before it; no CSAS.
+    const zoe = await f.worker({
+      first: "Zoe",
+      credentials: [
+        { type: "STEWARD_L2", expiresOn: null },
+        { type: "SIA_DS", expiresOn: "2029-01-01" },
+        { type: "FIRST_AID", expiresOn: "2026-11-03" },
+      ],
+    });
+    const shiftId = await f.shift({ startsAt: hoursFromNow(48), headcount: 4 });
+    await su.query(
+      `update shifts set required_credentials = '{CSAS,FIRST_AID,SIA_DS}', pay_rate_pence = 1550,
+              post = 'Gate A', meeting_point = 'Staff entrance', uniform = 'Black trousers',
+              is_urgent = true
+        where id = $1`,
+      [shiftId],
+    );
+    const shown = await page(f, zoe, shiftId);
+    // The rules still decide: no CSAS, so she can't take it.
+    expect(shown.state).toBe("blocked");
+    if (shown.state !== "blocked") return;
+    expect(shown.facts).toMatchObject({
+      eventName: "Fixture event",
+      payRatePence: 1550,
+      post: "Gate A",
+      meetingPoint: "Staff entrance",
+      uniform: "Black trousers",
+      isUrgent: true,
+      headcount: 4,
+      travel: { kind: "unknown" }, // no travel area
+      noticeHours: 24,
+      lastDay: "2026-11-04",
+    });
+    // The role's first (door supervisor: SIA), then the session's extras, each once.
+    expect(shown.facts.requirements).toEqual([
+      {
+        code: "SIA_DS",
+        name: "SIA door supervisor licence",
+        chip: "SIA DS",
+        status: { status: "valid", expiresOn: "2029-01-01" },
+        uploadable: true,
+      },
+      {
+        code: "CSAS",
+        name: expect.any(String),
+        chip: "CSAS",
+        status: { status: "missing", expiresOn: null },
+        uploadable: false, // the office records CSAS itself
+      },
+      {
+        code: "FIRST_AID",
+        name: "first aid at work certificate",
+        chip: "First aid",
+        status: { status: "expiring_soon", expiresOn: "2026-11-03" },
+        uploadable: true,
+      },
+    ]);
+  });
+
+  it("an automatic event isn't named (it only repeats the site and day); a booking gets the page in full too", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    const auto = await su.query<{ id: string }>(
+      `insert into shift_events (firm_id, name, planner_ref) values ($1, 'Arena · Wed 4 Nov', $2)
+       returning id::text as id`,
+      [f.firmId, `auto:none:2026-11-04:${Math.random().toString(36).slice(2, 8)}`],
+    );
+    const shiftId = await f.shift({ eventId: auto.rows[0]?.id, headcount: 2 });
+    const open = await page(f, sam, shiftId);
+    expect(open).toMatchObject({ state: "open", facts: { eventName: null, headcount: 2 } });
+    await f.booking(sam, shiftId);
+    const booked = await page(f, sam, shiftId);
+    expect(booked).toMatchObject({
+      state: "booked",
+      shift: { eventName: null },
+      facts: { eventName: null, requirements: [expect.objectContaining({ code: "SIA_DS" })] },
+    });
+  });
+
   it("filled, started and cancelled: nothing to take", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker();

@@ -54,7 +54,8 @@ describe("the urgent board", () => {
     const words = text(urgent(list([shift()])));
     expect(words).toContain("Urgent shifts");
     expect(words).toContain("Shifts starting soon that need someone now.");
-    expect(words).toContain("Urgent Sat 7 Nov, 08:00 to 16:00 Door supervisor Acme Demo Arena");
+    // §4.3's order (12H.2): the label, role · event, site, then date and time.
+    expect(words).toContain("Urgent Door supervisor Acme Demo Arena Sat 7 Nov, 08:00 to 16:00");
     expect(words).toContain("1 place left");
     expect(words).toContain("Take shift");
     expect(words).toContain("Back to my shifts");

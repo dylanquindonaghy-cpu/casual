@@ -1,15 +1,10 @@
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
-import {
-  CANCELLED_ASSIGNMENT_STATUSES,
-  credentialRules,
-  credentialTypes,
-  firms,
-  rosterSources,
-} from "../db/schema";
+import { CANCELLED_ASSIGNMENT_STATUSES, firms, rosterSources } from "../db/schema";
+import { readRequirements } from "../credentials/requirements";
 import type { FirmTx } from "../db/scoped";
 
 // Events & sessions (docs/office-v2.md 3.3; docs/screens.md `/office/events`): every event with a
@@ -162,29 +157,13 @@ async function sessionsOf(
        ${upcoming ? sql`and s.ends_at > ${now} and s.status <> 'cancelled'` : sql``}
      order by s.starts_at, s.role, s.id
   `);
-  const roles = [...new Set(rows.map((r) => r.role))];
-  const rules = roles.length
-    ? await tx
-        .select({ role: credentialRules.role, types: credentialRules.requiredTypes })
-        .from(credentialRules)
-        .where(inArray(credentialRules.role, roles))
-    : [];
-  const byRole = new Map<string, string[]>();
-  for (const r of rules) byRole.set(r.role, [...(byRole.get(r.role) ?? []), ...r.types]);
-  const names = new Map(
-    (
-      await tx
-        .select({ code: credentialTypes.code, name: credentialTypes.name })
-        .from(credentialTypes)
-    ).map((t) => [t.code, t.name]),
+  const requirements = await readRequirements(
+    tx,
+    rows.map((r) => r.role),
   );
   return {
     rows,
-    requirementsOf: (r) =>
-      [...new Set([...(byRole.get(r.role) ?? []), ...r.required_credentials])].map((code) => ({
-        code,
-        name: names.get(code) ?? code,
-      })),
+    requirementsOf: (r) => requirements.of(r.role, r.required_credentials),
   };
 }
 

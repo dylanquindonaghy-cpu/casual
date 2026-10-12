@@ -399,6 +399,7 @@ const open = (o: Partial<OpenShift> & { shiftId: string }): OpenShift => ({
     publicTransport: { minutes: 24 },
   },
   eventName: "Raceday",
+  casualEvent: "Raceday", // the loader sets both (null for an automatic event: 12H.2)
   payRatePence: 1260,
   post: "Gate B",
   ...o,
@@ -409,7 +410,7 @@ describe("Home: what she can take, and her next shift in full", () => {
     const shifts = [
       open({ shiftId: "u1", isUrgent: true }),
       open({ shiftId: "a1" }),
-      open({ shiftId: "a2", eventName: null, post: null, payRatePence: null }),
+      open({ shiftId: "a2", eventName: null, casualEvent: null, post: null, payRatePence: null }),
       open({ shiftId: "a3" }),
       open({ shiftId: "a4" }),
     ];

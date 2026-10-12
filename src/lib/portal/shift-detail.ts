@@ -1,13 +1,22 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
-import { assignments, CANCELLED_ASSIGNMENT_STATUSES, requests, shifts, sites } from "../db/schema";
+import {
+  assignments,
+  CANCELLED_ASSIGNMENT_STATUSES,
+  requests,
+  shiftEvents,
+  shifts,
+  sites,
+} from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { loadAllocationGate } from "../roster/allocation-input";
 import { previewBooking } from "../roster/book";
+import { casualEventName } from "../roster/shift-events";
 import { isVisibleToCasuals } from "../roster/visibility";
 import type { MyShift, PortalContext } from "./my-shifts";
+import { shiftFacts, type ShiftFacts } from "./shift-facts";
 
 // One shift's page for the logged-in worker (docs/screens.md, `/shifts/[id]`): the blocked-shift
 // screen, and the page an offer's link opens. Works out one state from the current rows, inside
@@ -15,6 +24,8 @@ import type { MyShift, PortalContext } from "./my-shifts";
 //
 // - booked: their confirmed booking (or one the office has marked worked or not attended), with
 //   the instructions. Only a booked worker sees a shift's instructions.
+// - booked, open, held and blocked carry the page in full (12H.2: src/lib/portal/shift-facts.ts):
+//   the session's facts, getting there, and what it needs with her status for each.
 // - cancelled, started: nothing to take. filled: no place left (or the office closed it).
 // - open: the rules say yes (previewBooking: no locks, no pass; taking it re-checks everything).
 // - held: fair rotation holds it for workers with fewer hours that week (the shift's own week) until opensAt.
@@ -36,12 +47,13 @@ export interface ShiftSummary {
 
 export type ShiftPage =
   | { state: "missing" }
-  | { state: "booked"; shift: MyShift }
-  | { state: "open"; shift: ShiftSummary }
-  | { state: "held"; shift: ShiftSummary; opensAt: Date }
+  | { state: "booked"; shift: MyShift; facts: ShiftFacts }
+  | { state: "open"; shift: ShiftSummary; facts: ShiftFacts }
+  | { state: "held"; shift: ShiftSummary; facts: ShiftFacts; opensAt: Date }
   | {
       state: "blocked";
       shift: ShiftSummary;
+      facts: ShiftFacts;
       reasons: string[];
       review: { ref: string; askedAt: Date } | null;
     }
@@ -100,6 +112,13 @@ export async function shiftForWorker(
         status: shifts.status,
         headcount: shifts.headcount,
         instructions: shifts.instructions,
+        requiredCredentials: shifts.requiredCredentials,
+        eventName: casualEventName,
+        payRatePence: shifts.payRatePence,
+        post: shifts.post,
+        meetingPoint: shifts.meetingPoint,
+        uniform: shifts.uniform,
+        isUrgent: shifts.isUrgent,
         siteName: sites.name,
         addressLine1: sites.addressLine1,
         addressLine2: sites.addressLine2,
@@ -108,6 +127,10 @@ export async function shiftForWorker(
       })
       .from(shifts)
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
+      .leftJoin(
+        shiftEvents,
+        and(eq(shiftEvents.firmId, shifts.firmId), eq(shiftEvents.id, shifts.shiftEventId)),
+      )
       .where(eq(shifts.id, shiftId));
     if (!row || row.status === "draft") return { state: "missing" };
 
@@ -130,6 +153,11 @@ export async function shiftForWorker(
           inArray(assignments.status, ["confirmed", "completed", "no_show"]),
         ),
       );
+    const facts = () => shiftFacts(tx, { shiftId, workerId, now, session: row });
+    const placesOf = async () => {
+      const { rows: counted } = await takenPlaces(tx, shiftId);
+      return Math.max(0, row.headcount - (counted[0]?.taken ?? 0));
+    };
     if (mine && row.status !== "cancelled") {
       return {
         state: "booked",
@@ -141,8 +169,14 @@ export async function shiftForWorker(
           endsAt: row.endsAt,
           status: mine.status as MyShift["status"],
           instructions: row.instructions,
+          eventName: row.eventName,
+          post: row.post,
+          payRatePence: row.payRatePence,
+          meetingPoint: row.meetingPoint,
+          uniform: row.uniform,
           site,
         },
+        facts: await facts(),
       };
     }
 
@@ -158,8 +192,7 @@ export async function shiftForWorker(
       if (!hadPlace) return { state: "missing" };
     }
 
-    const { rows: counted } = await takenPlaces(tx, shiftId);
-    const placesLeft = Math.max(0, row.headcount - (counted[0]?.taken ?? 0));
+    const placesLeft = await placesOf();
     const shift: ShiftSummary = {
       shiftId,
       role: row.role,
@@ -175,16 +208,20 @@ export async function shiftForWorker(
 
     const verdict = await previewBooking(tx, { shiftId, workerId, now });
     if (!verdict) return { state: "missing" };
+    const full = await facts();
     if (!verdict.ok) {
       const waiting = await waitingReview(tx, workerId, shiftId);
       return {
         state: "blocked",
         shift,
+        facts: full,
         reasons: verdict.reasons,
         review: waiting ? { ref: refOf(waiting.id), askedAt: waiting.createdAt } : null,
       };
     }
     const gate = await loadAllocationGate(tx, { shiftId, workerId, now });
-    return gate.ok ? { state: "open", shift } : { state: "held", shift, opensAt: gate.opensAt };
+    return gate.ok
+      ? { state: "open", shift, facts: full }
+      : { state: "held", shift, facts: full, opensAt: gate.opensAt };
   });
 }

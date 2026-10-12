@@ -12192,3 +12192,43 @@ WIP commits 092194d, aa88f36, de46cde, 577eb7d and 3c02c92. CI: `gh` isn't avail
 container, so the CI run isn't noted.
 
 **Parked:** requirement chips on Home's urgent cards go with 12H.2's chips (Parking lot).
+
+## 2026-10-12 13:21 UTC — Phase 12, task 12H.2: Shifts list and shift page
+
+**Started:** 2026-10-12 13:21 UTC (same container, right after 12H.1).
+
+**Task:** `PLAN.md` Phase 12, "Shifts list and shift page (§4.3–§4.4)" (12H.2).
+
+**Plan**
+- **Requirements, one reading** (`src/lib/credentials/requirements.ts`, new): a session needs its
+  role's qualifications (the firm's rule) plus its own extras (`shifts.required_credentials`),
+  without duplicates and never right to work; each with its name and its short chip label ("SIA
+  DS", "CSAS"), the office's own short names moved here from `events-copy.ts` (which re-exports
+  them), so the office and the casual app always label a requirement the same way.
+- **Open rows** (`open-shift-card.tsx`): role · event (a link to the shift's page), site, "date
+  and time · £/hour · post", the chips (Urgent first), places left, then the travel line, then
+  "Take shift". The address moves to the shift page (§4.3 doesn't list it on the row). The day,
+  site and role filters and the 50-row message stay exactly as built. `/urgent` uses the same card.
+  Home's urgent and apply cards get the chips too (parked by 12H.1's audit).
+- **Shift page** (`/shifts/[id]`), for a shift she can take, is held for, is blocked from or is
+  booked on: the chips and the title (role), "site · event", then the facts (When, Pay with its
+  estimate, Meet, Post, Uniform, Places "1 of 4 left"); "Getting there" ("From your home area",
+  "8.4 miles away", "About 21 min by car", "About 38 min by public transport" or "No public
+  transport by 09:30", "Open in maps"); "What it needs", each with her status ("You have it, valid
+  until 3 Mar 2027", "Expires before this shift", "Missing: upload it", "Being checked", and plain
+  words for expired, suspended, not accepted and applied for, from the same `qualificationStatus()`
+  Profile uses); then the action as built (Take shift, the fair-rotation hold, the reasons with
+  "Ask the office to review", or her booking's actions and instructions); and under Take shift, the
+  strike note with the firm's own notice hours. Filled, started, cancelled and missing stay as
+  built. **Decision:** the booked state gets the same facts and Getting there, so every shift page
+  she can open shows the distance and times (the phase's Done when).
+- **Data:** `shiftForWorker()` reads the session's facts, the requirements with her records, her
+  travel facts (`travelFor`) and the firm's notice hours; `openShiftsFor()` adds each shift's
+  requirements. Reads only: the rules engine still decides who can take what (golden rule 1).
+- **Tests:** `casual.app.spec.ts` (Zoe sees the Arena shift with "3.1 miles · 12 min by car · 24
+  min by public transport"; the shift page shows pay with the estimate, the meeting point, post,
+  uniform, places left and each requirement's status; an Open row shows role · event, site, date
+  and time, £/hour and post; the filters still narrow the list); unit tests for the requirement
+  words, the Getting there words, the card and the page; the plain-language test; integration
+  tests for the requirement reading.
+- **Docs:** `docs/screens.md` (`/shifts/open`, `/shifts/[id]`, `/urgent`).

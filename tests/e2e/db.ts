@@ -880,6 +880,149 @@ export async function homeScene(
   }
 }
 
+// The shifts list and shift page's scene (12H.2; tests/e2e/casual.app.spec.ts): a casual of its own
+// in a role nobody else has (its rule: an SIA door supervisor licence), holding that licence (300
+// days to run) and a steward qualification that runs out in 5 days, with a travel area (car or
+// public transport, 45 minutes). Three sessions in that role, 9 to 11 days ahead: one at "Arena
+// {stamp}" she can take (an event of its own, pay, post, meeting point, uniform, 4 places, 3.1 miles
+// · 12 min by car · 24 min by public transport); one at the same site needing a steward
+// qualification, CSAS and manual handling too (she can't take it: a direct link shows why); and
+// one at another site, for the site filter. A rerun cancels the last run's sessions first.
+export const SHIFTS_SCENE_ROLE = "arena_check";
+export async function shiftsScene(
+  slug: string,
+  casual: { firstName: string; lastName: string; mobileE164: string },
+): Promise<{ arena: string; event: string; takeable: string; blocked: string; other: string }> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const firmId = seedId(`firm/${slug}`);
+    return await createWithFirm(pool)(firmId, async (tx) => {
+      await tx.execute(sql`
+        insert into credential_rules (firm_id, sector, role, required_types)
+        values (${firmId}, 'security', ${SHIFTS_SCENE_ROLE}, '{SIA_DS}')
+        on conflict (firm_id, role) do nothing`);
+      await tx
+        .insert(workers)
+        .values({ firmId, ...casual, roles: [SHIFTS_SCENE_ROLE] })
+        .onConflictDoNothing();
+      const [worker] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(eq(workers.mobileE164, casual.mobileE164));
+      if (!worker) throw new Error("shifts scene casual neither added nor found");
+      await tx.delete(credentials).where(eq(credentials.workerId, worker.id));
+      const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+      await tx.insert(credentials).values([
+        { firmId, workerId: worker.id, type: "SIA_DS", status: "valid", expiresOn: day(300) },
+        { firmId, workerId: worker.id, type: "STEWARD_L2", status: "valid", expiresOn: day(5) },
+      ]);
+      await tx
+        .update(shifts)
+        .set({ status: "cancelled" })
+        .where(eq(shifts.role, SHIFTS_SCENE_ROLE));
+      const point = (postcode: string) => {
+        const p = fakePoint(postcode);
+        if (!p) throw new Error(`no fake point for ${postcode}`);
+        return { lat: String(p.lat), lng: String(p.lng) };
+      };
+      const home = point("ZZ2 2BB");
+      await tx
+        .insert(workerTravel)
+        .values({
+          firmId,
+          workerId: worker.id,
+          startPostcode: "ZZ2 2BB",
+          ...home,
+          modes: "both",
+          maxMinutes: 45,
+          privacyNoticeVersion: "travel-v1",
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [workerTravel.firmId, workerTravel.workerId],
+          set: { startPostcode: "ZZ2 2BB", ...home, modes: "both", maxMinutes: 45 },
+        });
+
+      const stamp = Date.now().toString(36);
+      const site = async (name: string) => {
+        const [row] = await tx
+          .insert(sites)
+          .values({
+            firmId,
+            name,
+            addressLine1: "1 Example Road",
+            town: "Exampleton",
+            postcode: "ZZ1 1AA",
+            ...point("ZZ1 1AA"),
+          })
+          .returning({ id: sites.id });
+        if (!row) throw new Error("site insert returned nothing");
+        return row.id;
+      };
+      const arena = `Arena ${stamp}`;
+      const event = `Arena Test Night ${stamp}`;
+      const arenaId = await site(arena);
+      const otherId = await site(`Other Hall ${stamp}`);
+      const eventId = await createNamedEvent(tx, { name: event, siteId: arenaId });
+      const startAt = (days: number) => {
+        const at = new Date(Date.now() + days * 86_400_000);
+        at.setUTCHours(10, 0, 0, 0);
+        return at;
+      };
+      const session = async (
+        siteId: string,
+        at: Date,
+        facts: Partial<typeof shifts.$inferInsert>,
+      ) => {
+        const [row] = await tx
+          .insert(shifts)
+          .values({
+            firmId,
+            siteId,
+            shiftEventId: facts.shiftEventId ?? (await eventFor(tx, siteId, at)),
+            role: SHIFTS_SCENE_ROLE,
+            startsAt: at,
+            endsAt: new Date(at.getTime() + 8 * 3_600_000),
+            headcount: 4,
+            status: "open",
+            source: "native",
+            ...facts,
+          })
+          .returning({ id: shifts.id });
+        if (!row) throw new Error("shift insert returned nothing");
+        const arriveBy = new Date(at.getTime() - 30 * 60_000);
+        const expiresAt = new Date(at.getTime() + 8 * 86_400_000);
+        await tx.execute(sql`
+          insert into travel_estimates (firm_id, origin_postcode, site_id, mode, arrive_by,
+                                        minutes, metres, provider, computed_at, expires_at)
+          values (${firmId}, 'ZZ2 2BB', ${siteId}, 'car', ${arriveBy}, 12, 5000, 'fake', now(),
+                  ${expiresAt}),
+                 (${firmId}, 'ZZ2 2BB', ${siteId}, 'public_transport', ${arriveBy}, 24, null,
+                  'fake', now(), ${expiresAt})
+          on conflict do nothing`);
+        return row.id;
+      };
+      const takeable = await session(arenaId, startAt(9), {
+        shiftEventId: eventId,
+        payRatePence: 1550,
+        post: "Gate A",
+        meetingPoint: "Staff entrance on Mill Lane",
+        uniform: "Black trousers and your hi-vis",
+      });
+      const blocked = await session(arenaId, startAt(10), {
+        shiftEventId: eventId,
+        requiredCredentials: ["STEWARD_L2", "CSAS", "MANUAL_HANDLING"],
+      });
+      const other = await session(otherId, startAt(11), { payRatePence: 1400 });
+      return { arena, event, takeable, blocked, other };
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
 // A casual of a spec's own with exactly these qualifications (12F.1; tests/e2e/casual.app.spec.ts):
 // their roles, and each type they hold with its expiry `daysAhead` from today (null: none). A
 // rerun puts them back the same way.

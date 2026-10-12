@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
-import { inArray, sql } from "drizzle-orm";
+import { and, inArray, isNull, sql } from "drizzle-orm";
 import { recordEvent } from "../../events/record";
-import { queueInboundMessage } from "../../inbound/job";
+import { noAi } from "../../ai/client";
+import { runInboundMessage } from "../../inbound/reply";
+import type { MessagingTransport } from "../../messaging/transport";
 import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { TRAVEL_NOTICE_VERSION } from "../../portal/travel";
 import { automaticEventId } from "../../roster/shift-events";
@@ -23,7 +25,7 @@ import {
   workers,
   workerTravel,
 } from "../schema";
-import type { FirmTx } from "../scoped";
+import type { FirmTx, WithFirm } from "../scoped";
 import type { SeedFirm } from "./seed-data";
 import {
   STORY_CERTIFICATE_JPEG,
@@ -575,11 +577,9 @@ export async function loadStory(
     });
   }
 
-  // The shifts line's messages, stored as the webhook stores them, each with its job queued in the
-  // same transaction (src/lib/inbound/receive.ts): the job worker answers them with the app's own
-  // replies and log entries when it runs (`npm run dev`, or `npm run worker`). Nothing is sent from
-  // here, and no AI is near the seed.
-  const addedMessages = await tx
+  // The shifts line's messages, stored as the webhook stores them (answered after this
+  // transaction: answerStoryMessages).
+  await tx
     .insert(messages)
     .values(
       story.messages.map((m) => {
@@ -598,9 +598,42 @@ export async function loadStory(
         };
       }),
     )
-    .onConflictDoNothing()
-    .returning({ id: messages.id });
-  for (const m of addedMessages) await queueInboundMessage(tx, m.id);
+    .onConflictDoNothing();
+}
+
+// A sender for the seed's own replies: it sends nothing, and gives each reply an id of its own.
+const seedTransport: MessagingTransport = {
+  name: "seed",
+  async send() {
+    return { providerMessageId: `seed-reply-${crypto.randomUUID()}` };
+  },
+};
+
+// The story's messages answered by the shifts line's own job (src/lib/inbound/reply.ts), as the job
+// worker would: the same replies, request and log entries the app makes. Allowed by Dylan
+// (2026-10-12; tests/unit/ai.boundary.test.ts lists this file): no AI (`noAi`; the three messages
+// match keywords anyway) and nothing sent (seedTransport). Only those not answered yet, so a re-run
+// changes nothing.
+export async function answerStoryMessages(
+  run: WithFirm,
+  firmId: string,
+  story: StorySeed,
+  o: { baseDomain: string; now: Date },
+): Promise<void> {
+  const ids = story.messages.map((m) => m.id);
+  const open = await run(firmId, (tx) =>
+    tx
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(inArray(messages.id, ids), isNull(messages.handledAt))),
+  );
+  for (const { id } of open) {
+    await runInboundMessage(
+      { firmId, messageId: id, idempotencyKey: `inbound-message:${id}` },
+      run,
+      { transport: seedTransport, ai: noAi, baseDomain: o.baseDomain, clock: { now: () => o.now } },
+    );
+  }
 }
 
 function officeId(firm: SeedFirm, role: "admin" | "resourcer" | "payroll"): string {

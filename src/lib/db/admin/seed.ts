@@ -31,7 +31,7 @@ import { groupFactsFor, payGroupKey } from "../../pay/grouping";
 import { hoursToStart, insideUrgentWindow, urgentWindowHours } from "../../rules/urgent";
 import { fakePoint } from "../../travel/geocoder";
 import { acmeStory } from "./seed-story";
-import { loadStory } from "./seed-story-load";
+import { answerStoryMessages, loadStory } from "./seed-story-load";
 import { isLocalHost } from "./urls";
 
 // Loads the demo firms (docs/testing.md). Firms are created through the owner connection (the
@@ -96,6 +96,13 @@ export async function seed(opts: {
           await loadExtraShifts(tx, firm, northlineNight(firm.workers, firm.sites, now));
         }
       });
+      // Its messages answered by the shifts line's own job, once the story is in.
+      if (story) {
+        await answerStoryMessages(withFirm, firm.id, story, {
+          baseDomain: process.env.APP_BASE_DOMAIN ?? "localhost:3000",
+          now,
+        });
+      }
       summary.firms.push({
         slug: firm.slug,
         sites: firm.sites.length,

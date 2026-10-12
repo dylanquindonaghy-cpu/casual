@@ -95,6 +95,8 @@ describe("AI never answers a dispute", () => {
       .map(rel)
       .sort();
     expect(importers).toEqual([
+      // The demo seed (12I.1; Dylan, 2026-10-12): only `noAi`, for the reply job it runs once.
+      "src/lib/db/admin/seed-story-load.ts",
       "src/lib/inbound/reply.ts",
       "src/lib/office/pay-query-groups.ts",
       "src/lib/pay/digest.ts",
@@ -131,7 +133,9 @@ describe("AI never answers a dispute", () => {
     const importers = files
       .filter((file) => (graph.get(file) ?? []).some((f) => rel(f) === "src/lib/inbound/reply.ts"))
       .map(rel);
-    expect(importers).toEqual(["src/worker/jobs/index.ts"]);
+    // And the demo seed, which answers its own made-up messages once with `noAi` and a sender that
+    // sends nothing (12I.1; Dylan, 2026-10-12).
+    expect(importers).toEqual(["src/lib/db/admin/seed-story-load.ts", "src/worker/jobs/index.ts"]);
     const reply = readFileSync(join(SRC, "lib/inbound/reply.ts"), "utf8");
     // Every message it sends is built by code: the worker's reply (`replyText` and its text-message
     // version `smsText`: shiftsLineReply()'s answer, voicemailReceivedMessage()'s for a voicemail, or

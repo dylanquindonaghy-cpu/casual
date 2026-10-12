@@ -12403,3 +12403,9 @@ installed Playwright asks for to the one in `/opt/pw-browsers`); add
 `/etc/hosts`; `no_proxy`/`NO_PROXY` plus `,.test`; in `.env`, `NODE_ENV=development` commented out.
 Run verify as `RUN_E2E=1 CI=1 ./scripts/verify.sh` (CI mode: the dev server is killed for memory
 here), in the background, one test run at a time.
+
+**Audit round 1:** `VERDICT: NOT DONE (one claim PARTIAL; everything else PROVEN)`: the replies
+came from the job worker, not the seed. Recorded for Dylan (round 2 kept it open:
+`VERDICT: NOT DONE`). **Dylan decided (2026-10-12, in chat): "Allow the seed"**: the seed runs the
+reply job itself (no AI, nothing sent), and `tests/unit/ai.boundary.test.ts` lists
+`src/lib/db/admin/seed-story-load.ts` in its two lists, with the reason.

@@ -1,19 +1,16 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { qualificationsFor } from "@/lib/credentials/qualifications";
-import { noAi } from "@/lib/ai/client";
 import { seed } from "@/lib/db/admin/seed";
 import { acmePastEvent, acmePayQueries } from "@/lib/db/admin/seed-extras";
 import { seedFirms, seedId, STRIKES_TEAM } from "@/lib/db/admin/seed-data";
 import { acmeStory } from "@/lib/db/admin/seed-story";
-import { createWithFirm, withFirm } from "@/lib/db/scoped";
-import { runInboundMessage } from "@/lib/inbound/reply";
-import type { MessagingTransport } from "@/lib/messaging/transport";
+import { withFirm } from "@/lib/db/scoped";
 import { previewBooking } from "@/lib/roster/book";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { confirmedStrikesEmail } from "@/lib/strikes/team-email";
 import { travelLineText } from "@/lib/travel/line-copy";
-import { appRolePool, superuserPool, urls } from "../helpers/db";
+import { superuserPool, urls } from "../helpers/db";
 
 // The demo's made-up story (src/lib/db/admin/seed-story.ts; docs/office-v2.md §9 "Demo seed";
 // 12I.1), on the real database after `seed()`: each part the mock-up shows has its rows, read the
@@ -262,36 +259,8 @@ describe("the demo story", () => {
     ]);
   });
 
-  it("the enquiries: Zoe's list, Ben's pay question and Kieran's cancel, queued for the shifts line's own job, which answers them", async () => {
+  it("the enquiries: Zoe's list, Ben's pay question and Kieran's cancel, answered by the seed with the shifts line's own job", async () => {
     const ids = STORY.messages.map((x) => x.id);
-    // Stored as the webhook stores them, each with its job queued (nothing answered by the seed).
-    const { rows: queued } = await su.query<{ n: number }>(
-      `select count(*)::int as n from pgboss.job
-        where name = 'inbound-message' and data ->> 'messageId' = any($1::text[])`,
-      [ids],
-    );
-    expect(queued).toEqual([{ n: 3 }]);
-    // The job worker's part: the real job, with a sender that records instead of sending.
-    const app = appRolePool(2);
-    const sent: string[] = [];
-    const transport: MessagingTransport = {
-      name: "test",
-      async send(m) {
-        sent.push(m.body);
-        return { providerMessageId: `test-${sent.length}` };
-      },
-    };
-    try {
-      for (const messageId of ids) {
-        await runInboundMessage(
-          { firmId: ACME, messageId, idempotencyKey: `inbound-message:${messageId}` },
-          createWithFirm(app),
-          { transport, ai: noAi, baseDomain: "localhost:3000" },
-        );
-      }
-    } finally {
-      await app.end();
-    }
     const { rows } = await su.query<{
       who: string;
       intent: string;
@@ -326,22 +295,20 @@ describe("the demo story", () => {
     ]);
   });
 
-  it("after the worker has answered them, running the seed again adds no message, reply or job", async () => {
+  it("running the seed again adds no message, reply or log entry for them", async () => {
     const ids = STORY.messages.map((x) => x.id);
     const state = async () =>
       (
-        await su.query<{ messages: number; replies: number; jobs: number; replied: number }>(
+        await su.query<{ messages: number; replies: number; replied: number }>(
           `select (select count(*)::int from messages where id = any($1::uuid[])) as messages,
                   (select count(*)::int from messages where reply_to = any($1::uuid[])) as replies,
-                  (select count(*)::int from pgboss.job where name = 'inbound-message'
-                     and data ->> 'messageId' = any($2::text[])) as jobs,
                   (select count(*)::int from events where action = 'message.replied'
-                     and firm_id = $3) as replied`,
-          [ids, ids, ACME],
+                     and firm_id = $2) as replied`,
+          [ids, ACME],
         )
       ).rows[0];
     const before = await state();
-    expect(before).toMatchObject({ messages: 3, replies: 3, jobs: 3 });
+    expect(before).toMatchObject({ messages: 3, replies: 3 });
     await run();
     expect(await state()).toEqual(before);
   });

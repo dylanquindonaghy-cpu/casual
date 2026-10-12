@@ -54,7 +54,10 @@ const { default: GlobalError } = await import("@/app/global-error");
 const { tryAgainText } = await import("@/lib/portal/copy");
 const { PushSetting } = await import("@/app/profile/push-setting");
 const { PushSettingView } = await import("@/app/profile/push-setting-view");
+import { postcodeAttribution } from "@/lib/travel/attribution";
 const { HelpView } = await import("@/app/help/help-view");
+// The firm's own strike and photo numbers the help page states (12H.3).
+const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36 };
 
 // Words a worker shouldn't have to know. Whole words, any case.
 const JARGON = [
@@ -692,7 +695,7 @@ const SCREENS: [string, ReactElement][] = [
     createElement(ErrorBody, { online: false, ready: true, retry: () => undefined }),
   ],
   ["The whole page failed", createElement(GlobalError)],
-  ["Help", createElement(HelpView, { firmName: "Acme Events" })],
+  ["Help", createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 })],
   // Uploads (12F.2): every answer after sending a photo or card, the guidance, the photo's statuses
   // and why one wasn't accepted, as she reads them.
   [
@@ -731,11 +734,31 @@ const SCREENS: [string, ReactElement][] = [
   ],
 ];
 
+// The postcode data's licence requires its attribution word for word (src/lib/travel/attribution.ts;
+// docs/office-v2.md 4.7): the one passage these checks can't make plainer ("database right"), so
+// it alone is taken out before them, and the test below holds Help to the exact words.
+const LICENCE_WORDS = [postcodeAttribution(2026)];
+const withoutLicence = (words: string) =>
+  LICENCE_WORDS.reduce((rest, required) => rest.replace(required, " "), words);
+
 describe("every staff screen and state is in plain words", () => {
   it.each(SCREENS)("%s", (_name, element) => {
     const words = text(renderToStaticMarkup(element));
     expect(words.trim().length).toBeGreaterThan(0);
-    expect(problems(words)).toEqual([]);
+    expect(problems(withoutLicence(words))).toEqual([]);
+  });
+
+  it("Help carries the postcode licence's attribution word for word, and nothing else is let off", () => {
+    const words = text(
+      renderToStaticMarkup(
+        createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 }),
+      ),
+    );
+    expect(words).toContain(postcodeAttribution(2026));
+    // Only that exact passage is taken out: the same word anywhere else still fails.
+    expect(problems(withoutLicence(`${postcodeAttribution(2026)} Check the database.`))).toEqual([
+      "jargon: database",
+    ]);
   });
 
   it("the offline pages from the service worker too", () => {

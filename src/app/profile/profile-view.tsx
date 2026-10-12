@@ -76,7 +76,7 @@ export function ProfileView({
         </h2>
         <p className={`${headingGap} ${nums}`}>Mobile: {ukMobile(profile.mobile)}</p>
         <p className="break-words">Email: {profile.email ?? "none"}</p>
-        <p className={`mt-2 ${muted}`}>To change these, ask the office.</p>
+        <p className={`mt-2 ${muted}`}>To change your name or number, ask the office.</p>
       </section>
 
       <section aria-labelledby="photo-heading" className={`${card} ${sectionGap.staff}`}>

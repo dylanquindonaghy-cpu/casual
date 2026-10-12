@@ -19,6 +19,8 @@ vi.mock("@/app/office/session-actions", () => ({ refreshOfficeSessionAction: vi.
 const { officeMenu } = await import("@/app/office/office-shell");
 const { GuideView, guideSections } = await import("@/app/office/guide/guide-view");
 const { HelpView } = await import("@/app/help/help-view");
+// The firm's own strike and photo numbers the help page states (12H.3).
+const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36 };
 
 type Role = "admin" | "resourcer" | "payroll";
 
@@ -26,7 +28,10 @@ const guide = (role: Role) =>
   renderToStaticMarkup(
     createElement(GuideView, { firmName: "Acme Events", role, menu: officeMenu(role) }),
   );
-const help = () => renderToStaticMarkup(createElement(HelpView, { firmName: "Acme Events" }));
+const help = () =>
+  renderToStaticMarkup(
+    createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 }),
+  );
 
 const words = (html: string) =>
   html
@@ -197,7 +202,7 @@ describe("the workers' help page", () => {
     expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
     expect(html).toContain(">Help</h1>");
     anchorsLand(html);
-    expect(contents(html)).toHaveLength(11);
+    expect(contents(html)).toHaveLength(14);
     bareListsKeepTheirRole(html);
     expect(longSentences(html)).toEqual([]);
   });
@@ -209,6 +214,43 @@ describe("the workers' help page", () => {
     expect(words(html)).toContain("Help. How your shifts pages work, step by step.");
     // The contents come after the header, not inside it.
     expect(html.indexOf("</header>")).toBeLessThan(html.indexOf("<nav"));
+  });
+
+  it("covers cancelling and strikes, the travel area, and qualifications and photos (12H.3)", () => {
+    const html = help();
+    expect(contents(html)).toEqual(
+      expect.arrayContaining([
+        "cancelling-and-strikes",
+        "travel-area",
+        "qualifications-and-photos",
+      ]),
+    );
+    const text = words(html);
+    // The firm's own numbers, not fixed ones.
+    expect(text).toContain(
+      "If you cancel less than 48 hours before a shift starts, you get a strike.",
+    );
+    expect(text).toContain("It counts for 90 days.");
+    expect(text).toContain("Your staff photo needs renewing every 36 months.");
+    const firm24 = words(
+      renderToStaticMarkup(
+        createElement(HelpView, {
+          firmName: "Acme Events",
+          facts: { noticeHours: 24, liveDays: 30, photoRenewalMonths: 24 },
+          year: 2026,
+        }),
+      ),
+    );
+    expect(firm24).toContain(
+      "If you cancel less than 24 hours before a shift starts, you get a strike.",
+    );
+    expect(firm24).toContain("It counts for 30 days.");
+    expect(firm24).toContain("Your staff photo needs renewing every 24 months.");
+    expect(text).toContain("The office only sees the first part of your postcode, like ZZ1.");
+    // The postcode data's licence line, last.
+    expect(html).toMatch(
+      /<p data-attribution=""[^>]*>Postcode locations: Contains OS data © Crown copyright/,
+    );
   });
 
   it("ends with the usual way back to My shifts", () => {

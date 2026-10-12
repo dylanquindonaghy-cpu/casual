@@ -26,7 +26,7 @@ test("a worker checks their licences, marks a day off and changes how we reach t
   // Each section has its own confirmation.
   const days = page.getByRole("region", { name: "Days you can't work" });
   const reach = page.getByRole("region", { name: "How we reach you" });
-  await expect(page.getByText("To change these, ask the office.")).toBeVisible();
+  await expect(page.getByText("To change your name or number, ask the office.")).toBeVisible();
   // Qualifications (12F.1): the ones her roles need, worst first, then right to work.
   const quals = page.getByRole("region", { name: "Qualifications" });
   const rows = quals.getByRole("listitem");

@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { h2, rows, staffBtn } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
+import type { HelpFacts } from "@/lib/portal/help-facts";
+import { postcodeAttribution } from "@/lib/travel/attribution";
 import { Name, Points, Step, Steps } from "./guide-parts";
 
 // The workers' help page (docs/screens.md `/help`): how the shifts pages work, in plain words, in
@@ -25,9 +27,12 @@ const SECTIONS = [
   { id: "taking-a-shift", title: "Taking a shift" },
   { id: "urgent-shifts", title: "Urgent shifts" },
   { id: "cant-make-it", title: "If you can't make a shift" },
+  { id: "cancelling-and-strikes", title: "Cancelling and strikes" },
   { id: "changes", title: "Changing times or swapping" },
   { id: "your-pay", title: "Your pay" },
   { id: "your-profile", title: "Your profile" },
+  { id: "travel-area", title: "Your travel area" },
+  { id: "qualifications-and-photos", title: "Qualifications and photos" },
   { id: "no-signal", title: "No signal" },
   { id: "lost-phone", title: "Lost your phone" },
   { id: "your-details", title: "Your details" },
@@ -35,7 +40,15 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
-export function HelpView({ firmName }: { firmName: string }) {
+export function HelpView({
+  firmName,
+  facts,
+  year,
+}: {
+  firmName: string;
+  facts: HelpFacts; // the firm's own strike and photo numbers (src/lib/portal/help-facts.ts)
+  year: number; // for the postcode data's attribution
+}) {
   return (
     <>
       <PageHeader eyebrow={firmName} title="Help">
@@ -183,6 +196,30 @@ export function HelpView({ firmName }: { firmName: string }) {
         </p>
       </Section>
 
+      <Section id="cancelling-and-strikes">
+        <p className="mt-3">
+          If you cancel less than {facts.noticeHours} hours before a shift starts, you get a strike.
+        </p>
+        <Points>
+          <li>A strike is a record, not a fine. It never comes off your pay.</li>
+          <li>
+            {firmName}&apos;s strikes team gets a record of it. It counts for {facts.liveDays} days.
+          </li>
+          <li>
+            You won&apos;t get one if the office booked you, cancelled the shift or changed it.
+          </li>
+          <li>You&apos;ll see if it&apos;s a strike before you confirm.</li>
+          <li>
+            Something stopped you? Tap <Name>Tell us what happened</Name>. It&apos;s on the cancel
+            screen and under the strike on your profile.
+          </li>
+          <li>
+            The office can withdraw a strike. Your profile then says{" "}
+            <Name>Withdrawn by the office</Name>.
+          </li>
+        </Points>
+      </Section>
+
       <Section id="changes">
         <Steps>
           <Step>
@@ -246,7 +283,53 @@ export function HelpView({ firmName }: { firmName: string }) {
             <Name>How we reach you</Name>: choose WhatsApp or text message, and whether to hear
             about open shifts. Then tap <Name>Save settings</Name>.
           </li>
-          <li>Your details, licences and cards are there too. To change them, ask the office.</li>
+          <li>Your details are there too. To change your name or number, ask the office.</li>
+        </Points>
+      </Section>
+
+      <Section id="travel-area">
+        <p className="mt-3">
+          Tell us where you start from and how far you&apos;ll travel. Then you only see shifts you
+          can get to in time.
+        </p>
+        <Steps>
+          <Step>
+            Tap the <Name>Profile</Name> tab, then <Name>Set your travel area</Name> under{" "}
+            <Name>Where you work</Name>.
+          </Step>
+          <Step>Enter the postcode you start from. It can be different from your home.</Step>
+          <Step>
+            Choose car, public transport or both, and how many minutes you&apos;ll travel. Then tap{" "}
+            <Name>Save travel area</Name>.
+          </Step>
+        </Steps>
+        <Points>
+          <li>Each shift shows how far it is, and the time by car and by public transport.</li>
+          <li>A link to a shift still opens, however far it is.</li>
+          <li>
+            The office only sees the first part of your postcode, like ZZ1. Your full postcode stays
+            with you.
+          </li>
+        </Points>
+      </Section>
+
+      <Section id="qualifications-and-photos">
+        <p className="mt-3">
+          Your profile lists each licence or card your roles need, with its status and date.
+        </p>
+        <Points>
+          <li>
+            New card? Tap <Name>Upload a certificate</Name> under it and take a clear photo of it.
+          </li>
+          <li>Some, like CSAS, the office records itself. Send those to the office, not here.</li>
+          <li>
+            Your staff photo needs renewing every {facts.photoRenewalMonths} months. Tap{" "}
+            <Name>Upload a new photo</Name> and face the camera.
+          </li>
+          <li>
+            The office checks everything you send. Until it does, the new one doesn&apos;t count.
+          </li>
+          <li>Only checked ones count when you take a shift.</li>
         </Points>
       </Section>
 
@@ -279,6 +362,11 @@ export function HelpView({ firmName }: { firmName: string }) {
       <Link href="/" className={`${staffBtn.secondary} mt-10`}>
         Back to my shifts
       </Link>
+
+      {/* The postcode data's licence requires this line (src/lib/travel/attribution.ts). */}
+      <p data-attribution="" className="mt-10 text-sm text-ink-muted">
+        {postcodeAttribution(year)}
+      </p>
     </>
   );
 }

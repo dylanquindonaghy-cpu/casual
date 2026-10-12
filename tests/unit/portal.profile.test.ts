@@ -55,7 +55,8 @@ describe("ProfileView", () => {
     expect(page).toContain("Sam Booker");
     expect(page).toContain("Mobile: 07700 900123");
     expect(page).toContain("Email: sam.booker@example.com");
-    expect(page).toContain("To change these, ask the office.");
+    // docs/office-v2.md 4.6's words (12H.3; "To change these" before).
+    expect(page).toContain("To change your name or number, ask the office.");
     expect(text(render(profile()))).toContain("Email: none");
     expect(ukMobile("+447700900123")).toBe("07700 900123");
     expect(ukMobile("+353861234567")).toBe("+353861234567");

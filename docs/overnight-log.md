@@ -12277,3 +12277,28 @@ commits 0052f8f, 5ecda16 and d0c709a. CI: `gh` isn't available in this container
 **Parked** (`PLAN.md`, "Shifts list and shift page (12H.2)"): automatic event names in the shifts
 line's replies; uploads for a session's extras her roles don't need (Dylan's call); right to work as
 a session extra (refuse it at input?).
+
+## 2026-10-12 14:06 UTC — Phase 12, task 12H.3: Profile and help
+
+**Started:** 2026-10-12 14:06 UTC (same container, right after 12H.2).
+
+**Task:** `PLAN.md` Phase 12, "Profile and help (§4.6–§4.7; Rules 15)" (12H.3).
+
+**Plan.** Most of Profile is built already (12F.1 qualifications and right to work, 12F.2 the photo
+card and uploads, 12G.1 Where you work, 12C.5 Strikes, 12H.1 My requests, Help and Log out at the
+end). What's left: "Your details" in §4.6's words; `/help`'s three new sections ("Cancelling and
+strikes", "Your travel area", "Qualifications and photos") with the firm's own numbers
+(`src/lib/portal/help-facts.ts`: notice hours, how long a strike counts, photo renewal months, read
+inside the firm's transaction); the postcode data's attribution line (`src/lib/travel/attribution.ts`);
+tests (plain language, guides, `portal.profile.test.ts`, and the Profile photo card in
+`casual.app.spec.ts`); `docs/screens.md`.
+
+**Decisions** (each one Dylan would normally approve)
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| "To change your name or number, ask the office." replaces "To change these, ask the office." | The task and §4.6 quote these words (copy is product). Two existing checks named the old sentence; only that sentence changed in them, every other details and notification check is as it was | Keeping the old words (the quoted copy missing) |
+| Help states the firm's own numbers (48 hours, 90 days, 36 months by default) | A firm can change them; Help must match the cancel screen and Profile | Fixed numbers |
+| The attribution is the ONSPD licence's words, with the current year, last on Help | The licence requires it word for word where the data is used | A shorter credit (not what the licence asks) |
+| The plain-language test takes out the attribution's exact words before its checks, and a new test holds Help to them | "database right" is the licence's wording, not ours to change; the same word anywhere else still fails (tested) | Rewording the licence line; moving it off the tested page (hiding it from the test) |
+| No guardrails review | Screens, copy and one read of the firm's own settings inside its transaction; no schema, auth, tenancy, messaging, jobs or rules change | Running it anyway |

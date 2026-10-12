@@ -157,6 +157,16 @@ test("Home shows Holly's photo row, the urgent card and her next shift in full",
   await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
   await expect(tabs.getByRole("link", { name: "Profile, something needs updating" })).toBeVisible();
   await noSidewaysScroll(page);
+
+  // Profile's staff photo card (12H.3; §4.6): the photo, its dates and its status.
+  await tabs.getByRole("link", { name: "Profile, something needs updating" }).click();
+  await expect(page).toHaveURL(`${acme}/profile`);
+  const photo = page.getByRole("region", { name: "Staff photo" });
+  await expect(photo.getByRole("img", { name: "Staff photo of Holly Grant" })).toBeVisible();
+  await expect(photo).toContainText(new RegExp(`Last uploaded ${uploaded} · renew by ${DAY}`));
+  await expect(photo).toContainText("Overdue");
+  await expect(page.getByText("To change your name or number, ask the office.")).toBeVisible();
+  await noSidewaysScroll(page);
 });
 
 // The shifts list and shift page (12H.2; docs/office-v2.md 4.3, 4.4): Zoe's Open row for the Arena

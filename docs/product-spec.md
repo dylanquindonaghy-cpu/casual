@@ -156,7 +156,7 @@ fill); product metrics from the events table; resourcer weekly check-in.
 
 - **Football season runs to May.** Stewarding firms have cancellations every week; aim for a
   pilot live by late January/February.
-- **Employment Rights Act 2027** zero-hours measures: the notice report is the sales hook.
+- **Employment Rights Act 2025** zero-hours measures (expected in force in 2027): the notice report is the sales hook.
 - **WhatsApp pricing changed on 1 October 2026:** service replies beyond 1,000 per number per
   month are charged, and a payment method must be on file.
 - **Meta business verification** can take days: start it during Phase 7, not at go-live.

@@ -189,6 +189,44 @@ describe("the office how-to guide", () => {
     expect(guide("admin")).toContain('href="/office/settings/integrations"');
   });
 
+  // One section of the rendered guide, by its id.
+  const section = (html: string, id: string) => {
+    const start = html.indexOf(`<section id="${id}"`);
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf("</section>", start));
+  };
+
+  it("Getting around describes the drawer and where Log out is now (12I.3)", () => {
+    for (const role of ["admin", "resourcer", "payroll"] as const) {
+      const text = words(section(guide(role), "getting-around"));
+      // Below 1024px the menu is a drawer behind "Menu", closed by "Close menu" (office-frame.tsx).
+      expect(text).toContain("On a phone or tablet, select Menu at the top left");
+      expect(text).toContain("Select Close menu , or anywhere outside it, to close it.");
+      // Log out sits in the account button's menu at the top right, with this guide.
+      expect(text).toContain("Your name is at the top right. On a phone, it shows your initials.");
+      expect(text).toContain("Select it to open this guide or to Log out");
+      expect(text).toContain("The moon or sun beside it switches between dark and light.");
+    }
+    // The bell is drawn only for the roles with Needs attention, "today" (src/app/office/layout.tsx).
+    const bell = "The bell counts what needs attention.";
+    expect(words(guide("admin"))).toContain(bell);
+    expect(words(guide("resourcer"))).toContain(bell);
+    expect(words(guide("payroll"))).not.toContain(bell);
+  });
+
+  it("Connect your planner is three steps, with the codes and the webhook as notes (12I.3)", () => {
+    const html = section(guide("admin"), "connect-your-planner");
+    const steps = html.slice(html.indexOf("<ol"), html.indexOf("</ol>"));
+    expect(steps.match(/<li[\s>]/g)).toHaveLength(3);
+    const text = words(html);
+    expect(text).toContain("Select Create a key");
+    expect(text).toContain("Select Copy the key and paste it into your planner straight away.");
+    expect(text).toContain("Your planner says Connected by API");
+    // The words of the Webhook section, as they read on Integrations (webhook-forms.tsx).
+    for (const name of ["Webhook", "Add a webhook", "Copy the secret"])
+      expect(text).toContain(name);
+  });
+
   it("is opened through its own area, which every office role has", () => {
     const page = readFileSync("src/app/office/guide/page.tsx", "utf8");
     expect(page).toContain('requireOfficeArea("guide")');

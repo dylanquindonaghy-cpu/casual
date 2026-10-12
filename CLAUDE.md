@@ -10,8 +10,12 @@ Later: rail, civils, construction, cleaning.
 
 Casual workers use a link on WhatsApp (no app download) to see their shifts, grab open
 shifts, cancel or ask for time changes, see urgent dropouts and check pay info. Everything
-is answered instantly and logged. The office (resourcers, payroll) gets a dashboard, a
-clean action log and summaries instead of 60+ emails and constant calls a day.
+is answered instantly and logged. The office (resourcers, payroll) gets a compact,
+planner-first office instead of 60+ emails and constant calls a day: the firm's own planner
+stays the place sessions are made and sends them in (an API in, signed webhooks out), and the
+office keeps what the planner doesn't do. Its dashboard (urgent gaps, what casuals can see,
+cancellations, Needs attention) replaces the old Today page, and Enquiries (shifts-line messages
+and requests from the app) replaces Requests. Plus a clean action log and summaries.
 
 The product sits alongside whatever the firm already uses. It never forces staff to move.
 
@@ -22,7 +26,7 @@ The product sits alongside whatever the firm already uses. It never forces staff
 | Casual worker | Instant answers: my shifts, open shifts, cancel, change, pay dates. No waiting for a reply. |
 | Resourcer / coordinator | Fewer emails and calls, gaps filled fast, nothing missed, one log. |
 | Payroll | One grouped summary of pay queries instead of the whole workforce messaging. |
-| Firm admin / owner | Evidence of every offer, change and cancellation (Employment Rights Act 2027), fewer no-shows, no extra admin hire at peak. |
+| Firm admin / owner | Evidence of every offer, change and cancellation (Employment Rights Act 2025; its zero-hours notice rules are expected in 2027), fewer no-shows, no extra admin hire at peak. |
 
 ## Golden rules (non-negotiable)
 
@@ -93,6 +97,7 @@ src/
     notify/            # web push + WhatsApp/SMS fallback ordering
     ai/                # Anthropic client behind AiClient, prompts, zod-validated outputs
     events/            # append-only action log writer
+    integrations/      # the planner API (/api/v1, keys) and its signed webhooks out
   worker/              # pg-boss job handlers (offer waves, syncs, digests)
 tests/
 docs/

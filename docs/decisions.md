@@ -527,3 +527,60 @@ the page; never logged), and only public addresses are ever reached. A webhook c
 `INTEGRATIONS_SECRET` changes every firm's signing secret (`docs/runbooks.md`). Planners must send
 one ref's PUTs one at a time with no automatic replays (`docs/integrations.md`). **Revisit when:** a
 planner needs OAuth or per-key scopes, a firm needs more than 10 keys, or `/api/v2`.
+
+## ADR-023: Travel times from TravelTime, postcodes from postcodes.io, a straight line when down
+
+**Context:** Dylan, 2026-10-06: a casual should see how far each shift is "AND how long it'll take
+via car or public transport", and shifts should be limited by where they are (`docs/office-v2.md`
+§5.4; D1, taken as recommended the same day). That needs a postcode turned into a point, and travel
+times by car and by public transport from many casuals to each site.
+**Decision:**
+- **TravelTime** (its time-filter search: an arrive-by time, up to 2,000 start points at once, a
+  90-minute ceiling, the distance by car) for both ways of travelling. The free key is for
+  development and the demo only; a production quote comes before a pilot ("Connect postcodes.io and
+  TravelTime", Parking lot). It is called from the worker only (the travel job,
+  `src/lib/travel/estimates.ts`), never from a page.
+- **postcodes.io** (free, no key) turns a postcode into its central point. Only the postcode is
+  sent, never who it belongs to; TravelTime gets points under meaningless ids (`o1`, `o2`), never a
+  postcode, a name or a database id.
+- **Stored estimates:** the answers are kept in `travel_estimates`, keyed by postcode, site,
+  arrive-by time and way of travelling, never by person, for the sessions in the next 28 days; each
+  is kept until 7 days after the last session it's for ends. Pages and shifts-line replies read rows and
+  never wait on the service.
+- **When it's down,** the casual sees the straight-line distance, labelled "(straight line)", or
+  "Travel time not known yet", and the shift is still offered: never hidden silently.
+- `TRAVEL_PROVIDER=fake` (the default) works out times from the straight line and places only the
+  made-up `ZZ` postcodes; the settings refuse `traveltime` under `NODE_ENV=test`.
+**Options:**
+| Option | Verdict |
+|---|---|
+| Google Routes | About $1,450 a month for a 300-casual firm, and its terms don't let us store the results |
+| Straight-line distance only | Says nothing about public transport, which is what many casuals use |
+| Asking each time a page opens | Slow pages, and a cost per view; stored estimates are read instead |
+| Sending the casual's postcode to TravelTime | Not needed: a point under a meaningless id does the job |
+
+## ADR-024: Staff photos and certificate images are kept in Postgres, re-encoded, 1 MB at most
+
+**Context:** casuals upload a staff photo and pictures of their certificates from the app, and the
+office checks them (`docs/office-v2.md` §5.5; D3, taken as recommended on 2026-10-06; 12F.2). We
+have no file store today, and ADR-021 rules out S3.
+**Decision:**
+- **In Postgres**, in `uploads` (with `firm_id`, forced RLS and isolation tests like every table),
+  so a backup, a restore, an erasure and tenant isolation cover the images with no second system.
+- **Re-encoded by the server** (`src/lib/uploads/image.ts`): the real type is read from the first
+  bytes (JPEG, PNG or WebP only), decoded with a pixel limit, turned upright, and saved as a JPEG of
+  1,600px at most. Re-encoding keeps only the pixels, so location and camera details are dropped. At
+  most 1 MB is stored (a database check, `uploads_size_check`), with its sha256.
+- **Only checked items count:** an upload waits for a person in the office to approve it. No face
+  matching and no reading of a card, ever (`docs/compliance.md`).
+- **Photo renewal every 3 years** (`photo.renewal_months`, 36, set by the owner; the SIA licence's
+  cycle; the mock-up said 2), "Due soon" 30 days before.
+- The exports carry each image's details and fingerprint, never its bytes; each image is its own
+  download.
+**Options:**
+| Option | Verdict |
+|---|---|
+| S3 or another object store | AWS is ruled out (ADR-021), and it would need its own backups, access rules and erasure |
+| Files on the server's disk | Lost with the container, outside RLS, and missed by the database backup |
+| Keeping the phone's original file | Keeps location and camera details, and an unchecked file type |
+| Photo renewal every 2 years (the mock-up) | Doesn't match the SIA licence's three years |

@@ -12173,3 +12173,70 @@ Nothing open. Your choice ("Allow the seed") is recorded in `PLAN.md` and in the
 
 `npm run db:reset`, then `npm run dev`; log in at `http://acme.localhost:3000/login` as
 `07700 900400` (Zoe Adeyemi): Home looks like the mock-up.
+
+## 2026-10-12 — Guides and docs (12I.3)
+
+**Time spent:** 0.4 hours (16:08 to 16:51 UTC, shared with 12I.4: the two tasks shared one full
+check, as you decided).
+
+**Result:** `VERIFIED tree=389b478374c80191 e2e=true` (the full check, run once for 12I.3 and
+12I.4: 4,839 tests in 266 files, 91 browser tests, and the walkthrough's 3). Auditor:
+`VERDICT: DONE` (first round). Commit "Phase 12: Guides and docs (12I.3)", pushed to
+`build/overnight` (see the decision log for the push result).
+
+### What was built
+
+Mostly writing, not code. The app's **how-to guide** for the office (`/office/guide`) had two
+parts that were out of date after the new layout:
+- **"Getting around"** now says where the menu is. On a wide screen it's down the left side. On a
+  phone or tablet it hides behind a "Menu" button at the top left (a **drawer**: a panel that
+  slides in). It also says Log out is now under your name at the top right (your initials on a
+  phone), and what the bell and the moon/sun buttons do. The bell sentence only shows for admins
+  and resourcers, because payroll has no bell.
+- **"Connect your planner"** is now three steps: make a key, paste it into the planner, check that
+  "Your planner" says "Connected by API". The role codes and the **webhook** (the address where
+  ShiftDesk tells the planner about bookings) are short notes after the steps.
+
+The **docs** (the written files in `docs/`) were checked against the list in the Phase 12 spec:
+- `CLAUDE.md` (Claude's project memory) now says the office is planner-first, and that the
+  dashboard and Enquiries replace the old Today and Requests pages.
+- `docs/compliance.md` gained two sections. One is on the legal basis firms need when a casual
+  cancels with "I'm unwell". That's health data, a "special category" under UK GDPR Article 9, so
+  each firm needs an "appropriate policy document". The other lists the cautions around strikes:
+  a strike is a record, never a fine, and a person decides anything that follows.
+- `docs/privacy-notice.md` (the wording a firm gives its staff) now covers staff photos, strikes,
+  the strikes team's email, the planner, and the travel services.
+- `docs/decisions.md` gained two **ADRs** (short records of a decision and why). ADR-023 is
+  TravelTime for travel times. ADR-024 is keeping photos in the database.
+- Smaller fixes: the guide's row in `docs/screens.md`, two "Workers" leftovers in
+  `docs/runbooks.md`, and a new table in `docs/testing.md` of the stand-ins ("fakes") that replace
+  each outside service in tests.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The firm writes its own appropriate policy document; a template is parked | A legal template needs the solicitor's check anyway | Drafting one now (not asked for, and unchecked) |
+| "Employment Rights Act 2025" (its zero-hours rules expected in 2027) | The Act is from 2025; CLAUDE.md said "2027" and contradicted the new text | Leaving the two docs disagreeing |
+| The guide's bell sentence only for admins and resourcers | Payroll has no bell on screen | One sentence for everyone (wrong for payroll) |
+
+### What the new tests prove
+
+Two new cases in `tests/unit/guides.test.ts`:
+- For every role, "Getting around" says the menu is behind "Menu" on a phone, how to close it, and
+  that Log out is under your name. Only admins and resourcers are told about the bell.
+- "Connect your planner" has exactly three numbered steps. It names the Webhook section's buttons
+  exactly as they read on the page.
+
+### What's parked or needs Dylan
+
+- **"Appropriate policy document template"** (Parking lot): a template for firms, for the
+  solicitor to check with the DPA.
+- **For the solicitor:** the legal references in the new compliance text (Article 9(2)(b), DPA 2018
+  Schedule 1 paragraph 1, s.13 ERA 1996, the 6-month tribunal limit) were copied from
+  `docs/office-v2.md`. Nobody has checked them independently.
+
+### How to see it working
+
+`npm run dev`, log in to the office, open your name at the top right, then "How-to guide". Make the
+window narrow to see the "Menu" button the guide describes.

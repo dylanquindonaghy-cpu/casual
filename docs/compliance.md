@@ -43,6 +43,40 @@ recipient.
   as its hint only.
 - The strikes DPIA lists the firm's planner as a recipient of strike status.
 
+## Health reasons: the Article 9 condition (12C.1)
+
+A casual can cancel with "I'm unwell". That is health data, a special category under UK GDPR
+Article 9, and so is a label saying someone cancelled for a "health reason"
+(https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/employment/information-about-workers-health/data-protection-and-workers-health-information/).
+- **The condition firms rely on:** employment, social security and social protection (Article
+  9(2)(b)), with DPA 2018 Schedule 1 paragraph 1. It needs the firm to have an **appropriate policy
+  document**: how it meets the data protection principles for this data, and how long it keeps it.
+  The firm writes it before it uses ShiftDesk with real casuals and keeps it while it processes
+  the data (a template for firms is in the Parking lot: "Appropriate policy document template").
+- **Kept inside ShiftDesk:** admins and resourcers see the reason on screen. Everything that
+  leaves (the evidence email, the record PDF, the cancellations CSV, the webhooks and the API) shows
+  one neutral value for all four quick reasons, "Casual's own reason (see ShiftDesk)" or
+  `casual_own_reason`; tests check "unwell" and "health" never appear in them.
+
+## Strikes: the cautions (12C.1; `docs/office-v2.md` §6.2)
+
+A strike is a casual's own cancellation less than 48 hours before the shift (`strikes.notice_hours`,
+the firm's own setting, kept apart from the legal notice threshold). Summary of public sources, not
+legal advice; `docs/dpia-strikes.md` comes first for a real firm.
+- **A record, never an automatic penalty.** Nothing happens automatically; a named person decides
+  anything that follows (the automated-decision safeguards in the Employment Rights Act 2025, and
+  Acas: review points shouldn't trigger disciplinary action automatically).
+- **Told up front, and heard:** the cancel screen shows the warning before they confirm, and the
+  version they saw is stored with the cancellation (S3); the help page explains the rule; a casual
+  can tap "Tell us what happened"; the office can withdraw a strike.
+- **No strike** when the office, the planner or the sheet cancelled, on a booking the office made,
+  or after the office or the planner changed the session (the future protection against detriment).
+- **Health and caring reasons are flagged** for a person to review (Equality Act 2010; Acas).
+- **Never linked to money:** no fines, no deductions (s.13 ERA 1996). Payroll never sees strikes.
+- **Evidence goes only to a confirmed strikes-team address** (12B.7), never "unwell" or "health".
+- **Kept:** it counts 90 days; its row is deleted at 12 months (past the 6-month tribunal limit),
+  never during a hold; its log entries stay as long as the action log (the retention table below).
+
 ## Data processing agreement (must cover)
 
 Instructions only · confidentiality · security measures · sub-processors and notice of changes ·

@@ -12418,3 +12418,83 @@ files; 91 browser tests and the walkthrough's 3).
 **Ended:** 2026-10-12 16:07 UTC. **Hours:** 1.6. Phase 12 so far: 40.0 hours over 31 Hours-log rows
 (no estimate for Phase 12). **Commit:** "Phase 12: Demo seed (12I.1)", pushed to `build/overnight`.
 **Next:** 12I.3 and 12I.4 in a fresh session (Dylan's decisions above).
+
+## 2026-10-12 16:08 UTC — Phase 12, task 12I.3: Guides and docs
+
+**Started:** 2026-10-12 16:08 UTC, in a fresh cloud container set up as the setup notes above say
+(Node v22.23.3 from nodejs.org, checksum checked; Postgres 16 with the `shiftdesk` superuser created;
+`dockerd` with `caddy:2.10` from mirror.gcr.io; `/root/pw-compat` for Playwright; `/etc/hosts`;
+`no_proxy` plus `.test`; `.env` from `.env.example` with CI's `SESSION_SECRET` and `NODE_ENV`
+commented out). On `build/overnight`, nothing uncommitted.
+
+**Task:** `PLAN.md` Phase 12, "Guides and docs" (12I.3). Dylan's decision 3: it shares one
+`RUN_E2E=1 ./scripts/verify.sh` run with 12I.4, then a separate audit and tick each.
+
+**Plan**
+- `/office/guide` (`src/app/office/guide/guide-view.tsx`): "Getting around" describes the drawer
+  (the Menu button below 1024px, Close menu, the sidebar from 1024px), the bell, the moon/sun button
+  and the account button at the top right (your name; on a phone, your initials) holding How-to
+  guide and Log out; "Connect your planner" becomes three steps (create a key, copy it into the
+  planner, check "Your planner"), with the codes and webhooks as notes.
+- `tests/unit/guides.test.ts`: pin the new section words (the drawer, the account button, three
+  steps).
+- `CLAUDE.md` lines 13-25 (the office is planner-first; the dashboard and Enquiries replace Today and
+  Requests) and `src/lib/integrations/` in the repo layout.
+- The §10 docs list: an Explore pass lists what each doc still lacks; fix each gap from the code.
+  `docs/compliance.md` and `docs/privacy-notice.md` items as the task lists; ADRs for D1 (TravelTime)
+  and D3 (images in Postgres) in `docs/decisions.md`.
+- `doc-fact-checker` on the changed docs; fix what it finds.
+- No schema, auth, tenancy, messaging, jobs or rules change, so no `guardrails-reviewer` (the plan
+  is copy and docs only; if that changes, it runs).
+
+**What 12I.3 changed** (before the shared verify):
+- `/office/guide`: "Getting around" now says where the menu is on a wide screen and on a phone or
+  tablet ("Menu" at the top left, "Close menu"), that Log out is under your name (your initials on
+  a phone) at the top right, the moon/sun button, and the bell for the roles that have it (admins
+  and resourcers: `canAccess(role, "today")`, as `src/app/office/layout.tsx` draws it). "Connect
+  your planner" is three steps; the codes and the webhook are notes. Tests: two new cases in
+  `tests/unit/guides.test.ts`.
+- `CLAUDE.md`: lines 13-25 say the office is planner-first and that the dashboard and Enquiries
+  replace Today and Requests; `integrations/` in the repo layout. The owner row said "Employment
+  Rights Act 2027": the Act is 2025 and its zero-hours rules are expected in 2027 (fixed there and
+  in `docs/product-spec.md`, which the fact-checker found contradicting the new compliance text).
+- `docs/compliance.md`: "Health reasons: the Article 9 condition" (employment, DPA 2018 Schedule 1
+  paragraph 1, and the appropriate policy document) and "Strikes: the cautions".
+- `docs/privacy-notice.md`: staff photo and cards, strikes (with the strikes team), the planner,
+  postcodes.io and TravelTime as recipients, the retention and erasure lines, and a note for Dylan.
+- `docs/decisions.md`: ADR-023 (TravelTime, postcodes.io, straight-line fallback; D1) and ADR-024
+  (images in Postgres, re-encoded, 1 MB; D3).
+- `docs/screens.md` (the `/office/guide` row), `docs/runbooks.md` (Workers → Casuals),
+  `docs/testing.md` ("Fakes in place of outside services").
+- Parking lot: "Appropriate policy document template".
+
+**Decision (12I.3):** the policy document a firm needs for "I'm unwell" isn't written for it: the
+compliance doc says the firm writes one, and a template is parked. Why: a legal template needs the
+solicitor's review anyway. Alternative: write a draft template now (not asked for, and unchecked).
+
+**Doc gap check and fact-check:** an Explore pass listed 10 gaps (all fixed above, except the
+walkthrough's, which are 12I.4's, and the "until then" history notes in `ui-design.md`/`screens.md`,
+kept as history). The `doc-fact-checker` found 6 things; all fixed: the guide row's resourcer list
+missed "Connect your planner"; the Act's year; a code comment named the wrong area for the bell;
+`testing.md` said both setups load `.env` (only Playwright's does); the Twilio row didn't say Twilio
+isn't built; the privacy notice's planner paragraph left out the pay rate, the strike count and
+withdrawn strikes. Unverifiable by it (for Dylan or the solicitor): the legal citations, the ICO
+link and the Google Routes estimate (all copied from `docs/office-v2.md`).
+
+**No `guardrails-reviewer`:** no schema, auth, tenancy, messaging, jobs or rules code changed (copy
+in one office page and docs only).
+
+**Verify (shared with 12I.4):** `VERIFIED tree=389b478374c80191 e2e=true` (typecheck, lint, test,
+e2e and invariants all ok; 4,839 tests in 266 files; 91 browser tests and the walkthrough's 3).
+266 test files, not 267 as 12I.1's entry says: none was removed (`git ls-files` lists 266
+`*.test.ts`; this diff deletes nothing).
+
+**Auditor (round 1), verbatim verdict line:** `VERDICT: DONE`. Its residual note: the legal
+citations and the ICO link were copied from `docs/office-v2.md`, not checked independently.
+
+**Ticked** with 12I.4 in one edit: the tick guard allows a tick only while the tree matches the
+verify stamp, and the first tick changes the tree, so two separate ticks off one verify can't both
+pass (Dylan's decision 3 asked for one verify).
+
+**Ended:** 2026-10-12 16:51 UTC (shared). **Hours:** 0.4. **Commit:** "Phase 12: Guides and docs
+(12I.3)" (push: see 12I.4's entry).

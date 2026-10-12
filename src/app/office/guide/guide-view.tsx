@@ -26,7 +26,7 @@ const SECTIONS: Section[] = [
     id: "getting-around",
     title: "Getting around",
     areas: [],
-    body: (_role, menu) => <GettingAround menu={menu} />,
+    body: (role, menu) => <GettingAround role={role} menu={menu} />,
   },
   {
     id: "today",
@@ -202,12 +202,13 @@ const MENU_WORDS: Record<string, string> = {
   "How-to guide": "This page.",
 };
 
-function GettingAround({ menu }: { menu: MenuGroup[] }) {
+function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) {
   return (
     <>
       <Para>
-        On a computer, the menu is on the left. On a phone, select <Name>Menu</Name> at the top to
-        open it. The page you&apos;re on is highlighted.
+        On a wide screen, the menu is down the left side. On a phone or tablet, select{" "}
+        <Name>Menu</Name> at the top left. The menu slides in. Select <Name>Close menu</Name>, or
+        anywhere outside it, to close it. The page you&apos;re on is highlighted.
       </Para>
       <div className="mt-5 sm:columns-2 sm:gap-8">
         {menu.map((group) => (
@@ -232,8 +233,16 @@ function GettingAround({ menu }: { menu: MenuGroup[] }) {
         ))}
       </div>
       <Para>
-        Your name is at the top right. Select it for this guide and <Name>Log out</Name>. The moon
-        or sun beside it switches between dark and light.
+        Your name is at the top right. On a phone, it shows your initials. Select it to open this
+        guide or to <Name>Log out</Name>.
+      </Para>
+      <Para>
+        The moon or sun beside it switches between dark and light.
+        {/* The bell is drawn only for the roles with Needs attention, the "today" area
+            (src/app/office/layout.tsx). */}
+        {canAccess(role, "today")
+          ? " The bell counts what needs attention. Select it to see the list on the dashboard."
+          : null}
       </Para>
     </>
   );
@@ -954,14 +963,19 @@ function ConnectPlanner() {
           won&apos;t see it again.
         </Step>
         <Step>
-          Your planner names roles and qualifications with your own codes. Find them under{" "}
-          <Name>Codes your planner can use</Name>.
-        </Step>
-        <Step>
           Once your planner sends a session, <Name>Your planner</Name> says{" "}
           <Name>Connected by API</Name>, with the time of its last change.
         </Step>
       </Steps>
+      <Note>
+        Your planner names roles and qualifications with your own codes. Find them under{" "}
+        <Name>Codes your planner can use</Name>.
+      </Note>
+      <Note>
+        To tell your planner about each booking and cancellation as it happens, paste its address
+        under <Name>Webhook</Name> and select <Name>Add a webhook</Name>. Then select{" "}
+        <Name>Copy the secret</Name> and paste it into your planner.
+      </Note>
       <Note>
         Change your planner&apos;s sessions in your planner. Here you can still show or hide them,
         mark them urgent, offer them and assign people to them.

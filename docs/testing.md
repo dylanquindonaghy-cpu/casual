@@ -14,6 +14,22 @@ without breaking a 6am cancellation.
 | Security | scripts | `npm audit`, secrets scan, RLS "enabled on every table" check, log masking test | every commit |
 | Manual | checklist | Real phone, real Twilio number, iPhone home-screen push, poor-signal open of My shifts | before pilot |
 
+## Fakes in place of outside services
+
+No test reaches Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a planner (CLAUDE.md
+conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse the real one under
+`NODE_ENV=test`, and `scripts/invariants.sh` checks the pins in `tests/setup/env.ts` and
+`playwright.config.ts`, so a real setting in `.env` can't reach a test.
+
+| Outside service | Stand-in in tests and the demo | Where |
+|---|---|---|
+| Twilio (WhatsApp, SMS, calls) | `MESSAGING_TRANSPORT=console`, the only sender built so far ("Connect Twilio", Parking lot): prints each message; the browser tests read login links from its outbox file (`CONSOLE_OUTBOX_FILE`) | `src/lib/messaging/` |
+| Email (any SMTP provider) | `EMAIL_TRANSPORT=console`; `smtp` is refused in tests. The SMTP sender's own tests use no network (12X.2) | `src/lib/messaging/smtp.ts` |
+| Anthropic (AI) | `AI_TRANSPORT=none` (the code's fallback answers); tests that need an answer pass `createFakeAi()`; the Anthropic client's own tests use a fake `fetch` (12X.3) | `src/lib/ai/client.ts`, `src/lib/ai/anthropic.ts` |
+| postcodes.io and TravelTime | `TRAVEL_PROVIDER=fake`: fixed points for the made-up `ZZ` postcodes only (`ZZ0` is never found, for "unknown postcode"), and travel times worked out from the straight line | `src/lib/travel/geocoder.ts` (`fakePoint`), `src/lib/travel/provider.ts` (`fakeTravelProvider`) |
+| A firm's planner (webhooks out) | `WEBHOOK_TRANSPORT=console`: prints each delivery; `https` is refused in tests and required in production | `src/lib/integrations/webhook-transport.ts` |
+| The planner API's secret | A made-up `INTEGRATIONS_SECRET` pinned in each test setup | `tests/setup/env.ts`, `playwright.config.ts` |
+
 ## Must-have tests (name them so `/verify` can find them)
 
 - `rls.every-table.test.ts` — asserts every firm-scoped table has RLS enabled and forced, exactly

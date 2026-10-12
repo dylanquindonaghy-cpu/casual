@@ -386,7 +386,7 @@ server (after the dry-run day, say): `sudo -i`, `cd /opt/shiftdesk`, then (not y
 tsx scripts/logs-scan.ts`. It prints "no phone numbers, email addresses, login tokens or keys", or
 the line numbers of each one it found (the value itself masked). Anything found: tell Claude which
 log line. (A login token in the logs is someone's working login for 15 minutes, or a session for 30
-days: also tell them to log out on every device, from the office's Workers or Office team page. A
+days: also tell them to log out on every device, from the office's Casuals or Office team page. A
 "key" is a planner's API key, `shiftdesk_…`, or a `Bearer` value: it works until revoked, so ask
 the firm's admin to revoke it on the office's Integrations page (`/office/settings/integrations`)
 at once and make a new one for their planner.)
@@ -825,7 +825,7 @@ old one off. These are logged as done by the system.
 
 ## A worker leaves, comes back, is barred from a site, or loses their phone
 
-The office does this on the worker's page: "Workers" on the dashboard, find them by name or mobile.
+The office does this on the casual's page: "Casuals" in the menu, find them by name or mobile.
 Admins and resourcers can. Each change needs a reason from a list, and goes in the action log
 ("Workers").
 

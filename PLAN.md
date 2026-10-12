@@ -1038,7 +1038,7 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       venue, staff or address; every time a page shows comes from row times the seed sets, because
       log entries can't be backdated (`src/lib/db/admin/seed-saturday.ts:20-21`). Tests: the seed
       run twice changes nothing; every walkthrough step has its data (12I.1)
-- [ ] Guides and docs (§10 "Docs to update"): `/office/guide` rewritten for the new menu and pages
+- [x] Guides and docs (§10 "Docs to update"): `/office/guide` rewritten for the new menu and pages
       ("Getting around" describes the drawer and where Log out is now; "Connect your planner" in
       three steps); `/help` as 12H.3; `CLAUDE.md` lines 13–25 (the office is planner-first; the
       dashboard and Enquiries replace Today and Requests) and `src/lib/integrations/` in its repo
@@ -3018,6 +3018,11 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - The office can add a right to work check as a session extra; the rules enforce it and the
     casual sees it in "What it needs" (Rules 15 calls it a status only). Refuse it as an extra in
     the editor and the planner schema if that's the intent.
+- Guides and docs (12I.3, 2026-10-12):
+  - "Appropriate policy document template": the UK GDPR Article 9 condition firms rely on for
+    "I'm unwell" (DPA 2018 Schedule 1 paragraph 1) needs each firm to have one
+    (`docs/compliance.md` "Health reasons"). Write a template for the firm's pack before a pilot;
+    a solicitor checks it with the DPA.
 
 ## Hours log
 
@@ -3156,3 +3161,4 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 2026-10-12 | 12 | 0.7 | Shifts list and shift page (12H.2): one shared reader for what a session needs (its role's rule, then its extras; Events & sessions, Cancellations and the casual app all use it) with the office's short chip names; each Open and urgent row as §4.3 says (role · event linking to the shift's page, site, "date and time · £/hour · post", the chips, places left, the travel line; filters and the 50-row message as built), and the chips on Home's cards; the shift page in full for a shift she can take, is held for, is blocked from or is booked on (chips and title, the facts with pay and its estimate, Meet, Post, Uniform, Places "1 of 4 left", "Getting there" from her home area with "Open in maps", "What it needs" with her status for each, Take shift and the strike note with the firm's own hours); an automatic event no longer named on casual pages; guardrails FIX FIRST (an "upload it" link to a page that refused the type) and 4 SHOULDs fixed; 4,820 tests + 91 e2e + the walkthrough's 3; audit round 1 DONE (see docs/work-log.md) |
 | 2026-10-12 | 12 | 0.4 | Profile and help (12H.3): most of Profile was built by earlier tasks (photo card, qualifications, right to work, travel area, strikes, the end links); "Your details" now in §4.6's words; `/help` gains "Cancelling and strikes", "Your travel area" and "Qualifications and photos", stating each firm's own notice hours, strike length and photo renewal (`helpFacts()`, read in the firm's own transaction), and the postcode data's attribution word for word (the plain-language test lets off that exact passage alone, and checks it's there); new browser check of Profile's photo card; 4,823 tests + 91 e2e + the walkthrough's 3; audit round 1 DONE (see docs/work-log.md) |
 | 2026-10-12 | 12 | 1.6 | Demo seed (12I.1): the mock-up's made-up story for Acme (`seed-story.ts`, `seed-story-load.ts`): the confirmed strikes team, six events (Hillside switched off) with every session's pay, post, meeting point and uniform, eight casuals with their qualifications, photos, strikes and travel areas, fixed travel times, the cancellations (two strikes, one flagged, one withdrawn, the office's), two sorted pay groups, uploads waiting, and three shifts-line messages answered by the real reply job (no AI, nothing sent; Dylan allowed the seed in the AI boundary test); every open place needs what only the story's casuals hold, so the walkthrough's lists are unchanged; older seed tests scoped to their own rows; guardrails FIX FIRST ×5 and every SHOULD fixed; audits: round 1 and 2 NOT DONE (the replies), Dylan decided, round 3 DONE; 4,837 tests + 91 e2e + the walkthrough's 3 (see docs/work-log.md) |
+| 2026-10-12 | 12 | 0.4 | Guides and docs (12I.3): the office guide's "Getting around" (the drawer, Log out under your name, the bell for admins and resourcers) and "Connect your planner" in three steps, with tests; CLAUDE.md planner-first and `integrations/`; compliance (the Article 9 condition for "I'm unwell", strike cautions), the privacy notice (photos, strikes, the planner, the travel services), ADR-023 (TravelTime) and ADR-024 (images in Postgres), testing.md's fakes, the guide row in screens.md; doc-fact-checker's 6 findings fixed; shared verify with 12I.4; audit DONE first round (see docs/work-log.md) |

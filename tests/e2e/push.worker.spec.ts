@@ -83,7 +83,10 @@ test("the profile says phone notifications aren't switched on yet", async ({ pag
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo("+447700900109", asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profile" }).click();
+  await page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("link", { name: "Profile" })
+    .click();
   await expect(page.getByRole("heading", { name: "Notifications on this phone" })).toBeVisible();
   await expect(
     page.getByText("Phone notifications aren't switched on for Acme Events yet."),

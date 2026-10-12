@@ -62,7 +62,10 @@ test("a casual uploads a photo and a certificate; the office checks them; her pr
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await loginLinkSentTo(UNA.mobileE164, asked));
   await page.getByRole("button", { name: "Log me in" }).click();
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profile" }).click();
+  await page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("link", { name: "Profile" })
+    .click();
 
   // The staff photo: none yet. "Upload a new photo" opens the front camera.
   const photo = page.getByRole("region", { name: "Staff photo", exact: true });

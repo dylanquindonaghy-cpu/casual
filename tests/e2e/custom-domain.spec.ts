@@ -119,7 +119,10 @@ test("a worker logs in on Acme's own domain and stays logged in there", async ({
     expect(await sessionsOn(context, "http://acme.localhost:3100", SESSION.worker)).toHaveLength(0);
 
     // Still logged in there: another page, then a fresh visit.
-    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profile" }).click();
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Profile" })
+      .click();
     await page.getByRole("link", { name: "My requests" }).click();
     await expect(page).toHaveURL(`${portal}/requests`);
     await page.goto(`${portal}/`);

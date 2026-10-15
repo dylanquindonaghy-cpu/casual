@@ -12816,3 +12816,73 @@ fine until the live check?) is still his.
 
 **Also this session, before 12L.1:** real firm and family names were taken out of the public repo
 (`5982e8a`). Old versions remain in the git history.
+
+## Morning summary (2026-10-15, written 15:37 UTC)
+
+**All the code that can be built without you is built.** The last task, 12L.1 (Phase 12 loose
+ends), was verified and audited DONE. `RUN_E2E=1 ./scripts/verify.sh` printed
+`VERIFIED tree=af39e6a372edb774 e2e=true`: 4,856 tests in 268 files, 91 browser tests, and the
+walkthrough's 3 on a production build. Every other unticked task needs something only you can
+give, so the loop stops here.
+
+**Branch:** this session worked on `claude/wizardly-faraday-8lg4g0`, the branch the session was
+set up with, not `build/overnight`. `build/overnight` was already merged into `main` (PR #3) and
+is behind it. A new branch from `main` keeps the history simple. Nothing was merged into `main`,
+nothing was force-pushed, and no history was rewritten.
+
+**Not pushed.** GitHub refuses every push to this branch: "3 of 3 required status checks are
+expected" (one try per commit point, no retry loop). The commits are safe in this session's
+copy. The cause is your "Protect main" ruleset: its target includes "All branches", so every
+branch needs CI's three checks before a push, and a new commit can't have them yet. Fix it below
+(step 1).
+
+**Correction to the merge entry above:** the repository is public now, and CI runs again. CI
+went green on PR #3 (`faa8db3`, run 340) and on `main` after the merge (`2652ee0`, run 341). The
+"private" and "CI won't start" notes were true when written.
+
+### Hours per phase (from the Hours log in `PLAN.md`) against the estimates
+
+| Phase | Hours | Estimate |
+|---|---|---|
+| 10 Audit fixes and local walkthrough | 18.6 | 30–45 |
+| 11 UI clarity and how-to guides | 4.8 | none given |
+| 12 Compact office and casual app v2 | 43.2 (34 rows, 12L.1's 2.4 included) | none given |
+
+Phases 0 to 9 are unchanged since the summary of 2026-09-30. No phase went over its estimate.
+
+### Blocked, and why (unchanged)
+
+21 tasks, all needing an outside account, a real firm or real phones:
+- **Phase 4 (3):** real web push (the browser makers' push services and a secret key), WhatsApp
+  offers with the text fallback (Twilio), and the copy submitted to Meta.
+- **Phase 6 (1):** grouping pay queries with Haiku (an Anthropic account).
+- **Phase 7 (5):** the shifts line's real WhatsApp number, texts and calls (Twilio), and the AI
+  for unclear messages (an Anthropic account).
+- **Phase 8 (6):** the server, deploys, backups, alerts, Twilio's call fallback, the runbooks
+  tried for real.
+- **Phase 9 (6):** the pilot firm (Gate B paperwork, the baseline week, the dry run, the report).
+- **Gates A, B and C** are about real firms, not code.
+
+### What needs you
+
+1. **Let pushes through (about 1 minute).**
+   1. On GitHub, open the repo, then **Settings → Rules → Rulesets → Protect main**.
+   2. Under **Target branches**, remove **All branches**. Keep **Default branch**.
+   3. Click **Save changes**.
+   4. Tell Claude "push it". On GitHub, the branch `claude/wizardly-faraday-8lg4g0` should then
+      show the new commits, from "Docs: take real firm and family names out of the public repo"
+      to "docs: morning summary (2026-10-15)". Claude then opens a draft pull request into
+      `main`.
+2. **Look at the preview.** A private page with screenshots of the casual app and the office,
+   taken on the made-up demo data, is linked in the chat.
+3. **Decide:** are the hand-written TravelTime answers fine until the live check? (From the
+   12G.2 audit; in the Parking lot.)
+4. **New in the Parking lot:**
+   - The shifts line's job has no "last try" step ("Inbound messages (12L.1 guardrails
+     review)"). If a message fails every try, nobody is told. Say if you want it built next.
+   - "Text cuts that count UTF-16 units": a very long message can end in a "�". Nothing fails.
+5. **A fresh container** needs the setup notes in the 2026-10-15 merge entry above. None of it
+   changes the repo.
+
+**Next:** nothing is left that the loop can build. Start the next piece of work yourself once
+you've picked it, for example the accounts for Phase 7 (Twilio) when you're ready.

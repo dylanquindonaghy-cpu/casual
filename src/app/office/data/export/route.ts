@@ -1,3 +1,4 @@
+import { fromOwnPages } from "@/lib/auth/own-pages";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
 import { exportFirmData } from "@/lib/gdpr/firm-export";
@@ -5,9 +6,10 @@ import { requestLog } from "@/lib/request";
 
 // GET: all the firm's data as one JSON file (docs/screens.md `/office/data`). The firm comes from
 // the host and the office user from their session (an admin: checked here and again inside the
-// export, which logs it). Not cached.
+// export, which logs it), started from ShiftDesk's own pages (fromOwnPages). Not cached.
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  if (!fromOwnPages(request)) return new Response("Open this from ShiftDesk.", { status: 403 });
   const session = await getOfficeSession();
   if (!session) return new Response("Log in again.", { status: 401 });
   if (!canAccess(session.officeUser.role, "data")) {

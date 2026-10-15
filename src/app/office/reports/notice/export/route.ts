@@ -1,3 +1,4 @@
+import { fromOwnPages } from "@/lib/auth/own-pages";
 import { getOfficeSession } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
 import { readSessionToken } from "@/lib/auth/session-cookie";
@@ -12,9 +13,11 @@ import { requestLog } from "@/lib/request";
 // GET: the notice and cancellation report as a CSV file, with the page's filters (docs/screens.md
 // `/office/reports/notice`). The firm comes from the host and the office user from their session
 // (an admin or resourcer, checked here and again in the report). Every row or none: more than
-// 20,000 and it asks for fewer days rather than hand over a file that looks complete. Not cached.
+// 20,000 and it asks for fewer days rather than hand over a file that looks complete. Started from
+// ShiftDesk's own pages (fromOwnPages). Not cached.
 
 export async function GET(request: Request): Promise<Response> {
+  if (!fromOwnPages(request)) return new Response("Open this from ShiftDesk.", { status: 403 });
   const session = await getOfficeSession();
   if (!session) return new Response("Log in again.", { status: 401 });
   if (!canAccess(session.officeUser.role, "reports")) {

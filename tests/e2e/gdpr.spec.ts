@@ -71,6 +71,19 @@ test("an admin downloads a worker's data, deletes their details, and downloads t
   expect(csv.file).toMatch(/\.csv$/);
   expect(csv.text.startsWith("﻿Section,Record,Field,Value\r\n")).toBe(true);
   expect(csv.text).toContain("worker,1,lastName,Erasure");
+  // Started from another site (or another firm's address): refused, like the cancellations files.
+  for (const site of ["cross-site", "same-site"]) {
+    for (const path of [
+      `data/workers/${workerId}/export?format=json`,
+      `data/workers/${workerId}/export?format=csv`,
+      "data/export",
+    ]) {
+      const answer = await page.request.get(`${acme}/office/${path}`, {
+        headers: { "sec-fetch-site": site },
+      });
+      expect(answer.status(), `${site} ${path}`).toBe(403);
+    }
+  }
 
   // Deleting needs the box ticked first.
   const erase = page.getByRole("button", { name: "Delete Dana Erasure’s personal details" });

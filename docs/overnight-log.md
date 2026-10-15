@@ -10890,3 +10890,58 @@ run (the task text asks for it; it costs a database read, since both ways are al
 a search cut off by the budget is a paid request whose answer is dropped (rare: only in a run's
 last seconds); the wave's catch writes to the main log (a test prints one warning line).
 Mutation checks: removing either fix made its new test fail.
+
+### 12G.2 closed in a later session (2026-10-15)
+
+**Verify round 1:** `./scripts/verify.sh` → `NOT VERIFIED`. Two failures:
+
+- `tests/integration/deploy.caddy.test.ts` (4 tests): the cloud container had no Docker running.
+  Its daemon was started and `caddy:2.10` fetched. That's the machine, not the code: the 4 tests
+  pass unchanged.
+- `tests/unit/imports.files.test.ts > refuses a Mac CSV`: a real bug, not the machine. Node
+  22.22.0's `TextDecoder("windows-1252")` decodes bytes 0x80–0x9F as Latin-1's control characters,
+  not Windows-1252's letters. 0x8E came out as U+008E, not "Ž", so a Mac CSV's "RenŽe" got through.
+  Worse, a Windows Excel CSV's "O’Brien" (0x92) or "€" (0x80) was imported with an invisible
+  control character in the name. The Docker image (`node:22-bookworm-slim`) and CI (`.nvmrc` "22")
+  both pull the latest Node 22, so production would have done it too. Fix (`7f07cb3`):
+  `readTable` reads the bytes as Latin-1 (`Buffer`) and maps 0x80–0x9F with WHATWG's
+  index-windows-1252, so the result no longer depends on the Node release. New test: every defined
+  0x80–0x9F byte against Python's cp1252 codec. With the old decoder, it and the Mac CSV test both
+  fail.
+
+**Verify round 2:** `RUN_E2E=1` → `VERIFIED tree=eff33b1024c8ee14 e2e=true` (4,127 tests; 79 e2e;
+the walkthrough's 3). Two machine fixes were needed first:
+
+- `acme.localhost` and `northline.localhost` added to `/etc/hosts`, because Linux's resolver
+  doesn't map `*.localhost` subdomains the way macOS does.
+- `.test` added to `NO_PROXY`, so Chromium reaches `shifts.acme-events.test` directly and not
+  through the container's proxy.
+
+Neither changes the repo.
+
+**Audit round 1 (claims-auditor), verbatim verdict and what was done:**
+
+> VERDICT: NOT DONE
+>
+> To reach DONE:
+> 1. Add a test that saving a travel area with only the ways of travelling changed (same postcode) queues the `window: true` travel job. It could extend travel.estimates.test.ts:818. Alternatively, ask Dylan to accept that clause as untested, since both ways are always searched and the branch is a no-op.
+> 2. Optional, to tighten: put a session at about 27d23h in the nightly-run test, so the 28-day edge goes through the window path.
+> 3. Optional: add one integration case for a session whose start is near 25 Oct 2026 01:00 UTC, checking the saved `arrive_by`.
+> The hand-written TravelTime fixtures stay a Parking-lot item (live check before `TRAVEL_PROVIDER=traveltime`). Do not tick the task until item 1 is resolved.
+
+All three were done, in `tests/integration/travel.estimates.test.ts`:
+
+- **Point 1:** a new test. Changing a casual's ways of travelling alone (same postcode) queues
+  the shared window run: 5 minutes later, singleton per firm, no session ids. Changing the time
+  limit alone queues nothing.
+- **Point 2:** the nightly-run test gains a session at 27 days 23 hours, which is run.
+- **Point 3:** a new test. A session just after each clock change goes through the job: 01:20 GMT
+  on 25 October 2026 and 02:20 BST on 28 March 2027. Each saves arrive-by 00:50 UTC, 30 real
+  minutes before the start.
+
+Break checks:
+
+- Dropping `|| changed.includes("modes")` fails point 1's test.
+- Taking 30 minutes off the London clock face (`setMinutes`, `TZ=Europe/London`) fails point 3's
+  test, and only that one. Before this round, that bug would have stayed green.
+- A window 26 hours short of 29 days fails point 2's test.

@@ -543,7 +543,7 @@ The message is one plain sentence (or two). Nothing you sent is ever repeated ba
 | 401 | `invalid_key` | The key is missing, wrong or revoked. |
 | 403 | `agreement_not_recorded` | Your firm's agreement isn't recorded yet, so nothing can be saved. |
 | 404 | `not_found` | No session with that ref, or not the platform address, or not an API address. |
-| 405 | `method_not_allowed` | The address doesn't take that method: the `Allow` header lists the ones it does (`GET, PUT` for a session, `GET` for cancellations). |
+| 405 | `method_not_allowed` | The address doesn't take that method: the `Allow` header lists the ones it does (`GET, HEAD, OPTIONS, PUT` for a session, `GET, HEAD, OPTIONS` for cancellations; `OPTIONS` gives the same list). |
 | 409 | `session_started` | The session has started, or would start in the past. |
 | 409 | `session_cancelled` | The session is cancelled: send a new ref. |
 | 409 | `session_has_bookings` | People are booked, so the role and requirements can't change. |

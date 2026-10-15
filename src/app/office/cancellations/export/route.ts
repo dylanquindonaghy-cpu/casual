@@ -40,8 +40,11 @@ export async function GET(request: Request): Promise<Response> {
     : "all";
   const day = new URL(request.url).searchParams.get("day") === "today" ? ("today" as const) : null;
   const token = (await readSessionToken("office")) ?? "";
+  // One clock for the rows, the log and the file's date (today's file at midnight stays one day).
+  const now = new Date();
+  const ctx = { firm: session.firm, clock: { now: () => now } };
   try {
-    const list = await officeCancellations({ firm: session.firm }, token, view, {
+    const list = await officeCancellations(ctx, token, view, {
       limit: CANCELLATIONS_CSV_ROWS,
       allOrNothing: true,
       ...(day ? { day } : {}),
@@ -54,7 +57,7 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
     const csv = cancellationsCsv(list.rows, { tz: list.timeZone, threshold: list.threshold });
-    const logged = await logDownload({ firm: session.firm }, token, {
+    const logged = await logDownload(ctx, token, {
       kind: "cancellations_csv",
       view,
       ...(day ? { day } : {}),
@@ -63,7 +66,7 @@ export async function GET(request: Request): Promise<Response> {
     if (!logged) return plain("Not found.", 404);
     // Today's file names the day (the firm's), so it still makes sense once saved.
     const fileName = day
-      ? `cancellations-${view}-${localDateOf(new Date(), list.timeZone)}.csv`
+      ? `cancellations-${view}-${localDateOf(now, list.timeZone)}.csv`
       : `cancellations-${view}.csv`;
     return new Response(csv, {
       headers: {

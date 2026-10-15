@@ -111,6 +111,10 @@ describe("the days a message names (code, not AI)", () => {
     expect(askedDays("can I do wed", FRIDAY, TZ)?.dates).toEqual(["2026-10-14"]);
     expect(askedDays("mon please", FRIDAY, TZ)?.dates).toEqual(["2026-10-12"]);
     expect(askedDays("I sat my test, any shifts sat?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
+    // Her words are looked up as keys: a built-in name ("constructor", any case) is just a word.
+    expect(askedDays("any constructor shifts sat?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
+    expect(askedDays("Constructor work tomorrow?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
+    expect(askedDays("constructor tostring valueof hasownproperty", FRIDAY, TZ)).toBeNull();
     // On a Sunday, "this weekend" is what's left of it.
     expect(askedDays("weekend?", new Date("2026-10-11T09:00:00Z"), TZ)?.dates).toEqual([
       "2026-10-11",

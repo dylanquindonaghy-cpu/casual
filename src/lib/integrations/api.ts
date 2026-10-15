@@ -313,8 +313,13 @@ export function apiMethodNotAllowed(
   request: Request,
   method: string,
   allow: readonly string[],
-  deps: Pick<ApiDeps, "logger"> = {},
+  deps: Pick<ApiDeps, "logger" | "env"> = {},
 ): Response {
+  // Not the platform address: the API's 404, as for every API call there (step 1 above).
+  const env = deps.env ?? apiEnv();
+  if (parseHost(hostOf(request), env.APP_BASE_DOMAIN)?.kind !== "apex") {
+    return apiNotFound(request, method, deps);
+  }
   const requestId = requestIdOf(request);
   (deps.logger ?? log).info("api request", {
     requestId,

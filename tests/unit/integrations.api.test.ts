@@ -525,13 +525,13 @@ describe("handleApiRequest: the refusals before any look-up", () => {
     const at = (path: string, method: string) =>
       new Request(`http://${BASE}${path}`, { method, headers: { host: BASE } });
     const refused: [Response, string][] = [
-      [sessionRoute.POST(at("/api/v1/sessions/X", "POST")), "GET, PUT"],
-      [sessionRoute.PATCH(at("/api/v1/sessions/X", "PATCH")), "GET, PUT"],
-      [sessionRoute.DELETE(at("/api/v1/sessions/X", "DELETE")), "GET, PUT"],
-      [cancellationsRoute.PUT(at("/api/v1/cancellations", "PUT")), "GET"],
-      [cancellationsRoute.POST(at("/api/v1/cancellations", "POST")), "GET"],
-      [cancellationsRoute.PATCH(at("/api/v1/cancellations", "PATCH")), "GET"],
-      [cancellationsRoute.DELETE(at("/api/v1/cancellations", "DELETE")), "GET"],
+      [sessionRoute.POST(at("/api/v1/sessions/X", "POST")), "GET, HEAD, OPTIONS, PUT"],
+      [sessionRoute.PATCH(at("/api/v1/sessions/X", "PATCH")), "GET, HEAD, OPTIONS, PUT"],
+      [sessionRoute.DELETE(at("/api/v1/sessions/X", "DELETE")), "GET, HEAD, OPTIONS, PUT"],
+      [cancellationsRoute.PUT(at("/api/v1/cancellations", "PUT")), "GET, HEAD, OPTIONS"],
+      [cancellationsRoute.POST(at("/api/v1/cancellations", "POST")), "GET, HEAD, OPTIONS"],
+      [cancellationsRoute.PATCH(at("/api/v1/cancellations", "PATCH")), "GET, HEAD, OPTIONS"],
+      [cancellationsRoute.DELETE(at("/api/v1/cancellations", "DELETE")), "GET, HEAD, OPTIONS"],
     ];
     for (const [response, allow] of refused) {
       expect(response.status).toBe(405);
@@ -541,6 +541,19 @@ describe("handleApiRequest: the refusals before any look-up", () => {
       expect(error.code).toBe("method_not_allowed");
       expect(error.message).toBe(API_ERRORS.method_not_allowed.message);
     }
+    // OPTIONS gives the same list as the 405.
+    expect(sessionRoute.OPTIONS().headers.get("allow")).toBe("GET, HEAD, OPTIONS, PUT");
+    expect(sessionRoute.OPTIONS().status).toBe(204);
+    expect(cancellationsRoute.OPTIONS().headers.get("allow")).toBe("GET, HEAD, OPTIONS");
+    // A firm's own address isn't an API address: the API's 404, as for any call there.
+    const onFirm = sessionRoute.POST(
+      new Request(`http://acme.${BASE}/api/v1/sessions/X`, {
+        method: "POST",
+        headers: { host: `acme.${BASE}` },
+      }),
+    );
+    expect(onFirm.status).toBe(404);
+    expect((await errorOf(onFirm)).code).toBe("not_found");
   });
 });
 

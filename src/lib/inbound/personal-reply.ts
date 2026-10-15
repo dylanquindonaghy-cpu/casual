@@ -112,24 +112,15 @@ export interface AskedDays {
 // Short forms that are also ordinary words: a day unless the word just before makes them ordinary
 // English ("I sat my test", "in the sun", "getting wed"), so "any shifts sat?" and "sat or sun" still
 // name days. A wrong guess only changes the reply's heading and list, never what she can book.
-const NOT_A_DAY_AFTER: Record<string, ReadonlySet<string>> = {
-  sat: new Set([
-    "i",
-    "we",
-    "you",
-    "he",
-    "she",
-    "they",
-    "just",
-    "was",
-    "were",
-    "have",
-    "has",
-    "had",
-  ]),
-  sun: new Set(["the", "a"]),
-  wed: new Set(["get", "gets", "got", "getting", "be", "been", "being", "newly"]),
-};
+// A Map, not an object: her words are its keys, and an object would also find "constructor".
+const NOT_A_DAY_AFTER = new Map<string, ReadonlySet<string>>([
+  [
+    "sat",
+    new Set(["i", "we", "you", "he", "she", "they", "just", "was", "were", "have", "has", "had"]),
+  ],
+  ["sun", new Set(["the", "a"])],
+  ["wed", new Set(["get", "gets", "got", "getting", "be", "been", "being", "newly"])],
+]);
 
 export function askedDays(text: string, now: Date, timeZone: string): AskedDays | null {
   // Words keep their apostrophes (a phone's curly one too), so "c'mon" isn't "mon".
@@ -138,7 +129,7 @@ export function askedDays(text: string, now: Date, timeZone: string): AskedDays 
       .toLowerCase()
       .replace(/[\u2018\u2019]/g, "'")
       .match(/[a-z]+(?:'[a-z]+)*/g) ?? [];
-  const words = new Set(tokens.filter((w, i) => !NOT_A_DAY_AFTER[w]?.has(tokens[i - 1] ?? "")));
+  const words = new Set(tokens.filter((w, i) => !NOT_A_DAY_AFTER.get(w)?.has(tokens[i - 1] ?? "")));
   const today = localDateOf(now, timeZone);
   const weekdayOf = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
   const next = (weekday: number) => {

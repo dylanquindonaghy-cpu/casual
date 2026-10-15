@@ -555,7 +555,7 @@ async function answerUnknown(
   // gets the polite reply (not a text, a voicemail or a former worker), and only if it went.
   const email = unknownNumberAlertEmail(
     c.firm,
-    `${portalUrl(c.firm.slug, deps.baseDomain)}/office`,
+    `${portalUrl(c.firm.slug, deps.baseDomain)}/office/enquiries?view=person`,
     { askedName: reply !== null && !("error" in reply) },
   );
   let alerted = 0;

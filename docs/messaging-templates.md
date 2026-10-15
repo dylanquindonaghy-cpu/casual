@@ -299,9 +299,9 @@ reach the same app, which isn't answering.
   number we don't know"; body "Someone messaged the shifts line from a number that isn't one of
   your active staff." / "We asked them for their full name." (when they were sent `unknown_number`:
   a WhatsApp from a number nobody here has, and the reply went; otherwise "We haven't replied to
-  them.") / "See the message on the office dashboard: {link}" / "— {firm} Shift Team". Neither the number nor the message is in the email
-  (previews, forwards): they're on Enquiries, "Need a person" (and among the dashboard's latest
-  enquiries, which the link opens).
+  them.") / "See it in Enquiries, under Need a person: {link}" / "— {firm} Shift Team". Neither the
+  number nor the message is in the email (previews, forwards): they're on Enquiries, "Need a
+  person", which the link opens (`/office/enquiries?view=person`).
 - `credential_weekly_list` (email, Mondays 08:00, to active admins and resourcers, only when there
   is something to list): subject "{firm}: credentials expiring soon"; body "Expiring in the next 30
   days:" then "- {name}: {credential}, expires {date}" lines; "Expired in the last week (these

@@ -79,7 +79,7 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
   await sentTo(
     email,
     asked,
-    /(See the message on the office dashboard: http:\/\/acme\.localhost:3100\/office)/,
+    /(See it in Enquiries, under Need a person: http:\/\/acme\.localhost:3100\/office\/enquiries\?view=person)/,
   );
   const loginAsked = new Date(Date.now() - 1000);
   await page.goto("http://acme.localhost:3100/office/login");

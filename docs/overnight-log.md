@@ -12787,6 +12787,29 @@ branches as well as the default one, so a new commit, which can't have CI's thre
 refused on any branch. Tried once at each commit point, never in a loop. The commits are safe
 in this session's copy until Dylan changes the ruleset (steps in the morning summary).
 
+**Verify (after guardrails round 3's fixes):** `RUN_E2E=1 ./scripts/verify.sh` →
+`VERIFIED tree=af39e6a372edb774 e2e=true` (4,856 tests in 268 files; 91 e2e; the walkthrough's 3).
+
+**Audit round 3 (claims-auditor): DONE.** Every item, (a) to (l), the docs and the Parking lot
+PROVEN; no fakes. Verbatim:
+
+> VERDICT: DONE
+>
+> Stamp: `.claude/state/verified.json` has ok=true, e2e=true, tree=af39e6a372edb774. `tree-hash.sh` prints the same value, and `git status` is clean. `test.log` shows 268 files and 4856 tests passed, with no failures. `e2e.log` shows 91 passed plus the walkthrough's 3 passed on the production build.
+>
+> Caveats (not blocking):
+> - The "each break-checked" and `guardrails-reviewer` rounds 1-3 (round 3: SAFE TO COMMIT) are evidenced only by `docs/overnight-log.md` lines 12633-12777. I cannot re-run break checks without editing files, so I judged the tests by their assertions, and they would fail on the broken behaviour.
+> - The last code commit after the round-3 review (`c39492c`: OPTIONS log line and request id) was a NICE-level fix and was not re-reviewed. It is covered by tests that passed.
+>
+> To reach DONE: nothing
+
+On the second caveat: no fourth review. `c39492c` only adds a log line (request id, route, method,
+status: never a key, a body or a header) and an `x-request-id` header, both tested and
+break-checked.
+
+**Ticked.** 2.4 h (13:12 to 15:36 UTC). Phase 12: 43.2 h over 34 rows, with no estimate in
+`PLAN.md`. Commit "Phase 12: Phase 12 loose ends (12L.1)". Push: refused by the ruleset, as above.
+
 **Kept in the Parking lot:** every item needing Dylan's decision or an outside account, and those
 marked as their own task. The second 12G.2 audit's question (are hand-written TravelTime answers
 fine until the live check?) is still his.

@@ -290,6 +290,49 @@ describe("each outcome label comes from what was logged", () => {
       "keyword",
     );
   });
+
+  it("why the AI didn't sort it, through the shifts line's job: logged, then on the page", async () => {
+    const t = await enquiryFirm();
+    // The helper gives the AI 200 ms (deps' aiTimeoutMs).
+    const slow = createFakeAi(
+      () => new Promise<string>((done) => setTimeout(() => done("cancel"), 1_000)),
+    );
+    const broken = createFakeAi(() => {
+      throw new Error("the AI service failed");
+    });
+    const odd = createFakeAi(() => "banana");
+    const cases = [
+      [await t.incoming("question about my uniform", { ai: slow }), "no_answer"],
+      [await t.incoming("question about my badge", { ai: broken }), "no_answer"],
+      [await t.incoming("question about parking", { ai: odd }), "not_a_label"],
+      [await t.incoming("question about the rota", { ai: noAi }), "not_connected"],
+    ] as const;
+    const received = await t.eventsOf("message.received");
+    for (const [id, ai] of cases) {
+      expect((await t.detail(id))?.timeline.sorted, ai).toEqual({
+        how: "person",
+        why: "not_sorted",
+        ai,
+      });
+    }
+    expect(received.map((e) => e.data.aiFallback)).toEqual([
+      "no_answer",
+      "no_answer",
+      "not_a_label",
+      "not_connected",
+    ]);
+    // A photo with no words is never shown to the AI: "no_text", whatever the AI would say.
+    let asked = 0;
+    const photo = await t.incoming(null, {
+      ai: createFakeAi(() => {
+        asked += 1;
+        return "cancel";
+      }),
+    });
+    expect(asked).toBe(0);
+    expect((await t.eventsOf("message.received")).at(-1)?.data.aiFallback).toBe("no_text");
+    expect((await t.detail(photo))?.timeline.sorted).toEqual({ how: "person", why: "no_text" });
+  });
 });
 
 describe("the office's reply", () => {

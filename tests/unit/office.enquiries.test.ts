@@ -254,6 +254,22 @@ describe("words", () => {
     expect(sortedStep({ how: "keyword", intent: "shifts" })).toBe('A keyword matched: "shifts".');
   });
 
+  it("each reason the AI didn't sort it, in step 2's words", () => {
+    const step = (ai: "not_connected" | "no_answer" | "not_a_label") =>
+      sortedStep({ how: "person", why: "not_sorted", ai });
+    expect(step("not_connected")).toBe("AI not available: passed to a person (not connected).");
+    expect(step("no_answer")).toBe(
+      "AI not available: passed to a person (no answer in time, or it failed).",
+    );
+    expect(step("not_a_label")).toBe(
+      "AI not available: passed to a person (its answer wasn't a label).",
+    );
+    // An old entry with no reason: the general words.
+    expect(sortedStep({ how: "person", why: "not_sorted" })).toBe(
+      "No keyword matched and AI didn't sort it: passed to a person.",
+    );
+  });
+
   it("a failed office reply says it's back in Need a person", () => {
     const at = () => "10:02 on Sat 10 Oct";
     expect(

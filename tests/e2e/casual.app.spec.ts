@@ -158,6 +158,17 @@ test("Home shows Holly's photo row, the urgent card and her next shift in full",
   await expect(tabs.getByRole("link", { name: "Profile, something needs updating" })).toBeVisible();
   await noSidewaysScroll(page);
 
+  // The theme follows the phone (§4.1; 12H.1 audit): no cookie set, so a dark phone gets the navy
+  // page and tab bar, a light one white. The firm's own bar keeps its colour.
+  const WHITE = "rgb(255, 255, 255)";
+  const NAVY_CARD = "rgb(27, 38, 66)"; // #1b2642, the dark theme's card (the staff pages' page)
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("body")).toHaveCSS("background-color", NAVY_CARD);
+  await expect(tabs).toHaveCSS("background-color", NAVY_CARD);
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("body")).toHaveCSS("background-color", WHITE);
+  await expect(tabs).toHaveCSS("background-color", WHITE);
+
   // Profile's staff photo card (12H.3; §4.6): the photo, its dates and its status.
   await tabs.getByRole("link", { name: "Profile, something needs updating" }).click();
   await expect(page).toHaveURL(`${acme}/profile`);

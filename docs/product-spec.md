@@ -149,7 +149,7 @@ fill); product metrics from the events table; resourcer weekly check-in.
 | Will firms pay £299 for a pilot and ~£3 per active worker after? | Discovery calls | Yes, Gate A |
 | Where does the pilot firm keep pay data, and can we get a weekly export? | Pilot firm payroll | Before Phase 6 |
 | Final 2027 notice threshold and compensation rules | Government regulations | No, keep threshold configurable |
-| Does CSP want exclusivity if they're first? | CSP | Before signing |
+| Does the first pilot firm want exclusivity? | Pilot firm | Before signing |
 | Do Anthropic's data processing agreement and UK transfer terms fit, and where does it process requests (ADR-021)? | Dylan (with the solicitor) | Before the AI is switched on |
 
 ## Timeline considerations

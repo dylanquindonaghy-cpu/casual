@@ -8755,10 +8755,9 @@ searching for "Dylan to", which finds only some. Now there's one list:
     the spec reads as "only if the firm allows it";
   - a worker who cancels gets only the on-screen confirmation, never a message.
 - **Before any real data:** a real staff file can be checked (a dry run, nothing saved) on the live
-  server before the agreement is recorded. The first pilot firm is your employer. Until you
-  decide, don't check a real file there.
+  server before the agreement is recorded. Until you decide, don't check a real file there.
 - **Before the pilot agreement:** check your own employment contract (who owns what you make
-  outside work), since the first pilot firm is your employer.
+  outside work).
 
 ### Decisions made
 
@@ -9465,7 +9464,7 @@ file. Each file was then put back.
 An employer's name can't be tested for without writing it into the repo. The task leaves that to a
 person, once. Dylan removed one comment naming the tool the mock-up was modelled on when he
 committed it. Please confirm nothing else in `docs/mockups/office-v2.html` (venue names, staff
-names, wording) comes from your employer.
+names, wording) comes from a real firm.
 
 ### How to see it
 
@@ -10662,7 +10661,7 @@ Strikes section.
 
 ## 2026-10-09 — Phase 12, task 12G.1: Postcode look-ups and the casual's travel area
 
-**Time spent:** 1.5 hours (10:15 to 11:47 UTC; about 5 minutes of it went on Dylan's TikTok check, below).
+**Time spent:** 1.5 hours (10:15 to 11:47 UTC; about 5 minutes of it went on an unrelated check Dylan asked for).
 
 **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=bedd0cf46cec94b7 e2e=true`. That covers 3884 unit and database tests, 79 browser tests and the walkthrough's 3, all passing. The independent
 auditor said **DONE** in round 2. Round 1 asked for one thing: the planner API (task 12J.1, not built yet) must use this look-up too, so that is now written into 12J.1's task. The commit is "Phase 12: Postcode look-ups and the casual's travel
@@ -10760,16 +10759,6 @@ lets casuals say where they travel from.
 - A casual already made inactive by a sheet, or blocked, keeps their area until erased (parked,
   with two ways to fix it).
 - **Sign** `docs/dpia-travel.md` before a real firm uses travel areas.
-
-### Also this session: the TikTok check Dylan asked for
-
-Read-only, nothing changed. The Velora shop's TikTok connection is live: an active ad account
-(GBP, UK), the Shopify pixel (active, tracking views, cart, checkout and purchases) and a catalogue
-with 2 approved products. Two things to fix before ads: the only TikTok profile linked to the
-Velora ad account is @sottaband1 (the Sotta account), and the account has no funds or payment
-method. Smaller: the product description holds drafting notes, the product's web address has "™"
-in it, no product category is set, and business verification isn't submitted. The Shopify side
-couldn't be checked: its connector needs signing in again.
 
 ### How to see it working
 

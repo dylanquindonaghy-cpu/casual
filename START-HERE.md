@@ -167,7 +167,7 @@ agents more ways to fool each other.
 - Day 5: create the GitHub repo and push (a Phase 0 task). CI must be green on the push.
 - Weekend 2: Phase 1 kickoff prompt, with Opus for the plan. Read the schema and RLS plan slowly.
   This is the one place to take your time: tenancy is golden rule 2 and everything sits on it.
-- Sell track, same week (PLAN.md week 1): CSP conversation, 20 minutes with Mum, the 30-firm
+- Sell track, same week (PLAN.md week 1): first pilot firm conversation, 20 minutes with a contractor contact, the 30-firm
   list. No building past Phase 3 until Gate A is ticked.
 
 ## 8. Ten rules on a card

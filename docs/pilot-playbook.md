@@ -12,7 +12,7 @@ sheet, and how to turn it into the figures: `docs/baseline-tally.md`):
 | Staff emails per day | Count inbox, by day | Split: shift queries / cancellations / pay / other |
 | Calls per day | Phone log or tally sheet | |
 | WhatsApp messages per day | Tally | Group chats and direct |
-| Unanswered shift queries | Count emails with no reply after 24 h | Founder's firm: ~40% |
+| Unanswered shift queries | Count emails with no reply after 24 h | Example firm: ~40% |
 | Time to refill a cancellation | From cancel to confirmed replacement (median) | |
 | No-shows per week | Count | |
 | Resourcer hours on staff admin per week | Self-estimate, then a 2-day time log | Normal vs busy |

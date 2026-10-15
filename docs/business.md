@@ -5,7 +5,7 @@ September 2026 ($1 ≈ £0.74), ex-VAT.
 
 ## The problem, with evidence
 
-**Inside one firm (founder's own role at an event security firm):**
+**Inside one UK event security firm:**
 - 60+ emails and ~10 calls a day from casual staff: shift requests, availability, time changes,
   cancellations, complaints, pay queries.
 - ~40% of emails asking about available shifts get actioned without a reply.

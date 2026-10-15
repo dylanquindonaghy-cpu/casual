@@ -8025,9 +8025,8 @@ the handover told Dylan to find them with `grep "Dylan to"`, which catches about
   - new deadline buckets: when you create the accounts, before submitting the WhatsApp templates,
     and before the first real import.
   - It flagged one default worth knowing: a real staff file can be checked (a dry run, nothing
-    saved) on the live server before the agreement is recorded, and the first pilot firm is
-    Dylan's employer. That row is now "before any real data", with "until you decide, don't check
-    a real file there". The code is unchanged (a docs task).
+    saved) on the live server before the agreement is recorded. That row is now "before any real
+    data", with "until you decide, don't check a real file there". The code is unchanged (a docs task).
 
 **Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=39c7a3e1964edc01 e2e=true` (3,126 tests,
 60 browser tests; documentation only).
@@ -8408,8 +8407,8 @@ log entry says otherwise.
 - **Wording:** keep the mock-up's words where the spec doesn't override them. For example, use
   "Urgent shifts not filled", never "Urgently looking for".
 - **Themes:** dark and light are both required. Dark is navy (D7).
-- **Golden rule 7, extra:** the mock-up's look is modelled on a tool from Dylan's employer.
-  - Never put that employer's name, logo, venues, staff or email addresses in the repo, the seed,
+- **Golden rule 7, extra:** the mock-up's look is modelled on a real firm's tool.
+  - Never put that firm's name, logo, venues, staff or email addresses in the repo, the seed,
     the tests or the docs.
   - The strikes-team email is a per-firm setting. Demo and test addresses use reserved example
     domains.
@@ -10779,8 +10778,8 @@ in `PLAN.md` (12G.1).
 Point 3 is tidied in the Parking lot after the tick (wording only). Points 1, 2 and 4 are as
 recorded above.
 
-**Hours:** 1.5 (10:15 to 11:47 UTC, about 5 minutes of it on Dylan's TikTok check, which he asked for
-mid-run: read-only, findings in `docs/work-log.md`). Phase 12 so far: 17.6 hours over 18 Hours-log
+**Hours:** 1.5 (10:15 to 11:47 UTC, about 5 minutes of it on an unrelated check Dylan asked for
+mid-run). Phase 12 so far: 17.6 hours over 18 Hours-log
 rows (no estimate for Phase 12). **Commit:** "Phase 12: Postcode look-ups and the casual's travel
 area (12G.1)", pushed (its hash in the next entry). CI passed on the checkpoints (`96116c6`,
 `d3cad42`).

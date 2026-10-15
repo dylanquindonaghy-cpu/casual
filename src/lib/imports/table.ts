@@ -31,7 +31,17 @@ export function readTable(bytes: Uint8Array): string[][] {
   return rows;
 }
 
-// The five bytes Windows-1252 leaves undefined (decoded as the C1 controls of the same number).
+// Windows-1252 is Latin-1 except at 0x80–0x9F, where it has its own letters (WHATWG's
+// index-windows-1252). Mapped here, not left to TextDecoder("windows-1252"): Node 22.22 decodes
+// those bytes as Latin-1's C1 controls, so "O’Brien" (0x92) kept a control in place of the
+// apostrophe and a Mac CSV's "RenŽe" was never caught. (0x82 is "‚", a low quote, not a comma:
+// tests/unit/imports.files.test.ts checks every letter against Python's cp1252.)
+const HIGH_1252 = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ";
+const decode1252 = (bytes: Uint8Array): string =>
+  Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    .toString("latin1")
+    .replace(/[\u0080-\u009f]/g, (c) => HIGH_1252.charAt(c.charCodeAt(0) - 0x80));
+// The five bytes Windows-1252 leaves undefined (kept as the C1 controls of the same number).
 const UNDEFINED_IN_1252 = /[\u0081\u008d\u008f\u0090\u009d]/;
 // Text that isn't Windows-1252 after all, read as if it were: UTF-8 with one stray byte ("RenÃ©e"),
 // or a Mac's own CSV, where é and ü come out as Ž and Ÿ inside a word ("RenŽe"). Refused rather
@@ -42,7 +52,7 @@ function decodeText(bytes: Uint8Array): string {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    const text = new TextDecoder("windows-1252").decode(bytes);
+    const text = decode1252(bytes);
     if (UNDEFINED_IN_1252.test(text) || MISREAD.test(text)) throw new ImportFileError("not_text");
     return text;
   }

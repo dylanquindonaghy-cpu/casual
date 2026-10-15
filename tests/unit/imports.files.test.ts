@@ -79,6 +79,26 @@ describe("readTable", () => {
     ]);
   });
 
+  // Windows-1252's own letters at 0x80–0x9F, where it isn't Latin-1: Excel's curly apostrophe in
+  // "O’Brien" (0x92), the euro sign, dashes. Expected values from Python's cp1252 codec, not from
+  // TextDecoder (Node 22.22 decodes these bytes as control characters).
+  it("reads a Windows Excel CSV: curly quotes, the euro sign and every other 0x80–0x9F letter", () => {
+    const defined = Array.from({ length: 32 }, (_, i) => 0x80 + i).filter(
+      (b) => ![0x81, 0x8d, 0x8f, 0x90, 0x9d].includes(b),
+    );
+    const bytes = new Uint8Array([
+      ...Buffer.from("Name,Notes\r\nO", "latin1"),
+      0x92, // ’
+      ...Buffer.from("Brien,", "latin1"),
+      ...defined,
+      ...Buffer.from("\r\n", "latin1"),
+    ]);
+    expect(readTable(bytes)).toEqual([
+      ["Name", "Notes"],
+      ["O’Brien", "€‚ƒ„…†‡ˆ‰Š‹ŒŽ" + "‘’“”•–—˜™š›œžŸ"],
+    ]);
+  });
+
   it.each([
     ["an empty file", utf8(""), "empty"],
     ["a header with no rows", utf8("Name,Mobile\n"), "empty"],

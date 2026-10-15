@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiKeyEntry } from "@/lib/db/directory";
-import { apiNotFound, handleApiRequest, type ApiCall, type ApiDeps } from "@/lib/integrations/api";
+import {
+  apiMethodNotAllowed,
+  apiNotFound,
+  apiOptions,
+  handleApiRequest,
+  type ApiCall,
+  type ApiDeps,
+} from "@/lib/integrations/api";
 import * as catchAllRoute from "@/app/api/v1/[[...path]]/route";
 import * as cancellationsRoute from "@/app/api/v1/cancellations/route";
 import * as sessionRoute from "@/app/api/v1/sessions/[ref]/route";
@@ -569,6 +576,66 @@ describe("handleApiRequest: the refusals before any look-up", () => {
       }),
     );
     expect(optionsOnFirm.status).toBe(404);
+  });
+
+  it("OPTIONS and the 405 write one log line each, with the answer's request id", () => {
+    const { logger, lines } = capture();
+    const id = "6f9c2a1e-3b4d-4c5e-8f70-1a2b3c4d5e6f";
+    const at = (path: string, method: string) =>
+      new Request(`http://${BASE}${path}`, {
+        method,
+        headers: { host: BASE, "x-request-id": id },
+      });
+    const options = apiOptions(at("/api/v1/sessions/X", "OPTIONS"), ["GET", "PUT"], { logger });
+    expect(options.status).toBe(204);
+    expect(options.headers.get("x-request-id")).toBe(id);
+    const refused = apiMethodNotAllowed(at("/api/v1/cancellations", "POST"), "POST", ["GET"], {
+      logger,
+    });
+    expect(refused.headers.get("x-request-id")).toBe(id);
+    expect(lines.map((l) => [l.msg, l.fields])).toEqual([
+      [
+        "api request",
+        { requestId: id, route: "/api/v1/sessions/{ref}", method: "OPTIONS", status: 204, ms: 0 },
+      ],
+      [
+        "api request",
+        { requestId: id, route: "/api/v1/cancellations", method: "POST", status: 405, ms: 0 },
+      ],
+    ]);
+  });
+
+  it("settings it can't read: the API's JSON internal_error with its request id, never Next.js's empty 500", async () => {
+    const unreadable = {
+      get APP_BASE_DOMAIN(): string {
+        throw new Error("APP_BASE_DOMAIN: required");
+      },
+      SESSION_SECRET: "x".repeat(32),
+    };
+    const at = (method: string) =>
+      new Request(`http://${BASE}/api/v1/sessions/X`, { method, headers: { host: BASE } });
+    for (const answer of [
+      (logger: Logger) => apiOptions(at("OPTIONS"), ["GET"], { logger, env: unreadable }),
+      (logger: Logger) =>
+        apiMethodNotAllowed(at("POST"), "POST", ["GET"], { logger, env: unreadable }),
+    ]) {
+      const { logger, lines } = capture();
+      const response = answer(logger);
+      expect(response.status).toBe(500);
+      expect(response.headers.get("allow")).toBeNull();
+      const error = await errorOf(response);
+      expect(error).toMatchObject({
+        code: "internal_error",
+        message: API_ERRORS.internal_error.message,
+      });
+      expect(error.request_id).toBe(response.headers.get("x-request-id"));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatchObject({
+        level: "error",
+        msg: "api settings unreadable",
+        fields: { requestId: error.request_id },
+      });
+    }
   });
 });
 

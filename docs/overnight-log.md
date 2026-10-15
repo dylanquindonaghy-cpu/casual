@@ -12675,7 +12675,9 @@ purpose, then pass with it put back):
     `tests/integration/inbound.whatsapp.test.ts` and `tests/e2e/whatsapp.inbound.spec.ts`.
 - **(i) The planner API's 405.** It is the error `method_not_allowed`, sent by
   `apiMethodNotAllowed()` with an `Allow` header. A session answers POST, PATCH and DELETE with it
-  (Allow: GET, PUT); cancellations answers PUT, POST, PATCH and DELETE (Allow: GET).
+  (Allow: GET, HEAD, OPTIONS, PUT); cancellations answers PUT, POST, PATCH and DELETE
+  (Allow: GET, HEAD, OPTIONS). Lists corrected after audit round 2: the first version of this
+  entry gave only GET and PUT.
   - Tests: `tests/unit/integrations.api.test.ts`. Its existing check that `docs/integrations.md`
     lists every code holds the new row.
 - **(j) The office guide.** "Change or cancel a shift" quotes the page's own words for a

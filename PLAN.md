@@ -3037,6 +3037,11 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     "I'm unwell" (DPA 2018 Schedule 1 paragraph 1) needs each firm to have one
     (`docs/compliance.md` "Health reasons"). Write a template for the firm's pack before a pilot;
     a solicitor checks it with the DPA.
+- Inbound messages (12L.1 guardrails review, 2026-10-15): the shifts line's reply job has no
+  last-try step. A message whose job throws before its claim (a bug, or the database failing on
+  every retry) is never marked handled. The casual gets no reply, and it never reaches Need a
+  person. Add a last try that marks it for a person and logs why, like the planner webhooks' last
+  try (12J.2). Found when a day word crashed the reply (fixed in 12L.1).
 - Travel estimates, a second audit (12G.2, 2026-10-15). 12G.2 was audited DONE on 2026-10-09. A
   later re-audit found three paths no test reached; 12L.1 tests all three. It also asks **Dylan to accept** that hand-written TravelTime answers
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io

@@ -12688,6 +12688,19 @@ purpose, then pass with it put back):
     not connected, and a photo the AI is never asked about (`tests/integration/enquiries.test.ts`,
     `tests/unit/office.enquiries.test.ts`). It fails if "not a label" is logged as "no answer".
 
+**Guardrails review (round 1, of `5982e8a..2b16e59`): FIX FIRST.** What it found and what was
+done (`WIP: 12L.1 guardrails fixes`):
+
+| Finding | Severity | Fix |
+|---|---|---|
+| Item (d)'s table of words was a plain object, looked up with her words. "constructor" (any case) found `Object.prototype.constructor`, so the shifts reply threw, the job failed on every retry, and the message never reached Need a person | FIX FIRST | A `Map`, which holds only its own keys. Tests: "any constructor shifts sat?" and "Constructor work tomorrow?" give their days. The old file fails them with the same TypeError |
+| Next.js's automatic OPTIONS listed every exported method, unlike the 405's `Allow` | SHOULD | Each API route exports its own OPTIONS with the same list (`GET, HEAD, OPTIONS, PUT`; `GET, HEAD, OPTIONS`). `docs/integrations.md` says so. Tested |
+| The 405 skipped the platform-address check, so a firm's own address got a 405, not the API's 404 | NICE | `apiMethodNotAllowed()` checks the host first. Tested with a firm's address |
+| Today's CSV was named from a second clock read, so at midnight it could name the next day | NICE | One `now` for the rows, the log and the name |
+| No last-try step on the shifts line's job (before this task) | Parked | Parking lot "Inbound messages (12L.1 guardrails review)" |
+
+Its NICE note on two long comment lines: Prettier passes them; left as they are.
+
 **Kept in the Parking lot:** every item needing Dylan's decision or an outside account, and those
 marked as their own task. The second 12G.2 audit's question (are hand-written TravelTime answers
 fine until the live check?) is still his.

@@ -6,6 +6,7 @@ import { openShiftsFor, type NotOfferedReason, type OpenShift } from "../portal/
 import type { RuleCheck } from "../rules/eligibility";
 import { dayLabel } from "../rules/reasons";
 import { noticeHours } from "../roster/notice";
+import { casualEventName } from "../roster/shift-events";
 import { decideForWorker, firmStrikeSettings } from "../strikes/issue";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { travelLineText, type TravelFacts } from "../travel/line-copy";
@@ -435,7 +436,9 @@ export async function shiftsReply(
   const listed = takeable.map((s: OpenShift): ListedShift => ({
     shiftId: s.shiftId,
     role: s.role,
-    eventName: s.eventName ?? null,
+    // The event as the casual app names it: an automatic event's name, which only repeats the
+    // site and the day, is left out (casualEventName).
+    eventName: s.casualEvent ?? null,
     siteName: s.site?.name ?? null,
     startsAt: s.startsAt,
     endsAt: s.endsAt,
@@ -514,7 +517,7 @@ async function bookingsOn(
       role: shifts.role,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
-      eventName: shiftEvents.name,
+      eventName: casualEventName,
     })
     .from(assignments)
     .innerJoin(
@@ -565,7 +568,7 @@ export async function cancelReply(
         startsAt: shifts.startsAt,
         endsAt: shifts.endsAt,
         post: shifts.post,
-        eventName: shiftEvents.name,
+        eventName: casualEventName,
         siteName: sites.name,
       })
       .from(assignments)

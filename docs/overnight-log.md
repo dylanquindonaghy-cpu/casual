@@ -12623,3 +12623,74 @@ section in your settings". The repository is private (`"visibility": "private"` 
 - add `acme.localhost`, `northline.localhost` and `no-such-firm.localhost` to `/etc/hosts`;
 - add `.test` to `NO_PROXY`, so Chromium reaches `shifts.acme-events.test` directly;
 - link `/opt/pw-browsers/chromium_headless_shell-1243` to the installed 1194 build.
+
+## 2026-10-15 — Phase 12, task 12L.1: Phase 12 loose ends
+
+**Task:** the code-only items Phase 12's reviews and audits parked, chosen by Dylan ("Phase 12
+loose ends"). Items needing a decision of his, an outside account or a rework of their own stay in
+the Parking lot.
+
+**What changed, and the tests** (every test below was seen to fail with its code broken on
+purpose, then pass with it put back):
+
+- **(a) Travel estimates' untested paths.**
+  - `tests/integration/travel.estimates.test.ts`: "the worker works the nightly run's queue,
+    scheduled for 02:20 London"; "a dropout inside the urgent window: its session's job, after
+    the first wave's own fill".
+  - `tests/unit/offers.worker-deps.test.ts`: the worker's wave deps fill estimates through
+    `estimatesBeforeWave`. `workerDeps` in `src/lib/offers/waves.ts` is exported as
+    `offerWorkerDeps` for it.
+  - Break checks: dropping the dropout's queue line, the tick's schedule, and the wave deps'
+    travel step.
+- **(b) The older downloads** (`/office/data/export`, `/office/data/workers/[id]/export`,
+  `/office/reports/notice/export`) refuse a download another site started.
+  - Tests: `tests/e2e/gdpr.spec.ts` and `tests/e2e/office.reports.spec.ts` send cross-site and
+    same-site requests and get 403. The specs' own downloads (clicked links) still work.
+  - Break checks: each route without its check returned 200.
+- **(c) Event names in shifts-line replies.** `src/lib/inbound/personal-reply.ts` names an event
+  with `casualEventName`, in the list, the booked line and the cancel reply.
+  - Test: `tests/integration/personal-reply.test.ts` "an automatic event isn't named…". It fails
+    with the old file.
+- **(d) Day words.** `askedDays()` keeps apostrophes inside a word (a phone's curly one too). "sat",
+  "sun" and "wed" are days unless the word before makes them ordinary English.
+  - Tests: `tests/unit/inbound.personal-reply.test.ts`: six ordinary messages give no day, while
+    "any shifts sat?", "anything on sun", "can I do wed" and "mon please" still do.
+- **(e) Home's urgent cards.** The chips were already built (12H.2's `ShiftSummary`).
+  - Test: `tests/unit/portal.home.test.ts`. It fails with the chips removed.
+- **(f) Today's cancellations CSV.** The page's link keeps `day=today`. The export passes it to
+  the loader, names the file `cancellations-{view}-{date}.csv`, and logs `day: "today"` (the log
+  reads "…(all, today's only, 1 row)…").
+  - Tests: `tests/e2e/office.cancellations.spec.ts`: today's file has exactly the page's rows,
+    fewer than every day's. Plus `tests/unit/office.cancellations.test.ts` (the log words).
+- **(g) Enquiries and the firm's retention.** `enquiryWindow()` in `src/lib/office/enquiries.ts`
+  reads `retention.message_days` through `retentionSettings()`. It serves the list, the badge, a
+  message's page and the office's reply. The empty words there and on the dashboard say the
+  firm's number of days.
+  - Tests: `tests/integration/enquiries.test.ts` "a firm that keeps messages longer…" (shown at
+    120 of 200 days, gone at 201), and `tests/unit/office.dashboard.test.ts` (200 days).
+  - Docs: `docs/screens.md`.
+- **(h) The unknown-number alert email.** It says "See it in Enquiries, under Need a person:
+  {link}" and links `/office/enquiries?view=person`.
+  - Tests: `docs/messaging-templates.md` with `tests/unit/copy.templates-doc.test.ts`,
+    `tests/integration/inbound.whatsapp.test.ts` and `tests/e2e/whatsapp.inbound.spec.ts`.
+- **(i) The planner API's 405.** It is the error `method_not_allowed`, sent by
+  `apiMethodNotAllowed()` with an `Allow` header. A session answers POST, PATCH and DELETE with it
+  (Allow: GET, PUT); cancellations answers PUT, POST, PATCH and DELETE (Allow: GET).
+  - Tests: `tests/unit/integrations.api.test.ts`. Its existing check that `docs/integrations.md`
+    lists every code holds the new row.
+- **(j) The office guide.** "Change or cancel a shift" quotes the page's own words for a
+  planner's session, and lists what can still be done in the office.
+  - Test: `tests/unit/guides.test.ts`.
+- **(k) Tests only.**
+  - The theme follows the phone on Home (`tests/e2e/casual.app.spec.ts`). It fails when the CSS
+    ignores the phone's setting.
+  - The AI's fallback reasons go through the shifts line's job: slow, failing, a junk answer,
+    not connected, and a photo the AI is never asked about (`tests/integration/enquiries.test.ts`,
+    `tests/unit/office.enquiries.test.ts`). It fails if "not a label" is logged as "no answer".
+
+**Kept in the Parking lot:** every item needing Dylan's decision or an outside account, and those
+marked as their own task. The second 12G.2 audit's question (are hand-written TravelTime answers
+fine until the live check?) is still his.
+
+**Also this session, before 12L.1:** real firm and family names were taken out of the public repo
+(`5982e8a`). Old versions remain in the git history.

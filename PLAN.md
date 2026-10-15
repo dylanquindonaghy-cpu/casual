@@ -1055,6 +1055,32 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       menu, Log out and every new page, including connecting a planner; `scripts/verify.sh` with
       `RUN_E2E=1` prints VERIFIED; `npm run e2e:walkthrough` passes on the production build; the
       `claims-auditor` checks the phase against its "Done when" (12I.4)
+- [ ] Phase 12 loose ends (added 2026-10-15, Dylan's choice: the code-only items Phase 12's
+      reviews and audits parked that need no account and no decision of his): (a) travel
+      estimates' three untested paths (12G.2 re-audit): the nightly tick is worked and scheduled
+      "20 2 * * *" Europe/London; `markUrgentAfterDropout()` queues `travel.estimates` for the
+      session `AFTER_WAVE_DELAY_SECONDS` later; the offer wave's worker deps (`offerWorkerDeps()`,
+      `src/lib/offers/waves.ts`) fill estimates through `estimatesBeforeWave`; (b) the older
+      downloads (`/office/data/export`, `/office/data/workers/[id]/export`,
+      `/office/reports/notice/export`) refuse one another site started (`fromOwnPages`), as the
+      cancellations files do; (c) shifts-line replies name an event as the app does
+      (`casualEventName`: an automatic event's name, which only repeats the site and day, is left
+      out) in the list, the booked line and the cancel reply; (d) day words: a word keeps its
+      apostrophes ("c'mon" isn't "mon"), and "sat", "sun" and "wed" are days unless the word
+      before makes them ordinary English ("I sat", "the sun", "getting wed"); (e) Home's urgent
+      cards' requirement chips, pinned by a test; (f) "Download CSV" on today's Cancellations
+      exports today's only, named with the date and logged with `day: "today"`; (g) Enquiries,
+      its badge, a message's page and the office's reply read the firm's
+      `retention.message_days` (90 by default), and the empty words there and on the dashboard
+      say that number; (h) the unknown-number alert email links Enquiries' Need a person
+      (`/office/enquiries?view=person`); (i) the planner API answers a method an address doesn't
+      take with its own 405 `method_not_allowed` and an `Allow` header; (j) the office guide's
+      "Change or cancel a shift" says what a planner's session keeps here; (k) tests for the
+      theme following the phone on Home, and for the AI's fallback reasons end to end. Tests:
+      each item's own (listed in the 2026-10-15 loose-ends entry of `docs/overnight-log.md`),
+      each break-checked; `guardrails-reviewer` (messaging, offers). Docs: `docs/screens.md`,
+      `docs/messaging-templates.md`, `docs/integrations.md`; the Parking lot items marked done
+      (12L.1)
 
 ---
 
@@ -2825,8 +2851,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 - Downloads started from another site (12C.3 review, 2026-10-09): the cancellations CSV and PDF
   now refuse a download another site started (`src/lib/auth/own-pages.ts`), so nobody can be made
   to download, and be logged downloading, a file. The older downloads (`/office/data/export`,
-  `/office/data/workers/[id]/export`, `/office/reports/notice/export`) don't check yet: one line
-  each, with a test.
+  `/office/data/workers/[id]/export`, `/office/reports/notice/export`) check too since 12L.1.
 - The production image holds the dev-only packages (`COPY --from=build /app /app` after `npm ci`),
   now including `pdfjs-dist` and its native canvas files (tests only). The worker and migrations run
   TypeScript through `tsx`, so pruning needs care: its own task (12C.3 review, 2026-10-09).
@@ -2901,8 +2926,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - **Dylan to decide:** resourcers read pay messages' words in Enquiries' Pay and All views
     (the spec gives Enquiries to admins and resourcers), though the pay area itself is admins and
     payroll only. Hide the words of pay messages from resourcers, or keep them?
-  - Enquiries shows the last 90 days even when a firm keeps messages longer
-    (`retention.message_days` up to 2,190): read the firm's setting instead of `ENQUIRY_DAYS`.
+  - Done in 12L.1: Enquiries reads the firm's `retention.message_days`, not a fixed 90 days.
   - A template reply to an unknown number (outside WhatsApp's window) says "Your request
     (question, ref …)" with the message's own reference, though they made no request: a wording
     of its own when the templates are submitted.
@@ -2921,26 +2945,21 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - The booked line ("you're booked on …") and the cancel reply name booked shifts with no travel
     line (as §5.7 words them); the Done-when's "every shift … in shifts-line replies shows the
     distance" may want one there too.
-  - Day words can be fooled: "sat", "mon", "wed" and "sun" also match ordinary words ("I sat my
-    test", "c'mon"); the reply then says "For Saturday" and links to all shifts.
+  - Done in 12L.1: day words no longer read "I sat my test" or "c'mon" as days.
   - A cancel reply names the next booking, not the day she named ("cancel my Saturday shift"), as
     the spec says.
   - "+ N more" counts only the first 50 sessions she could take (the list's cap).
-  - Tests for the AI's other fallback reasons (no answer, not a label, no text) and for step 2's
-    words for them; only "not connected" is tested end to end.
+  - Done in 12L.1: the AI's other fallback reasons are tested end to end, with step 2's words.
 - Dashboard (12E.1 review):
   - Needs attention lists a qualification on a booking that has **expired** or runs out before
     the session ends (as the task says); one the casual never had, or one that's suspended, isn't
     listed there (the casual's page shows both). §3.9's "including a failing sync" isn't there
     either (the action log has each failed sync).
   - The bell and each Needs attention list stop at 50 ("50+").
-  - The unknown-number alert email still says "See the message on the office dashboard: {link}"
-    and links `/office`, where the message is among the latest 4 enquiries; on a busy day it may
-    have scrolled off: link Enquiries' "Need a person" (a template change).
+  - Done in 12L.1: the unknown-number alert email links Enquiries' "Need a person".
   - "Plus {n} requests made in the app today" on Enquiries' today list isn't checked in a browser
     (its words are unit-tested and the count is tested on the database).
-  - "Download CSV" on today's Cancellations (`?day=today`) exports every day: the export doesn't
-    take the day yet.
+  - Done in 12L.1: "Download CSV" on today's Cancellations exports today's only.
   - The bell runs about 8 small queries on every admin and resourcer page (twice on `/office`):
     cache it per request, or count in one query, if pages get slow. The dashboard's transactions
     could be marked read only, as a backstop.
@@ -2954,8 +2973,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     clears a text field; places default to 1).
   - A planner's cancellation reads "cancelled by the office" in the strike line and in the
     casual's notice: true for the firm, but it doesn't say "planner". A wording choice.
-  - The office guide has a part on the Integrations page but no line on sessions "from your
-    planner" (why Edit, Move and Cancel aren't there).
+  - Done in 12L.1: the office guide says what a planner's session keeps in the office.
   - ~~The worker will need `INTEGRATIONS_SECRET` in `deploy/docker-compose.yml`~~ done in 12J.2
     (with `WEBHOOK_TRANSPORT`, `https` by default).
   - No index on `assignments (firm_id, cancelled_at, id)` for `GET /api/v1/cancellations`' pages:
@@ -2964,8 +2982,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     scale; a summary column if it gets slow.
   - The app may update `shift_events.name` for any event, not just a planner's (a column-level
     grant can't see the row's source); only the API code renames today.
-  - `POST` and `DELETE` on `/api/v1/sessions/{ref}` answer Next.js's own 405 without the API's
-    error shape.
+  - Done in 12L.1: a method an API address doesn't take gets the API's own 405 and `Allow`.
   - The planner receives rule codes when a move is refused (`rest`, `not_active`, …) with each
     casual's id: worth a line in a DPIA when the first firm connects a planner.
   - A key revoked while a long read is running finishes that read (reads don't hold the key);
@@ -2999,9 +3016,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - The console webhook transport prints whole bodies (names) in development, with no end line for
     the log scan to skip; production refuses it.
 - Casual app Home (12H.1 audit, 2026-10-12):
-  - §4.2 item 3 shows requirement chips (CSAS, say) on Home's urgent cards; 12H.1's task text
-    doesn't list them. Add them with 12H.2's chips on the shifts list, using the same component.
-  - "The theme follows the phone" rests on the CSS media query; no test checks it on a casual page.
+  - Done in 12L.1: Home's urgent cards' chips (built with 12H.2) and the theme following the phone
+    on Home are tested.
   - In a browser test, "no signal" (Playwright's offline switch) didn't reach the service worker's
     own request when opening a different page; the offline test reloads each page instead. A real
     phone with no signal fails both ways the same.
@@ -3009,9 +3025,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   the shifts line's reply job on its three made-up messages, with `noAi` and a sender that sends
   nothing; `tests/unit/ai.boundary.test.ts` lists `src/lib/db/admin/seed-story-load.ts` with the reason.
 - Shifts list and shift page (12H.2, 2026-10-12):
-  - The shifts line's replies still name an automatic event ("Door supervisor · Arena · Sat 10 Oct,
-    Arena"); the app leaves it out (`casualEventName`). Use it in `personal-reply.ts` too (12D.2's
-    tests change).
+  - Done in 12L.1: the shifts line's replies leave an automatic event's name out, as the app does.
   - A session's extra that none of her roles needs shows "…: ask the office.", because the upload
     page and `saveMyUpload()` take only types her roles need. Widening them to a session's extras
     is Dylan's call.
@@ -3023,17 +3037,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
     "I'm unwell" (DPA 2018 Schedule 1 paragraph 1) needs each firm to have one
     (`docs/compliance.md` "Health reasons"). Write a template for the firm's pack before a pilot;
     a solicitor checks it with the DPA.
-- Travel estimates, tests a second audit asked for (12G.2, 2026-10-15). 12G.2 was audited DONE on
-  2026-10-09. A later re-audit (on a branch from `main`, before the merge) found three paths no
-  test reaches. Each works when you read it; removing it would leave every test green:
-  - the nightly travel tick's registration (its queue worked; scheduled "20 2 * * *",
-    Europe/London, in `src/worker/jobs/index.ts`), tested like `gdpr.retention.test.ts`'s tick;
-  - `markUrgentAfterDropout()` queuing `travel.estimates` for the shift,
-    `AFTER_WAVE_DELAY_SECONDS` later (`src/lib/roster/urgent.ts`);
-  - the offer wave's default worker deps calling `estimatesBeforeWave` (the dynamic import in
-    `src/lib/offers/waves.ts`).
-
-  It also asks **Dylan to accept** that hand-written TravelTime answers
+- Travel estimates, a second audit (12G.2, 2026-10-15). 12G.2 was audited DONE on 2026-10-09. A
+  later re-audit found three paths no test reached; 12L.1 tests all three. It also asks **Dylan to accept** that hand-written TravelTime answers
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io
   and TravelTime" checks them against a live answer. The first audit took that step as covering
   it.

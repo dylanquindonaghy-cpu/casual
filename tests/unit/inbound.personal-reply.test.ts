@@ -115,6 +115,10 @@ describe("the days a message names (code, not AI)", () => {
     expect(askedDays("any constructor shifts sat?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
     expect(askedDays("Constructor work tomorrow?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
     expect(askedDays("constructor tostring valueof hasownproperty", FRIDAY, TZ)).toBeNull();
+    // A possessive is its word ("Saturday's", "tomorrow's", a phone's curly apostrophe too).
+    expect(askedDays("anything for Saturday's event?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
+    expect(askedDays("what's tomorrow\u2019s shift", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
+    expect(askedDays("the sun's out, any shifts?", FRIDAY, TZ)).toBeNull();
     // On a Sunday, "this weekend" is what's left of it.
     expect(askedDays("weekend?", new Date("2026-10-11T09:00:00Z"), TZ)?.dates).toEqual([
       "2026-10-11",

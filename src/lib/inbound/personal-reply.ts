@@ -128,7 +128,9 @@ export function askedDays(text: string, now: Date, timeZone: string): AskedDays 
     text
       .toLowerCase()
       .replace(/[\u2018\u2019]/g, "'")
-      .match(/[a-z]+(?:'[a-z]+)*/g) ?? [];
+      .match(/[a-z]+(?:'[a-z]+)*/g)
+      // A possessive is its word: "Saturday's shift", "tomorrow's".
+      ?.map((w) => w.replace(/'s$/, "")) ?? [];
   const words = new Set(tokens.filter((w, i) => !NOT_A_DAY_AFTER.get(w)?.has(tokens[i - 1] ?? "")));
   const today = localDateOf(now, timeZone);
   const weekdayOf = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();

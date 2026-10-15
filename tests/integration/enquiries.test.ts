@@ -665,6 +665,35 @@ describe("what the office can see", () => {
     expect(await t.detail(old)).toBeNull();
   });
 
+  it("a firm that keeps messages longer: the office can reply and close for as long as it keeps them", async () => {
+    const t = await enquiryFirm();
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{retention}', '{"message_days": 200}')
+        where id = $1`,
+      [t.f.firmId],
+    );
+    const age = (id: string, days: number) =>
+      su.query(`update messages set created_at = now() - make_interval(days => $2) where id = $1`, [
+        id,
+        days,
+      ]);
+    const [toReply, toClose, tooOld] = [
+      await t.incoming("office: an old question"),
+      await t.incoming("office: another old question"),
+      await t.incoming("office: a very old question"),
+    ];
+    await age(toReply, 120);
+    await age(toClose, 120);
+    await age(tooOld, 201);
+    expect(await replyToEnquiry(t.ctx(), toReply, "Sorry for the wait.")).toMatchObject({
+      status: "queued",
+    });
+    expect(await closeEnquiry(t.ctx(), toClose, "by_phone")).toEqual({ status: "closed" });
+    // Past the firm's 200 days it isn't waiting any more (off the list too): neither.
+    expect(await replyToEnquiry(t.ctx(), tooOld, "Sorry.")).toEqual({ status: "not_waiting" });
+    expect(await closeEnquiry(t.ctx(), tooOld, "spam")).toEqual({ status: "not_waiting" });
+  });
+
   it("a firm that keeps messages longer: shown for as long as it keeps them", async () => {
     const t = await enquiryFirm();
     await su.query(

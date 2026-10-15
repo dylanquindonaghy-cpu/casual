@@ -6,6 +6,8 @@ import {
   OUTCOME_WORDS,
   planLine,
   sortedStep,
+  enquiriesEmptyText,
+  showLastDaysText,
   thenStep,
 } from "@/lib/office/enquiries-copy";
 import {
@@ -252,6 +254,22 @@ describe("words", () => {
       "No text (a photo or file): passed to a person.",
     );
     expect(sortedStep({ how: "keyword", intent: "shifts" })).toBe('A keyword matched: "shifts".');
+  });
+
+  it("the list's empty words and the link back from today's name the firm's number of days", () => {
+    expect(enquiriesEmptyText("all", 90)).toBe(
+      "No messages to the shifts line in the last 90 days.",
+    );
+    expect(enquiriesEmptyText("pay", 90)).toBe("No pay messages in the last 90 days.");
+    expect(enquiriesEmptyText("all", 200)).toBe(
+      "No messages to the shifts line in the last 200 days.",
+    );
+    expect(enquiriesEmptyText("pay", 200)).toBe("No pay messages in the last 200 days.");
+    expect(enquiriesEmptyText("person", 200)).toBe(
+      "Nothing needs a person. Messages the shifts line can't answer show here.",
+    );
+    expect(showLastDaysText(90)).toBe("Show the last 90 days");
+    expect(showLastDaysText(200)).toBe("Show the last 200 days");
   });
 
   it("each reason the AI didn't sort it, in step 2's words", () => {

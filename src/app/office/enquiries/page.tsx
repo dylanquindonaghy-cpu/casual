@@ -18,7 +18,14 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { appEnv } from "@/lib/env";
 import { ENQUIRY_VIEWS, LIST_MAX, officeEnquiries, type EnquiryView } from "@/lib/office/enquiries";
-import { AI_BANNER, appTodayText, countsLine, VIEW_LABELS } from "@/lib/office/enquiries-copy";
+import {
+  AI_BANNER,
+  appTodayText,
+  countsLine,
+  enquiriesEmptyText,
+  showLastDaysText,
+  VIEW_LABELS,
+} from "@/lib/office/enquiries-copy";
 import { officeRequestQueue } from "@/lib/office/request-queue";
 import { EnquiryItem } from "./enquiry-row";
 import { RequestQueueView } from "./request-queue-view";
@@ -29,12 +36,6 @@ export const metadata: Metadata = { title: "Enquiries" };
 // strangers sent the shifts line in the firm's message retention (90 days by default) and what came of it, the ones that need a
 // person, the requests made in the app (the old Requests page) and pay. Views are links. Each row
 // opens the message's own page. Admins and resourcers.
-
-const EMPTY: Record<Exclude<EnquiryView, "app">, (days: number) => string> = {
-  all: (days) => `No messages to the shifts line in the last ${days} days.`,
-  person: () => "Nothing needs a person. Messages the shifts line can't answer show here.",
-  pay: (days) => `No pay messages in the last ${days} days.`,
-};
 
 // Only today's (since midnight, the firm's time): the dashboard's "Enquiries today" link.
 const EMPTY_TODAY = "Nothing to the shifts line today.";
@@ -103,7 +104,7 @@ export default async function EnquiriesPage({
         <p className={`${meta} mt-3`}>
           Only today&apos;s.{" "}
           <Link href={hrefOf(view)} className={textLink}>
-            Show the last {list.days} days
+            {showLastDaysText(list.days)}
           </Link>
         </p>
       )}
@@ -127,7 +128,7 @@ export default async function EnquiriesPage({
           </div>
         ) : list.rows.length === 0 ? (
           <p className={`${card} ${headingGap} text-ink-muted`}>
-            {day ? EMPTY_TODAY : EMPTY[view as Exclude<EnquiryView, "app">](list.days)}
+            {day ? EMPTY_TODAY : enquiriesEmptyText(view as Exclude<EnquiryView, "app">, list.days)}
           </p>
         ) : (
           <>

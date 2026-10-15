@@ -3046,6 +3046,15 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   every retry) is never marked handled. The casual gets no reply, and it never reaches Need a
   person. Add a last try that marks it for a person and logs why, like the planner webhooks' last
   try (12J.2). Found when a day word crashed the reply (fixed in 12L.1).
+- Text cuts that count UTF-16 units (12L.1 guardrails round 3, 2026-10-15; small, nothing lost):
+  the shifts line's webhooks (`src/lib/inbound/webhook.ts`, WhatsApp and SMS) and the voicemail
+  transcript (`src/lib/inbound/voice.ts`) cut at 1,600 units, so an emoji across the cut can leave
+  a "�" at the end of a message that was already cut (a text column stores half an emoji as
+  U+FFFD; nothing fails). Fix with one shared cut that never leaves half an emoji, also used by
+  `src/lib/ai/classify-message.ts`, with a test of an emoji at unit 1,600. The same for the
+  Enquiries row's 139-character preview (display only) and `src/lib/portal/review.ts`'s 300-unit
+  reasons (safe today: its only non-ASCII text ends long before the cut). Optional: show the date
+  in the action log's sentence for today's cancellations CSV (it's logged, not shown).
 - Travel estimates, a second audit (12G.2, 2026-10-15). 12G.2 was audited DONE on 2026-10-09. A
   later re-audit found three paths no test reached; 12L.1 tests all three. It also asks **Dylan to accept** that hand-written TravelTime answers
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io

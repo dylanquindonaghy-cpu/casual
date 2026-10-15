@@ -12739,6 +12739,54 @@ confirmed correct and complete. What it found, and what was done:
 | The download's log entry didn't name the day the file held | NICE | `date` is logged with `day: "today"`. The e2e test checks it matches the file's name |
 | `apiEnv()` was read outside a try in the 405 | NICE | `platformCheck()` turns an unreadable setting into the API's JSON `internal_error` |
 
+Break checks of round 2's fixes: with the old `slice(0, 500)` the emoji test fails with the same
+Postgres error ("Unicode low surrogate must follow a high surrogate"); with the host check off,
+the 405 and OPTIONS test fails.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=19332dd54ff8b521 e2e=true` (4,854
+tests in 268 files; 91 e2e; the walkthrough's 3).
+
+**Audit round 2 (claims-auditor): NOT DONE.** Every item, (a) to (l), was PROVEN; the docs and the
+guardrails re-check were PARTIAL. Verbatim:
+
+> Minor, not blocking: the log says the 405's Allow is "GET, PUT", but the code and test give "GET, HEAD, OPTIONS, PUT". `SECTIONS.enquiries.empty` (dashboard-copy.ts:104) is an unused 90-day default.
+>
+> To reach DONE:
+> 1. Update docs/screens.md. (f) In the Cancellations row (line 148), say the list's "Download CSV" keeps `day=today`, holds today's rows only, is named `cancellations-{view}-{date}.csv`, and logs `day: "today"` plus the date. (b) In the `/office/data`, `/office/data/workers/[id]` and `/office/reports/notice` rows, say a download another site started answers "Open this from ShiftDesk." (403). Today only the cancellations row says it. (j) In the guide row (line 165), add "Change or cancel a shift"'s planner note to its entry.
+> 2. Add a line to the 12L.1 entry in docs/overnight-log.md saying the round-2 guardrails fixes were re-checked, or why none was needed. Better, run `guardrails-reviewer` on `d337e4c..HEAD`.
+
+What was done:
+
+- **Point 1:** `docs/screens.md` now says it in the Cancellations row (today's file, its name, what
+  it logs, and the 403), in the three download rows (the 403), and in the guide row (the
+  planner note, quoted). `tests/unit/copy.plain-language.test.ts` and `office.titles.test.ts`,
+  which read that file, still pass.
+- **Point 2:** guardrails round 3, below.
+- **Minor:** the Allow lists in item (i) above are corrected. `SECTIONS.enquiries.empty` stays: it
+  isn't unused. `tests/unit/office.dashboard.test.ts` checks every section's empty words on an
+  empty dashboard at the default 90 days, and the page itself uses the firm's number.
+
+**Guardrails review (round 3, of `d337e4c..86842b8`): SAFE TO COMMIT.** All five round-2 fixes
+were confirmed correct and complete, with no FIX FIRST. Its NICE items, and what was done:
+
+| Finding | Fix |
+|---|---|
+| `platformCheck()`'s error path had no test, and its log line had no request id | Tested: settings that can't be read give the API's JSON `internal_error` from OPTIONS and the 405, and the log line carries the answer's request id. The test fails with the try removed |
+| OPTIONS wrote no log line and no `x-request-id`, although every API request writes one | Both added. Tested; the test fails with the line removed |
+| The webhooks' and the voicemail's 1,600-unit cuts can leave a "�" at the end (a text column, so nothing fails); the Enquiries row's preview and `review.ts`'s 300-unit cut the same, both safe today | Parked: "Text cuts that count UTF-16 units (12L.1 guardrails round 3)" |
+| The action log's sentence doesn't show today's CSV's date (it's logged) | Parked with the item above (optional) |
+
+**Branch.** This session works on `claude/wizardly-faraday-8lg4g0`, the branch it was set up
+with, not the skill's `build/overnight`. `build/overnight` is already merged into `main` (PR #3)
+and is behind it. Starting fresh from `main` keeps one line of history. Nothing was merged into
+`main`, nothing was force-pushed, and no history was rewritten.
+
+**Push.** Every push to this branch is refused: "GH013: Repository rule violations found … 3 of 3
+required status checks are expected". The repository's "Protect main" ruleset targets all
+branches as well as the default one, so a new commit, which can't have CI's three checks yet, is
+refused on any branch. Tried once at each commit point, never in a loop. The commits are safe
+in this session's copy until Dylan changes the ruleset (steps in the morning summary).
+
 **Kept in the Parking lot:** every item needing Dylan's decision or an outside account, and those
 marked as their own task. The second 12G.2 audit's question (are hand-written TravelTime answers
 fine until the live check?) is still his.

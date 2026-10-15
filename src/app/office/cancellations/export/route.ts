@@ -57,17 +57,17 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
     const csv = cancellationsCsv(list.rows, { tz: list.timeZone, threshold: list.threshold });
+    // Today's file names its day (the firm's), in its name and in the log, so both still say
+    // which day it held once saved.
+    const date = localDateOf(now, list.timeZone);
     const logged = await logDownload(ctx, token, {
       kind: "cancellations_csv",
       view,
-      ...(day ? { day } : {}),
+      ...(day ? { day, date } : {}),
       rows: list.rows.length,
     });
     if (!logged) return plain("Not found.", 404);
-    // Today's file names the day (the firm's), so it still makes sense once saved.
-    const fileName = day
-      ? `cancellations-${view}-${localDateOf(now, list.timeZone)}.csv`
-      : `cancellations-${view}.csv`;
+    const fileName = day ? `cancellations-${view}-${date}.csv` : `cancellations-${view}.csv`;
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

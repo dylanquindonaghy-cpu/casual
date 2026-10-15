@@ -315,12 +315,11 @@ export function apiMethodNotAllowed(
   allow: readonly string[],
   deps: Pick<ApiDeps, "logger" | "env"> = {},
 ): Response {
-  // Not the platform address: the API's 404, as for every API call there (step 1 above).
-  const env = deps.env ?? apiEnv();
-  if (parseHost(hostOf(request), env.APP_BASE_DOMAIN)?.kind !== "apex") {
-    return apiNotFound(request, method, deps);
-  }
   const requestId = requestIdOf(request);
+  // Not the platform address: the API's 404, as for every API call there (step 1 above).
+  const offPlatform = platformCheck(request, deps);
+  if (offPlatform === "error") return respond(apiRefusal("internal_error"), requestId);
+  if (offPlatform) return apiNotFound(request, method, deps);
   (deps.logger ?? log).info("api request", {
     requestId,
     route: new URL(request.url).pathname.startsWith("/api/v1/sessions/")
@@ -331,4 +330,32 @@ export function apiMethodNotAllowed(
     ms: 0,
   });
   return respond(apiRefusal("method_not_allowed", {}, { allow: allow.join(", ") }), requestId);
+}
+
+// OPTIONS on an API address: the methods it takes (the same list as its 405), only on the platform
+// address; anywhere else the API's 404, as for every method there.
+export function apiOptions(
+  request: Request,
+  allow: readonly string[],
+  deps: Pick<ApiDeps, "logger" | "env"> = {},
+): Response {
+  const offPlatform = platformCheck(request, deps);
+  if (offPlatform === "error") return respond(apiRefusal("internal_error"), requestIdOf(request));
+  if (offPlatform) return apiNotFound(request, "OPTIONS", deps);
+  return new Response(null, {
+    status: 204,
+    headers: { allow: allow.join(", "), "cache-control": "no-store" },
+  });
+}
+
+// True when the request isn't on the platform address; "error" when the settings can't be read
+// (answered as the API's JSON internal_error, never Next.js's empty 500).
+function platformCheck(request: Request, deps: Pick<ApiDeps, "logger" | "env">): boolean | "error" {
+  try {
+    const env = deps.env ?? apiEnv();
+    return parseHost(hostOf(request), env.APP_BASE_DOMAIN)?.kind !== "apex";
+  } catch (error) {
+    (deps.logger ?? log).error("api settings unreadable", { error });
+    return "error";
+  }
 }

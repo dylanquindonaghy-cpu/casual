@@ -665,6 +665,19 @@ describe("what the office can see", () => {
     expect(await t.detail(old)).toBeNull();
   });
 
+  it("a long message for the office with an emoji at the 500-character cut: kept whole, and it reaches a person", async () => {
+    const t = await enquiryFirm();
+    // "office " and 492 x's are 499 characters: the emoji is the 500th, two UTF-16 units long.
+    const body = `office ${"x".repeat(492)}\u{1F600} and more after it`;
+    const id = await t.incoming(body);
+    const { rows } = await su.query<{ note: string }>(
+      "select payload ->> 'note' as note from requests where message_id = $1",
+      [id],
+    );
+    expect(rows[0]?.note).toBe(`office ${"x".repeat(492)}\u{1F600}`);
+    expect((await t.load("person")).rows.map((r) => r.messageId)).toEqual([id]);
+  });
+
   it("a firm that keeps messages longer: the office can reply and close for as long as it keeps them", async () => {
     const t = await enquiryFirm();
     await su.query(

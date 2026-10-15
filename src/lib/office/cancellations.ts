@@ -522,7 +522,13 @@ export async function logDownload(
   ctx: AuthContext,
   token: string,
   what:
-    | { kind: "cancellations_csv"; view: CancellationView; day?: "today"; rows: number }
+    | {
+        kind: "cancellations_csv";
+        view: CancellationView;
+        day?: "today";
+        date?: string; // yyyy-mm-dd, the firm's: the day today's file held
+        rows: number;
+      }
     | { kind: "cancellation_pdf"; assignmentId: string },
 ): Promise<boolean> {
   const me = await mayView(ctx, token);

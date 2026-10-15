@@ -302,7 +302,13 @@ describe("the log entry", () => {
       "Sam Rota downloaded the cancellations (short notice, 12 rows) as a CSV.",
     );
     // Today's only (the dashboard's "Cancellations today" list).
-    const today = { kind: "cancellations_csv", view: "all", day: "today", rows: 1 };
+    const today = {
+      kind: "cancellations_csv",
+      view: "all",
+      day: "today",
+      date: "2026-11-09",
+      rows: 1,
+    };
     expect(passesLogCheck(today)).toBe(true);
     expect(say(today)).toBe(
       "Sam Rota downloaded the cancellations (all, today's only, 1 row) as a CSV.",

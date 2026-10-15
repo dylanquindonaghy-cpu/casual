@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiKeyEntry } from "@/lib/db/directory";
 import { apiNotFound, handleApiRequest, type ApiCall, type ApiDeps } from "@/lib/integrations/api";
+import * as catchAllRoute from "@/app/api/v1/[[...path]]/route";
 import * as cancellationsRoute from "@/app/api/v1/cancellations/route";
 import * as sessionRoute from "@/app/api/v1/sessions/[ref]/route";
 import { API_ERRORS } from "@/lib/integrations/errors";
@@ -541,10 +542,17 @@ describe("handleApiRequest: the refusals before any look-up", () => {
       expect(error.code).toBe("method_not_allowed");
       expect(error.message).toBe(API_ERRORS.method_not_allowed.message);
     }
-    // OPTIONS gives the same list as the 405.
-    expect(sessionRoute.OPTIONS().headers.get("allow")).toBe("GET, HEAD, OPTIONS, PUT");
-    expect(sessionRoute.OPTIONS().status).toBe(204);
-    expect(cancellationsRoute.OPTIONS().headers.get("allow")).toBe("GET, HEAD, OPTIONS");
+    // OPTIONS gives the same list as the 405, on the platform address.
+    const options = sessionRoute.OPTIONS(at("/api/v1/sessions/X", "OPTIONS"));
+    expect(options.status).toBe(204);
+    expect(options.headers.get("allow")).toBe("GET, HEAD, OPTIONS, PUT");
+    expect(
+      cancellationsRoute.OPTIONS(at("/api/v1/cancellations", "OPTIONS")).headers.get("allow"),
+    ).toBe("GET, HEAD, OPTIONS");
+    // An unknown API address: the API's 404 for OPTIONS too, never a list of methods.
+    const unknown = catchAllRoute.OPTIONS(at("/api/v1/shifts", "OPTIONS"));
+    expect(unknown.status).toBe(404);
+    expect((await errorOf(unknown)).code).toBe("not_found");
     // A firm's own address isn't an API address: the API's 404, as for any call there.
     const onFirm = sessionRoute.POST(
       new Request(`http://acme.${BASE}/api/v1/sessions/X`, {
@@ -554,6 +562,13 @@ describe("handleApiRequest: the refusals before any look-up", () => {
     );
     expect(onFirm.status).toBe(404);
     expect((await errorOf(onFirm)).code).toBe("not_found");
+    const optionsOnFirm = sessionRoute.OPTIONS(
+      new Request(`http://acme.${BASE}/api/v1/sessions/X`, {
+        method: "OPTIONS",
+        headers: { host: `acme.${BASE}` },
+      }),
+    );
+    expect(optionsOnFirm.status).toBe(404);
   });
 });
 

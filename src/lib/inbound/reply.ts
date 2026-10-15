@@ -330,8 +330,10 @@ async function answerMessage(
           workerId: c.workerId,
           type: "general",
           payload: {
+            // Cut by characters, never inside an emoji: half of one is refused by jsonb, which
+            // would fail the job on every try and lose the message (12L.1 guardrails review).
             note: c.body
-              ? c.body.slice(0, OFFICE_NOTE_MAX)
+              ? [...c.body].slice(0, OFFICE_NOTE_MAX).join("")
               : c.channel === "voice"
                 ? NO_VOICE_TEXT_NOTE
                 : NO_TEXT_NOTE,

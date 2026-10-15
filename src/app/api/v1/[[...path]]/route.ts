@@ -18,3 +18,6 @@ export function PATCH(request: Request): Response {
 export function DELETE(request: Request): Response {
   return apiNotFound(request, "DELETE");
 }
+export function OPTIONS(request: Request): Response {
+  return apiNotFound(request, "OPTIONS");
+}

@@ -12701,6 +12701,42 @@ done (`WIP: 12L.1 guardrails fixes`):
 
 Its NICE note on two long comment lines: Prettier passes them; left as they are.
 
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=479f3d332da39da5 e2e=true` (4,851
+tests in 268 files; 91 e2e; the walkthrough's 3).
+
+**Audit round 1 (claims-auditor): NOT DONE.** Verbatim "To reach DONE":
+
+> 1. Add an integration test in tests/integration/enquiries.test.ts that sets `message_days` to 200 and makes a message 120 days old. It should show `replyToEnquiry` and `closeEnquiry` accepting it, and refusing it at 201 days.
+> 2. Pin the Enquiries page's empty words and the "Show the last N days" link with the firm's number of days (All and Pay views, 90 and e.g. 200). Move `EMPTY` into a copy module and unit-test it, or render the page.
+> 3. Record a guardrails-reviewer re-check of the round-1 fixes (the Map lookup, OPTIONS and the host check, the single clock), or state in the log why none is needed.
+> 4. Optionally, handle possessives ("tomorrow's", "Saturday's") in `askedDays` and add a test, or put it in the Parking lot.
+
+What was done:
+
+- **Point 1:** a new test, "a firm that keeps messages longer: the office can reply and close…".
+  Reply and close work at 120 days of 200. At 201 days both answer `not_waiting`, not
+  `not_found`. That's the existing meaning: the message still exists, but it isn't waiting any
+  more. It fails with a fixed 90 days put back.
+- **Point 2:** `enquiriesEmptyText()` and `showLastDaysText()` moved to
+  `src/lib/office/enquiries-copy.ts`, with a unit test at 90 and 200 days. It fails with 90
+  written in.
+- **Point 3:** guardrails round 2, below.
+- **Point 4:** fixed, because it was a regression of this task: before it, the split at the
+  apostrophe made "Saturday's" read as Saturday. A trailing "'s" is now dropped. Tests:
+  "Saturday's event", "tomorrow's" (a curly apostrophe), and "the sun's out" (no day). It fails
+  with the "'s" kept.
+
+**Guardrails review (round 2, of `2b16e59..d337e4c`): FIX FIRST.** All four round-1 fixes were
+confirmed correct and complete. What it found, and what was done:
+
+| Finding | Severity | Fix |
+|---|---|---|
+| The office note was cut with `slice(0, 500)`, counting UTF-16 units. An emoji across the 500th was cut in half, and jsonb refuses half of one ("Unicode low surrogate must follow a high surrogate"). The job failed on every try and the message never reached Need a person. This dates from Phase 7, not this task | FIX FIRST | Cut by characters (`[...body].slice(0, 500)`), as `cut()` already does. Test: "a long message for the office with an emoji at the 500-character cut…". It failed before the fix with that Postgres error |
+| OPTIONS skipped the host check | NICE | `apiOptions()`: the methods on the platform address, the API's 404 elsewhere. Tested |
+| The catch-all route used Next.js's own OPTIONS, which lists every method | NICE | It answers the API's 404. Tested |
+| The download's log entry didn't name the day the file held | NICE | `date` is logged with `day: "today"`. The e2e test checks it matches the file's name |
+| `apiEnv()` was read outside a try in the 405 | NICE | `platformCheck()` turns an unreadable setting into the API's JSON `internal_error` |
+
 **Kept in the Parking lot:** every item needing Dylan's decision or an outside account, and those
 marked as their own task. The second 12G.2 audit's question (are hand-written TravelTime answers
 fine until the live check?) is still his.

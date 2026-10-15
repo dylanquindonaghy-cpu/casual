@@ -1,4 +1,4 @@
-import { apiMethodNotAllowed } from "@/lib/integrations/api";
+import { apiMethodNotAllowed, apiOptions } from "@/lib/integrations/api";
 import { getSessionRequest, putSessionRequest } from "@/lib/integrations/sessions";
 
 // The planner API's sessions (docs/integrations.md; docs/office-v2.md 5.3.2): PUT creates or
@@ -20,11 +20,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
 // What this address takes (HEAD and OPTIONS are Next.js's, from GET and the exports): the same
 // list in the 405's Allow header and in OPTIONS's.
 const ALLOW = ["GET", "HEAD", "OPTIONS", "PUT"] as const;
-export function OPTIONS(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: { allow: ALLOW.join(", "), "cache-control": "no-store" },
-  });
+export function OPTIONS(request: Request): Response {
+  return apiOptions(request, ALLOW);
 }
 export function POST(request: Request): Response {
   return apiMethodNotAllowed(request, "POST", ALLOW);

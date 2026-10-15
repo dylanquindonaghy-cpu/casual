@@ -1076,7 +1076,11 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
       (`/office/enquiries?view=person`); (i) the planner API answers a method an address doesn't
       take with its own 405 `method_not_allowed` and an `Allow` header; (j) the office guide's
       "Change or cancel a shift" says what a planner's session keeps here; (k) tests for the
-      theme following the phone on Home, and for the AI's fallback reasons end to end. Tests:
+      theme following the phone on Home, and for the AI's fallback reasons end to end; (l) the
+      guardrails reviews' finds: the office note is cut by characters (an emoji at the 500th no
+      longer fails the shifts line's job and loses the message), every `/api/v1` address answers
+      OPTIONS itself (its methods on the platform address, the API's 404 elsewhere), and today's
+      CSV logs its date. Tests:
       each item's own (listed in the 2026-10-15 loose-ends entry of `docs/overnight-log.md`),
       each break-checked; `guardrails-reviewer` (messaging, offers). Docs: `docs/screens.md`,
       `docs/messaging-templates.md`, `docs/integrations.md`; the Parking lot items marked done

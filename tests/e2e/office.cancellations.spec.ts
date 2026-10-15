@@ -138,8 +138,10 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     expect(todayFile.suggestedFilename()).toMatch(/^cancellations-all-\d{4}-\d{2}-\d{2}\.csv$/);
     const todayText = await readFile((await todayFile.path()) ?? "", "utf8");
     expect(todayText).toContain(ref);
-    const today = (await newDownloads())[2] as { kind: string; day: string; rows: number };
+    const today = (await newDownloads())[2] as { kind: string; date: string; rows: number };
     expect(today).toMatchObject({ kind: "cancellations_csv", view: "all", day: "today" });
+    // The log names the day the file held, as its name does.
+    expect(todayFile.suggestedFilename()).toBe(`cancellations-all-${today.date}.csv`);
     expect(today.rows).toBe(todayRows);
     expect(today.rows).toBeGreaterThanOrEqual(1);
     expect(today.rows).toBeLessThan(rows.rows);

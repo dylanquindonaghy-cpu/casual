@@ -1,4 +1,4 @@
-import { KIND_NAMES } from "../portal/request-kinds";
+import { KIND_NAMES, statusWord } from "../portal/request-kinds";
 import type { ResolveRequestResult } from "../requests/resolve";
 import type { QueueRequest } from "./request-queue";
 
@@ -52,11 +52,18 @@ export function approveHint(type: string, cancellation: string | null = null): s
   return null;
 }
 
-export function answerResultText(result: ResolveRequestResult | Common, firstName: string): string {
+// A question's "approve" is answering it (PLAN.md Messages 13); every other kind's is approving.
+export const approveWord = (type: string) => (type === "general" ? "Answer" : "Approve");
+
+export function answerResultText(
+  result: ResolveRequestResult | Common,
+  firstName: string,
+  type = "",
+): string {
   switch (result.status) {
     case "resolved":
       return result.decision === "approved"
-        ? `Approved. ${firstName} will be told.`
+        ? `${statusWord(type, "approved")}. ${firstName} will be told.`
         : `Declined. ${firstName} will be told.`;
     case "already":
       return result.current === "auto_resolved"
@@ -68,15 +75,17 @@ export function answerResultText(result: ResolveRequestResult | Common, firstNam
       return "The note is too long (500 characters at most).";
     case "not_found":
       return "We can't find that request.";
+    case "on_enquiries":
+      return "Answer this question on Enquiries, with the message it came from.";
     default:
       return COMMON[result.status];
   }
 }
 
-// "Approved by Sam Rota" / "Declined by Sam Rota" / "Sorted".
+// "Approved by Sam Rota" / "Answered by Sam Rota" (a question) / "Declined by Sam Rota" / "Sorted".
 export function answeredBy(r: QueueRequest): string {
   if (r.status === "auto_resolved") return "Sorted";
-  const verb = r.status === "approved" ? "Approved" : "Declined";
+  const verb = statusWord(r.type, r.status);
   return r.answer?.by ? `${verb} by ${r.answer.by}` : verb;
 }
 

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { localDateOf, zonedToUtc } from "../../time/zoned";
 
 // The two demo firms from docs/testing.md. Fake data only (golden rule 7): invented firms,
 // sites and people; phone numbers from Ofcom's drama range (+447700900000-999); emails at
@@ -84,6 +85,21 @@ const LAST = [
   "Zielinski",
 ];
 
+// The firm's strikes team, confirmed (docs/office-v2.md 3.10; the demo story, 12I.1): confirmed at
+// midnight (London) 60 days before the seed day, before any of the story's strike evidence went to
+// it, and the same on a re-run the same day.
+export const STRIKES_TEAM = "strikes@acme-events.example";
+export function storyStrikesSettings(today: Date): Record<string, unknown> {
+  const [year = 2000, month = 1, day = 1] = localDateOf(
+    new Date(today.getTime() - 60 * 86_400_000),
+    "Europe/London",
+  )
+    .split("-")
+    .map(Number);
+  const midnight = zonedToUtc({ year, month, day, hour: 0, minute: 0 }, "Europe/London");
+  return { email: STRIKES_TEAM, email_verified_at: midnight.toISOString() };
+}
+
 export interface SeedFirm {
   id: string;
   name: string;
@@ -122,8 +138,22 @@ export interface SeedFirm {
 const day = (today: Date, offsetDays: number) =>
   new Date(today.getTime() + offsetDays * 86_400_000).toISOString().slice(0, 10);
 
+// The demo story's own casuals (seed-story.ts, 12I.1): no generated worker may share one of these
+// names.
+export const STORY_NAMES: readonly (readonly [string, string])[] = [
+  ["Zoe", "Adeyemi"],
+  ["Kieran", "Doyle"],
+  ["Ben", "Fraser"],
+  ["Priya", "Shah"],
+  ["Leah", "Ward"],
+  ["Jamal", "Morgan"],
+  ["Mo", "Rahman"],
+  ["Tom", "Hale"],
+];
+
 // Every first/last name pair, shuffled with the seeded generator, so names never repeat
-// within a firm (two identical names on a demo dashboard confuse people).
+// within a firm (two identical names on a demo dashboard confuse people). A pair the story uses is
+// swapped for the next unused one after the list, so only that worker's name changes.
 function uniqueNames(count: number, seed: number): [string, string][] {
   const pairs = FIRST.flatMap((f) => LAST.map((l): [string, string] => [f, l]));
   const r = rng(seed);
@@ -133,7 +163,10 @@ function uniqueNames(count: number, seed: number): [string, string][] {
     const b = pairs[j];
     if (a && b) [pairs[i], pairs[j]] = [b, a];
   }
-  return pairs.slice(0, count);
+  const story = new Set(STORY_NAMES.map(([f, l]) => `${f} ${l}`));
+  const taken = (p: [string, string]) => story.has(`${p[0]} ${p[1]}`);
+  const spare = pairs.slice(count).filter((p) => !taken(p));
+  return pairs.slice(0, count).map((p) => (taken(p) ? (spare.shift() ?? p) : p));
 }
 
 function people(
@@ -218,6 +251,8 @@ function acme(today: Date): SeedFirm {
       credential_applied_allowance_pct: 15,
       approve_mode: true,
       sign_off: "Acme Events Shift Team",
+      // The strikes team, already confirmed (the demo story, 12I.1).
+      strikes: storyStrikesSettings(today),
     },
     // Invented places, marked "Demo" so nobody mistakes them for real clients or venues.
     sites: [

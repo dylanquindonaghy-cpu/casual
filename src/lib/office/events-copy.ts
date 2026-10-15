@@ -21,19 +21,8 @@ export const EVENT_VIEW_EMPTY: Record<EventView, string> = {
   urgent: "Every urgent shift is filled.",
 };
 
-// Short names for the chips; any other qualification uses its own name.
-const SHORT_NAMES: Record<string, string> = {
-  SIA_DS: "SIA DS",
-  SIA_SG: "SIA SG",
-  SIA_CP: "SIA CP",
-  STEWARD_L2: "Steward L2",
-  FIRST_AID: "First aid",
-  CSAS: "CSAS",
-  MANUAL_HANDLING: "Manual handling",
-};
-
-export const requirementChip = (r: { code: string; name: string }): string =>
-  SHORT_NAMES[r.code] ?? r.name.charAt(0).toUpperCase() + r.name.slice(1);
+// The chips' short names live with the requirements (the casual app uses them too).
+export { requirementChip } from "../credentials/requirements";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (d: Date, tz: string) => {
@@ -147,5 +136,7 @@ export function sessionDetails(s: SessionRow): string[] {
   ].filter((x): x is string => x !== null);
 }
 
-// The "…" menu's words for a session from a Google Sheet: it can't be changed or cancelled here.
+// The "…" menu's words for a session from a Google Sheet or the firm's planner (the API): it can't
+// be changed or cancelled here.
 export const SHEET_SESSION_WORDS = "This session comes from your Google Sheet. Change it there.";
+export const PLANNER_SESSION_WORDS = "This session comes from your planner. Change it there.";

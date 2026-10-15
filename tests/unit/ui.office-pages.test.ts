@@ -36,8 +36,12 @@ describe("office pages", () => {
         // Outside the shell, with the login card's own title (docs/ui-design.md, `loginTitle`).
         "src/app/office/login/page.tsx",
         "src/app/office/l/page.tsx",
-        // Only sends you on to /office.
+        // Only send you on: to /office, from Workers to Casuals (12F.1), and from Requests to
+        // Enquiries' "Requests from the app" (12D.1).
+        "src/app/office/requests/page.tsx",
         "src/app/office/today/page.tsx",
+        "src/app/office/workers/page.tsx",
+        "src/app/office/workers/[id]/page.tsx",
       ].sort(),
     );
   });

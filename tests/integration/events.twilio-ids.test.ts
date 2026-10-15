@@ -156,7 +156,7 @@ describe("every sender logs a Twilio-shaped message id as it is", () => {
       await scanCredentials(
         { firmId: f.firmId, idempotencyKey: "credential-scan:2026-11-03" },
         withFirm,
-        { transport: t.transport },
+        { transport: t.transport, baseDomain: "localhost:3000" },
       ),
     ).toMatchObject({ warned: 1, expired: 1, failed: 0 });
     const logged = [

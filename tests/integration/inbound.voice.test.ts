@@ -17,7 +17,7 @@ import {
 } from "@/lib/inbound/voice";
 import type { CallLink } from "@/lib/messaging/templates";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
-import { loadToday } from "@/lib/office/today";
+import { loadEnquiries } from "@/lib/office/enquiries";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, freeNoFirmLine, NO_FIRM_LINE, superuserPool } from "../helpers/db";
@@ -583,9 +583,11 @@ describe("a voicemail (the inbound-message job)", () => {
         type: string;
         worker_id: string;
         payload: Record<string, unknown>;
+        message_id: string | null;
       }>(
-        `select id::text as id, type, worker_id::text as worker_id, payload from requests
-          where firm_id = $1 order by created_at`,
+        `select id::text as id, type, worker_id::text as worker_id, payload,
+                message_id::text as message_id
+           from requests where firm_id = $1 order by created_at`,
         [firmId],
       )
     ).rows;
@@ -606,11 +608,9 @@ describe("a voicemail (the inbound-message job)", () => {
         id: expect.any(String),
         type: "general",
         worker_id: t.ann,
-        payload: {
-          note: "I need to cancel my shifts next week",
-          via: "voicemail",
-          messageId: job.messageId,
-        },
+        payload: { note: "I need to cancel my shifts next week", via: "voicemail" },
+        // Linked to the voicemail it came from (12D.1, S5).
+        message_id: job.messageId,
       },
     ]);
     const ref = (requests[0]?.id ?? "").slice(0, 8).toUpperCase();
@@ -619,7 +619,7 @@ describe("a voicemail (the inbound-message job)", () => {
         channel: "whatsapp",
         to: t.mobile,
         from: t.line,
-        body: `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. — ${t.name} Shift Team`,
+        body: `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. Automatic reply. Send OFFICE to reach a person. — ${t.name} Shift Team`,
       },
     ]);
     expect(
@@ -661,7 +661,7 @@ describe("a voicemail (the inbound-message job)", () => {
     ]);
   });
 
-  it("a caller we don't know: no message to them, the office alerted, the voicemail on Today", async () => {
+  it("a caller we don't know: no message to them, the office alerted, the voicemail on Enquiries", async () => {
     const t = await lineFirm();
     await t.f.office("admin");
     const { transport, sent } = captureTransport();
@@ -683,21 +683,18 @@ describe("a voicemail (the inbound-message job)", () => {
         { reason: "unknown_number", recipients: 1, failed: 0, skipped: 0 },
       ],
     ]);
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages).toEqual([
-      {
-        messageId: expect.any(String),
+    // Enquiries shows it to the office, waiting for a person.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows).toEqual([
+      expect.objectContaining({
         channel: "voice",
-        from: STRANGER,
+        who: { kind: "unknown", from: STRANGER },
         text: "Hi it's Jo, about work",
-        receivedAt: expect.any(Date),
-        formerWorker: null,
-        formerWorkerActive: false,
-      },
+      }),
     ]);
   });
 
-  it("a withheld number: no message to anyone but the office, each voicemail alerted (there's no number to match), on Today without a number", async () => {
+  it("a withheld number: no message to anyone but the office, each voicemail alerted (there's no number to match), on Enquiries without a number", async () => {
     const t = await lineFirm();
     await t.f.office("resourcer");
     const { transport, sent } = captureTransport();
@@ -710,10 +707,10 @@ describe("a voicemail (the inbound-message job)", () => {
     }
     expect(sent.map((m) => m.channel)).toEqual(["email", "email"]);
     expect(await requestsOf(t.f.firmId)).toEqual([]);
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages.map((m) => [m.channel, m.from, m.text]).sort()).toEqual([
-      ["voice", null, "Ann again"],
-      ["voice", null, "It's Ann, can someone call me"],
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((m) => [m.channel, m.who, m.text]).sort()).toEqual([
+      ["voice", { kind: "withheld" }, "Ann again"],
+      ["voice", { kind: "withheld" }, "It's Ann, can someone call me"],
     ]);
   });
 });

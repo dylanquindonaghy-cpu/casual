@@ -960,7 +960,8 @@ the menu.
   (`src/app/shifts/open/page.tsx:12-41`); the 50-row cap's message still points to them ("Choose a
   day, site or role to see others"). No new filters.
 - **Every row**, Open or Booked, urgent or not, has the travel line: "7.2 miles · 18 min by car · 41
-  min by public transport".
+  min by public transport". (Built for Booked's upcoming shifts; past ones have none, as their
+  estimates expire 7 days after: 12G.3.)
   - Both times always show, whichever ways she chose; her choice only drives the filter.
   - With no public transport in time: "18 min by car · no public transport by 09:30".
 - **Where the area filter is applied.** Inside the database query, before the 50-row cap
@@ -1081,7 +1082,7 @@ next migration number is 0035.
 | S8 | New table `worker_travel`: worker_id (unique), start_postcode, lat, lng, modes (car/public_transport/both), max_minutes, updated_at, privacy_notice_version. A separate table, so the erased-worker check (`src/lib/db/schema/people.ts:101-107`) is unchanged. Included in deletion and export | The travel area (D2) | **Approved** (16) |
 | S9 | New table `travel_estimates`: origin_postcode, site_id, mode, arrive_by, minutes, metres, provider, computed_at, expires_at. Keyed by postcode, not by person | Distance and travel times without calling the provider on every page view | **Approved** (17); built narrower (no trip home, route or leave-by columns) |
 | S10 | An owner-run database function, `app_set_firm_setting(key, value)` (`SECURITY DEFINER`, like migration 0034's), the only thing the app may call to change `firms.settings`. It accepts only `strikes.email` and `strikes.email_verified_at`, refuses `retention.*` and every other key, and clears the confirmed time when the address changes. Not a column-level grant: that would let the app change the whole field, retention and the hold included (3.10). The page checks admin on the server and logs every change | The Settings page (decision Office 1) | **Approved** (18); built narrower (one setting, not six groups) |
-| S11 | The planner integration layer (5.3). (a) New table `api_keys`: id, firm_id, label (1–60 characters, trimmed), token_hash (bytea, unique), hint (the last 4 characters), created_by and revoked_by (composite links to `office_users`), last_used_at, revoked_at, created_at. The app may only read and add rows, and change `last_used_at`, `revoked_at` and `revoked_by` (`TABLE_ACCESS` `["SELECT", "INSERT"]` plus a `COLUMN_UPDATES` entry), so it can never rewrite a key's hash or label; no delete (a key's id is the actor on every change it made); left out of the firm's data export. Plus an owner-run `SECURITY DEFINER` function `app_api_key_lookup(hash)` that returns only the firm id and key id of a key that isn't revoked: **a new machine login path**, so this is an auth change as well as a schema change. Before that look-up, a key of the wrong shape is refused without touching the database, and each web process counts refused keys per client address in memory (30 a minute, then 429 before any look-up). (b) `webhook.url` added to `app_set_firm_setting()`'s accepted keys, plus `webhook.signing_version`, which the app can't set: the function adds 1 to it whenever `webhook.url` is set or cleared, and on one more accepted call, `app_set_firm_setting('webhook.rotate', null)`, that only adds 1 (an old, maybe leaked signing secret can never come back). (c) `api` added to `shifts.source` (`SHIFT_SOURCES`, `src/lib/db/schema/roster.ts:39`), `shift_events.source` (with a unique key `(firm_id, source, planner_ref)`) and S3's `cancel_via`. (d) **A second caller of the office's whole-session cancel and move** (`cancelShiftByFirm()`, `moveShiftByFirm()`, golden-rule-12 code that today accepts only an active admin or resourcer): `by: { type: "api", keyId }`, which skips the office-user check and instead checks, in the same transaction, that the key is still live (`select … from api_keys where id = keyId and revoked_at is null for share`); it is allowed only on API sessions, treats rest, weekly-hours and day-off failures as blocking (no person is there to override them), and logs with the `system` actor and `{ by: "firm", via: "api", keyId }`. Office callers get a new "planner" refusal for API sessions, as they get "sheet" for sheet ones. (e) The API does its work in the request, an exception to golden rule 3 (written into CLAUDE.md and ADR-022, 12J.1) | "Plug in and play with all planners" (D5) | **Needs Dylan's OK** (19) |
+| S11 | The planner integration layer (5.3). (a) New table `api_keys`: id, firm_id, label (1–60 characters, trimmed), token_hash (bytea, unique), hint (the last 4 characters), created_by and revoked_by (composite links to `office_users`), last_used_at, revoked_at, created_at. The app may only read and add rows, and change `last_used_at`, `revoked_at` and `revoked_by` (`TABLE_ACCESS` `["SELECT", "INSERT"]` plus a `COLUMN_UPDATES` entry), so it can never rewrite a key's hash or label; no delete (a key's id is the actor on every change it made); left out of the firm's data export. Plus an owner-run `SECURITY DEFINER` function `app_api_key_lookup(hash)` that returns only the firm id and key id of a key that isn't revoked: **a new machine login path**, so this is an auth change as well as a schema change. Before that look-up, a key of the wrong shape is refused without touching the database, and each web process counts refused keys per client address in memory (30 a minute, then 429 before any look-up). (b) `webhook.url` added to `app_set_firm_setting()`'s accepted keys, plus `webhook.signing_version`, which the app can't set: the function adds 1 to it whenever `webhook.url` is set or cleared, and on one more accepted call, `app_set_firm_setting('webhook.rotate', null)`, that only adds 1 (an old, maybe leaked signing secret can never come back). (c) `api` added to `shifts.source` (`SHIFT_SOURCES`, `src/lib/db/schema/roster.ts:39`), `shift_events.source` (with a unique key `(firm_id, source, planner_ref)`) and S3's `cancel_via`. (d) **A second caller of the office's whole-session cancel and move** (`cancelShiftByFirm()`, `moveShiftByFirm()`, golden-rule-12 code that today accepts only an active admin or resourcer): `by: { type: "api", keyId }`, which skips the office-user check and instead checks, in the same transaction, that the key is still live (`select … from api_keys where id = keyId and revoked_at is null for share`); it is allowed only on API sessions, treats rest, weekly-hours and day-off failures as blocking (no person is there to override them), and logs with the `system` actor and `{ by: "firm", via: "api", keyId }`. Office callers get a new "planner" refusal for API sessions, as they get "sheet" for sheet ones. (e) The API does its work in the request, an exception to golden rule 3 (written into CLAUDE.md and ADR-022, 12J.1) | "Plug in and play with all planners" (D5) | **Approved** (19); built in 12J.1, with one addition from its review: a revocation is final (a trigger refuses any later change to `revoked_at` or `revoked_by`, migration 0046). Golden rule 3's new wording waits for Dylan to confirm (`docs/overnight-log.md`, Morning summary) |
 
 **No migration needed:**
 - `sites.lat`/`lng` already exist (`src/lib/db/schema/tenancy.ts:90-92`); they just start being
@@ -1293,7 +1294,8 @@ firm, so the same ref in two firms is two separate sessions.
    - **A refused change is shown in ShiftDesk too:** the planner may ignore the 409 (an automation
      step often does), and then shows a time ShiftDesk's casuals never heard about. So
      `shift.move_refused` (with `via: "api"`) and a new `api.change_refused { shiftId, code }` (for
-     `session_has_bookings` and `places_below_booked`) raise a Needs attention item (3.9), worked
+     `session_has_bookings`, `places_below_booked` and, added in 12J.1's review, a booked
+     session's move or cancellation with no reason, `change_reason_required`) raise a Needs attention item (3.9), worked
      out from the log (no schema change): "Your planner's change to {session} was refused: {n}
      booked casuals can't work it. Cancel their bookings, then ask your planner to send it again."
      It clears when a later `shift.changed`, `shift.moved` or cancellation of that session is
@@ -1579,8 +1581,10 @@ Delivery is plain HTTPS from the worker, so it runs on any Docker host (5.8).
 So an urgent session added this morning for tonight has its travel lines before its first wave
 (the wave waits up to 5 seconds for them, then goes anyway: 12G.2).
 
-**An unknown estimate** (the job hasn't run yet, or the site has no postcode) is shown as "Distance
-not known yet", never hidden (D2). Offer waves still offer such a session, so the travel limit never
+**An unknown estimate** (the job hasn't run yet, or the site has no postcode) is shown, never hidden
+(D2): "Distance not known yet" when either point is missing (no travel area, a site with no
+location); while the job hasn't run but both points are known, the straight line as below (12G.2,
+12G.3). Offer waves still offer such a session, so the travel limit never
 silently stops a casual being offered work.
 
 **If the provider is down:** straight-line miles worked out from coordinates, labelled "about 7
@@ -2128,7 +2132,9 @@ of 12C.1; 12D.4 is part of 12D.1; 12E.2 is part of 12E.1; the old 12F.1 and 12F.
 - **Cancellations and strikes:** the mock-up's records, including one office cancellation; one
   strike withdrawn with a reason, one flagged for review.
 - **Enquiries:** Zoe's personal list, Ben's pay question and Kieran's cancel, each with its reply
-  built by the real reply functions and its log entries, all inside the 90-day window.
+  built by the real reply functions and its log entries, all inside the 90-day window. As built
+  (12I.1): the seed runs the shifts line's own reply job on them once, with no AI and a sender that
+  sends nothing; golden rule 1's boundary test lists the seed's loader for that (Dylan, 2026-10-12).
 - **Times shown come from rows, not the log.** Log entries are stamped when the seed runs and can't
   be backdated (`src/lib/db/admin/seed-saturday.ts:20-21`, `docs/testing.md:250`), so the loaders
   take times from row timestamps the seed can set; the log only says what happened.

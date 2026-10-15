@@ -13,6 +13,10 @@
 export const WARNING_DAYS = [30, 14, 7] as const;
 export type WarningDays = (typeof WARNING_DAYS)[number];
 
+// "Expiring soon" (12F.1): from the first warning on. One window for the expiry job's warnings,
+// the office's Casuals pages and the casual's own My shifts and Profile.
+export const EXPIRING_SOON_DAYS: number = Math.max(...WARNING_DAYS);
+
 export interface ScannedCredential {
   status: "valid" | "expired" | "applied" | "suspended";
   expiresOn: string | null; // yyyy-mm-dd

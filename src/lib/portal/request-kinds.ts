@@ -64,6 +64,13 @@ export const STATUS_WORDS: Record<string, string> = {
   auto_resolved: "Sorted",
 };
 
+// One request's status in words: a question (`general`) the office approved reads "Answered"
+// ("approved" can read as "booked": PLAN.md Messages 13). Stored `approved` all the same.
+export function statusWord(type: string, status: string): string {
+  if (type === "general" && status === "approved") return "Answered";
+  return STATUS_WORDS[status] ?? status;
+}
+
 export type CreateRequestOutcome =
   | {
       status: "created";

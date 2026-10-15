@@ -32,6 +32,10 @@ COPY --from=build /app /app
 # deploy/docker-compose.yml.
 # Every database connection is checked against it (sslmode=verify-full in .env; deploy/env.example).
 RUN mkdir -p /app/.next/cache && chown -R node:node /app/.next/cache
+# sharp re-encodes every photo and certificate image (src/lib/uploads/image.ts; 12F.2) with its own
+# native image library, installed by npm ci for this platform. Load it here, so an image without it
+# fails to build instead of failing the first casual who uploads a photo.
+RUN node -e "require('sharp')"
 # Never root.
 USER node
 EXPOSE 3000

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SessionDetailsForm } from "@/app/office/shifts/[id]/details-form";
 import { EditShiftForm } from "@/app/office/shifts/[id]/edit-form";
 import { ShiftCreateForm } from "@/app/office/shifts/shift-create-form";
-import { SiteBlocks } from "@/app/office/workers/[id]/access-forms";
+import { SiteBlocks } from "@/app/office/casuals/[id]/access-forms";
 import { PayQueryForm } from "@/app/pay/query/pay-query-form";
 import { AvailabilityForm } from "@/app/profile/availability-form";
 import { NotificationForm } from "@/app/profile/notification-form";
@@ -200,7 +200,7 @@ describe("fields React controls wait for the page before taking input", () => {
     expect(files).toEqual(
       expect.arrayContaining([
         "src/app/office/shifts/shift-create-form.tsx",
-        "src/app/office/workers/[id]/access-forms.tsx",
+        "src/app/office/casuals/[id]/access-forms.tsx",
       ]),
     );
     expect(files.length).toBeGreaterThanOrEqual(15);

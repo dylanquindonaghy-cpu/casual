@@ -208,4 +208,36 @@ describe("a link opened with punctuation after it", () => {
       expect(open(`http://acme.localhost:3000${path}`).status, path).toBe(200);
     }
   });
+
+  // 12J.1: a planner's PUT to a ref ending in "." gets the API's own 400 bad_ref. A 308 would
+  // replay the PUT on the ref without it: another session, or a new one.
+  it("never redirects an /api/ path, the planner API's above all; other paths still redirect", () => {
+    const platform = (path: string) =>
+      handle(new NextRequest(`http://localhost:3000${path}`, { headers: { host: BASE } }));
+    for (const path of [
+      "/api/v1/sessions/SES-1042.",
+      "/api/v1/sessions/SES-1042,",
+      "/api/v1/sessions/SES-1042).",
+      "/api/v1/sessions/SES-1042%22",
+      "/api/v1/sessions/SES-1042%E2%80%99",
+      "/api/v1/cancellations.",
+      "/api/v1/sessions/SES-1042",
+      "/api/push/subscribe.",
+    ]) {
+      const res = platform(path);
+      expect(res.status, path).toBe(200);
+      expect(res.headers.get("location"), path).toBeNull();
+      expect(open(`http://acme.localhost:3000${path}`).status, path).toBe(200);
+    }
+    for (const [from, to] of [
+      ["/apiary.", "/apiary"],
+      ["/api.", "/api"],
+      ["/office/api/v1.", "/office/api/v1"],
+      ["/shifts/open.", "/shifts/open"],
+    ] as const) {
+      const res = platform(from);
+      expect(res.status, from).toBe(308);
+      expect(new URL(res.headers.get("location") ?? "").pathname, from).toBe(to);
+    }
+  });
 });

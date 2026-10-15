@@ -1,11 +1,23 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import vm from "node:vm";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { REJECT_REASONS as REJECT_REASON_LIST } from "@/lib/db/schema";
+import { statusLabel } from "@/lib/portal/qualification-copy";
+import {
+  CARD_GUIDANCE,
+  PHOTO_GUIDANCE,
+  PHOTO_WORDS,
+  sendUploadText,
+  type SendUploadOutcome,
+} from "@/lib/portal/upload-copy";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
+import type { ShiftFacts } from "@/lib/portal/shift-facts";
 import { REASONS } from "@/lib/rules/reasons";
+import { EVERY_LEVEL, EVERY_STATUS } from "../helpers/qualifications";
 
 // Copy is product (golden rule 11; docs/screens.md copy rules): every staff screen, in every
 // empty, error and answer state, in plain words. This renders them all and fails on jargon, raw
@@ -17,7 +29,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-const { MyShiftsView } = await import("@/app/my-shifts-view");
+const { BookedView } = await import("@/app/shifts/booked-view");
+const { HomeView } = await import("@/app/home-view");
 const { OpenShiftsView } = await import("@/app/shifts/open/open-shifts-view");
 const { UrgentView } = await import("@/app/urgent/urgent-view");
 const { TakeShiftResult } = await import("@/app/shifts/open/take-shift-result");
@@ -41,7 +54,10 @@ const { default: GlobalError } = await import("@/app/global-error");
 const { tryAgainText } = await import("@/lib/portal/copy");
 const { PushSetting } = await import("@/app/profile/push-setting");
 const { PushSettingView } = await import("@/app/profile/push-setting-view");
+import { postcodeAttribution } from "@/lib/travel/attribution";
 const { HelpView } = await import("@/app/help/help-view");
+// The firm's own strike and photo numbers the help page states (12H.3).
+const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36 };
 
 // Words a worker shouldn't have to know. Whole words, any case.
 const JARGON = [
@@ -147,15 +163,75 @@ const everyReason = [
   REASONS.unavailable(),
   REASONS.blocked_site(),
 ];
+// The page in full (12H.2), with a requirement in every status and every way of getting there.
+const requirementIn = (
+  status: ShiftFacts["requirements"][number]["status"],
+  uploadable = true,
+): ShiftFacts["requirements"][number] => ({
+  code: `T_${status.status.toUpperCase()}_${uploadable ? "U" : "O"}`,
+  name: "SIA door supervisor licence",
+  chip: "SIA DS",
+  status,
+  uploadable,
+});
+const pageFacts = (travel: ShiftFacts["travel"]): ShiftFacts => ({
+  eventName: "Riverside Festival",
+  payRatePence: 1550,
+  post: "Gate A",
+  meetingPoint: "Staff entrance",
+  uniform: "Black trousers",
+  isUrgent: true,
+  headcount: 4,
+  travel,
+  requirements: [
+    requirementIn({ status: "valid", expiresOn: "2027-03-03", renewing: false }),
+    requirementIn({ status: "valid", expiresOn: null, renewing: false }),
+    requirementIn({ status: "expiring_soon", expiresOn: "2026-11-05", renewing: false }),
+    requirementIn({ status: "expiring_soon", expiresOn: "2026-11-05", renewing: false }, false),
+    requirementIn({ status: "expiring_soon", expiresOn: "2026-11-05", renewing: true }),
+    requirementIn({ status: "being_checked", expiresOn: null, renewing: false }),
+    requirementIn({ status: "applied", expiresOn: null, renewing: false }),
+    requirementIn({ status: "missing", expiresOn: null, renewing: false }),
+    requirementIn({ status: "missing", expiresOn: null, renewing: false }, false),
+    requirementIn({ status: "expired", expiresOn: "2026-10-01", renewing: false }),
+    requirementIn({ status: "expired", expiresOn: null, renewing: false }, false),
+    requirementIn({ status: "rejected", expiresOn: null, renewing: false }),
+    requirementIn({ status: "suspended", expiresOn: null, renewing: false }),
+  ],
+  noticeHours: 48,
+  lastDay: "2026-11-07",
+});
+const arriveBy = new Date("2026-11-07T13:30:00Z");
+const facts = pageFacts({
+  kind: "estimated",
+  straightMetres: 4000,
+  arriveBy,
+  car: { minutes: 12, metres: 5000 },
+  publicTransport: { minutes: 24 },
+});
 const shiftPages: ShiftPage[] = [
   { state: "missing" },
-  { state: "booked", shift: booked },
-  { state: "open", shift: summary },
-  { state: "held", shift: summary, opensAt: new Date("2026-11-02T09:15:00Z") },
-  { state: "blocked", shift: summary, reasons: everyReason, review: null },
+  { state: "booked", shift: booked, facts },
+  { state: "open", shift: summary, facts },
+  {
+    state: "open",
+    shift: summary,
+    facts: pageFacts({
+      kind: "estimated",
+      straightMetres: 4000,
+      arriveBy,
+      car: null,
+      publicTransport: null,
+    }),
+  },
+  { state: "open", shift: summary, facts: pageFacts({ kind: "straight", straightMetres: 11000 }) },
+  { state: "open", shift: summary, facts: pageFacts({ kind: "unknown" }) },
+  { state: "held", shift: summary, facts, opensAt: new Date("2026-11-02T09:15:00Z") },
+  { state: "blocked", shift: summary, facts, reasons: everyReason, review: null },
   {
     state: "blocked",
     shift: summary,
+    facts,
     reasons: everyReason.slice(0, 1),
     review: { ref: "3F2A9C1B", askedAt: NOW },
   },
@@ -163,31 +239,62 @@ const shiftPages: ShiftPage[] = [
   { state: "started", shift: summary },
   { state: "cancelled", shift: summary },
 ];
-const myShifts = (o: Partial<Parameters<typeof MyShiftsView>[0]>) =>
-  createElement(MyShiftsView, {
-    firstName: "Sam",
-    voice,
+const myShifts = (o: Partial<Parameters<typeof BookedView>[0]>) =>
+  createElement(BookedView, {
     timeZone: TZ,
     now: NOW,
     view: "upcoming",
     shifts: [],
-    notices: [],
     ...o,
   });
 const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {}) => ({
   shifts: [],
   truncated: false,
   offerAlerts: true,
+  area: { maxMinutes: 45 },
+  further: { count: 0, atLeast: false },
   choices: { days: [], sites: [], roles: [] },
   ...o,
 });
+// Home (12H.1): her next shift, Needs updating, urgent shifts and the shifts she can apply for.
+const homeScreen = (o: Partial<Parameters<typeof HomeView>[0]>) =>
+  createElement(HomeView, {
+    firstName: "Sam",
+    voice,
+    timeZone: TZ,
+    now: NOW,
+    next: null,
+    needs: [],
+    photo: { status: "up_to_date", current: null, waiting: null },
+    open: openList(),
+    ...o,
+  });
+const urgentOpen = (n: number) =>
+  openList({
+    further: { count: 2, atLeast: false },
+    shifts: Array.from({ length: n }, (_, i) => ({
+      shiftId: `3333333${i}-3333-4333-8333-333333333333`,
+      role: "door_supervisor",
+      startsAt: booked.startsAt,
+      endsAt: booked.endsAt,
+      placesLeft: 1,
+      opensAt: null,
+      travel: { kind: "unknown" as const },
+      isUrgent: i === 0,
+      site: { id: "33333333-3333-4333-8333-333333333333", ...site },
+      eventName: "Raceday",
+      payRatePence: 1260,
+      post: "Gate B",
+    })),
+  });
 const paragraph = (s: string) => createElement("p", null, s);
 
 const SCREENS: [string, ReactElement][] = [
-  ["My shifts, nothing booked", myShifts({})],
-  ["My shifts, past, nothing", myShifts({ view: "past" })],
-  ["My shifts, one urgent shift", myShifts({ urgentCount: 1 })],
-  ["My shifts, several urgent shifts", myShifts({ urgentCount: 3 })],
+  ["Booked, nothing booked", myShifts({})],
+  ["Booked, past, nothing", myShifts({ view: "past" })],
+  ["Home, nothing booked or open", homeScreen({})],
+  ["Home, one urgent shift and others to apply for", homeScreen({ open: urgentOpen(4) })],
+  ["Home, no home area", homeScreen({ open: openList({ area: null }) })],
   ["Urgent board, none", createElement(UrgentView, { list: openList(), timeZone: TZ, now: NOW })],
   [
     "Urgent board, one urgent shift",
@@ -201,6 +308,7 @@ const SCREENS: [string, ReactElement][] = [
             endsAt: booked.endsAt,
             placesLeft: 1,
             opensAt: null,
+            travel: { kind: "unknown" },
             isUrgent: true,
             site: { id: "33333333-3333-4333-8333-333333333333", ...site },
           },
@@ -210,26 +318,69 @@ const SCREENS: [string, ReactElement][] = [
       now: NOW,
     }),
   ],
+  ["Booked, a booking", myShifts({ shifts: [booked] })],
   [
-    "My shifts, a booking and licence notices",
-    myShifts({
-      shifts: [booked],
-      notices: [
-        {
-          type: "SIA_DS",
-          name: "SIA door supervisor licence",
-          expiresOn: "2026-11-20",
-          expired: false,
-        },
-        {
-          type: "FIRST_AID",
-          name: "first aid at work certificate",
-          expiresOn: "2026-10-01",
-          expired: true,
-        },
-        { type: "SIA_SG", name: "SIA security guard licence", expiresOn: null, expired: true },
-      ],
+    "Home, her next shift and every level of Needs updating, the photo due soon (12F.1, 12H.1)",
+    homeScreen({
+      next: { ...booked, eventName: "Raceday", post: "Gate B", payRatePence: 1260 },
+      needs: EVERY_LEVEL,
+      photo: {
+        status: "due_soon",
+        current: { id: "p1", uploadedOn: "2023-11-20", renewBy: "2026-11-20" },
+        waiting: null,
+      },
     }),
+  ],
+  [
+    "Open shifts, no travel area (12G.3)",
+    createElement(OpenShiftsView, {
+      list: openList({ area: null }),
+      filters: {},
+      timeZone: TZ,
+      now: NOW,
+    }),
+  ],
+  [
+    "Open shifts, a shift with its travel line and more further away (12G.3)",
+    createElement(OpenShiftsView, {
+      list: openList({
+        further: { count: 2, atLeast: false },
+        shifts: [
+          {
+            shiftId: booked.shiftId,
+            role: "door_supervisor",
+            startsAt: booked.startsAt,
+            endsAt: booked.endsAt,
+            placesLeft: 2,
+            opensAt: null,
+            isUrgent: false,
+            site: { id: "33333333-3333-4333-8333-333333333333", ...site },
+            travel: {
+              kind: "estimated",
+              straightMetres: 9000,
+              arriveBy: new Date("2026-11-07T13:30:00Z"),
+              car: { minutes: 18, metres: 11587 },
+              publicTransport: null,
+            },
+          },
+        ],
+      }),
+      filters: {},
+      timeZone: TZ,
+      now: NOW,
+    }),
+  ],
+  [
+    "Urgent board, at least 50 more further away (12G.3)",
+    createElement(UrgentView, {
+      list: openList({ further: { count: 50, atLeast: true } }),
+      timeZone: TZ,
+      now: NOW,
+    }),
+  ],
+  [
+    "My shifts, a booking with its travel line (12G.3)",
+    myShifts({ shifts: [{ ...booked, travel: { kind: "straight", straightMetres: 12000 } }] }),
   ],
   [
     "Open shifts, nothing open",
@@ -463,43 +614,18 @@ const SCREENS: [string, ReactElement][] = [
           { day: "2026-11-04", booked: true },
           { day: "2026-11-07", booked: false },
         ],
-        credentials: [
-          {
-            type: "SIA_DS",
-            name: "SIA door supervisor licence",
-            status: "valid",
-            expiresOn: "2029-01-01",
-            expired: false,
+        qualifications: EVERY_STATUS,
+        rightToWork: { checked: true, checkedOn: "2026-01-12", expired: false },
+        rolesWithoutRule: ["response_team_lead"],
+        photo: {
+          status: "waiting",
+          current: {
+            id: "7c1d2e3f-0000-4000-8000-0000000000aa",
+            uploadedOn: "2024-08-03",
+            renewBy: "2027-08-03",
           },
-          {
-            type: "FIRST_AID",
-            name: "first aid at work certificate",
-            status: "valid",
-            expiresOn: "2026-10-01",
-            expired: true,
-          },
-          {
-            type: "SIA_SG",
-            name: "SIA security guard licence",
-            status: "applied",
-            expiresOn: null,
-            expired: false,
-          },
-          {
-            type: "SIA_CP",
-            name: "SIA close protection licence",
-            status: "suspended",
-            expiresOn: null,
-            expired: false,
-          },
-          {
-            type: "STEWARD_L2",
-            name: "Level 2 spectator safety qualification",
-            status: "valid",
-            expiresOn: null,
-            expired: false,
-          },
-        ],
+          waiting: { id: "7c1d2e3f-0000-4000-8000-0000000000ab", uploadedOn: "2026-10-01" },
+        },
       },
     }),
   ],
@@ -517,7 +643,10 @@ const SCREENS: [string, ReactElement][] = [
         textsOff: false,
         today: "2026-11-02",
         unavailable: [],
-        credentials: [],
+        qualifications: [],
+        rightToWork: { checked: false, checkedOn: null, expired: true },
+        rolesWithoutRule: [],
+        photo: { status: "missing", current: null, waiting: null },
       },
     }),
   ],
@@ -566,14 +695,70 @@ const SCREENS: [string, ReactElement][] = [
     createElement(ErrorBody, { online: false, ready: true, retry: () => undefined }),
   ],
   ["The whole page failed", createElement(GlobalError)],
-  ["Help", createElement(HelpView, { firmName: "Acme Events" })],
+  ["Help", createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 })],
+  // Uploads (12F.2): every answer after sending a photo or card, the guidance, the photo's statuses
+  // and why one wasn't accepted, as she reads them.
+  [
+    "Uploads: every answer, the guidance, the photo's statuses and the reasons",
+    createElement(
+      "div",
+      null,
+      ...(
+        [
+          { status: "sent", kind: "photo" },
+          { status: "sent", kind: "certificate" },
+          { status: "empty" },
+          { status: "too_big" },
+          { status: "not_an_image" },
+          { status: "not_needed" },
+          { status: "not_active" },
+          { status: "logged_out" },
+          { status: "no_signal" },
+          { status: "error" },
+        ] as SendUploadOutcome[]
+      ).map((o, i) => createElement("p", { key: `s${i}` }, sendUploadText(o))),
+      createElement("p", { key: "g1" }, PHOTO_GUIDANCE),
+      createElement("p", { key: "g2" }, CARD_GUIDANCE),
+      ...Object.values(PHOTO_WORDS).map((w) => createElement("p", { key: w }, w)),
+      ...REJECT_REASON_LIST.map((r) =>
+        createElement(
+          "p",
+          { key: r },
+          statusLabel({
+            status: "rejected",
+            rejected: { uploadId: "u", sentOn: "2026-10-30", reason: r },
+          }),
+        ),
+      ),
+    ),
+  ],
 ];
+
+// The postcode data's licence requires its attribution word for word (src/lib/travel/attribution.ts;
+// docs/office-v2.md 4.7): the one passage these checks can't make plainer ("database right"), so
+// it alone is taken out before them, and the test below holds Help to the exact words.
+const LICENCE_WORDS = [postcodeAttribution(2026)];
+const withoutLicence = (words: string) =>
+  LICENCE_WORDS.reduce((rest, required) => rest.replace(required, " "), words);
 
 describe("every staff screen and state is in plain words", () => {
   it.each(SCREENS)("%s", (_name, element) => {
     const words = text(renderToStaticMarkup(element));
     expect(words.trim().length).toBeGreaterThan(0);
-    expect(problems(words)).toEqual([]);
+    expect(problems(withoutLicence(words))).toEqual([]);
+  });
+
+  it("Help carries the postcode licence's attribution word for word, and nothing else is let off", () => {
+    const words = text(
+      renderToStaticMarkup(
+        createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 }),
+      ),
+    );
+    expect(words).toContain(postcodeAttribution(2026));
+    // Only that exact passage is taken out: the same word anywhere else still fails.
+    expect(problems(withoutLicence(`${postcodeAttribution(2026)} Check the database.`))).toEqual([
+      "jargon: database",
+    ]);
   });
 
   it("the offline pages from the service worker too", () => {
@@ -638,5 +823,34 @@ describe("every staff screen and state is in plain words", () => {
       vi.unstubAllGlobals();
     }
     expect(tryAgainText()).toBe("Something went wrong. Try again."); // no browser: assume signal
+  });
+});
+
+// The office dashboard's gaps are "Urgent gaps", not a casting call (Phase 12E.1: Dylan turned the
+// other wording down). Every file under src/ and the screens doc, any case, line breaks counted
+// as spaces.
+const TURNED_DOWN = /urgently\s+looking\s+for/i;
+
+function everyFile(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? everyFile(path) : [path];
+  });
+}
+
+describe("wording Dylan turned down", () => {
+  it("'urgently looking for' is nowhere in src/ or docs/screens.md", () => {
+    const files = [
+      ...everyFile(join(process.cwd(), "src")),
+      join(process.cwd(), "docs/screens.md"),
+    ];
+    expect(files.length).toBeGreaterThan(100);
+    expect(files.filter((f) => TURNED_DOWN.test(readFileSync(f, "utf8")))).toEqual([]);
+  });
+
+  it("the check itself catches it", () => {
+    expect(TURNED_DOWN.test("We're Urgently looking for stewards")).toBe(true);
+    expect(TURNED_DOWN.test("urgently\n  looking for")).toBe(true);
+    expect(TURNED_DOWN.test("Urgent gaps")).toBe(false);
   });
 });

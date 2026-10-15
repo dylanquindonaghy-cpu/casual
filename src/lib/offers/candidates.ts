@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { FirmTx } from "../db/scoped";
+import { outsideArea } from "../travel/area";
 import { weeklyHours } from "../roster/allocation-input";
 import { previewBookings } from "../roster/book";
 import { pairKey } from "../roster/eligibility-input";
@@ -13,9 +14,14 @@ import { localDateOf } from "../time/zoned";
 // the shift's role who want open-shift messages (their profile setting), have never held a place
 // on the shift (on it now, or cancelled off it: a cancellation is a "no"), haven't been offered it
 // before (an offer that failed to send doesn't count), who are under the daily offer cap unless the
-// shift is urgent (src/lib/rules/offer-cap.ts), and whom the rules allow (previewBookings: the same
-// check as the boards). Each comes with what the fair-rotation order needs: confirmed hours in the
-// shift's week and when they were last offered any shift. Reads only; the wave job decides.
+// shift is urgent (src/lib/rules/offer-cap.ts), whose travel area doesn't rule the shift out (an
+// unknown distance is still offered: src/lib/travel/area.ts; 12G.3), and whom the rules allow
+// (previewBookings: the same check as the boards). Each comes with what the fair-rotation order
+// needs: confirmed hours in the shift's week and when they were last offered any shift. Reads
+// only; the wave job decides.
+//
+// The office's offer by hand (src/lib/offers/office-offer.ts) passes `byHand`: a casual's travel
+// area doesn't stop the office offering them a shift (D2). Everything else applies to it too.
 //
 // The shift's role, start, urgency and the firm's time zone are read here from the shift id, never
 // taken from the caller, so no caller can skip the cap or move its day. Offers pick their workers
@@ -42,11 +48,12 @@ export async function lockOfferCounts(tx: FirmTx, workerIds: string[]): Promise<
 }
 
 // `only`: just these workers (the office's offer to one person), the same rules for each.
+// `byHand`: the office's own offer, which a travel area doesn't limit.
 export async function waveCandidates(
   tx: FirmTx,
   shiftId: string,
   now: Date,
-  opts: { only?: string[] } = {},
+  opts: { only?: string[]; byHand?: boolean } = {},
 ): Promise<WaveCandidate[]> {
   const { rows: found } = await tx.execute<{
     role: string;
@@ -54,9 +61,10 @@ export async function waveCandidates(
     is_urgent: boolean;
     time_zone: string;
     showing: boolean;
+    site_id: string | null;
   }>(sql`
     select s.role, s.starts_at, s.is_urgent, f.timezone as time_zone,
-           s.showing_to_casuals and e.showing_to_casuals as showing
+           s.showing_to_casuals and e.showing_to_casuals as showing, s.site_id::text
       from shifts s join firms f on f.id = s.firm_id
       join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
      where s.id = ${shiftId}
@@ -69,7 +77,18 @@ export async function waveCandidates(
     startsAt: new Date(row.starts_at),
     urgent: row.is_urgent,
     timeZone: row.time_zone,
+    siteId: row.site_id,
   };
+  // Outside the casual's travel area: no offer from a wave (a shift with no site has no distance).
+  const inArea =
+    opts.byHand || shift.siteId === null
+      ? sql``
+      : sql`and not ${outsideArea({
+          firmId: sql`w.firm_id`,
+          workerId: sql`w.id`,
+          siteId: sql`${shift.siteId}::uuid`,
+          startsAt: sql`${shift.startsAt}::timestamptz`,
+        })}`;
   const today = localDayOf(now, shift.timeZone);
   const { rows } = await tx.execute<{
     worker_id: string;
@@ -94,6 +113,7 @@ export async function waveCandidates(
        and not exists (select 1 from offers o
                         where o.shift_id = ${shift.id} and o.worker_id = w.id
                           and o.response is distinct from 'failed')
+       ${inArea}
        ${
          opts.only
            ? sql`and w.id in (${

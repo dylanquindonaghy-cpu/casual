@@ -36,6 +36,9 @@ export type ResolveRequestInput = z.input<typeof resolveRequestSchema>;
 export type ResolveRequestResult =
   | { status: "resolved"; decision: RequestDecision }
   | { status: "already"; current: string } // answered already (by someone, or sorted itself)
+  // A question from the shifts line whose message is still there: it's answered on Enquiries,
+  // with the message locked (src/lib/office/enquiry-actions.ts), so it's never answered twice.
+  | { status: "on_enquiries" }
   | { status: "note_needed" } // a decline with no note
   | { status: "note_too_long" }
   | { status: "not_found" }
@@ -56,11 +59,19 @@ export async function resolveRequest(
     run(firmId, async (tx): Promise<ResolveRequestResult> => {
       if (!(await officeCanPlace(tx, input.by.id))) return { status: "not_allowed" };
       const [request] = await tx
-        .select({ status: requests.status, type: requests.type, shiftId: requests.shiftId })
+        .select({
+          status: requests.status,
+          type: requests.type,
+          shiftId: requests.shiftId,
+          messageId: requests.messageId,
+        })
         .from(requests)
         .where(eq(requests.id, input.requestId))
         .for("no key update");
       if (!request) return { status: "not_found" };
+      if (request.type === "general" && request.messageId !== null) {
+        return { status: "on_enquiries" };
+      }
       if (request.status !== "open" && request.status !== "escalated") {
         return { status: "already", current: request.status };
       }

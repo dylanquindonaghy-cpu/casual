@@ -21,6 +21,62 @@ reviewed once by a solicitor before the first pilot.
   transfer terms. **Dylan to confirm** the Google line with
   the solicitor (added in Phase 10 task 10).
 
+## The firm's planner (12J.2)
+
+A firm's admin can connect its planner: the planner sends sessions with an API key and hears about
+bookings, cancellations and withdrawn strikes by signed webhook (`docs/integrations.md`). The firm
+is the controller and its admin chooses where the data goes; the planner is the firm's own
+recipient.
+- **Sent:** the session's facts (event, site name and postcode, role, times, pay rate, post,
+  meeting point, uniform, requirements), the booking's facts (status, who booked it, times), the
+  casual's first and last name and staff ref, and the cancellation and strike result (notice hours,
+  a reason code, the strike's status and how many count). A casual's own reason is always
+  `casual_own_reason`: "I'm unwell" is health data and never leaves ShiftDesk.
+- **Never sent:** a mobile number, an email address, a casual's postcode or travel data, health,
+  free text (anyone's typed reason or note), review flags or withdrawal reasons. Each webhook type
+  is a strict schema, so nothing can be added without the schema changing and its tests.
+- **Built when sent:** the queue holds ids only, so an erasure needs no extra work: after it the
+  casual is `null` with `"erased": true`. The runbook tells the firm to remove the person from its
+  planner too.
+- **Only to public https addresses** the admin added; the address is treated as a secret and never
+  logged. `api_keys` is left out of the firm's data export, and the export shows the webhook address
+  as its hint only.
+- The strikes DPIA lists the firm's planner as a recipient of strike status.
+
+## Health reasons: the Article 9 condition (12C.1)
+
+A casual can cancel with "I'm unwell". That is health data, a special category under UK GDPR
+Article 9, and so is a label saying someone cancelled for a "health reason"
+(https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/employment/information-about-workers-health/data-protection-and-workers-health-information/).
+- **The condition firms rely on:** employment, social security and social protection (Article
+  9(2)(b)), with DPA 2018 Schedule 1 paragraph 1. It needs the firm to have an **appropriate policy
+  document**: how it meets the data protection principles for this data, and how long it keeps it.
+  The firm writes it before it uses ShiftDesk with real casuals and keeps it while it processes
+  the data (a template for firms is in the Parking lot: "Appropriate policy document template").
+- **Kept inside ShiftDesk:** admins and resourcers see the reason on screen. Everything that
+  leaves (the evidence email, the record PDF, the cancellations CSV, the webhooks and the API) shows
+  one neutral value for all four quick reasons, "Casual's own reason (see ShiftDesk)" or
+  `casual_own_reason`; tests check "unwell" and "health" never appear in them.
+
+## Strikes: the cautions (12C.1; `docs/office-v2.md` §6.2)
+
+A strike is a casual's own cancellation less than 48 hours before the shift (`strikes.notice_hours`,
+the firm's own setting, kept apart from the legal notice threshold). Summary of public sources, not
+legal advice; `docs/dpia-strikes.md` comes first for a real firm.
+- **A record, never an automatic penalty.** Nothing happens automatically; a named person decides
+  anything that follows (the automated-decision safeguards in the Employment Rights Act 2025, and
+  Acas: review points shouldn't trigger disciplinary action automatically).
+- **Told up front, and heard:** the cancel screen shows the warning before they confirm, and the
+  version they saw is stored with the cancellation (S3); the help page explains the rule; a casual
+  can tap "Tell us what happened"; the office can withdraw a strike.
+- **No strike** when the office, the planner or the sheet cancelled, on a booking the office made,
+  or after the office or the planner changed the session (the future protection against detriment).
+- **Health and caring reasons are flagged** for a person to review (Equality Act 2010; Acas).
+- **Never linked to money:** no fines, no deductions (s.13 ERA 1996). Payroll never sees strikes.
+- **Evidence goes only to a confirmed strikes-team address** (12B.7), never "unwell" or "health".
+- **Kept:** it counts 90 days; its row is deleted at 12 months (past the 6-month tribunal limit),
+  never during a hold; its log entries stay as long as the action log (the retention table below).
+
 ## Data processing agreement (must cover)
 
 Instructions only · confidentiality · security measures · sub-processors and notice of changes ·
@@ -44,7 +100,7 @@ Tier 1: £52 a year (£47 by direct debit) for small organisations. Pay before h
   human review. (Built: "Ask the office to review" on a refused shift, `src/lib/portal/review.ts`.)
 - People who aren't staff (Phase 7): a message to the shifts line from a number that isn't an
   active worker's is kept in `messages` (the number and their words, the firm's
-  `retention.message_days`, 90 by default, with the retention job), shown to the firm's admins and resourcers on Today, and never put in the log, an email or
+  `retention.message_days`, 90 by default, with the retention job), shown to the firm's admins and resourcers on Enquiries (and among the dashboard's latest enquiries), and never put in the log, an email or
   the AI. The firm's privacy notice should cover messages to its shifts line.
 - The shifts line (Phase 7): a WhatsApp no keyword matches is sorted by AI (once the Anthropic
   API is connected) into one of four labels, from the worker's text alone; the reply is always the app's own
@@ -81,7 +137,8 @@ floor, and that a hold covers the whole firm (not one worker).
 | The office's typed reason for placing someone despite a rule | On the booking, not in the log; the same 12 months from the booking (built) |
 | Strikes (a casual's own late cancellations, 12C.1) | The strike counts 90 days (`strikes.live_days`); its row is deleted 12 months after it was issued (`strikes.keep_months`, which must cover the time a strike counts plus 6 months, the tribunal limit; the purge never deletes a strike that stopped counting less than 6 months ago), nothing during a hold (built: the nightly purge). The office's reason for withdrawing one (12C.5) goes with its row, or when the casual is erased. Its `strike.issued`, `strike.withdrawn` and `strike.reviewed` log entries (ids and hours, never a reason or the review flag) stay with the action log. A DPIA comes first: `docs/dpia-strikes.md` |
 | Travel estimates (12G.2: minutes and distance from a postcode to a site, keyed by postcode, not by person) | 7 days after the last session they were for, by the nightly purge (even during a hold: not about anyone in particular), and when a site's postcode changes (built). Not in the firm's data export |
-| A casual's travel area (12G.1: their start-from postcode and its central point, how they travel, their limit) | While they keep it: deleted when they remove it, when the office makes them inactive as "They've left", and on erasure (built). Never in the action log. A DPIA and the legitimate-interests balancing test come first: `docs/dpia-travel.md` |
+| A casual's travel area (12G.1: their start-from postcode and its central point, how they travel, their limit) | While they keep it: deleted when they remove it, when the office makes them inactive as "They've left", and on erasure (built). Never in the action log, with one exception: a personal shifts-line reply's `enquiry.checks` entry (12D.2) keeps their limit in minutes and the minutes to each session it offered (never the postcode or the point), and stays with the action log. A DPIA and the legitimate-interests balancing test come first: `docs/dpia-travel.md` |
+| Staff photos and certificate images (12F.2) | One the office turned down: 30 days after the check. A staff photo replaced by a newer approved one: 30 days after that one was approved. The current photo and the image behind a current certificate stay while they're current, then follow the firm's retention (a later task); all of them go on erasure (built: the nightly purge, nothing during a hold). In the exports as details only (kind, date, status, fingerprint); each image is its own download |
 | Call audio | We store none: only a voicemail's text. But Twilio records every voicemail (up to 2 minutes) to transcribe it, and keeps the recording until it's deleted there: a deletion job comes with the Twilio sender ("Connect Twilio", "Before going live") |
 | Requests, events, notice report | 12 months (review once 2027 rules are final). **Not purged yet**: the log is append-only by design, so deleting it needs a deliberate change (PLAN.md Parking lot). Nothing can be 12 months old until a year after the pilot starts |
 | Workers and credentials | Until the firm deletes them |
@@ -161,7 +218,33 @@ for the service the worker asked for): `docs/privacy-notice.md`, "On your phone"
 - SIA approved contractors may deploy a limited share of staff whose licence application is in
   progress (reported as up to 15%) — kept as a firm setting (default 0, and no command sets it
   yet) until the current SIA rules are confirmed.
-- Third-party check APIs exist, but the SIA doesn't endorse them. **Don't build a scraper.**
+- Third-party check APIs exist, but the SIA doesn't endorse them. **Don't build a scraper.** The
+  office's check page links the GOV.UK register for a person to look the licence up by hand.
+- **Only checked records count** (12F.2; D3). A casual may upload a photo of her card; it counts for
+  nothing (the rules, the expiry scan and the dashboard all ignore it, and the database stores it as
+  expired) until a named admin or resourcer approves it, typing the expiry date and number as they
+  read them from the card. Rejecting takes a reason from a fixed list. Every check is logged
+  (`upload.approved`, `upload.rejected`: ids and codes only).
+- **What casuals never upload:** CSAS accreditation (only this firm's own scheme covers its shifts,
+  Police Reform Act 2002 s.41: the office records it, confirming that), right-to-work documents
+  (they stay with the office, Rules 15), and anything holding health or criminal record details
+  (drugs and alcohol tests, rail medicals, DBS certificates): the office records those itself, so
+  we never keep a copy of special-category or criminal-offence data
+  (`src/lib/rules/packs.ts` `officeRecorded`).
+
+## Photos and certificate images (12F.2; docs/office-v2.md 5.5)
+
+- **No biometrics.** No face matching, no AI and no reading of the text on a card, ever. Matching a
+  face would make staff photos biometric data, special-category data under UK GDPR Article 9
+  (https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/biometric-data-guidance-biometric-recognition/biometric-recognition/).
+  A photo is looked at by a person, as the SIA's own checks are.
+- **Stored in Postgres** (row-level security, erasure and export cover them), 1 MB at most. The
+  server reads each file's real type from its first bytes (JPEG, PNG or WebP only) and re-encodes
+  it with `sharp`, which keeps only the pixels: location (GPS), camera details and every other
+  hidden tag are dropped.
+- **Seen only by** the casual (her own) and her firm's active admins and resourcers, through one
+  access-checked address (`/files/{id}`), never cached and never in the phone's offline copy.
+- **Retention:** above ("Retention defaults").
 - **Rail:** PTS, Sentinel, drugs and alcohol test dates. **Construction:** CSCS card type/expiry.
   **Cleaning:** DBS where the site requires it.
 

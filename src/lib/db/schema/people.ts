@@ -11,9 +11,10 @@ import {
   smallint,
   text,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createdAt, firmIsolation, timestamptz } from "./helpers";
+import { bytea, createdAt, firmIsolation, timestamptz } from "./helpers";
 import {
   TRAVEL_MINUTES,
   TRAVEL_MODES,
@@ -119,6 +120,107 @@ export const workers = pgTable(
   ],
 ).enableRLS();
 
+// Photos and certificate images (docs/office-v2.md 5.5; S7, D3; 12F.2), stored in Postgres so
+// row-level security, erasure and export cover them. Always a JPEG re-encoded by the server
+// (src/lib/uploads/image.ts: no location or other hidden data), 1 MB at most. A casual sends them;
+// a named office person checks each one (approved or rejected with a reason code). The current
+// staff photo is the latest approved one (src/lib/uploads/photo.ts), so workers has no photo
+// column. One waiting upload per casual per kind and type: a new one replaces it. The app may add,
+// check (COLUMN_UPDATES) and delete them (a replaced one, the retention purge, erasure), never
+// rewrite the bytes or whose they are. The JSON exports carry the details, never the bytes.
+export const UPLOAD_KINDS = ["photo", "certificate"] as const;
+export type UploadKind = (typeof UPLOAD_KINDS)[number];
+export const UPLOAD_STATUSES = ["waiting", "approved", "rejected"] as const;
+export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
+// Why the office didn't accept one (docs/office-v2.md 3.7): codes, never typed words.
+export const REJECT_REASONS = [
+  "blurry",
+  "wrong_document",
+  "expired",
+  "doesnt_match",
+  "other",
+] as const;
+export type RejectReason = (typeof REJECT_REASONS)[number];
+export const UPLOAD_MAX_STORED_BYTES = 1_000_000;
+const reasonList = sql.raw(REJECT_REASONS.map((r) => `'${r}'`).join(", "));
+
+export const uploads = pgTable(
+  "uploads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    firmId: uuid("firm_id")
+      .notNull()
+      .references(() => firms.id),
+    workerId: uuid("worker_id").notNull(),
+    kind: text("kind", { enum: UPLOAD_KINDS }).notNull(),
+    // A certificate's qualification type code (data, as credentials.type); null for a photo.
+    credentialType: text("credential_type"),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    sha256: text("sha256").notNull(), // hex: the fingerprint the exports carry
+    data: bytea("data").notNull(),
+    uploadedBy: text("uploaded_by", { enum: ["casual"] })
+      .notNull()
+      .default("casual"),
+    status: text("status", { enum: UPLOAD_STATUSES }).notNull().default("waiting"),
+    checkedBy: uuid("checked_by"),
+    checkedAt: timestamptz("checked_at"),
+    rejectReason: text("reject_reason", { enum: REJECT_REASONS }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("uploads_firm_id_id_key").on(t.firmId, t.id),
+    foreignKey({
+      name: "uploads_worker_fk",
+      columns: [t.firmId, t.workerId],
+      foreignColumns: [workers.firmId, workers.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "uploads_checked_by_fk",
+      columns: [t.firmId, t.checkedBy],
+      foreignColumns: [officeUsers.firmId, officeUsers.id],
+    }),
+    // One waiting at a time per casual, kind and type.
+    uniqueIndex("uploads_one_waiting")
+      .on(t.firmId, t.workerId, t.kind, sql`coalesce(${t.credentialType}, '')`)
+      .where(sql`${t.status} = 'waiting'`),
+    // "Uploads to check", oldest first; and a casual's own, newest first.
+    index("uploads_firm_id_status_idx").on(t.firmId, t.status, t.createdAt),
+    index("uploads_firm_id_worker_idx").on(t.firmId, t.workerId, t.kind, t.createdAt),
+    check("uploads_kind_check", sql`${t.kind} in ('photo', 'certificate')`),
+    check(
+      "uploads_type_check",
+      sql`(${t.kind} = 'photo' and ${t.credentialType} is null)
+        or (${t.kind} = 'certificate' and ${t.credentialType} ~ '^[A-Z][A-Z0-9_]*$')`,
+    ),
+    check("uploads_content_type_check", sql`${t.contentType} = 'image/jpeg'`),
+    check(
+      "uploads_size_check",
+      sql`${t.size} = octet_length(${t.data}) and ${t.size} between 1 and ${sql.raw(String(UPLOAD_MAX_STORED_BYTES))}`,
+    ),
+    check("uploads_sha256_check", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    check("uploads_uploaded_by_check", sql`${t.uploadedBy} = 'casual'`),
+    check("uploads_status_check", sql`${t.status} in ('waiting', 'approved', 'rejected')`),
+    // Checked means by someone, at a time; rejected means with a reason, and only then.
+    check(
+      "uploads_checked",
+      sql`(${t.status} = 'waiting') = (${t.checkedAt} is null)
+        and (${t.status} = 'waiting') = (${t.checkedBy} is null)
+        and (${t.status} = 'rejected') = (${t.rejectReason} is not null)
+        and (${t.rejectReason} is null or ${t.rejectReason} in (${reasonList}))`,
+    ),
+    firmIsolation(t.firmId),
+  ],
+).enableRLS();
+
+// A qualification record's check (S6; 12F.2): "verified" is the office's own (imported, recorded,
+// or an upload a named person approved); "waiting" and "rejected" are a casual's upload not
+// (yet) accepted. Only verified records count anywhere: every reader filters on it, and an
+// unchecked record is stored as expired (credentials_unchecked_never_valid), so a reader that
+// missed the filter still couldn't count it.
+export const CHECK_STATES = ["verified", "waiting", "rejected"] as const;
+export type CheckState = (typeof CHECK_STATES)[number];
+
 export const credentials = pgTable(
   "credentials",
   {
@@ -141,6 +243,10 @@ export const credentials = pgTable(
     // means none sent yet for it.
     expiryWarnedFor: date("expiry_warned_for", { mode: "string" }),
     expiryWarnedDays: smallint("expiry_warned_days"),
+    checkState: text("check_state", { enum: CHECK_STATES }).notNull().default("verified"),
+    rejectedReason: text("rejected_reason", { enum: REJECT_REASONS }),
+    // The upload it came from (a casual's certificate image), if any.
+    evidenceUploadId: uuid("evidence_upload_id"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -164,6 +270,23 @@ export const credentials = pgTable(
     check(
       "credentials_status_check",
       sql`${t.status} in ('valid', 'expired', 'applied', 'suspended')`,
+    ),
+    foreignKey({
+      name: "credentials_evidence_upload_fk",
+      columns: [t.firmId, t.evidenceUploadId],
+      foreignColumns: [uploads.firmId, uploads.id],
+    }),
+    check(
+      "credentials_check_state_check",
+      sql`${t.checkState} in ('verified', 'waiting', 'rejected')
+        and (${t.checkState} = 'rejected') = (${t.rejectedReason} is not null)
+        and (${t.rejectedReason} is null or ${t.rejectedReason} in (${reasonList}))`,
+    ),
+    // An unchecked record never reads as held, and always has the upload it's waiting on.
+    check(
+      "credentials_unchecked_never_valid",
+      sql`${t.checkState} = 'verified'
+        or (${t.status} = 'expired' and ${t.evidenceUploadId} is not null)`,
     ),
     // A worker's credentials, read for every rules check (Phase 10: audit L74).
     index("credentials_firm_id_worker_id_idx").on(t.firmId, t.workerId),

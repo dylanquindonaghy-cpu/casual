@@ -30,10 +30,11 @@ import { lockReachableWorkers } from "./reachable";
 import { lockOfferOutcome, logUnconfirmedOffers } from "./unconfirmed";
 import { firmVoice, lockShift, timeOf, type OfferDeps } from "./waves";
 
-// The office offering a shift to one worker ("Offer to someone" on Today, docs/screens.md). The
+// The office offering a shift to one worker ("Offer to someone" on the dashboard, docs/screens.md). The
 // same checks as every offer: the worker must be on the shift's candidate list (waveCandidates:
 // the booking rules, offer messages on, never offered it, the daily cap unless the shift is
-// urgent). The office chooses who, never whether the rules allow it (that's "manual assign").
+// urgent). The office chooses who, never whether the rules allow it (that's "manual assign"). A
+// casual's travel area doesn't limit it (`byHand`; D2): the office may offer outside it.
 //
 // - queueOfficeOffer (a server action calls it): an active admin or resourcer, an open shift that
 //   hasn't started and is shown to casuals (an offer shows the shift to the worker, and taking it
@@ -78,7 +79,7 @@ export async function officeOfferCandidates(
         .where(and(eq(offers.shiftId, shiftId), isNull(offers.wave)))
     ).map((o) => o.workerId),
   );
-  const candidates = (await waveCandidates(tx, shiftId, now)).filter(
+  const candidates = (await waveCandidates(tx, shiftId, now, { byHand: true })).filter(
     (c) => !officeOffered.has(c.workerId),
   );
   if (candidates.length === 0) return [];
@@ -171,6 +172,7 @@ export async function queueOfficeOffer(
     }
     const candidates = await waveCandidates(tx, request.shiftId, now, {
       only: [request.workerId],
+      byHand: true,
     });
     if (!candidates.some((c) => c.workerId === request.workerId)) {
       return { status: "not_candidate" };
@@ -276,9 +278,9 @@ async function claimOfficeOffer(
   // Counted under the worker's offer-count lock, so an offer sent at the same moment (the
   // office's, or a wave's) is counted too: the daily cap holds (candidates.ts).
   await lockOfferCounts(tx, [payload.workerId]);
-  const candidate = (await waveCandidates(tx, shift.id, now, { only: [payload.workerId] })).find(
-    (c) => c.workerId === payload.workerId,
-  );
+  const candidate = (
+    await waveCandidates(tx, shift.id, now, { only: [payload.workerId], byHand: true })
+  ).find((c) => c.workerId === payload.workerId);
   if (!candidate) return notSent("not_candidate");
 
   const firm = await firmVoice(tx, shift.firmId);

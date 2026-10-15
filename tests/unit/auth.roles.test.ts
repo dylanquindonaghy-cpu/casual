@@ -14,6 +14,9 @@ describe("office roles", () => {
     ["admin", "data", true],
     ["resourcer", "data", false],
     ["payroll", "data", false],
+    ["admin", "integrations", true],
+    ["resourcer", "integrations", false],
+    ["payroll", "integrations", false],
   ] as const)("%s may use %s: %s", (role, area, allowed) => {
     expect(canAccess(role, area)).toBe(allowed);
   });

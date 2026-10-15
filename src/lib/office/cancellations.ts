@@ -1,11 +1,13 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { AuthContext } from "../auth/link-login";
 import { authParts } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
-import { credentialRules, credentialTypes, firms, type CancelVia } from "../db/schema";
+import { firms, type CancelVia } from "../db/schema";
+import { readRequirements } from "../credentials/requirements";
 import type { FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { webhookOf } from "../integrations/outbox";
 import {
   evidenceStuckSql,
   lastEvidenceCodeSql,
@@ -16,7 +18,7 @@ import {
 import type { StrikeCode } from "../strikes/decide";
 import { liveStrikeCount } from "../strikes/issue";
 import { strikeSettings } from "../strikes/settings";
-import { addDays, localDateOf, mondayOf, zonedToUtc } from "../time/zoned";
+import { addDays, localDateOf, mondayOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { isThenPlace, type CancellationRow, type CancellationView } from "./cancellations-copy";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
@@ -88,6 +90,9 @@ type Row = {
   replacement_first: string | null;
   replacement_last: string | null;
   replacement_at: string | Date | null;
+  planner_action: string | null;
+  planner_at: string | Date | null;
+  planner_set: string | null;
 };
 
 const date = (v: string | Date) => new Date(v);
@@ -107,11 +112,21 @@ function viewFilter(view: CancellationView, threshold: number) {
   return sql``;
 }
 
+// Only those cancelled from a moment on (`?day=today`: since midnight, the firm's time).
+const sinceFilter = (since: Date | undefined) =>
+  since ? sql`and a.cancelled_at >= ${since}` : sql``;
+
 // The number of cancelled bookings in a view.
-async function countRows(tx: FirmTx, view: CancellationView, threshold: number): Promise<number> {
+async function countRows(
+  tx: FirmTx,
+  view: CancellationView,
+  threshold: number,
+  since?: Date,
+): Promise<number> {
   const { rows } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from assignments a
      where a.status in ('cancelled_worker', 'cancelled_firm') ${viewFilter(view, threshold)}
+       ${sinceFilter(since)}
   `);
   return Number(rows[0]?.n ?? 0);
 }
@@ -126,6 +141,7 @@ async function loadRows(
     limit: number;
     ref?: string; // the booking's first 8 characters, upper case
     id?: string; // the booking's full id
+    since?: Date; // cancelled from then on
   },
 ): Promise<Row[]> {
   const { rows } = await tx.execute<Row>(sql`
@@ -158,7 +174,9 @@ async function loadRows(
                       where ce.id is not null and o.firm_id = a.firm_id and o.shift_id = a.shift_id
                         and v.id > ce.id and (nc.id is null or v.id < nc.id)), 0) as offered_to,
            rp.first_name as replacement_first, rp.last_name as replacement_last,
-           rp.confirmed_at as replacement_at
+           rp.confirmed_at as replacement_at,
+           wh.action as planner_action, wh.created_at as planner_at,
+           ${o.id || o.ref ? sql`wset.change` : sql`null::text`} as planner_set
       from assignments a
       join workers w on w.firm_id = a.firm_id and w.id = a.worker_id
       join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
@@ -187,13 +205,28 @@ async function loadRows(
                             and ce.data ->> 'place' = 'reopened'
                             and r.id::text = ce.data ->> 'reopenedId'
                             and r.confirmed_at is not null) rp on true
+      left join lateral (select e.action, e.created_at from events e
+                          where e.firm_id = a.firm_id and e.entity_id = a.id
+                            and e.action in ('webhook.delivered', 'webhook.failed')
+                            and e.data ->> 'type' = 'booking.cancelled'
+                            and (ce.id is null or e.id > ce.id)
+                          order by e.id desc limit 1) wh on true
+      ${
+        o.id || o.ref
+          ? sql`left join lateral (select e.data ->> 'webhook' as change from events e
+                                    where e.firm_id = a.firm_id and ce.id is not null
+                                      and e.id < ce.id and e.action = 'firm.settings_changed'
+                                      and e.data -> 'keys' ? 'webhook.url'
+                                    order by e.id desc limit 1) wset on true`
+          : sql``
+      }
      where a.status in ('cancelled_worker', 'cancelled_firm')
        ${
          o.id
            ? sql`and a.id = ${o.id}::uuid`
            : o.ref
              ? sql`and upper(left(a.id::text, 8)) = ${o.ref}`
-             : viewFilter(o.view, o.threshold)
+             : sql`${viewFilter(o.view, o.threshold)} ${sinceFilter(o.since)}`
        }
      order by a.cancelled_at desc, a.id
      limit ${o.limit}
@@ -201,32 +234,45 @@ async function loadRows(
   return rows;
 }
 
+// What each cancelled session needed: the shared reader (src/lib/credentials/requirements.ts), as
+// on Events & sessions.
 async function requirementNames(tx: FirmTx, rows: Row[]) {
-  const roles = [...new Set(rows.map((r) => r.role))];
-  const rules = roles.length
-    ? await tx
-        .select({ role: credentialRules.role, types: credentialRules.requiredTypes })
-        .from(credentialRules)
-        .where(inArray(credentialRules.role, roles))
-    : [];
-  const byRole = new Map<string, string[]>();
-  for (const r of rules) byRole.set(r.role, [...(byRole.get(r.role) ?? []), ...r.types]);
-  const names = new Map(
-    (
-      await tx
-        .select({ code: credentialTypes.code, name: credentialTypes.name })
-        .from(credentialTypes)
-    ).map((t) => [t.code, t.name]),
+  const requirements = await readRequirements(
+    tx,
+    rows.map((r) => r.role),
   );
-  return (r: Row) =>
-    [...new Set([...(byRole.get(r.role) ?? []), ...(r.required_credentials ?? [])])].map(
-      (code) => ({ code, name: names.get(code) ?? code }),
-    );
+  return (r: Row) => requirements.of(r.role, r.required_credentials ?? []);
 }
 
-function toRow(r: Row, requirements: CancellationRow["requirements"]): CancellationRow {
+// Whether the cancellation reached the firm's planner by webhook (12J.2), from the log: its
+// booking.cancelled delivery's outcome; else, for one record (`webhookOn`: the firm has an address
+// now), "sending" when an address was set when it was cancelled.
+function plannerOf(r: Row, webhookOn: boolean): CancellationRow["planner"] {
+  if (r.planner_at && r.planner_action === "webhook.delivered") {
+    return { status: "sent", at: date(r.planner_at) };
+  }
+  if (r.planner_at && r.planner_action === "webhook.failed") {
+    return { status: "failed", at: date(r.planner_at) };
+  }
+  if (webhookOn && (r.planner_set === "added" || r.planner_set === "replaced")) {
+    return { status: "sending" };
+  }
+  return { status: "none" };
+}
+
+function toRow(
+  r: Row,
+  requirements: CancellationRow["requirements"],
+  webhookOn = false,
+): CancellationRow {
   const by: CancellationRow["by"] =
-    r.status === "cancelled_worker" ? "casual" : r.cancel_via === "sheet" ? "sheet" : "office";
+    r.status === "cancelled_worker"
+      ? "casual"
+      : r.cancel_via === "sheet"
+        ? "sheet"
+        : r.cancel_via === "api"
+          ? "planner"
+          : "office";
   return {
     assignmentId: r.id,
     ref: r.id.slice(0, 8).toUpperCase(),
@@ -277,6 +323,7 @@ function toRow(r: Row, requirements: CancellationRow["requirements"]): Cancellat
             },
           }
         : null,
+    planner: plannerOf(r, webhookOn),
     warning:
       r.strike_warning_version && r.strike_warning_shown_at
         ? { version: r.strike_warning_version, shownAt: date(r.strike_warning_shown_at) }
@@ -305,6 +352,7 @@ async function firmFacts(tx: FirmTx) {
     name: firm?.name ?? "",
     timezone: firm?.timezone ?? "Europe/London",
     threshold: strikeSettings(firm?.settings ?? {}).noticeHours,
+    webhookOn: webhookOf(firm?.settings).url !== null,
   };
 }
 
@@ -313,6 +361,7 @@ export interface CancellationList {
   timeZone: string;
   threshold: number;
   view: CancellationView;
+  day: "today" | null; // only today's (since midnight, the firm's time): the dashboard's link
   week: { byCasuals: number; byOffice: number; strikes: number };
   rows: CancellationRow[];
   total: number; // in the view, beyond the rows shown
@@ -322,7 +371,13 @@ export interface CancellationList {
 // `allOrNothing` (the CSV): none loaded when the view holds more than `limit`.
 export async function loadCancellations(
   tx: FirmTx,
-  o: { view: CancellationView; now: Date; limit: number; allOrNothing?: boolean },
+  o: {
+    view: CancellationView;
+    now: Date;
+    limit: number;
+    allOrNothing?: boolean;
+    day?: "today";
+  },
 ): Promise<CancellationList> {
   const firm = await firmFacts(tx);
   const monday = mondayOf(localDateOf(o.now, firm.timezone));
@@ -341,17 +396,22 @@ export async function loadCancellations(
           (select count(*)::int from strikes s
             where s.issued_at >= ${from} and s.issued_at < ${to}) as strikes`,
   );
-  const total = await countRows(tx, o.view, firm.threshold);
+  const since =
+    o.day === "today"
+      ? zonedToUtc({ ...wallTimeOf(o.now, firm.timezone), hour: 0, minute: 0 }, firm.timezone)
+      : undefined;
+  const total = await countRows(tx, o.view, firm.threshold, since);
   const rows =
     o.allOrNothing && total > o.limit
       ? []
-      : await loadRows(tx, { view: o.view, threshold: firm.threshold, limit: o.limit });
+      : await loadRows(tx, { view: o.view, threshold: firm.threshold, limit: o.limit, since });
   const requirementsOf = await requirementNames(tx, rows);
   return {
     firmName: firm.name,
     timeZone: firm.timezone,
     threshold: firm.threshold,
     view: o.view,
+    day: o.day ?? null,
     week: {
       byCasuals: Number(counts[0]?.casuals ?? 0),
       byOffice: Number(counts[0]?.office ?? 0),
@@ -424,7 +484,7 @@ export async function loadCancellationRecord(
       firmName: firm.name,
       timeZone: firm.timezone,
       threshold: firm.threshold,
-      row: toRow(row, requirementsOf(row)),
+      row: toRow(row, requirementsOf(row), firm.webhookOn),
       liveStrikes: await liveStrikeCount(tx, row.worker_id, now),
     },
   };
@@ -440,7 +500,7 @@ export async function officeCancellations(
   ctx: AuthContext,
   token: string,
   view: CancellationView,
-  o: { limit: number; allOrNothing?: boolean } = { limit: CANCELLATIONS_PAGE_ROWS },
+  o: { limit: number; allOrNothing?: boolean; day?: "today" } = { limit: CANCELLATIONS_PAGE_ROWS },
 ): Promise<CancellationList | null> {
   if (!(await mayView(ctx, token))) return null;
   const { run, now } = authParts(ctx);

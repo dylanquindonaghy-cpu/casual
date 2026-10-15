@@ -60,7 +60,7 @@ async function newFirm(name = "Scan Test") {
   );
   const firmId = rows[0]?.id ?? "";
   await withFirm(firmId, (tx) => applyCredentialPack(tx, "security", { type: "system" }));
-  return { firmId, name: `${name} ${slug}` };
+  return { firmId, name: `${name} ${slug}`, slug };
 }
 
 let mobiles = 0;
@@ -71,13 +71,14 @@ async function addWorker(
     last?: string;
     status?: "active" | "inactive" | "blocked";
     ref?: string;
+    roles?: string[];
   } = {},
 ) {
   mobiles += 1;
   const mobile = `+447700900${String(mobiles).padStart(3, "0")}`;
   const { rows } = await su.query<{ id: string }>(
-    `insert into workers (firm_id, first_name, last_name, mobile_e164, status, external_ref)
-     values ($1, $2, $3, $4, $5, $6) returning id::text as id`,
+    `insert into workers (firm_id, first_name, last_name, mobile_e164, status, external_ref, roles)
+     values ($1, $2, $3, $4, $5, $6, $7) returning id::text as id`,
     [
       firmId,
       opts.first ?? "Sam",
@@ -85,6 +86,7 @@ async function addWorker(
       mobile,
       opts.status ?? "active",
       opts.ref ?? null,
+      opts.roles ?? [],
     ],
   );
   return { id: rows[0]?.id ?? "", mobile };
@@ -169,10 +171,15 @@ const eventsOf = async (firmId: string, action: string) =>
     )
   ).rows;
 
+// The reminders link to the casual's upload page on the firm's portal (12F.2).
+const BASE_DOMAIN = "localhost:3000";
+const uploadLink = (f: { slug: string }, type: string) =>
+  `http://${f.slug}.${BASE_DOMAIN}/profile/upload/${type}`;
+
 // The scan is for the date in its payload (the firm's local date when the tick ran).
 function scanner() {
   const { transport, sent } = captureTransport();
-  const deps: CredentialScanDeps = { transport };
+  const deps: CredentialScanDeps = { transport, baseDomain: BASE_DOMAIN };
   const scan = (firmId: string, date: string) =>
     scanCredentials({ firmId, idempotencyKey: `credential-scan:${date}` }, withFirm, deps);
   return { scan, sent };
@@ -182,9 +189,25 @@ const whatsapp = (sent: OutboundMessage[]) =>
   sent.filter((m) => m.channel === "whatsapp").map((m) => ({ to: m.to, body: m.body }));
 
 describe("credential-scan: warnings", () => {
+  it("one only the office records (CSAS) says to send it to the office, with no upload link (12F.2)", async () => {
+    const f = await newFirm();
+    const cas = await addWorker(f.firmId, { first: "Cas", roles: ["csas_officer"] });
+    await addCredential(f.firmId, cas.id, { type: "CSAS", expiresOn: "2026-11-05" }); // 30 days
+    const { scan, sent } = scanner();
+    expect(await scan(f.firmId, TUESDAY_DATE)).toMatchObject({ warned: 1 });
+    expect(whatsapp(sent)).toEqual([
+      {
+        to: cas.mobile,
+        body: `Your CSAS accreditation expires on 5 Nov. Renew it and send the new details to the office so you can keep taking shifts. — ${f.name} Shift Team`,
+      },
+    ]);
+  });
+
   it("warns active workers once per threshold crossed, and logs each warning", async () => {
     const f = await newFirm();
-    const sam = await addWorker(f.firmId);
+    // A door supervisor: the security pack's rules need SIA_DS for that role, not first aid, so only
+    // the licence's reminder links to her upload page (12F.2).
+    const sam = await addWorker(f.firmId, { roles: ["door_supervisor"] });
     const left = await addWorker(f.firmId, { first: "Lee", status: "inactive" });
     const door = await addCredential(f.firmId, sam.id, { type: "SIA_DS", expiresOn: "2026-11-05" }); // 30 days
     const aid = await addCredential(f.firmId, sam.id, {
@@ -219,7 +242,7 @@ describe("credential-scan: warnings", () => {
       },
       {
         to: sam.mobile,
-        body: `Your SIA door supervisor licence expires on 5 Nov. Renew it and send the new details to the office so you can keep taking shifts. — ${signOff}`,
+        body: `Your SIA door supervisor licence expires on 5 Nov. Upload your renewed card so you can keep taking shifts that need it: ${uploadLink(f, "SIA_DS")} — ${signOff}`,
       },
     ]);
     expect(await credentialRow(door)).toEqual({
@@ -345,7 +368,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
 
   it("marks a credential expired the day after its date (not on it) and tells the worker", async () => {
     const f = await newFirm();
-    const sam = await addWorker(f.firmId);
+    const sam = await addWorker(f.firmId, { roles: ["door_supervisor"] });
     const left = await addWorker(f.firmId, { first: "Lee", status: "inactive" });
     // Every warning already sent for each, so only expiry is left to do.
     const warned = (expiresOn: string) => ({ expiresOn, warnedFor: expiresOn, warnedDays: 7 });
@@ -377,7 +400,7 @@ describe("credential-scan: expiry (block on expiry)", () => {
     expect(whatsapp(sent)).toEqual([
       {
         to: sam.mobile,
-        body: `Your SIA door supervisor licence expired on 5 Oct. You can't take shifts that need it until you renew it and send the new details to the office. — ${f.name} Shift Team`,
+        body: `Your SIA door supervisor licence expired on 5 Oct. You can't take shifts that need it until you upload your renewed card and the office checks it: ${uploadLink(f, "SIA_DS")} — ${f.name} Shift Team`,
       },
     ]);
     const logged = await eventsOf(f.firmId, "credential.expired");
@@ -620,7 +643,7 @@ describe("credential-scan-tick and the job", () => {
     const sam = await addWorker(f.firmId);
     await addCredential(f.firmId, sam.id, { type: "SIA_DS", expiresOn: "2026-10-12" });
     const { transport, sent } = captureTransport();
-    const job = credentialScanTask(() => ({ transport }));
+    const job = credentialScanTask(() => ({ transport, baseDomain: BASE_DOMAIN }));
     const ok = await runFirmTask(
       job,
       {
@@ -711,7 +734,7 @@ describe("credential-scan: failures and races", () => {
     const scan = scanCredentials(
       { firmId: f.firmId, idempotencyKey: `credential-scan:${TUESDAY_DATE}` },
       withFirm,
-      { transport: slow },
+      { transport: slow, baseDomain: BASE_DOMAIN },
     );
     await inSend;
     const renewal = withFirm(f.firmId, (tx) =>
@@ -758,7 +781,9 @@ describe("credential-scan: failures and races", () => {
     };
     const payload = { firmId: f.firmId, idempotencyKey: "credential-scan:2026-10-05" };
     // The list's email fails: logged for that office user, and the scan still completes.
-    expect(await scanCredentials(payload, withFirm, { transport: emailDown })).toMatchObject({
+    expect(
+      await scanCredentials(payload, withFirm, { transport: emailDown, baseDomain: BASE_DOMAIN }),
+    ).toMatchObject({
       warned: 1,
       failed: 0,
       weeklyList: "sent",

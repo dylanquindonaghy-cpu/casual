@@ -6,6 +6,7 @@ import { FIRM_CHANGE_NOTICE_QUEUE } from "../../lib/notices/firm-change";
 import { METRICS_ROLLUP_QUEUE, METRICS_ROLLUP_TICK_QUEUE } from "../../lib/metrics/rollup";
 import { INBOUND_MESSAGE_QUEUE } from "../../lib/inbound/job";
 import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
+import { ENQUIRY_REPLY_QUEUE } from "../../lib/notices/enquiry-reply";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
 import { SHIFT_CONFIRMED_QUEUE } from "../../lib/notices/shift-confirmed";
 import { PAY_DIGEST_QUEUE, PAY_DIGEST_TICK_QUEUE } from "../../lib/pay/digest";
@@ -23,6 +24,8 @@ import {
 } from "../../lib/roster/sheets/jobs";
 import { RETENTION_PURGE_QUEUE, RETENTION_PURGE_TICK_QUEUE } from "../../lib/gdpr/retention";
 import { OPS_ALERT_QUEUE, OPS_ALERTS_TICK_QUEUE } from "../../lib/ops/tick";
+import { WEBHOOK_DELIVER_QUEUE } from "../../lib/integrations/outbox";
+import { WEBHOOK_RETRY_LIMIT } from "../../lib/integrations/deliver";
 import { HELLO_QUEUE } from "./hello";
 
 // Every queue the app uses. db:migrate creates them (so the web can enqueue before the worker
@@ -72,6 +75,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   FIRM_CHANGE_NOTICE_QUEUE,
   SHIFT_CONFIRMED_QUEUE,
   REQUEST_UPDATE_QUEUE,
+  ENQUIRY_REPLY_QUEUE,
   METRICS_ROLLUP_QUEUE,
   PAY_DIGEST_QUEUE,
   PAY_QUERY_UPDATE_QUEUE,
@@ -83,6 +87,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
 
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
 const travelEstimates = firmQueue(TRAVEL_ESTIMATES_QUEUE);
+const webhookDeliver = firmQueue(WEBHOOK_DELIVER_QUEUE);
 
 export const QUEUES: readonly QueueSpec[] = [
   { name: HELLO_QUEUE },
@@ -142,6 +147,20 @@ export const QUEUES: readonly QueueSpec[] = [
       retryDelay: 5 * 60,
       retryBackoff: true,
       retryDelayMax: 60 * 60,
+    },
+  },
+  // The planner's webhooks (12J.2; src/lib/integrations/deliver.ts): a failed try is tried again
+  // 6 times, from a minute later and doubling (pg-boss adds a random part), at most 30 minutes
+  // apart: about an hour in all. The last try logs webhook.failed and completes the job, so a
+  // firm's own endpoint is never a failed job (failedJobCounts()).
+  {
+    ...webhookDeliver,
+    options: {
+      ...webhookDeliver.options,
+      retryLimit: WEBHOOK_RETRY_LIMIT,
+      retryDelay: 60,
+      retryBackoff: true,
+      retryDelayMax: 30 * 60,
     },
   },
 ];

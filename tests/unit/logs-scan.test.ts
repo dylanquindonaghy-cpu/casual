@@ -72,11 +72,11 @@ describe("the log scan", () => {
   it("reports where, never the value itself", () => {
     const report = scanReport("web.log", scanLogText("x\nto +447700900123"));
     expect(report).toBe(
-      "web.log: 1 possible phone numbers, emails or login tokens:\n  line 2: phone +4*********23",
+      "web.log: 1 possible phone numbers, emails, login tokens or keys:\n  line 2: phone +4*********23",
     );
     expect(report).not.toContain("447700900123");
     expect(scanReport("worker.log", [])).toBe(
-      "worker.log: no phone numbers, email addresses or login tokens.",
+      "worker.log: no phone numbers, email addresses, login tokens or keys.",
     );
   });
 
@@ -122,6 +122,39 @@ describe("the log scan", () => {
       [4, "token"],
     ]);
     expect(scanReport("web.log", found)).not.toContain(token);
+  });
+
+  // 12J.1: a planner's key, or any Bearer credential, in a log is a working login to the API.
+  it("finds a planner's API key and any Bearer credential, however written, reported masked", () => {
+    const key = `shiftdesk_${"Kq7_Zx-Mv".repeat(4)}Pw3Ln_8`; // 43 characters after the prefix
+    expect(key).toHaveLength(53);
+    const lines = [
+      `{"msg":"api request","key":"${key}"}`,
+      `planner said: ${key}.`,
+      `glued${key}glued`,
+      `authorization: Bearer ${key}`,
+      "Authorization: bearer ya29.made-up-google-token",
+      "AUTHORIZATION: BEARER Zm9vOmJhcg==",
+      "header Bearer%20abc.def-ghi_jkl",
+      "Bearer\tabc",
+      `url /api/v1/sessions/x?k=${key.replaceAll("_", "%5F")}`,
+    ];
+    const found = lines.map((l) => scanLogText(l).map((f) => f.kind));
+    expect(found).toEqual(lines.map(() => ["key"]));
+    const report = scanReport("web.log", scanLogText(lines.join("\n")));
+    expect(report).not.toContain(key.slice(10, 50));
+    expect(report).not.toContain("ya29.made-up");
+  });
+
+  it("leaves the key's prefix alone when no key follows it, and Bearer when no credential does", () => {
+    const text = [
+      "connected as shiftdesk_app to shiftdesk_dev_e2e",
+      `shiftdesk_${"a".repeat(42)} (one short)`,
+      'token_type "Bearer", grant_type urn:ietf:params:oauth:grant-type:jwt-bearer',
+      "Bearer [redacted]",
+      "a Bearer",
+    ].join("\n");
+    expect(scanLogText(text)).toEqual([]);
   });
 
   it("the console transport's own printed messages can be left out (line numbers kept)", () => {
@@ -175,7 +208,18 @@ describe("the log scan", () => {
 
   // The teardown runs the scan on whole log files: a long line must cost one pass.
   it("scans a 200,000-character line quickly, whatever it holds", () => {
-    for (const unit of ["a.", "1-", "a", "@a.", "1 ", "07700 ", "a@b.", "/l#"]) {
+    for (const unit of [
+      "a.",
+      "1-",
+      "a",
+      "@a.",
+      "1 ",
+      "07700 ",
+      "a@b.",
+      "/l#",
+      "Bearer x ",
+      "shiftdesk_",
+    ]) {
       const line = unit.repeat(Math.ceil(200_000 / unit.length));
       const started = performance.now();
       scanLogText(line);

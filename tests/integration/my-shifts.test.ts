@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { credentialNotices, myShifts } from "@/lib/portal/my-shifts";
+import { myNeedsUpdating, myShifts } from "@/lib/portal/my-shifts";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -129,8 +129,20 @@ describe("myShifts", () => {
   });
 });
 
-describe("credentialNotices", () => {
-  it("lists what the worker's roles need, expiring within 30 days or expired, soonest first", async () => {
+// "Needs updating" (12F.1; docs/office-v2.md 4.2): what the worker's roles need, in its four levels
+// (the rules: tests/unit/credentials.status.test.ts). It replaced the credential banners: the same
+// cases, in the new shape.
+describe("myNeedsUpdating", () => {
+  const brief = (items: Awaited<ReturnType<typeof myNeedsUpdating>>) =>
+    items.map((n) => ({
+      level: n.level,
+      type: n.qualification.type,
+      name: n.qualification.name,
+      status: n.qualification.status,
+      expiresOn: n.qualification.expiresOn,
+    }));
+
+  it("lists what the worker's roles need: expired first, then expiring within 30 days", async () => {
     const f = await bookingFirm(su, withFirm);
     // NOW is 2 Nov 2026: 30 days on is 2 Dec. Sam is a steward and a door supervisor, so the
     // firm's rules need STEWARD_L2 and SIA_DS.
@@ -143,68 +155,133 @@ describe("credentialNotices", () => {
         { type: "SIA_SG", expiresOn: "2026-11-10" }, // no role needs it
       ],
     });
-    expect(await credentialNotices(ctxFor(f), sam)).toEqual([
+    expect(brief(await myNeedsUpdating(ctxFor(f), sam))).toEqual([
       {
+        level: 2,
         type: "STEWARD_L2",
         name: "Level 2 spectator safety qualification",
+        status: "expired",
         expiresOn: "2026-10-01",
-        expired: true,
       },
       {
+        level: 3,
         type: "SIA_DS",
         name: "SIA door supervisor licence",
+        status: "expiring_soon",
         expiresOn: "2026-11-20",
-        expired: false,
       },
     ]);
   });
 
-  it("counts a valid credential past its date as expired, and one with no expiry as fine", async () => {
+  it("counts a valid one past its date as expired, one with no expiry as fine, and none as missing", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker({
-      roles: ["steward", "door_supervisor"],
+      roles: ["steward", "door_supervisor", "security_officer"],
       credentials: [
         { type: "SIA_DS", expiresOn: "2026-10-30" }, // still marked valid, date gone
         { type: "STEWARD_L2", expiresOn: null },
       ],
     });
-    expect(await credentialNotices(ctxFor(f), sam)).toEqual([
+    expect(brief(await myNeedsUpdating(ctxFor(f), sam))).toEqual([
       {
+        level: 2,
         type: "SIA_DS",
         name: "SIA door supervisor licence",
+        status: "expired",
         expiresOn: "2026-10-30",
-        expired: true,
+      },
+      {
+        level: 4,
+        type: "SIA_SG",
+        name: "SIA security guard licence",
+        status: "missing",
+        expiresOn: null,
       },
     ]);
   });
 
-  it("says nothing about a credential the worker has replaced or is renewing", async () => {
+  it("puts first one that stops a booked shift: missing, or expiring before it ends", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker({
+      roles: ["steward", "door_supervisor"],
+      credentials: [
+        { type: "STEWARD_L2", expiresOn: "2027-06-01" }, // fine for the booking
+        { type: "SIA_DS", expiresOn: "2026-11-05" }, // ends before Friday's shift
+      ],
+    });
+    // Friday 6 November, 09:00 to 17:00 London: the licence runs out the day before.
+    await f.booking(sam, await f.shift({ startsAt: hoursFromNow(4 * 24) }));
+    const [first] = await myNeedsUpdating(ctxFor(f), sam);
+    expect(first).toMatchObject({
+      level: 1,
+      qualification: { type: "SIA_DS", status: "expiring_soon" },
+      blocks: { role: "door_supervisor", day: "2026-11-06" },
+    });
+  });
+
+  it("an application in progress stops a booked shift unless the firm's rules accept it", async () => {
+    // SIA licences allow an application (the pack); a firm's allowance above 0 lets one count.
+    const strict = await bookingFirm(su, withFirm);
+    const lenient = await bookingFirm(su, withFirm, {
+      settings: { credential_applied_allowance_pct: 15 },
+    });
+    const renewing = [
+      { type: "SIA_DS", status: "expired" as const, expiresOn: "2026-09-01" },
+      { type: "SIA_DS", status: "applied" as const, expiresOn: null },
+      { type: "STEWARD_L2", expiresOn: null },
+    ];
+    const kit = await strict.worker({ credentials: renewing });
+    await strict.booking(kit, await strict.shift({ startsAt: hoursFromNow(48) }));
+    const lee = await lenient.worker({ credentials: renewing });
+    await lenient.booking(lee, await lenient.shift({ startsAt: hoursFromNow(48) }));
+    expect(brief(await myNeedsUpdating(ctxFor(strict), kit))).toEqual([
+      {
+        level: 1,
+        type: "SIA_DS",
+        name: "SIA door supervisor licence",
+        status: "applied",
+        expiresOn: null,
+      },
+    ]);
+    expect(await myNeedsUpdating(ctxFor(lenient), lee)).toEqual([]);
+  });
+
+  it("says nothing about a type the worker has replaced or is renewing", async () => {
     const f = await bookingFirm(su, withFirm);
     const replaced = await f.worker({
       credentials: [
         { type: "SIA_DS", status: "expired", expiresOn: "2026-09-01" },
         { type: "SIA_DS", expiresOn: "2029-09-01" },
+        { type: "STEWARD_L2", expiresOn: null },
       ],
     });
     const renewing = await f.worker({
       credentials: [
         { type: "SIA_DS", status: "expired", expiresOn: "2026-09-01" },
         { type: "SIA_DS", status: "applied", expiresOn: null },
+        { type: "STEWARD_L2", expiresOn: null },
       ],
     });
-    expect(await credentialNotices(ctxFor(f), replaced)).toEqual([]);
-    expect(await credentialNotices(ctxFor(f), renewing)).toEqual([]);
+    expect(await myNeedsUpdating(ctxFor(f), replaced)).toEqual([]);
+    expect(await myNeedsUpdating(ctxFor(f), renewing)).toEqual([]);
   });
 
-  it("never shows another worker's or another firm's credentials", async () => {
+  it("never shows another worker's or another firm's qualifications", async () => {
     const mine = await bookingFirm(su, withFirm);
     const theirs = await bookingFirm(su, withFirm);
-    const soon = [{ type: "SIA_DS", expiresOn: "2026-11-20" }];
-    const sam = await mine.worker({ credentials: [] });
+    const soon = [
+      { type: "SIA_DS", expiresOn: "2026-11-20" },
+      { type: "STEWARD_L2", expiresOn: null },
+    ];
+    const fine = [
+      { type: "SIA_DS", expiresOn: "2029-11-20" },
+      { type: "STEWARD_L2", expiresOn: null },
+    ];
+    const sam = await mine.worker({ credentials: fine });
     await mine.worker({ first: "Jo", credentials: soon });
     const kit = await theirs.worker({ credentials: soon });
-    expect(await credentialNotices(ctxFor(mine), sam)).toEqual([]);
-    expect(await credentialNotices(ctxFor(mine), kit)).toEqual([]);
-    expect(await credentialNotices(ctxFor(theirs), kit)).toHaveLength(1);
+    expect(await myNeedsUpdating(ctxFor(mine), sam)).toEqual([]);
+    expect(await myNeedsUpdating(ctxFor(mine), kit)).toEqual([]);
+    expect(await myNeedsUpdating(ctxFor(theirs), kit)).toHaveLength(1);
   });
 });

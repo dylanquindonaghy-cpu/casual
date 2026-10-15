@@ -61,6 +61,7 @@ const row = (o: Partial<CancellationRow> = {}): CancellationRow => ({
     reviewNeeded: true,
     evidence: { status: null, to: null, sentAt: null },
   },
+  planner: { status: "none" },
   warning: { version: "v1", shownAt: at("2026-11-06T18:00:00Z") },
   then: {
     place: "reopened",

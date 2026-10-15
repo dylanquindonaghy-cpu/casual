@@ -1,17 +1,13 @@
 import { and, asc, desc, eq, gt, inArray, lte, ne } from "drizzle-orm";
 import { DAY, systemClock, type Clock } from "../auth/clock";
-import {
-  assignments,
-  credentialRules,
-  credentials,
-  credentialTypes,
-  firms,
-  shifts,
-  sites,
-  workers,
-} from "../db/schema";
+import { qualificationsFor } from "../credentials/qualifications";
+import type { NeedsItem } from "../credentials/status";
+import { assignments, firms, shiftEvents, shifts, sites } from "../db/schema";
 import { withFirm, type WithFirm } from "../db/scoped";
-import { addDays, localDateOf } from "../time/zoned";
+import type { TravelFacts } from "../travel/line-copy";
+import { casualEventName } from "../roster/shift-events";
+import { travelFor } from "../travel/lines";
+import type { StaffPhoto } from "../uploads/photo";
 
 // What the staff portal's My shifts page shows (docs/screens.md, `/`), for the logged-in worker
 // only, inside their firm (RLS scopes every row to it).
@@ -22,12 +18,13 @@ import { addDays, localDateOf } from "../time/zoned";
 // - Past: confirmed, completed or no-show bookings on shifts that ended in the last 30 days,
 //   newest first, including a shift the sheet cancelled after it started (its bookings are
 //   history). Cancelled bookings show in neither list.
-// - Notices: credentials the worker's roles need that expire within 30 days, or have expired, for
-//   the banner. Not for a type the worker has already replaced (a newer valid one) or is renewing
-//   (an application in progress).
+// - Travel: each upcoming booking carries its travel facts, for the travel line (12G.3; the same
+//   words as Open shifts). Past ones don't: the trip is done, and its estimates expire.
+// - Needs updating (12F.1): the qualifications the worker's roles need that have expired, are
+//   suspended or missing, expire within EXPIRING_SOON_DAYS, or stop a booked shift, in §4.2's
+//   order. Not a type they've already replaced (a newer valid one) or are renewing (applied for).
 
 export const PAST_DAYS = 30;
-export const NOTICE_DAYS = 30;
 
 export interface PortalContext {
   firm: { id: string };
@@ -43,6 +40,13 @@ export interface MyShift {
   endsAt: Date;
   status: "confirmed" | "completed" | "no_show";
   instructions: string | null;
+  // The session's own facts (12H.1: Home's next shift, in full). The event as the casual app names
+  // it: null for an automatic event, whose name only repeats the site and day (12H.2).
+  eventName?: string | null;
+  post?: string | null;
+  payRatePence?: number | null;
+  meetingPoint?: string | null;
+  uniform?: string | null;
   site: {
     name: string;
     addressLine1: string | null;
@@ -50,6 +54,7 @@ export interface MyShift {
     town: string | null;
     postcode: string | null;
   } | null;
+  travel?: TravelFacts; // upcoming bookings only
 }
 
 export type ShiftsView = "upcoming" | "past";
@@ -73,8 +78,8 @@ export async function myShifts(
           lte(shifts.endsAt, now),
           gt(shifts.endsAt, new Date(now.getTime() - PAST_DAYS * DAY)),
         );
-  const rows = await run(ctx.firm.id, (tx) =>
-    tx
+  return run(ctx.firm.id, async (tx) => {
+    const rows = await tx
       .select({
         assignmentId: assignments.id,
         shiftId: shifts.id,
@@ -83,6 +88,11 @@ export async function myShifts(
         endsAt: shifts.endsAt,
         status: assignments.status,
         instructions: shifts.instructions,
+        eventName: casualEventName,
+        post: shifts.post,
+        payRatePence: shifts.payRatePence,
+        meetingPoint: shifts.meetingPoint,
+        uniform: shifts.uniform,
         siteName: sites.name,
         addressLine1: sites.addressLine1,
         addressLine2: sites.addressLine2,
@@ -95,30 +105,47 @@ export async function myShifts(
         and(eq(shifts.firmId, assignments.firmId), eq(shifts.id, assignments.shiftId)),
       )
       .leftJoin(sites, and(eq(sites.firmId, shifts.firmId), eq(sites.id, shifts.siteId)))
+      .leftJoin(
+        shiftEvents,
+        and(eq(shiftEvents.firmId, shifts.firmId), eq(shiftEvents.id, shifts.shiftEventId)),
+      )
       .where(and(eq(assignments.workerId, workerId), when))
       .orderBy(
         view === "upcoming" ? asc(shifts.startsAt) : desc(shifts.startsAt),
         asc(assignments.id),
-      ),
-  );
-  return rows.map(({ siteName, addressLine1, addressLine2, town, postcode, status, ...shift }) => ({
-    ...shift,
-    status: status as MyShift["status"],
-    site: siteName === null ? null : { name: siteName, addressLine1, addressLine2, town, postcode },
-  }));
+      );
+    const travel =
+      view === "upcoming"
+        ? await travelFor(
+            tx,
+            workerId,
+            rows.map((r) => r.shiftId),
+          )
+        : null;
+    return rows.map(
+      ({ siteName, addressLine1, addressLine2, town, postcode, status, ...shift }) => ({
+        ...shift,
+        status: status as MyShift["status"],
+        site:
+          siteName === null ? null : { name: siteName, addressLine1, addressLine2, town, postcode },
+        ...(travel ? { travel: travel.get(shift.shiftId) ?? { kind: "unknown" as const } } : {}),
+      }),
+    );
+  });
 }
 
-export interface CredentialNotice {
-  type: string;
-  name: string;
-  expiresOn: string | null; // null: marked expired with no date
-  expired: boolean;
+// "Needs updating" (docs/office-v2.md 4.2; 12F.1): what the worker should sort out about their
+// qualifications, in its four levels (src/lib/credentials/status.ts).
+export async function myNeedsUpdating(ctx: PortalContext, workerId: string): Promise<NeedsItem[]> {
+  return (await myNeedsAndPhoto(ctx, workerId)).needs;
 }
 
-export async function credentialNotices(
+// The same, with her staff photo (12F.2): Home's card shows the photo too when it's overdue or due
+// soon (12H.1), and the tab bar's Profile dot counts both.
+export async function myNeedsAndPhoto(
   ctx: PortalContext,
   workerId: string,
-): Promise<CredentialNotice[]> {
+): Promise<{ needs: NeedsItem[]; photo: StaffPhoto }> {
   const now = (ctx.clock ?? systemClock).now();
   const run = ctx.run ?? withFirm;
   return run(ctx.firm.id, async (tx) => {
@@ -126,68 +153,26 @@ export async function credentialNotices(
       .select({ timezone: firms.timezone })
       .from(firms)
       .where(eq(firms.id, ctx.firm.id));
-    const today = localDateOf(now, firm?.timezone ?? "Europe/London");
-    const horizon = addDays(today, NOTICE_DAYS);
-    // Only credentials the worker's roles need (by the firm's rules): an old card for work they
-    // no longer do isn't worth a red banner on every visit.
-    const [me] = await tx
-      .select({ roles: workers.roles })
-      .from(workers)
-      .where(eq(workers.id, workerId));
-    const rules = me?.roles.length
-      ? await tx
-          .select({ requiredTypes: credentialRules.requiredTypes })
-          .from(credentialRules)
-          .where(inArray(credentialRules.role, [...me.roles]))
-      : [];
-    const needed = new Set(rules.flatMap((r) => r.requiredTypes));
-    const held = await tx
-      .select({
-        id: credentials.id,
-        type: credentials.type,
-        status: credentials.status,
-        expiresOn: credentials.expiresOn,
-        name: credentialTypes.name,
-      })
-      .from(credentials)
-      .leftJoin(
-        credentialTypes,
-        and(
-          eq(credentialTypes.firmId, credentials.firmId),
-          eq(credentialTypes.code, credentials.type),
-        ),
-      )
-      .where(eq(credentials.workerId, workerId));
-    // A valid credential of the type lasting past the horizon (or with no expiry) means the
-    // worker has already replaced any older one; an application in progress means they're
-    // renewing it. Either way, nothing to tell them for that type.
-    const covered = new Set(
-      held
-        .filter(
-          (c) =>
-            (c.status === "valid" && (c.expiresOn === null || c.expiresOn > horizon)) ||
-            c.status === "applied",
-        )
-        .map((c) => c.type),
-    );
-    const notices = new Map<string, CredentialNotice>();
-    for (const c of held) {
-      if (!needed.has(c.type) || covered.has(c.type) || c.status === "suspended") continue;
-      const expired = c.status === "expired" || (c.expiresOn !== null && c.expiresOn < today);
-      const soon = c.status === "valid" && c.expiresOn !== null && c.expiresOn <= horizon;
-      if (!expired && !soon) continue;
-      const notice = {
-        type: c.type,
-        name: c.name ?? c.type.replace(/_/g, " "),
-        expiresOn: c.expiresOn,
-        expired,
-      };
-      // One notice per type: the one lasting longest.
-      const seen = notices.get(c.type);
-      if (!seen || (notice.expiresOn ?? "") > (seen.expiresOn ?? "")) notices.set(c.type, notice);
-    }
-    return [...notices.values()].sort((a, b) =>
-      (a.expiresOn ?? "").localeCompare(b.expiresOn ?? ""),
-    );
+    const held = await qualificationsFor(tx, [workerId], {
+      now,
+      timeZone: firm?.timezone ?? "Europe/London",
+    });
+    const mine = held.get(workerId);
+    return {
+      needs: mine?.needs ?? [],
+      photo: mine?.photo ?? { status: "missing", current: null, waiting: null },
+    };
   });
+}
+
+// Something on Profile needs her: a qualification to sort out, or her photo overdue or due soon.
+export const somethingNeedsUpdating = (n: { needs: NeedsItem[]; photo: StaffPhoto }): boolean =>
+  n.needs.length > 0 || photoNeedsUpdating(n.photo);
+
+export const photoNeedsUpdating = (photo: StaffPhoto): boolean =>
+  photo.status === "overdue" || photo.status === "due_soon";
+
+// The tab bar's Profile dot (12H.1), for the pages that don't load Needs updating themselves.
+export async function profileNeedsYou(ctx: PortalContext, workerId: string): Promise<boolean> {
+  return somethingNeedsUpdating(await myNeedsAndPhoto(ctx, workerId));
 }

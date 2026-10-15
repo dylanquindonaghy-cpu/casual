@@ -409,7 +409,7 @@ describe("who can see strikes", () => {
       expect(await keepStrike(t.office(id), s.assignmentId)).toEqual({ status: "not_allowed" });
     }
     // Payroll's areas hold no strike: none of the areas that do are theirs.
-    for (const area of ["strikes", "cancellations", "log", "workers", "today"] as const) {
+    for (const area of ["strikes", "cancellations", "log", "casuals", "today"] as const) {
       expect(canAccess("payroll", area), area).toBe(false);
     }
     expect((await t.row(s.assignmentId))?.status).toBe("live");

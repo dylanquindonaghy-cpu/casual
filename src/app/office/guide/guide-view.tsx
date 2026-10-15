@@ -26,9 +26,14 @@ const SECTIONS: Section[] = [
     id: "getting-around",
     title: "Getting around",
     areas: [],
-    body: (_role, menu) => <GettingAround menu={menu} />,
+    body: (role, menu) => <GettingAround role={role} menu={menu} />,
   },
-  { id: "today", title: "Start your day on Today", areas: ["today"], body: () => <TodayPart /> },
+  {
+    id: "today",
+    title: "Start your day on the dashboard",
+    areas: ["today"],
+    body: () => <DashboardPart />,
+  },
   {
     id: "fill-a-gap",
     title: "Fill a gap",
@@ -43,8 +48,8 @@ const SECTIONS: Section[] = [
     body: () => <ChangeAShift />,
   },
   { id: "after-a-shift", title: "After a shift", areas: ["shifts"], body: () => <AfterAShift /> },
-  { id: "requests", title: "Answer requests", areas: ["requests"], body: () => <Requests /> },
-  { id: "workers", title: "Workers", areas: ["workers"], body: () => <Workers /> },
+  { id: "enquiries", title: "Enquiries", areas: ["enquiries"], body: () => <Enquiries /> },
+  { id: "casuals", title: "Casuals", areas: ["casuals"], body: () => <Workers /> },
   {
     id: "records",
     title: "Records",
@@ -53,6 +58,12 @@ const SECTIONS: Section[] = [
   },
   { id: "pay", title: "Pay", areas: ["pay"], body: () => <Pay /> },
   { id: "admin", title: "Admin", areas: ["team", "data"], body: (role) => <Admin role={role} /> },
+  {
+    id: "connect-your-planner",
+    title: "Connect your planner",
+    areas: ["integrations"],
+    body: () => <ConnectPlanner />,
+  },
   { id: "what-workers-see", title: "What workers see", areas: [], body: () => <WorkersSee /> },
 ];
 
@@ -167,7 +178,8 @@ function Links({ children }: { children: ReactNode }) {
 
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
-  Today: "What needs doing, most urgent first.",
+  Dashboard:
+    "Urgent gaps, what casuals can see, the latest cancellations and enquiries, and what needs attention.",
 
   "Events & sessions":
     "Every event with a session to come. Choose what casuals see and what's urgent.",
@@ -176,7 +188,7 @@ const MENU_WORDS: Record<string, string> = {
   Requests: "Time changes, swaps and reviews workers have asked for.",
   Strikes:
     "Who has strikes for cancelling late, and which need a review. Withdraw or keep one from its record.",
-  Workers: "Find a worker to change their access.",
+  Casuals: "Their qualifications, travel areas and strikes, and their access.",
   "Action log": "Everything that happened, newest first.",
   "Notice report": "Every offer, booking, move and cancellation, with the notice given.",
   "Pilot metrics": "The pilot's figures against your week-0 baseline.",
@@ -185,16 +197,18 @@ const MENU_WORDS: Record<string, string> = {
   "Import pay records": "Load payroll's spreadsheet, so workers see their pay.",
   "Office team": "Who can log in to the office, and their roles.",
   Settings: "The strikes team's email, and your sites' postcodes.",
+  Integrations: "Connect your planner: its API keys, and the codes it can send.",
   "Data requests": "Download or delete a worker's data when they ask.",
   "How-to guide": "This page.",
 };
 
-function GettingAround({ menu }: { menu: MenuGroup[] }) {
+function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) {
   return (
     <>
       <Para>
-        On a computer, the menu is on the left. On a phone, select <Name>Menu</Name> at the top to
-        open it. The page you&apos;re on is highlighted.
+        On a wide screen, the menu is down the left side. On a phone or tablet, select{" "}
+        <Name>Menu</Name> at the top left. The menu slides in. Select <Name>Close menu</Name>, or
+        anywhere outside it, to close it. The page you&apos;re on is highlighted.
       </Para>
       <div className="mt-5 sm:columns-2 sm:gap-8">
         {menu.map((group) => (
@@ -219,37 +233,37 @@ function GettingAround({ menu }: { menu: MenuGroup[] }) {
         ))}
       </div>
       <Para>
-        Your name is at the top right. Select it for this guide and <Name>Log out</Name>. The moon
-        or sun beside it switches between dark and light.
+        Your name is at the top right. On a phone, it shows your initials. Select it to open this
+        guide or to <Name>Log out</Name>.
+      </Para>
+      <Para>
+        The moon or sun beside it switches between dark and light.
+        {/* The bell is drawn only for the roles with Needs attention, the "today" area
+            (src/app/office/layout.tsx). */}
+        {canAccess(role, "today")
+          ? " The bell counts what needs attention. Select it to see the list on the dashboard."
+          : null}
       </Para>
     </>
   );
 }
 
-const TODAY_SECTIONS: [string, ReactNode][] = [
-  ["Urgent shifts", "Shifts marked urgent that still have a place free. Offers go out in waves."],
+const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
-    "Bookings to check",
-    "Only when there are some: people booked who can't work the shift as things stand. Cancel the booking, or keep it.",
+    "The four counts",
+    "Urgent shifts not filled, events showing to casuals, cancellations today and enquiries today. Select one to open its list.",
   ],
   [
-    "From your rota sheet",
-    "Only for firms with a Google Sheet: changes in your sheet the app couldn't make, and why.",
+    "Urgent shifts not filled",
+    "Urgent sessions with a place free, on their event's card, with how many casuals were offered each one, or why offers stopped.",
   ],
+  ["Showing to casuals", "Events casuals can see. Switch one off to hide all its sessions."],
+  ["Cancellations", "The latest three. Recorded automatically, never approved or declined."],
+  ["Enquiries", "The latest four messages to your shifts line, and the reply each one got."],
   [
-    "Requests",
-    <>
-      How many requests are waiting. <Name>See requests</Name> opens them.
-    </>,
+    "Needs attention",
+    "Bookings to check, changes from your rota sheet, who worked?, qualifications out of date on a booking, uploads to check and strike evidence. The bell at the top of every page counts them.",
   ],
-  ["Gaps in the next 7 days", "Other shifts with a place free, soonest first."],
-  ["Who worked?", "Shifts from the last 7 days with people not marked yet."],
-  ["Cancelled in the last 24 hours", "Who cancelled, the notice they gave, and why."],
-  [
-    "Messages from numbers we don't know",
-    "Messages to your shifts line from numbers that aren't an active worker's.",
-  ],
-  ["Credentials expiring this week", "Licences and cards that run out in the next 7 days."],
 ];
 
 const TONES: [StatusTone, string, string][] = [
@@ -267,25 +281,26 @@ const TONES: [StatusTone, string, string][] = [
   ["quiet", "Cancelled", "For information, or closed: cancelled, declined, a draft or not active."],
 ];
 
-function TodayPart() {
+function DashboardPart() {
   return (
     <>
       <Para>
-        <Name>Today</Name> is the page you land on after logging in. It shows what needs doing, most
-        urgent first.
+        The <Name>Dashboard</Name> is the page you land on after logging in. It shows what needs
+        doing today.
       </Para>
       <Steps>
+        <Step>The four counts at the top each open their list.</Step>
         <Step>
-          The numbers at the top count what&apos;s in each section. Select one to jump to it.
+          <Name>Needs attention</Name>, at the bottom, is what someone has to sort out. The bell at
+          the top of every page shows how many, and takes you there.
         </Step>
-        <Step>Work down the page: the sections are in the order things need doing.</Step>
         <Step>
           Select a shift&apos;s name to open its page, where you can change everything about it.
         </Step>
       </Steps>
       <Task title="What each section shows">
         <ul role="list" className="mt-2 max-w-prose divide-y divide-line">
-          {TODAY_SECTIONS.map(([name, words]) => (
+          {DASHBOARD_SECTIONS.map(([name, words]) => (
             <li key={name} className="py-3">
               <p className="font-semibold text-ink">{name}</p>
               <p className={meta}>{words}</p>
@@ -308,7 +323,7 @@ function TodayPart() {
       </Task>
       <Links>
         <GoTo href="/office" icon="home">
-          Go to Today
+          Go to the dashboard
         </GoTo>
       </Links>
     </>
@@ -319,8 +334,9 @@ function FillAGap({ role }: { role: OfficeRole }) {
   return (
     <>
       <Para>
-        A gap is a shift with a place free. They&apos;re on Today, under <Name>Urgent shifts</Name>{" "}
-        and <Name>Gaps in the next 7 days</Name>. Each has these buttons.
+        A gap is a shift with a place free. Urgent ones are on the dashboard, under{" "}
+        <Name>Urgent shifts not filled</Name>, with these buttons. Every session and its places free
+        is on <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
       </Para>
       <Task title="To offer it to someone">
         <Steps>
@@ -356,7 +372,7 @@ function FillAGap({ role }: { role: OfficeRole }) {
           </Step>
           <Step>
             Changed your mind? Select <Name>Open it again</Name> straight away. It&apos;s only there
-            until you leave or reload Today.
+            until you leave or reload the page.
           </Step>
         </Steps>
         <Note>A shift from your Google Sheet is changed in the sheet, not here.</Note>
@@ -391,8 +407,8 @@ function FillAGap({ role }: { role: OfficeRole }) {
         </Task>
       ) : null}
       <Links>
-        <GoTo href="/office#gaps" icon="home">
-          See the gaps on Today
+        <GoTo href="/office#urgent" icon="home">
+          See the urgent gaps
         </GoTo>
       </Links>
     </>
@@ -470,8 +486,8 @@ function ChangeAShift() {
   return (
     <>
       <Para>
-        Open the shift from Today, or from its event on <Name>Events &amp; sessions</Name> (its{" "}
-        <Name>…</Name> menu, then <Name>Change or cancel</Name>). Everything about it is on its
+        Open the shift from the dashboard, or from its event on <Name>Events &amp; sessions</Name>{" "}
+        (its <Name>…</Name> menu, then <Name>Change or cancel</Name>). Everything about it is on its
         page.
       </Para>
       <Task title="To hide shifts from casuals">
@@ -565,8 +581,8 @@ function AfterAShift() {
   return (
     <>
       <Para>
-        Mark who worked each shift. <Name>Who worked?</Name> on Today lists shifts from the last 7
-        days with people not marked yet.
+        Mark who worked each shift. <Name>Who worked?</Name>, in the dashboard&apos;s{" "}
+        <Name>Needs attention</Name>, lists shifts from the last 7 days with people not marked yet.
       </Para>
       <Steps>
         <Step>Open the shift&apos;s page.</Step>
@@ -587,52 +603,76 @@ function AfterAShift() {
         attended”.
       </Note>
       <Links>
-        <GoTo href="/office#to-mark" icon="home">
-          See who to mark on Today
+        <GoTo href="/office#needs-attention" icon="home">
+          See who to mark
         </GoTo>
       </Links>
     </>
   );
 }
 
-function Requests() {
+function Enquiries() {
   return (
     <>
       <Para>
-        Workers ask for time changes and swaps, or ask you to review a shift the rules refused. They
-        wait on <Name>Requests</Name>, oldest first.
+        Everything casuals send the shifts line, and what came of it, is on <Name>Enquiries</Name>.
+        Most are answered at once. The ones the shifts line can&apos;t answer wait under{" "}
+        <Name>Need a person</Name>, oldest first: the menu shows how many.
       </Para>
-      <Steps>
-        <Step>
-          Read the request under <Name>Waiting for an answer</Name>.
-        </Step>
-        <Step>
-          To say yes, select{" "}
-          <Name>
-            Approve and tell <Their />
-          </Name>
-          .
-        </Step>
-        <Step>
-          To say no, write why in{" "}
-          <Name>
-            Note to <Their /> (needed to decline)
-          </Name>
-          . Then select{" "}
-          <Name>
-            Decline and tell <Their />
-          </Name>
-          .
-        </Step>
-      </Steps>
+      <Task title="To answer a message">
+        <Steps>
+          <Step>
+            Select <Name>Need a person</Name>, then the person&apos;s name (or{" "}
+            <Name>Unknown number</Name>).
+          </Step>
+          <Step>
+            Read the conversation and <Name>How it was answered</Name>.
+          </Step>
+          <Step>
+            Write your answer in <Name>Reply</Name> and select <Name>Send reply</Name>. The line
+            above the box says how it will go: as you wrote it, or, more than 24 hours after their
+            last WhatsApp, inside the request update message.
+          </Step>
+          <Step>
+            Or, if it needs no reply (you rang them, or it&apos;s spam), choose a reason in{" "}
+            <Name>Why close it?</Name> and select <Name>Close without a reply</Name>.
+          </Step>
+        </Steps>
+      </Task>
+      <Task title="To answer a request from the app">
+        <Steps>
+          <Step>
+            Select <Name>Requests from the app</Name>: time changes, swaps, and asks to review a
+            shift the rules refused.
+          </Step>
+          <Step>
+            To say yes, select{" "}
+            <Name>
+              Approve and tell <Their />
+            </Name>
+            .
+          </Step>
+          <Step>
+            To say no, write why in{" "}
+            <Name>
+              Note to <Their /> (needed to decline)
+            </Name>
+            . Then select{" "}
+            <Name>
+              Decline and tell <Their />
+            </Name>
+            .
+          </Step>
+        </Steps>
+      </Task>
       <Note>
         Approving doesn&apos;t change the shift, or book them on it: do that on the shift&apos;s
-        page. A request from a voicemail may not be from the worker, so check anything unusual with
-        them.
+        page. A voicemail may not be from the worker, so check anything unusual with them. Pay
+        messages always go to a person: the shifts line only sends the pay page&apos;s link.
       </Note>
       <Links>
-        <GoTo href="/office/requests" icon="requests">
-          Go to Requests
+        <GoTo href="/office/enquiries" icon="requests">
+          Go to Enquiries
         </GoTo>
       </Links>
     </>
@@ -643,7 +683,8 @@ function Workers() {
   return (
     <>
       <Para>
-        Find a worker to change their access: when they leave, come back or lose their phone.
+        Find a casual to see their qualifications and what needs updating, or to change their
+        access: when they leave, come back or lose their phone.
       </Para>
       <Task title="To find someone">
         <Steps>
@@ -671,10 +712,10 @@ function Workers() {
           </Step>
         </Steps>
         <Note>
-          Their bookings ahead go on Today, under “Bookings to check”. Your rota sheet or a staff
-          file can&apos;t make them active again: only you can. When they&apos;re back, select “Make
-          active again”. If your rota sheet or a staff file still says they&apos;re inactive, change
-          it there too. Otherwise the next sync or import makes them inactive again.
+          Their bookings ahead go on the dashboard, under “Bookings to check”. Your rota sheet or a
+          staff file can&apos;t make them active again: only you can. When they&apos;re back, select
+          “Make active again”. If your rota sheet or a staff file still says they&apos;re inactive,
+          change it there too. Otherwise the next sync or import makes them inactive again.
         </Note>
       </Task>
       <Task title="To keep someone off a site">
@@ -696,8 +737,8 @@ function Workers() {
         </Steps>
       </Task>
       <Links>
-        <GoTo href="/office/workers" icon="workers">
-          Go to Workers
+        <GoTo href="/office/casuals" icon="workers">
+          Go to Casuals
         </GoTo>
       </Links>
     </>
@@ -834,7 +875,7 @@ function Admin({ role }: { role: OfficeRole }) {
               <Name>Admin</Name>: everything, including the office team and data requests.
             </li>
             <li>
-              <Name>Resourcer</Name>: Today, shifts, requests, workers and records.
+              <Name>Resourcer</Name>: the dashboard, shifts, enquiries, casuals and records.
             </li>
             <li>
               <Name>Payroll</Name>: pay queries and pay records.
@@ -899,6 +940,55 @@ function Admin({ role }: { role: OfficeRole }) {
           </div>
         </Task>
       ) : null}
+    </>
+  );
+}
+
+// Integrations (12J.1; docs/office-v2.md 5.3.4): the page's "How to connect your planner" lands
+// here. The technical side, for whoever sets the planner up, is docs/integrations.md.
+function ConnectPlanner() {
+  return (
+    <>
+      <Para>
+        Your planner can send its sessions to ShiftDesk, and read their bookings and cancellations.
+        It needs an API key: a long password for a machine.
+      </Para>
+      <Steps>
+        <Step>
+          On Integrations, under <Name>API keys</Name>, type a <Name>Name</Name> you&apos;ll
+          recognise, like your planner&apos;s name. Select <Name>Create a key</Name>.
+        </Step>
+        <Step>
+          Select <Name>Copy the key</Name> and paste it into your planner straight away. You
+          won&apos;t see it again.
+        </Step>
+        <Step>
+          Once your planner sends a session, <Name>Your planner</Name> says{" "}
+          <Name>Connected by API</Name>, with the time of its last change.
+        </Step>
+      </Steps>
+      <Note>
+        Your planner names roles and qualifications with your own codes. Find them under{" "}
+        <Name>Codes your planner can use</Name>.
+      </Note>
+      <Note>
+        To tell your planner about each booking and cancellation as it happens, paste its address
+        under <Name>Webhook</Name> and select <Name>Add a webhook</Name>. Then select{" "}
+        <Name>Copy the secret</Name> and paste it into your planner.
+      </Note>
+      <Note>
+        Change your planner&apos;s sessions in your planner. Here you can still show or hide them,
+        mark them urgent, offer them and assign people to them.
+      </Note>
+      <Note>
+        A key you no longer use, or one someone else may have seen: select <Name>Revoke</Name>, then{" "}
+        <Name>Yes, revoke it</Name>. It stops working at once.
+      </Note>
+      <div className="mt-2">
+        <GoTo href="/office/settings/integrations" icon="plug">
+          Go to Integrations
+        </GoTo>
+      </div>
     </>
   );
 }

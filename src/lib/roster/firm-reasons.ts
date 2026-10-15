@@ -8,7 +8,7 @@ export const FIRM_CHANGE_REASONS = {
   event_cancelled: "The event was cancelled",
   fewer_staff: "The client needs fewer staff",
   weather: "Weather or safety",
-  // One person's booking only (Today's "Bookings to check", Phase 10): they've stopped being
+  // One person's booking only (the dashboard's "Bookings to check", Phase 10): they've stopped being
   // active, or the office blocked them from the site.
   not_available: "They've left, or can't work here",
   other: "Another reason",

@@ -18,9 +18,11 @@ import { lockAppliedDay, previewBooking } from "./book";
 //   a booking on an application in progress that day and this change count the allowance in turn.
 //   The shift's lock keeps who is booked from changing meanwhile.
 // - Blocked: someone fails a check the editor can't override (`allowed`), or couldn't be checked
-//   at all (their record missing). A booking the office chose to keep (Today's "Bookings to check")
+//   at all (their record missing). A booking the office chose to keep (the dashboard's "Bookings to check")
 //   though its worker isn't active, or is blocked from the site: those two don't count unless the
-//   site changes, so a block at a new site is never kept unseen.
+//   site changes, so a block at a new site is never kept unseen. Only for an editor that honours
+//   the office's keep (`honourKept`: the office and the rota sheet); the planner's API doesn't, so a
+//   kept booking's checks stop the planner's move like any other (12J.1 review).
 
 export interface RecheckHolder {
   assignmentId: string;
@@ -40,6 +42,7 @@ export async function recheckHolders(
     timeZone: string;
     siteChanged: boolean;
     allowed: readonly RuleCode[]; // codes this editor may override
+    honourKept: boolean; // the office's "keep" counts for this editor
   },
 ): Promise<{ holders: RecheckHolder[]; blocked: RecheckHolder[] }> {
   const booked = await tx
@@ -110,7 +113,7 @@ export async function recheckHolders(
       continue;
     }
     const counted =
-      r.kept !== null && !opts.siteChanged
+      opts.honourKept && r.kept !== null && !opts.siteChanged
         ? v.codes.filter((c) => c !== "not_active" && c !== "blocked_site")
         : v.codes;
     if (counted.length > 0 && !counted.every((c) => opts.allowed.includes(c))) {

@@ -110,7 +110,20 @@ describe.each(EXPECTED_TABLES)("table %s", (table) => {
               },
               tenant("firm_isolation", "ALL", "id"),
             ]
-          : [tenant("firm_isolation", "ALL")];
+          : table === "api_keys"
+            ? [
+                tenant("firm_isolation", "ALL"),
+                // Only the owner (for app_api_key_lookup, 12J.1) may read every firm's keys.
+                {
+                  policyname: "key_lookup",
+                  permissive: "PERMISSIVE",
+                  roles: `{${urls.owner}}`,
+                  cmd: "SELECT",
+                  qual: "true",
+                  with_check: null,
+                },
+              ]
+            : [tenant("firm_isolation", "ALL")];
     expect(rows).toEqual(expected);
   });
 
@@ -250,6 +263,7 @@ it("every unique key on a firm table starts with firm_id (except unguessable tok
       order by 1`,
   );
   const unguessable = [
+    "api_keys_token_hash_unique",
     "magic_links_request_id_unique",
     "magic_links_token_hash_unique",
     "sessions_prev_token_hash_unique",
@@ -347,7 +361,7 @@ describe("the rest of the public schema", () => {
   // for an incoming message's number, Phase 7, ADR-018; app_resolve_firm_by_domain: the firm for
   // its own verified domain, Phase 8; app_erase_worker and app_purge_old_messages: the only ways
   // messages are deleted, by erasing their worker or once over 90 days old, Phase 8 GDPR).
-  it("the app role can execute exactly nine functions: app_current_firm_id, app_erase_worker, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_purge_old_strikes, app_resolve_firm, app_resolve_firm_by_domain and app_set_firm_setting", async () => {
+  it("the app role can execute exactly ten functions: app_api_key_lookup, app_current_firm_id, app_erase_worker, app_firm_by_line, app_firm_ids, app_purge_old_messages, app_purge_old_strikes, app_resolve_firm, app_resolve_firm_by_domain and app_set_firm_setting", async () => {
     const { rows } = await su.query<{ fn: string }>(
       `select p.proname as fn from pg_proc p
         where p.pronamespace = 'public'::regnamespace
@@ -355,6 +369,8 @@ describe("the rest of the public schema", () => {
         order by 1`,
     );
     expect(rows.map((r) => r.fn)).toEqual([
+      // 12J.1: a live API key's firm and key id, before a firm is known (tests/integration/api.keys.test.ts).
+      "app_api_key_lookup",
       "app_current_firm_id",
       "app_erase_worker",
       "app_firm_by_line",

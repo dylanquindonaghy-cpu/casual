@@ -4,13 +4,16 @@ import type { OpenShiftFilters, OpenShiftsList } from "@/lib/portal/open-shifts"
 import { dayLabel } from "@/lib/rules/reasons";
 import { btn, field, labelStack, muted, staffBtn } from "../../ui/classes";
 import { PageHeader } from "../../ui/page-header";
+import { ShiftsSwitch } from "../../my-shifts-view";
 import { OpenShiftCard } from "./open-shift-card";
+import { AreaPrompt, FurtherNote } from "./travel-notes";
 
 // Open shifts (docs/screens.md, `/shifts/open`): only shifts this worker can take. Filters by day,
 // site and role (a plain form: it works without JavaScript), kept to two short rows so the first
 // shift shows on a phone's first screen; each card shows the time, role, site and places left,
 // with "Take shift". The cards' list has role="list": Safari stops announcing a list once its
-// bullets are styled away.
+// bullets are styled away. Only shifts in her travel area, urgent first, then the nearest; with no
+// area, a prompt to add one; under the list, how many more are further than she travels (12G.3).
 
 export function OpenShiftsView({
   list,
@@ -31,6 +34,8 @@ export function OpenShiftsView({
   return (
     <>
       <PageHeader eyebrow={eyebrow} title="Open shifts" />
+      <ShiftsSwitch current="open" />
+      <AreaPrompt list={list} />
       {(choices.days.length > 1 || choices.sites.length > 1 || choices.roles.length > 1) && (
         <form method="get" className="mb-6 grid grid-cols-2 gap-3 rounded-xl bg-quiet-soft p-3">
           <label className={labelStack}>
@@ -104,6 +109,7 @@ export function OpenShiftsView({
           These are the first open shifts. Choose a day, site or role to see others.
         </p>
       )}
+      <FurtherNote list={list} />
       <Link href="/" className={`${staffBtn.secondary} mt-8`}>
         Back to my shifts
       </Link>

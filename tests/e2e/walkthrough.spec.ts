@@ -31,6 +31,11 @@ const ZOE = { typed: "07700 900122", e164: "+447700900122", name: "Zoe Usman" };
 const SAM = { typed: "07700 900110", e164: "+447700900110", name: "Sam Walsh" };
 const MAYA = { typed: "07700 900129", e164: "+447700900129" };
 const WES = { typed: "07700 900139", e164: "+447700900139" };
+// Two of the mock-up's story casuals (12I.1's seed).
+const ZOE_A = { typed: "07700 900400", e164: "+447700900400" };
+const KIERAN = { typed: "07700 900401", e164: "+447700900401" };
+// The planner's calls go to the platform address, never a firm's own (docs/integrations.md).
+const api = `http://localhost:${WALKTHROUGH_PORT}/api/v1`;
 
 const sent = (to: string, after: Date, pattern: RegExp) =>
   sentTo(to, after, pattern, WALKTHROUGH_OUTBOX);
@@ -76,7 +81,7 @@ async function desk(browser: Browser): Promise<Page> {
   return context.newPage();
 }
 
-// Steps 10, 16, 18, 19: a worker's login, with the link from the "dev window".
+// Steps 10, 16, 18, 19, 20, 21: a worker's login, with the link from the "dev window".
 async function workerLogin(page: Page, who: { typed: string; e164: string }) {
   const asked = justBefore();
   await page.goto(`${acme}/login`);
@@ -93,7 +98,7 @@ async function workerLogin(page: Page, who: { typed: string; e164: string }) {
   await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
 }
 
-// Steps 20, 32, 35, 36: an office login, with the link from the emailed message.
+// Steps 22, 36, 39, 42: an office login, with the link from the emailed message.
 async function officeLogin(page: Page, email: string, base = acme) {
   const asked = justBefore();
   await page.goto(`${base}/office/login`);
@@ -112,9 +117,9 @@ async function officeLogin(page: Page, email: string, base = acme) {
   await expect(page).toHaveURL(new RegExp(`^${base.replace(/\./g, "\\.")}/office(/pay)?$`));
 }
 
-// "Log out" is at the bottom of My shifts, and in the office's account menu (12A.2).
+// "Log out" is the last thing on a casual's Profile (12H.1), and in the office's account menu (12A.2).
 async function logOut(page: Page, home: string) {
-  await page.goto(home);
+  await page.goto(home.includes("/office") ? home : `${home.replace(/\/$/, "")}/profile`);
   const where = home.includes("/office") ? await accountMenu(page) : page;
   await where.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/(office\/)?login/);
@@ -137,7 +142,7 @@ function dropoutShiftId(): string {
 
 test.beforeAll(async () => {
   dropout = dropoutShiftId();
-  // Only "Send the digest now" (step 32) sends one: the worker's own tick would otherwise send it at
+  // Only "Send the digest now" (step 36) sends one: the worker's own tick would otherwise send it at
   // 09:00 on a weekday if the run happens then, and the step's count would be 0.
   await setFirmSetting("acme", "pay_digest", { days: [] });
   // No quiet hours, so a run at night sees the messages the guide expects at once (the offer, the
@@ -159,7 +164,7 @@ test("Part 2: as a worker", async ({ browser }) => {
   });
 
   await test.step("11. Take a shift", async () => {
-    await page.getByRole("link", { name: "See open shifts" }).click();
+    await page.getByRole("link", { name: "See all open shifts" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     const arena = page.getByRole("listitem").filter({ hasText: "Acme Demo Arena" }).first();
     await arena.getByRole("button", { name: "Take shift" }).click();
@@ -186,7 +191,7 @@ test("Part 2: as a worker", async ({ browser }) => {
   });
 
   await test.step("13. Your pay", async () => {
-    await page.getByRole("link", { name: "See your pay" }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
     const asked = justBefore();
     await page.getByRole("button", { name: "Send me a code" }).click();
     const code = await sent(ZOE.e164, asked, /^Your Acme Events code is (\d{6})\./);
@@ -207,8 +212,10 @@ test("Part 2: as a worker", async ({ browser }) => {
   });
 
   await test.step("15. Your profile", async () => {
-    await page.goto(`${acme}/`);
-    await page.getByRole("link", { name: "My profile" }).click();
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Profile" })
+      .click();
     await expect(page).toHaveURL(`${acme}/profile`);
     await expect(page.getByText("Level 2 spectator safety qualification")).toBeVisible();
     await expect(page.getByText(/^Valid/).first()).toBeVisible();
@@ -225,8 +232,13 @@ test("Part 2: as a worker", async ({ browser }) => {
     await workerLogin(page, SAM);
     await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Instructions" }).first()).toBeVisible();
+    // Her bookings are on the Shifts tab (12H.1).
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Shifts" })
+      .click();
     await page.getByRole("link", { name: "Past 30 days" }).click();
-    await expect(page).toHaveURL(`${acme}/?view=past`);
+    await expect(page).toHaveURL(`${acme}/shifts?view=past`);
     await expect(
       page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" }).first(),
     ).toBeVisible();
@@ -249,7 +261,18 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("18. Log in as Maya Morgan: her expired licence, and the urgent shift she can't take", async () => {
     await workerLogin(page, MAYA);
-    await expect(page.getByText(/^Your SIA door supervisor licence /).first()).toBeVisible();
+    // My shifts' "Needs updating" card (12F.1), red: her licence stops her working.
+    const needs = page.getByRole("region", { name: "Needs updating" });
+    await expect(
+      needs.getByText(
+        /^SIA door supervisor licence expired on .+\. Until it's renewed you won't see door supervisor shifts\. Upload it$/,
+      ),
+    ).toBeVisible();
+    // Straight to its upload page (12F.2).
+    await expect(
+      needs.getByRole("link", { name: "Upload your SIA door supervisor licence" }),
+    ).toHaveAttribute("href", "/profile/upload/SIA_DS");
+    await expect(needs.getByRole("link", { name: "See your qualifications" })).toBeVisible();
     await page.goto(`${acme}/shifts/${dropout}`);
     await expect(page.getByRole("heading", { name: "You can't take this shift:" })).toBeVisible();
     await expect(page.getByText(/Your SIA door supervisor licence expired on /)).toBeVisible();
@@ -262,10 +285,9 @@ test("Part 2: as a worker", async ({ browser }) => {
     await workerLogin(page, WES);
     // One, the 08:00 dropout; two from Friday noon, when Zoe's cancelled Saturday shift (step 12)
     // is inside the urgent window too.
-    await expect(
-      page.getByRole("heading", { name: /^\d+ urgent shifts? needs? someone$/ }),
-    ).toBeVisible();
-    await page.getByRole("link", { name: "See urgent shifts" }).click();
+    const onHome = page.getByRole("region", { name: "Urgent: needed now, and you can take them" });
+    await expect(onHome.getByRole("listitem").filter({ hasText: "08:00" })).toHaveCount(1);
+    await onHome.getByRole("link", { name: "See urgent shifts" }).click();
     await expect(page.getByRole("heading", { name: "Urgent shifts" })).toBeVisible();
     await page
       .getByRole("listitem")
@@ -276,37 +298,91 @@ test("Part 2: as a worker", async ({ browser }) => {
     await expect(page.getByText("You're booked.")).toBeVisible();
     await logOut(page, `${acme}/`);
   });
+
+  await test.step("20. Log in as Zoe Adeyemi: how far each shift is, and her travel area", async () => {
+    await workerLogin(page, ZOE_A);
+    // The seed's fixed travel times: distance, then car and public transport (12G.3).
+    await expect(page.getByText(/^\d+\.\d miles · .+ by car · /).first()).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Profile" })
+      .click();
+    await expect(page.getByRole("region", { name: "Staff photo", exact: true })).toContainText(
+      "Due soon",
+    );
+    const where = page.getByRole("region", { name: "Where you work" });
+    await where.getByRole("link", { name: "Change your travel area" }).click();
+    await expect(page).toHaveURL(`${acme}/profile/travel`);
+    await page.getByLabel("60 minutes").check();
+    await page.getByRole("button", { name: "Save travel area" }).click();
+    await expect(
+      page.getByRole("region", { name: "Where you work" }).getByRole("status"),
+    ).toContainText("Saved. This is your travel area now.");
+    await page.getByRole("link", { name: "Back to my profile" }).click();
+    await expect(page).toHaveURL(`${acme}/profile`);
+    await logOut(page, `${acme}/`);
+  });
+
+  await test.step("21. Log in as Kieran Doyle: his strikes, and where he'd upload his licence", async () => {
+    await workerLogin(page, KIERAN);
+    const needs = page.getByRole("region", { name: "Needs updating" });
+    await expect(needs).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Profile" })
+      .click();
+    await expect(page.getByRole("region", { name: "Strikes", exact: true })).toContainText(
+      "You have 2 strikes in the last 90 days.",
+    );
+    await page.goto(`${acme}/`);
+    await page
+      .getByRole("region", { name: "Needs updating" })
+      .getByRole("link", { name: "Upload your SIA door supervisor licence" })
+      .click();
+    await expect(page).toHaveURL(`${acme}/profile/upload/SIA_DS`);
+    await expect(
+      page.getByRole("heading", { name: "Upload your SIA door supervisor licence" }),
+    ).toBeVisible();
+    await logOut(page, `${acme}/`);
+  });
 });
 
 test("Part 3: as the office", async ({ browser }) => {
   const page = await desk(browser);
   const now = new Date();
 
-  await test.step("20. Log in as the resourcer", async () => {
+  await test.step("22. Log in as the resourcer", async () => {
     await officeLogin(page, "acme.resourcer@example.com");
-    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
   });
 
-  await test.step("21. Today", async () => {
-    await expect(page.getByRole("region", { name: "Gaps in the next 7 days" })).toBeVisible();
-    // Sam's time change and the seed's, the seed's swap, and Maya's review.
-    await expect(page.getByRole("region", { name: "Requests" })).toContainText(
-      "4 requests waiting: 2 time changes, 1 swap, 1 review of a refused shift.",
-    );
+  await test.step("23. The dashboard", async () => {
+    // The four counts, each a link to its list (12E.1).
+    await expect(page.getByRole("navigation", { name: "Counts" }).getByRole("link")).toHaveCount(4);
+    // Zoe's cancellation (step 12) is the latest; nothing there to approve or decline.
+    const cancellations = page.getByRole("region", { name: "Cancellations", exact: true });
+    await expect(cancellations.getByText(`${ZOE.name} cancelled`).first()).toBeVisible();
+    await expect(
+      cancellations.getByText("Recorded automatically, never approved or declined"),
+    ).toBeVisible();
+    // Needs attention: yesterday's racecourse shifts to mark.
     await expect(
       page.getByRole("region", { name: "Who worked?" }).getByText("Acme Demo Racecourse").first(),
     ).toBeVisible();
-    await expect(
-      page.getByRole("region", { name: "Cancelled in the last 24 hours" }).getByText(ZOE.name),
-    ).toBeVisible();
   });
 
-  await test.step("22. Offer a gap", async () => {
-    const gap = page
-      .getByRole("region", { name: "Gaps in the next 7 days" })
-      .getByRole("article")
-      .first();
-    await gap.getByRole("link", { name: "Offer to someone" }).click();
+  await test.step("24. Offer a gap", async () => {
+    // "Events showing to casuals" opens Events & sessions' Showing tab; a session's "…" menu has
+    // "Offer a place" while it has one free.
+    await page
+      .getByRole("navigation", { name: "Counts" })
+      .getByRole("link")
+      .filter({ hasText: "Events showing to casuals" })
+      .click();
+    await expect(page).toHaveURL(`${acme}/office/events?view=showing`);
+    const menu = page.locator('details:has(a[href^="/office/offer/"])').first();
+    await menu.locator("summary").click();
+    await menu.getByRole("link", { name: "Offer a place" }).click();
     await expect(page.getByRole("heading", { name: "Offer this shift" })).toBeVisible();
     const asked = justBefore();
     await page
@@ -317,12 +393,21 @@ test("Part 3: as the office", async ({ browser }) => {
       page.getByRole("status").filter({ hasText: /^Offer on its way to .+\.$/ }),
     ).toBeVisible();
     await anySent(asked, /^(Shift available|URGENT): /);
-    await page.getByRole("link", { name: "Back to Today" }).click();
+    await page.getByRole("link", { name: "Back to the dashboard" }).click();
+    await expect(page).toHaveURL(`${acme}/office`);
   });
 
-  await test.step("23. Answer a request", async () => {
-    await (await menuLink(page, "Requests")).click();
-    await expect(page).toHaveURL(`${acme}/office/requests`);
+  await test.step("25. Enquiries, and answer a request", async () => {
+    // The shifts line's messages (the story's three, answered by the app's own replies), then the
+    // requests made in the app, Enquiries' "Requests from the app" (12D.1).
+    await (await menuLink(page, "Enquiries")).click();
+    await expect(page).toHaveURL(`${acme}/office/enquiries`);
+    for (const name of ["Kieran Doyle", "Ben Fraser", "Zoe Adeyemi"]) {
+      await expect(page.getByRole("link", { name, exact: true }).first()).toBeVisible();
+    }
+    await expect(page.getByText("Pay (always a person)").first()).toBeVisible();
+    await page.getByRole("link", { name: "Requests from the app" }).click();
+    await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
     const card = page
       .getByRole("region", { name: "Waiting for an answer" })
       .locator("li", { hasText: SAM.name })
@@ -333,7 +418,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await sent(SAM.e164, asked, /^(Your request \(time change, ref [0-9A-F]{8}\) is approved\.)/);
   });
 
-  await test.step("24. Mark who worked", async () => {
+  await test.step("26. Mark who worked", async () => {
     await page.goto(`${acme}/office`);
     const card = page
       .getByRole("region", { name: "Who worked?" })
@@ -349,7 +434,7 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   let booked = "";
-  await test.step("25. Make a shift and book someone", async () => {
+  await test.step("27. Make a shift and book someone", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Events & sessions")).click();
     await page.getByRole("link", { name: "All shifts by day" }).click();
@@ -385,7 +470,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await page.reload();
   });
 
-  await test.step("26. Move it, then cancel the booking", async () => {
+  await test.step("28. Move it, then cancel the booking", async () => {
     await page.getByLabel("New start").fill("11:00");
     await page.getByLabel("New finish").fill("19:00");
     await page
@@ -407,7 +492,7 @@ test("Part 3: as the office", async ({ browser }) => {
     ).toBeVisible();
   });
 
-  await test.step("27. A whole event, and an import", async () => {
+  await test.step("29. A whole event, and an import", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Events & sessions")).click();
     await page.getByRole("link", { name: "Add shifts" }).click();
@@ -439,16 +524,59 @@ test("Part 3: as the office", async ({ browser }) => {
     ).toBeVisible();
   });
 
-  await test.step("28. Workers", async () => {
+  await test.step("30. Cancellations: Zoe's record", async () => {
     await page.goto(`${acme}/office`);
-    await (await menuLink(page, "Workers")).click();
-    await page.getByLabel("Name or mobile number").fill("Zoe");
-    await page.getByRole("button", { name: "Find" }).click();
-    await page.getByRole("link", { name: ZOE.name }).click();
-    await expect(page.getByRole("heading", { name: ZOE.name })).toBeVisible();
+    await (await menuLink(page, "Cancellations")).click();
+    await expect(page.getByRole("heading", { name: "Cancellations", level: 1 })).toBeVisible();
+    await page.getByRole("link").filter({ hasText: ZOE.name }).first().click();
+    await expect(page).toHaveURL(/\/office\/cancellations\/[^/]+$/);
+    await expect(page.getByRole("heading", { name: /^Cancellation / })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Download PDF" })).toBeVisible();
   });
 
-  await test.step("29. The action log", async () => {
+  await test.step("31. Strikes: Kieran's two, and Priya's for review", async () => {
+    await page.goto(`${acme}/office`);
+    await (await menuLink(page, "Strikes")).click();
+    await expect(page.getByRole("heading", { name: "Strikes", level: 1 })).toBeVisible();
+    const casual = (name: string) =>
+      page.getByRole("listitem").filter({ has: page.getByRole("heading", { name }) });
+    await expect(casual("Kieran Doyle")).toContainText("2 live strikes");
+    await page.getByRole("link", { name: "Needs review", exact: true }).click();
+    const priya = casual("Priya Shah");
+    await expect(priya).toContainText("Needs review");
+    await priya.locator('a[href^="/office/cancellations/"]').first().click();
+    await page.getByRole("button", { name: "Keep strike" }).click();
+    await expect(page.getByRole("status")).toHaveText("Kept, and marked as reviewed.");
+  });
+
+  await test.step("32. Casuals", async () => {
+    await page.goto(`${acme}/office`);
+    await (await menuLink(page, "Casuals")).click();
+    const find = page.getByRole("region", { name: "Find a casual" });
+    await find.getByLabel("Name or mobile number").fill("Zoe");
+    await find.getByRole("button", { name: "Find" }).click();
+    await find.getByRole("link", { name: ZOE.name }).click();
+    await expect(page.getByRole("heading", { name: ZOE.name })).toBeVisible();
+    // The uploads waiting for a person (the story's): approve Ben's new photo.
+    await page.goto(`${acme}/office/casuals`);
+    await page.getByRole("link", { name: /^Uploads to check/ }).click();
+    const waiting = page.getByRole("region", { name: "Uploads to check", exact: true });
+    await expect(waiting.getByRole("listitem").filter({ hasText: "Leah Ward" })).toBeVisible();
+    await waiting
+      .getByRole("listitem")
+      .filter({ hasText: "Ben Fraser" })
+      .getByRole("link", { name: "Check it" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Ben Fraser", level: 1 })).toBeVisible();
+    const photo = page
+      .getByRole("region", { name: "Uploads to check", exact: true })
+      .getByRole("listitem")
+      .filter({ hasText: "Staff photo" });
+    await photo.getByRole("button", { name: "Approve staff photo" }).click();
+    await expect(photo.getByRole("status")).toHaveText("Approved. It counts from now.");
+  });
+
+  await test.step("33. The action log", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Action log")).click();
     await expect(page.getByRole("heading", { name: "Action log" })).toBeVisible();
@@ -460,7 +588,7 @@ test("Part 3: as the office", async ({ browser }) => {
     ).toBeVisible();
   });
 
-  await test.step("30. The notice report: the office's cancellation (audit L25) and Zoe's", async () => {
+  await test.step("34. The notice report: the office's cancellation (audit L25) and Zoe's", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Notice report")).click();
     await expect(
@@ -478,7 +606,7 @@ test("Part 3: as the office", async ({ browser }) => {
     expect(download.suggestedFilename()).toMatch(/\.csv$/);
   });
 
-  await test.step("31. Pilot metrics", async () => {
+  await test.step("35. Pilot metrics", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Pilot metrics")).click();
     const baseline = page.getByRole("region", { name: "Baseline (week 0)" });
@@ -488,8 +616,11 @@ test("Part 3: as the office", async ({ browser }) => {
     await logOut(page, `${acme}/office`);
   });
 
-  await test.step("32. Log in as payroll: the pay queries, and the digest", async () => {
+  await test.step("36. Log in as payroll: the pay queries, and the digest", async () => {
     await officeLogin(page, "acme.payroll@example.com");
+    // Payroll's home: the pay dashboard (12A.3).
+    await expect(page).toHaveURL(`${acme}/office/pay`);
+    await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
     await (await menuLink(page, "Pay queries")).click();
     await expect(page).toHaveURL(`${acme}/office/pay-queries`);
     await expect(
@@ -520,7 +651,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await emailed("acme.payroll@example.com", asked, /^Acme Events: \d+ new pay quer(y|ies)$/);
   });
 
-  await test.step("33. Answer a group", async () => {
+  await test.step("37. Answer a group", async () => {
     const group = page.getByRole("region", { name: /^7 queries: wrong rate, the week of / });
     await group
       .getByLabel("Tell them what payroll did")
@@ -534,7 +665,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await sent(SAM.e164, asked, /^(Update on your pay query \(ref [0-9A-F]{8}\): sorted\.)/);
   });
 
-  await test.step("34. Import pay records", async () => {
+  await test.step("38. Import pay records", async () => {
     await page.goto(`${acme}/office`);
     await (await menuLink(page, "Import pay records")).click();
     await page.getByLabel("Your file (.csv or .xlsx)").setInputFiles({
@@ -554,7 +685,7 @@ test("Part 3: as the office", async ({ browser }) => {
     await logOut(page, `${acme}/office`);
   });
 
-  await test.step("35. Log in as the admin: the office team, and Zoe's data", async () => {
+  await test.step("39. Log in as the admin: the office team, and Zoe's data", async () => {
     await officeLogin(page, "acme.admin@example.com");
     await (await menuLink(page, "Office team")).click();
     await expect(page.getByRole("heading", { name: "Office team" })).toBeVisible();
@@ -572,10 +703,89 @@ test("Part 3: as the office", async ({ browser }) => {
       page.getByRole("link", { name: "Download (CSV, opens in Excel)" }).click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/\.csv$/);
+  });
+
+  await test.step("40. Settings: the strikes team's email, confirmed by its link", async () => {
+    await page.goto(`${acme}/office`);
+    await (await menuLink(page, "Settings")).click();
+    await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
+    const box = page.getByRole("textbox", { name: "Strikes team email" });
+    await expect(box).toHaveValue("strikes@acme-events.example");
+    await expect(page.getByText("Confirmed", { exact: true })).toBeVisible();
+    const team = "strikes.team@acme-events.example";
+    const asked = justBefore();
+    await box.fill(team);
+    await page.getByRole("button", { name: "Save and send a link" }).click();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "Saved. We've sent a link to that address to confirm it" }),
+    ).toBeVisible();
+    await expect(page.getByText("Not confirmed", { exact: true })).toBeVisible();
+    const link = await sent(
+      team,
+      asked,
+      /(http:\/\/\S+\/confirm-email#[A-Za-z0-9_-]{28}\.[A-Za-z0-9_-]{43})/,
+    );
+    const opened = await desk(browser);
+    await opened.goto(link);
+    await opened.getByRole("button", { name: "Confirm this address" }).click();
+    await expect(
+      opened.getByText(
+        "Confirmed. Acme Events can now send records of late cancellations to this address.",
+      ),
+    ).toBeVisible();
+    await opened.context().close();
+    await page.reload();
+    await expect(page.getByText("Confirmed", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Postcode", { exact: true }).first()).toBeVisible();
+  });
+
+  await test.step("41. Connect a planner: a key, a session sent with it, then revoked", async () => {
+    await page.goto(`${acme}/office`);
+    await (await menuLink(page, "Integrations")).click();
+    await page.getByRole("textbox", { name: "Name" }).fill("Demo planner");
+    await page.getByRole("button", { name: "Create a key" }).click();
+    const shown = page.locator("code").filter({ hasText: /shiftdesk_/ });
+    const key = ((await shown.textContent()) ?? "").trim();
+    expect(key).toMatch(/^shiftdesk_[A-Za-z0-9_-]{43}$/);
+    // The guide's curl, as the planner (server to server).
+    const day = daysFromToday(10);
+    const answer = await page.request.put(`${api}/sessions/DEMO-STEWARD-1`, {
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+        "x-real-ip": "10.79.0.1",
+      },
+      data: JSON.stringify({
+        event: { ref: "DEMO-EVENT", name: "Planner demo day" },
+        site: { name: "Acme Demo Arena" },
+        role: "steward",
+        starts_at: `${day}T10:00:00+00:00`,
+        ends_at: `${day}T16:00:00+00:00`,
+        places: 2,
+        status: "open",
+      }),
+    });
+    expect(answer.status()).toBe(201);
+    expect(await answer.text()).toMatch(/^\{"result":"created","session":\{/);
+    await page.reload();
+    await expect(
+      page.getByText(/^Connected by API · last change from your planner /),
+    ).toBeVisible();
+    await (await menuLink(page, "Events & sessions")).click();
+    await expect(page.getByText("Planner demo day").first()).toBeVisible();
+    await page.goto(`${acme}/office/settings/integrations`);
+    // At desktop size the keys are a table (stacked cards only on a phone).
+    await page.getByRole("button", { name: "Revoke Demo planner" }).click();
+    await page.getByRole("button", { name: "Yes, revoke it" }).click();
+    await expect(
+      page.getByRole("status").filter({ hasText: "Revoked. That key stopped working at once." }),
+    ).toBeVisible();
     await logOut(page, `${acme}/office`);
   });
 
-  await test.step("36. Northline: the short-notice cancellation by the office (audit L25)", async () => {
+  await test.step("42. Northline: the short-notice cancellation by the office (audit L25)", async () => {
     await officeLogin(page, "northline.admin@example.com", northline);
     await (await menuLink(page, "Notice report")).click();
     const row = page.getByRole("row").filter({ hasText: "Weather or safety" });
@@ -588,7 +798,7 @@ test("Part 3: as the office", async ({ browser }) => {
 test("Part 4: the fake phone", async ({ browser }) => {
   const page = await desk(browser);
 
-  await test.step("37. A WhatsApp from a worker", async () => {
+  await test.step("43. A WhatsApp from a worker", async () => {
     const asked = justBefore();
     const answer = await fakeWhatsApp(phoneTarget, {
       from: ZOE.e164,
@@ -599,11 +809,12 @@ test("Part 4: the fake phone", async ({ browser }) => {
     await sent(
       ZOE.e164,
       asked,
-      /(Open shifts you're eligible for: http:\/\/acme\.localhost:\d+\/shifts\/open — Acme Events Shift Team)/,
+      // Her personal reply (12D.2): the list depends on the seed and today; the frame doesn't.
+      /^(Hi Zoe, [\s\S]*(?:Take one here|All open shifts): http:\/\/acme\.localhost:\d+\/shifts\/open\nAutomatic reply\. Send OFFICE to reach a person\.\n— Acme Events Shift Team)$/,
     );
   });
 
-  await test.step("38. A WhatsApp from a number nobody has", async () => {
+  await test.step("44. A WhatsApp from a number nobody has", async () => {
     const stranger = "+447700900999";
     const asked = justBefore();
     const answer = await fakeWhatsApp(phoneTarget, {
@@ -614,11 +825,24 @@ test("Part 4: the fake phone", async ({ browser }) => {
     expect(answer.status).toBe(200);
     await sent(stranger, asked, /^(Thanks for your message\. We don't recognise this number\.)/);
     await officeLogin(page, "acme.resourcer@example.com");
-    const unknown = page.getByRole("region", { name: "Messages from numbers we don't know" });
-    await expect(unknown.getByText("“Hi it's Sam, new phone”")).toBeVisible();
+    // Enquiries (12D.1): it needs a person; its page says how it was answered.
+    await (await menuLink(page, "Enquiries")).click();
+    await page.getByRole("link", { name: /^Need a person \(\d+\)$/ }).click();
+    const row = page
+      .getByRole("region", { name: "Need a person" })
+      .getByRole("listitem")
+      .filter({ hasText: "“Hi it's Sam, new phone”" })
+      .last();
+    await expect(row).toContainText("Unknown number");
+    await expect(row).toContainText("Passed to a person, waiting");
+    await row.getByRole("link", { name: "Unknown number" }).click();
+    await expect(page.getByRole("region", { name: "How it was answered" })).toContainText(
+      "Not one of your casuals' numbers: passed to a person.",
+    );
+    await expect(page.getByRole("region", { name: "Answer it" })).toBeVisible();
   });
 
-  await test.step("39. A call with a voicemail", async () => {
+  await test.step("45. A call with a voicemail", async () => {
     const asked = justBefore();
     const call = await fakeCall(phoneTarget, {
       from: ZOE.e164,
@@ -634,13 +858,25 @@ test("Part 4: the fake phone", async ({ browser }) => {
       asked,
       /^(Thanks for your voicemail\. The office will see it and get back to you\. Ref [0-9A-F]{8}\.)/,
     );
-    await (await menuLink(page, "Requests")).click();
+    // Enquiries' Need a person (12D.1): the voicemail's words, then its page with the warning.
+    await (await menuLink(page, "Enquiries")).click();
+    await page.getByRole("link", { name: /^Need a person \(\d+\)$/ }).click();
+    const voicemail = page
+      .getByRole("region", { name: "Need a person" })
+      .getByRole("listitem")
+      .filter({ hasText: "“Please call me about Saturday”" })
+      .last();
+    await expect(voicemail).toContainText("Zoe Usman");
+    await voicemail.getByRole("link", { name: "Zoe Usman" }).click();
     await expect(
       page.getByText("From a voicemail on the shifts line.", { exact: false }).first(),
     ).toBeVisible();
+    await expect(page.getByRole("region", { name: "How it was answered" })).toContainText(
+      "A voicemail: always passed to a person.",
+    );
   });
 
-  await test.step("40. A text: STOP, then START", async () => {
+  await test.step("46. A text: STOP, then START", async () => {
     let asked = justBefore();
     expect(
       (await fakeSms(phoneTarget, { from: ZOE.e164, to: ACME_LINE, text: "STOP" })).status,

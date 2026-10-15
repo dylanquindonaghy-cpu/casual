@@ -30,7 +30,7 @@ export async function answerRequestAction(raw: unknown): Promise<ResolveRequestR
   }
   const session = await getOfficeSession();
   if (!session) return { status: "logged_out" };
-  if (!canAccess(session.officeUser.role, "requests")) return { status: "not_allowed" };
+  if (!canAccess(session.officeUser.role, "enquiries")) return { status: "not_allowed" };
   const { requestId, decision, note } = parsed.data;
   try {
     return await answerRequest(

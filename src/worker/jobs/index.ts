@@ -38,6 +38,7 @@ import type { InboundMessagePayload } from "../../lib/inbound/job";
 import { inboundMessageFirmTask } from "../../lib/inbound/reply";
 import { firmChangeNoticeTask, type FirmChangeNoticePayload } from "../../lib/notices/firm-change";
 import { payQueryUpdateTask, type PayQueryUpdatePayload } from "../../lib/notices/pay-query-update";
+import { enquiryReplyTask, type EnquiryReplyPayload } from "../../lib/notices/enquiry-reply";
 import { requestUpdateTask, type RequestUpdatePayload } from "../../lib/notices/request-update";
 import { shiftConfirmedTask, type ShiftConfirmedPayload } from "../../lib/notices/shift-confirmed";
 import { officeOfferTask, type OfficeOfferPayload } from "../../lib/offers/office-offer";
@@ -90,6 +91,8 @@ import {
   TRAVEL_ESTIMATES_TZ,
   travelEstimatesTask,
 } from "../../lib/travel/estimates";
+import { webhookDeliverTask } from "../../lib/integrations/deliver";
+import type { WebhookDeliverPayload } from "../../lib/integrations/outbox";
 import { ensureQueues } from "./queues";
 
 export interface JobDeps {
@@ -106,12 +109,14 @@ export interface JobDeps {
   firmChangeNotices?: FirmTask<FirmChangeNoticePayload>;
   shiftConfirmed?: FirmTask<ShiftConfirmedPayload>;
   requestUpdates?: FirmTask<RequestUpdatePayload>;
+  enquiryReplies?: FirmTask<EnquiryReplyPayload>;
   payDigest?: FirmTask<PayDigestPayload>;
   payQueryUpdates?: FirmTask<PayQueryUpdatePayload>;
   strikesEmailLinks?: FirmTask<StrikesEmailLinkPayload>;
   strikeEvidence?: FirmTask<StrikeEvidencePayload>;
   travelEstimates?: FirmTask<TravelEstimatesPayload>;
   inboundMessages?: FirmTask<InboundMessagePayload>;
+  webhooks?: FirmTask<WebhookDeliverPayload>;
   // Alerts to the founder: where they go (default: the console), and the web app's health check as
   // seen inside the server (unset: not checked).
   alerts?: AlertTransport;
@@ -157,13 +162,15 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // Offer waves and escalation for urgent gaps (messages through the configured transport).
   await registerFirmTask(boss, deps.offers?.wave ?? offerWaveTask);
   await registerFirmTask(boss, deps.offers?.escalate ?? escalateShiftTask);
-  // An offer the office sends to one worker (Today's "Offer to someone").
+  // An offer the office sends to one worker (the dashboard's "Offer to someone").
   await registerFirmTask(boss, deps.offers?.office ?? officeOfferTask);
   // Telling workers the office changed or cancelled their booked shift (golden rule 12).
   await registerFirmTask(boss, deps.firmChangeNotices ?? firmChangeNoticeTask);
   // Telling a worker the office booked them onto a shift (audit L22).
   await registerFirmTask(boss, deps.shiftConfirmed ?? shiftConfirmedTask);
   await registerFirmTask(boss, deps.requestUpdates ?? requestUpdateTask);
+  // The office's reply to a message on the shifts line (Enquiries, 12D.1).
+  await registerFirmTask(boss, deps.enquiryReplies ?? enquiryReplyTask);
   // Telling a worker payroll has sorted their pay query.
   await registerFirmTask(boss, deps.payQueryUpdates ?? payQueryUpdateTask);
   // The link that confirms the strikes team's email (Settings, 12B.7).
@@ -175,6 +182,13 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
     boss,
     deps.inboundMessages ?? inboundMessageFirmTask,
     INBOUND_WORK_OPTIONS,
+  );
+
+  // The planner's webhooks (12J.2): each try knows whether it's the last (includeMetadata), and a
+  // firm's deliveries never run two at once (WEBHOOK_WORK_OPTIONS).
+  const webhooks = deps.webhooks ?? webhookDeliverTask;
+  await boss.work(webhooks.queue, WEBHOOK_WORK_OPTIONS, (jobs) =>
+    inOrder(jobs, (j) => runFirmTask(webhooks, j)),
   );
 
   // Shift reminders, 24 h and 2 h before the start: the tick queues a firm's job when one is due.
@@ -328,6 +342,22 @@ export const INBOUND_DRAIN_BOUND_MS = 20_000;
 export const INBOUND_WORK_OPTIONS = {
   ...FIRM_WORK_OPTIONS,
   localConcurrency: INBOUND_LOOPS,
+  localGroupConcurrency: 1,
+} as const;
+
+// The planner's webhooks (12J.2): like the shifts line, WEBHOOK_LOOPS loops, and one firm's
+// deliveries (one group: src/lib/integrations/outbox.ts) never run two at once here, so an endpoint
+// that hangs for its 10 seconds holds up only its own firm, using one loop of four. Unlike the
+// shifts line, each loop takes one job at a time: pg-boss runs a fetched batch's jobs one after
+// another, so a batch holding a hanging firm's job and another firm's would hold the other up too
+// (tests/integration/webhooks.test.ts). With includeMetadata each job carries its retry limit, so
+// the last try can log webhook.failed and complete (src/lib/integrations/deliver.ts).
+export const WEBHOOK_LOOPS = 4;
+export const WEBHOOK_WORK_OPTIONS = {
+  perJobResults: true,
+  batchSize: 1,
+  includeMetadata: true,
+  localConcurrency: WEBHOOK_LOOPS,
   localGroupConcurrency: 1,
 } as const;
 

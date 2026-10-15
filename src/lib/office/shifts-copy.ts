@@ -17,6 +17,10 @@ import { AGREEMENT_NEEDED_TEXT, FILE_ERROR_TEXT } from "../imports/messages";
 
 // The office's shift screens in plain words (docs/screens.md `/office/shifts`).
 
+// A session the firm's planner sent through the API can't be edited, moved or cancelled as a whole
+// here (docs/office-v2.md 5.3.2): the planner's next PUT would undo it.
+export const FROM_PLANNER_WORDS = "This session comes from your planner. Change it there.";
+
 export const SHIFT_STATUS_WORDS = {
   draft: "Draft",
   open: "Open",
@@ -24,7 +28,7 @@ export const SHIFT_STATUS_WORDS = {
   cancelled: "Cancelled",
 } as const;
 
-// A booked person who can't work it as things stand (Phase 10): also on Today's "Bookings to
+// A booked person who can't work it as things stand (Phase 10): also on the dashboard's "Bookings to
 // check".
 export const PLACE_FLAG_WORDS = {
   inactive: "Not active",
@@ -109,6 +113,8 @@ export function editResultText(result: EditShiftResult | Common): string {
       return "This shift has started or was cancelled, so it can't be changed.";
     case "sheet":
       return "This shift comes from your Google Sheet. Change it there.";
+    case "planner":
+      return FROM_PLANNER_WORDS;
     case "not_found":
       return "We can't find that shift.";
     default:
@@ -128,6 +134,8 @@ export function detailsResultText(result: EditDetailsResult | Common): string {
       return "People are booked on this shift, so its extra requirements can't change. The other details can.";
     case "not_open":
       return "This shift has started or was cancelled, so it can't be changed.";
+    case "planner":
+      return FROM_PLANNER_WORDS;
     case "not_found":
       return "We can't find that shift.";
     default:
@@ -243,6 +251,8 @@ export function moveResultLines(result: MoveShiftResult | Common | NoReason): st
       return ["This shift has started or was cancelled, so it can't be moved."];
     case "sheet":
       return ["This shift comes from your Google Sheet. Change it there."];
+    case "planner":
+      return [FROM_PLANNER_WORDS];
     case "not_found":
       return ["We can't find that shift."];
     case "no_reason":
@@ -264,6 +274,8 @@ export function cancelShiftResultText(result: CancelShiftResult | Common | NoRea
       return "This shift has started, so it can't be cancelled.";
     case "sheet":
       return "This shift comes from your Google Sheet. Change it there.";
+    case "planner":
+      return FROM_PLANNER_WORDS;
     case "not_found":
       return "We can't find that shift.";
     case "no_reason":
@@ -272,6 +284,16 @@ export function cancelShiftResultText(result: CancelShiftResult | Common | NoRea
       return COMMON[result.status];
   }
 }
+
+// "The client needs fewer staff" refused: the place can't go.
+const KEEPS_PLACE_WORDS = {
+  last_place:
+    "This is the shift's only place, so it can't go. To drop it, cancel the whole shift. Nothing was changed.",
+  sheet:
+    "This shift's places come from your rota sheet, so change them there. Nothing was changed.",
+  planner:
+    "This session's places come from your planner, so change them there. Nothing was changed.",
+} as const;
 
 export function cancelBookingResultText(
   result: CancelBookingResult | Common | NoReason,
@@ -286,9 +308,7 @@ export function cancelBookingResultText(
       return `${done} The shift now needs ${n} ${n === 1 ? "person" : "people"}.`;
     }
     case "keeps_place":
-      return result.why === "last_place"
-        ? "This is the shift's only place, so it can't go. To drop it, cancel the whole shift. Nothing was changed."
-        : "This shift's places come from your rota sheet, so change them there. Nothing was changed.";
+      return KEEPS_PLACE_WORDS[result.why];
     case "not_assigned":
       return `${name} isn't booked on this shift any more.`;
     case "ended":

@@ -119,7 +119,7 @@ export function say(result: Exclude<AvailabilityOutcome, { status: "logged_out" 
     case "added":
       return {
         text: result.bookedThatDay
-          ? `Marked ${dayLabel(result.day)} as unavailable. You're booked that day: marking it doesn't cancel that shift. Cancel it on My shifts if you can't work it.`
+          ? `Marked ${dayLabel(result.day)} as unavailable. You're booked that day: marking it doesn't cancel that shift. Cancel it under Shifts if you can't work it.`
           : `Marked ${dayLabel(result.day)} as unavailable.`,
         alert: false,
       };

@@ -7,6 +7,7 @@ import { uniqueSlug } from "./db";
 // entry here fails those tests by name, so a new table can't be left untested.
 
 export const EXPECTED_TABLES = [
+  "api_keys",
   "assignments",
   "auth_throttle",
   "credential_rules",
@@ -32,6 +33,7 @@ export const EXPECTED_TABLES = [
   "sites",
   "strikes",
   "travel_estimates",
+  "uploads",
   "worker_site_blocks",
   "worker_travel",
   "worker_unavailable_days",
@@ -236,6 +238,14 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, 'ZZ1 1AA', 53.83, -1.53, 'both', 45, 'travel-v1', now())`,
     [firmId, workerId],
   );
+  // A staff photo (12F.2): three bytes stand in for the image.
+  const uploadId = await one(
+    su,
+    `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data)
+     values ($1, $2, 'photo', 'image/jpeg', 3, encode(sha256('\\xffd8ff'::bytea), 'hex'),
+             '\\xffd8ff'::bytea)`,
+    [firmId, workerId],
+  );
   const pushSubscriptionId = await one(
     su,
     `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -271,6 +281,17 @@ export async function createTenant(su: Pool): Promise<Tenant> {
      values ($1, $2, '2026-10-26', 'missing_hours')`,
     [firmId, rosterWorkerId],
   );
+  // A planner's API key (12J.1), made by an office user of its own: its creator link has no ON
+  // DELETE action, and the isolation tests delete rows.office_users. The key maker's access is
+  // off since (a key outlives its creator's), so the tenant still has one active admin.
+  const apiKeyId = await one(
+    su,
+    `with u as (insert into office_users (firm_id, email, name, role, status)
+                values ($1, $2, 'Key Maker', 'admin', 'disabled') returning id)
+     insert into api_keys (firm_id, label, token_hash, hint, created_by)
+     select $1, 'Our planner', $3, 'k3F9', u.id from u`,
+    [firmId, `key-maker-${next()}@example.com`, hash()],
+  );
   // A WhatsApp from the rota worker (no ON DELETE action on its worker link either); the reply
   // link is tested in FK_CASES.
   const messageId = await one(
@@ -289,6 +310,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
     rosterWorkerId,
     rosterSiteId,
     rows: {
+      api_keys: apiKeyId,
       firms: firmId,
       workers: workerId,
       office_users: officeUserId,
@@ -312,6 +334,7 @@ export async function createTenant(su: Pool): Promise<Tenant> {
       worker_site_blocks: siteBlockId,
       worker_travel: travelId,
       travel_estimates: estimateId,
+      uploads: uploadId,
       strikes: strikeId,
       push_subscriptions: pushSubscriptionId,
       shift_reminders: shiftReminderId,
@@ -424,6 +447,11 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
                    $3::timestamptz + interval '8 days')`,
     values: [firmId, p.rosterSiteId, new Date(Date.UTC(2027, 1, 1) + next() * 60_000)],
   }),
+  api_keys: (firmId, p) => ({
+    text: `insert into api_keys (firm_id, label, token_hash, hint, created_by)
+           values ($1, 'Probe planner', $2, 'ab_-', $3)`,
+    values: [firmId, hash(), p.officeUserId],
+  }),
   // One per casual: a new casual, then their travel area.
   worker_travel: (firmId) => ({
     text: `with w as (insert into workers (firm_id, first_name, last_name, mobile_e164)
@@ -435,6 +463,14 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
   }),
   // One strike per booking, so each gets its own cancelled booking.
   strikes: (firmId, p) => strikeOnNewBooking(firmId, p),
+  // Approved, so any number may be added (one waiting at a time per casual).
+  uploads: (firmId, p) => ({
+    text: `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data, status,
+                                checked_by, checked_at)
+           values ($1, $2, 'photo', 'image/jpeg', 3, encode(sha256('\\xffd8ff'::bytea), 'hex'),
+                   '\\xffd8ff'::bytea, 'approved', $3, now())`,
+    values: [firmId, p.workerId, p.officeUserId],
+  }),
   pay_records: (firmId, p) => ({
     text: `insert into pay_records (firm_id, worker_id, period_start, period_end, hours, rate_pence)
            values ($1, $2, '2026-11-02', '2026-11-08', 4, $3)`,
@@ -468,12 +504,42 @@ export const INSERTS: Record<TableName, (firmId: string, p: Tenant) => Statement
 // Every composite foreign key between firm tables. `own` supplies the row's other parents;
 // `other` supplies the parent under test. Negative case: firm A's row, firm B's parent.
 export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenant) => Statement> = {
+  api_keys_created_by_fk: (firmId, _own, other) => ({
+    text: `insert into api_keys (firm_id, label, token_hash, hint, created_by)
+           values ($1, 'Probe planner', $2, 'ab_-', $3)`,
+    values: [firmId, hash(), other.officeUserId],
+  }),
+  api_keys_revoked_by_fk: (firmId, own, other) => ({
+    text: `insert into api_keys (firm_id, label, token_hash, hint, created_by, revoked_by, revoked_at)
+           values ($1, 'Probe planner', $2, 'ab_-', $3, $4, now())`,
+    values: [firmId, hash(), own.officeUserId, other.officeUserId],
+  }),
   credentials_worker_fk: (firmId, _own, other) => ({
     text: "insert into credentials (firm_id, worker_id, type) values ($1, $2, 'PTS')",
     values: [firmId, other.workerId],
   }),
   credentials_verified_by_fk: (firmId, own, other) => ({
     text: "insert into credentials (firm_id, worker_id, type, verified_by) values ($1, $2, 'PTS', $3)",
+    values: [firmId, own.workerId, other.officeUserId],
+  }),
+  credentials_evidence_upload_fk: (firmId, own, other) => ({
+    text: `insert into credentials (firm_id, worker_id, type, status, check_state, evidence_upload_id)
+           values ($1, $2, 'PTS', 'expired', 'waiting', $3)`,
+    values: [firmId, own.workerId, other.rows.uploads],
+  }),
+  // A waiting certificate of a type of its own each time (one waiting per casual and type).
+  uploads_worker_fk: (firmId, _own, other) => ({
+    text: `insert into uploads (firm_id, worker_id, kind, credential_type, content_type, size, sha256,
+                                data)
+           values ($1, $2, 'certificate', $3, 'image/jpeg', 3,
+                   encode(sha256('\\xffd8ff'::bytea), 'hex'), '\\xffd8ff'::bytea)`,
+    values: [firmId, other.workerId, `PROBE_${next()}`],
+  }),
+  uploads_checked_by_fk: (firmId, own, other) => ({
+    text: `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data, status,
+                                checked_by, checked_at)
+           values ($1, $2, 'photo', 'image/jpeg', 3, encode(sha256('\\xffd8ff'::bytea), 'hex'),
+                   '\\xffd8ff'::bytea, 'approved', $3, now())`,
     values: [firmId, own.workerId, other.officeUserId],
   }),
   magic_links_worker_fk: (firmId, _own, other) => ({
@@ -533,6 +599,10 @@ export const FK_CASES: Record<string, (firmId: string, own: Tenant, other: Tenan
     text: `insert into requests (firm_id, worker_id, type, status, resolved_by, resolved_at)
            values ($1, $2, 'availability', 'approved', $3, now())`,
     values: [firmId, own.rosterWorkerId, other.officeUserId],
+  }),
+  requests_message_fk: (firmId, own, other) => ({
+    text: "insert into requests (firm_id, worker_id, type, message_id) values ($1, $2, 'general', $3)",
+    values: [firmId, own.rosterWorkerId, other.rows.messages],
   }),
   offers_shift_fk: (firmId, own, other) => ({
     text: "insert into offers (firm_id, shift_id, worker_id, wave, channel) values ($1, $2, $3, $4, 'sms')",

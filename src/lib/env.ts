@@ -50,6 +50,8 @@ const tlsInProduction =
 
 // The value in .env.example: fine locally, refused in production.
 const EXAMPLE_SECRET = "dev-only-secret-change-me-in-prod-0123456789";
+// The planner integration secret in .env.example (12J.1): fine locally, refused in production.
+export const EXAMPLE_INTEGRATIONS_SECRET = "dev-only-integrations-secret-change-me-0123";
 
 const appFields = {
   NODE_ENV: nodeEnv,
@@ -100,6 +102,20 @@ const appFields = {
   // under NODE_ENV=test, so no test can reach either. Real use waits for "Connect postcodes.io and
   // TravelTime" (PLAN.md Parking lot). An empty value means not set.
   TRAVEL_PROVIDER: unsetIfEmpty(z.enum(["fake", "traveltime"]).default("fake")),
+  // AI (docs/office-v2.md 5.8): Claude through the Anthropic API (src/lib/ai/anthropic.ts), asked
+  // by the worker only, which alone gets the key. "none" (the default): no AI, and the code's
+  // fallback answers. "anthropic": refused for the worker under NODE_ENV=test, so no test can call
+  // it. Real calls wait for "Connect the Anthropic API" (PLAN.md Parking lot). The web app reads only
+  // whether it's on, for the Enquiries banner (12D.1); it never calls the AI. Not a secret.
+  AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
+  // The planner integration layer (docs/office-v2.md 5.3.6; ADR-022): keys the webhooks' signing
+  // secrets and event ids (12J.2). Unset (or empty): every planner API call answers 503
+  // not_configured. 32+ characters; the .env.example value is refused in production. A secret:
+  // never in the repo. Rotating it means every firm with a webhook pastes its new secret.
+  INTEGRATIONS_SECRET: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().min(32, { message: "must be at least 32 characters" }).optional(),
+  ),
 };
 
 // Tests never reach postcodes.io or TravelTime.
@@ -116,6 +132,12 @@ const realSecretMessage = {
   path: ["SESSION_SECRET"],
   message: "the .env.example value must never be used in production",
 };
+const realIntegrationsSecret = (e: { NODE_ENV: string; INTEGRATIONS_SECRET?: string }) =>
+  e.NODE_ENV !== "production" || e.INTEGRATIONS_SECRET !== EXAMPLE_INTEGRATIONS_SECRET;
+const realIntegrationsSecretMessage = {
+  path: ["INTEGRATIONS_SECRET"],
+  message: "the .env.example value must never be used in production",
+};
 
 // Alerts can't be switched off in production (they'd stop without anyone noticing).
 const alertsOn = (e: { NODE_ENV: string; ALERTS_TRANSPORT?: string }) =>
@@ -129,6 +151,7 @@ export const appEnvSchema = z
   .object(appFields)
   .superRefine(tlsInProduction("DATABASE_URL"))
   .refine(realSecret, realSecretMessage)
+  .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   // The test-only pages never on a real address, even if the switch were copied into one.
@@ -201,17 +224,17 @@ export const workerEnvSchema = z
     SMTP_FROM: unsetIfEmpty(
       z.email({ message: "must be the email address mail comes from" }).optional(),
     ),
-    // AI, worker only (docs/office-v2.md 5.8): Claude through the Anthropic API
-    // (src/lib/ai/anthropic.ts). "none" (the default): no AI, and the code's fallback answers.
-    // "anthropic": refused under NODE_ENV=test, so no test can call it. Real calls wait for
-    // "Connect the Anthropic API" (PLAN.md Parking lot).
-    AI_TRANSPORT: unsetIfEmpty(z.enum(["none", "anthropic"]).default("none")),
     // A secret: never logged, never in the repo, never given to the web app.
     ANTHROPIC_API_KEY: unsetIfEmpty(z.string().max(500).optional()),
     // TravelTime (docs/office-v2.md 5.4; 12G.2), for TRAVEL_PROVIDER=traveltime: worker only (the
     // travel job). Secrets: never logged, never in the repo, never given to the web app.
     TRAVELTIME_APP_ID: unsetIfEmpty(z.string().max(200).optional()),
     TRAVELTIME_API_KEY: unsetIfEmpty(z.string().max(500).optional()),
+    // The planner's webhooks (docs/office-v2.md 5.3.3; 12J.2), worker only: the web app never sends
+    // one. "console" (the default) prints the signed request with the address cut to its host;
+    // "https" sends it (src/lib/integrations/send.ts): required in production, refused under
+    // NODE_ENV=test, so no test can reach a real address. An empty value means not set.
+    WEBHOOK_TRANSPORT: unsetIfEmpty(z.enum(["console", "https"]).default("console")),
     // Haiku (CLAUDE.md "Stack").
     AI_MODEL: unsetIfEmpty(
       z
@@ -223,6 +246,7 @@ export const workerEnvSchema = z
   })
   .superRefine(tlsInProduction("DATABASE_URL", "DATABASE_JOBS_URL"))
   .refine(realSecret, realSecretMessage)
+  .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
   .refine((e) => e.SHEETS_TRANSPORT !== "google" || e.GOOGLE_SERVICE_ACCOUNT_JSON_PATH, {
@@ -253,6 +277,14 @@ export const workerEnvSchema = z
   .refine((e) => !e.SMTP_USER === !e.SMTP_PASS, {
     path: ["SMTP_PASS"],
     message: "SMTP_USER and SMTP_PASS go together",
+  })
+  .refine((e) => e.NODE_ENV !== "production" || e.WEBHOOK_TRANSPORT === "https", {
+    path: ["WEBHOOK_TRANSPORT"],
+    message: "webhooks must really be sent in production: WEBHOOK_TRANSPORT=https",
+  })
+  .refine((e) => e.NODE_ENV !== "test" || e.WEBHOOK_TRANSPORT !== "https", {
+    path: ["WEBHOOK_TRANSPORT"],
+    message: "tests never send real webhooks: https is refused when NODE_ENV=test",
   })
   .refine((e) => e.NODE_ENV !== "test" || e.AI_TRANSPORT !== "anthropic", {
     path: ["AI_TRANSPORT"],

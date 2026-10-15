@@ -11,7 +11,7 @@ import {
   cancelShift,
   moveShift,
 } from "@/lib/office/quick-actions";
-import { loadToday } from "@/lib/office/today";
+import { loadBookingsToCheck } from "@/lib/office/today";
 import {
   blockFromSite,
   changeWorkerStatus,
@@ -30,7 +30,7 @@ import { appRolePool, superuserPool } from "../helpers/db";
 
 // Worker leavers and blocks (audit M22, M23, L24, L81): the office's controls on a worker's page
 // (src/lib/office/worker-access.ts), what follows from a status change by any path (reminders
-// stop, bookings flagged on Today to cancel or keep), the office's decision sticking against a
+// stop, bookings flagged on the dashboard to cancel or keep), the office's decision sticking against a
 // rota sheet or file, rules check 9 (a blocked site) made live, and a mobile change ending links
 // and forgetting phones. Real database, app role, fixed clock, nothing sent anywhere.
 
@@ -112,7 +112,7 @@ const events = async (firmId: string, action: string) =>
   ).rows;
 
 const toCheck = (firmId: string) =>
-  withFirm(firmId, async (tx) => (await loadToday(tx, NOW)).toCheck);
+  withFirm(firmId, async (tx) => (await loadBookingsToCheck(tx, NOW)).items);
 
 // The 24-hour reminders due now: who they went to.
 async function reminded(firmId: string): Promise<string[]> {
@@ -169,7 +169,7 @@ async function shiftAt(f: Awaited<ReturnType<typeof firm>>["f"], siteId: string,
 }
 
 describe("making a worker inactive (they've left)", () => {
-  it("logged out everywhere, no reminders, their bookings ahead flagged on Today; logged with the reason", async () => {
+  it("logged out everywhere, no reminders, their bookings ahead flagged on the dashboard; logged with the reason", async () => {
     const { f, ctx } = await firm();
     const ann = await f.worker({ first: "Ann" });
     const bob = await f.worker({ first: "Bob" });
@@ -194,7 +194,7 @@ describe("making a worker inactive (they've left)", () => {
     ).toBeNull();
     // No reminder for Ann; Bob still gets his.
     expect(await reminded(f.firmId)).toEqual([await mobileOf(bob)]);
-    // On Today, to cancel or keep.
+    // On the dashboard, to cancel or keep.
     expect(await toCheck(f.firmId)).toEqual([
       expect.objectContaining({ shiftId: tomorrow, workerId: ann, cause: "inactive" }),
     ]);
@@ -308,7 +308,7 @@ describe("unblocking, and changes that don't apply", () => {
 });
 
 describe("made inactive or blocked by any path: reminders stop, bookings flagged", () => {
-  it("by the rota sheet: no reminder, and the booking on Today", async () => {
+  it("by the rota sheet: no reminder, and the booking on the dashboard", async () => {
     const { f } = await firm();
     const ann = await f.worker({ first: "Ann" });
     const tomorrow = await f.shift({ startsAt: hoursFromNow(23) });
@@ -350,7 +350,7 @@ describe("made inactive or blocked by any path: reminders stop, bookings flagged
   });
 });
 
-describe("Today's bookings to check: cancel or keep", () => {
+describe("the dashboard's bookings to check: cancel or keep", () => {
   it("kept: off the list until the worker's status changes again", async () => {
     const { f, ctx } = await firm();
     const ann = await f.worker({ first: "Ann" });
@@ -420,7 +420,7 @@ describe("Today's bookings to check: cancel or keep", () => {
 });
 
 describe("kept bookings are looked at again when something changes", () => {
-  it("kept while inactive at a blocked site: made active again, it's back on Today for the block", async () => {
+  it("kept while inactive at a blocked site: made active again, it's back on the dashboard for the block", async () => {
     const { f, ctx } = await firm();
     const ann = await f.worker({ first: "Ann" });
     const site = await siteOf(f.firmId);

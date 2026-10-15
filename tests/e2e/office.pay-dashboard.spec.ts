@@ -76,7 +76,7 @@ test("payroll lands on the pay dashboard: the shifts line, the counts and both s
 test("resourcers can't open the pay dashboard", async ({ page }) => {
   await officeLogin(page, "dash.resourcer@example.com", "resourcer");
   await expect(page).toHaveURL(`${acme}/office`);
-  await expect(await menuLink(page, "Today")).toBeVisible();
+  await expect(await menuLink(page, "Dashboard")).toBeVisible();
   await expect(await menuLink(page, "Pay dashboard")).toHaveCount(0);
   await page.keyboard.press("Escape");
   const response = await page.goto(`${acme}/office/pay`);

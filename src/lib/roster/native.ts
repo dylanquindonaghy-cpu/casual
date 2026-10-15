@@ -315,9 +315,10 @@ export async function placeAfterCancel(
 // headcount are ignored, as after the office lowers the places; booking rows are never deleted),
 // the highest live slot moves down into its number (so every booked place stays within the
 // headcount), and the headcount drops by one.
-// Not for a rota-sheet shift (the sheet owns its places), the last place (cancel the shift
-// instead), or a slot that wasn't reopened (the shift had started). Inside the caller's transaction,
-// with the shift already locked. Returns the old and new headcount, or null when nothing changed.
+// Not for a rota-sheet shift or a session from the firm's planner (each owns its places), the last
+// place (cancel the shift instead), or a slot that wasn't reopened (the shift had started). Inside
+// the caller's transaction, with the shift already locked. Returns the old and new headcount, or
+// null when nothing changed.
 export async function removeFreedPlace(
   tx: FirmTx,
   shiftId: string,
@@ -332,7 +333,9 @@ export async function removeFreedPlace(
     .select({ headcount: shifts.headcount, source: shifts.source })
     .from(shifts)
     .where(eq(shifts.id, shiftId));
-  if (!shift || shift.source === "sheets" || shift.headcount <= 1) return null;
+  if (!shift || shift.source === "sheets" || shift.source === "api" || shift.headcount <= 1) {
+    return null;
+  }
   const top = shift.headcount;
   const [highest] = await tx
     .select({ slot: sql<number>`max(${assignments.slot})` })

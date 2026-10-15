@@ -174,7 +174,7 @@ export default async function PilotMetricsPage({
 
       <p className={sectionGap.office}>
         <Link href="/office" className={btn.link}>
-          Back to Today
+          Back to the dashboard
         </Link>
       </p>
     </main>

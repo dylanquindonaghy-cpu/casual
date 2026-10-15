@@ -477,6 +477,13 @@ describe("erasing a worker", () => {
     // its merge base keeps the id, so the next sync still writes the sheet back (the reviews).
     const ahead = await t.b.shift({ startsAt: hoursFromNow(72) });
     await su.query("update shifts set synced_holders = array['STAFF-1'] where id = $1", [ahead]);
+    // Their staff photo (12F.2): three bytes stand in for the image.
+    await su.query(
+      `insert into uploads (firm_id, worker_id, kind, content_type, size, sha256, data)
+       values ($1, $2, 'photo', 'image/jpeg', 3, encode(sha256('\\xffd8ff'::bytea), 'hex'),
+               '\\xffd8ff'::bytea)`,
+      [t.b.firmId, t.worker],
+    );
     const result = await eraseWorker(ctx(t.b, t.admin), t.worker);
     const counts = {
       licences: 2,
@@ -493,8 +500,12 @@ describe("erasing a worker", () => {
       overrideReasons: 1,
       sheetMentions: 1,
       withdrawalReasons: 0, // no strike withdrawn (12C.5: tests/integration/strikes.page.test.ts)
+      images: 1, // their staff photo (12F.2)
     };
     expect(result).toEqual({ status: "erased", name: "Ann Booker", counts });
+    expect(
+      (await su.query("select 1 from uploads where worker_id = $1", [t.worker])).rowCount,
+    ).toBe(0);
     // The office's words about them are replaced; the booking still says there was a reason. Their
     // staff id is out of our copy of the sheet's names (audit L30, L85, L86).
     const { rows: placed } = await su.query(

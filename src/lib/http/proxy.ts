@@ -44,8 +44,10 @@ export function createProxy(
 
     // Our messages end sentences after a link ("Details: …/shifts/<id>."). A phone that takes the
     // full stop into the link would open a page that doesn't exist: no path of ours ends with
-    // punctuation, so go to the same address without it (Phase 10 task 19, audit L10).
-    const trimmed = path.replace(TRAILING_PUNCTUATION, "");
+    // punctuation, so go to the same address without it (Phase 10 task 19, audit L10). Never an
+    // /api/ path: no person follows those from a message, and a planner's PUT to a ref ending in
+    // "." must get the API's own 400 bad_ref, not be sent on, key and all, to another ref (12J.1).
+    const trimmed = path.startsWith("/api/") ? path : path.replace(TRAILING_PUNCTUATION, "");
     if (trimmed !== path && trimmed.length > 0) {
       const to = request.nextUrl.clone();
       to.pathname = trimmed;

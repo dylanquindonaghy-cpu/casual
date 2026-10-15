@@ -1,53 +1,51 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
-import { credentialNotices, myShifts } from "@/lib/portal/my-shifts";
+import { myNeedsAndPhoto, myShifts, somethingNeedsUpdating } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { parseHost } from "@/lib/tenancy/host";
-import { LogoutButton } from "./logout-button";
-import { MyShiftsView } from "./my-shifts-view";
+import { HomeView } from "./home-view";
 import { OfflineCopy } from "./offline-copy";
 import { refreshSessionAction } from "./session-actions";
 import { SessionKeeper } from "./session-keeper";
-import { btn, page } from "./ui/classes";
-import { Icon } from "./ui/icons";
+import { TabBar, TabBarSpace } from "./tab-bar";
+import { page } from "./ui/classes";
 
 // The root URL serves two sites: the ShiftDesk home page on the base domain, and each firm's
-// portal on <slug>.<base domain> or the firm's own domain, where a logged-in worker sees My shifts
-// (docs/screens.md, `/`). Any host that isn't the base domain is a firm's page: requireWorker()
-// finds the firm (a name that isn't a firm's, or a custom domain not verified, is the 404 page).
-// My shifts ends with the links to every other page (in the view), then a quieter "Log out".
+// portal on <slug>.<base domain> or the firm's own domain, where a logged-in casual sees Home
+// (docs/office-v2.md 4.2; docs/screens.md, `/`; 12H.1). Any host that isn't the base domain is a
+// firm's page: requireWorker() finds the firm (a name that isn't a firm's, or a custom domain not
+// verified, is the 404 page). Her bookings are on the Shifts tab (`/shifts`): the old address of
+// the last 30 days, `/?view=past`, goes there. Kept for when there's no signal (public/sw.js).
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const match = parseHost((await headers()).get("host"), appEnv().APP_BASE_DOMAIN);
   if (match && match.kind !== "apex") {
+    if ((await searchParams).view === "past") redirect("/shifts?view=past");
     const { firm, worker, session } = await requireWorker();
-    const view = (await searchParams).view === "past" ? "past" : "upcoming";
     const now = new Date();
-    const [shifts, notices, urgent] = await Promise.all([
-      myShifts({ firm }, worker.id, view),
-      credentialNotices({ firm }, worker.id),
-      openShiftsFor({ firm, clock: { now: () => now } }, worker.id, { urgent: true }),
+    const clock = { now: () => now };
+    const [upcoming, needs, open] = await Promise.all([
+      myShifts({ firm, clock }, worker.id, "upcoming"),
+      myNeedsAndPhoto({ firm, clock }, worker.id),
+      openShiftsFor({ firm, clock }, worker.id),
     ]);
     return (
       <main className={page.staff}>
         <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
         <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} />
-        <MyShiftsView
+        <HomeView
           firstName={worker.firstName}
           voice={{ name: firm.name, signOff: firm.signOff }}
           timeZone={firm.timezone}
           now={now}
-          view={view}
-          shifts={shifts}
-          notices={notices}
-          urgentCount={urgent.shifts.length}
+          next={upcoming[0] ?? null}
+          needs={needs.needs}
+          photo={needs.photo}
+          open={open}
         />
-        <LogoutButton
-          kind="worker"
-          after="/login?out=1"
-          className={`${btn.secondary} mt-6 w-full`}
-          icon={<Icon name="logout" />}
-        />
+        <TabBarSpace />
+        <TabBar current="home" profileDot={somethingNeedsUpdating(needs)} />
       </main>
     );
   }

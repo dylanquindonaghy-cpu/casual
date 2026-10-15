@@ -35,14 +35,16 @@ import { queueTravelEstimates } from "../travel/estimate-queue";
 //   event of that name; without ("New shift") they join their site and day's automatic event.
 // - editShiftDetails: the session's own details (pay rate, post, meeting point, uniform, extra
 //   requirements; docs/office-v2.md S2) on any shift, from a sheet or a file too: the sync and the
-//   import never write them. Requirements can't change once someone is booked (they were checked
-//   against the old list); the rest can. Logged shift.changed {by: "firm", fields}, the fields
-//   named as in DETAIL_FIELDS: "requirements", never a name holding "credential", which the log
-//   masker would hide (docs/office-v2.md 6.1).
+//   import never write them. Not a session from the firm's planner, whose PUTs send them
+//   (docs/office-v2.md 5.3.2: the office can't edit an API session at all). Requirements can't
+//   change once someone is booked (they were checked against the old list); the rest can. Logged
+//   shift.changed {by: "firm", fields}, the fields named as in DETAIL_FIELDS: "requirements",
+//   never a name holding "credential", which the log masker would hide (docs/office-v2.md 6.1).
 // - editShift: with nobody booked, anything. With people booked, only the places and the
 //   instructions: new times, role or site are a firm-initiated move (notice per worker, golden
 //   rule 12: the office's move/cancel flow), and places can't drop below a booked place. Never a
-//   shift that has started or was cancelled, nor a Google Sheet's (the next sync would undo it).
+//   shift that has started or was cancelled, nor a Google Sheet's or the firm's planner's (the
+//   next sync or PUT would undo it).
 //   Logged shift.changed {by: "firm", fields, from/to times}. The status follows the places when
 //   they changed (a shift the office marked as filled stays closed). Moving a shift nobody is
 //   booked on expires the offers still out (they describe the old shift).
@@ -314,6 +316,7 @@ export type EditShiftResult =
   | { status: "below_bookings" } // fewer places than a booked place needs
   | { status: "not_open" } // started or cancelled
   | { status: "sheet" }
+  | { status: "planner" } // a session from the firm's planner: changed there
   | { status: "not_found" }
   | { status: "not_allowed" };
 
@@ -343,6 +346,7 @@ export async function editShift(
       .for("no key update");
     if (!shift) return { status: "not_found" };
     if (shift.source === "sheets") return { status: "sheet" };
+    if (shift.source === "api") return { status: "planner" };
     if (shift.status === "cancelled" || shift.startsAt.getTime() <= now.getTime()) {
       return { status: "not_open" };
     }
@@ -451,6 +455,7 @@ export type EditDetailsResult =
   | { status: "invalid"; problems: ShiftProblem[] }
   | { status: "has_bookings" } // requirements with people booked
   | { status: "not_open" } // started or cancelled
+  | { status: "planner" } // a session from the firm's planner: changed there
   | { status: "not_found" }
   | { status: "not_allowed" };
 
@@ -466,6 +471,7 @@ export async function editShiftDetails(
     if (!(await officeCanPlace(tx, ctx.officeUserId))) return { status: "not_allowed" };
     const [shift] = await tx
       .select({
+        source: shifts.source,
         startsAt: shifts.startsAt,
         status: shifts.status,
         payRatePence: shifts.payRatePence,
@@ -478,6 +484,7 @@ export async function editShiftDetails(
       .where(eq(shifts.id, shiftId))
       .for("no key update");
     if (!shift) return { status: "not_found" };
+    if (shift.source === "api") return { status: "planner" };
     if (shift.status === "cancelled" || shift.startsAt.getTime() <= now.getTime()) {
       return { status: "not_open" };
     }

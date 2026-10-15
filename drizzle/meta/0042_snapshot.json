@@ -1,0 +1,5543 @@
+{
+  "id": "a1acb5f6-866f-4a96-8344-e140e531e16c",
+  "prevId": "3e4af589-ec20-4416-a7dc-b32dd9144c71",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auth_throttle": {
+      "name": "auth_throttle",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bucket": {
+          "name": "bucket",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hits": {
+          "name": "hits",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "auth_throttle_firm_id_firms_id_fk": {
+          "name": "auth_throttle_firm_id_firms_id_fk",
+          "tableFrom": "auth_throttle",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_throttle_bucket_window_key": {
+          "name": "auth_throttle_bucket_window_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "bucket",
+            "window_start"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"auth_throttle\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"auth_throttle\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.magic_links": {
+      "name": "magic_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "office_user_id": {
+          "name": "office_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "magic_links_firm_id_firms_id_fk": {
+          "name": "magic_links_firm_id_firms_id_fk",
+          "tableFrom": "magic_links",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "magic_links_worker_fk": {
+          "name": "magic_links_worker_fk",
+          "tableFrom": "magic_links",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "magic_links_office_user_fk": {
+          "name": "magic_links_office_user_fk",
+          "tableFrom": "magic_links",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "office_user_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "magic_links_token_hash_unique": {
+          "name": "magic_links_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        },
+        "magic_links_request_id_unique": {
+          "name": "magic_links_request_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "request_id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"magic_links\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"magic_links\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "magic_links_kind_check": {
+          "name": "magic_links_kind_check",
+          "value": "\"magic_links\".\"kind\" in ('worker', 'office')"
+        },
+        "magic_links_subject_check": {
+          "name": "magic_links_subject_check",
+          "value": "(\"magic_links\".\"kind\" = 'worker' and \"magic_links\".\"worker_id\" is not null and \"magic_links\".\"office_user_id\" is null)\n     or (\"magic_links\".\"kind\" = 'office' and \"magic_links\".\"office_user_id\" is not null and \"magic_links\".\"worker_id\" is null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.otp_codes": {
+      "name": "otp_codes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "otp_codes_one_live_per_session": {
+          "name": "otp_codes_one_live_per_session",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "consumed_at is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "otp_codes_request_key": {
+          "name": "otp_codes_request_key",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "otp_codes_firm_id_firms_id_fk": {
+          "name": "otp_codes_firm_id_firms_id_fk",
+          "tableFrom": "otp_codes",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "otp_codes_session_fk": {
+          "name": "otp_codes_session_fk",
+          "tableFrom": "otp_codes",
+          "tableTo": "sessions",
+          "columnsFrom": [
+            "firm_id",
+            "session_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"otp_codes\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"otp_codes\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "otp_codes_attempts_range": {
+          "name": "otp_codes_attempts_range",
+          "value": "\"otp_codes\".\"attempts\" between 0 and 5"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.sessions": {
+      "name": "sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "office_user_id": {
+          "name": "office_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prev_token_hash": {
+          "name": "prev_token_hash",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prev_valid_until": {
+          "name": "prev_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rotated_at": {
+          "name": "rotated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stepped_up_until": {
+          "name": "stepped_up_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sessions_firm_id_firms_id_fk": {
+          "name": "sessions_firm_id_firms_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sessions_worker_fk": {
+          "name": "sessions_worker_fk",
+          "tableFrom": "sessions",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "sessions_office_user_fk": {
+          "name": "sessions_office_user_fk",
+          "tableFrom": "sessions",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "office_user_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sessions_token_hash_unique": {
+          "name": "sessions_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        },
+        "sessions_prev_token_hash_unique": {
+          "name": "sessions_prev_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "prev_token_hash"
+          ]
+        },
+        "sessions_firm_id_id_key": {
+          "name": "sessions_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"sessions\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"sessions\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "sessions_kind_check": {
+          "name": "sessions_kind_check",
+          "value": "\"sessions\".\"kind\" in ('worker', 'office')"
+        },
+        "sessions_subject_check": {
+          "name": "sessions_subject_check",
+          "value": "(\"sessions\".\"kind\" = 'worker' and \"sessions\".\"worker_id\" is not null and \"sessions\".\"office_user_id\" is null)\n     or (\"sessions\".\"kind\" = 'office' and \"sessions\".\"office_user_id\" is not null and \"sessions\".\"worker_id\" is null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.events": {
+      "name": "events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "events_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_type": {
+          "name": "actor_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "events_firm_id_created_at_idx": {
+          "name": "events_firm_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "events_firm_id_entity_id_idx": {
+          "name": "events_firm_id_entity_id_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "events_firm_id_firms_id_fk": {
+          "name": "events_firm_id_firms_id_fk",
+          "tableFrom": "events",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "firm_isolation_select": {
+          "name": "firm_isolation_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "public"
+          ],
+          "using": "\"events\".\"firm_id\" = (select app_current_firm_id())"
+        },
+        "firm_isolation_insert": {
+          "name": "firm_isolation_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "public"
+          ],
+          "withCheck": "\"events\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "events_actor_type_check": {
+          "name": "events_actor_type_check",
+          "value": "\"events\".\"actor_type\" in ('worker', 'office', 'system', 'ai')"
+        },
+        "events_action_format": {
+          "name": "events_action_format",
+          "value": "\"events\".\"action\" ~ '^[a-z_]+([.][a-z_]+)+$'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.messages": {
+      "name": "messages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_message_id": {
+          "name": "provider_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "from_e164": {
+          "name": "from_e164",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_e164": {
+          "name": "to_e164",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "handled_as": {
+          "name": "handled_as",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intent": {
+          "name": "intent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "handled_at": {
+          "name": "handled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reply_to": {
+          "name": "reply_to",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "twilio_opt_out": {
+          "name": "twilio_opt_out",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "messages_firm_id_created_at_idx": {
+          "name": "messages_firm_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "messages_firm_id_worker_id_idx": {
+          "name": "messages_firm_id_worker_id_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "messages_firm_id_from_e164_idx": {
+          "name": "messages_firm_id_from_e164_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "from_e164",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "messages_firm_id_firms_id_fk": {
+          "name": "messages_firm_id_firms_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "messages_worker_fk": {
+          "name": "messages_worker_fk",
+          "tableFrom": "messages",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "messages_reply_to_fk": {
+          "name": "messages_reply_to_fk",
+          "tableFrom": "messages",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "firm_id",
+            "reply_to"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "messages_firm_id_id_key": {
+          "name": "messages_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "messages_firm_id_provider_message_id_key": {
+          "name": "messages_firm_id_provider_message_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "provider_message_id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"messages\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"messages\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "messages_direction_check": {
+          "name": "messages_direction_check",
+          "value": "\"messages\".\"direction\" in ('in', 'out')"
+        },
+        "messages_channel_check": {
+          "name": "messages_channel_check",
+          "value": "\"messages\".\"channel\" in ('whatsapp', 'sms', 'voice')"
+        },
+        "messages_handled_as_check": {
+          "name": "messages_handled_as_check",
+          "value": "\"messages\".\"handled_as\" in ('keyword', 'ai', 'office', 'unknown', 'opt_out')"
+        },
+        "messages_intent_check": {
+          "name": "messages_intent_check",
+          "value": "\"messages\".\"intent\" in ('shifts', 'cancel', 'pay', 'office')"
+        },
+        "messages_from_e164": {
+          "name": "messages_from_e164",
+          "value": "(\"messages\".\"from_e164\" is not null and \"messages\".\"from_e164\" ~ '^[+][1-9][0-9]{6,14}$')\n        or (\"messages\".\"from_e164\" is null and \"messages\".\"channel\" = 'voice' and \"messages\".\"direction\" = 'in')"
+        },
+        "messages_to_e164": {
+          "name": "messages_to_e164",
+          "value": "\"messages\".\"to_e164\" ~ '^[+][1-9][0-9]{6,14}$'"
+        },
+        "messages_twilio_opt_out": {
+          "name": "messages_twilio_opt_out",
+          "value": "\"messages\".\"twilio_opt_out\" is null\n        or (\"messages\".\"twilio_opt_out\" in ('stop', 'start') and \"messages\".\"channel\" = 'sms' and \"messages\".\"direction\" = 'in')"
+        },
+        "messages_body_length": {
+          "name": "messages_body_length",
+          "value": "\"messages\".\"body\" is null or char_length(\"messages\".\"body\") <= 1600"
+        },
+        "messages_direction_fields": {
+          "name": "messages_direction_fields",
+          "value": "(\"messages\".\"direction\" = 'in' and \"messages\".\"reply_to\" is null)\n        or (\"messages\".\"direction\" = 'out' and \"messages\".\"handled_as\" is null and \"messages\".\"handled_at\" is null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.metrics_daily": {
+      "name": "metrics_daily",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metric": {
+          "name": "metric",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_by": {
+          "name": "recorded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "metrics_daily_firm_id_firms_id_fk": {
+          "name": "metrics_daily_firm_id_firms_id_fk",
+          "tableFrom": "metrics_daily",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "metrics_daily_recorded_by_fk": {
+          "name": "metrics_daily_recorded_by_fk",
+          "tableFrom": "metrics_daily",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "recorded_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "metrics_daily_firm_id_id_key": {
+          "name": "metrics_daily_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "metrics_daily_one_key": {
+          "name": "metrics_daily_one_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "kind",
+            "day",
+            "metric"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"metrics_daily\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"metrics_daily\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "metrics_daily_kind_check": {
+          "name": "metrics_daily_kind_check",
+          "value": "\"metrics_daily\".\"kind\" in ('baseline', 'tally', 'daily')"
+        },
+        "metrics_daily_metric_check": {
+          "name": "metrics_daily_metric_check",
+          "value": "\"metrics_daily\".\"metric\" ~ '^[a-z][a-z_]{0,59}$'"
+        },
+        "metrics_daily_value_check": {
+          "name": "metrics_daily_value_check",
+          "value": "\"metrics_daily\".\"value\" >= 0"
+        },
+        "metrics_daily_recorded_by": {
+          "name": "metrics_daily_recorded_by",
+          "value": "(\"metrics_daily\".\"kind\" = 'daily') = (\"metrics_daily\".\"recorded_by\" is null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.credentials": {
+      "name": "credentials",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_on": {
+          "name": "expires_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'valid'"
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_by": {
+          "name": "verified_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expiry_warned_for": {
+          "name": "expiry_warned_for",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expiry_warned_days": {
+          "name": "expiry_warned_days",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "check_state": {
+          "name": "check_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'verified'"
+        },
+        "rejected_reason": {
+          "name": "rejected_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_upload_id": {
+          "name": "evidence_upload_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "credentials_firm_id_worker_id_idx": {
+          "name": "credentials_firm_id_worker_id_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "credentials_firm_id_firms_id_fk": {
+          "name": "credentials_firm_id_firms_id_fk",
+          "tableFrom": "credentials",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "credentials_worker_fk": {
+          "name": "credentials_worker_fk",
+          "tableFrom": "credentials",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "credentials_verified_by_fk": {
+          "name": "credentials_verified_by_fk",
+          "tableFrom": "credentials",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "verified_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "credentials_evidence_upload_fk": {
+          "name": "credentials_evidence_upload_fk",
+          "tableFrom": "credentials",
+          "tableTo": "uploads",
+          "columnsFrom": [
+            "firm_id",
+            "evidence_upload_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"credentials\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"credentials\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "credentials_type_format": {
+          "name": "credentials_type_format",
+          "value": "\"credentials\".\"type\" ~ '^[A-Z][A-Z0-9_]*$'"
+        },
+        "credentials_expiry_warned_days": {
+          "name": "credentials_expiry_warned_days",
+          "value": "(\"credentials\".\"expiry_warned_for\" is null) = (\"credentials\".\"expiry_warned_days\" is null) and \"credentials\".\"expiry_warned_days\" in (30, 14, 7)"
+        },
+        "credentials_status_check": {
+          "name": "credentials_status_check",
+          "value": "\"credentials\".\"status\" in ('valid', 'expired', 'applied', 'suspended')"
+        },
+        "credentials_check_state_check": {
+          "name": "credentials_check_state_check",
+          "value": "\"credentials\".\"check_state\" in ('verified', 'waiting', 'rejected')\n        and (\"credentials\".\"check_state\" = 'rejected') = (\"credentials\".\"rejected_reason\" is not null)\n        and (\"credentials\".\"rejected_reason\" is null or \"credentials\".\"rejected_reason\" in ('blurry', 'wrong_document', 'expired', 'doesnt_match', 'other'))"
+        },
+        "credentials_unchecked_never_valid": {
+          "name": "credentials_unchecked_never_valid",
+          "value": "\"credentials\".\"check_state\" = 'verified'\n        or (\"credentials\".\"status\" = 'expired' and \"credentials\".\"evidence_upload_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.office_users": {
+      "name": "office_users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "office_users_firm_id_firms_id_fk": {
+          "name": "office_users_firm_id_firms_id_fk",
+          "tableFrom": "office_users",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "office_users_firm_id_id_key": {
+          "name": "office_users_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "office_users_firm_id_email_key": {
+          "name": "office_users_firm_id_email_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "email"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"office_users\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"office_users\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "office_users_email_lower": {
+          "name": "office_users_email_lower",
+          "value": "\"office_users\".\"email\" = lower(\"office_users\".\"email\") and \"office_users\".\"email\" ~ '^[^@ ]+@[^@ ]+$'"
+        },
+        "office_users_role_check": {
+          "name": "office_users_role_check",
+          "value": "\"office_users\".\"role\" in ('admin', 'resourcer', 'payroll')"
+        },
+        "office_users_status_check": {
+          "name": "office_users_status_check",
+          "value": "\"office_users\".\"status\" in ('active', 'disabled')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.push_subscriptions": {
+      "name": "push_subscriptions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "p256dh": {
+          "name": "p256dh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auth": {
+          "name": "auth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "push_subscriptions_firm_id_worker_id_idx": {
+          "name": "push_subscriptions_firm_id_worker_id_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "push_subscriptions_firm_id_firms_id_fk": {
+          "name": "push_subscriptions_firm_id_firms_id_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "push_subscriptions_worker_fk": {
+          "name": "push_subscriptions_worker_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "push_subscriptions_firm_id_id_key": {
+          "name": "push_subscriptions_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "push_subscriptions_firm_id_endpoint_key": {
+          "name": "push_subscriptions_firm_id_endpoint_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "endpoint"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"push_subscriptions\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"push_subscriptions\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "push_subscriptions_endpoint_https": {
+          "name": "push_subscriptions_endpoint_https",
+          "value": "\"push_subscriptions\".\"endpoint\" like 'https://%' and length(\"push_subscriptions\".\"endpoint\") <= 2048"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.uploads": {
+      "name": "uploads",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "credential_type": {
+          "name": "credential_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploaded_by": {
+          "name": "uploaded_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'casual'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'waiting'"
+        },
+        "checked_by": {
+          "name": "checked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reject_reason": {
+          "name": "reject_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uploads_one_waiting": {
+          "name": "uploads_one_waiting",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"credential_type\", '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"uploads\".\"status\" = 'waiting'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "uploads_firm_id_status_idx": {
+          "name": "uploads_firm_id_status_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "uploads_firm_id_worker_idx": {
+          "name": "uploads_firm_id_worker_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "uploads_firm_id_firms_id_fk": {
+          "name": "uploads_firm_id_firms_id_fk",
+          "tableFrom": "uploads",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "uploads_worker_fk": {
+          "name": "uploads_worker_fk",
+          "tableFrom": "uploads",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "uploads_checked_by_fk": {
+          "name": "uploads_checked_by_fk",
+          "tableFrom": "uploads",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "checked_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "uploads_firm_id_id_key": {
+          "name": "uploads_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"uploads\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"uploads\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "uploads_kind_check": {
+          "name": "uploads_kind_check",
+          "value": "\"uploads\".\"kind\" in ('photo', 'certificate')"
+        },
+        "uploads_type_check": {
+          "name": "uploads_type_check",
+          "value": "(\"uploads\".\"kind\" = 'photo' and \"uploads\".\"credential_type\" is null)\n        or (\"uploads\".\"kind\" = 'certificate' and \"uploads\".\"credential_type\" ~ '^[A-Z][A-Z0-9_]*$')"
+        },
+        "uploads_content_type_check": {
+          "name": "uploads_content_type_check",
+          "value": "\"uploads\".\"content_type\" = 'image/jpeg'"
+        },
+        "uploads_size_check": {
+          "name": "uploads_size_check",
+          "value": "\"uploads\".\"size\" = octet_length(\"uploads\".\"data\") and \"uploads\".\"size\" between 1 and 1000000"
+        },
+        "uploads_sha256_check": {
+          "name": "uploads_sha256_check",
+          "value": "\"uploads\".\"sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "uploads_uploaded_by_check": {
+          "name": "uploads_uploaded_by_check",
+          "value": "\"uploads\".\"uploaded_by\" = 'casual'"
+        },
+        "uploads_status_check": {
+          "name": "uploads_status_check",
+          "value": "\"uploads\".\"status\" in ('waiting', 'approved', 'rejected')"
+        },
+        "uploads_checked": {
+          "name": "uploads_checked",
+          "value": "(\"uploads\".\"status\" = 'waiting') = (\"uploads\".\"checked_at\" is null)\n        and (\"uploads\".\"status\" = 'waiting') = (\"uploads\".\"checked_by\" is null)\n        and (\"uploads\".\"status\" = 'rejected') = (\"uploads\".\"reject_reason\" is not null)\n        and (\"uploads\".\"reject_reason\" is null or \"uploads\".\"reject_reason\" in ('blurry', 'wrong_document', 'expired', 'doesnt_match', 'other'))"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.worker_site_blocks": {
+      "name": "worker_site_blocks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "blocked_by": {
+          "name": "blocked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "worker_site_blocks_firm_id_firms_id_fk": {
+          "name": "worker_site_blocks_firm_id_firms_id_fk",
+          "tableFrom": "worker_site_blocks",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "worker_site_blocks_worker_fk": {
+          "name": "worker_site_blocks_worker_fk",
+          "tableFrom": "worker_site_blocks",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "worker_site_blocks_site_fk": {
+          "name": "worker_site_blocks_site_fk",
+          "tableFrom": "worker_site_blocks",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "firm_id",
+            "site_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "worker_site_blocks_blocked_by_fk": {
+          "name": "worker_site_blocks_blocked_by_fk",
+          "tableFrom": "worker_site_blocks",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "blocked_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "worker_site_blocks_firm_id_id_key": {
+          "name": "worker_site_blocks_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "worker_site_blocks_firm_id_worker_site_key": {
+          "name": "worker_site_blocks_firm_id_worker_site_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "worker_id",
+            "site_id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"worker_site_blocks\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"worker_site_blocks\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "worker_site_blocks_reason_check": {
+          "name": "worker_site_blocks_reason_check",
+          "value": "\"worker_site_blocks\".\"reason\" in ('client_asked', 'incident', 'other')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.worker_travel": {
+      "name": "worker_travel",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_postcode": {
+          "name": "start_postcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lat": {
+          "name": "lat",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lng": {
+          "name": "lng",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "modes": {
+          "name": "modes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_minutes": {
+          "name": "max_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "privacy_notice_version": {
+          "name": "privacy_notice_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "worker_travel_firm_id_firms_id_fk": {
+          "name": "worker_travel_firm_id_firms_id_fk",
+          "tableFrom": "worker_travel",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "worker_travel_worker_fk": {
+          "name": "worker_travel_worker_fk",
+          "tableFrom": "worker_travel",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "worker_travel_firm_id_id_key": {
+          "name": "worker_travel_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "worker_travel_one_per_worker": {
+          "name": "worker_travel_one_per_worker",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "worker_id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"worker_travel\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"worker_travel\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "worker_travel_postcode_check": {
+          "name": "worker_travel_postcode_check",
+          "value": "\"worker_travel\".\"start_postcode\" ~ '^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$'"
+        },
+        "worker_travel_point_check": {
+          "name": "worker_travel_point_check",
+          "value": "\"worker_travel\".\"lat\" between -90 and 90 and \"worker_travel\".\"lng\" between -180 and 180"
+        },
+        "worker_travel_modes_check": {
+          "name": "worker_travel_modes_check",
+          "value": "\"worker_travel\".\"modes\" in ('car', 'public_transport', 'both')"
+        },
+        "worker_travel_minutes_check": {
+          "name": "worker_travel_minutes_check",
+          "value": "\"worker_travel\".\"max_minutes\" in (30, 45, 60, 90)"
+        },
+        "worker_travel_notice_check": {
+          "name": "worker_travel_notice_check",
+          "value": "length(\"worker_travel\".\"privacy_notice_version\") between 1 and 40"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.worker_unavailable_days": {
+      "name": "worker_unavailable_days",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "worker_unavailable_days_firm_id_firms_id_fk": {
+          "name": "worker_unavailable_days_firm_id_firms_id_fk",
+          "tableFrom": "worker_unavailable_days",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "worker_unavailable_days_worker_fk": {
+          "name": "worker_unavailable_days_worker_fk",
+          "tableFrom": "worker_unavailable_days",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "worker_unavailable_days_firm_id_id_key": {
+          "name": "worker_unavailable_days_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "worker_unavailable_days_firm_id_worker_day_key": {
+          "name": "worker_unavailable_days_firm_id_worker_day_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "worker_id",
+            "day"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"worker_unavailable_days\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"worker_unavailable_days\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.workers": {
+      "name": "workers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mobile_e164": {
+          "name": "mobile_e164",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "roles": {
+          "name": "roles",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "external_ref": {
+          "name": "external_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notify_channel": {
+          "name": "notify_channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'whatsapp'"
+        },
+        "offer_alerts": {
+          "name": "offer_alerts",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "sms_opted_out_at": {
+          "name": "sms_opted_out_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "office_deactivated_at": {
+          "name": "office_deactivated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "erased_at": {
+          "name": "erased_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workers_firm_id_firms_id_fk": {
+          "name": "workers_firm_id_firms_id_fk",
+          "tableFrom": "workers",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "workers_firm_id_id_key": {
+          "name": "workers_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "workers_firm_id_mobile_key": {
+          "name": "workers_firm_id_mobile_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "mobile_e164"
+          ]
+        },
+        "workers_firm_id_external_ref_key": {
+          "name": "workers_firm_id_external_ref_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "external_ref"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"workers\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"workers\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "workers_external_ref_format": {
+          "name": "workers_external_ref_format",
+          "value": "\"workers\".\"external_ref\" = btrim(\"workers\".\"external_ref\") and length(\"workers\".\"external_ref\") between 1 and 200"
+        },
+        "workers_mobile_e164_check": {
+          "name": "workers_mobile_e164_check",
+          "value": "\"workers\".\"mobile_e164\" ~ '^[+][1-9][0-9]{6,14}$'"
+        },
+        "workers_erased": {
+          "name": "workers_erased",
+          "value": "(\"workers\".\"erased_at\" is null and \"workers\".\"mobile_e164\" is not null)\n        or (\"workers\".\"erased_at\" is not null and \"workers\".\"mobile_e164\" is null and \"workers\".\"email\" is null\n          and \"workers\".\"external_ref\" is null and \"workers\".\"first_name\" = 'Deleted' and \"workers\".\"last_name\" = 'worker'\n          and \"workers\".\"status\" = 'inactive' and \"workers\".\"roles\" = '{}' and \"workers\".\"sms_opted_out_at\" is null)"
+        },
+        "workers_status_check": {
+          "name": "workers_status_check",
+          "value": "\"workers\".\"status\" in ('active', 'inactive', 'blocked')"
+        },
+        "workers_notify_channel_check": {
+          "name": "workers_notify_channel_check",
+          "value": "\"workers\".\"notify_channel\" in ('whatsapp', 'sms')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.pay_queries": {
+      "name": "pay_queries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "work_date": {
+          "name": "work_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_type": {
+          "name": "issue_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "group_key": {
+          "name": "group_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "resolved_by": {
+          "name": "resolved_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolution_note": {
+          "name": "resolution_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pay_queries_firm_id_status_idx": {
+          "name": "pay_queries_firm_id_status_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pay_queries_firm_id_worker_id_idx": {
+          "name": "pay_queries_firm_id_worker_id_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_queries_firm_id_firms_id_fk": {
+          "name": "pay_queries_firm_id_firms_id_fk",
+          "tableFrom": "pay_queries",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_queries_resolved_by_fk": {
+          "name": "pay_queries_resolved_by_fk",
+          "tableFrom": "pay_queries",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "resolved_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_queries_worker_fk": {
+          "name": "pay_queries_worker_fk",
+          "tableFrom": "pay_queries",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_queries_shift_fk": {
+          "name": "pay_queries_shift_fk",
+          "tableFrom": "pay_queries",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "firm_id",
+            "shift_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pay_queries_firm_id_id_key": {
+          "name": "pay_queries_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"pay_queries\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"pay_queries\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "pay_queries_issue_type_check": {
+          "name": "pay_queries_issue_type_check",
+          "value": "\"pay_queries\".\"issue_type\" in ('missing_hours', 'wrong_rate', 'late_pay', 'other')"
+        },
+        "pay_queries_status_check": {
+          "name": "pay_queries_status_check",
+          "value": "\"pay_queries\".\"status\" in ('open', 'in_digest', 'resolved')"
+        },
+        "pay_queries_details_length": {
+          "name": "pay_queries_details_length",
+          "value": "\"pay_queries\".\"details\" is null or char_length(\"pay_queries\".\"details\") between 1 and 1000"
+        },
+        "pay_queries_resolution": {
+          "name": "pay_queries_resolution",
+          "value": "\"pay_queries\".\"status\" = 'resolved'\n        or (\"pay_queries\".\"resolved_at\" is null and \"pay_queries\".\"resolved_by\" is null and \"pay_queries\".\"resolution_note\" is null)"
+        },
+        "pay_queries_resolution_note_length": {
+          "name": "pay_queries_resolution_note_length",
+          "value": "\"pay_queries\".\"resolution_note\" is null or char_length(\"pay_queries\".\"resolution_note\") between 1 and 500"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.pay_records": {
+      "name": "pay_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hours": {
+          "name": "hours",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate_pence": {
+          "name": "rate_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_pence": {
+          "name": "gross_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pay_date": {
+          "name": "pay_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'import'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pay_records_firm_id_worker_id_period_end_idx": {
+          "name": "pay_records_firm_id_worker_id_period_end_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_end",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_records_firm_id_firms_id_fk": {
+          "name": "pay_records_firm_id_firms_id_fk",
+          "tableFrom": "pay_records",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_records_worker_fk": {
+          "name": "pay_records_worker_fk",
+          "tableFrom": "pay_records",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pay_records_firm_id_id_key": {
+          "name": "pay_records_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "pay_records_firm_id_line_key": {
+          "name": "pay_records_firm_id_line_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "worker_id",
+            "period_start",
+            "period_end",
+            "rate_pence"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"pay_records\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"pay_records\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "pay_records_period_order": {
+          "name": "pay_records_period_order",
+          "value": "\"pay_records\".\"period_end\" >= \"pay_records\".\"period_start\""
+        },
+        "pay_records_hours_range": {
+          "name": "pay_records_hours_range",
+          "value": "\"pay_records\".\"hours\" >= 0 and \"pay_records\".\"hours\" <= 1000"
+        },
+        "pay_records_rate_nonnegative": {
+          "name": "pay_records_rate_nonnegative",
+          "value": "\"pay_records\".\"rate_pence\" >= 0"
+        },
+        "pay_records_gross_nonnegative": {
+          "name": "pay_records_gross_nonnegative",
+          "value": "\"pay_records\".\"gross_pence\" >= 0"
+        },
+        "pay_records_source_check": {
+          "name": "pay_records_source_check",
+          "value": "\"pay_records\".\"source\" in ('import')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.assignments": {
+      "name": "assignments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot": {
+          "name": "slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "offered_at": {
+          "name": "offered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "override_reason": {
+          "name": "override_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notice_hours": {
+          "name": "notice_hours",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "office_kept_at": {
+          "name": "office_kept_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_via": {
+          "name": "cancel_via",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strike_warning_version": {
+          "name": "strike_warning_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strike_warning_shown_at": {
+          "name": "strike_warning_shown_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "assignments_one_live_per_slot": {
+          "name": "assignments_one_live_per_slot",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "shift_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slot",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "status not in ('cancelled_worker', 'cancelled_firm')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "assignments_one_live_per_worker": {
+          "name": "assignments_one_live_per_worker",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "shift_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "worker_id is not null and status not in ('cancelled_worker', 'cancelled_firm')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "assignments_firm_id_worker_id_idx": {
+          "name": "assignments_firm_id_worker_id_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "assignments_firm_id_firms_id_fk": {
+          "name": "assignments_firm_id_firms_id_fk",
+          "tableFrom": "assignments",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "assignments_shift_fk": {
+          "name": "assignments_shift_fk",
+          "tableFrom": "assignments",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "firm_id",
+            "shift_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "assignments_worker_fk": {
+          "name": "assignments_worker_fk",
+          "tableFrom": "assignments",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "assignments_firm_id_id_key": {
+          "name": "assignments_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"assignments\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"assignments\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "assignments_status_check": {
+          "name": "assignments_status_check",
+          "value": "\"assignments\".\"status\" in ('open', 'offered', 'confirmed', 'cancelled_worker', 'cancelled_firm', 'no_show', 'completed')"
+        },
+        "assignments_slot_positive": {
+          "name": "assignments_slot_positive",
+          "value": "\"assignments\".\"slot\" >= 1"
+        },
+        "assignments_worker_matches_status": {
+          "name": "assignments_worker_matches_status",
+          "value": "(\"assignments\".\"status\" = 'open') = (\"assignments\".\"worker_id\" is null)"
+        },
+        "assignments_offered_at_set": {
+          "name": "assignments_offered_at_set",
+          "value": "\"assignments\".\"status\" <> 'offered' or \"assignments\".\"offered_at\" is not null"
+        },
+        "assignments_confirmed_at_set": {
+          "name": "assignments_confirmed_at_set",
+          "value": "\"assignments\".\"status\" not in ('confirmed', 'no_show', 'completed') or \"assignments\".\"confirmed_at\" is not null"
+        },
+        "assignments_cancel_evidence": {
+          "name": "assignments_cancel_evidence",
+          "value": "\"assignments\".\"status\" not in ('cancelled_worker', 'cancelled_firm')\n        or (\"assignments\".\"cancelled_at\" is not null and \"assignments\".\"notice_hours\" is not null\n            and \"assignments\".\"cancel_reason\" is not null and length(btrim(\"assignments\".\"cancel_reason\")) > 0)"
+        },
+        "assignments_cancel_via_check": {
+          "name": "assignments_cancel_via_check",
+          "value": "\"assignments\".\"cancel_via\" is null or \"assignments\".\"cancel_via\" in ('app', 'office', 'sheet', 'import')"
+        },
+        "assignments_strike_warning": {
+          "name": "assignments_strike_warning",
+          "value": "(\"assignments\".\"strike_warning_version\" is null) = (\"assignments\".\"strike_warning_shown_at\" is null)\n        and (\"assignments\".\"strike_warning_version\" is null\n             or (\"assignments\".\"status\" = 'cancelled_worker' and length(\"assignments\".\"strike_warning_version\") between 1 and 40))"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.credential_rules": {
+      "name": "credential_rules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sector": {
+          "name": "sector",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "required_types": {
+          "name": "required_types",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "credential_rules_firm_id_firms_id_fk": {
+          "name": "credential_rules_firm_id_firms_id_fk",
+          "tableFrom": "credential_rules",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "credential_rules_firm_id_role_key": {
+          "name": "credential_rules_firm_id_role_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "role"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"credential_rules\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"credential_rules\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "credential_rules_sector_check": {
+          "name": "credential_rules_sector_check",
+          "value": "\"credential_rules\".\"sector\" in ('security', 'rail', 'construction', 'cleaning')"
+        },
+        "credential_rules_role_format": {
+          "name": "credential_rules_role_format",
+          "value": "\"credential_rules\".\"role\" ~ '^[a-z][a-z0-9_]*$'"
+        },
+        "credential_rules_required_types_format": {
+          "name": "credential_rules_required_types_format",
+          "value": "coalesce(array_ndims(\"credential_rules\".\"required_types\"), 1) = 1\n        and array_position(\"credential_rules\".\"required_types\", null) is null\n        and (cardinality(\"credential_rules\".\"required_types\") = 0\n          or (array_to_string(\"credential_rules\".\"required_types\", ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'\n            and cardinality(string_to_array(array_to_string(\"credential_rules\".\"required_types\", ','), ','))\n              = cardinality(\"credential_rules\".\"required_types\")))"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.credential_types": {
+      "name": "credential_types",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sector": {
+          "name": "sector",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "applied_allowed": {
+          "name": "applied_allowed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "credential_types_firm_id_firms_id_fk": {
+          "name": "credential_types_firm_id_firms_id_fk",
+          "tableFrom": "credential_types",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "credential_types_firm_id_code_key": {
+          "name": "credential_types_firm_id_code_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "code"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"credential_types\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"credential_types\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "credential_types_code_format": {
+          "name": "credential_types_code_format",
+          "value": "\"credential_types\".\"code\" ~ '^[A-Z][A-Z0-9_]*$'"
+        },
+        "credential_types_name_length": {
+          "name": "credential_types_name_length",
+          "value": "\"credential_types\".\"name\" = btrim(\"credential_types\".\"name\") and length(\"credential_types\".\"name\") between 1 and 100"
+        },
+        "credential_types_sector_check": {
+          "name": "credential_types_sector_check",
+          "value": "\"credential_types\".\"sector\" in ('security', 'rail', 'construction', 'cleaning', 'any')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.offers": {
+      "name": "offers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wave": {
+          "name": "wave",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "offered_by": {
+          "name": "offered_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "response": {
+          "name": "response",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "offers_one_office_offer_per_worker": {
+          "name": "offers_one_office_offer_per_worker",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "shift_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"offers\".\"wave\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "offers_firm_id_worker_id_sent_at_idx": {
+          "name": "offers_firm_id_worker_id_sent_at_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "offers_firm_id_firms_id_fk": {
+          "name": "offers_firm_id_firms_id_fk",
+          "tableFrom": "offers",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "offers_shift_fk": {
+          "name": "offers_shift_fk",
+          "tableFrom": "offers",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "firm_id",
+            "shift_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "offers_worker_fk": {
+          "name": "offers_worker_fk",
+          "tableFrom": "offers",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "offers_offered_by_fk": {
+          "name": "offers_offered_by_fk",
+          "tableFrom": "offers",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "offered_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "offers_firm_id_id_key": {
+          "name": "offers_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "offers_firm_id_shift_id_worker_id_wave_key": {
+          "name": "offers_firm_id_shift_id_worker_id_wave_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "shift_id",
+            "worker_id",
+            "wave"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"offers\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"offers\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "offers_wave_positive": {
+          "name": "offers_wave_positive",
+          "value": "\"offers\".\"wave\" >= 1"
+        },
+        "offers_wave_or_office": {
+          "name": "offers_wave_or_office",
+          "value": "(\"offers\".\"wave\" is null) = (\"offers\".\"offered_by\" is not null)"
+        },
+        "offers_channel_check": {
+          "name": "offers_channel_check",
+          "value": "\"offers\".\"channel\" in ('push', 'whatsapp', 'sms')"
+        },
+        "offers_response_check": {
+          "name": "offers_response_check",
+          "value": "\"offers\".\"response\" in ('accepted', 'declined', 'expired', 'filled_elsewhere', 'failed')"
+        },
+        "offers_response_has_time": {
+          "name": "offers_response_has_time",
+          "value": "(\"offers\".\"response\" is null) = (\"offers\".\"responded_at\" is null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.requests": {
+      "name": "requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "resolved_by": {
+          "name": "resolved_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolution_note": {
+          "name": "resolution_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "requests_firm_id_status_idx": {
+          "name": "requests_firm_id_status_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "requests_firm_id_firms_id_fk": {
+          "name": "requests_firm_id_firms_id_fk",
+          "tableFrom": "requests",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "requests_worker_fk": {
+          "name": "requests_worker_fk",
+          "tableFrom": "requests",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "requests_shift_fk": {
+          "name": "requests_shift_fk",
+          "tableFrom": "requests",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "firm_id",
+            "shift_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "requests_resolved_by_fk": {
+          "name": "requests_resolved_by_fk",
+          "tableFrom": "requests",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "resolved_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "requests_firm_id_id_key": {
+          "name": "requests_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"requests\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"requests\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "requests_type_check": {
+          "name": "requests_type_check",
+          "value": "\"requests\".\"type\" in ('time_change', 'swap', 'availability', 'general', 'review')"
+        },
+        "requests_status_check": {
+          "name": "requests_status_check",
+          "value": "\"requests\".\"status\" in ('open', 'approved', 'declined', 'auto_resolved', 'escalated')"
+        },
+        "requests_shift_required": {
+          "name": "requests_shift_required",
+          "value": "\"requests\".\"type\" not in ('time_change', 'swap', 'review') or \"requests\".\"shift_id\" is not null"
+        },
+        "requests_payload_object": {
+          "name": "requests_payload_object",
+          "value": "jsonb_typeof(\"requests\".\"payload\") = 'object'"
+        },
+        "requests_resolution": {
+          "name": "requests_resolution",
+          "value": "(\"requests\".\"status\" in ('open', 'escalated') and \"requests\".\"resolved_at\" is null and \"requests\".\"resolved_by\" is null)\n        or (\"requests\".\"status\" = 'auto_resolved' and \"requests\".\"resolved_at\" is not null)\n        or (\"requests\".\"status\" in ('approved', 'declined') and \"requests\".\"resolved_at\" is not null and \"requests\".\"resolved_by\" is not null)"
+        },
+        "requests_resolution_note": {
+          "name": "requests_resolution_note",
+          "value": "\"requests\".\"resolution_note\" is null\n        or (\"requests\".\"status\" in ('approved', 'declined') and char_length(\"requests\".\"resolution_note\") between 1 and 500)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.roster_sources": {
+      "name": "roster_sources",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "spreadsheet_id": {
+          "name": "spreadsheet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mapping": {
+          "name": "mapping",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_synced_at": {
+          "name": "last_synced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_attempted_at": {
+          "name": "last_attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_error_code": {
+          "name": "last_error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_started_at": {
+          "name": "sync_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "roster_sources_one_enabled_per_firm": {
+          "name": "roster_sources_one_enabled_per_firm",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "enabled",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "roster_sources_spreadsheet_id_key": {
+          "name": "roster_sources_spreadsheet_id_key",
+          "columns": [
+            {
+              "expression": "spreadsheet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "roster_sources_firm_id_firms_id_fk": {
+          "name": "roster_sources_firm_id_firms_id_fk",
+          "tableFrom": "roster_sources",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"roster_sources\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"roster_sources\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "roster_sources_kind_check": {
+          "name": "roster_sources_kind_check",
+          "value": "\"roster_sources\".\"kind\" in ('sheets')"
+        },
+        "roster_sources_spreadsheet_id_format": {
+          "name": "roster_sources_spreadsheet_id_format",
+          "value": "\"roster_sources\".\"spreadsheet_id\" ~ '^[A-Za-z0-9_-]{20,100}$'"
+        },
+        "roster_sources_mapping_object": {
+          "name": "roster_sources_mapping_object",
+          "value": "jsonb_typeof(\"roster_sources\".\"mapping\") = 'object'"
+        },
+        "roster_sources_error_code_format": {
+          "name": "roster_sources_error_code_format",
+          "value": "\"roster_sources\".\"last_error_code\" ~ '^[a-z_]{1,50}$'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.shift_events": {
+      "name": "shift_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'native'"
+        },
+        "planner_ref": {
+          "name": "planner_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "showing_to_casuals": {
+          "name": "showing_to_casuals",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "shift_events_auto_key": {
+          "name": "shift_events_auto_key",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "planner_ref",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"shift_events\".\"planner_ref\" like 'auto:%'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shift_events_firm_id_firms_id_fk": {
+          "name": "shift_events_firm_id_firms_id_fk",
+          "tableFrom": "shift_events",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_events_site_fk": {
+          "name": "shift_events_site_fk",
+          "tableFrom": "shift_events",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "firm_id",
+            "site_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "shift_events_firm_id_id_key": {
+          "name": "shift_events_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"shift_events\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"shift_events\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "shift_events_name_length": {
+          "name": "shift_events_name_length",
+          "value": "char_length(\"shift_events\".\"name\") between 1 and 200"
+        },
+        "shift_events_source_check": {
+          "name": "shift_events_source_check",
+          "value": "\"shift_events\".\"source\" in ('native', 'sheets', 'csv')"
+        },
+        "shift_events_planner_ref_length": {
+          "name": "shift_events_planner_ref_length",
+          "value": "\"shift_events\".\"planner_ref\" is null or char_length(\"shift_events\".\"planner_ref\") between 1 and 200"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.shift_reminders": {
+      "name": "shift_reminders",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "shift_reminders_firm_id_firms_id_fk": {
+          "name": "shift_reminders_firm_id_firms_id_fk",
+          "tableFrom": "shift_reminders",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_reminders_assignment_fk": {
+          "name": "shift_reminders_assignment_fk",
+          "tableFrom": "shift_reminders",
+          "tableTo": "assignments",
+          "columnsFrom": [
+            "firm_id",
+            "assignment_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "shift_reminders_firm_id_id_key": {
+          "name": "shift_reminders_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "shift_reminders_once_key": {
+          "name": "shift_reminders_once_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "assignment_id",
+            "kind",
+            "starts_at"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"shift_reminders\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"shift_reminders\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "shift_reminders_kind_check": {
+          "name": "shift_reminders_kind_check",
+          "value": "\"shift_reminders\".\"kind\" in ('24h', '2h')"
+        },
+        "shift_reminders_status_check": {
+          "name": "shift_reminders_status_check",
+          "value": "\"shift_reminders\".\"status\" in ('sending', 'sent', 'failed', 'skipped')"
+        },
+        "shift_reminders_channel_check": {
+          "name": "shift_reminders_channel_check",
+          "value": "\"shift_reminders\".\"channel\" in ('whatsapp', 'sms')"
+        },
+        "shift_reminders_channel_unless_skipped": {
+          "name": "shift_reminders_channel_unless_skipped",
+          "value": "(\"shift_reminders\".\"status\" = 'skipped') = (\"shift_reminders\".\"channel\" is null)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.shifts": {
+      "name": "shifts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "headcount": {
+          "name": "headcount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "is_urgent": {
+          "name": "is_urgent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'native'"
+        },
+        "external_ref": {
+          "name": "external_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "instructions": {
+          "name": "instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "synced_holders": {
+          "name": "synced_holders",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sheet_issues": {
+          "name": "sheet_issues",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pay_rate_pence": {
+          "name": "pay_rate_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "post": {
+          "name": "post",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meeting_point": {
+          "name": "meeting_point",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uniform": {
+          "name": "uniform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "required_credentials": {
+          "name": "required_credentials",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "showing_to_casuals": {
+          "name": "showing_to_casuals",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "shifts_firm_id_starts_at_idx": {
+          "name": "shifts_firm_id_starts_at_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starts_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shifts_firm_id_firms_id_fk": {
+          "name": "shifts_firm_id_firms_id_fk",
+          "tableFrom": "shifts",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shifts_event_fk": {
+          "name": "shifts_event_fk",
+          "tableFrom": "shifts",
+          "tableTo": "shift_events",
+          "columnsFrom": [
+            "firm_id",
+            "event_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shifts_site_fk": {
+          "name": "shifts_site_fk",
+          "tableFrom": "shifts",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "firm_id",
+            "site_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "shifts_firm_id_id_key": {
+          "name": "shifts_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "shifts_firm_id_source_external_ref_key": {
+          "name": "shifts_firm_id_source_external_ref_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "source",
+            "external_ref"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"shifts\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"shifts\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "shifts_role_format": {
+          "name": "shifts_role_format",
+          "value": "\"shifts\".\"role\" ~ '^[a-z][a-z0-9_]*$'"
+        },
+        "shifts_ends_after_start": {
+          "name": "shifts_ends_after_start",
+          "value": "\"shifts\".\"ends_at\" > \"shifts\".\"starts_at\""
+        },
+        "shifts_headcount_range": {
+          "name": "shifts_headcount_range",
+          "value": "\"shifts\".\"headcount\" between 1 and 1000"
+        },
+        "shifts_status_check": {
+          "name": "shifts_status_check",
+          "value": "\"shifts\".\"status\" in ('draft', 'open', 'filled', 'cancelled')"
+        },
+        "shifts_source_check": {
+          "name": "shifts_source_check",
+          "value": "\"shifts\".\"source\" in ('native', 'sheets', 'csv')"
+        },
+        "shifts_pay_rate_range": {
+          "name": "shifts_pay_rate_range",
+          "value": "\"shifts\".\"pay_rate_pence\" is null or \"shifts\".\"pay_rate_pence\" >= 0"
+        },
+        "shifts_post_length": {
+          "name": "shifts_post_length",
+          "value": "\"shifts\".\"post\" is null or char_length(\"shifts\".\"post\") between 1 and 200"
+        },
+        "shifts_meeting_point_length": {
+          "name": "shifts_meeting_point_length",
+          "value": "\"shifts\".\"meeting_point\" is null or char_length(\"shifts\".\"meeting_point\") between 1 and 300"
+        },
+        "shifts_uniform_length": {
+          "name": "shifts_uniform_length",
+          "value": "\"shifts\".\"uniform\" is null or char_length(\"shifts\".\"uniform\") between 1 and 300"
+        },
+        "shifts_required_credentials_format": {
+          "name": "shifts_required_credentials_format",
+          "value": "coalesce(array_ndims(\"shifts\".\"required_credentials\"), 1) = 1\n    and array_position(\"shifts\".\"required_credentials\", null) is null\n    and (cardinality(\"shifts\".\"required_credentials\") = 0\n      or (array_to_string(\"shifts\".\"required_credentials\", ',') ~ '^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$'\n        and cardinality(string_to_array(array_to_string(\"shifts\".\"required_credentials\", ','), ','))\n          = cardinality(\"shifts\".\"required_credentials\")))\n        and cardinality(\"shifts\".\"required_credentials\") <= 20"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.strikes": {
+      "name": "strikes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notice_hours": {
+          "name": "notice_hours",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "threshold_hours": {
+          "name": "threshold_hours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'live'"
+        },
+        "review_needed": {
+          "name": "review_needed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "review_reasons": {
+          "name": "review_reasons",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "reviewed_by": {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withdrawn_by": {
+          "name": "withdrawn_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withdrawn_reason": {
+          "name": "withdrawn_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_email_status": {
+          "name": "evidence_email_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_email_to": {
+          "name": "evidence_email_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_email_sent_at": {
+          "name": "evidence_email_sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "strikes_firm_id_worker_id_idx": {
+          "name": "strikes_firm_id_worker_id_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "strikes_firm_id_issued_at_idx": {
+          "name": "strikes_firm_id_issued_at_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "issued_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "strikes_firm_id_firms_id_fk": {
+          "name": "strikes_firm_id_firms_id_fk",
+          "tableFrom": "strikes",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strikes_worker_fk": {
+          "name": "strikes_worker_fk",
+          "tableFrom": "strikes",
+          "tableTo": "workers",
+          "columnsFrom": [
+            "firm_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strikes_assignment_fk": {
+          "name": "strikes_assignment_fk",
+          "tableFrom": "strikes",
+          "tableTo": "assignments",
+          "columnsFrom": [
+            "firm_id",
+            "assignment_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strikes_shift_fk": {
+          "name": "strikes_shift_fk",
+          "tableFrom": "strikes",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "firm_id",
+            "shift_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strikes_reviewed_by_fk": {
+          "name": "strikes_reviewed_by_fk",
+          "tableFrom": "strikes",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "reviewed_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strikes_withdrawn_by_fk": {
+          "name": "strikes_withdrawn_by_fk",
+          "tableFrom": "strikes",
+          "tableTo": "office_users",
+          "columnsFrom": [
+            "firm_id",
+            "withdrawn_by"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "strikes_firm_id_id_key": {
+          "name": "strikes_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "strikes_one_per_booking": {
+          "name": "strikes_one_per_booking",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "assignment_id"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"strikes\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"strikes\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "strikes_status_check": {
+          "name": "strikes_status_check",
+          "value": "\"strikes\".\"status\" in ('live', 'withdrawn')"
+        },
+        "strikes_review_reasons_check": {
+          "name": "strikes_review_reasons_check",
+          "value": "\"strikes\".\"review_reasons\" <@ array['unwell', 'family_or_caring']::text[]\n        and (not \"strikes\".\"review_needed\" or cardinality(\"strikes\".\"review_reasons\") > 0)"
+        },
+        "strikes_notice_under_threshold": {
+          "name": "strikes_notice_under_threshold",
+          "value": "\"strikes\".\"threshold_hours\" > 0 and \"strikes\".\"notice_hours\" < \"strikes\".\"threshold_hours\""
+        },
+        "strikes_expires_after_issue": {
+          "name": "strikes_expires_after_issue",
+          "value": "\"strikes\".\"expires_at\" > \"strikes\".\"issued_at\""
+        },
+        "strikes_reviewed_together": {
+          "name": "strikes_reviewed_together",
+          "value": "(\"strikes\".\"reviewed_by\" is null) = (\"strikes\".\"reviewed_at\" is null)"
+        },
+        "strikes_withdrawn_together": {
+          "name": "strikes_withdrawn_together",
+          "value": "(\"strikes\".\"status\" = 'withdrawn') = (\"strikes\".\"withdrawn_at\" is not null)\n        and (\"strikes\".\"withdrawn_at\" is null) = (\"strikes\".\"withdrawn_by\" is null)\n        and (\"strikes\".\"withdrawn_reason\" is null or length(\"strikes\".\"withdrawn_reason\") between 1 and 500)"
+        },
+        "strikes_evidence_status_check": {
+          "name": "strikes_evidence_status_check",
+          "value": "\"strikes\".\"evidence_email_status\" is null\n        or \"strikes\".\"evidence_email_status\" in ('pending', 'sent', 'failed', 'not_set_up')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.firms": {
+      "name": "firms",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sector": {
+          "name": "sector",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "custom_domain": {
+          "name": "custom_domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "domain_verified": {
+          "name": "domain_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "brand_logo_url": {
+          "name": "brand_logo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "brand_primary_color": {
+          "name": "brand_primary_color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Europe/London'"
+        },
+        "shifts_line_e164": {
+          "name": "shifts_line_e164",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "settings": {
+          "name": "settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "agreement_signed_on": {
+          "name": "agreement_signed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "firms_slug_unique": {
+          "name": "firms_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        },
+        "firms_custom_domain_unique": {
+          "name": "firms_custom_domain_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "custom_domain"
+          ]
+        },
+        "firms_shifts_line_e164_unique": {
+          "name": "firms_shifts_line_e164_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "shifts_line_e164"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"firms\".\"id\" = (select app_current_firm_id())",
+          "withCheck": "\"firms\".\"id\" = (select app_current_firm_id())"
+        },
+        "directory_read": {
+          "name": "directory_read",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "current_user"
+          ],
+          "using": "true"
+        }
+      },
+      "checkConstraints": {
+        "firms_slug_format": {
+          "name": "firms_slug_format",
+          "value": "\"firms\".\"slug\" ~ '^[a-z0-9][a-z0-9-]{0,18}[a-z0-9]$'"
+        },
+        "firms_slug_not_reserved": {
+          "name": "firms_slug_not_reserved",
+          "value": "\"firms\".\"slug\" not in ('www', 'portal', 'api', 'app', 'admin') and \"firms\".\"slug\" !~ '^xn-{2}'"
+        },
+        "firms_sector_check": {
+          "name": "firms_sector_check",
+          "value": "\"firms\".\"sector\" in ('security', 'rail', 'construction', 'cleaning')"
+        },
+        "firms_brand_color_hex": {
+          "name": "firms_brand_color_hex",
+          "value": "\"firms\".\"brand_primary_color\" ~ '^#[0-9a-fA-F]{6}$'"
+        },
+        "firms_brand_logo_https": {
+          "name": "firms_brand_logo_https",
+          "value": "\"firms\".\"brand_logo_url\" like 'https://%'"
+        },
+        "firms_shifts_line_e164": {
+          "name": "firms_shifts_line_e164",
+          "value": "\"firms\".\"shifts_line_e164\" ~ '^[+][1-9][0-9]{6,14}$'"
+        },
+        "firms_custom_domain_host": {
+          "name": "firms_custom_domain_host",
+          "value": "\"firms\".\"custom_domain\" ~ '^[a-z0-9][a-z0-9.-]{0,251}[a-z]$' and \"firms\".\"custom_domain\" !~ '[.][.]'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.sites": {
+      "name": "sites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address_line1": {
+          "name": "address_line1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address_line2": {
+          "name": "address_line2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "town": {
+          "name": "town",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "postcode": {
+          "name": "postcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sites_firm_id_firms_id_fk": {
+          "name": "sites_firm_id_firms_id_fk",
+          "tableFrom": "sites",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sites_firm_id_id_key": {
+          "name": "sites_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "sites_firm_id_name_key": {
+          "name": "sites_firm_id_name_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "name"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"sites\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"sites\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.travel_estimates": {
+      "name": "travel_estimates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin_postcode": {
+          "name": "origin_postcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "arrive_by": {
+          "name": "arrive_by",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minutes": {
+          "name": "minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metres": {
+          "name": "metres",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "computed_at": {
+          "name": "computed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "travel_estimates_firm_id_site_idx": {
+          "name": "travel_estimates_firm_id_site_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "site_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "arrive_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "travel_estimates_firm_id_expires_idx": {
+          "name": "travel_estimates_firm_id_expires_idx",
+          "columns": [
+            {
+              "expression": "firm_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "travel_estimates_firm_id_firms_id_fk": {
+          "name": "travel_estimates_firm_id_firms_id_fk",
+          "tableFrom": "travel_estimates",
+          "tableTo": "firms",
+          "columnsFrom": [
+            "firm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "travel_estimates_site_fk": {
+          "name": "travel_estimates_site_fk",
+          "tableFrom": "travel_estimates",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "firm_id",
+            "site_id"
+          ],
+          "columnsTo": [
+            "firm_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "travel_estimates_firm_id_id_key": {
+          "name": "travel_estimates_firm_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "id"
+          ]
+        },
+        "travel_estimates_one_per_trip": {
+          "name": "travel_estimates_one_per_trip",
+          "nullsNotDistinct": false,
+          "columns": [
+            "firm_id",
+            "origin_postcode",
+            "site_id",
+            "mode",
+            "arrive_by"
+          ]
+        }
+      },
+      "policies": {
+        "firm_isolation": {
+          "name": "firm_isolation",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "public"
+          ],
+          "using": "\"travel_estimates\".\"firm_id\" = (select app_current_firm_id())",
+          "withCheck": "\"travel_estimates\".\"firm_id\" = (select app_current_firm_id())"
+        }
+      },
+      "checkConstraints": {
+        "travel_estimates_postcode_check": {
+          "name": "travel_estimates_postcode_check",
+          "value": "\"travel_estimates\".\"origin_postcode\" ~ '^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$'"
+        },
+        "travel_estimates_mode_check": {
+          "name": "travel_estimates_mode_check",
+          "value": "\"travel_estimates\".\"mode\" in ('car', 'public_transport')"
+        },
+        "travel_estimates_minutes_check": {
+          "name": "travel_estimates_minutes_check",
+          "value": "\"travel_estimates\".\"minutes\" is null or \"travel_estimates\".\"minutes\" between 0 and 90"
+        },
+        "travel_estimates_metres_check": {
+          "name": "travel_estimates_metres_check",
+          "value": "\"travel_estimates\".\"metres\" is null or (\"travel_estimates\".\"metres\" >= 0 and \"travel_estimates\".\"mode\" = 'car')"
+        },
+        "travel_estimates_provider_check": {
+          "name": "travel_estimates_provider_check",
+          "value": "\"travel_estimates\".\"provider\" in ('fake', 'traveltime')"
+        },
+        "travel_estimates_expiry_check": {
+          "name": "travel_estimates_expiry_check",
+          "value": "\"travel_estimates\".\"expires_at\" > \"travel_estimates\".\"arrive_by\""
+        }
+      },
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

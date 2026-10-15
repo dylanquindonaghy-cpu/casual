@@ -1,10 +1,12 @@
-// ShiftDesk service worker: keeps the worker's last "My shifts" page on their phone, so it opens
-// with poor signal at a venue (docs/screens.md, `/`; docs/decisions.md ADR-016).
+// ShiftDesk service worker: keeps the casual's last Home and Booked pages on their phone (`/`, with
+// her next shift, and `/shifts`, with her bookings: 12H.1), so they open with poor signal at a
+// venue (docs/screens.md, `/` and `/shifts`; docs/decisions.md ADR-016). Each is kept on its own;
+// below, "My shifts" means either.
 //
 // It also shows web push notifications (an urgent offer) and opens their page when tapped.
 //
 // It handles only two kinds of request; everything else goes to the network untouched:
-// - Opening My shifts (`/`, no query): the network first. With no signal, or no answer within
+// - Opening My shifts (`/` or `/shifts`, no query): the network first. With no signal, or no answer within
 //   NETWORK_TIMEOUT_MS, the copy kept from the last good load, with its "No signal" notice
 //   unhidden. With no copy (or one older than MAX_AGE_MS), a plain "No signal" page. If anything
 //   in here goes wrong, the page is fetched as if this worker weren't there.
@@ -19,8 +21,8 @@
 // cookies.
 //
 // Slow but working signal (audit L90): the kept copy shown after 4 s carries its keep time
-// (data-kept-at on its notice). The page watches the cache, and once a newer copy has been kept
-// (the late answer came) it opens `/?fresh`, answered here with that just-kept copy.
+// (data-kept-at on its notice). Home watches the cache, and once a newer copy has been kept (the
+// late answer came) it opens `/?fresh`, answered here with that just-kept copy (Home only).
 //
 // Never delete this file from the site: a phone checking for an update and getting a 404 keeps
 // the old worker. To switch it off, see docs/runbooks.md ("A bad service worker").
@@ -33,6 +35,8 @@ const FORGOT = "shiftdesk-my-shifts-forgot";
 const FORGOT_KEY = "/forgot";
 const FORGOT_AT = "x-shiftdesk-forgot-at";
 const PAGE = "/";
+// Every page kept: Home and Booked.
+const PAGES = [PAGE, "/shifts"];
 const FRESH = "?fresh";
 const FRESH_MS = 2 * 60 * 1000; // `/?fresh` shows a copy kept this recently, without the network
 const STATIC = "/_next/static/";
@@ -65,8 +69,9 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  const myShifts = request.mode === "navigate" && url.pathname === PAGE;
-  if (myShifts && (url.search === "" || url.search === FRESH)) {
+  const path = url.pathname;
+  const myShifts = request.mode === "navigate" && PAGES.includes(path);
+  if (myShifts && (url.search === "" || (path === PAGE && url.search === FRESH))) {
     // Set up synchronously: the network request, and keeping its answer alongside. `/?fresh` (the
     // page saw a newer copy kept while a stale one was showing) is that copy when there is one,
     // else the same as `/`.
@@ -76,10 +81,12 @@ self.addEventListener("fetch", (event) => {
       url.search === FRESH ? fresh.then((page) => (page ? null : fetch(request))) : fetch(request);
     event.waitUntil(
       network
-        .then((response) => (response ? keep(response.clone(), startedAt) : undefined))
+        .then((response) => (response ? keep(response.clone(), startedAt, path) : undefined))
         .catch(() => undefined),
     );
-    event.respondWith(fresh.then((page) => page || openMyShifts(network).catch(() => network)));
+    event.respondWith(
+      fresh.then((page) => page || openMyShifts(network, path).catch(() => network)),
+    );
   } else if (url.pathname.startsWith(STATIC)) {
     event.respondWith(staticFile(request).catch(() => fetch(request)));
   }
@@ -159,24 +166,31 @@ function ownPage(raw) {
 }
 
 // My shifts is showing without a full load (after logging in, or going back to it): keep it now.
+// The message names the page (Home when it doesn't: an older page's message); only a kept page.
 self.addEventListener("message", (event) => {
   if (!event.data || event.data.type !== "keep-my-shifts") return;
-  event.waitUntil(refreshCopy().catch(() => undefined));
+  const path = event.data.path === undefined ? PAGE : event.data.path;
+  if (!PAGES.includes(path)) return;
+  event.waitUntil(refreshCopy(path).catch(() => undefined));
 });
 
-async function openMyShifts(network) {
-  const kept = await keptPage(await caches.open(CACHE));
+async function openMyShifts(network, path) {
+  const kept = await keptPage(await caches.open(CACHE), path);
   if (!kept) return network.catch(() => noSignalPage());
   return Promise.race([network, wait(NETWORK_TIMEOUT_MS).then(() => kept)]).catch(() => kept);
 }
 
-async function refreshCopy() {
+async function refreshCopy(path) {
   const cache = await caches.open(CACHE);
-  const kept = await cache.match(PAGE);
+  const kept = await cache.match(path);
   const at = kept ? Number(kept.headers.get(KEPT_AT)) : NaN;
   if (Number.isFinite(at) && Date.now() - at < RECENT_MS) return;
   const startedAt = Date.now();
-  await keep(await fetch(PAGE, { redirect: "manual", credentials: "same-origin" }), startedAt);
+  await keep(
+    await fetch(path, { redirect: "manual", credentials: "same-origin" }),
+    startedAt,
+    path,
+  );
 }
 
 // When the page last deleted the copy (logout, login), or null.
@@ -195,14 +209,14 @@ async function forgottenSince(startedAt) {
 
 // An answer to a load of My shifts that started at `startedAt`: kept, unless the page deleted the
 // copy after the load started (checked before and after writing, so a logout at that moment wins).
-async function keep(response, startedAt) {
+async function keep(response, startedAt, path) {
   if (await forgottenSince(startedAt)) return;
-  await remember(await caches.open(CACHE), response, startedAt);
+  await remember(await caches.open(CACHE), response, startedAt, path);
   if (await forgottenSince(startedAt)) await caches.delete(CACHE);
 }
 
-// Keep a good answer; forget the copy when the server says the worker isn't logged in.
-async function remember(cache, response, startedAt) {
+// Keep a good answer; forget every copy when the server says the worker isn't logged in.
+async function remember(cache, response, startedAt, path) {
   if (
     response.type === "opaqueredirect" ||
     response.redirected ||
@@ -219,16 +233,22 @@ async function remember(cache, response, startedAt) {
     "content-type": response.headers.get("content-type") || "text/html; charset=utf-8",
     [KEPT_AT]: String(Date.now()),
   });
-  await cache.put(PAGE, new Response(html, { status: 200, headers }));
+  await cache.put(path, new Response(html, { status: 200, headers }));
   // Lost the race with a logout while writing: gone at once (before its files are fetched).
   if (await forgottenSince(startedAt)) {
     await caches.delete(CACHE);
     return;
   }
 
-  // The styles and scripts the page names, so the copy looks right offline; drop the rest.
+  // The styles and scripts the page names, so the copy looks right offline; drop those no kept page
+  // names any more.
   const files = assetsIn(html).slice(0, MAX_ASSETS);
   const wanted = new Set(files);
+  for (const other of PAGES) {
+    if (other === path) continue;
+    const page = await cache.match(other);
+    if (page) for (const href of assetsIn(await page.text()).slice(0, MAX_ASSETS)) wanted.add(href);
+  }
   await Promise.all(
     files.map(async (href) => {
       try {
@@ -241,7 +261,7 @@ async function remember(cache, response, startedAt) {
   );
   for (const request of await cache.keys()) {
     const url = new URL(request.url);
-    if (url.pathname !== PAGE && !wanted.has(url.href)) await cache.delete(request);
+    if (!PAGES.includes(url.pathname) && !wanted.has(url.href)) await cache.delete(request);
   }
 }
 
@@ -250,13 +270,17 @@ async function forget(cache) {
 }
 
 // The kept page, if there is one young enough to show, with its "No signal" notice unhidden and
-// marked with when it was kept (the page watches for a newer one: audit L90).
-async function keptPage(cache) {
-  const kept = await cache.match(PAGE);
+// marked with when it was kept (Home watches for a newer one: audit L90). One too old is dropped.
+async function keptPage(cache, path) {
+  const kept = await cache.match(path);
   if (!kept) return null;
   const at = Number(kept.headers.get(KEPT_AT));
   if (!Number.isFinite(at) || Date.now() - at > MAX_AGE_MS) {
-    await forget(cache);
+    await cache.delete(path);
+    // The last kept page gone: its styles and scripts go too, so nothing is left behind.
+    let any = false;
+    for (const page of PAGES) if (await cache.match(page)) any = true;
+    if (!any) await forget(cache);
     return null;
   }
   const html = showNoSignalNotice(await kept.text(), at);
@@ -297,7 +321,7 @@ function assetsIn(html) {
   return [...found];
 }
 
-// My shifts renders the notice with `hidden` (src/app/my-shifts-view.tsx); unhide only that one,
+// Home and Booked render the notice with `hidden` (src/app/my-shifts-view.tsx); unhide only that one,
 // and mark it with when this copy was kept.
 function showNoSignalNotice(html, keptAt) {
   return html.replace(/<[^>]*\bdata-offline-notice\b[^>]*>/, (tag) =>

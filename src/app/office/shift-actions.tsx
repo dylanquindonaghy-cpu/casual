@@ -8,19 +8,22 @@ import { btn } from "../ui/classes";
 import { Chevron, summaryButton } from "./shifts/[id]/chevron";
 import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-actions";
 
-// Today's quick actions for one shift: offer it to someone, mark it urgent (or not), mark it as
-// filled (after a second click, with an undo). Results show in place. On an urgent shift
+// The dashboard's quick actions for one shift: offer it to someone, mark it urgent (or not), mark it as
+// filled (after a second click, with an undo; not a Google Sheet's or the firm's planner's, whose
+// places are changed there). Results show in place. On an urgent shift
 // "Offer to someone" is the main button; on a gap every button looks the same, so the urgent
 // ones stand out.
 export function ShiftActions({
   shiftId,
   isUrgent,
   fromSheet,
+  fromPlanner,
   className,
 }: {
   shiftId: string;
   isUrgent: boolean;
   fromSheet: boolean;
+  fromPlanner: boolean;
   className?: string; // where it sits in its card or row
 }) {
   const router = useRouter();
@@ -68,7 +71,7 @@ export function ShiftActions({
           <button type="button" className={btn.secondary} disabled={pending} onClick={toggleUrgent}>
             {isUrgent ? "Not urgent" : "Mark urgent"}
           </button>
-          {!fromSheet && (
+          {!fromSheet && !fromPlanner && (
             <details className="group">
               <summary className={`${btn.secondary} ${summaryButton} group-open:bg-quiet-soft`}>
                 Mark as filled

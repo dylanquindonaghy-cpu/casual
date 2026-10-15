@@ -1,15 +1,18 @@
 import { devices, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { OFFLINE_CACHE } from "../../src/lib/portal/offline";
+import { addBookedShift, addWorker } from "./db";
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
 
-// My shifts with no signal, in a real browser: the service worker (public/sw.js) keeps the last
-// copy, shows it offline with its notice, and logging out deletes it (and says so when there's no
-// signal to log out with). Also the web app manifest
+// Home and Booked with no signal, in a real browser: the service worker (public/sw.js) keeps the
+// last copy of each (Home with her next shift, Booked at /shifts: 12H.1), shows it offline with
+// its notice, and logging out (on Profile) deletes them (and says so when there's no signal to log
+// out with). Also the web app manifest
 // and the iPhone "home screen" hint.
 
 const acme = "http://acme.localhost:3100";
+const RUN = Date.now().toString(36);
 
 async function logIn(page: Page, typed: string, e164: string) {
   const asked = new Date(Date.now() - 1000);
@@ -28,31 +31,67 @@ const keptText = (page: Page) =>
     return kept ? (await kept.text()).replaceAll("<!-- -->", "") : "";
   }, OFFLINE_CACHE);
 
-const hasCopy = (page: Page) =>
-  page.evaluate(async (name) => !!(await (await caches.open(name)).match("/")), OFFLINE_CACHE);
+const hasCopy = (page: Page, path = "/") =>
+  page.evaluate(async ([name, at]) => !!(await (await caches.open(name)).match(at)), [
+    OFFLINE_CACHE,
+    path,
+  ] as const);
 
-test("My shifts opens with no signal, marked as a copy; logging out deletes it", async ({
+test("Home (her next shift) and Booked open with no signal, marked as copies; logging out deletes them", async ({
   page,
   context,
-}) => {
-  await logIn(page, "07700 900103", "+447700900103");
-  // Arriving on My shifts after logging in (no full page load) is enough to keep a copy.
+}, testInfo) => {
+  // A casual of this spec's own (a retry gets another), so her next shift is this one.
+  const n = testInfo.retry;
+  const mobile = `+4477009006${22 + n}`;
+  const site = `Offline Test Hall ${RUN}`;
+  await addBookedShift("acme", {
+    workerId: await addWorker("acme", {
+      firstName: "Olive",
+      lastName: `Offline${n || ""}`,
+      mobileE164: mobile,
+    }),
+    daysAhead: 3,
+    site,
+  });
+  await logIn(page, `07700 9006${22 + n}`, mobile);
+  // Arriving on Home after logging in (no full page load) is enough to keep a copy.
   await expect.poll(() => hasCopy(page), { timeout: 15_000 }).toBe(true);
   await expect(page.getByText("No signal.")).toBeHidden();
+  await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);
 
+  // Each page is checked by reloading it with no signal. (Opening a different address with no
+  // signal isn't: the browser's offline switch doesn't reliably reach the service worker's own
+  // request then, and the server answered it.)
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
   await expect(page.getByText("No signal.")).toBeVisible();
   await expect(page.getByText(/^These are your shifts from \d\d:\d\d on /)).toBeVisible();
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
+  // The copy still has her next shift in full.
+  await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);
+  await context.setOffline(false);
+
+  // Booked, on the Shifts tab, is kept too.
+  await page.goto(`${acme}/shifts`);
+  await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
+  await expect.poll(() => hasCopy(page, "/shifts"), { timeout: 15_000 }).toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
+  await expect(page.getByText("No signal.")).toBeVisible();
+  await expect(page.getByText(site).first()).toBeVisible();
   await context.setOffline(false);
 
   await page.reload();
   await expect(page.getByText("No signal.")).toBeHidden();
+  // Log out is the last thing on Profile (12H.1).
+  await page.goto(`${acme}/profile`);
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/login/);
   expect(await hasCopy(page)).toBe(false);
+  expect(await hasCopy(page, "/shifts")).toBe(false);
 });
 
 test("a new login on the same phone never shows the last worker's copy", async ({
@@ -100,6 +139,8 @@ test("logging out with no signal says it may not have, and keeps no copy; with s
 }) => {
   await logIn(page, "07700 900113", "+447700900113");
   await expect.poll(() => hasCopy(page), { timeout: 15_000 }).toBe(true);
+  // Log out is on Profile (12H.1): opened with signal, then the signal goes.
+  await page.goto(`${acme}/profile`);
 
   await context.setOffline(true);
   await page.getByRole("button", { name: "Log out" }).click();
@@ -109,14 +150,14 @@ test("logging out with no signal says it may not have, and keeps no copy; with s
   await expect(said).toBeVisible();
   await page.waitForTimeout(3_000); // nothing replaces it
   await expect(said).toBeVisible();
-  await expect(page).toHaveURL(`${acme}/`);
+  await expect(page).toHaveURL(`${acme}/profile`);
   expect(await hasCopy(page)).toBe(false);
   await expect(page.getByRole("button", { name: "Log out" })).toBeEnabled();
 
-  // Signal again: still logged in (My shifts opens), and now Log out works and clears the cookie.
+  // Signal again: still logged in (Profile opens), and now Log out works and clears the cookie.
   await context.setOffline(false);
   await page.reload();
-  await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
+  await expect(page).toHaveTitle(/^My profile · /);
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/login\?out=1/);
   const cookies = await context.cookies(acme);

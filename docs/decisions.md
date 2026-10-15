@@ -185,8 +185,8 @@ the rules engine with the office's overrides (ADR-014); one that fails a credent
 account, double-booking or site check isn't booked and is logged for the office; it stays in the
 sheet while there's room and is tried again at each sync. A new role, times or site on a booked
 shift is made only if everyone booked can still work it (the office editor's check), and a started
-shift is never re-timed, re-roled, moved or cancelled: what isn't done is shown on the office's
-Today (Phase 10, audit M1, M2, L12).
+shift is never re-timed, re-roled, moved or cancelled: what isn't done is shown on the office
+dashboard (Phase 10, audit M1, M2, L12; on Today until 12E.1).
 The live transport is off by default (`SHEETS_TRANSPORT=none`); `google` with the service
 account's key switches it on, once a Google account exists. Phase 10 (audit M17, L45): only a sheet
 whose locale is United Kingdom is read (its dates read day first), and a spreadsheet is bound to one
@@ -271,6 +271,11 @@ revisiting. Since web push (Phase 4), a phone with notifications on keeps the se
 when `OFFLINE_COPY=off` (it carries the notifications), and that service worker still keeps the
 copy; turning notifications off removes it. **Revisit when:** the real web push sender is
 connected.
+**Update (12H.1):** My shifts became Home (`/`) and a Booked list (`/shifts`), so the service worker
+keeps both, each as its own copy with the same notice and the same 14-day limit (only Home swaps in
+the fresh page by itself after a slow load). A page's expiry deletes only that copy; logout, login
+and "not logged in" delete both. The alternative, a full Booked list on Home, would have put more
+than docs/office-v2.md 4.2 asks for on Home. Every other page is still never cached.
 
 ## ADR-017: Shift reminders come from a 5-minute tick and a table of what was sent
 
@@ -438,3 +443,144 @@ replace the AWS budget and the Lightsail alarms. Phase 12 builds the SMTP sender
 API" (PLAN.md Parking lot). **Revisit when:** a firm requires UK- or EU-only AI processing, or 5+
 paying firms (server size).
 
+
+## ADR-022: The planner integration layer: an API in by key, signed webhooks out
+
+**Context:** Dylan, 2026-10-06: "plug in and play with all planners using webhooks and apis not
+another sheet" (`docs/office-v2.md` §5.3; S11 approved the same day). A firm's planner or CRM
+should send its sessions to ShiftDesk and hear about bookings and cancellations, with no adapter
+per planner. Today every way in is a person (the office pages), a provider webhook (Twilio, signed
+and answered by jobs), the rota sheet or a file, and every look-up before a firm is known goes by
+host (`resolveFirmBySlug()`) or by shifts-line number (`resolveFirmByLine()`).
+**Decision:**
+- **A small REST API** at the platform address only (`https://{APP_BASE_DOMAIN}/api/v1`):
+  `PUT` and `GET /sessions/{ref}` (by the planner's own id) and `GET /cancellations` (keyset pages).
+  JSON only, at most 64 KB, every body checked by a strict zod schema; errors are
+  `{"error": {"code", "message", "request_id"}}` and never echo a value.
+- **Signed webhooks out** (12J.2): `booking.created`, `booking.cancelled` (the full record and the
+  strike result), `strike.withdrawn` and `test.ping`, signed by the open Standard Webhooks spec, so
+  receivers can use its libraries. **The action log is the outbox:** `recordEvent()` queues one
+  `webhook-deliver` job (ids only) in the same transaction as each `shift.assigned`,
+  `shift.cancelled` and `strike.withdrawn` entry when the firm has an address, so no booking path can
+  skip one and a rollback queues nothing; `recordEvents()` refuses those actions. The body is built
+  when it is sent, from the rows, by the API's own record builder (so `booking.cancelled`'s `data`
+  is `GET /cancellations`' record), and checked against a strict zod contract that
+  `docs/integrations.md` prints. The signing secret and event ids are HMACs of `INTEGRATIONS_SECRET`
+  (`whsec_…` from the firm and `webhook.signing_version`, which only `app_set_firm_setting()` raises:
+  on each add, change, removal and "New signing secret"), never stored and shown once. Delivery is
+  from the worker only (`WEBHOOK_TRANSPORT`, `https` in production), through a sender that resolves
+  the name, refuses any non-public address (an explicit `BlockList`), connects only to the address it
+  checked, follows no redirect and times out at 5 and 10 seconds. Retries are the queue's own (6,
+  from a minute, doubling to at most 30 minutes: about an hour); the last try logs `webhook.failed`,
+  raises a Needs attention item and completes the job, so a firm's own endpoint never alerts Dylan.
+  One firm's deliveries are one pg-boss group, run one at a time on 4 loops of one job each.
+- **API keys:** `shiftdesk_` plus 43 random characters, shown once. Only the sha256 and the last 4
+  characters are stored, in `api_keys` (forced RLS; the app may read and add rows and change only
+  `last_used_at`, `revoked_at` and `revoked_by`; never deleted, since a key's id is the actor on
+  what it changed; left out of the firm's export). Admins create (at most 10 live) and revoke.
+- **The key decides the firm**, never the host, path or body: `app_api_key_lookup(hash)`, an
+  owner-run `SECURITY DEFINER` function like `app_firm_by_line()`, returns only the firm id and key
+  id of a key that isn't revoked; the call then runs in `withFirm()`. A key of the wrong shape is
+  refused before any look-up, and each web process counts refused keys per client address (30 a
+  minute, then 429). Each key gets 300 calls a minute through `throttle()`.
+- **Work happens in the request** (an exception to golden rule 3, written into CLAUDE.md): the
+  planner needs the answer ("the rules refused this move for 2 casuals"). Each write is one short
+  transaction, made safe to repeat by the planner's ref. Offer waves, notices, travel estimates and
+  webhooks still go to jobs.
+- **A second, narrower caller** of the office's whole-session move and cancel
+  (`moveShiftByFirm()`, `cancelShiftByFirm()`): `{ type: "api", keyId }`, checked live in the same
+  transaction, allowed only on the API's own sessions, with every failed rules check blocking (no
+  person is there to override rest, weekly hours or a day off), `cancel_via` `api` and never a
+  strike, logged with the `system` actor and `{ by: "firm", via: "api", keyId }`. The office gets a
+  "planner" refusal for those sessions, as it gets "sheet" for the rota sheet's.
+- **Gate B** applies: on a live database no key is created and no write is taken until the firm's
+  agreement is recorded. With `INTEGRATIONS_SECRET` unset, every call answers 503.
+**Amends:**
+- **ADR-008** ("no Deputy/Parim plugs planned"): still no adapter per planner, but any planner can
+  now connect through this one API and its webhooks, directly or through Zapier, Make or n8n.
+- **ADR-011:** a third owner-run look-up before a firm is known, `app_api_key_lookup()`, returning
+  ids only and only for live keys. `api_keys` has a `TABLE_ACCESS` entry of `SELECT, INSERT` plus
+  three updatable columns, so the app can never rewrite a key's hash or label.
+- **ADR-012:** on `/api/v1` the key, not the host, decides the firm. The API answers only on the
+  platform address: a firm's subdomain or own domain gets 404. The proxy's trailing-punctuation
+  redirect skips every `/api/` path (a 308 would carry the key to another address), and a ref must
+  end with a letter or a digit.
+**Options:**
+| Option | Verdict |
+|---|---|
+| An adapter per planner (Deputy, Parim, …) | Many integrations to keep up; the firms we sell to first mostly have none |
+| Another sheet, or a daily "changes for your planner" email | Ruled out by Dylan |
+| OAuth client credentials | More moving parts for small firms and their no-code tools; a revocable key does the job |
+| Signed tokens (JWT) instead of stored keys | Can't be revoked at once without a table anyway |
+| Doing the API's work in a job | The planner needs the answer in the response |
+| Webhooks queued by each booking path itself | One path forgotten would be one planner never told; the log entry already exists on every path |
+| An outbox table of its own | A second record of the same change; the action log is append-only and already in the transaction |
+| Webhook bodies built when queued | Personal data in the queue (no RLS there), and a retry would send an erased casual's name |
+| Our own signing scheme | Receivers would need our code; Standard Webhooks has libraries in most languages |
+| pg-boss's default retries (2, no wait) | An endpoint down for a minute would lose the webhook |
+**Consequences:** a new machine login path: keys are shown once and never logged (a test checks the
+servers' logs for any `shiftdesk_` key or `Bearer`), refused keys and calls are rate-limited, and
+each request writes one log line with the route, status, time, firm and key id. Webhooks are a new
+way out to an address a firm chooses: it is treated as a secret (host and last 4 characters only on
+the page; never logged), and only public addresses are ever reached. A webhook can arrive twice
+(receivers drop repeats by `webhook-id`) and out of order (they apply the latest status). Rotating
+`INTEGRATIONS_SECRET` changes every firm's signing secret (`docs/runbooks.md`). Planners must send
+one ref's PUTs one at a time with no automatic replays (`docs/integrations.md`). **Revisit when:** a
+planner needs OAuth or per-key scopes, a firm needs more than 10 keys, or `/api/v2`.
+
+## ADR-023: Travel times from TravelTime, postcodes from postcodes.io, a straight line when down
+
+**Context:** Dylan, 2026-10-06: a casual should see how far each shift is "AND how long it'll take
+via car or public transport", and shifts should be limited by where they are (`docs/office-v2.md`
+§5.4; D1, taken as recommended the same day). That needs a postcode turned into a point, and travel
+times by car and by public transport from many casuals to each site.
+**Decision:**
+- **TravelTime** (its time-filter search: an arrive-by time, up to 2,000 start points at once, a
+  90-minute ceiling, the distance by car) for both ways of travelling. The free key is for
+  development and the demo only; a production quote comes before a pilot ("Connect postcodes.io and
+  TravelTime", Parking lot). It is called from the worker only (the travel job,
+  `src/lib/travel/estimates.ts`), never from a page.
+- **postcodes.io** (free, no key) turns a postcode into its central point. Only the postcode is
+  sent, never who it belongs to; TravelTime gets points under meaningless ids (`o1`, `o2`), never a
+  postcode, a name or a database id.
+- **Stored estimates:** the answers are kept in `travel_estimates`, keyed by postcode, site,
+  arrive-by time and way of travelling, never by person, for the sessions in the next 28 days; each
+  is kept until 7 days after the last session it's for ends. Pages and shifts-line replies read rows and
+  never wait on the service.
+- **When it's down,** the casual sees the straight-line distance, labelled "(straight line)", or
+  "Travel time not known yet", and the shift is still offered: never hidden silently.
+- `TRAVEL_PROVIDER=fake` (the default) works out times from the straight line and places only the
+  made-up `ZZ` postcodes; the settings refuse `traveltime` under `NODE_ENV=test`.
+**Options:**
+| Option | Verdict |
+|---|---|
+| Google Routes | About $1,450 a month for a 300-casual firm, and its terms don't let us store the results |
+| Straight-line distance only | Says nothing about public transport, which is what many casuals use |
+| Asking each time a page opens | Slow pages, and a cost per view; stored estimates are read instead |
+| Sending the casual's postcode to TravelTime | Not needed: a point under a meaningless id does the job |
+
+## ADR-024: Staff photos and certificate images are kept in Postgres, re-encoded, 1 MB at most
+
+**Context:** casuals upload a staff photo and pictures of their certificates from the app, and the
+office checks them (`docs/office-v2.md` §5.5; D3, taken as recommended on 2026-10-06; 12F.2). We
+have no file store today, and ADR-021 rules out S3.
+**Decision:**
+- **In Postgres**, in `uploads` (with `firm_id`, forced RLS and isolation tests like every table),
+  so a backup, a restore, an erasure and tenant isolation cover the images with no second system.
+- **Re-encoded by the server** (`src/lib/uploads/image.ts`): the real type is read from the first
+  bytes (JPEG, PNG or WebP only), decoded with a pixel limit, turned upright, and saved as a JPEG of
+  1,600px at most. Re-encoding keeps only the pixels, so location and camera details are dropped. At
+  most 1 MB is stored (a database check, `uploads_size_check`), with its sha256.
+- **Only checked items count:** an upload waits for a person in the office to approve it. No face
+  matching and no reading of a card, ever (`docs/compliance.md`).
+- **Photo renewal every 3 years** (`photo.renewal_months`, 36, set by the owner; the SIA licence's
+  cycle; the mock-up said 2), "Due soon" 30 days before.
+- The exports carry each image's details and fingerprint, never its bytes; each image is its own
+  download.
+**Options:**
+| Option | Verdict |
+|---|---|
+| S3 or another object store | AWS is ruled out (ADR-021), and it would need its own backups, access rules and erasure |
+| Files on the server's disk | Lost with the container, outside RLS, and missed by the database backup |
+| Keeping the phone's original file | Keeps location and camera details, and an unchecked file type |
+| Photo renewal every 2 years (the mock-up) | Doesn't match the SIA licence's three years |

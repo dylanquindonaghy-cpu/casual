@@ -25,7 +25,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 const onToday = (n: number, where = "") =>
   n > 0
-    ? ` They're booked${where} on ${plural(n, "shift", "shifts")} ahead: ${n === 1 ? "it's" : "they're"} on Today to cancel or keep.`
+    ? ` They're booked${where} on ${plural(n, "shift", "shifts")} ahead: ${n === 1 ? "it's" : "they're"} on the dashboard to cancel or keep.`
     : "";
 
 export const STATUS_WORDS: Record<"active" | "inactive" | "blocked", string> = {

@@ -14,6 +14,22 @@ without breaking a 6am cancellation.
 | Security | scripts | `npm audit`, secrets scan, RLS "enabled on every table" check, log masking test | every commit |
 | Manual | checklist | Real phone, real Twilio number, iPhone home-screen push, poor-signal open of My shifts | before pilot |
 
+## Fakes in place of outside services
+
+No test reaches Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a planner (CLAUDE.md
+conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse the real one under
+`NODE_ENV=test`, and `scripts/invariants.sh` checks the pins in `tests/setup/env.ts` and
+`playwright.config.ts`, so a real setting in `.env` can't reach a test.
+
+| Outside service | Stand-in in tests and the demo | Where |
+|---|---|---|
+| Twilio (WhatsApp, SMS, calls) | `MESSAGING_TRANSPORT=console`, the only sender built so far ("Connect Twilio", Parking lot): prints each message; the browser tests read login links from its outbox file (`CONSOLE_OUTBOX_FILE`) | `src/lib/messaging/` |
+| Email (any SMTP provider) | `EMAIL_TRANSPORT=console`; `smtp` is refused in tests. The SMTP sender's own tests use no network (12X.2) | `src/lib/messaging/smtp.ts` |
+| Anthropic (AI) | `AI_TRANSPORT=none` (the code's fallback answers); tests that need an answer pass `createFakeAi()`; the Anthropic client's own tests use a fake `fetch` (12X.3) | `src/lib/ai/client.ts`, `src/lib/ai/anthropic.ts` |
+| postcodes.io and TravelTime | `TRAVEL_PROVIDER=fake`: fixed points for the made-up `ZZ` postcodes only (`ZZ0` is never found, for "unknown postcode"), and travel times worked out from the straight line | `src/lib/travel/geocoder.ts` (`fakePoint`), `src/lib/travel/provider.ts` (`fakeTravelProvider`) |
+| A firm's planner (webhooks out) | `WEBHOOK_TRANSPORT=console`: prints each delivery; `https` is refused in tests and required in production | `src/lib/integrations/webhook-transport.ts` |
+| The planner API's secret | A made-up `INTEGRATIONS_SECRET` pinned in each test setup | `tests/setup/env.ts`, `playwright.config.ts` |
+
 ## Must-have tests (name them so `/verify` can find them)
 
 - `rls.every-table.test.ts` — asserts every firm-scoped table has RLS enabled and forced, exactly
@@ -152,6 +168,8 @@ without breaking a 6am cancellation.
     decimals, IP addresses, Unix times, Twilio ids and already-masked values are left alone (a
     number glued to a word, like `row_3456789012`, counts: a false alarm is checked by hand). A
     firm's own shifts line is allowed, nothing else.
+  - No planner API key (`shiftdesk_` plus 43 characters) and no `Bearer` credential anywhere
+    (12J.1).
   - No login token (`/l#…`, %-encoded too) or session cookie outside the console transport's own
     prints (only a whole print is left out: its exact first line, then its end line), and none of
     the tokens the run sent anywhere outside them.
@@ -219,9 +237,10 @@ without breaking a 6am cancellation.
 
 **Acme Events (security/events, native mode):** a fake shifts line (+44 7700 900000, Ofcom's drama
 range; Northline has none), 60 workers (5 with expired SIA, 3 "applied"),
-3 sites (stadium, racecourse, shopping centre), a Saturday event with 40 shifts, one 6am
+3 sites (stadium, racecourse, shopping centre) and the story's 4, a Saturday event with 40 shifts, one 6am
 cancellation that becomes urgent, two open requests, pay records for 8 weeks, yesterday's event
-(5 bookings not marked yet), 10 pay queries (7 about one rate change).
+(5 bookings not marked yet), 10 pay queries (7 about one rate change), and the mock-up's story
+(below: 8 more casuals, six events, cancellations and strikes, enquiries, sorted pay groups).
 
 **Northline Rail Labour (rail):** 30 workers with PTS/Sentinel/D&A dates, tomorrow night's
 possession with one short-notice firm cancellation. (Its mocked rota sheet is still to come: no
@@ -262,7 +281,7 @@ before a call so it's the coming one):
 **The walkthrough's other states (Phase 10 task 20, `seed-extras.ts`).** Each on workers no browser
 test uses, and the pay queries of kinds no browser test raises (a test's own "paid late" group is
 never split or joined), so they can't change what those tests check:
-- Acme's last event: yesterday (always among Today's "Who worked?", which looks back 7 days), 3
+- Acme's last event: yesterday (always among the dashboard's "Who worked?", which looks back 7 days), 3
   stewards at the racecourse (07700 900110, 900117, 900118) and 2 security officers at the
   shopping centre (900150, 900151), all booked and none marked yet ("Past 30 days" on their My
   shifts too).
@@ -276,6 +295,30 @@ never split or joined), so they can't change what those tests check:
   under Northline's 48-hour threshold: the notice report's short-notice firm cancellation (audit
   L25).
 
+**The mock-up's story (Phase 12 task 12I.1, `seed-story.ts`, loaded by `seed-story-load.ts`).**
+Acme as `docs/office-v2.md` §9 tells it, with dates from the day the seed runs:
+- Acme's strikes team `strikes@acme-events.example`, already confirmed.
+- Six events, each session with its pay, post, meeting point and uniform: Northern Lights Live at
+  the Arena tomorrow (door supervisor urgent 3/4, steward, response team lead needing first aid),
+  Night patrols at Northgate Demo Town Centre the day after (CSAS officer, urgent 3/4), Riverside
+  Food Festival, Raceday, Northgate Charity 10K, and Hillside Christmas Market, switched off.
+- Eight casuals (07700 900400 to 900407): Zoe Adeyemi (SIA, CSAS, manual handling expiring in 22
+  days, photo due soon), Kieran Doyle (SIA expired, 2 strikes), Ben Fraser (new photo waiting),
+  Priya Shah (1 strike, flagged for review), Leah Ward (SIA expiring in 12 days, her new one
+  waiting, no photo), Jamal Morgan, Mo Rahman (a strike the office withdrew) and Tom Hale (the
+  office cancelled one of his bookings). Four hold CSAS. Each has a travel area, with fixed travel
+  times to every story session (Zoe to the Arena: 3.1 miles, 12 min by car, 24 min by public
+  transport).
+- Every open place needs something only these eight hold (their own roles, or a manual handling
+  certificate as an extra), so the generated workers' lists, and the walkthrough, are unchanged.
+  (Three generated workers whose names matched the story's were renamed: 07700 900105, 900137
+  and 900152.)
+- The shifts line: Zoe's "Hi, any shifts for me?", Ben's pay question and Kieran's cancel, stored
+  as the webhook stores them, a few minutes before the seed ran, and answered by the seed with the
+  shifts line's own reply job (no AI, nothing sent; allowed by Dylan in the AI boundary test).
+- Pay: two groups payroll has sorted, each with its note (the 10 open queries as before).
+- Added once, by fixed ids: a re-run changes nothing; `npm run db:reset` moves the story to today.
+
 **Demo logins (Acme, `http://acme.localhost:3000/login`):**
 
 | Mobile | Who | Good for |
@@ -285,7 +328,10 @@ never split or joined), so they can't change what those tests check:
 | 07700 900125 to 900129 | Door supervisors (and stewards) whose SIA licence has expired | Profile's red licence. Open the urgent dropout's link (the seed prints it): the page says why they can't take it, with "Ask the office to review" |
 | 07700 900130 to 900136 | Door supervisors, booked at the arena | A booked shift with instructions |
 | 07700 900137 | The door supervisor who dropped out | Nothing booked; the dropout's page shows it's open again |
-| 07700 900138 to 900144 | Door supervisors with a valid licence, never booked | My shifts says "1 urgent shift needs someone"; the urgent board (`/urgent`) shows the dropout with "Take shift" |
+| 07700 900138 to 900144 | Door supervisors with a valid licence, never booked | Home's "Urgent: needed now, and you can take them" lists the dropout; the urgent board (`/urgent`) shows the dropout with "Take shift" |
+| 07700 900400 | Zoe Adeyemi (the story) | Home as the mock-up: Needs updating (photo due soon), the Arena and Northgate urgent cards with their travel lines, her next shift (Riverside Food Festival), three to apply for and "2 more shifts are further than you travel" |
+| 07700 900401 | Kieran Doyle | Profile: SIA expired, 2 strikes |
+| 07700 900404 | Leah Ward | Needs updating: SIA expiring, new one being checked; no photo |
 
 The login link appears in the `npm run dev` terminal (console messaging).
 
@@ -310,10 +356,12 @@ checks log in, take and cancel each finish in under 30 seconds):**
    whose SIA licence has expired: why they can't take it, and "Ask the office to review".
 
 **Office part (Phase 4 and 5):** "resourcer sees it": log in at `/office/login` as
-`acme.resourcer@example.com` (the link appears in the terminal). Today shows the urgent dropout
-(with its wave status once the worker process has sent offers), the Saturday gaps, the dropout
-under "Cancelled in the last 24 hours" with its notice, and the two requests. "Offer to someone"
-on a gap lists who could take it. "Urgent wave fills it" runs by itself with `npm run dev` (offer
+`acme.resourcer@example.com` (the link appears in the terminal). The dashboard (12E.1; Today
+until then) shows the urgent dropout under "Urgent shifts not filled" (with how many casuals it
+was offered to once the worker process has sent offers), Saturday's event under "Showing to
+casuals", and the dropout among the latest cancellations with its notice; the two requests are on
+Enquiries, "Requests from the app". "Offer to someone" on the urgent shift (or "Offer a place" in a
+session's "…" menu on Events & sessions) lists who could take it. "Urgent wave fills it" runs by itself with `npm run dev` (offer
 waves; messages print in the terminal). "Notice report shows both": "Notice report" in the office menu lists
 the worker's booking and cancellation (and the wave's offers) with the notice each had; the action
 log has every step.

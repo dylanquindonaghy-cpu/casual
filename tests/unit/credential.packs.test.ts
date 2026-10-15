@@ -149,3 +149,21 @@ describe("credential packs are well formed", () => {
     expect(rail).toEqual(expect.arrayContaining(["track_operative", "lookout"]));
   });
 });
+
+describe("types only the office records (12F.2)", () => {
+  it("right to work, CSAS, and health or criminal record documents; migration 0043 marks the same", async () => {
+    const { OFFICE_RECORDED_TYPES, casualMayUpload } = await import("@/lib/rules/packs");
+    expect([...OFFICE_RECORDED_TYPES].sort()).toEqual(
+      ["CSAS", "DBS", "RAIL_DA", "RAIL_MEDICAL", "RTW"].sort(),
+    );
+    const sql = readFileSync("drizzle/0043_office_recorded.sql", "utf8");
+    const listed = /code IN \(([^)]+)\)/
+      .exec(sql)?.[1]
+      ?.match(/'([A-Z_]+)'/g)
+      ?.map((c) => c.slice(1, -1));
+    expect(listed?.sort()).toEqual([...OFFICE_RECORDED_TYPES].sort());
+    expect(casualMayUpload("SIA_DS")).toBe(true);
+    expect(casualMayUpload("A_FIRMS_OWN_TYPE")).toBe(true);
+    expect(casualMayUpload("DBS")).toBe(false);
+  });
+});

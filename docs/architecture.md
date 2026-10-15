@@ -64,7 +64,12 @@ mornings). Reliability matters far more than scale.
   firm is set, so a query outside `withFirm` sees nothing and can write nothing.
 - **Before the firm is known** (host lookup), `resolveFirmBySlug()` calls `app_resolve_firm()`,
   a `SECURITY DEFINER` function with a pinned `search_path` that returns only directory fields
-  (id, slug, name, timezone, sign-off). Only the app role may execute it.
+  (id, slug, name, timezone, sign-off). Only the app role may execute it. Two more look-ups work
+  the same way: an incoming message's number (`resolveFirmByLine()`, `app_firm_by_line()`, the
+  same directory fields) and a planner's API key (`resolveApiKey()`, `app_api_key_lookup()`, 12J.1,
+  ADR-022): given the sha256 of the key, it returns only the firm id and key id of a key that isn't
+  revoked, and a hash of any other length never reaches the database. The API's work then runs in
+  `withFirm()` for that firm: on `/api/v1` the key, never the host, path or body, decides the firm.
 - **Scheduled jobs that visit every firm** (the Sheets sync tick) list firms through
   `app_firm_ids()` (`listFirmIds()`), another `SECURITY DEFINER` function that returns ids only,
   then work inside each firm's own `withFirm` transaction.
@@ -77,7 +82,7 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
 - Tests (all as `shiftdesk_app`): every table's catalogue entry (`rls.every-table`), Firm A
   can't read, change, insert into or point at Firm B's rows with a control showing Firm B can
   (`tenancy.isolation`), the same probes catch a deliberately broken policy (`rls.mutation`),
-  plus `scoped-client`, `directory`, `jobs.envelope` and `lint.db-boundary`.
+  plus `scoped-client`, `directory`, `api.keys`, `jobs.envelope` and `lint.db-boundary`.
 
 ## Login
 
@@ -209,9 +214,9 @@ booked can still work it (`recheckHolders()`, the same check as the office's mov
 sheet's overrides), otherwise our copy keeps them. Shifts that have started are history: never
 booked, cancelled, re-timed, re-roled or moved by a sync (so a first sync books no old names). What
 the sheet asks for and didn't get is kept on the shift (`shifts.sheet_issues`) and shown on the
-office's Today ("From your rota sheet"); a refused change is logged once
+office dashboard's Needs attention ("From your rota sheet"); a refused change is logged once
 (`roster.sheet_change_refused`). Names the sync couldn't book stay in the sheet's cell while there
-is room, and each sync tries them again; only a name with no room left is taken out (on Today and
+is room, and each sync tries them again; only a name with no room left is taken out (on the dashboard and
 in the log). The merge base becomes the "Assigned" cell as read, less those names. Then one batch write puts our bookings back into
 every cell that differs, after re-reading (one request) each target row's id and "Assigned" cells:
 a row that moved or a cell the office edited meanwhile is left for the next sync. Each written cell
@@ -391,7 +396,7 @@ stays out of the rules engine. Personal enquiry replies (12D.2) must use the sam
 3. Unknown number → polite reply + office alert. (Built in Phase 7: the first message from a
    number in 24 hours gets `unknown_number` and emails the office's admins and resourcers, without
    the number or the message; a former worker gets no reply, the office is alerted; every such
-   message is on Today.)
+   message is on Enquiries, waiting for a person.)
 
 **Call-to-text**
 1. Twilio voice webhook returns a short recorded message.
@@ -402,12 +407,39 @@ text-to-speech from `callGreeting()`, not a recording. The link is the login pag
 only a worker's number gets one and the caller hears the same either way; a withheld number is
 told we can't send one. The voicemail's text goes through the `inbound-message` job: a worker's
 becomes a request for the office, answered by the channel they chose; a caller we don't know is
-on Today and the office is alerted, with no message to them.)
+on Enquiries and the office is alerted, with no message to them.)
 4. Twilio fallback URL forwards calls to the manager's mobile if our app is down. (Made in Phase 8,
    not set yet: `npm run firm:call-fallback` prints the TwiML for a firm's bin, `callFallbackTwiml()`:
    why, then the manager's phone for up to 30 seconds (their voicemail usually answers first), then
    a closing line true however that call went; Twilio serves it itself. Messages aren't covered:
    WhatsApps and texts reach the same app.)
+
+## Webhooks to a firm's planner (12J.2)
+
+**The action log is the outbox.** `recordEvent()` (`src/lib/events/record.ts`) writes every state
+change in the transaction that makes it. For the three entries a planner hears about
+(`shift.assigned`, `shift.cancelled`, `strike.withdrawn`) it also calls `queueWebhooks()`
+(`src/lib/integrations/outbox.ts`): when the firm has a webhook address, one `webhook-deliver` job
+(ids only) is queued in the same transaction. A rollback queues nothing; every path that books or
+cancels (the app, the office, the rota sheet, the planner's API, an offer accepted) already writes
+these entries, so none is missed. `recordEvents()` (bulk, no ids back) refuses them.
+
+```
+ booking change ──► recordEvent() ──► events row ─┐ same transaction
+                                     queueWebhooks() ──► pgboss.job (ids only)
+ worker: webhook-deliver ──► build the body from the rows ──► sign (Standard Webhooks)
+        ──► resolve, check public, POST to that address (no redirects, 5 s / 10 s)
+        ──► 2xx: webhook.delivered │ else retry (6, ~1 h) │ last try: webhook.failed, Needs attention
+```
+
+The body is the API's own record (`src/lib/integrations/records.ts`) under a strict zod contract
+(`src/lib/integrations/webhooks.ts`, printed in `docs/integrations.md`). Delivery runs in the worker
+only (`WEBHOOK_TRANSPORT`: `console` in development and tests, `https` in production), on 4 loops of
+one job, one at a time per firm (a pg-boss group), so one firm's hanging endpoint can't hold up
+another's. The safe sender (`src/lib/integrations/send.ts`) refuses every private, loopback,
+link-local (the cloud metadata address), multicast and reserved range, IPv4 and IPv6 (mapped,
+NAT64 and 6to4 forms too), and connects only to the address it checked. The address is a secret:
+log lines name the host only.
 
 ## Notifications
 

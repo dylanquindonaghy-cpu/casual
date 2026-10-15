@@ -93,9 +93,11 @@ describe("deploy/docker-compose.yml", () => {
     const keys = (name: string) => Object.keys(services[name]?.environment ?? {}).sort();
     expect(keys("web")).toEqual(
       [
+        "AI_TRANSPORT", // only whether AI sorting is on, for the Enquiries banner (not a secret; 12D.1)
         "ALERTS_TRANSPORT", // where the founder's alerts go (not a secret): bad webhook signatures
         "APP_BASE_DOMAIN",
         "DATABASE_URL",
+        "INTEGRATIONS_SECRET", // the planner API answers only with it set (12J.1)
         "NODE_ENV",
         "OFFLINE_COPY", // the phones' offline copy on or off (not a secret; Phase 10 task 17)
         "SESSION_SECRET",
@@ -124,6 +126,10 @@ describe("deploy/docker-compose.yml", () => {
       expect.arrayContaining(["AI_TRANSPORT", "ANTHROPIC_API_KEY", "AI_MODEL"]),
     );
     expect(services.worker?.environment?.AI_TRANSPORT).toBe("none");
+    // The web app gets the same switch (12D.1): the two must never disagree.
+    expect(services.web?.environment?.AI_TRANSPORT).toBe(
+      services.worker?.environment?.AI_TRANSPORT,
+    );
     for (const name of ["web", "caddy", "migrate"]) {
       expect(keys(name), name).not.toContain("ANTHROPIC_API_KEY");
     }
@@ -291,6 +297,18 @@ describe("the image (Dockerfile)", () => {
     expect(runtime).toContain("COPY --from=build /app /app");
     expect(runtime).not.toMatch(/--chown=node/);
     expect(runtime).toContain("chown -R node:node /app/.next/cache");
+  });
+
+  it("loads sharp's native image library in the runtime image (12F.2), so a missing one fails the build", () => {
+    expect(runtime).toMatch(/^RUN node -e "require\('sharp'\)"$/m);
+    // In the image the app runs (after its code is copied in), before it drops to the node user.
+    expect(runtime.indexOf("require('sharp')")).toBeGreaterThan(
+      runtime.indexOf("COPY --from=build"),
+    );
+    expect(runtime.indexOf("require('sharp')")).toBeLessThan(runtime.indexOf("USER node"));
+    // A direct dependency, at an exact version, so npm ci always installs it.
+    const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
+    expect(pkg.dependencies.sharp).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it("no secrets in the image: the build-only placeholders stay in the build stage", () => {

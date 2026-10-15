@@ -8,13 +8,14 @@ import { sentTo } from "./outbox";
 // A WhatsApp to Acme's shifts line, as Twilio would post it (signed with the e2e run's made-up key)
 // to the platform's webhook: the real web app stores it, the real job worker answers, and the
 // reply reaches the outbox from Acme's line. A seeded Acme worker no other spec uses; then a number
-// nobody here has, which gets the polite reply while the office is alerted and sees it on Today.
+// nobody here has, which gets the polite reply while the office is alerted and sees it on
+// Enquiries, waiting for a person (on Today until 12E.1).
 
 const webhook = "http://localhost:3100/api/webhooks/twilio/whatsapp";
 const worker = "+447700900112";
 const acmeLine = "+447700900000";
 
-test("a worker's WhatsApp to the shifts line gets the open shifts link at once", async ({
+test("a worker's WhatsApp to the shifts line gets her personal shifts reply at once", async ({
   request,
 }) => {
   const fields = {
@@ -34,7 +35,9 @@ test("a worker's WhatsApp to the shifts line gets the open shifts link at once",
   const reply = await sentTo(
     worker,
     asked,
-    /(Open shifts you're eligible for: http:\/\/acme\.localhost:3100\/shifts\/open — Acme Events Shift Team)/,
+    // Her own reply (12D.2): what's in it depends on the seed's shifts and today's date; its frame
+    // never does.
+    /^(Hi [A-Za-z'-]+, [\s\S]*(?:Take one here|All open shifts): http:\/\/acme\.localhost:3100\/shifts\/open\nAutomatic reply\. Send OFFICE to reach a person\.\n— Acme Events Shift Team)$/,
   );
   expect(reply).toBeTruthy();
 
@@ -43,7 +46,7 @@ test("a worker's WhatsApp to the shifts line gets the open shifts link at once",
   expect(refused.status()).toBe(403);
 });
 
-test("a WhatsApp from a number we don't know gets the polite reply, and the office sees it on Today", async ({
+test("a WhatsApp from a number we don't know gets the polite reply, and the office sees it on Enquiries", async ({
   page,
   request,
 }) => {
@@ -69,10 +72,10 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
     await sentTo(
       stranger,
       asked,
-      /(Thanks for your message\. We don't recognise this number\. If you work with Acme Events, reply with your full name and the office will get back to you\. — Acme Events Shift Team)/,
+      /(Thanks for your message\. We don't recognise this number\. If you work with Acme Events, reply with your full name and the office will get back to you\. Automatic reply\. Send OFFICE to reach a person\. — Acme Events Shift Team)/,
     ),
   ).toBeTruthy();
-  // The office alert (no number, no message in it), then Today shows the message.
+  // The office alert (no number, no message in it), then Enquiries shows the message.
   await sentTo(
     email,
     asked,
@@ -84,7 +87,12 @@ test("a WhatsApp from a number we don't know gets the polite reply, and the offi
   await page.getByRole("button", { name: "Send me a link" }).click();
   await page.goto(await sentTo(email, loginAsked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/));
   await page.getByRole("button", { name: "Log me in" }).click();
-  const unknown = page.getByRole("region", { name: "Messages from numbers we don't know" });
-  await expect(unknown.getByText(new RegExp(`^\\+44 7700 ${stranger.slice(7)} · `))).toBeVisible();
-  await expect(unknown.getByText("“Hi it's Sam Smith, new phone (e2e)”")).toBeVisible();
+  await expect(page).toHaveURL("http://acme.localhost:3100/office");
+  await page.goto("http://acme.localhost:3100/office/enquiries?view=person");
+  const row = page
+    .getByRole("region", { name: "Need a person" })
+    .getByRole("listitem")
+    .filter({ hasText: "“Hi it's Sam Smith, new phone (e2e)”" });
+  await expect(row).toContainText("Unknown number");
+  await expect(row).toContainText("Passed to a person, waiting");
 });

@@ -1,15 +1,10 @@
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { authParts, type AuthContext } from "../auth/link-login";
 import { currentOfficeUser } from "../auth/office-login";
 import { canAccess } from "../auth/roles";
-import {
-  CANCELLED_ASSIGNMENT_STATUSES,
-  credentialRules,
-  credentialTypes,
-  firms,
-  rosterSources,
-} from "../db/schema";
+import { CANCELLED_ASSIGNMENT_STATUSES, firms, rosterSources } from "../db/schema";
+import { readRequirements } from "../credentials/requirements";
 import type { FirmTx } from "../db/scoped";
 
 // Events & sessions (docs/office-v2.md 3.3; docs/screens.md `/office/events`): every event with a
@@ -43,6 +38,7 @@ export interface SessionRow {
   // The role's qualifications, then the session's extra ones (each once).
   requirements: { code: string; name: string }[];
   fromSheet: boolean;
+  fromPlanner: boolean; // sent by the firm's planner through the API (12J.1)
   started: boolean;
   ended: boolean;
 }
@@ -103,12 +99,12 @@ async function timeZoneOf(tx: FirmTx): Promise<string> {
   return firm?.timezone ?? "Europe/London";
 }
 
-// A session's urgent gap, as SQL over `s` with its booked count `b`.
-const urgentGap = (now: Date) =>
+// A session's urgent gap, as SQL over `s` with its booked count `b` (the dashboard's count too).
+export const urgentGap = (now: Date) =>
   sql`(s.is_urgent and s.status = 'open' and s.starts_at > ${now} and b.booked < s.headcount)`;
 
 // Places taken per session (bookings not cancelled, in the headcount's slots).
-const bookedJoin = sql`cross join lateral (
+export const bookedJoin = sql`cross join lateral (
   select count(*)::int as booked from assignments a
    where a.firm_id = s.firm_id and a.shift_id = s.id and a.worker_id is not null
      and a.status not in (${CANCELLED}) and a.slot <= s.headcount) b`;
@@ -161,29 +157,13 @@ async function sessionsOf(
        ${upcoming ? sql`and s.ends_at > ${now} and s.status <> 'cancelled'` : sql``}
      order by s.starts_at, s.role, s.id
   `);
-  const roles = [...new Set(rows.map((r) => r.role))];
-  const rules = roles.length
-    ? await tx
-        .select({ role: credentialRules.role, types: credentialRules.requiredTypes })
-        .from(credentialRules)
-        .where(inArray(credentialRules.role, roles))
-    : [];
-  const byRole = new Map<string, string[]>();
-  for (const r of rules) byRole.set(r.role, [...(byRole.get(r.role) ?? []), ...r.types]);
-  const names = new Map(
-    (
-      await tx
-        .select({ code: credentialTypes.code, name: credentialTypes.name })
-        .from(credentialTypes)
-    ).map((t) => [t.code, t.name]),
+  const requirements = await readRequirements(
+    tx,
+    rows.map((r) => r.role),
   );
   return {
     rows,
-    requirementsOf: (r) =>
-      [...new Set([...(byRole.get(r.role) ?? []), ...r.required_credentials])].map((code) => ({
-        code,
-        name: names.get(code) ?? code,
-      })),
+    requirementsOf: (r) => requirements.of(r.role, r.required_credentials),
   };
 }
 
@@ -211,6 +191,7 @@ function sessionOf(
     uniform: r.uniform,
     requirements,
     fromSheet: r.source === "sheets",
+    fromPlanner: r.source === "api",
     started: startsAt.getTime() <= now.getTime(),
     ended: endsAt.getTime() <= now.getTime(),
   };
@@ -261,54 +242,68 @@ async function hasPlanner(tx: FirmTx): Promise<boolean> {
   return source !== undefined;
 }
 
-// Events with a session to come (not ended, not cancelled), soonest first. `view`: those showing
-// to casuals, those hidden, or those with an urgent gap.
+// Events with a session to come (not ended, not cancelled), soonest first, at most EVENT_LIST_MAX
+// (`more`: there were others). `view`: those showing to casuals, those hidden, or those with an
+// urgent gap. Each card holds at most `sessionsMax` of its sessions (the dashboard's are shorter).
+export async function loadEventCards(
+  tx: FirmTx,
+  now: Date,
+  view: EventView,
+  sessionsMax = CARD_SESSIONS_MAX,
+): Promise<{ events: EventCardData[]; more: boolean }> {
+  const having: Record<EventView, SQL> = {
+    all: sql`true`,
+    showing: sql`e.showing_to_casuals`,
+    hidden: sql`not e.showing_to_casuals`,
+    urgent: sql`bool_or(${urgentGap(now)})`,
+  };
+  const { rows: events } = await tx.execute<EventSqlRow & { first_start: string | Date }>(sql`
+    select e.id, e.name, e.showing_to_casuals, esi.name as site_name,
+           min(s.starts_at) as first_start
+      from shift_events e
+      join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
+      ${bookedJoin}
+      left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
+     where s.ends_at > ${now} and s.status <> 'cancelled'
+     group by e.id, e.name, e.showing_to_casuals, esi.name
+    having ${having[view]}
+     order by min(s.starts_at), e.id
+     limit ${EVENT_LIST_MAX + 1}
+  `);
+  const kept = events.slice(0, EVENT_LIST_MAX);
+  const { rows, requirementsOf } = await sessionsOf(
+    tx,
+    kept.map((e) => e.id),
+    now,
+    true,
+  );
+  return {
+    more: events.length > EVENT_LIST_MAX,
+    events: kept.map((e) =>
+      cardOf(
+        e,
+        rows.filter((r) => r.event_id === e.id),
+        requirementsOf,
+        now,
+        sessionsMax,
+      ),
+    ),
+  };
+}
+
 export async function officeEventList(
   ctx: AuthContext,
   token: string,
   view: EventView,
 ): Promise<EventList | null> {
   return asOffice(ctx, token, async (tx, now) => {
-    const having: Record<EventView, SQL> = {
-      all: sql`true`,
-      showing: sql`e.showing_to_casuals`,
-      hidden: sql`not e.showing_to_casuals`,
-      urgent: sql`bool_or(${urgentGap(now)})`,
-    };
-    const { rows: events } = await tx.execute<EventSqlRow & { first_start: string | Date }>(sql`
-      select e.id, e.name, e.showing_to_casuals, esi.name as site_name,
-             min(s.starts_at) as first_start
-        from shift_events e
-        join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
-        ${bookedJoin}
-        left join sites esi on esi.firm_id = e.firm_id and esi.id = e.site_id
-       where s.ends_at > ${now} and s.status <> 'cancelled'
-       group by e.id, e.name, e.showing_to_casuals, esi.name
-      having ${having[view]}
-       order by min(s.starts_at), e.id
-       limit ${EVENT_LIST_MAX + 1}
-    `);
-    const kept = events.slice(0, EVENT_LIST_MAX);
-    const { rows, requirementsOf } = await sessionsOf(
-      tx,
-      kept.map((e) => e.id),
-      now,
-      true,
-    );
+    const { events, more } = await loadEventCards(tx, now, view);
     return {
       timeZone: await timeZoneOf(tx),
       view,
       hasPlanner: await hasPlanner(tx),
-      more: events.length > EVENT_LIST_MAX,
-      events: kept.map((e) =>
-        cardOf(
-          e,
-          rows.filter((r) => r.event_id === e.id),
-          requirementsOf,
-          now,
-          CARD_SESSIONS_MAX,
-        ),
-      ),
+      more,
+      events,
     };
   });
 }

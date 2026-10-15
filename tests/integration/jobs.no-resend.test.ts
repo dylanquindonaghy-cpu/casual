@@ -207,7 +207,7 @@ describe("a job that fails after its message is sent never sends it again, and l
   it("the credential expiry warning: logged once, unconfirmed", async () => {
     const t = await scanSetup("2026-11-09");
     const sent = await failThenRetry((run, transport) =>
-      scanCredentials(t.payload, run, { transport }),
+      scanCredentials(t.payload, run, { transport, baseDomain: "localhost:3000" }),
     );
     expect(sent).toHaveLength(1);
     const logged = await eventsOf(t.f.firmId, "credential.expiry_warning");
@@ -219,7 +219,7 @@ describe("a job that fails after its message is sent never sends it again, and l
   it("the credential expiry notice: the expiry logged with the claim, the notice once, unconfirmed", async () => {
     const t = await scanSetup("2026-11-02");
     const sent = await failThenRetry((run, transport) =>
-      scanCredentials(t.payload, run, { transport }),
+      scanCredentials(t.payload, run, { transport, baseDomain: "localhost:3000" }),
     );
     expect(sent).toHaveLength(1);
     expect(await eventsOf(t.f.firmId, "credential.expired")).toHaveLength(1);
@@ -239,10 +239,18 @@ describe("a job that fails after its message is sent never sends it again, and l
     const payload = { firmId: f.firmId, idempotencyKey: "credential-scan:2026-11-02" };
     const h = harness();
     expect(
-      await scanCredentials(payload, h.failingAfterSend, { transport: h.transport }),
+      await scanCredentials(payload, h.failingAfterSend, {
+        transport: h.transport,
+        baseDomain: "localhost:3000",
+      }),
     ).toMatchObject({ weeklyList: "sent" });
     expect(h.sent.map((m) => m.channel)).toEqual(["email", "email"]);
-    expect(await scanCredentials(payload, withFirm, { transport: h.transport })).toMatchObject({
+    expect(
+      await scanCredentials(payload, withFirm, {
+        transport: h.transport,
+        baseDomain: "localhost:3000",
+      }),
+    ).toMatchObject({
       weeklyList: "already_sent",
     });
     expect(h.sent).toHaveLength(2);
@@ -443,7 +451,12 @@ describe("a send that fails is logged, and never tried again", () => {
     ] as const) {
       const t = await scanSetup(expiresOn);
       const h = harness({ down: true });
-      expect(await scanCredentials(t.payload, withFirm, { transport: h.transport })).toMatchObject({
+      expect(
+        await scanCredentials(t.payload, withFirm, {
+          transport: h.transport,
+          baseDomain: "localhost:3000",
+        }),
+      ).toMatchObject({
         warned: 0,
         failed: 1,
       });
@@ -451,9 +464,12 @@ describe("a send that fails is logged, and never tried again", () => {
         expect.objectContaining({ type: "SIA_DS", channel: "whatsapp", code: "Error" }),
       ]);
       const ok = harness();
-      expect(await scanCredentials(t.payload, withFirm, { transport: ok.transport })).toMatchObject(
-        { warned: 0, expired: 0, failed: 0 },
-      );
+      expect(
+        await scanCredentials(t.payload, withFirm, {
+          transport: ok.transport,
+          baseDomain: "localhost:3000",
+        }),
+      ).toMatchObject({ warned: 0, expired: 0, failed: 0 });
       expect(ok.sent).toEqual([]);
     }
   });

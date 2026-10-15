@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 
-// The few icons the office's top bar, its menu and the office guide use: 20px line drawings in
+// The few icons the office's top bar, its menu, the office guide and the casual app's tab bar use: 20px line drawings in
 // the text colour, hand-written (no icon library; inline SVG also works in the offline copy).
 // Always beside words or purely visual cues, so hidden from screen readers. Hook-free: safe in
 // server and client components.
 
 const PATHS = {
-  // Today, and payroll's Home: a house.
+  // The dashboard: a house.
   home: (
     <>
       <path d="M3.5 10.5 12 3.5l8.5 7" />
@@ -78,6 +78,13 @@ const PATHS = {
     </>
   ),
   // Pay queries: a banknote.
+  // The casual's Profile tab (12H.1): one person.
+  profile: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20.5c.8-4 3.8-6.5 7.5-6.5s6.7 2.5 7.5 6.5" />
+    </>
+  ),
   pay: (
     <>
       <rect x="2.5" y="6" width="19" height="12" rx="2" />
@@ -131,6 +138,14 @@ const PATHS = {
       <circle cx="9" cy="17" r="2.5" />
     </>
   ),
+  // Integrations: a plug, for the planner's connection.
+  plug: (
+    <>
+      <path d="M9 3.5v4M15 3.5v4" />
+      <path d="M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0v-3Z" />
+      <path d="M12 16v4.5" />
+    </>
+  ),
   // How-to guide: an open book.
   guide: (
     <>
@@ -159,6 +174,29 @@ const PATHS = {
     <>
       <circle cx="12" cy="12" r="4" />
       <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+    </>
+  ),
+  // Enquiries' channels (12D.1), each beside its hidden word: a speech bubble (WhatsApp), a phone
+  // (a text), a tape (a voicemail).
+  whatsapp: <path d="M4 5.5h16v10H9.5L4 19.5v-14Z" />,
+  sms: (
+    <>
+      <rect x="7" y="3" width="10" height="18" rx="2" />
+      <path d="M11 17.5h2" />
+    </>
+  ),
+  voice: (
+    <>
+      <circle cx="7" cy="12" r="3.5" />
+      <circle cx="17" cy="12" r="3.5" />
+      <path d="M7 15.5h10" />
+    </>
+  ),
+  // The office's bell (Needs attention, 12E.1): a bell.
+  bell: (
+    <>
+      <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15l1.5-2Z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
     </>
   ),
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.

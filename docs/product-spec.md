@@ -92,7 +92,7 @@ change and cancellation.
 | P0-6 | Change/swap requests | Request created; office approves/declines; worker sees status. |
 | P0-7 | Urgent board + offer waves | Only eligible workers notified; waves of 3–5; 15 min timeout (configurable); stops when filled; escalates to resourcer at a set time before start. |
 | P0-8 | Notifications | Web push + WhatsApp template for urgent; SMS fallback; quiet hours. |
-| P0-9 | Resourcer dashboard | Today view, requests queue, action log with filters. |
+| P0-9 | Resourcer dashboard | The dashboard (counts, urgent gaps, latest cancellations and enquiries, Needs attention), requests queue, action log with filters. |
 | P0-10 | Notice/cancellation report | Every offer/change/cancel with timestamps, notice hours, short-notice flag; CSV export. |
 | P0-11 | Tenant isolation | Cross-tenant tests pass; RLS on all tables. |
 | P0-12 | Roster source | Native mode and Google Sheets sync; CSV import. |
@@ -156,7 +156,7 @@ fill); product metrics from the events table; resourcer weekly check-in.
 
 - **Football season runs to May.** Stewarding firms have cancellations every week; aim for a
   pilot live by late January/February.
-- **Employment Rights Act 2027** zero-hours measures: the notice report is the sales hook.
+- **Employment Rights Act 2025** zero-hours measures (expected in force in 2027): the notice report is the sales hook.
 - **WhatsApp pricing changed on 1 October 2026:** service replies beyond 1,000 per number per
   month are charged, and a payment method must be on file.
 - **Meta business verification** can take days: start it during Phase 7, not at go-live.

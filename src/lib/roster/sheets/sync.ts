@@ -432,7 +432,7 @@ async function mirror(
       .from(shifts)
       .where(and(eq(shifts.source, "sheets"), eq(shifts.externalRef, row.ref)))
       .for("no key update");
-    // What this sync couldn't do for this row, for Today (saved at the end of the row).
+    // What this sync couldn't do for this row, for the dashboard (saved at the end of the row).
     const issues: SheetIssues = {};
     // A shift that has started (our copy's start, or the sheet's for a new row) is mirrored, but
     // its bookings are history: never booked, cancelled, re-timed, re-roled or moved after the fact.
@@ -481,7 +481,7 @@ async function mirror(
       //    the sheet too (audit M1, M2). A started shift is never changed by a sync (ADR-013), nor
       //    one moved into the past; a booked one only if everyone still booked can work it (the
       //    rules, with the sheet's overrides), tried in a savepoint. Otherwise our copy keeps
-      //    them, the office is told (Today, and the log), and the rest of the row still applies.
+      //    them, the office is told (the dashboard, and the log), and the rest of the row still applies.
       //    A shift the sheet cancels in the same edit keeps the times its people knew this sync.
       const differs = (k: keyof typeof fields, value: (typeof fields)[keyof typeof fields]) =>
         value instanceof Date
@@ -556,7 +556,7 @@ async function mirror(
         if (moved) await logTimeChange(tx, shiftId, existing, apply, now, verdicts);
         if (moved || applied.includes("role")) travel.add(shiftId);
         await tx.update(shifts).set(apply).where(eq(shifts.id, shiftId));
-        // A new site: a booking the office kept (Phase 10, Today's "Bookings to check") is looked
+        // A new site: a booking the office kept (Phase 10, the dashboard's "Bookings to check") is looked
         // at again, in case its worker is blocked from the new site.
         if (applied.includes("siteId")) {
           await tx
@@ -657,7 +657,7 @@ async function mirror(
     }
 
     // 6. Tell the office what's new (once: a sync that sees the same sheet says nothing), and keep
-    //    what's true now for Today.
+    //    what's true now for the dashboard.
     if (issues.change && canon(issues.change) !== canon(existing?.sheetIssues?.change ?? null)) {
       await recordEvent(tx, system("roster.sheet_change_refused", "shift", shiftId, issues.change));
     }
@@ -776,7 +776,7 @@ async function mergeShift(
   // Places left: the people still booked here.
   let room = row.headcount - ours.filter((h) => !h.ref || keep.has(h.ref)).length;
   // Names the sheet added that aren't booked (refused, no place, or unknown): they stay in the
-  // sheet's cell while there's room, for the office to see (Today, "From your rota sheet"), but
+  // sheet's cell while there's room, for the office to see (the dashboard, "From your rota sheet"), but
   // out of the merge base, so each sync tries them again (booked once they can work it, or a place
   // frees up).
   const left = new Map<string, { workerId?: string; codes: string[] }>();
@@ -845,11 +845,11 @@ async function mergeShift(
   // What the cell should say: our bookings, then the sheet's names we couldn't book (in the
   // sheet's order) while there's room for them. A sheet name is never written into a cell past
   // the shift's places (the next read couldn't use the cell), so a name with no room left is the
-  // only one taken out of the office's sheet: on Today and in the log, never silently.
+  // only one taken out of the office's sheet: on the dashboard and in the log, never silently.
   const spare = Math.max(0, row.headcount - final.length);
   const stayInSheet = theirs.filter((ref) => left.has(ref) && !final.includes(ref)).slice(0, spare);
   const wanted = [...final, ...stayInSheet];
-  // For Today: the names left this sync (dropped when there was no room in the cell), and any
+  // For the dashboard: the names left this sync (dropped when there was no room in the cell), and any
   // dropped before that still isn't booked or back in the sheet.
   const finalIds = new Set(live.flatMap((h) => (h.workerId ? [h.workerId] : [])));
   const theirsIds = new Set(theirs.flatMap((ref) => workerIds.get(ref) ?? []));
@@ -1047,6 +1047,7 @@ async function tryRuledChange(
         timeZone: opts.timeZone,
         siteChanged: opts.ruled.siteId !== opts.existing.siteId,
         allowed: SHEET_OVERRIDES,
+        honourKept: true,
       });
       if (result.blocked.length > 0) {
         throw new ChangeRefused(

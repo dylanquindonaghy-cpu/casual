@@ -33,7 +33,8 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // changes especially: they change who may work).
   credential_types: CRUD,
   // Events (docs/office-v2.md 3.3): added, never deleted, only hidden; the app may change only the
-  // casuals switch (COLUMN_UPDATES), so an automatic event's key, site and firm can't be rewritten.
+  // casuals switch and the name (COLUMN_UPDATES; the planner renames its own events, S11), so an
+  // event's key, site and firm can't be rewritten.
   shift_events: ["SELECT", "INSERT"],
   shifts: NO_DELETE,
   assignments: NO_DELETE,
@@ -69,12 +70,22 @@ export const TABLE_ACCESS: Readonly<Record<string, readonly Privilege[]>> = {
   // Travel estimates (12G.2, S9): added and refreshed by the travel job (COLUMN_UPDATES: the result
   // and its expiry only), deleted when a site's postcode changes and by the retention purge.
   travel_estimates: ["SELECT", "INSERT", "DELETE"],
+  // Photos and certificate images (12F.2, S7): sent by a casual, checked by the office
+  // (COLUMN_UPDATES: the check only, never the bytes or whose they are), deleted when replaced
+  // while waiting, by the retention purge and on erasure.
+  uploads: ["SELECT", "INSERT", "DELETE"],
+  // The planner's API keys (S11, 12J.1): read and added; last use and revocation only through
+  // COLUMN_UPDATES, so a key's hash and label can never be rewritten; never deleted.
+  api_keys: ["SELECT", "INSERT"],
 };
 
 // Columns the app role may update on a table it can't update as a whole (a column-level grant).
 export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
   roster_sources: ["last_synced_at", "last_attempted_at", "last_error_code", "sync_started_at"],
-  shift_events: ["showing_to_casuals"],
+  shift_events: ["showing_to_casuals", "name"],
+  // The planner's API keys (S11): read and added, never rewritten or deleted; only the last use
+  // and the revocation change.
+  api_keys: ["last_used_at", "revoked_at", "revoked_by"],
   strikes: [
     "review_needed",
     "reviewed_by",
@@ -97,6 +108,7 @@ export const COLUMN_UPDATES: Readonly<Record<string, readonly string[]>> = {
     "updated_at",
   ],
   travel_estimates: ["minutes", "metres", "provider", "computed_at", "expires_at"],
+  uploads: ["status", "checked_by", "checked_at", "reject_reason"],
 };
 
 export function schemaTableNames(): string[] {

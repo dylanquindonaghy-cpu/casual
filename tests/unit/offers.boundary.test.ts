@@ -70,6 +70,9 @@ const CALLS: [string, RegExp, string[]][] = [
   ],
   ["builds the office offer push (offerPush)", /\bofferPush\(/, [TEMPLATES, OFFICE]],
   ["picks offer recipients (waveCandidates)", /\bwaveCandidates\(/, [CANDIDATES, WAVES, OFFICE]],
+  // A casual's travel area limits every offer but the office's own (12G.3; D2): only the office
+  // offer may pass `byHand`, so a wave can never skip it.
+  ["skips the travel area (byHand: true)", /\bbyHand\s*:\s*true\b/, [OFFICE]],
 ];
 
 const text = (path: string) => files.find((f) => f.path === path)?.text ?? "";

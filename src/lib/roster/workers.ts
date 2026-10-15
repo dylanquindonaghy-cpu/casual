@@ -20,7 +20,7 @@ import { forgetPhones, reflagFutureBookings } from "./worker-effects";
 //   and forgets their phones' notifications, because login goes by mobile number and the old
 //   phone may be someone else's now (audit L81); a changed status signs them out too, so a worker
 //   made inactive and then active again doesn't get their old sessions back (audit L80);
-// - a worker who stops being active has their future bookings flagged on the office's Today
+// - a worker who stops being active has their future bookings flagged on the office's dashboard
 //   (src/lib/office/today.ts), for the office to cancel or keep, and their phones' notifications
 //   forgotten; any status change clears "kept" on their bookings ahead, so each is looked at again;
 // - every change is logged by field name, never by value (golden rule 5).
@@ -205,7 +205,7 @@ export async function upsertWorker(
     changed.includes("mobileE164") || (changed.includes("status") && next.status !== "active")
       ? await forgetPhones(tx, existing.id)
       : 0;
-  // Any status change: their bookings ahead are looked at again on Today (one kept for one reason
+  // Any status change: their bookings ahead are looked at again on the dashboard (one kept for one reason
   // may still be at a site they're blocked from).
   const flagged = changed.includes("status")
     ? await reflagFutureBookings(tx, { workerId: existing.id, now: from.now })

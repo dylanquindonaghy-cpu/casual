@@ -25,7 +25,8 @@ Replace the parts in [brackets]. Send both parts.
 >
 > **What it holds about you:** your name, mobile number, email address (if we have it), the roles
 > you work and our staff ID for you; your licences and cards (such as SIA or CSCS: type, number,
-> expiry and whether we've checked them); the days you've told us you can't work; the shifts you're
+> expiry and whether we've checked them); your staff photo and the pictures of your cards you
+> upload; the days you've told us you can't work; the shifts you're
 > offered, take, work, miss or cancel, with the notice given and the reason; requests you send us
 > and our answers; your hours, pay rates and pay dates as our payroll records them, and any pay
 > questions you raise; how you want to hear from us (WhatsApp or text); when you log in; and, if you
@@ -61,14 +62,42 @@ Replace the parts in [brackets]. Send both parts.
 > from (it needn't be your home), how you travel and how long you'll travel, so we can show you
 > shifts you can get to. We keep that postcode and the middle point of its area, never your
 > address, your location or where you go. Our office sees only the first part of the postcode
-> (like ZZ1). To place it, only the postcode is sent to postcodes.io, never your name. You can
+> (like ZZ1). To place it, only the postcode is sent to postcodes.io, never your name[; to work
+> out travel times, only the middle point of its area goes to TravelTime, never your name or your
+> postcode]. You can
 > change or remove it any time; it's deleted when we record that you've left us, or if you ask us
 > to delete your details.
 > We use it because it's in both our interests that you're offered work you can reach (our
 > legitimate interest; you can object).
 >
+> **Staff photo and cards:** you can upload your staff photo and pictures of your licences and
+> cards from your profile. A person in our office checks each one; only checked ones count. We
+> keep the picture itself, not the file from your phone: its location and camera details are
+> removed. We never use face matching or read your card automatically. We ask for a new photo
+> every [3 years].
+>
+> **Cancelling at short notice (strikes):** if you cancel a shift less than [48] hours before it
+> starts, you get a strike. You see this before you confirm, and we keep which warning you saw. A
+> strike is a record, not a fine: it never comes off your pay, and nothing happens to you
+> automatically; a person in our office decides anything that follows, and can withdraw it. You
+> won't get one if we booked you, cancelled the shift or changed it. It counts for [90] days. A
+> record of it (your name, our staff ID for you, the shift, the notice you gave and how many
+> strikes count) is emailed to our strikes team
+> [address]. It never carries the reason you gave: it says only "Casual's own reason". You can tell us what happened on the cancel
+> screen or on your profile. We use strikes because it's in our interest to know who cancels late
+> (our legitimate interest; you can object). If you tell us you're unwell, that's health
+> information: we use it only to run your shifts with you, as employment law allows, and it never
+> leaves our shifts portal.
+>
+> **Our planner [only if we connect one]:** we use [our planner's name] to plan our work.
+> ShiftDesk tells it about each booking and cancellation, and each strike we withdraw: your name,
+> our staff ID for you, the shift (with its pay rate), the notice given, whether it was a strike
+> and how many of your strikes count. Never your mobile number, email address, postcode, travel
+> area or the reason you gave.
+>
 > **Who else handles it:** [Our supplier] stores it in [the UK / the EU] ([hosting company], which
-> runs its servers and database). It uses [email company] to send emails, Twilio (texts, WhatsApp
+> runs its servers and database). It uses [email company] to send emails, postcodes.io[ and
+> TravelTime] for your travel area (above), Twilio (texts, WhatsApp
 > and calls) and Meta (WhatsApp) to send and receive messages[, and Google, as we keep our rota in
 > a Google Sheet], and, once the AI service above is switched on, Anthropic [where Anthropic
 > processes it, and the safeguard for any transfer outside the UK: confirmed before the AI is
@@ -78,16 +107,19 @@ Replace the parts in [brackets]. Send both parts.
 > **How long:** messages to the shifts line, [90] days. The words typed into a request (a note, a
 > colleague's name) and the reason our office gave for placing you on a shift a rule would have
 > stopped, [12 months] after the request closed or the booking was made. Login links and codes, 7
-> days after they run out; login sessions, 30 days after they end. If there's a dispute, we may keep
+> days after they run out; login sessions, 30 days after they end. A photo or card picture we
+> turned down, or an old photo you've replaced, 30 days later. A strike, [12 months] after it was
+> given. Your travel area, until you remove it or we record that you've left. If there's a dispute, we may keep
 > things longer, until it's settled. Your details, shifts, requests, pay records and the
 > record of offers, changes and cancellations are kept as our records [for as long as you work with
 > us and then for [period]].
 >
 > **Your rights:** you can ask us for a copy of your information (we'll send it within a month),
 > ask us to correct it, or ask us to delete it. If you ask us to delete it, your name, number,
-> email, staff number, licences, days off, messages and logins are deleted, and so are the notes on your own
-> requests, pay questions and cancellations, and the reasons our office typed when it placed you
-> on a shift. The record of the shifts you were offered, worked or cancelled, and your pay records,
+> email, staff number, licences, photos and card pictures, travel area, days off, messages and
+> logins are deleted, and so are the notes on your own
+> requests, pay questions and cancellations, the reasons our office typed when it placed you on a
+> shift, and its reasons for withdrawing a strike. The record of the shifts you were offered, worked or cancelled, and your pay records,
 > stay without your name, because we must be able to show the notice we gave and what we paid.
 > What other people wrote that mentions you (a colleague's swap request or pay question naming you,
 > say, or a message someone else sent us) isn't changed by your request: some of it is deleted on
@@ -120,6 +152,16 @@ Replace the parts in [brackets]. Send both parts.
   follow-ups", for you to confirm).
 - **The Google line** only if the firm's rota is a Google Sheet (onboarding step 5).
 - **The logo line** only if the firm sets a logo (`npm run firm:brand -- --logo …`).
+- **Strikes, photos and the planner** (Phase 12): the numbers in brackets are the firm's own
+  settings (`strikes.notice_hours` 48, `strikes.live_days` 90, `strikes.keep_months` 12,
+  `photo.renewal_months` 36). Fill in the strikes team's address only once the firm has confirmed
+  it (Settings, 12B.7). Send the planner paragraph only if the firm has connected a planner
+  (Integrations, `docs/integrations.md`); it is the firm's own recipient. TravelTime is used only
+  once `TRAVEL_PROVIDER=traveltime` ("Connect postcodes.io and TravelTime"); until then leave out
+  the TravelTime parts. The health line rests on the firm's Article 9 condition and its
+  appropriate policy document (`docs/compliance.md` "Health reasons"). Both DPIAs
+  (`docs/dpia-strikes.md`, `docs/dpia-travel.md`) come before a real firm uses strikes or travel
+  areas.
 - **The AI** isn't connected yet ("Connect the Anthropic API"). The "Automation" paragraph says it
   "may be used" and the sub-processor line says "once it's switched on", so the notice is true now.
   Before it's switched on, fill in where Anthropic processes requests and the transfer safeguard,

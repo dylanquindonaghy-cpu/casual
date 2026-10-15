@@ -1,39 +1,32 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requireOfficeArea } from "@/lib/auth/current-office";
-import { canAccess, ROLE_LABELS } from "@/lib/auth/roles";
-import { readSessionToken } from "@/lib/auth/session-cookie";
-import { todayView } from "@/lib/office/today";
+import { canAccess } from "@/lib/auth/roles";
+import { officeDashboard } from "@/lib/office/dashboard";
 import { firmShiftsLine, shiftsLineText } from "@/lib/tenancy/shifts-line";
 import { meta, page } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
-import { TodayContent } from "./today-view";
+import { DashboardContent } from "./dashboard-view";
 
-// The office's first page: Today for admins and resourcers (docs/screens.md `/office/today`), with
-// the firm's shifts line (its own number) once it has one. Payroll's home is the pay dashboard
-// (`/office/pay`, 12A.3): they're sent there. The menu, the account menu and the session keeper
-// are in the office shell (src/app/office/office-shell.tsx), on every office page.
+// The office's first page: the dashboard for admins and resourcers (docs/office-v2.md 3.2, 3.9;
+// docs/screens.md `/office`), with the firm's shifts line (its own number) under the heading.
+// Payroll's home is the pay dashboard (`/office/pay`, 12A.3): they're sent there. The menu, the
+// bell, the account menu and the session keeper are in the office shell
+// (src/app/office/office-shell.tsx), on every office page. `/office/today` redirects here.
 
-export const metadata: Metadata = { title: "Today" };
+export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function OfficeHome() {
   const { firm, officeUser } = await requireOfficeArea("dashboard");
   if (!canAccess(officeUser.role, "today")) redirect("/office/pay");
-  const today = await todayView({ firm }, (await readSessionToken("office")) ?? "");
-  if (!today) notFound();
-  const whoAndLine = (
-    <div className="flex flex-col gap-0.5">
-      <p className={meta}>You&apos;re logged in as {ROLE_LABELS[officeUser.role]}.</p>
-      <p className={meta}>{shiftsLineText(await firmShiftsLine({ firm }))}</p>
-    </div>
-  );
+  const dashboard = await officeDashboard({ firm, officeUserId: officeUser.id });
+  if (!dashboard) notFound();
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Today">
-        <p className="text-lg text-ink">Hello {officeUser.name}</p>
-        {whoAndLine}
+      <PageHeader eyebrow={`${firm.name} office`} title="Dashboard">
+        <p className={meta}>{shiftsLineText(await firmShiftsLine({ firm }))}</p>
       </PageHeader>
-      <TodayContent view={today} isAdmin={today.officeUser.role === "admin"} />
+      <DashboardContent d={dashboard} isAdmin={officeUser.role === "admin"} />
     </main>
   );
 }

@@ -51,19 +51,19 @@ About two hours on a quiet weekday.
    One gets it; the other is told it's just been filled.
 4. **A shift the rules refuse** (the volunteer missing a licence): the shift explains why, in plain
    words, with "Ask the office to review". The office sees the review request.
-5. **Cancel and the urgent wave** (volunteer): cancel tomorrow's shift with a reason. The office's
-   Today shows the cancellation with the notice given; the shift reopens as urgent; the other
+5. **Cancel and the urgent wave** (volunteer): cancel tomorrow's shift with a reason. The office
+   dashboard shows the cancellation with the notice given; the shift reopens as urgent; the other
    volunteers get the urgent offer; the first to take it gets it.
 6. **The office changes and cancels** (resourcer): move a booked shift's time (choosing a reason),
    and cancel another booking. Each volunteer affected gets a message saying exactly what changed.
 7. **A request** (volunteer, then resourcer): ask for a time change on a booked shift; the resourcer
-   answers it on Requests; the volunteer is told the answer.
+   answers it on Enquiries, "Requests from the app"; the volunteer is told the answer.
 8. **Pay** (volunteer): open Pay (a code arrives by WhatsApp first), see hours, rates and pay dates
    (if the firm's pay file is imported), and raise a pay question; payroll sees it grouped, and the
    next digest lists it.
 9. **The shifts line** (volunteer, then someone who isn't a worker): text "I can't make tomorrow":
    the reply points to cancelling or reaches the office as a request. From a number that isn't a
-   worker's: the polite reply, and the office is emailed and sees it on Today.
+   worker's: the polite reply, and the office is emailed and sees it on Enquiries.
 10. **Reminders** (wait, or next morning): the volunteer booked on tomorrow's shift gets the 24-hour
     reminder, then the 2-hour one.
 11. **The evidence** (resourcer): the notice and cancellation report lists every offer, booking,

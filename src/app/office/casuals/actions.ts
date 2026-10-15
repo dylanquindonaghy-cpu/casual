@@ -24,9 +24,18 @@ import {
   SITE_UNBLOCK_REASONS,
   UNBLOCK_REASONS,
 } from "@/lib/office/worker-reasons";
+import type { CheckOutcome } from "@/lib/portal/upload-copy";
 import { requestLog } from "@/lib/request";
+import {
+  approveSchema,
+  approveUpload,
+  csasSchema,
+  recordCsas,
+  rejectSchema,
+  rejectUpload,
+} from "@/lib/uploads/check";
 
-// A worker's access (docs/screens.md `/office/workers`, `/office/workers/[id]`). The firm comes
+// A casual's access (docs/screens.md `/office/casuals`, `/office/casuals/[id]`; Workers until 12F.1). The firm comes
 // from the request's host and the office user from their session (an admin or resourcer: checked
 // here, and again inside each change). Input is checked with zod first; a reason is always one
 // from the fixed list. Results are shown in place.
@@ -39,7 +48,7 @@ async function asOffice<T>(
 ): Promise<T | Common> {
   const session = await getOfficeSession();
   if (!session) return { status: "logged_out" };
-  if (!canAccess(session.officeUser.role, "workers")) return { status: "not_allowed" };
+  if (!canAccess(session.officeUser.role, "casuals")) return { status: "not_allowed" };
   try {
     return await work({ firm: session.firm, officeUserId: session.officeUser.id });
   } catch (error) {
@@ -52,7 +61,7 @@ async function asOffice<T>(
 export async function findWorkersAction(raw: unknown): Promise<FindWorkersResult> {
   const parsed = z.string().max(1_000).safeParse(raw);
   if (!parsed.success) return { status: "found", matches: [] };
-  const result = await asOffice("find workers", (ctx) => findWorkers(ctx, parsed.data, "workers"));
+  const result = await asOffice("find workers", (ctx) => findWorkers(ctx, parsed.data, "casuals"));
   if (result === null) return { status: "not_allowed" };
   if ("status" in result) return result;
   return { status: "found", matches: result };
@@ -109,4 +118,41 @@ export async function unblockFromSiteAction(
   return asOffice("unblock from site", (ctx) =>
     unblockFromSite(ctx, workerId as string, siteId as string, r.data),
   );
+}
+
+// Checking a casual's photo or certificate (12F.2; src/lib/uploads/check.ts): approve with the
+// expiry date and number as read from the card, reject with a reason from the fixed list, or (CSAS
+// only) record it after confirming it's under this firm's own scheme.
+const uploadId = z.uuid();
+
+export async function approveUploadAction(
+  id: unknown,
+  expiresOn: unknown,
+  noExpiry: unknown,
+  number: unknown,
+): Promise<CheckOutcome> {
+  const parsedId = uploadId.safeParse(id);
+  const input = approveSchema.safeParse({ expiresOn, noExpiry, number });
+  if (!parsedId.success || !input.success) return { status: "invalid" };
+  return asOffice("approve upload", (ctx) => approveUpload(ctx, parsedId.data, input.data));
+}
+
+export async function rejectUploadAction(id: unknown, reason: unknown): Promise<CheckOutcome> {
+  const parsedId = uploadId.safeParse(id);
+  const input = rejectSchema.safeParse({ reason });
+  if (!parsedId.success || !input.success) return { status: "invalid" };
+  return asOffice("reject upload", (ctx) => rejectUpload(ctx, parsedId.data, input.data.reason));
+}
+
+export async function recordCsasAction(
+  workerId: unknown,
+  expiresOn: unknown,
+  noExpiry: unknown,
+  number: unknown,
+  ownScheme: unknown,
+): Promise<CheckOutcome> {
+  const parsedId = uploadId.safeParse(workerId);
+  const input = csasSchema.safeParse({ expiresOn, noExpiry, number, ownScheme });
+  if (!parsedId.success || !input.success) return { status: "invalid" };
+  return asOffice("record CSAS", (ctx) => recordCsas(ctx, parsedId.data, input.data));
 }

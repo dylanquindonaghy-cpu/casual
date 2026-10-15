@@ -10,7 +10,7 @@ import { captureTransport } from "../helpers/auth";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
-// Today's quick actions (src/lib/office/quick-actions.ts → src/lib/roster/close.ts and urgent.ts)
+// The dashboard's quick actions (src/lib/office/quick-actions.ts → src/lib/roster/close.ts and urgent.ts)
 // on the real database, as the app role. NOW is Monday 2 November 2026, 09:00 London (GMT).
 
 let su: Pool;

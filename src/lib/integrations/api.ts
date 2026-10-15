@@ -306,3 +306,24 @@ export function apiNotFound(
   });
   return respond(apiRefusal("not_found"), requestId);
 }
+
+// A method an API address doesn't take (POST on a session, say): the API's own JSON 405, with an
+// Allow header naming the ones it does, and no key look-up. Next.js's own 405 has no body to read.
+export function apiMethodNotAllowed(
+  request: Request,
+  method: string,
+  allow: readonly string[],
+  deps: Pick<ApiDeps, "logger"> = {},
+): Response {
+  const requestId = requestIdOf(request);
+  (deps.logger ?? log).info("api request", {
+    requestId,
+    route: new URL(request.url).pathname.startsWith("/api/v1/sessions/")
+      ? "/api/v1/sessions/{ref}"
+      : "/api/v1/cancellations",
+    method,
+    status: 405,
+    ms: 0,
+  });
+  return respond(apiRefusal("method_not_allowed", {}, { allow: allow.join(", ") }), requestId);
+}

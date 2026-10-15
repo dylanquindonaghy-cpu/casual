@@ -31,6 +31,10 @@ export const API_ERRORS = {
       "Your firm's agreement with ShiftDesk isn't recorded yet, so nothing can be saved. Ask ShiftDesk to record it.",
   },
   not_found: { status: 404, message: "There's nothing here with that ref." },
+  method_not_allowed: {
+    status: 405,
+    message: "This address doesn't take that method. The Allow header lists the ones it does.",
+  },
   session_started: {
     status: 409,
     message: "This session has started, or would start in the past, so it can't be changed.",

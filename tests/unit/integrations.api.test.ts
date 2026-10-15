@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiKeyEntry } from "@/lib/db/directory";
 import { apiNotFound, handleApiRequest, type ApiCall, type ApiDeps } from "@/lib/integrations/api";
+import * as cancellationsRoute from "@/app/api/v1/cancellations/route";
+import * as sessionRoute from "@/app/api/v1/sessions/[ref]/route";
 import { API_ERRORS } from "@/lib/integrations/errors";
 import { newApiKey } from "@/lib/integrations/keys";
 import { createRefusedKeyCounter, REFUSED_KEYS_PER_MINUTE } from "@/lib/integrations/refused-keys";
@@ -517,6 +519,28 @@ describe("handleApiRequest: the refusals before any look-up", () => {
     expect(response.status).toBe(404);
     expect((await errorOf(response)).code).toBe("not_found");
     expect(lines).toHaveLength(1);
+  });
+
+  it("a method an address doesn't take: the API's own 405, naming the ones it does", async () => {
+    const at = (path: string, method: string) =>
+      new Request(`http://${BASE}${path}`, { method, headers: { host: BASE } });
+    const refused: [Response, string][] = [
+      [sessionRoute.POST(at("/api/v1/sessions/X", "POST")), "GET, PUT"],
+      [sessionRoute.PATCH(at("/api/v1/sessions/X", "PATCH")), "GET, PUT"],
+      [sessionRoute.DELETE(at("/api/v1/sessions/X", "DELETE")), "GET, PUT"],
+      [cancellationsRoute.PUT(at("/api/v1/cancellations", "PUT")), "GET"],
+      [cancellationsRoute.POST(at("/api/v1/cancellations", "POST")), "GET"],
+      [cancellationsRoute.PATCH(at("/api/v1/cancellations", "PATCH")), "GET"],
+      [cancellationsRoute.DELETE(at("/api/v1/cancellations", "DELETE")), "GET"],
+    ];
+    for (const [response, allow] of refused) {
+      expect(response.status).toBe(405);
+      expect(response.headers.get("allow")).toBe(allow);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      const error = await errorOf(response);
+      expect(error.code).toBe("method_not_allowed");
+      expect(error.message).toBe(API_ERRORS.method_not_allowed.message);
+    }
   });
 });
 

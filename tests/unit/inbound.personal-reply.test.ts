@@ -95,6 +95,22 @@ describe("the days a message names (code, not AI)", () => {
       forWords: "For Saturday and Sunday",
     });
     expect(askedDays("any shifts?", FRIDAY, TZ)).toBeNull();
+    // Short forms that are also ordinary words: days only where they read as days.
+    for (const ordinary of [
+      "I sat my test, any shifts?",
+      "c'mon, any work?",
+      "c\u2019mon, any work?",
+      "lying in the sun, any shifts?",
+      "getting wed next month, any work after?",
+      "we'd like more shifts",
+    ]) {
+      expect(askedDays(ordinary, FRIDAY, TZ), ordinary).toBeNull();
+    }
+    expect(askedDays("any shifts sat?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
+    expect(askedDays("anything on sun", FRIDAY, TZ)?.dates).toEqual(["2026-10-11"]);
+    expect(askedDays("can I do wed", FRIDAY, TZ)?.dates).toEqual(["2026-10-14"]);
+    expect(askedDays("mon please", FRIDAY, TZ)?.dates).toEqual(["2026-10-12"]);
+    expect(askedDays("I sat my test, any shifts sat?", FRIDAY, TZ)?.dates).toEqual(["2026-10-10"]);
     // On a Sunday, "this weekend" is what's left of it.
     expect(askedDays("weekend?", new Date("2026-10-11T09:00:00Z"), TZ)?.dates).toEqual([
       "2026-10-11",

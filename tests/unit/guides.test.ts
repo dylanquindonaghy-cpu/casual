@@ -19,6 +19,7 @@ vi.mock("@/app/office/session-actions", () => ({ refreshOfficeSessionAction: vi.
 const { officeMenu } = await import("@/app/office/office-shell");
 const { GuideView, guideSections } = await import("@/app/office/guide/guide-view");
 const { HelpView } = await import("@/app/help/help-view");
+const { FROM_PLANNER_WORDS } = await import("@/lib/office/shifts-copy");
 // The firm's own strike and photo numbers the help page states (12H.3).
 const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36 };
 
@@ -165,6 +166,12 @@ describe("the office how-to guide", () => {
     expect(text).toContain("Yes, make them an admin");
     // Deleting waits until their booked shifts have ended or are cancelled.
     expect(text).toContain("you can't delete them yet.");
+    // A planner's session: the page's own words, and what's left to do here (Assign and cancelling
+    // one booking stay on its page; hiding, urgent and offers are on Events & sessions).
+    expect(text).toContain(`A shift from your planner says \u201c${FROM_PLANNER_WORDS}\u201d`);
+    expect(text).toContain(
+      "Here you can still hide it, mark it urgent, offer it, assign someone and cancel one person's booking.",
+    );
   });
 
   it("Connect your planner (12J.1) is for admins, and is where Integrations' link lands", async () => {

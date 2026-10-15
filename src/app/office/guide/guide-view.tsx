@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Name, Points, Step, Steps } from "@/app/help/guide-parts";
 import { canAccess, type OfficeArea, type OfficeRole } from "@/lib/auth/roles";
+import { FROM_PLANNER_WORDS } from "@/lib/office/shifts-copy";
 import { btn, h2, meta, page, rows } from "../../ui/classes";
 import { Icon, type IconName } from "../../ui/icons";
 import { PageHeader } from "../../ui/page-header";
@@ -490,6 +491,12 @@ function ChangeAShift() {
         (its <Name>…</Name> menu, then <Name>Change or cancel</Name>). Everything about it is on its
         page.
       </Para>
+      <Note>
+        A shift from your planner says &ldquo;{FROM_PLANNER_WORDS}&rdquo; Its details, its move and
+        cancelling it all happen in your planner, so those parts aren&apos;t on its page. Here you
+        can still hide it, mark it urgent, offer it, assign someone and cancel one person&apos;s
+        booking.
+      </Note>
       <Task title="To hide shifts from casuals">
         <Steps>
           <Step>

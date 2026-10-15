@@ -44,6 +44,12 @@ services:
       OFFLINE_COPY: ${OFFLINE_COPY:-on}
       # Postcode look-ups (Settings, Profile): fake knows only the made-up ZZ postcodes.
       TRAVEL_PROVIDER: ${TRAVEL_PROVIDER:-fake}
+      # Only whether AI sorting is on, for the Enquiries banner (not a secret; the key stays with
+      # the worker).
+      AI_TRANSPORT: ${AI_TRANSPORT:-none}
+      # The planner API (12J.1; docs/runbooks.md "The planner integration secret"). Empty: every
+      # call answers 503. A secret.
+      INTEGRATIONS_SECRET: ${INTEGRATIONS_SECRET:-}
     volumes:
       - *db-ca
     healthcheck:
@@ -94,6 +100,11 @@ services:
       TRAVEL_PROVIDER: ${TRAVEL_PROVIDER:-fake}
       TRAVELTIME_APP_ID: ${TRAVELTIME_APP_ID:-}
       TRAVELTIME_API_KEY: ${TRAVELTIME_API_KEY:-}
+      # The planner's webhooks (12J.2): the worker alone sends them, signed with secrets derived
+      # from INTEGRATIONS_SECRET (the same value as the web app's; a secret). https is the only
+      # choice in production.
+      INTEGRATIONS_SECRET: ${INTEGRATIONS_SECRET:-}
+      WEBHOOK_TRANSPORT: ${WEBHOOK_TRANSPORT:-https}
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,

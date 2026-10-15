@@ -1,16 +1,18 @@
 import { readFileSync } from "node:fs";
 import { CONSOLE_PRINT_END, CONSOLE_PRINT_START } from "../src/lib/messaging/console";
 
-// Looks through log output for phone numbers, email addresses and login tokens that got past the
-// log masker (docs/testing.md "Pre-pilot checklist": "Log masking verified"). Its own patterns,
+// Looks through log output for phone numbers, email addresses, login tokens and keys that got past
+// the log masker (docs/testing.md "Pre-pilot checklist": "Log masking verified"). Its own patterns,
 // simpler and broader than the masker's (src/lib/log/mask.ts), so it doesn't pass just by agreeing
 // with it:
 // - any run of 10 to 15 digits (spaces or dashes allowed between, a + or 00 in front) that isn't
 //   part of a longer number or a decimal, even before a full stop or glued to letters, "_" or "-"
 //   ("call 07700 900123.", "Mob07700900123": audit L52);
 // - anything shaped like name@domain.tld;
-// - a login link's token (/l#… or /office/l#…) and a session cookie's value (audit L53),
-// after undoing URL and form escapes (+ for a space, %2B, %40). UUIDs, ISO times, long hex ids,
+// - a login link's token (/l#… or /office/l#…) and a session cookie's value (audit L53);
+// - a planner's API key (`shiftdesk_` and 43 characters) and any `Bearer` credential (12J.1): the
+//   API never logs a key or the Authorization header,
+// after undoing URL and form escapes (+ for a space, %2B, %40, %20). UUIDs, ISO times, long hex ids,
 // Twilio ids and bare Unix times are taken out (they aren't personal and their digits would look
 // like numbers).
 // Prints where each one is, with the value itself masked, so the scan's own output is safe to share.
@@ -19,7 +21,7 @@ import { CONSOLE_PRINT_END, CONSOLE_PRINT_START } from "../src/lib/messaging/con
 
 export interface LogFinding {
   line: number;
-  kind: "phone" | "email" | "token";
+  kind: "phone" | "email" | "token" | "key";
   masked: string;
 }
 
@@ -38,6 +40,10 @@ const PHONE = /(?<!\d)(?<!\d\.)(?:\+|00)?\d(?:[ \t.-]{0,3}\d){9,14}(?!\d)(?!\.\d
 const DECIMAL = /^[+\d]*\.\d+$/;
 // A login link's token (43 characters: 32 random bytes) and a session cookie's value.
 const TOKEN = /\/l#[A-Za-z0-9_-]{43}|sd_(?:session|office)=[A-Za-z0-9_-]{20,}/g;
+// A planner's API key (src/lib/integrations/keys.ts), however it's glued to what's around it, and
+// any credential after "Bearer" (an Authorization header's value: RFC 6750's characters, and the
+// word in any capitals, as HTTP allows).
+const KEY = /shiftdesk_[A-Za-z0-9_-]{43}|\bbearer[ \t]+[A-Za-z0-9._~+/-]+=*/gi;
 // A bare run of 10 or 13 digits starting with 1: a Unix time in seconds or milliseconds, not a
 // phone number (UK numbers start 0 or +44).
 const EPOCH = /^1\d{9}(\d{3})?$/;
@@ -93,6 +99,11 @@ export function scanLogText(text: string, opts: { allowNumbers?: string[] } = {}
     )) {
       findings.push({ line: i + 1, kind: "token", masked: mask(m) });
     }
+    // With its escapes undone only: that never changes a key, and finds "Bearer%20…" and a
+    // credential with %2B in it once each.
+    for (const m of new Set([...unescape(raw).matchAll(KEY)].map((k) => k[0]))) {
+      findings.push({ line: i + 1, kind: "key", masked: mask(m) });
+    }
     for (const e of emails(line)) {
       findings.push({ line: i + 1, kind: "email", masked: mask(e.text) });
     }
@@ -106,11 +117,11 @@ export function scanLogText(text: string, opts: { allowNumbers?: string[] } = {}
 
 export function scanReport(name: string, findings: LogFinding[]): string {
   if (findings.length === 0) {
-    return `${name}: no phone numbers, email addresses or login tokens.`;
+    return `${name}: no phone numbers, email addresses, login tokens or keys.`;
   }
   const lines = findings.slice(0, 50).map((f) => `  line ${f.line}: ${f.kind} ${f.masked}`);
   return [
-    `${name}: ${findings.length} possible phone numbers, emails or login tokens:`,
+    `${name}: ${findings.length} possible phone numbers, emails, login tokens or keys:`,
     ...lines,
   ].join("\n");
 }

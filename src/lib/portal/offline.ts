@@ -17,12 +17,16 @@ const serviceWorkers = () =>
 // My shifts is on screen: start the service worker if needed, and ask it to keep this page now
 // (it also keeps it on every full load; this covers arriving by a link inside the portal, after
 // logging in or going back). Browsers without service workers simply don't get a copy.
-export function keepOfflineCopy(): void {
+// The pages kept: Home (her next shift) and Booked (12H.1). Must match PAGES in public/sw.js.
+export const OFFLINE_PAGES = ["/", "/shifts"] as const;
+export type OfflinePage = (typeof OFFLINE_PAGES)[number];
+
+export function keepOfflineCopy(path: OfflinePage = "/"): void {
   const sw = serviceWorkers();
   if (!sw) return;
   sw.register(SERVICE_WORKER_URL)
     .then(() => sw.ready)
-    .then((registration) => registration.active?.postMessage({ type: "keep-my-shifts" }))
+    .then((registration) => registration.active?.postMessage({ type: "keep-my-shifts", path }))
     .catch(() => undefined);
 }
 

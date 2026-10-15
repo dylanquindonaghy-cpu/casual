@@ -25,3 +25,10 @@ process.env.ANTHROPIC_API_KEY = "";
 process.env.TRAVEL_PROVIDER = "fake";
 process.env.TRAVELTIME_APP_ID = "";
 process.env.TRAVELTIME_API_KEY = "";
+// A made-up planner integration secret (12J.1), never .env's own: the planner API answers with it
+// set (a test of the unset case passes its own settings). scripts/invariants.sh checks this line
+// stays.
+process.env.INTEGRATIONS_SECRET = "test-only-integrations-secret-not-for-any-real-use";
+// Never a real webhook address (12J.2), whatever .env says: the console transport (the worker's
+// settings also refuse https under NODE_ENV=test). Tests of the sender pass their own fake.
+process.env.WEBHOOK_TRANSPORT = "console";

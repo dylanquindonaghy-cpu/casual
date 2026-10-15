@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { messages, workers } from "../db/schema";
-import type { WithFirm } from "../db/scoped";
+import type { FirmTx, WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { errorCode } from "../jobs/firm-job";
 import type { MessagingTransport } from "../messaging";
@@ -184,4 +184,20 @@ export async function answerOptOut(
     });
     return { status: "opt_out", optOut: c.word, changed: true, confirmation: "sent" };
   });
+}
+
+// Whether a number that isn't one of the firm's casuals last texted STOP to the shifts line (its
+// latest STOP or START, as handled above): the office's reply on Enquiries never texts it then
+// (12D.1). A casual's own setting is workers.sms_opted_out_at instead.
+export async function strangerTextsOff(tx: FirmTx, from: string): Promise<boolean> {
+  const { rows } = await tx.execute<{ word: string | null }>(sql`
+    select e.data ->> 'optOut' as word
+      from messages m
+      join events e on e.firm_id = m.firm_id and e.entity_id = m.id
+                   and e.action = 'message.received'
+     where m.direction = 'in' and m.handled_as = 'opt_out' and m.from_e164 = ${from}
+     order by m.created_at desc, m.id desc
+     limit 1
+  `);
+  return rows[0]?.word === "stop";
 }

@@ -38,23 +38,23 @@ const text = (html: string) =>
 describe("the office menu (v2 groups)", () => {
   it("admins see every link, in groups", () => {
     expect(labels("admin")).toEqual([
-      ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
+      ["Operations", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
-      ["Records", ["Strikes", "Workers", "Action log", "Notice report", "Pilot metrics"]],
-      ["Configuration", ["Office team", "Settings", "Data requests"]],
+      ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
+      ["Configuration", ["Office team", "Settings", "Integrations", "Data requests"]],
       ["Help", ["How-to guide"]],
     ]);
   });
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      ["Operations", ["Today", "Events & sessions", "Cancellations", "Requests"]],
-      ["Records", ["Strikes", "Workers", "Action log", "Notice report", "Pilot metrics"]],
+      ["Operations", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
+      ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);
   });
 
-  it("payroll gets the pay dashboard (their home, not Today) at the top of Pay, and the guide", () => {
+  it("payroll gets the pay dashboard (their home, not the dashboard) at the top of Pay, and the guide", () => {
     expect(labels("payroll")).toEqual([
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
       ["Help", ["How-to guide"]],
@@ -93,7 +93,7 @@ describe("the current page in the menu", () => {
     ["/office/shifts", "/office/events"],
     ["/office/shifts/new", "/office/events"],
     ["/office/shifts/11111111-1111-4111-8111-111111111111", "/office/events"],
-    ["/office/workers/11111111-1111-4111-8111-111111111111", "/office/workers"],
+    ["/office/casuals/11111111-1111-4111-8111-111111111111", "/office/casuals"],
     ["/office/data/workers/11111111-1111-4111-8111-111111111111", "/office/data"],
     ["/office/pay/import", "/office/pay/import"],
     ["/office/pay", "/office/pay"],
@@ -101,6 +101,9 @@ describe("the current page in the menu", () => {
     ["/office/reports/notice", "/office/reports/notice"],
     ["/office/reports/pilot", "/office/reports/pilot"],
     ["/office/guide", "/office/guide"],
+    // Integrations (12J.1) sits under Settings' address but marks its own link.
+    ["/office/settings", "/office/settings"],
+    ["/office/settings/integrations", "/office/settings/integrations"],
     ["/office/login", null],
     ["/office/shiftsx", null],
   ])("%s marks %s", (pathname, expected) => {
@@ -122,7 +125,7 @@ describe("the current page in the menu", () => {
     ["/office/events", "/office/events/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/events", "/office/shifts", "true"],
     ["/office/events", "/office/shifts/11111111-1111-4111-8111-111111111111", "true"],
-    ["/office/workers", "/office/workers/11111111-1111-4111-8111-111111111111", "true"],
+    ["/office/casuals", "/office/casuals/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/data", "/office/data/workers/11111111-1111-4111-8111-111111111111", "true"],
     ["/office/pay/import", "/office/pay/import", "page"],
     ["/office/guide", "/office/guide", "page"],
@@ -162,7 +165,7 @@ describe("the menu's markup", () => {
     expect(marked(html, "page")[0]).toMatch(/bg-quiet-soft.*before:w-\[3px\].*before:bg-ink/);
   });
 
-  it("the offer page marks Today as the section it's in", () => {
+  it("the offer page marks the Dashboard as the section it's in", () => {
     nav.pathname = "/office/offer/11111111-1111-4111-8111-111111111111";
     const html = render();
     expect(html.match(/aria-current=/g)).toHaveLength(1);

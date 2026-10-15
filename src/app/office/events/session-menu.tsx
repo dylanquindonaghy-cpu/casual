@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { btn } from "@/app/ui/classes";
 import type { SessionRow } from "@/lib/office/events";
-import { SHEET_SESSION_WORDS } from "@/lib/office/events-copy";
+import { PLANNER_SESSION_WORDS, SHEET_SESSION_WORDS } from "@/lib/office/events-copy";
 import { summaryButton } from "../shifts/[id]/chevron";
 import { UrgentToggle } from "./urgent-toggle";
 
 // A session's "…" menu (docs/office-v2.md 3.3, "Card buttons"): the forms that already exist,
-// reached from here. Offer a place (Today's offer page) while it's open with a place free and
+// reached from here. Offer a place (the offer page) while it's open with a place free and
 // shown to casuals; Assign
 // and Change or cancel on the shift's page (a Google Sheet's session can't be changed or
-// cancelled as a whole here, only its details); Mark urgent / Not urgent in place. A <details>,
+// cancelled as a whole here, only its details; one from the firm's planner, not even those);
+// Mark urgent / Not urgent in place. A <details>,
 // so it opens without waiting for the page. The panel lies over the row (the row is its frame):
 // the row's full width on a phone, under the button from 640px, so it never widens the page.
 export function SessionMenu({
@@ -58,9 +59,11 @@ export function SessionMenu({
         {(live || session.isUrgent) && (
           <UrgentToggle shiftId={session.shiftId} isUrgent={session.isUrgent} name={name} />
         )}
-        {session.fromSheet ? (
+        {session.fromSheet || session.fromPlanner ? (
           <>
-            <p className="text-sm text-ink-muted">{SHEET_SESSION_WORDS}</p>
+            <p className="text-sm text-ink-muted">
+              {session.fromSheet ? SHEET_SESSION_WORDS : PLANNER_SESSION_WORDS}
+            </p>
             <Link href={page} className={`${btn.secondary} justify-start`}>
               Open this session
             </Link>

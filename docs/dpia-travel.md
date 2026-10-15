@@ -95,8 +95,15 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
   casual as "They've left", or have the nightly retention job delete the areas of casuals inactive
   for a set time (`PLAN.md` Parking lot). Until then, the firm's offboarding of a leaver should
   include erasing them when they ask, or removing the area.
-- The log entries (`travel.profile_changed`, `travel.profile_removed`) hold no postcode or point,
-  so nothing personal about their location stays in the log.
+- The log entries (`travel.profile_changed`, `travel.profile_removed`) hold no postcode or point.
+  One entry holds travel minutes (12D.2): when the shifts line answers a casual's "shifts", its
+  `enquiry.checks` entry keeps their limit in minutes and the minutes by car and by public
+  transport to each session the reply offered, so the office can see why each was offered
+  ("Inside travel area (20 min by car, limit 45 min)" on the message's Enquiries page). Never the
+  postcode or the point. Minutes to a known site can still hint at roughly where someone lives,
+  so this is treated as personal data: the office sees it only on that page and in the action
+  log, and it stays as long as the action log (12 months once the log is purged: `PLAN.md`
+  Parking lot). Dylan to confirm this when signing this DPIA.
 - Travel estimates (12G.2, `travel_estimates`) are keyed by postcode, not by person: everyone
   starting from a postcode shares them. They name no one, but a postcode only one casual uses still
   points to them, so they're treated as personal data: the office never sees their postcodes,

@@ -10,8 +10,12 @@ Later: rail, civils, construction, cleaning.
 
 Casual workers use a link on WhatsApp (no app download) to see their shifts, grab open
 shifts, cancel or ask for time changes, see urgent dropouts and check pay info. Everything
-is answered instantly and logged. The office (resourcers, payroll) gets a dashboard, a
-clean action log and summaries instead of 60+ emails and constant calls a day.
+is answered instantly and logged. The office (resourcers, payroll) gets a compact,
+planner-first office instead of 60+ emails and constant calls a day: the firm's own planner
+stays the place sessions are made and sends them in (an API in, signed webhooks out), and the
+office keeps what the planner doesn't do. Its dashboard (urgent gaps, what casuals can see,
+cancellations, Needs attention) replaces the old Today page, and Enquiries (shifts-line messages
+and requests from the app) replaces Requests. Plus a clean action log and summaries.
 
 The product sits alongside whatever the firm already uses. It never forces staff to move.
 
@@ -22,7 +26,7 @@ The product sits alongside whatever the firm already uses. It never forces staff
 | Casual worker | Instant answers: my shifts, open shifts, cancel, change, pay dates. No waiting for a reply. |
 | Resourcer / coordinator | Fewer emails and calls, gaps filled fast, nothing missed, one log. |
 | Payroll | One grouped summary of pay queries instead of the whole workforce messaging. |
-| Firm admin / owner | Evidence of every offer, change and cancellation (Employment Rights Act 2027), fewer no-shows, no extra admin hire at peak. |
+| Firm admin / owner | Evidence of every offer, change and cancellation (Employment Rights Act 2025; its zero-hours notice rules are expected in 2027), fewer no-shows, no extra admin hire at peak. |
 
 ## Golden rules (non-negotiable)
 
@@ -31,8 +35,11 @@ The product sits alongside whatever the firm already uses. It never forces staff
    A model never decides who gets a shift or what someone is paid.
 2. **Tenant isolation.** Every table has `firm_id`. All queries go through the scoped data
    layer. Postgres Row Level Security is on. Cross-tenant tests must exist and pass.
-3. **Idempotent inbound.** Every webhook stores `provider_message_id` (unique). Handlers
-   verify signatures, write one row, queue a job and return 200 fast. Work happens in jobs.
+3. **Idempotent inbound.** Every provider webhook (Twilio, email) stores `provider_message_id`
+   (unique). Handlers verify signatures, write one row, queue a job and return 200 fast. Work
+   happens in jobs. The planner API (`/api/v1`) is not a provider webhook: each write is one short
+   transaction answered in the request, made idempotent by the planner's ref
+   (`docs/office-v2.md` §5.3.2; ADR-022).
 4. **First yes wins.** Assigning a shift is one conditional `UPDATE ... WHERE assigned_to IS NULL`.
    Zero rows changed means already filled. Never double-assign.
 5. **Log every state change.** Write an `events` row (append-only) for every offer, accept,
@@ -90,6 +97,7 @@ src/
     notify/            # web push + WhatsApp/SMS fallback ordering
     ai/                # Anthropic client behind AiClient, prompts, zod-validated outputs
     events/            # append-only action log writer
+    integrations/      # the planner API (/api/v1, keys) and its signed webhooks out
   worker/              # pg-boss job handlers (offer waves, syncs, digests)
 tests/
 docs/
@@ -126,12 +134,15 @@ docs/
 - Every new table gets `firm_id`, `created_at`, `.enableRLS()` with the tenant policy, a
   `TABLE_ACCESS` entry (`src/lib/db/admin/access.ts`) and isolation fixtures
   (`tests/helpers/tenant-rows.ts`). Links between firm tables are composite `(firm_id, x_id)` FKs.
-- App code reaches the database only through `withFirm()` (and `resolveFirmBySlug()` for host
-  lookup). Firm jobs extend `firmJobEnvelope`; payloads carry ids only.
+- App code reaches the database only through `withFirm()` (and, before a firm is known,
+  `resolveFirmBySlug()` for a host, `resolveFirmByLine()` for a shifts line's number and
+  `resolveApiKey()` for a planner's API key). Firm jobs extend `firmJobEnvelope`; payloads carry ids
+  only.
 - Dev messaging uses `MESSAGING_TRANSPORT=console` and `EMAIL_TRANSPORT=console` (prints
   outbound messages). Never hit Twilio, an SMTP server, Anthropic, TravelTime, postcodes.io or a
   planner from tests: the settings refuse each real sender under `NODE_ENV=test`, and
-  `scripts/invariants.sh` checks the test setups' pins (email, AI and Twilio today).
+  `scripts/invariants.sh` checks the test setups' pins (email, AI and Twilio today, and a made-up
+  `INTEGRATIONS_SECRET`).
 
 ## How to work each task
 

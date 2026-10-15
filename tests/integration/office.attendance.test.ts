@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { markAttended, markTheRestWorked } from "@/lib/office/quick-actions";
-import { loadToday } from "@/lib/office/today";
+import { loadToMark } from "@/lib/office/today";
 import { previewBooking } from "@/lib/roster/book";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -236,7 +236,7 @@ describe("marking the rest as worked", () => {
   });
 });
 
-describe("Today: who worked?", () => {
+describe("the dashboard: who worked?", () => {
   it("lists shifts that ended in the last 7 days with people not marked yet", async () => {
     const t = await endedShift();
     // Ended 8 days ago: too old. Fully marked: nothing to do. Not ended yet: not listed.
@@ -248,7 +248,7 @@ describe("Today: who worked?", () => {
     await t.f.booking(await t.f.worker({ first: "Ivy" }), running, "confirmed");
 
     const toMark = async () =>
-      (await withFirm(t.f.firmId, (tx) => loadToday(tx, NOW))).toMark.map((m) => [
+      (await withFirm(t.f.firmId, (tx) => loadToMark(tx, NOW))).items.map((m) => [
         m.shiftId,
         m.unmarked,
       ]);
@@ -256,7 +256,7 @@ describe("Today: who worked?", () => {
     const other = await endedShift();
     expect(await toMark()).toEqual([[t.shiftId, 3]]);
     expect(
-      (await withFirm(other.f.firmId, (tx) => loadToday(tx, NOW))).toMark.map((m) => m.shiftId),
+      (await withFirm(other.f.firmId, (tx) => loadToMark(tx, NOW))).items.map((m) => m.shiftId),
     ).toEqual([other.shiftId]);
     await markAttended(t.ctx(), t.shiftId, t.ann, "no_show");
     expect(await toMark()).toEqual([[t.shiftId, 2]]);

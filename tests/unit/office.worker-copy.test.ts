@@ -3,9 +3,9 @@ import { eventWords, type Names } from "@/lib/office/event-words";
 import { keepResultText, toCheckText } from "@/lib/office/today-copy";
 import { signOutResultText, siteBlockResultText, statusResultText } from "@/lib/office/worker-copy";
 
-// A worker's page in the office (src/lib/office/worker-copy.ts), Today's "Bookings to check"
-// (src/lib/office/today-copy.ts) and the changes in the action log (event-words.ts), word for
-// word as docs/screens.md gives them.
+// A worker's page in the office (src/lib/office/worker-copy.ts), the dashboard's "Bookings to
+// check" (src/lib/office/today-copy.ts) and the changes in the action log (event-words.ts), word
+// for word as docs/screens.md gives them.
 
 const name = "Ann Booker";
 
@@ -20,10 +20,10 @@ describe("a worker's page", () => {
       "Ann Booker is now inactive. They've been logged out, and can't log in or take shifts.",
     );
     expect(done("deactivate", 1)).toBe(
-      "Ann Booker is now inactive. They've been logged out, and can't log in or take shifts. They're booked on 1 shift ahead: it's on Today to cancel or keep.",
+      "Ann Booker is now inactive. They've been logged out, and can't log in or take shifts. They're booked on 1 shift ahead: it's on the dashboard to cancel or keep.",
     );
     expect(done("deactivate", 3)).toBe(
-      "Ann Booker is now inactive. They've been logged out, and can't log in or take shifts. They're booked on 3 shifts ahead: they're on Today to cancel or keep.",
+      "Ann Booker is now inactive. They've been logged out, and can't log in or take shifts. They're booked on 3 shifts ahead: they're on the dashboard to cancel or keep.",
     );
     expect(done("reactivate")).toBe(
       "Ann Booker is active again. They log in with a new link. If your rota sheet or a staff file you import says they're inactive, change it there too, or the next sync or import makes them inactive again.",
@@ -67,7 +67,7 @@ describe("a worker's page", () => {
       siteBlockResultText({ status, name, site: "Riverside Arena", futureBookings }, kind);
     expect(site("done", "block")).toBe("Ann Booker can't work at Riverside Arena now.");
     expect(site("done", "block", 2)).toBe(
-      "Ann Booker can't work at Riverside Arena now. They're booked there on 2 shifts ahead: they're on Today to cancel or keep.",
+      "Ann Booker can't work at Riverside Arena now. They're booked there on 2 shifts ahead: they're on the dashboard to cancel or keep.",
     );
     expect(site("unchanged", "block")).toBe("Ann Booker is already blocked from Riverside Arena.");
     expect(site("done", "unblock")).toBe("Ann Booker can work at Riverside Arena again.");
@@ -96,7 +96,7 @@ describe("a worker's page", () => {
   });
 });
 
-describe("Today's bookings to check", () => {
+describe("the dashboard's bookings to check", () => {
   const b = {
     shiftId: "s1",
     workerId: "w1",

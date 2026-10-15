@@ -25,8 +25,8 @@ export const events = pgTable(
   },
   (t) => [
     index("events_firm_id_created_at_idx").on(t.firmId, t.createdAt),
-    // One thing's history: a shift's waves and escalation on Today, the action log by shift or
-    // worker (Phase 5).
+    // One thing's history: a shift's waves and escalation on the dashboard, the action log by shift
+    // or worker (Phase 5).
     index("events_firm_id_entity_id_idx").on(t.firmId, t.entityId, t.id),
     check("events_actor_type_check", sql`${t.actorType} in ('worker', 'office', 'system', 'ai')`),
     check("events_action_format", sql`${t.action} ~ '^[a-z_]+([.][a-z_]+)+$'`),

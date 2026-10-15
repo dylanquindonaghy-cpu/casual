@@ -279,6 +279,57 @@ describe("working estimates out", () => {
     ]);
   });
 
+  // Sessions just after each clock change, through the job: arrive-by is 30 real minutes before
+  // the start, never 30 minutes off the London clock face.
+  // - Autumn: 01:20 GMT on Sunday 25 October 2026, just after 02:00 BST became 01:00 GMT. Arrive by
+  //   01:50 BST (00:50 UTC), not "00:50" on the clock (23:50 UTC, an hour early).
+  // - Spring: 02:20 BST on Sunday 28 March 2027, just after 01:00 GMT became 02:00 BST. Arrive by
+  //   00:50 GMT, not "01:50", a time that night doesn't have.
+  it("arrive-by across both clock changes: 30 real minutes before the start", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const cases = [
+      {
+        now: "2026-10-24T09:00:00Z",
+        start: "2026-10-25T01:20:00Z",
+        arriveBy: "2026-10-25T00:50:00Z",
+      },
+      {
+        now: "2027-03-27T09:00:00Z",
+        start: "2027-03-28T01:20:00Z",
+        arriveBy: "2027-03-28T00:50:00Z",
+      },
+    ];
+    for (const c of cases) {
+      const id = await t.f.shift({ startsAt: new Date(c.start), role: "steward" });
+      await su.query("update shifts set site_id = $2 where id = $1", [id, t.siteId]);
+      const look = recording();
+      const dayBefore = { now: () => new Date(c.now) };
+      expect(
+        await fillEstimates(
+          withFirm,
+          t.f.firmId,
+          { shiftIds: [id] },
+          {
+            provider: look.provider,
+            clock: dayBefore,
+          },
+        ),
+      ).toMatchObject({ searches: 2, saved: 2 });
+      expect(look.searches.map((s) => s.arriveBy)).toEqual([
+        new Date(c.arriveBy),
+        new Date(c.arriveBy),
+      ]);
+    }
+    expect((await t.estimates()).map((r) => [r.arrive_by.toISOString(), r.mode])).toEqual([
+      ["2026-10-25T00:50:00.000Z", "car"],
+      ["2026-10-25T00:50:00.000Z", "public_transport"],
+      ["2027-03-28T00:50:00.000Z", "car"],
+      ["2027-03-28T00:50:00.000Z", "public_transport"],
+    ]);
+  });
+
   it("estimates from another provider are searched again (the switch to the real one)", async () => {
     const t = await travelFirm();
     const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
@@ -643,9 +694,11 @@ describe("the nightly run", () => {
     const t = await travelFirm();
     const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
     await t.area(ann, "ZZ2 2BB");
-    const [tomorrow, day27, day29] = [
+    // The window's far edge: 27 days 23 hours is in (the open-shifts window), 29 days is out.
+    const [tomorrow, day27, day28, day29] = [
       await t.session(24),
       await t.session(27 * 24),
+      await t.session(28 * 24 - 1),
       await t.session(29 * 24),
     ];
     const tick = () =>
@@ -671,10 +724,11 @@ describe("the nightly run", () => {
     ).toBe("completed");
     const days = new Set((await t.estimates()).map((r) => r.arrive_by.getTime()));
     const arrive = (h: number) => hoursFromNow(h).getTime() - 30 * 60_000;
-    expect(days).toEqual(new Set([arrive(24), arrive(27 * 24)]));
+    expect(days).toEqual(new Set([arrive(24), arrive(27 * 24), arrive(28 * 24 - 1)]));
     expect(days.has(arrive(29 * 24))).toBe(false);
     void tomorrow;
     void day27;
+    void day28;
     void day29;
   });
 });
@@ -866,6 +920,34 @@ describe("what queues the job", () => {
     void soon;
     void later;
     void other;
+  });
+
+  it("a casual's ways of travelling changing, same postcode: the shared run; the time limit alone: none", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB"); // both ways, 45 minutes
+    await t.clearQueued();
+    const save = (modes: "car" | "both", maxMinutes: 45 | 60) =>
+      saveMyTravel(
+        { firm: { id: t.f.firmId }, run: withFirm, clock, geocoder: fakeGeocoder },
+        ann,
+        {
+          postcode: "ZZ2 2BB",
+          modes,
+          maxMinutes,
+        },
+      );
+    // The time limit only filters what she sees; the estimates don't change, so nothing queued.
+    expect(await save("both", 60)).toEqual({ status: "saved" });
+    expect(await t.queued()).toEqual([]);
+    // Her ways of travelling alone: the same shared window run as a new postcode.
+    expect(await save("car", 60)).toEqual({ status: "saved" });
+    const jobs = await t.queued();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.data).toMatchObject({ window: true });
+    expect(jobs[0]?.data.shiftIds).toBeUndefined();
+    expect(jobs[0]?.delay).toBeCloseTo(CASUAL_CHANGE_DELAY_SECONDS, 0);
+    expect(jobs[0]?.singleton_key).toBe(`${t.f.firmId}:travel-estimates-casuals`);
   });
 });
 

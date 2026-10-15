@@ -20,12 +20,27 @@ export async function classifyMessage(
   ai: AiClient,
   opts: { timeoutMs?: number } = {},
 ): Promise<Intent | null> {
+  return (await sortMessage(text, ai, opts)).label;
+}
+
+// Why the AI didn't sort a message, for the office's "How it was answered" (12D.2): no AI connected,
+// no answer in time (or it failed), or an answer that isn't one of the labels.
+export type AiFallback = "not_connected" | "no_answer" | "not_a_label";
+
+export async function sortMessage(
+  text: string,
+  ai: AiClient,
+  opts: { timeoutMs?: number } = {},
+): Promise<{ label: Intent } | { label: null; why: AiFallback }> {
+  if (ai.name === "none") return { label: null, why: "not_connected" };
   const raw = await askAi(
     ai,
     { purpose: "classify_message", system: SYSTEM, prompt: text.slice(0, 1600), maxTokens: 5 },
     opts.timeoutMs ?? AI_TIMEOUT_MS,
   );
-  if (typeof raw !== "string") return null;
+  if (typeof raw !== "string") return { label: null, why: "no_answer" };
   const label = raw.trim().toLowerCase().replace(/[.!]$/, "");
-  return (MESSAGE_INTENTS as readonly string[]).includes(label) ? (label as Intent) : null;
+  return (MESSAGE_INTENTS as readonly string[]).includes(label)
+    ? { label: label as Intent }
+    : { label: null, why: "not_a_label" };
 }

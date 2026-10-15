@@ -4,12 +4,14 @@ import { systemClock, type Clock } from "../auth/clock";
 import {
   assignments,
   authThrottle,
+  credentials,
   firms,
   magicLinks,
   otpCodes,
   requests,
   sessions,
   travelEstimates,
+  uploads,
 } from "../db/schema";
 import { activeFirmId, type FirmTx, type WithFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -38,6 +40,10 @@ const CLOSED_REQUEST_STATUSES = ["approved", "declined", "auto_resolved"] as con
 // - travel estimates past their expiry, 7 days after the last session they were worked out for
 //   (12G.2), even during a hold: worked out from a postcode, not a record of anything anyone did, so
 //   never evidence (and worked out again if it's needed);
+// - photos and certificate images (12F.2; docs/office-v2.md 5.5), none during a hold: one the office
+//   turned down, UPLOAD_KEEP_DAYS (30) after it was checked (with the record that says "Not
+//   accepted"); and a staff photo replaced by a newer approved one, UPLOAD_KEEP_DAYS after that one
+//   was approved. A certificate's image stays with its record (the evidence the office checked);
 // - the words typed into a request (payload.note, and payload.swapWith: a colleague's name), only
 //   once it's closed (approved, declined, auto-resolved) and retention.request_note_days (365) after
 //   it closed: an open or escalated request keeps them (the request itself stays: it's evidence);
@@ -67,6 +73,9 @@ export const RETENTION = {
   sessionDays: 30, // after they expired or were revoked
 } as const;
 
+// How long a turned-down upload, or a replaced photo, is kept (docs/office-v2.md 5.5).
+export const UPLOAD_KEEP_DAYS = 30;
+
 const KEY_PREFIX = "retention-purge:";
 const DAY_SECONDS = 24 * 60 * 60;
 const DAY_MS = DAY_SECONDS * 1000;
@@ -93,6 +102,7 @@ export interface PurgeCounts {
   sessions: number;
   codes: number;
   travelEstimates: number;
+  uploads: number;
 }
 
 const daysBefore = (now: Date, days: number) => new Date(now.getTime() - days * DAY_MS);
@@ -122,6 +132,7 @@ export async function purgeExpired(tx: FirmTx, now: Date): Promise<PurgeCounts> 
         .where(lt(travelEstimates.expiresAt, now))
         .returning({ id: travelEstimates.id }),
     ),
+    uploads: held ? 0 : await purgeUploads(tx, daysBefore(now, UPLOAD_KEEP_DAYS)),
     messages: Number(rows[0]?.n ?? 0),
     strikes: Number(strikeRows[0]?.n ?? 0),
     requestNotes: held
@@ -194,6 +205,28 @@ export async function purgeExpired(tx: FirmTx, now: Date): Promise<PurgeCounts> 
     data: { ...counts, ...(held ? { held: true } : {}) },
   });
   return counts;
+}
+
+// Turned-down uploads checked before the cutoff (their "Not accepted" record first: it points at
+// the upload), and staff photos replaced by a newer one approved before it.
+async function purgeUploads(tx: FirmTx, cutoff: Date): Promise<number> {
+  const { rows } = await tx.execute<{ id: string }>(sql`
+    select u.id::text as id
+      from uploads u
+     where (u.status = 'rejected' and u.checked_at < ${cutoff})
+        or (u.kind = 'photo' and u.status = 'approved'
+            and exists (select 1 from uploads n
+                         where n.firm_id = u.firm_id and n.worker_id = u.worker_id
+                           and n.kind = 'photo' and n.status = 'approved'
+                           and n.created_at > u.created_at and n.checked_at < ${cutoff}))
+  `);
+  const ids = rows.map((r) => r.id);
+  if (ids.length === 0) return 0;
+  await tx
+    .delete(credentials)
+    .where(and(inArray(credentials.evidenceUploadId, ids), eq(credentials.checkState, "rejected")));
+  return (await tx.delete(uploads).where(inArray(uploads.id, ids)).returning({ id: uploads.id }))
+    .length;
 }
 
 export function retentionPurgeTask(clock: () => Clock): FirmTask<RetentionPurgePayload> {

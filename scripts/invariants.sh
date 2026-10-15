@@ -62,6 +62,16 @@ for pin in 'MESSAGING_TRANSPORT: "console",' 'EMAIL_TRANSPORT: "console",' 'SMTP
            'SMTP_PASS: "",' 'AI_TRANSPORT: "none",' 'ANTHROPIC_API_KEY: "",'; do
   has_pin playwright.config.ts "$pin" || pins_missing="$pins_missing playwright.config.ts:'$pin'"
 done
+# And a made-up planner integration secret (12J.1), never the one .env may hold.
+has_pin tests/setup/env.ts 'process.env.INTEGRATIONS_SECRET = "test-only-integrations-secret-not-for-any-real-use";' ||
+  pins_missing="$pins_missing tests/setup/env.ts:INTEGRATIONS_SECRET"
+has_pin playwright.config.ts 'INTEGRATIONS_SECRET: "e2e-only-integrations-secret-not-for-any-real-use",' ||
+  pins_missing="$pins_missing playwright.config.ts:INTEGRATIONS_SECRET"
+# And never a real webhook address (12J.2): the console transport for the planner's webhooks.
+has_pin tests/setup/env.ts 'process.env.WEBHOOK_TRANSPORT = "console";' ||
+  pins_missing="$pins_missing tests/setup/env.ts:WEBHOOK_TRANSPORT"
+has_pin playwright.config.ts 'WEBHOOK_TRANSPORT: "console",' ||
+  pins_missing="$pins_missing playwright.config.ts:WEBHOOK_TRANSPORT"
 if [ -n "$pins_missing" ]; then
   echo "FAIL: a test setup no longer keeps a real sender off:$pins_missing"; fail=1
 else echo "ok: the test setups keep every real sender off"; fi

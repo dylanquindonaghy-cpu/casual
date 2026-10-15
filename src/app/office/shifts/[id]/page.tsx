@@ -19,7 +19,12 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { ERASED_REASON } from "@/lib/gdpr/free-text";
 import { officeShiftDetail } from "@/lib/office/shift-pages";
-import { PLACE_FLAG_WORDS, PLACE_STATUS_WORDS, SHIFT_STATUS_WORDS } from "@/lib/office/shifts-copy";
+import {
+  FROM_PLANNER_WORDS,
+  PLACE_FLAG_WORDS,
+  PLACE_STATUS_WORDS,
+  SHIFT_STATUS_WORDS,
+} from "@/lib/office/shifts-copy";
 import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
 import type { OverridableCode } from "@/lib/rules/eligibility";
@@ -47,7 +52,8 @@ const RESPONSE: Record<string, string> = {
 // One shift for the office (docs/screens.md `/office/shifts/[id]`). The header says what, when
 // and how full it is; then who is booked (Places) and the ways to fill it (Assign someone,
 // Offers) come first, the forms that change it (Edit, then Move, shorten or cancel) after, and
-// the History last. Admins and resourcers.
+// the History last. Admins and resourcers. A session from the firm's planner keeps Assign and the
+// cancelling of one booking, but its edit, details, move and cancel are changed in the planner.
 // "Offer to someone" is the header's main (dark) button only while the shift can still be offered:
 // open, a place free and not started, the offer page's own rule (src/lib/office/offer-page.ts).
 // Otherwise it's an ordinary button, as the offer page then says "This shift isn't open any more."
@@ -114,6 +120,7 @@ export default async function OfficeShiftPage({
         {shift.fromSheet && (
           <p className={muted}>This shift comes from your Google Sheet. Change it there.</p>
         )}
+        {shift.fromPlanner && <p className={muted}>{FROM_PLANNER_WORDS}</p>}
         {shift.fromImport && (
           <p className={muted}>
             This shift came from an import. Importing the file again updates it.
@@ -160,7 +167,7 @@ export default async function OfficeShiftPage({
                       </>
                     )}
                   </p>
-                  {page.edit.editable && p.status === "confirmed" && p.workerId && (
+                  {page.canPlace && p.status === "confirmed" && p.workerId && (
                     <CancelBookingForm
                       shiftId={shift.shiftId}
                       workerId={p.workerId}
@@ -200,7 +207,7 @@ export default async function OfficeShiftPage({
         )}
       </section>
 
-      {page.edit.editable && (
+      {page.canPlace && (
         <section className={section} aria-labelledby="assign">
           <h2 id="assign" className={h2}>
             Assign someone
@@ -323,7 +330,9 @@ export default async function OfficeShiftPage({
           <p className={`${card} ${headingGap} text-ink-muted`}>
             {shift.fromSheet
               ? "Change it in your Google Sheet."
-              : "This shift has started or was cancelled, so it can't be changed."}
+              : shift.fromPlanner
+                ? "Change it in your planner."
+                : "This shift has started or was cancelled, so it can't be changed."}
           </p>
         )}
       </section>
@@ -347,7 +356,9 @@ export default async function OfficeShiftPage({
           />
         ) : (
           <p className={`${card} ${headingGap} text-ink-muted`}>
-            This shift has started or was cancelled, so its details can&apos;t be changed.
+            {shift.fromPlanner && !shift.started && shift.status !== "cancelled"
+              ? "Change it in your planner."
+              : "This shift has started or was cancelled, so its details can't be changed."}
           </p>
         )}
       </section>

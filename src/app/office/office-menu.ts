@@ -12,7 +12,8 @@ const MENU: { label: string; items: MenuItem[] }[] = [
   {
     label: "Operations",
     items: [
-      { area: "today", href: "/office", label: "Today", icon: "home" },
+      // The dashboard (12E.1): the bell in the top bar links to its Needs attention.
+      { area: "today", href: "/office", label: "Dashboard", icon: "home" },
       // The shift pages (/office/shifts/...) stay, inside this section (office-nav.tsx).
       { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
       {
@@ -21,7 +22,8 @@ const MENU: { label: string; items: MenuItem[] }[] = [
         label: "Cancellations",
         icon: "cancel",
       },
-      { area: "requests", href: "/office/requests", label: "Requests", icon: "requests" },
+      // The Need a person badge (12D.1); /office/requests redirects to its "Requests from the app".
+      { area: "enquiries", href: "/office/enquiries", label: "Enquiries", icon: "requests" },
     ],
   },
   {
@@ -38,7 +40,7 @@ const MENU: { label: string; items: MenuItem[] }[] = [
     items: [
       // No badge: strikes aren't a to-do (docs/office-v2.md 3.5).
       { area: "strikes", href: "/office/strikes", label: "Strikes", icon: "strike" },
-      { area: "workers", href: "/office/workers", label: "Workers", icon: "workers" },
+      { area: "casuals", href: "/office/casuals", label: "Casuals", icon: "workers" },
       { area: "log", href: "/office/log", label: "Action log", icon: "log" },
       { area: "reports", href: "/office/reports/notice", label: "Notice report", icon: "notice" },
       { area: "pilot", href: "/office/reports/pilot", label: "Pilot metrics", icon: "pilot" },
@@ -49,6 +51,13 @@ const MENU: { label: string; items: MenuItem[] }[] = [
     items: [
       { area: "team", href: "/office/team", label: "Office team", icon: "team" },
       { area: "settings", href: "/office/settings", label: "Settings", icon: "settings" },
+      // The planner's API keys (12J.1; docs/office-v2.md 5.3.4).
+      {
+        area: "integrations",
+        href: "/office/settings/integrations",
+        label: "Integrations",
+        icon: "plug",
+      },
       { area: "data", href: "/office/data", label: "Data requests", icon: "data" },
     ],
   },

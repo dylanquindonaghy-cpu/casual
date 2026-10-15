@@ -56,6 +56,7 @@ const session = (o: Partial<SessionRow> = {}): SessionRow => ({
     { code: "FIRST_AID", name: "first aid at work certificate" },
   ],
   fromSheet: false,
+  fromPlanner: false,
   started: false,
   ended: false,
   ...o,

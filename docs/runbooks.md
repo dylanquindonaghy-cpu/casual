@@ -139,7 +139,8 @@ first):
    `chmod 700 /opt/shiftdesk/deploy.sh`.
 2. `cd /opt/shiftdesk && cp env.example .env && chmod 600 .env && nano .env`: fill in every value
    (the comments in the file say where each comes from). Generate new secrets with
-   `openssl rand -base64 32` (the session secret) and `openssl rand -hex 24` (the app and jobs
+   `openssl rand -base64 32` (the session secret, and a second one for the planner integration
+   secret: "The planner integration secret" below) and `openssl rand -hex 24` (the app and jobs
    passwords). The database's address and the owner's password come from "Set up the server
    (once)" steps 5 and 6. Keep the end of the three database addresses as it is
    (`?sslmode=verify-full&sslrootcert=/app/db-ca.pem`): the connection is encrypted and the
@@ -168,7 +169,7 @@ first):
 
 **Every deploy after that:** merge to `main`. Within a few minutes of CI passing (outside
 05:30–09:00 UK), `journalctl -u shiftdesk-deploy` shows "Deployed … (commit <its SHA>)". Then check
-`https://<our domain>/api/health` says `{"ok":true}` and the office Today page works on a phone.
+`https://<our domain>/api/health` says `{"ok":true}` and the office dashboard works on a phone.
 Post a one-line note in the Hours log.
 
 **Changing a setting** (in `.env`): as root, `nano /opt/shiftdesk/.env`, make every change, save
@@ -294,20 +295,20 @@ fixed.
    --name "Trial Firm" --sector security --admin-email <your own email> --admin-name "<your name>"`.
    It says "Created … and its admin.". Then open `https://trial.<our domain>/office` on your phone
    (the first visit takes a few seconds while Caddy gets its certificate) and log in with the link
-   emailed to you: the Today page opens. Keep it as your own test firm afterwards (there's no
+   emailed to you: the dashboard opens. Keep it as your own test firm afterwards (there's no
    command to delete a firm yet: "Offboarding a firm").
 1. **Deploy.** After the first deploy ("Deploy", the first time), merge any small change to
    `main` (ask Claude for a harmless one). Worked if, within a few minutes of CI passing:
    `sudo journalctl -u shiftdesk-deploy --since "15 minutes ago"` shows "Deployed … (commit <the
    new commit's SHA>)"; `sudo docker compose -f /opt/shiftdesk/docker-compose.yml ps` shows web
-   "healthy"; `https://<our domain>/api/health` says `{"ok":true}`; the test firm's office Today
-   page opens on your phone.
+   "healthy"; `https://<our domain>/api/health` says `{"ok":true}`; the test firm's office
+   dashboard opens on your phone.
 2. **Rollback.** Follow "Rollback" steps 1–2 with the SHA of the version *before* the one you just
    deployed. Worked if "Deployed …" shows that older SHA, the site still works, and it's still on
    it 5 minutes later (the timer leaves a pin alone). Then step 3 (`SHIFTDESK_TAG=main`): within a
    few minutes "Deployed …" shows the newest SHA again.
 3. **Restore.** Follow "Restore the database" steps 1–3 with the newest backup, naming the new
-   database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the test firm's Today page
+   database `shiftdesk-db-2`. Worked if the app comes back healthy on it, the test firm's dashboard
    opens, and the newest event is from just before the backup. Also note whether the passwords
    really were kept (step 2 depends on it). Then point `.env` back at the original database and run
    `docker compose up -d` again (if step 2 moved `secrets/db-ca.pem` aside: first `mv
@@ -372,7 +373,7 @@ alert…" line (a text, once the phone sender is connected).
 | Alert says | What it means | What to do |
 |---|---|---|
 | "N jobs failed after the last retry in the last hour (queue n, …)" | A background job (an offer wave, a reminder, a notice…) gave up | `docker compose logs worker --since 1h`, look for that queue's errors (codes only, no personal data). Fix the cause; a failed offer wave or notice isn't re-run by itself: tell the firm's office if a worker wasn't told something |
-| "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees the same on Today |
+| "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees each failed sync in its action log |
 | "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
 | "the web app's health check is failing (…)" | The worker can't get an OK from the web app on the same server | `docker compose ps` and `docker compose logs web --since 15m`; the outside uptime check says whether the internet sees it too. "Event-morning outage" below |
 | "N Twilio webhook requests with a bad signature in the last hour" | Twilio's messages to us are being refused: `TWILIO_AUTH_TOKEN` in `.env` no longer matches the account (someone rotated it), the address set in Twilio differs from the one the app checks against (http instead of https, or a firm's own domain instead of `<slug>.<our domain>`), or someone is probing | Compare the token with Twilio's console (Account → API keys & tokens), and the webhook addresses with "Connect Twilio". If both match, it's probing: nothing to do unless it keeps up |
@@ -382,10 +383,13 @@ alert…" line (a text, once the phone sender is connected).
 The app masks phone numbers and emails before anything is logged; every e2e run checks it. On the
 server (after the dry-run day, say): `sudo -i`, `cd /opt/shiftdesk`, then (not yet tried for real)
 `docker compose logs --no-color web worker | docker compose run --rm -T --no-deps web node --import
-tsx scripts/logs-scan.ts`. It prints "no phone numbers, email addresses or login tokens", or the line
-numbers of each one it found (the value itself masked). Anything found: tell Claude which log line.
-(A login token in the logs is someone's working login for 15 minutes, or a session for 30 days:
-also tell them to log out on every device, from the office's Workers or Office team page.)
+tsx scripts/logs-scan.ts`. It prints "no phone numbers, email addresses, login tokens or keys", or
+the line numbers of each one it found (the value itself masked). Anything found: tell Claude which
+log line. (A login token in the logs is someone's working login for 15 minutes, or a session for 30
+days: also tell them to log out on every device, from the office's Casuals or Office team page. A
+"key" is a planner's API key, `shiftdesk_…`, or a `Bearer` value: it works until revoked, so ask
+the firm's admin to revoke it on the office's Integrations page (`/office/settings/integrations`)
+at once and make a new one for their planner.)
 
 ## Workers at one venue can't get login links
 
@@ -418,6 +422,70 @@ but never changes an existing password. Rotate by hand as the owner:
 `ALTER ROLE shiftdesk_app PASSWORD '...'`, update `DATABASE_URL` (or `DATABASE_JOBS_URL`) in
 `.env`, then `docker compose up -d`.
 
+The planner integration secret: only when it may have leaked (next section).
+
+## The planner integration secret (INTEGRATIONS_SECRET)
+
+The planner API (`/api/v1`, 12J.1; `docs/office-v2.md` 5.3) answers only when the server has this
+secret: unset or empty, every call gets 503 `not_configured` and the rest of the app works as
+usual. It's a server setting, the same for every firm, and nothing to do with a firm's API keys.
+
+- **Setting it (once):** `openssl rand -base64 32` (a new value: never the session secret's, never
+  `.env.example`'s, which the app refuses in production), then as root `nano /opt/shiftdesk/.env`,
+  `INTEGRATIONS_SECRET=<it>`, save, and `/opt/shiftdesk/deploy.sh --now` ("Applied the settings in
+  .env"). Keep a copy in your password manager. Check: a call with a firm's key (the curl examples
+  in `docs/integrations.md`) no longer answers 503.
+- **What rotating it means:** API keys keep working (each is stored as the sha256 of the key
+  itself, not with this secret). The secret is also what each firm's webhook signing secret and
+  every event id are made from (12J.2), and the worker needs the same value as the web app
+  (`deploy/docker-compose.yml` passes it to both): a new one changes both, so every
+  firm with a webhook must paste its new signing secret (from the Integrations page) into its
+  planner before deliveries are accepted again, and a delivery retried across the change comes
+  with a new event id. So rotate only if it may have leaked, after 22:00 like the others ("Rotate a
+  secret"), and tell those firms' admins first.
+
+## A firm's planner webhook is failing
+
+What the office sees: "Your planner's webhook is failing" in Needs attention, "Failing since …" on
+Integrations, and "Couldn't reach your planner (gave up at …)" on a cancellation's record. Each
+delivery is tried 7 times over about an hour; the last try logs `webhook.failed` with a code
+(the action log on `/office/log`, under "Firm settings and office team", says it in words).
+
+1. Read the code: `http_4xx`/`http_5xx` (their planner answered with an error), `timeout` (no answer
+   in 10 seconds), `dns` (the name doesn't resolve), `tls` (its certificate isn't valid),
+   `refused_address` (the name points at a private address: never sent), `redirect` (it answered
+   with a redirect, which is never followed), `not_configured` (`INTEGRATIONS_SECRET` isn't set for
+   the worker: see "The planner integration secret").
+2. Their admin checks the address with whoever runs their planner (the page shows only its host and
+   last 4 characters: they compare with the address in their planner). If the planner checks
+   signatures, a 401 or 403 usually means an old signing secret: "New signing secret", then paste
+   it in.
+3. "Send test event". The page shows "Working · last delivered …" once one gets through, and the
+   Needs attention item goes. What failed in between isn't sent again: their planner catches up with
+   `GET /api/v1/cancellations?since=` (`docs/integrations.md`).
+4. Nothing ever reaches us: the worker log has one `webhook not delivered` line per failed try with
+   the firm, the host and the code (`docker compose logs worker | grep "webhook not delivered"`),
+   never the address. Some catch-hook services put their key in the host name itself (a Pipedream
+   address, say): treat those log lines as you would the address.
+5. **Ours, not theirs:** `not_configured` means the worker has no `INTEGRATIONS_SECRET` (fix it, then
+   their admin presses "Send test event"). And two cases fail the job instead of logging
+   `webhook.failed`, so they come to you as a failed-job alert, not to the firm: the worker stopping
+   during the last try, and a body that doesn't match its contract or a database error (a bug: the
+   worker log names the error). Their planner catches up with `GET /api/v1/cancellations`.
+
+## A planner's API key or webhook secret may have leaked
+
+1. **An API key:** their admin revokes it on Integrations (it stops at once: the next call gets
+   401), creates a new one and gives it to their planner. Every change a key made is in the action
+   log with its `keyId`.
+2. **A webhook signing secret:** "New signing secret" (the old one stops at once), then paste the new
+   one into their planner. A leaked secret lets someone forge webhooks to their planner, not read
+   anything from ShiftDesk.
+3. **The webhook address itself** (some carry a key in their path): they make a new address in
+   their planner or Zapier, then add it on Integrations (that also makes a new secret).
+4. **`INTEGRATIONS_SECRET`:** see "The planner integration secret" above: rotate it, then every firm
+   with a webhook pastes its new signing secret.
+
 ## Event-morning outage (the one that matters)
 
 1. Twilio's fallback already puts calls through to the manager's mobile when the app doesn't
@@ -430,7 +498,7 @@ but never changes an existing password. Rotate by hand as the owner:
 4. Restart `web` and `worker`. If the database is the problem, restore.
 5. When back: queued jobs resume; check the urgent shifts didn't miss escalations; re-send any
    offers marked failed. Enter every cancellation or change the manager took by phone during the
-   outage (Today → the shift → cancel or change, with the reason), so its notice is logged like any
+   outage (Events & sessions → the shift → cancel or change, with the reason), so its notice is logged like any
    other.
 6. Write a 5-line post-mortem in the Hours log.
 
@@ -757,13 +825,13 @@ old one off. These are logged as done by the system.
 
 ## A worker leaves, comes back, is barred from a site, or loses their phone
 
-The office does this on the worker's page: "Workers" on the dashboard, find them by name or mobile.
+The office does this on the casual's page: "Casuals" in the menu, find them by name or mobile.
 Admins and resourcers can. Each change needs a reason from a list, and goes in the action log
 ("Workers").
 
 - **They've left:** "Make inactive", then "Yes". They're logged out at once, can't log in or
   take shifts, get no reminders, and notifications stop on their phones. Any bookings they have
-  ahead show on Today under "Bookings to check": cancel each one (they're told; the reason
+  ahead show on the dashboard under "Bookings to check": cancel each one (they're told; the reason
   "They've left, or can't work here" and the notice go in the notice report) or keep it (then
   tell them yourself: they get no reminders). A kept booking doesn't stop you moving the shift's
   time; moving it to another site asks you to cancel it first. Your rota sheet or a staff file
@@ -775,7 +843,7 @@ Admins and resourcers can. Each change needs a reason from a list, and goes in t
   too, or its next sync or import blocks them again.
 - **A client doesn't want them at a site:** "Block from a site". They can't book or be offered
   shifts there (they're told "This site isn't available to you. Contact the office."), and any
-  bookings they have there show on Today to cancel or keep; until you keep one, no reminder goes
+  bookings they have there show on the dashboard to cancel or keep; until you keep one, no reminder goes
   for it. "Unblock from {site}" lifts it.
 - **A lost phone:** "Log out on every device". Their logins and unused links end, and
   notifications stop on their phones. If someone else now has their number, change their mobile

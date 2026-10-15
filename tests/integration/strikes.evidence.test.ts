@@ -11,7 +11,7 @@ import {
   saveStrikesEmail,
   STRIKES_EMAIL_LINK_QUEUE,
 } from "@/lib/office/strikes-email";
-import { loadToday } from "@/lib/office/today";
+import { loadEvidence } from "@/lib/office/today";
 import { cancelMyShift } from "@/lib/portal/cancel-shift";
 import { takeShift } from "@/lib/portal/take-shift";
 import { EVIDENCE_RETRY_AFTER_MS, runStrikeEvidence } from "@/lib/strikes/evidence";
@@ -166,7 +166,9 @@ async function evidenceFirm() {
     run: withFirm,
     clock: at(later(3)),
   });
-  const today = () => withFirm(f.firmId, (tx) => loadToday(tx, later(3)));
+  // Needs attention's strike evidence part, on the dashboard.
+  const today = () =>
+    withFirm(f.firmId, async (tx) => ({ evidence: await loadEvidence(tx, later(3)) }));
   const slug = async () =>
     (await su.query<{ slug: string }>("select slug from firms where id = $1", [f.firmId])).rows[0]
       ?.slug;
@@ -584,7 +586,7 @@ describe("one series at a time", () => {
 });
 
 describe("withdrawn strikes", () => {
-  it("nothing sent, logged; no resend; not on Today", async () => {
+  it("nothing sent, logged; no resend; not on the dashboard", async () => {
     const t = await evidenceFirm();
     await t.confirmTeam();
     const s = await t.strike();
@@ -650,8 +652,8 @@ describe("the emailed PDF names nobody else", () => {
   });
 });
 
-describe("isolation: the address and Today", () => {
-  it("confirming one firm's address sends none of another's; Today lists only its own", async () => {
+describe("isolation: the address and the dashboard", () => {
+  it("confirming one firm's address sends none of another's; the dashboard lists only its own", async () => {
     const a = await evidenceFirm();
     const b = await evidenceFirm();
     const waiting = await b.strike();

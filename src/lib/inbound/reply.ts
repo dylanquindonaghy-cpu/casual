@@ -1,12 +1,12 @@
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getAi } from "../ai/anthropic";
-import { classifyMessage } from "../ai/classify-message";
+import { sortMessage, type AiFallback } from "../ai/classify-message";
 import type { AiClient } from "../ai/client";
 import { firms, messages, officeUsers, requests, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
-import { recordEvent } from "../events/record";
+import { passesLogCheck, recordEvent } from "../events/record";
 import { errorCode, type FirmTask } from "../jobs/firm-job";
 import { log } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
@@ -20,10 +20,12 @@ import {
 } from "../messaging/templates";
 import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
+import { systemClock, type Clock } from "../auth/clock";
 import { lockUnhandled } from "./claim";
 import { inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
 import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from "./opt-out";
+import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 
 // Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
 // docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
@@ -42,7 +44,7 @@ import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from 
 //      office. A message with no text (a photo) goes to the office;
 //   3. the claim, in one transaction: the message locked and, if no one has handled it yet, marked
 //      handled (how, and what they asked); the office's `general` request (the message as its
-//      note) when it's for the office; `message.received`;
+//      note, linked by `message_id`) when it's for the office; `message.received`;
 //   4. the reply goes outside any transaction, from the number they wrote to, at once (a reply to
 //      their own message: quiet hours don't apply);
 //   5. the reply stored as an outbound message, and `message.replied`, or `message.reply_failed`
@@ -56,6 +58,7 @@ export interface InboundReplyDeps {
   ai: AiClient;
   baseDomain: string;
   aiTimeoutMs?: number; // tests pass a short one
+  clock?: Clock; // tests pass a fixed one (the personal reply's "now")
 }
 
 export type InboundResult =
@@ -266,6 +269,9 @@ async function answerMessage(
   // office.
   let intent: Intent;
   let handledAs: "keyword" | "ai" | "office";
+  // Why the AI didn't sort it (for the office's "How it was answered"): a photo with no text, or
+  // the AI's own reason.
+  let aiFallback: AiFallback | "no_text" | null = null;
   if (c.keyword) {
     intent = c.keyword;
     handledAs = "keyword";
@@ -273,18 +279,49 @@ async function answerMessage(
     intent = "office";
     handledAs = "office";
   } else {
-    const picked = c.body
-      ? await classifyMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs })
-      : null;
-    intent = picked ?? "office";
-    handledAs = picked ? "ai" : "office";
+    const sorted = c.body
+      ? await sortMessage(c.body, deps.ai, { timeoutMs: deps.aiTimeoutMs })
+      : ({ label: null, why: "no_text" } as const);
+    intent = sorted.label ?? "office";
+    handledAs = sorted.label ? "ai" : "office";
+    if (!sorted.label) aiFallback = sorted.why;
   }
 
-  // Step 3: the claim, the office's request and the event, together.
+  // Step 2b: the personal reply to "shifts" or "cancel" (src/lib/inbound/personal-reply.ts), read
+  // before the claim like the AI's label: built by code from the firm's data, never by the AI.
   const portal = portalUrl(c.firm.slug, deps.baseDomain);
-  const replyText = await run(payload.firmId, async (tx): Promise<string | null> => {
+  const now = (deps.clock ?? systemClock).now();
+  const voiceOf = { name: c.firm.name, signOff: c.firm.signOff };
+  const personal =
+    intent === "shifts"
+      ? await shiftsReply(run, {
+          firmId: payload.firmId,
+          workerId: c.workerId,
+          text: c.body,
+          now,
+          firm: voiceOf,
+          portal,
+        })
+      : intent === "cancel"
+        ? await cancelReply(run, {
+            firmId: payload.firmId,
+            workerId: c.workerId,
+            now,
+            firm: voiceOf,
+            portal,
+          })
+        : null;
+  // What the office's Enquiries page will read, settled before the claim: the reply goes once, so
+  // an entry the log would refuse must never roll back the stored reply after the send.
+  const logged = personal
+    ? { whatsapp: settled(personal.checks.whatsapp), sms: settled(personal.checks.sms) }
+    : null;
+
+  // Step 3: the claim, the office's request and the event, together.
+  const texts = await run(payload.firmId, async (tx) => {
     if (!(await lockUnhandled(tx, payload.messageId))) return null;
-    let reply: ShiftsLineReply;
+    // The fixed reply (pay, the office); null for shifts and cancel (the personal reply).
+    let built: ShiftsLineReply | null = null;
     if (intent === "office") {
       const [request] = await tx
         .insert(requests)
@@ -299,8 +336,8 @@ async function answerMessage(
                 ? NO_VOICE_TEXT_NOTE
                 : NO_TEXT_NOTE,
             via: via(c.channel),
-            messageId: payload.messageId,
           },
+          messageId: payload.messageId,
         })
         .returning({ id: requests.id });
       if (!request) throw new Error("request insert returned nothing");
@@ -312,10 +349,9 @@ async function answerMessage(
         entityId: request.id,
         data: { type: "general", shiftId: null, via: via(c.channel), workerId: c.workerId },
       });
-      reply = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
-    } else {
-      const path = intent === "shifts" ? "/shifts/open" : intent === "pay" ? "/pay" : "/";
-      reply = { intent, link: `${portal}${path}` };
+      built = { intent: "office", ref: request.id.slice(0, 8).toUpperCase() };
+    } else if (intent === "pay") {
+      built = { intent: "pay", link: `${portal}/pay` };
     }
     await tx
       .update(messages)
@@ -327,14 +363,31 @@ async function answerMessage(
       action: "message.received",
       entityType: "message",
       entityId: payload.messageId,
-      data: { channel: c.channel, handledAs, intent, workerId: c.workerId },
+      data: {
+        channel: c.channel,
+        handledAs,
+        intent,
+        ...(aiFallback ? { aiFallback } : {}),
+        workerId: c.workerId,
+      },
     });
+    // Shifts and cancel: the personal reply, in each channel's words.
+    if (!built) {
+      if (!personal) throw new Error("a shifts or cancel message without its personal reply");
+      return { replyText: personal.whatsapp, smsText: personal.sms };
+    }
+    const reply = built;
     const voice = { name: c.firm.name, signOff: c.firm.signOff };
-    return c.channel === "voice" && reply.intent === "office"
-      ? voicemailReceivedMessage(voice, reply.ref)
-      : shiftsLineReply(voice, reply);
+    const fixed = (): string => {
+      return c.channel === "voice" && reply.intent === "office"
+        ? voicemailReceivedMessage(voice, reply.ref)
+        : shiftsLineReply(voice, reply);
+    };
+    const text = fixed();
+    return { replyText: text, smsText: text };
   });
-  if (replyText === null) return { status: "already" };
+  if (texts === null) return { status: "already" };
+  const { replyText, smsText } = texts;
 
   // By WhatsApp to a WhatsApp (a text if WhatsApp refuses it); a voicemail's by the channel the
   // worker chose. Always from the number they contacted.
@@ -342,11 +395,27 @@ async function answerMessage(
     mobile: c.mobile,
     channel: c.channel === "voice" ? c.notifyChannel : c.channel,
     smsAllowed: c.smsAllowed,
-    body: { whatsapp: replyText, sms: replyText },
+    body: { whatsapp: replyText, sms: smsText },
     from: c.line,
   });
 
   return run(payload.firmId, async (tx): Promise<InboundResult> => {
+    // What the personal reply was built from (docs/office-v2.md 3.6, 6.1), whether it went or not.
+    // The entry for the words that went (a text lists fewer than a WhatsApp).
+    if (logged) {
+      await recordEvent(tx, {
+        actorType: "system",
+        action: "enquiry.checks",
+        entityType: "message",
+        entityId: payload.messageId,
+        data: {
+          ...logged[sent.channel === "sms" ? "sms" : "whatsapp"],
+          sent: sent.ok,
+          channel: sent.channel,
+          workerId: c.workerId,
+        },
+      });
+    }
     if (!sent.ok) {
       await recordEvent(tx, {
         actorType: "system",
@@ -367,7 +436,7 @@ async function answerMessage(
         workerId: c.workerId,
         fromE164: c.line,
         toE164: c.mobile,
-        body: replyText,
+        body: sent.channel === "sms" ? smsText : replyText,
         intent,
         replyTo: payload.messageId,
       })
@@ -392,12 +461,12 @@ async function answerMessage(
 
 // Someone who isn't one of the firm's active workers (docs/messaging-templates.md
 // `unknown_number`, `unknown_number_alert`). Only the first message from a number in 24 hours gets
-// the polite reply and alerts the office: later ones are stored and shown on Today, so an
+// the polite reply and alerts the office: later ones are stored and shown on Enquiries, so an
 // auto-reply or a bot can't loop and the office gets one email, not one per message. A former
 // worker (their number is on file, not active) gets no "we don't recognise this number" (we do):
 // the office is alerted and decides. Same shape as the known path: the claim, then the sends
 // outside any transaction, then the record. The alert email holds neither the number nor the
-// message: they're on Today.
+// message: they're on Enquiries.
 async function answerUnknown(
   payload: InboundMessagePayload,
   run: WithFirm,
@@ -568,3 +637,24 @@ export const inboundMessageFirmTask = inboundMessageTask(() => {
   const env = workerEnv();
   return { transport: getTransport(env), ai: getAi(env), baseDomain: env.APP_BASE_DOMAIN };
 });
+
+// An `enquiry.checks` entry as the log will take it. Every sample passes the log's check
+// (tests/unit/inbound.personal-reply.test.ts), so this only guards the unforeseen: an entry the
+// check refuses keeps its ids, minutes and counts, without the checks' figures.
+function settled(checks: EnquiryChecks): EnquiryChecks {
+  const sample = {
+    ...checks,
+    sent: true,
+    channel: "whatsapp",
+    workerId: "00000000-0000-0000-0000-000000000000",
+  };
+  if (passesLogCheck(sample)) return checks;
+  return {
+    ...checks,
+    days: [],
+    area: null,
+    offered: checks.offered.map((o) => ({ ...o, checks: [] })),
+    notOffered: [],
+    notOfferedMore: checks.notOffered.length + checks.notOfferedMore,
+  };
+}

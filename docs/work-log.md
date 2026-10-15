@@ -10777,3 +10777,1521 @@ Run `npm run dev` and log in as a casual. Open **My profile**, then **Set your t
 `ZZ1 1AA`, choose how you travel and how long, and save. Try `ZZ0 0AA` to see an unknown postcode
 refused. Then log in to the office, open **Workers**, find that casual: the page shows "Travel area:
 ZZ1 · …". On **Settings**, save `ZZ9 9ZZ` for a site and it says "Location found."
+
+## 2026-10-09 — Phase 12, task 12G.2: Travel estimates
+
+**Time spent:** 1.6 hours (11:49 to 13:25 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=bd2d1c019b2e1bc0 e2e=true`.
+That covers 4,126 unit and database tests, 79 browser tests and the walkthrough's 3, all passing.
+The independent auditor said **DONE** in round 1. The commit is "Phase 12: Travel estimates (12G.2)",
+pushed to `build/overnight`.
+
+### What was built, in plain words
+
+A **travel estimate** is how long it takes to get from a postcode to a site: by car (with the
+distance) and by public transport, arriving 30 minutes before a shift starts. Casuals will see
+these on every shift ("7.2 miles · 18 min by car · 41 min by public transport"), and the next task
+(12G.3) uses them to show casuals only the shifts they can reach. This task works them out and
+stores them. Showing them on pages is 12G.3.
+
+- **The travel provider** (`src/lib/travel/provider.ts`): the code that answers "how long from
+  these points to this site?". There are two versions:
+  - **The fake**, used tonight and in every test. It works a time out from the straight-line
+    distance (roads are taken as 1.3 times longer than the straight line).
+  - **TravelTime**, a paid service, for real use later. One request asks about up to 2,000 start
+    points at once, gives up after 90 minutes of travel, and asks for the distance by car. It
+    sends only map points under made-up labels ("o1", "o2"), never a postcode or a name. Its
+    answer is checked before use (with zod, a library that checks data has the expected shape),
+    with a 10-second time limit and a size cap. Nothing was sent to TravelTime tonight: its tests
+    use answers written by hand in the shape its documentation shows.
+- **A new table**, `travel_estimates` (migration 0041). Each row is one postcode, one site, one way
+  of travelling and one arrive-by time. It is keyed by postcode, not by person: casuals who start
+  from the same postcode share it.
+- **The travel job** (`src/lib/travel/estimates.ts`): a background job (it runs in the worker, the
+  separate program that does work away from the web pages). It finds the sessions that need
+  estimates, groups those sharing a site and start time, and asks the provider only for the
+  estimates that are missing.
+- **What starts the job:** a new, imported, synced, moved or urgent session; a site's postcode
+  changing (its old estimates are deleted at once); a casual changing their postcode or ways of
+  travelling; and a nightly run at 02:20 for every session in the next 29 days (the 28 days casuals
+  can see, plus one).
+- **If the provider is down:** the job stops (no hammering), keeps what it saved, and tries again
+  later, waiting longer each time (3 to 4 hours of tries), then the nightly run catches up. Until
+  then the casual sees "about 7 miles (straight line) · Travel time not known yet". Shifts are
+  never hidden because of it.
+- **Urgent shifts:** before the first offers go out, the offer job fills in the shift's missing
+  estimates itself, waiting at most 5 seconds. If the provider is slow or down, the offers go
+  anyway.
+- **Clearing up:** each estimate is deleted 7 days after the last session it was for.
+
+### Key facts and numbers
+
+- One provider request per site, start time, way of travelling and batch of up to 2,000 start
+  points. 2,001 casuals with different postcodes means 2 requests per way.
+- A job run has a 10-minute budget. If it runs out with work left, and it saved something, it
+  queues the rest as a fresh run.
+- Casuals' changes wait 5 minutes and share one run per firm, so ten casuals saving their postcodes
+  cost one run, not ten.
+- The worker takes travel jobs one at a time, because pg-boss (the job queue, which lives in the
+  database) gives a whole batch of jobs one shared time limit.
+- No database transaction (a group of database changes that succeed or fail together) is open
+  while the provider is asked. An answer is saved only if the site hasn't moved meanwhile.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| No call to TravelTime tonight; hand-written sample answers, checked live in the "Connect" step | Overnight rules: no outside services | Using the free key |
+| Both ways are worked out for every postcode, whichever ways the casual chose | The spec says both times always show; the choice only drives the filter | Only the chosen ways (fewer requests) |
+| A provider that doesn't answer stops the run, and pg-boss tries again later | No hammering a service that's down | Carrying on with every request |
+| The first wave fills its own shift's estimates, for at most 5 seconds | The task asks for estimates before the first wave; a slow service must never hold offers back | Making the wave wait for the job |
+| Only the worker can reach the provider and holds TravelTime's keys | Pages never call the provider (a test checks every page's imports) | The provider in the web app too |
+| Estimates are left out of the firm's data download and expire after 7 days, even during a hold | They hold full postcodes the office never sees; they're worked out, never evidence | Exporting them; keeping them during a hold |
+| Every run covers 29 days ahead, not further | Far-off sessions get theirs as they come closer; fewer paid requests | Every future session |
+
+### What the guardrails reviewer found
+
+The `guardrails-reviewer` (a checking agent that reads the change against the project's golden
+rules) ran twice:
+
+- **Round 1** found one must-fix problem: two casuals with the same postcode but slightly different
+  map points made the save fail. Fixed: one point per postcode (the latest). It also asked for
+  shorter database transactions, a time budget, retries that back off, casuals' changes sharing one
+  run, every run limited to 29 days, and a size cap that stops reading a too-big answer early. All
+  done, each with a test.
+- **Round 2** found nothing must-fix and two follow-ups, both done: travel jobs are taken one at a
+  time, and a run that saved nothing doesn't re-queue itself.
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/travel.provider.test.ts`, `tests/unit/travel.body.test.ts`,
+  `tests/unit/travel.boundary.test.ts`) prove:
+  - the fake's times, the 90-minute ceiling and the 2,000 limit;
+  - a TravelTime request holds only points and made-up labels, and each kind of answer is read
+    correctly (anything odd, slow or too big is "unavailable");
+  - an answer is never read past its size cap, however it's sent;
+  - the travel line's words, including across the clock change;
+  - no page's code can reach the provider.
+- **Database tests** (`tests/integration/travel.estimates.test.ts`, 23 tests) prove:
+  - who is searched from (active casuals with the role, one point per postcode), batching, and
+    sessions sharing searches;
+  - a site that moves mid-search gets nothing saved;
+  - the provider down: the job fails to be tried again, and the line falls back to the straight
+    line;
+  - running out of time: what's done is kept, and the rest is queued only after progress;
+  - an urgent shift has its estimates before its first offer, and a slow or broken provider never
+    holds offers back;
+  - the nightly run covers the window, once a day;
+  - the purge; each change that queues the job; one firm's casuals never searched for another.
+- **Sheet sync tests** prove a synced session gets its estimates without the nightly run, and a
+  session brought back from draft or cancelled gets them too.
+
+### What's parked or needs Dylan
+
+- **Connect postcodes.io and TravelTime** (PLAN.md Parking lot): sign the DPIA, get TravelTime's
+  production quote, then put the keys in the server's settings. Claude then checks the sample
+  answers against one live request between two public places, and TravelTime's limits.
+- **A cap per casual** on how often their area changes (each new postcode costs requests).
+
+### How to see it working
+
+Nothing new is on screen yet: 12G.3 adds the travel lines and the filter. The tests above run it
+end to end with the fake provider: `npm test -- tests/integration/travel.estimates.test.ts`.
+
+## 2026-10-09 — Phase 12, task 12G.3: The travel filter and travel lines
+
+**Time spent:** 0.8 hours (13:27 to 14:14 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=63d457ebc306ad3c e2e=true`.
+That covers 4,160 unit and database tests, 80 browser tests and the walkthrough's 3, all passing.
+The independent auditor said **DONE** in round 1. The commit is "Phase 12: The travel filter and travel
+lines (12G.3)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Casuals who set a travel area (12G.1: a start-from postcode, how they travel, and how long they'll
+travel) now only see and get offered shifts they can reach. Every shift also shows how far it is.
+
+- **The rule** (`src/lib/travel/area.ts`). A shift is:
+  - **in** her area if any way she chose gets there within her limit (with car 40 minutes, public
+    transport 50 and a 45-minute limit: in for "both" and "car", out for "public transport");
+  - **out** only when every way she chose has a travel time and none is within;
+  - **unknown** otherwise, for example when the time hasn't been worked out yet or the site has no
+    location. An unknown shift is still shown, labelled, and still offered. Nothing is hidden just
+    because a distance isn't known.
+- **Where it applies:** Open shifts, the urgent board, the urgent count on Home, and offer waves
+  (the automatic messages offering a shift). The office's own "Offer to someone" is not limited by
+  it: the office may offer anyone by hand.
+- **Before the cap:** Open shifts checks at most 50 shifts. The area filter runs inside the
+  database query (the request to the database), before those 50 are picked, so a nearby shift is
+  never pushed off the list by far-away ones.
+- **The order:** urgent shifts first, then the nearest (her quickest chosen way), then by date.
+- **The travel line** on every Open and urgent card and every upcoming booking: "7.2 miles · 18 min
+  by car · 41 min by public transport". Both times always show, whichever ways she chose.
+- **No travel area:** everything is shown, with "Add your home area to see how far each shift is and
+  only see shifts you can get to." and a link to set one.
+- **"2 more shifts are further than you travel. Change how far"** under the list, counting the
+  shifts she could otherwise take.
+- **Never blocked:** a shift opened from a direct link can still be booked, whatever her area. The
+  area is a preference, not one of the booking rules.
+
+### Key facts and numbers
+
+- One copy of the rule is plain TypeScript (`areaVerdict()`); the other is SQL (database code), so
+  the filter can run inside the query. A test checks the two agree on 25 combinations for each of
+  the three ways of travelling.
+- No new tables and no new jobs. Everything is read inside the firm's own data (row-level security,
+  the database rule that keeps each firm's rows separate).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The office's offer by hand ignores the travel area | The decision on travel areas (D2) says the office may offer outside it | Filtering the office's list too |
+| A shift is "out" only when every chosen way has a time and none is within | An unknown distance must still be shown and offered (D2) | Treating "not worked out yet" as out |
+| No travel line on past bookings | The trip is done, and travel times expire 7 days after the shift | A line on every past row |
+| The "further" count uses the same booking rules as the list, on up to 50 shifts | It should count shifts she could really take; it stays quick | Counting every far shift |
+| The shift page's "Getting there" waits for task 12H.2 | That task's text covers the shift page | Adding it now |
+
+### Problems found and fixed
+
+- **The "further" count counted a full shift.** The database code library (Drizzle) leaves the
+  table name off columns in a query with no join. A small count inside the query then compared a
+  booking's id with itself instead of with the shift's id, so every shift looked empty. Fixed by
+  writing the query the same way as the list's (with a join), with a comment explaining why. No
+  other query in the app has the same pattern.
+- **The browser test's reset tried to delete bookings,** which the app is never allowed to do
+  (bookings are evidence). It now cancels its own earlier sessions instead; bookings on cancelled
+  sessions don't count anywhere.
+
+### What the guardrails reviewer found
+
+The `guardrails-reviewer` (a checking agent that reads changes against the project's golden rules)
+said it was safe to commit. It confirmed the SQL matches the plain rule, that "first yes wins" and
+the daily offer limit are untouched, and that nothing personal leaks. Its suggestions were done: a
+test at exactly the limit (45 minutes), singular wording for "At least 1 more shift", a check that
+only the office's offer can skip the area, and an ordering test for a casual with one way. Two
+points went to the Parking lot (below).
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/travel.area.test.ts`, 12 tests): the rule's table (the 40/50/45
+  example, the exact limit, the 90-minute ceiling, ways she didn't choose, unknown), the words, and
+  the pages: the travel line on each card and booking, the prompt with no area, and the "further"
+  line. `tests/unit/copy.plain-language.test.ts` checks the new screens are in plain words.
+- **Database tests** (`tests/integration/travel.filter.test.ts`, 16 tests): a near shift is never
+  cut off by the cap; the database agrees with the plain rule; unknown distances are shown and
+  offered; no area means no filter; the order; the "further" count; the urgent board; waves skip
+  out-of-area casuals but the office's offer doesn't; a direct link still books; booked rows' travel
+  lines.
+- **Browser test** (`tests/e2e/travel.filter.spec.ts`): a casual sees one of two urgent shifts on
+  Home and the urgent board (with its travel line and "1 more urgent shift is further than you
+  travel"), and still books the far one from a direct link.
+- Break checks: removing the list filter, the order, the wave filter or the office's exception, or
+  moving the limit by one minute, each made a test fail.
+
+### What's parked or needs Dylan
+
+- **The per-firm switch** (already waiting for Dylan): the "Add your home area" prompt now shows at
+  every firm, including where real postcode look-ups are off.
+- **Before TravelTime goes live:** confirm that "unreachable" in its answer means over 90 minutes,
+  never "no timetable data", or casuals who only use public transport could miss offers.
+
+### How to see it working
+
+Run `npm run dev`, log in as a casual (see `docs/walkthrough.md`), set "Where you work" on Profile
+with a ZZ postcode, then open "See open shifts": the prompt is gone and each card shows its travel
+line. At first it's the straight-line distance ("Travel time not known yet"); the times appear
+within about 5 minutes, once the worker's travel job has run (`npm run dev` starts the worker too).
+
+## 2026-10-09 — Phase 12, task 12F.1: Qualification statuses and the Casuals pages
+
+**Time spent:** 2.1 hours (14:16 to 16:25 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=b81a6e0b97088464 e2e=true`:
+4,203 unit and database tests, 82 browser tests and the walkthrough's 3 parts all passed. The
+independent auditor said **DONE** on its second round (the first round asked for one more browser
+test, described below). The commit is "Phase 12: Qualification statuses and the Casuals pages
+(12F.1)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Casuals and the office now see each qualification (a licence or card, like an SIA licence) with a
+clear status, and the office has a new "Casuals" area.
+
+- **The statuses** (`src/lib/credentials/status.ts`): Valid, Expiring soon (within 30 days),
+  Expired, Missing, Applied for, or Suspended. They read a casual's records the same way the
+  booking rules do. For example, a suspended licence counts as suspended even if the casual also
+  holds a valid one, because the booking rules refuse the casual in that case too.
+- **Which are listed:** only the qualifications the casual's roles need (from the firm's rules).
+  A role's qualification with no record is "Missing: Needed for {role} shifts". Right to work is
+  shown separately as a status only ("Checked by the office on 12 Jan" or "Not checked yet: ask the
+  office"), because no rule requires it.
+- **"Needs updating"** lists what to sort out, in four levels:
+  1. something that stops a shift she's booked on;
+  2. expired or suspended;
+  3. expiring soon;
+  4. missing.
+- **One "expiring soon" window:** 30 days, the same as the daily expiry job's first warning, used
+  by the casual's pages and the office.
+- **For the casual:** Profile's "Qualifications" section shows each status, its date line and what
+  it means ("Until it's renewed you won't see door supervisor shifts."), then right to work. My
+  shifts' old licence banners became a "Needs updating" card. The word "credential" never appears.
+- **For the office:** "Workers" became "Casuals" (`/office/casuals`):
+  - two views, All and Need updating, each with its count;
+  - "Find a casual" (the existing search form, as built);
+  - a table on a computer, and stacked cards on a phone: each casual's qualifications (worst
+    first), travel district, live strikes and what needs updating.
+- **One casual's page** (`/office/casuals/[id]`) adds:
+  - needs updating, qualifications and right to work;
+  - the travel area and strikes (each linking to its cancellation record);
+  - the existing bookings ahead and access controls.
+- The old `/office/workers` addresses redirect, so old links still work.
+
+### Key facts and numbers
+
+- One loader (`src/lib/credentials/qualifications.ts`) works out every casual's qualifications in
+  five database reads, however many casuals there are.
+- The office list shows at most 200 casuals ("Use Find a casual to find anyone else").
+- The office only ever sees the postcode district (like "ZZ1"), never the full postcode.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A suspended record beats a valid one; a valid one in date beats applied for; applied for beats expired | The same order the booking rules use, so a status never says "Valid" when booking would refuse | Showing each record separately |
+| Profile lists only the types her roles need | The spec: "A type nothing needs isn't listed" | Every record held (as before) |
+| "Need updating" counts active casuals only | An inactive or blocked casual can't work, so there's nothing urgent to update | Everyone |
+| The made-up "Zoe" in the browser test is built by the test itself | The spec's Zoe arrives with the demo seed task (12I.1) | Changing the seed now |
+| The staff photo, uploads and "Being checked" / "Not accepted" wait for 12F.2 | The task text says they join with 12F.2 | Showing empty columns |
+
+### What the new tests prove
+
+- **Unit tests** (`tests/unit/credentials.status.test.ts`, 24 tests): every status at its boundary
+  dates (30 days, the expiry day itself, the day after), several records at once, which types are
+  listed, right to work, the four levels and their order, and the office's one-line summary.
+  `portal.profile`, `portal.my-shifts` and the plain-language check cover the new words.
+- **Database tests** (`tests/integration/office.casuals.test.ts`; `profile`, `my-shifts`): the
+  list's counts and views, each column, never the full postcode, live strikes (not withdrawn or
+  past ones), who may see it, each firm's own, and the casual's page.
+- **Browser tests** (a real browser clicking through the app):
+  - new `casual.app.spec.ts`, part 1: Zoe's Profile shows one Valid, one Expiring soon and one
+    Missing, and My shifts shows her Needs updating card;
+  - `casual.app.spec.ts`, part 2 (added after the auditor's first round): Zoe gets one strike
+    the real way (a session cancelled inside 48 hours). A resourcer then opens Casuals:
+    - on a phone, each view's count matches the number of cards it lists, and Zoe's card shows
+      her tags, travel, strikes and summary;
+    - on a computer, the table has its five columns and Zoe's row, and the cards are hidden;
+    - Zoe's own page shows her needs, each qualification's status and date, her right to work,
+      and her strike with its link.
+  - `office.workers.spec.ts` now uses Casuals, and checks the old address still leads to the
+    casual's page. The walkthrough's step 28 uses Casuals too.
+  - Two older browser tests still expected the old licence words: `profile.worker.spec.ts`, and
+    the walkthrough's step 18 (My shifts' old red banner, now the "Needs updating" card). Both
+    now check the new words, with at least as many checks as before.
+- Break checks (a deliberate fault, to prove a test notices it): changing the suspended rule, the
+  30-day boundary, the "in date on its expiry day" rule, the "blocks a booked shift" boundary, or
+  listing right to work each made a test fail. So did adding 1 to a view's count, or removing the
+  right-to-work line from a casual's page, for the new browser test.
+
+### What's parked or needs Dylan
+
+- Uploads, the staff photo and checking them: task 12F.2.
+- Nothing for Dylan to do for this task.
+
+### How to see it working
+
+Run `npm run dev`, log in to the office as `acme.resourcer@example.com`, and open "Casuals". Try
+"Need updating", then open someone. As a casual, open "My profile" to see "Qualifications".
+
+
+## 2026-10-09 and 10 — Phase 12, task 12F.2: Uploads, the check view and the staff photo
+
+**Time spent:** 2.3 hours (16:28 to 17:54 UTC on 9 October, then 12:05 to 12:59 UTC on
+10 October). The gap was the cloud computer sitting idle after a restart, not work.
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=db42e775086e22f1 e2e=true`.
+That run passed 4,296 tests in 246 files, 83 browser tests (tests that click through the real
+pages in a browser) and the walkthrough's 3, with none skipped. The independent auditor said
+**VERDICT: DONE** on its first round. The commit is "Phase 12: Uploads, the check view and the staff photo
+(12F.2)", pushed to `build/overnight`. GitHub's own test run (CI) still can't start on this account (see
+the morning summary), so the local run above is the evidence.
+
+### What was built, in plain words
+
+Casuals can now send a photo of themselves and photos of their cards from their phone, and the
+office checks each one before it counts.
+
+- **Sending one:**
+  - On Profile, "Upload a new photo" opens the front camera.
+  - Each qualification has "Upload a certificate", which opens the back camera or her photos.
+  - The phone shrinks the picture first, to a JPEG (a common picture format) of 1,600 pixels at
+    most, so it stays under the 1 MB limit.
+- **On the server** (`src/lib/uploads/image.ts`):
+  - It reads the file's real type from its first few bytes, never from the file name. Only JPEG,
+    PNG or WebP are accepted.
+  - It refuses anything too big.
+  - It redraws the picture with `sharp` (an image library). That keeps only the pixels and drops
+    hidden details such as where the photo was taken (GPS).
+- **Checking it:**
+  - The office sees a new view, "Uploads to check" (oldest first), with a count badge on the
+    Casuals menu.
+  - On the casual's page each image has "Approve" or "Don't accept" with a reason.
+  - Approving a card takes the expiry date and number as the person reads them. For an SIA
+    licence there's a link to the GOV.UK register.
+- **Only checked items count.** A card she sent does nothing until a named office person
+  approves it. Every place that reads qualifications ignores unchecked ones. The database also
+  stores an unchecked one as "expired", so even a place that forgot to ignore it couldn't count
+  it.
+- **The staff photo:**
+  - Its status is Up to date, Due soon, Overdue, Missing or Waiting for check.
+  - It comes from the latest approved photo, renewed every 36 months (a firm setting,
+    `photo.renewal_months`).
+  - A photo waiting for the office never replaces the approved one.
+- **Some things a casual can never upload:**
+  - CSAS: the office records it, after confirming it's under the firm's own scheme.
+  - Right to work papers.
+  - Anything holding health or criminal record details: drug and alcohol tests, rail medicals,
+    DBS. The office records those itself, so we never keep a copy.
+- **The images** are only ever served by `/files/{id}`: to the casual (her own) or her firm's
+  admins and resourcers. They are never cached, and never stored on the phone.
+- **Clearing out and exporting:**
+  - A turned-down upload is deleted 30 days after the check.
+  - A replaced photo is deleted 30 days after the new one is approved.
+  - Nothing is deleted while a dispute hold is on, and erasing a casual deletes all of theirs.
+  - The data exports list each image's details and fingerprint, never the picture itself. Each
+    picture is its own download on the data page.
+- **The expiry reminders** (WhatsApp) now say "Upload your renewed card", with a link to the
+  upload page. My shifts' "Needs updating" rows link there too.
+
+### Key facts and numbers
+
+- Upload limit: 950,000 bytes per file (Next's server-action limit is 1 MB). The stored picture
+  is at most 1,000,000 bytes, and the database checks that too.
+- One waiting upload per casual, per photo or per qualification. A new one replaces it.
+- Pictures claiming more than 40 million pixels are refused (a small file can claim a huge
+  picture).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A card she sent is stored as "expired" until checked, and every reader also skips unchecked ones | Two locks on one door: if a future screen forgets the filter, the database still says "expired" (golden rule 6) | The filter alone |
+| The office records CSAS, right to work, drug and alcohol tests, rail medicals and DBS; casuals can't upload them. Each firm's list is data (`credential_types.office_recorded`) | We never keep a copy of health or criminal record papers, or right-to-work papers. CSAS belongs to the firm's own police scheme by law | Casuals upload everything |
+| The upload limit is 950,000 bytes | Next.js (the web framework) refuses form posts over 1 MB; a 1,600px JPEG is far smaller | Raising the limit for every form |
+| A new upload replaces her own one still waiting; a checked one is never touched | One thing per item for the office; she can fix a blurry photo before anyone looks | A queue of several |
+| Approving a card needs its expiry date, or a deliberate "It has no expiry date" tick; a past date, or one over 10 years ahead, is refused | A forgotten date would make a licence count for ever (found by the guardrails review) | An empty date meaning "no expiry" |
+| Reminders link to the upload page only for a card she can upload and her roles need | Otherwise the link leads to a page that can't take it (guardrails FIX FIRST) | One wording for everyone |
+| A waiting photo shows "Waiting for check", but the photo and its dates stay the approved one's | Tells the office there's something to do; an unchecked photo never becomes her staff photo | Keep "Up to date" until approved |
+| No message to the casual when the office approves or turns one down | Not in the agreed message list (those messages were cut on 2026-10-06); her Profile shows it | A new WhatsApp template |
+
+### What the new tests prove
+
+- **The pictures themselves** (`tests/unit/uploads.image.test.ts`): real images made with `sharp`.
+  A file pretending to be a JPEG by its name is refused; GPS and camera details are gone after
+  saving; a sideways phone photo is turned upright; oversize files and giant pixel counts are
+  refused.
+- **The staff photo's status** (`tests/unit/uploads.photo.test.ts`): every boundary day (31 days
+  before, 30 days before, the renew-by day, the day after), and that a waiting photo never replaces
+  the approved one.
+- **On the real database** (`tests/integration/uploads.test.ts`, 18 tests):
+  - a waiting or turned-down card can't book a shift; once approved it can;
+  - only the casual and her firm's admins and resourcers can open an image (another casual,
+    another firm, payroll and a switched-off account all get "not found");
+  - a casual can't upload CSAS, or a card her roles don't need;
+  - "Uploads to check" lists the oldest first;
+  - the 30-day clear-out deletes at 31 days, not 29, and nothing during a hold;
+  - exports carry the details but never the picture; erasing deletes them;
+  - a race test: a casual re-sending while the office approves, run 6 times. It failed 3 times
+    out of 3 on the old code, so it really catches the bug it was written for.
+- **Other firms can't see them** (`tenancy.isolation.test.ts`): the new table is in the
+  cross-firm tests like every other.
+- **In a browser** (`tests/e2e/uploads.spec.ts`): a casual uploads a 2400×3200 camera photo and a
+  card; the office sees the badge and both items in order, approves them, and the casual's
+  Profile shows "Up to date".
+- **Break checks:** I broke the code on purpose 7 ways (the rules without the "checked only"
+  filter, a casual's file without the owner check, a casual uploading CSAS, the clear-out at 20
+  days, the waiting photo status, the photo not turned upright, the race). Each time a test
+  failed, then the code was put back.
+
+### What's parked or needs Dylan
+
+Nothing here needs Dylan before it works with the fake data. Parked for later (in the
+Parking lot in `PLAN.md`):
+
+- a database link making sure a card's record and its image belong to the same casual (today the
+  code saves both together);
+- refusing CSAS recorded twice, or for a casual who isn't active;
+- a limit on how often a casual can upload;
+- which licences get the GOV.UK register link, as data instead of code;
+- not sending "expired" reminders while a renewal waits for the office;
+- how long to keep a card's image after the qualification ends (§5.5 points at a firm setting
+  that isn't defined yet).
+
+### How to see it working
+
+Run `npm run dev`. Log in at `http://acme.localhost:3000` as Maya Morgan (`07700 900129`, a door
+supervisor whose licence has expired), open "My profile" and tap "Upload a new photo" (on a
+computer it opens a file picker). Then log in to the office as `acme.resourcer@example.com`,
+open "Casuals" and then "Uploads to check", and approve it. Back on Maya's Profile, the photo
+says "Up to date".
+
+## 2026-10-10 — Phase 12, task 12D.1: Enquiries
+
+**Time spent:** 1.3 hours (12:59 to 14:18 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=2ca03abea8476d36 e2e=true`.
+That run passed 4,358 tests in 248 files, 84 browser tests and the walkthrough's 3, with none
+skipped. The independent auditor said **VERDICT: DONE** on its first round. The commit is "Phase 12: Enquiries (12D.1)", pushed to
+`build/overnight`. GitHub's own test run (CI) still can't start on this account (see the morning
+summary), so the local run is the evidence.
+
+### What was built, in plain words
+
+The office now has one page, **Enquiries**, for everything casuals (and strangers) send the
+shifts line, and what came of each message.
+
+- **The list** (`/office/enquiries`):
+  - Views as links: All, Need a person, Requests from the app, and Pay.
+  - At the top: how many arrived today, and how many need a person (with the oldest one's age).
+  - Each row shows who sent it ("Unknown number" or "Withheld" when we don't know), a small
+    icon for WhatsApp, text or voicemail, their words, the time, and an **outcome** label.
+  - The labels are worked out by code from the log (the app's record of everything that
+    happened), never by AI: "Answered by keyword", "Sorted by AI, answered from your data",
+    "Passed to a person, waiting", "Passed to a person, answered", "Not understood", "Pay
+    (always a person)" and "Done in the app".
+  - While AI isn't switched on, a banner says so: messages without a keyword go to a person.
+  - The menu's Enquiries link shows a count of the ones that need a person.
+- **One message** (`/office/enquiries/{id}`):
+  - The conversation as the casual saw it, in WhatsApp-style bubbles.
+  - "How it was answered", step by step, only from logged facts: received, sorted, checks (none
+    recorded yet: the next task, 12D.2, adds them), the reply built, sent, and what happened
+    then.
+  - While it needs a person, a **reply box**. The page says in one line how the reply will go.
+    WhatsApp only lets a business answer in its own words for 24 hours after the person's last
+    WhatsApp. After that, only a pre-approved **template** (a fixed message with blanks) may go,
+    so the reply goes inside the `request_update` template instead.
+  - Or **"Close without a reply"**, with a reason from a fixed list (dealt with by phone, not
+    for us, duplicate, spam, other).
+- **Sending the reply:** only the background worker (the separate program that sends messages)
+  holds the messaging settings. So the page stores the reply and queues a job; the job sends it
+  once. If sending fails, the message goes back into Need a person.
+  - It always goes from the firm's shifts line as it is now. An old number might belong to
+    another firm by then.
+  - It never texts someone whose last word to the line was STOP, and never messages a caller we
+    don't know (the office phones them back instead).
+- **Requests from the app** is the old Requests page (time changes, swaps, reviews). The old
+  address `/office/requests` now leads there. For a question, "approved" now reads "answered".
+- **The database:** a question now points at the message it came from with a real link
+  (`requests.message_id`). Before, the id was tucked inside the question's data. When the
+  message is deleted after 90 days, only the link is cleared and the question stays.
+
+### Key facts and numbers
+
+- Messages from the last 90 days (the message retention), at most 100 per view.
+- A reply is one line of at most 500 characters.
+- The WhatsApp window closes at exactly 24 hours after their last WhatsApp to the shifts line.
+- Nothing the office types goes into the log: it records ids, the channel, the form and a reason
+  code only.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| When a message is deleted after 90 days, only the question's link to it is cleared | The question is evidence and stays. The database's usual "clear the link" would also clear the firm, which can't be empty, so this one line is written by hand | Delete the question too, or block the deletion |
+| The office's reply is stored straight away and sent by a background job | Only the worker holds the messaging settings (the passwords stay off the website) | Sending from the website |
+| A reply that fails puts the question back in Need a person | The casual got nothing, so someone still has to act | Leave it marked answered |
+| Replies always go from the firm's shifts line as it is now | An old number may belong to another firm later (found by the guardrails review) | The number the message came in on |
+| No message to a caller we don't know; no text after STOP, a stranger's too | The shifts line itself doesn't message unknown callers; STOP must always hold | Reply to everyone |
+| A question whose message has gone shows under "Requests from the app" | Otherwise it would vanish from every page (found by the review) | Only on Enquiries |
+| "Close without a reply" closes the question too: "dealt with by phone" as answered, the rest as "Sorted" | A bare "Declined" with no reason would confuse the casual | Leave the question open |
+| The website is told whether AI is on (not the AI key) | So the banner tells the truth about what the worker does | Guess from the log |
+
+### What the new tests prove
+
+- **The labels** (`tests/unit/office.enquiries.test.ts`): each outcome label from the facts
+  behind it; WhatsApp's window open one moment before 24 hours and closed at exactly 24 hours;
+  how a reply goes for a WhatsApp, a text, a voicemail, a withheld number, a stranger who said
+  STOP, and a firm with no shifts line.
+- **On the real database** (`tests/integration/enquiries.test.ts`, 18 tests):
+  - a question is linked to its message, and the conversation shows the automatic reply;
+  - a reply sent by text after WhatsApp refused it, and one that failed;
+  - each outcome from what was logged ("Done in the app" only for the casual's own booking);
+  - the office's reply to an unknown number: the stored row, a log entry without the words, the
+    job sending it once from the line, and the message leaving Need a person;
+  - outside the window the template goes; a failed send reopens the question;
+  - two office people replying at once: one reply;
+  - a reply goes from the firm's new line after it changes;
+  - closing as spam logs only the reason code;
+  - the 90-day purge clears the question's link and keeps the question;
+  - another firm sees nothing; the casual's postcode never appears.
+- **The old requests view and Today** (`office.requests.test.ts`, `office.today.test.ts`): a
+  question still linked to its message stays out; one whose message has gone shows; the old path
+  refuses a linked question; a question's answer reads "is answered".
+- **In a browser** (`tests/e2e/office.enquiries.spec.ts`): two strangers' WhatsApps; the badge and
+  banner; one answered (it arrives from Acme's line), one closed with a reason (nothing sent).
+  The walkthrough's steps 23, 38 and 39 now use Enquiries.
+- **Break checks:** I broke the code on purpose 8 ways (the 24-hour edge, the failed-reply rule,
+  typed words in the log, questions in the app view, Today's count, putting the question back,
+  the "Done in the app" rule, the casual-only booking check). Each time a test failed, then the
+  code was put back.
+
+### What's parked or needs Dylan
+
+Nothing here needs Dylan before it works with the fake data. One question for him and three
+small items are in the Parking lot in `PLAN.md`:
+
+- **Dylan to decide:** resourcers can read the words of pay messages in Enquiries (the spec gives
+  them Enquiries). Hide those words from them, or keep them?
+- Enquiries always shows 90 days, even when a firm keeps messages longer.
+- The template reply to an unknown number mentions "your request", though they made none.
+- Standing demo messages for Enquiries come with the demo seed (12I.1).
+- A one-line tidy-up for the next task: an unused import the lint step warns about
+  (`src/lib/office/enquiry-actions.ts`), left so the committed files match the verified ones.
+
+### How to see it working
+
+Run `npm run dev`. Send a WhatsApp from a made-up number with the fake phone:
+`npm run -s sim:whatsapp -- --from "07700 900999" --text "Hi it's Sam, new phone"`. Log in to the
+office as `acme.resourcer@example.com`, click "Enquiries", then "Need a person", then "Unknown
+number". Type a reply and click "Send reply": the dev window shows it going to that number.
+
+## 2026-10-10 — Phase 12, task 12D.2: Personal replies
+
+**Time spent:** 2.0 hours (14:17 to 16:17 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=55de639d472187f5 e2e=true`.
+That run passed 4,420 tests in 251 files, 85 browser tests and the walkthrough's 3, with none
+skipped (an earlier run failed 3 tests: see "Decisions made"). The independent auditor said
+**VERDICT: NOT DONE** on its first round (three gaps, all fixed: see below) and **VERDICT: DONE**
+on its second. The commit is "Phase 12:
+Personal replies (12D.2)", pushed to `build/overnight`. GitHub's own test run (CI) still can't
+start on this account (see the morning summary), so the local run is the evidence.
+
+### What was built, in plain words
+
+When a casual asks the shifts line for work ("any shifts?") or to cancel, the answer is now
+**written for them**, by code, from the firm's own data. Before, everyone got the same link.
+
+- **The shifts reply** lists the sessions she could actually take, exactly as the casual app's
+  Open shifts would show them: right role, qualifications in date for the whole session, no clash
+  with a booking, enough rest, under the weekly hours cap, not a day off, not a blocked site,
+  showing to casuals, and inside her travel area. Urgent ones first, then the nearest.
+  - Each line: role · event, site · day and times · pay per hour · post, then how far it is
+    ("5.0 miles · 20 min by car · no public transport by 08:30"). Never her postcode.
+  - At most 5 on WhatsApp (3 by text), then "+ N more" with the link. Always "Take one here:
+    {link}": she books in the app, not by replying a number.
+  - By text, each session still has the distance and both times ("3.1 miles, 12 min by car,
+    24 min by public transport"), or says why they aren't known yet.
+  - If she names a day ("this weekend", "Saturday", "tomorrow"), only that day's sessions, and
+    her own bookings that day.
+  - A CSAS session (police-accredited patrols) shows only to people who hold CSAS, marked "you
+    hold CSAS".
+- **The cancel reply** names her next booking with its link. It warns her about a **strike**
+  (a mark for cancelling late) only when cancelling it really would give one, using the same
+  decision as the app's cancel button. "Your other shifts" only when she has another booking.
+- **Every automatic reply** the shifts line sends now ends "Automatic reply. Send OFFICE to reach
+  a person." (WhatsApp's rule that people can always reach a human): the personal replies, the
+  pay reply, the "office will get back to you" reply, the reply to a number we don't know, the
+  voicemail receipt, and the STOP/START confirmations. The pay reply is still only the link:
+  never a list, never an answer about pay.
+- **The rules engine** (the pure code that decides if someone may take a session) now also
+  reports **every check it ran**, with the figures it used: for example "SIA licence valid to
+  9 Jun 2028", "rest gap 16 hours (minimum 11)", "weekly hours 16 of 48". It still decides
+  exactly as before.
+- **The log** (the app's append-only record of what happened) gets one new kind of entry,
+  `enquiry.checks`: which sessions the reply offered, each check with its figures, the minutes
+  of travel, and every session considered but left out with the reason. Only ids, codes, dates
+  and minutes: never a postcode, a name or her words.
+- **The office's Enquiries page** for that message now shows step 3, "Checks made by code" (each
+  offered session with every check ✓ or ✗), the sessions the reply listed (links), and
+  "Considered but not offered", for example "Response team lead: needs first aid at work
+  certificate (none on file)". For a cancel reply it shows the booking it named.
+- When AI didn't sort a message, the log now says why (not connected, no answer in time, an
+  answer that wasn't a label, or no text), and the page says it in words.
+
+### Key facts and numbers
+
+- A WhatsApp or a text may hold 1,600 characters. Every reply stays inside it: names are cut
+  shorter (60, 40, 25, then 15 characters), then fewer sessions are listed, and if even that
+  can't fit (a firm name thousands of characters long), only the link goes.
+- A text's cut names end "..." rather than "…", so the text stays in the plain text-message
+  alphabet (one "…" would make every part of the text cost more).
+- At most 50 left-out sessions are logged one by one, then a count. A reply reads at most 80
+  sessions; any beyond those are counted separately as "not checked one by one", never as
+  "not offered".
+- Her bookings on the days she named: at most two named, then "and N more".
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The reply is the casual app's own Open shifts list, not a second copy of the rules | One place decides what she can take; the reply and the app can never disagree | A separate query for the reply |
+| Each channel gets its own log entry, and the one for the words that went is logged | A text lists 3, a WhatsApp 5; the office must see what she actually got (found by the guardrails review) | Always log the WhatsApp version |
+| An "applied for" qualification counted within the firm's allowance is recorded as a passed check saying "applied" | It was the one exception the office most needs to see, and it was missing (found by the review) | Leave it out |
+| "You hold CSAS" only for a valid CSAS, never one applied for | Saying "you hold" to an applicant is untrue | Any passed CSAS check |
+| The log entry is checked against the log's rules before the reply is claimed | A refused entry after the send would roll back the stored reply, and the retry would never log it (found by the review) | Check only when writing |
+| A damaged log entry shows "A check whose record can't be read" | The page must never fail to load, and must never guess (found by the review) | Trust the log |
+| The automatic line goes on every automatic reply, the office's, voicemail and STOP/START ones too | The spec says "every other instant reply" with no exceptions; I had first left two out without approval, and the auditor caught it | Leave out the replies that already go to a person |
+| A text shows the distance and both times, or why not | Phase 12's "done" rule asks for that on every shifts-line reply; the spec's shorter text example fell short of it (caught by the auditor) | Only the time by car |
+| No booking by replying a number | Spec decision D6 deferred it | "Reply 1 to book" |
+| The one-pair rules preview returns the same verdict as the batched one, checks included | The first verify run failed: a test holds the two to the same answer, and this task had changed only one | Drop the checks from the batched one |
+| Leave the old "CSAS" word in the reply code rather than import the uploads module's constant | Importing it would pull the office permissions code into the background worker | Import it |
+
+### What the new tests prove
+
+- **The rules engine's checks** (`tests/unit/rules.checks.test.ts`, 24 tests): every check on a
+  pass and on a fail, with its figures; an application within the allowance; exactly one
+  qualification check per required type whatever the outcome; the checks never change the
+  decision; the rules doc lists exactly the engine's checks, in order.
+- **The words** (`tests/unit/inbound.personal-reply.test.ts`, 21 tests): the day words; the
+  lists on WhatsApp and by text; five sessions with every name at its longest stay within 1,600
+  characters; six long bookings, a 300-character first name and a 2,000-character firm name stay
+  within it too; a text's cuts use "..."; the cancel reply's variants; the pay reply has no list;
+  the biggest possible log entry passes the log's check.
+- **On the real database** (`tests/integration/personal-reply.test.ts`, 15 tests): only the
+  session she can take is listed, and each other one is left out with its reason, one test for
+  each of: a missing qualification, an expired one, one expiring mid-session, a clash, too little
+  rest, over the weekly cap, a day off, a blocked site, a hidden session, a hidden event and
+  outside her travel area; CSAS only to holders; an applicant is offered it but never told "you
+  hold CSAS"; her booking on a day she named, and never one on a cancelled session; the cancel
+  reply with and without a strike; by text 3 listed and "+ 2 more", with the log saying the same;
+  the exact counts past 80 sessions; the office's page for a shifts reply, a cancel reply and a
+  damaged entry; the pay reply and the AI's reason.
+- **More database tests after the audit:** when WhatsApp refuses the reply, the text version
+  goes and the log entry is the text's (3 listed, 2 more); a booking she took 48 hours ahead gets
+  no strike sentence; the text version's travel words for every case (unit tests).
+- **Older tests updated** for the new replies (the shifts-line database tests for WhatsApp, texts,
+  voicemail and Enquiries, three browser specs and the walkthrough's step 37): a product change,
+  not a weakened test. One older test (`open-shifts.test.ts`) pinned the rules preview's exact
+  shape; it now also requires every check, all passed: stricter.
+- **In a browser** (`tests/e2e/office.enquiries.spec.ts`): Zoe, who holds CSAS, asks for shifts
+  and gets two sessions (the CSAS one marked); Noor, who doesn't, gets one. On Zoe's message the
+  office sees each check with its figures ("SIA door supervisor licence valid to …", "Rest gap
+  16 h", "Inside travel area (20 min by car, limit 45 min)"), the two sessions as links, and
+  "Response team lead: needs first aid at work certificate (none on file)"; on Noor's, the CSAS
+  session left out. At phone width, no sideways scrolling.
+- **Break checks:** I broke the code on purpose 12 ways (the travel-area reason, the CSAS marker,
+  the log entry, the strike sentence, hidden sessions listed, the applied check, the logged
+  channel, the CSAS marker for an applicant, the not-checked count, cancelled bookings named,
+  damaged dates, the booked-line cap). Each time a test failed, then the code was put back.
+- **A real bug the new tests caught:** the Enquiries page's loader asked the database for a
+  column by the wrong name (`shift_event_id`; it's `event_id`), so the page would have failed for
+  every personal reply. Fixed before any commit.
+
+### The audit, in plain words
+
+The first audit found three gaps. The automatic line was missing from the "office will get back
+to you", voicemail and unknown-number replies, though the spec says every reply. The text
+version gave only the time by car, though Phase 12's "done" rule asks for the distance and both
+times. And the guardrails review wasn't written down yet. All three were fixed, verify was run
+again, and the second audit said DONE.
+
+### What's parked or needs Dylan
+
+All in the Parking lot in `PLAN.md`, "Personal replies (12D.2 review)":
+
+- **Dylan to confirm** (the travel DPIA, `docs/dpia-travel.md`): the new log entry keeps a
+  casual's travel limit and the minutes to each session offered (never the postcode). Minutes to
+  a known site hint at roughly where someone lives, so it's treated as personal data and kept as
+  long as the action log. Decision 21 in `PLAN.md` said travel stays out of the log: keep the
+  minutes, or log only "inside the area"?
+- **Dylan to confirm:** the automatic line on the STOP/START confirmations too, and the longer
+  text version (distance and both times).
+- Smaller: the booked line and the cancel reply have no travel line; day words can be fooled
+  ("I sat my test" reads as Saturday); a cancel reply names the next booking, not the day she
+  named; "+ N more" counts only the first 50; the AI's other fallback reasons have no test yet.
+
+### How to see it working
+
+Run `npm run dev`. Send a WhatsApp as Zoe with the fake phone:
+`npm run -s sim:whatsapp -- --from "07700 900122" --text "Any shifts this weekend?"`. The dev
+window shows her own reply. Log in to the office as `acme.resourcer@example.com`, click
+"Enquiries", then her message: step 3 shows every check made for each session she was offered.
+
+## 2026-10-10 — Phase 12, task 12E.1: Dashboard and Needs attention
+
+**Time spent:** 2.1 hours (16:19 to 18:24 UTC).
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=008346691a53db66 e2e=true`.
+That run passed 4,435 tests in 251 files, 86 browser tests and the walkthrough's 3, with none
+skipped. The first verify run failed 2 browser tests (see "Problems found on the way"). The
+independent auditor said **VERDICT: NOT DONE** on its first round (two gaps, both fixed: see below)
+and **VERDICT: DONE** on its second. The commit is "Phase 12: Dashboard and Needs attention
+(12E.1)", pushed to `build/overnight` (the work so far was saved first as `540e3dd`). GitHub's own
+test run (CI) still can't start on this account (see the morning summary), so the local run is
+the evidence.
+
+### What was built, in plain words
+
+The office's first page used to be **"Today"**: a long list of everything, in ten sections. It is
+now the **Dashboard**, the page Dylan's mock-up and the v2 spec describe (`docs/office-v2.md`
+§3.2 and §3.9). Admins and resourcers land on it after logging in. Payroll still goes straight to
+their pay dashboard.
+
+- **The shifts line** number stays under the page title, as before.
+- **Four counts** sit at the top. Each is a link (a "filtered list": the full page, showing only
+  what the count counted):
+  - "Urgent shifts not filled" (red and larger): sessions marked urgent that haven't started and
+    still have a place free. Its line says how many places, and when the first one starts.
+  - "Events showing to casuals": events casuals can see that still have a session to come.
+  - "Cancellations today": bookings cancelled since midnight, London time. Its line says how many
+    were under the strike notice and how many strikes were issued.
+  - "Enquiries today": messages to the shifts line since midnight, plus requests made in the app.
+    Its line says how many were answered automatically and how many need a person.
+- **Five sections** come under the counts, each with a short grey hint under its heading:
+  - **Urgent shifts not filled**: a card per event. Each urgent session has its own line, written
+    by code from the offers sent: "Offered to 3 casuals", or why offers stopped. A hidden event
+    warns "Hidden from casuals: nobody can see this gap." The quick buttons (offer to someone,
+    not urgent, mark as filled) are on each session, as before.
+  - **Showing to casuals**: the first 6 events casuals can see, each with its on/off switch and
+    its first 2 sessions.
+  - **Cancellations**: the latest 3, with the notice given and any strike. The hint says
+    "Recorded automatically, never approved or declined". There is no approve, decline or deny
+    button anywhere on the page.
+  - **Enquiries**: the latest 4 messages, with the start of the reply each one got.
+  - **Needs attention**: the to-do list. Each part only shows when it has something, and each item
+    links to where it's sorted:
+    - "Bookings to check", "From your rota sheet" and "Who worked?" (moved from Today);
+    - **new:** "Qualifications out of date on a booking": someone booked on a session whose
+      required licence or card has run out, or runs out before the session ends;
+    - **new:** "Uploads to check": photos and certificates casuals sent, waiting for the office;
+    - "Strike evidence" (an email to the strikes team that failed, or no confirmed address).
+- **A bell** in the top bar of every office page shows how many Needs attention items there are
+  and jumps to them. Screen readers hear "Needs attention, 3".
+- If one part of the page can't load (a database error), only that part says "This couldn't
+  load. Reload the page to try again." The rest still shows. This uses a **savepoint**: a marker
+  inside a database transaction that lets one failed query be undone without losing the rest.
+- `/office/today` (old bookmarks) now opens the dashboard. "Back to Today" links say "Back to the
+  dashboard". The menu's first link is "Dashboard".
+- Cancellations and Enquiries have a new "today only" view (`?day=today`), which the counts open,
+  with a link back to every day.
+- What Today had that the dashboard doesn't moved to its own page: the week's gaps (Events &
+  sessions), requests and messages from unknown numbers (Enquiries), credentials expiring
+  (Casuals). The how-to guide, the walkthrough and 15 docs say so.
+
+### Key facts and numbers
+
+- "Today" means the London calendar day: from midnight in London, which is 23:00 UTC the day
+  before in summer. A test runs on a July day to prove it.
+- The counts' lists: `/office/events?view=urgent`, `/office/events?view=showing`,
+  `/office/cancellations?day=today` and `/office/enquiries?day=today`. Each new "today only" list
+  says "Only today's." with a link back to every day. Enquiries' also says how many requests were
+  made in the app today, because the count includes them.
+- Sizes: 6 event cards under "Showing to casuals" (2 sessions each), the latest 3 cancellations,
+  the latest 4 enquiries, and at most 50 items in each Needs attention list ("50+" past that).
+- A qualification is "out of date on a booking" when the session needs it (the role's rule or the
+  session's own extra requirement), every record the office has checked has expired or runs out
+  before the session's last day, and no application in progress counts for it under the firm's
+  allowance. That is how the rules engine (the code that decides who may work a shift) reads it.
+- The bell's number is the count of Needs attention items. It shows no number at 0.
+- The dashboard only reads: it writes nothing and logs no events. Its buttons are the existing
+  ones (offer, mark urgent, mark as filled, keep or cancel a booking), each with its own checks.
+
+### Decisions made
+
+| Decision | Why | Also considered |
+|---|---|---|
+| "Enquiries today" counts messages and app requests; its list adds a line for the requests | The spec says the count includes them; the list shows only messages | Counting messages only |
+| Out-of-date qualifications read as the rules read them (checked records only; the session's last day; an allowed application counts) | So the dashboard never flags a booking the rules would accept | Running the rules engine for every booking on every page view |
+| Each part of the page loads in its own savepoint | One failing part shows its own error; the rest still shows | One error for the whole page |
+| The bell only for admins and resourcers, with no number at 0 | The same people who see the dashboard | A dot without a number |
+| 6 events under "Showing to casuals" | The spec gives no number; the count links to them all | Every event (a long page) |
+| A session hidden on its own gets the same warning as a hidden event | Nobody can see that gap either (the auditor's first gap) | Warning only for a hidden event |
+
+### What the new tests prove
+
+- **The counts** (on a real database): each counts exactly what its definition says. Full,
+  started, draft and cancelled sessions aren't urgent gaps. Only today's cancellations and
+  messages count, in winter and in summer. Each count's list holds the same rows as the count.
+- **The sections:** urgent cards hold only their urgent gaps, each with its own offer numbers,
+  even past 50 sessions. The hidden warning appears on a hidden event or session. Showing to
+  casuals shows 6 cards and how many more. The latest 3 cancellations and 4 enquiries come with
+  the first line of the reply, but only a reply that was sent.
+- **Needs attention:** every kind of item appears and links to its page. A licence that runs out
+  before a night shift ends is caught. A suspended licence, a checked renewal, or an allowed
+  application is not flagged.
+- **Who may see it:** admins and resourcers do. Payroll, a disabled user and another firm's admin
+  get nothing. Another firm's rows never appear: its counts are all 0, and none of its names or
+  words are in the page.
+- **Errors:** a failing part shows "This couldn't load…" and the rest of the page still loads.
+- **Words:** the exact labels, headings and hints. No dashboard link has a menu link's name. No
+  Approve, Decline or Deny anywhere. "urgently looking for" can't appear in `src/` or the screens
+  doc.
+- **In a browser** (`office.dashboard.spec.ts`): the four labels and their links, the headings
+  in order, the shifts line, the Cancellations hint, nothing that failed to load, the bell, the
+  offer page's "Back to the dashboard", the `/office/today` redirect, and payroll's redirect.
+- 25 **break checks**: each time I broke the code on purpose (a label, a date rule, a filter, a
+  safety step), a test failed. Then the code was put back.
+
+### Problems found on the way
+
+- **A login limit in the browser tests.** The office allows 3 login links per email every 15
+  minutes. My new spec logged in as the shared demo resourcer once too often, so a later spec
+  couldn't log in. The new test now uses its own resourcer.
+- **An older bug: a confirmation that vanished.** On a cancellation record, "Resend evidence" said
+  "Sending it again…", but the page then refreshed and removed that message with the button. The
+  message now stays.
+- The **guardrails review** (a separate checker for the project's safety rules) found nothing
+  unsafe, and suggested five improvements, all made: a test that one firm never sees another's
+  rows, a check that every part loads, the application allowance, the offer numbers past 50
+  sessions, and hiding replies that weren't sent.
+
+### What's parked or needs Dylan
+
+Nothing needs a decision. The Parking lot ("Dashboard (12E.1 review)") lists the edges: a
+qualification someone never had (or a suspended one) on a booking isn't in Needs attention; the
+lists stop at 50; the unknown-number alert email still links the dashboard; the today-only
+Cancellations CSV exports every day; the bell's queries on every page.
+
+### How to see it working
+
+Run the walkthrough (`docs/walkthrough.md`, steps 20 to 24): log in as the resourcer and the
+dashboard opens, with the four counts, the sections and the bell.
+
+## 2026-10-11 — Phase 12, task 12J.1: Planner API and API keys
+
+**Time spent:** 3.9 hours: 18:26 to 18:29 UTC on 10 October (the plan, the ADR and golden
+rule 3's wording), then 15:46 to 19:35 UTC on 11 October. The container sat idle in between, and
+that gap isn't counted.
+
+**Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=911818ee7f997fb3 e2e=true`.
+That run passed 4,670 tests in 261 files, 88 browser tests and the walkthrough's 3, with none
+skipped. The independent auditor said **VERDICT: NOT DONE** on its first round (an untested path
+and the review not written down: both fixed, see below) and **VERDICT: DONE** on its second. The
+commit is "Phase 12: Planner API and API keys (12J.1)", pushed to `build/overnight`. GitHub's own
+test run (CI) still can't start on this account (see the morning summary), so the local run is
+the evidence.
+
+### What was built, in plain words
+
+A firm's **planner** (the system it already uses to plan events and staff, or a CRM) can now send
+its sessions straight into ShiftDesk, instead of someone typing them in or keeping a rota sheet.
+This is S11 in the v2 spec (`docs/office-v2.md` §5.3), approved by Dylan on 6 October.
+
+- **An API** (a way for one program to talk to another over the web, with fixed addresses and
+  JSON messages). It has three calls, all under `/api/v1` on ShiftDesk's own address:
+  - `PUT /api/v1/sessions/{ref}`: "here is my session". The planner sends it with its own id for
+    the session (the "ref"). The first time, ShiftDesk creates the session (with its site and
+    event if they are new); after that, the same call updates it. Sending the same thing twice
+    changes nothing, so a planner can safely send again after a network hiccup. This is what
+    "idempotent" means.
+  - `GET /api/v1/sessions/{ref}`: the session as ShiftDesk has it, with who is booked (names and
+    staff refs only).
+  - `GET /api/v1/cancellations`: every cancellation since a time, oldest first, 100 a page.
+- **API keys.** A key is a long secret password for a program: `shiftdesk_` and 43 random
+  characters. An admin makes one on the new **Integrations** page (`/office/settings/integrations`,
+  admins only). It is shown once and never again. ShiftDesk keeps only a fingerprint of it (a
+  **sha256 hash**: a one-way scramble, so the key can't be read back) and its last 4 characters.
+  A firm can have 10 live keys. Revoking one stops it at once.
+- **The key decides the firm.** Before any firm is known, one database look-up
+  (`app_api_key_lookup`) turns the key's fingerprint into the firm's id and the key's id, and
+  nothing else. Everything after that runs inside that firm's walls, as every other page does
+  (`withFirm()`, row level security: the database itself hides other firms' rows).
+- **The same rules as the office.** When a planner moves or cancels a session people are booked
+  on, it goes through the very code the office's own Move and Cancel use: each casual's notice
+  hours are logged, each is told, nobody gets a strike for the firm's cancellation. One
+  difference: the planner can't override anything. If a move breaks a casual's rest gap or their
+  day off, it is refused (409) and nothing changes.
+- **The office stays in charge of its own sessions,** and the planner of its. The office can't
+  edit, move or cancel a whole session that came from the planner ("This session comes from your
+  planner. Change it there."), but can still assign people and cancel one booking. The planner
+  can't touch sessions it didn't send.
+- **Needs attention** gets a new item: "Your planner's change to the steward session on Sat 7
+  Nov was refused …", so the office knows when the planner tried a change that didn't go through.
+  It goes once a later change or cancellation lands, or when the session ends.
+- **Limits that protect the system:** JSON only, at most 64 KB a call; 300 calls a minute per key;
+  an address that sends 30 wrong keys in a minute is turned away for the rest of that minute
+  before any look-up. Errors always have the same shape, `{"error": {"code", "message",
+  "request_id"}}`, and never repeat back what was sent.
+- **The database:** migration 0045 adds the `api_keys` table and `api` as a source for sessions,
+  events and cancellations. Migration 0046 (added after the review) makes a revocation final: a
+  **trigger** (a small rule the database runs on every change) refuses any later change to who
+  revoked a key or when.
+- **A new setting,** `INTEGRATIONS_SECRET` (at least 32 characters). Without it the API answers 503
+  "not configured". Tests use a made-up value, checked by `scripts/invariants.sh`.
+- **Docs:** a new `docs/integrations.md` ("Connecting your planner": three steps, each call with
+  an example, every error), ADR-022 in `docs/decisions.md` (why it's built this way), golden rule 3
+  in `CLAUDE.md` (the API answers in the request rather than in a background job), and
+  `api-and-jobs.md`, `data-model.md`, `screens.md`, `runbooks.md` and `testing.md`.
+
+Key numbers: 3 calls; keys of 53 characters; 10 live keys a firm; 300 calls a minute a key; 30
+wrong keys a minute an address; 64 KB a call; 100 cancellations a page.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The API does its work during the call, not in a background job | A planner needs a yes or no at once (for example "a casual can't work the new time"); each call is one short database transaction | Queue a job and answer "accepted" (the planner would never hear about refusals) |
+| The planner can override no rule | Nobody is there to read a warning | Let it override what the office may override |
+| A booking the office chose to keep still blocks the planner's move | The keep was a person's decision about that booking, not the planner's | Let the keep count for the planner (the review said no) |
+| A revoked key can never come back, enforced by the database | No bug can bring it back to life | Trust the code alone |
+| A cancelling call applies nothing else, and nothing about its site can stop it | The session ends there; casuals must not stay booked because of a postcode | Apply the other fields first |
+| Ten small API choices, (a) to (j) | Listed in `docs/integrations.md` and the decision log, for Dylan to confirm | Each has its alternative in the decision log |
+
+### What the new tests prove
+
+235 more tests than before the task (4,435 after 12E.1, 4,670 now), and 2 new browser tests.
+Among them:
+
+- `tests/unit/integrations.keys.test.ts` and `integrations.api.test.ts`: the key's shape, its
+  fingerprint and last 4 characters; every field's limits; errors never echo what was sent.
+- `tests/integration/api.keys.test.ts`: the look-up returns only live keys and only ids; the app
+  can't rewrite a key's fingerprint or name, delete a key, or un-revoke one; one firm can't see
+  another's keys.
+- `tests/integration/api.requests.test.ts`: the address, size, type and rate limits; a revoked key
+  gets 401 at once.
+- `tests/integration/api.sessions.test.ts` and `api.cancellations.test.ts`: create, update and
+  "unchanged"; refusals change nothing; two calls at once give one session; another firm's key
+  sees nothing; 250 cancellations come back exactly once across 3 pages.
+- `tests/integration/roster.api-caller.test.ts`: the planner's move and cancel with no office
+  user, the office refused on planner sessions, a just-revoked key refused, and a kept booking
+  still blocking the planner.
+- `tests/e2e/office.integrations.spec.ts` (a real browser): an admin makes a key, it's shown once,
+  the key sends a session that then shows on Events & sessions, revoking it gives 401, other
+  roles can't open the page, it works at phone width, and no key or `Bearer` appears in the
+  servers' logs.
+
+### Problems found on the way
+
+- **A browser test failed only on Sundays.** `strikes.worker.spec.ts` makes two sessions, one
+  about 20 hours ahead and one 2 days ahead. On a Sunday both fell in the same week, so the
+  fairness rule (casuals with fewer hours that week get first pick) held the second one back.
+  The test now puts the second session on the following Monday. The app was right; the test's
+  dates were wrong.
+- **The safety review** (the `guardrails-reviewer`, a read-only checker of the project's golden
+  rules) found one thing to fix first (a booking the office chose to keep let the planner's move
+  through) and five smaller ones (a rare lock **deadlock**, where two changes each wait for the
+  other; revocation not final; the key missing from the rate limit log; a refused move with no
+  reason not shown to the office; a cancelling call making a site first). All six were fixed.
+- **A second review of those fixes** found one more thing to fix first: a cancellation could still
+  be stopped by its site's postcode check, which ran before anything else. Now nothing about the
+  site can stop a cancellation. It also asked for three smaller things (a cancellation with no
+  reason shown to the office, the same cancellation sent twice answered "unchanged", a test of
+  the deadlock retry), all done.
+- **The auditor's first round** found a path with no test (the planner changing a session nobody
+  is booked on) and the reviews not written in the decision log. Both fixed.
+- Every fix has a test, and each new test was checked to fail on the code before the fix.
+
+### What's parked or needs Dylan
+
+- **Dylan to confirm:** golden rule 3's new wording, and the ten small API choices (a) to (j).
+- Parked in `PLAN.md` ("Planner API (12J.1 review)"): wording for the planner's cancellations,
+  a guide line on planner sessions, the worker's setting for 12J.2, an index for very large
+  cancellation lists, and a few smaller notes.
+- Webhooks (ShiftDesk telling the planner when something happens) are the next task, 12J.2.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`. (If the call in
+   step 3 answers `503` with `not_configured`, copy the `INTEGRATIONS_SECRET` line from
+   `.env.example` into your `.env` and start `npm run dev` again.)
+2. Log in as `acme.admin@example.com` at `http://acme.localhost:3000/office/login` (the link
+   prints in the terminal), open **Integrations**, and press "Create a key". Copy it.
+3. In a terminal, with the key in `SHIFTDESK_KEY`, send a session:
+
+   ```sh
+   curl -X PUT http://localhost:3000/api/v1/sessions/DEMO-1 \
+     -H "authorization: Bearer $SHIFTDESK_KEY" -H "content-type: application/json" \
+     -d '{"role":"steward","starts_at":"2026-12-05T10:00:00Z","ends_at":"2026-12-05T18:00:00Z","site":{"name":"Demo Hall"}}'
+   ```
+
+   You should get `201` and the session back. It now shows on **Events & sessions**, marked as
+   from your planner.
+4. Revoke the key on the Integrations page and send the same call: you get `401`.
+
+## 2026-10-12 — Phase 12, task 12J.2: Webhooks to the planner
+
+**Time spent:** 2.4 hours (09:42–12:06 UTC).
+
+**Result:** `VERIFIED tree=a6f3e94db476e8a1 e2e=true` from `scripts/verify.sh`: 4,775 tests in
+263 files, none skipped or failed; 89 browser tests; the walkthrough's 3. The independent auditor
+(the `claims-auditor`) said **DONE** in its first round. Committed and pushed to `build/overnight`
+(the commit is named in `docs/overnight-log.md`).
+
+### What was built, in plain words
+
+A firm's planner (the system the firm already uses to plan events) can now be told the moment
+something happens in ShiftDesk. When a casual books a shift, cancels one, or the office withdraws
+a strike, ShiftDesk sends a **webhook**: an automatic message from one computer to another, posted
+to a web address the firm gives us. It carries the session, the booking and, for a cancellation,
+the full record and the strike result.
+
+- **Where the address goes in.** An admin opens **Integrations** and presses "Add a webhook". They
+  see a **signing secret** once (a password their planner uses to check a message really came from
+  ShiftDesk). After that the page only ever shows the address's start and last 4 characters,
+  because some addresses have a key hidden in them. There are buttons for a new secret, a test
+  message and removing it.
+- **Nothing can be missed.** Every change is already written to the **action log** (ShiftDesk's
+  record of everything that happens). Now, writing a booking or cancellation to the log also puts
+  a job in the **queue** (a to-do list the background worker works through), in the same
+  **transaction** (a group of database changes that all happen or none do). So if the change is
+  undone, no message goes; and no booking path can forget to send one.
+- **Built when sent.** The queue holds only ids, never names. The message is put together when it
+  is sent, from the records as they are then. If a casual's details have been erased, the message
+  says so and names nobody.
+- **Never sent:** a phone number, an email address, a casual's postcode or travel times, health
+  details, or anything anyone typed. A casual's own reason is always "casual_own_reason", because
+  "I'm unwell" is health data.
+- **Signed.** Each message carries a signature made with the open **Standard Webhooks** method, so
+  the planner can check it with ready-made code.
+- **Sent safely.** The worker shares a network with the database, so an address must never point
+  inside it. Before each send, ShiftDesk looks up the name and refuses any private or special
+  address (home networks, the server itself, cloud settings addresses). It then connects only to
+  the address it checked, follows no redirects, and gives up after 5 seconds to connect or 10 in
+  all.
+- **Retries.** If the planner doesn't answer, the worker tries 6 more times over about an hour.
+  After the last try the office sees "Your planner's webhook is failing", and the cancellation's
+  record says "Couldn't reach your planner". When it works, the record says "Sent to your planner
+  at 19:06".
+
+Key facts: migration 0047; 7 new files in `src/lib/integrations/` (`outbox.ts`, `webhooks.ts`,
+`deliver.ts`, `send.ts`, `sign.ts`, `secrets.ts`, `webhook-transport.ts`) and
+`src/lib/office/webhook-settings.ts`; a new worker setting, `WEBHOOK_TRANSPORT` (`console` prints
+messages in development and tests; `https` really sends, and is required in production).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The action log is the outbox | Every booking path already writes to it, so none can be missed | Each path queuing its own message (one forgotten path, one planner never told) |
+| Build the message when it's sent | No names sit in the queue; an erasure needs nothing extra | Building it when queued |
+| Event ids made of letters only | The log refuses anything that looks like a phone number (10 digits in a row) | Mixed letters and digits (would fail now and then) |
+| One message at a time per worker loop | A batch runs its jobs in turn, so one firm's slow planner held up another's in the same batch | Batches of 5, like the shifts line |
+| Two block lists, one for each address type (IPv4 and IPv6) | A test showed one list refused every normal IPv4 address | One list |
+| DNS through Node's own resolver, with a 5-second limit | The usual look-up can hang and uses threads the rest of the worker needs | The usual look-up |
+| A test message at most every 30 seconds per firm | Pressing it again and again can't keep the worker busy | No limit |
+| The firm's data export shows the address's hint only | The address can hold a key | The whole address |
+
+### What the new tests prove
+
+- `tests/unit/integrations.webhooks.test.ts` (77 tests): the signer gives the exact answer the
+  Standard Webhooks spec publishes; every listed private range is refused, one by one, in all its
+  forms; a name with one public and one private address is refused; a redirect isn't followed; a
+  slow server times out; at most 1 KB of the answer is read; the guide prints exactly the code's
+  schemas; the worker setting's rules; every new log entry passes the log check.
+- `tests/integration/webhooks.test.ts` (23 tests, on a real database): each of the 9 booking and
+  cancellation paths queues exactly one message, and none after an undo; real messages for a
+  casual's cancel at 15 hours (strike issued), the office's and the planner's carry every listed
+  field and pass their schema; a cancellation's message equals what `GET /api/v1/cancellations`
+  returns; one firm never gets another's; with one firm's planner hanging, another's message
+  arrives within 5 seconds; through a real queue worker, a failing planner gets 7 tries, one
+  "failed" entry, one Needs attention item and no failed job.
+- `tests/e2e/office.integrations.spec.ts` (in a real browser): an admin adds a webhook, sees the
+  secret once, a casual cancels, and the record says "Sent to your planner".
+
+### Problems found on the way
+
+- **The new tests caught two real bugs** before they shipped (the IPv4 block list and the batch
+  hold-up above).
+- **The safety review** (`guardrails-reviewer`) found nothing to fix first and four smaller things,
+  all fixed: the DNS time limit, two test settings missing from the invariants check, the address
+  in the data export, and the test-message limit.
+- **This cloud machine** needed setting up again, and three things went wrong that weren't the
+  code: Docker Hub refused to download Caddy (too many requests), so it came from Google's copy of
+  Docker Hub; the browser tests' development server was stopped by the machine for using too
+  much memory, so the browser tests ran on a production build, as GitHub's CI runs them; and that
+  build needed the local `.env`'s `NODE_ENV` line left out, as on CI. No file in the repo changed
+  for any of these.
+
+### What's parked or needs Dylan
+
+- **Webhooks need the worker running in production**, which waits for "Connect Twilio". Until then
+  messages wait in the queue, and planners can catch up with `GET /api/v1/cancellations`.
+- Parked in `PLAN.md` ("Planner webhooks (12J.2 review)"): a faster status look-up if it gets slow,
+  staff refs that might hold personal data, and a few smaller notes.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev` (the web app and
+   the worker).
+2. Log in as `acme.admin@example.com` at `http://acme.localhost:3000/office/login` (the link prints
+   in the terminal), open **Integrations**, and add the address `https://hooks.example/test/k3F9`.
+   You should see "Signing secret: whsec_…" once.
+3. Press **Send test event**. In the terminal you should see `[webhook:console] POST
+   https://hooks.example/…` with the signed headers and a `test.ping` body (the console transport:
+   nothing is really sent). Reload the page: the status says "Working · last delivered …".
+
+## 2026-10-12 — Phase 12, task 12H.1: Casual app tab bar and Home
+
+**Time spent:** 1.2 hours (12:09 to 13:18 UTC).
+
+**Result:** `scripts/verify.sh` (with the browser tests) printed
+`VERIFIED tree=a53b3f99c5efcd74 e2e=true`: 4,797 tests in 263 files, 90 browser tests and the
+walkthrough's 3, none flaky. The independent auditor (`claims-auditor`) said **DONE** in round 1.
+Commit "Phase 12: Casual app tab bar and Home (12H.1)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+The casual's phone app got the layout of `docs/office-v2.md` §4.1–4.2.
+
+- **A tab bar** at the bottom of every page a logged-in casual sees: Home, Shifts, Pay, Profile.
+  The page you're on is in bold and underlined. A small red dot sits on Profile when something
+  needs her (a qualification, or her staff photo overdue or due soon). A screen reader (software
+  that reads the screen aloud for blind users) hears "Profile, something needs updating".
+- **Home** (`/`), top to bottom: "Hello {first name}"; a "Needs updating" box, one thing to do per
+  row, the most urgent first, now including her staff photo; up to 3 urgent shifts she can take,
+  each with its role and event, site, time, pay per hour, post and how far it is ("3.1 miles · 12
+  min by car · 24 min by public transport"); her next shift in full (post, pay with an estimate
+  such as "£12.60 an hour, about £100.80", where to report, what to wear, getting there, a maps
+  button, "Ask for a change" and "Cancel this shift"); then the top 3 other shifts she could apply
+  for, with how many more are further than she travels.
+- **Booked** moved to `/shifts`, with an "Open | Booked" switch at the top. Old links to
+  `/?view=past` are sent on (a *redirect*) to `/shifts?view=past`.
+- **No signal:** the phone keeps a copy of both Home and Booked (the *service worker*, a small
+  script the browser runs in the background, stores them), each marked "No signal." when shown.
+- **Profile** now ends with My requests, Help and then Log out (moved from Home).
+- **Help** was rewritten to point at the tabs, and one sentence on Profile that said "Cancel it on
+  My shifts" now says "Cancel it under Shifts".
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Keep Booked offline as its own copy | The task asks for it, and Home stays short | A full Booked list on Home |
+| One page's 14-day expiry deletes only that copy; logging out deletes both | Leaving must leave nothing; one old page shouldn't take the other with it | Both always expiring together |
+| The tab bar is four plain links, not a list | Read as "Main" navigation with 4 links; pages that count list items aren't affected | A list of tabs |
+| The Profile tab carries its whole spoken name | Hidden words inside the link were read with a gap ("Profile , something…") | Hidden text inside the link |
+| No safety review (`guardrails-reviewer`) | Only screens, the offline page list, Help and tests changed | Running it anyway |
+
+### What the new tests prove
+
+- `tests/unit/portal.my-shifts.test.ts`: the tab bar's four links, the current one marked, the
+  dot and its spoken name; Home's order; the photo row; the urgent and apply lists (at most 3);
+  the next shift's facts; Booked's views.
+- `tests/unit/offline.sw.test.ts`: 7 new tests that Booked is kept, shown and deleted on its own
+  terms, next to Home.
+- `tests/e2e/casual.app.spec.ts` (a real browser, on a phone-sized screen): a made-up casual,
+  Holly, with a photo uploaded 1,130 days ago, a booked shift and an urgent one. Home shows
+  "Your staff photo is overdue. Last uploaded {that date} · renew by …", the urgent card's site
+  and "3.1 miles · 12 min by car · 24 min by public transport", her next shift's site, post, pay
+  estimate, where to report, what to wear and "5.0 miles · 15 min by car · 30 min by public
+  transport", and the Profile dot.
+- `tests/e2e/offline.worker.spec.ts`: Home and Booked each open with no signal, showing her next
+  shift; logging out from Profile deletes both copies.
+- 11 other browser specs follow the links to their new places (none weakened).
+
+### Problems found on the way
+
+- The new test's set-up broke a database rule (a distance is stored for car times only). Fixed
+  in the test helper.
+- The offline browser test opened Home "with no signal" and the server still answered: the
+  recording (*trace*) showed the background script's own request reaching the server. The test
+  switch for "no signal" didn't cover that request. The test now reloads each page with no
+  signal, the way that's proven to work.
+- The first full check failed on formatting in five test files. Formatted and run again.
+
+### What's parked or needs Dylan
+
+- Nothing needs Dylan. Parked in `PLAN.md` ("Casual app Home (12H.1 audit)"): requirement chips on
+  Home's urgent cards (they come with 12H.2), and two notes on tests.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
+2. Open `http://acme.localhost:3000/login`, type `07700 900110` (Sam Walsh) and press "Send me a
+   link"; open the link printed in the terminal and press "Log me in".
+3. You should see "Hello Sam", his next shift in full, and the tab bar at the bottom. Tap
+   "Shifts", then "Past 30 days", to see yesterday's race day. Tap "Profile": Log out is last.
+
+## 2026-10-12 — Phase 12, task 12H.2: Shifts list and shift page
+
+**Time spent:** 0.7 hours (13:21 to 14:03 UTC).
+
+**Result:** `scripts/verify.sh` (with the browser tests) printed
+`VERIFIED tree=c3248ad6080a44dc e2e=true`: 4,820 tests in 264 files, 91 browser tests and the
+walkthrough's 3, none flaky. The independent auditor (`claims-auditor`) said **DONE** in round 1.
+Commit "Phase 12: Shifts list and shift page (12H.2)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+- **Open shifts rows** now read, top to bottom: "Urgent" (if it is), the role and event (tap it
+  to open the shift), the site, "date and time · £/hour · post", small labels (*chips*) for what
+  the shift needs ("SIA DS", "CSAS"), places left, and how far it is ("3.1 miles · 12 min by car ·
+  24 min by public transport"). The day, site and role filters work as before. The urgent board and
+  Home's cards use the same rows and chips.
+- **A shift's page** (`/shifts/{id}`) now shows, for a shift she could take or is booked on: the
+  chips and the role; the place; the facts (when, pay with an estimate such as "£15.50 an hour,
+  about £124.00", where to meet, post, uniform, "1 of 4 left"); "Getting there" from her home area
+  ("8.4 miles away", "About 21 min by car", "About 38 min by public transport", "Open in maps");
+  "What it needs", each with her own status ("You have it, valid until 3 Mar 2027", "Expires
+  before this shift", "Missing: upload it", "Being checked"); then "Take shift" or the plain reasons
+  she can't; and "Cancelling less than 48 hours before the start gives you a strike."
+- **One reading of "what a shift needs"**: a small shared module now answers this for the office's
+  Events and Cancellations pages and the casual app, so the labels always match.
+- An **automatic event** (made by the system, named "{site} · {day}") isn't named on the casual's
+  pages any more, because the page already shows the site and day.
+
+Only reads: the *rules engine* (the code that decides who may take a shift) is unchanged and still
+decides. The page only shows.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One shared reader for a shift's requirements | Office and casual see the same labels | Separate copies (there were two already) |
+| Short chip names ("SIA DS") | Fit on a phone row; match the office | Full names |
+| No address on the Open row | §4.3 lists what the row holds; it's on the shift page | Keeping it |
+| Booked shift pages show the facts and distance too | The phase's goal: every shift page shows the distance | Leaving booked pages as they were |
+| "upload it" only where her roles need the type | The upload page refuses anything else | Widening the upload page (Dylan's call, parked) |
+
+### What the safety review found and what changed
+
+The `guardrails-reviewer` (an automatic reviewer that checks the project's golden rules) found one
+thing to fix first: "upload it" could lead to an upload page that refuses that type. Fixed, with
+tests. It also found four smaller things, all fixed: right to work (the legal check that someone
+may work in the UK) is shown when a shift needs it, a waiting renewal no longer asks for another
+upload, a test proves she only sees her own records, and one database read was doubled.
+
+### What the new tests prove
+
+- `tests/unit/portal.shift-page-copy.test.ts`: every Getting there wording and every status wording.
+- `tests/unit/portal.shift-detail.test.ts`, `portal.open-shifts.test.ts`: the page and the row in
+  §4.3–4.4's order, the chips, the strike note with a firm's own hours.
+- `tests/integration/shift-detail.test.ts` and `open-shifts.test.ts` (on a real database): the facts
+  and requirements as stored; "upload it" only where she may; a waiting renewal; another casual's
+  or another firm's records never count as hers; automatic events left unnamed.
+- `tests/e2e/casual.app.spec.ts` (a real browser, phone-sized): Zoe's Arena row with "3.1 miles · 12
+  min by car · 24 min by public transport", the site filter narrowing the list, the shift page's
+  facts, Getting there and What it needs, a blocked shift's four statuses, and "upload it" opening
+  the real upload page.
+
+### What's parked or needs Dylan
+
+- **Your call:** should a casual be able to upload a qualification that a shift needs as an
+  "extra" but none of her roles needs? Today she's told to ask the office.
+- Parked: the shifts line's replies still name automatic events; right to work as a shift extra.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
+2. Log in at `http://acme.localhost:3000/login` as `07700 900122` (Zoe), then tap "Shifts" and
+   "Open". Each row shows its pay, post, chips and travel line.
+3. Tap a row's role and event: the shift's page shows the facts, "Getting there" and "What it
+   needs".
+
+## 2026-10-12 — Phase 12, task 12H.3: Profile and help
+
+**Time spent:** 0.4 hours (14:06 to 14:30 UTC).
+
+**Result:** `scripts/verify.sh` (with the browser tests) printed
+`VERIFIED tree=a1d6ea242b8460e4 e2e=true`: 4,823 tests in 265 files, 91 browser tests and the
+walkthrough's 3, none flaky. The independent auditor (`claims-auditor`) said **DONE** in round 1.
+Commit "Phase 12: Profile and help (12H.3)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+Most of the Profile page was already there from earlier tasks (the staff photo, qualifications,
+right to work, travel area, strikes, days off, and the links at the end). This task finished it:
+
+- **"Your details"** now says "To change your name or number, ask the office.", the spec's words.
+- **The Help page** gained three sections:
+  - "Cancelling and strikes": cancelling less than 48 hours before a shift gives a strike; a strike
+    is a record, not a fine; how long it counts; when there isn't one; "Tell us what happened";
+    how the office withdraws one.
+  - "Your travel area": how to set it, what it changes, and that the office sees only the first
+    part of the postcode.
+  - "Qualifications and photos": uploading, what the office records itself, how often the staff
+    photo is renewed, and that only checked ones count.
+
+  The numbers (48 hours, 90 days, 36 months) are each firm's own settings, read from the database
+  when the page opens, so Help always matches what the app does.
+- **A credit line for the postcode data** at the bottom of Help. postcodes.io's data comes from
+  the Office for National Statistics, and its *licence* (the terms for using it) requires this exact
+  wording.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Use the spec's sentence for "Your details" | The task and spec quote it | Keeping the old sentence |
+| Help shows each firm's own numbers | A firm can change them | Fixed numbers |
+| The licence's exact words are let off the plain-language check, and only them | "database right" can't be reworded; a new test proves the same word elsewhere still fails | Rewording it, or hiding it from the test |
+
+### What the new tests prove
+
+- `tests/unit/guides.test.ts`: Help has the three new sections, states the firm's own numbers (for
+  a firm with 48/90/36 and one with 24/30/24), and ends with the credit line.
+- `tests/unit/copy.plain-language.test.ts`: every new Help sentence is plain and short; the credit
+  line is there word for word, and nothing else is let off.
+- `tests/integration/help-facts.test.ts` (real database): the defaults, and a firm's own settings.
+- `tests/e2e/casual.app.spec.ts` (real browser): Holly's Profile shows her photo, "Last uploaded
+  {date} · renew by {date}" and "Overdue", and the new details sentence.
+
+### What's parked or needs Dylan
+
+Two calls to confirm (in `docs/overnight-log.md`): the details sentence changed in two existing
+checks, and the licence's words are let off the plain-language test.
+
+### How to see it working
+
+1. `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
+2. Open `http://acme.localhost:3000/help`: the three new sections are in "On this page", and the
+   credit line is at the very bottom.
+
+## 2026-10-12 — Phase 12, task 12I.1: Demo seed
+
+**Time spent:** 1.6 hours (14:32 to 16:07 UTC). **Result:** `VERIFIED tree=f0cafeb8020923a2
+e2e=true` (4,837 tests, 91 browser tests and the walkthrough's 3); the auditor said **DONE** in
+round 3. Commit "Phase 12: Demo seed (12I.1)", pushed to `build/overnight`.
+
+### What was built, in plain words
+
+`npm run db:seed` (the command that fills the local database with made-up demo data) now also
+loads the story the design mock-up tells about "Acme Events": six events (one switched off so
+casuals can't see it), eight named casual workers with their licences, photos, strikes and travel
+areas, past cancellations (some giving a strike, one withdrawn by the office, one flagged for a
+person to review), two pay questions payroll has sorted, uploads waiting for the office to check,
+and three WhatsApp messages answered by the app's own reply code (nothing is really sent). All
+dates are relative to the day it runs, so "tomorrow" is always tomorrow.
+
+The shifts the story leaves open need something only the story's people have, so the older demo
+workers (and the step-by-step walkthrough built on them) see exactly what they saw before.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Story places need what only the story's casuals hold | The walkthrough and its tests stay as they were | Letting everyone see them (many tests and steps would change) |
+| Three older demo workers renamed (900105, 900137, 900152) | They shared a name with a story person | Renaming the story's people (they're the mock-up's) |
+| The seed runs the reply code once (Dylan's decision) | Replies are there straight after `db:seed` | Leaving them for the job worker (unanswered until it runs) |
+| Rows added once by fixed ids | A re-run never duplicates or undoes a demo | Dated ids (a re-run another day would duplicate the story) |
+
+### What the new tests prove
+
+`tests/integration/seed.story.test.ts` (14 tests, real database): each part of the story is there
+as the app reads it; Zoe's Home matches the mock-up ("3.1 miles · 12 min by car · 24 min by public
+transport"); none of the 60 older workers sees a story shift; every story booking is one the rules
+allowed when it was made; no casual's own words reach the log; a second run changes nothing.
+
+### What's parked or needs Dylan
+
+Nothing open. Your choice ("Allow the seed") is recorded in `PLAN.md` and in the AI boundary test.
+
+### How to see it working
+
+`npm run db:reset`, then `npm run dev`; log in at `http://acme.localhost:3000/login` as
+`07700 900400` (Zoe Adeyemi): Home looks like the mock-up.
+
+## 2026-10-12 — Guides and docs (12I.3)
+
+**Time spent:** 0.4 hours (16:08 to 16:51 UTC, shared with 12I.4: the two tasks shared one full
+check, as you decided).
+
+**Result:** `VERIFIED tree=389b478374c80191 e2e=true` (the full check, run once for 12I.3 and
+12I.4: 4,839 tests in 266 files, 91 browser tests, and the walkthrough's 3). Auditor:
+`VERDICT: DONE` (first round). Commit "Phase 12: Guides and docs (12I.3)", pushed to
+`build/overnight` (see the decision log for the push result).
+
+### What was built
+
+Mostly writing, not code. The app's **how-to guide** for the office (`/office/guide`) had two
+parts that were out of date after the new layout:
+- **"Getting around"** now says where the menu is. On a wide screen it's down the left side. On a
+  phone or tablet it hides behind a "Menu" button at the top left (a **drawer**: a panel that
+  slides in). It also says Log out is now under your name at the top right (your initials on a
+  phone), and what the bell and the moon/sun buttons do. The bell sentence only shows for admins
+  and resourcers, because payroll has no bell.
+- **"Connect your planner"** is now three steps: make a key, paste it into the planner, check that
+  "Your planner" says "Connected by API". The role codes and the **webhook** (the address where
+  ShiftDesk tells the planner about bookings) are short notes after the steps.
+
+The **docs** (the written files in `docs/`) were checked against the list in the Phase 12 spec:
+- `CLAUDE.md` (Claude's project memory) now says the office is planner-first, and that the
+  dashboard and Enquiries replace the old Today and Requests pages.
+- `docs/compliance.md` gained two sections. One is on the legal basis firms need when a casual
+  cancels with "I'm unwell". That's health data, a "special category" under UK GDPR Article 9, so
+  each firm needs an "appropriate policy document". The other lists the cautions around strikes:
+  a strike is a record, never a fine, and a person decides anything that follows.
+- `docs/privacy-notice.md` (the wording a firm gives its staff) now covers staff photos, strikes,
+  the strikes team's email, the planner, and the travel services.
+- `docs/decisions.md` gained two **ADRs** (short records of a decision and why). ADR-023 is
+  TravelTime for travel times. ADR-024 is keeping photos in the database.
+- Smaller fixes: the guide's row in `docs/screens.md`, two "Workers" leftovers in
+  `docs/runbooks.md`, and a new table in `docs/testing.md` of the stand-ins ("fakes") that replace
+  each outside service in tests.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The firm writes its own appropriate policy document; a template is parked | A legal template needs the solicitor's check anyway | Drafting one now (not asked for, and unchecked) |
+| "Employment Rights Act 2025" (its zero-hours rules expected in 2027) | The Act is from 2025; CLAUDE.md said "2027" and contradicted the new text | Leaving the two docs disagreeing |
+| The guide's bell sentence only for admins and resourcers | Payroll has no bell on screen | One sentence for everyone (wrong for payroll) |
+
+### What the new tests prove
+
+Two new cases in `tests/unit/guides.test.ts`:
+- For every role, "Getting around" says the menu is behind "Menu" on a phone, how to close it, and
+  that Log out is under your name. Only admins and resourcers are told about the bell.
+- "Connect your planner" has exactly three numbered steps. It names the Webhook section's buttons
+  exactly as they read on the page.
+
+### What's parked or needs Dylan
+
+- **"Appropriate policy document template"** (Parking lot): a template for firms, for the
+  solicitor to check with the DPA.
+- **For the solicitor:** the legal references in the new compliance text (Article 9(2)(b), DPA 2018
+  Schedule 1 paragraph 1, s.13 ERA 1996, the 6-month tribunal limit) were copied from
+  `docs/office-v2.md`. Nobody has checked them independently.
+
+### How to see it working
+
+`npm run dev`, log in to the office, open your name at the top right, then "How-to guide". Make the
+window narrow to see the "Menu" button the guide describes.
+
+## 2026-10-12 — Verify and the walkthrough (12I.4)
+
+**Time spent:** 0.4 hours (shared with 12I.3; see above).
+
+**Result:** `VERIFIED tree=389b478374c80191 e2e=true`: typecheck, lint, 4,839 tests in 266 files,
+91 browser tests, the walkthrough's 3 on the production build, and the invariants all passed.
+Auditor: `VERDICT: DONE` (first round). Commit "Phase 12: Verify and the walkthrough (12I.4)",
+pushed to `build/overnight` (see the decision log for the push result).
+
+### What was built
+
+`docs/walkthrough.md` is your step-by-step tour of the app. A **browser test**
+(`tests/e2e/walkthrough.spec.ts`: a program that clicks through a real browser) does every step
+the same way. Phase 12 added pages the tour didn't visit yet. There are 8 new steps:
+- **20, Zoe Adeyemi:** each shift says how far it is, and how long by car and by public
+  transport. She changes her travel area.
+- **21, Kieran Doyle:** his two strikes on his profile, and the page where he'd upload his new
+  licence.
+- **25:** Enquiries now shows the shifts line's messages first.
+- **30, Cancellations:** a cancellation's record and its PDF.
+- **31, Strikes:** casuals' strikes. You keep one that was marked for review.
+- **32, Casuals:** "Uploads to check". You approve Ben's new photo.
+- **36:** payroll lands on the Pay dashboard.
+- **40, Settings:** change the strikes team's email, then confirm it from the emailed link.
+- **41, Connect a planner:** make a key, then act as the planner with a `curl` command (a tool
+  that sends a web request from the terminal). Check "Connected by API" and see the session on
+  Events & sessions. Then revoke the key.
+
+The part about the office now explains the menu ("Menu" in a narrow window) and what's at the top
+right, including Log out. Steps after 19 moved up (the old 20 to 43 are now 22 to 49).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Step 40 really changes the strikes email and confirms it | So the confirm page is visited too ("every new page") | Only looking at Settings |
+| The planner is played with `curl` | It's how `docs/integrations.md` shows planners calling; nothing outside your computer is touched | A new script just for the tour (more code) |
+
+### What the new tests prove
+
+The browser test now passes every new step on a fresh demo, on a **production build** (the app
+built as the server runs it). Two of my own mistakes failed it on the way, and both were fixed in
+the test and the guide:
+1. The planner API answers `{"result":"created","session":…}`, not `{"session":…}`.
+2. On a computer screen the keys are a table, not a list.
+
+### What's parked or needs Dylan
+
+Nothing new. Note: Phase 12's tasks are all ticked now.
+
+### How to see it working
+
+Follow `docs/walkthrough.md` from step 7 (`npm run db:reset`). Steps 20, 21, 30, 31, 40 and 41 are
+the new pages.

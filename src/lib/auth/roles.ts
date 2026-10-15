@@ -10,9 +10,13 @@ export const OFFICE_AREAS = {
   dashboard: ["admin", "resourcer", "payroll"],
   team: ["admin"], // who has office access, and their roles
   settings: ["admin"], // the strikes team's email and the sites' postcodes (12B.7)
+  // Integrations (12J.1): the planner's API keys (create, shown once; revoke) and the codes it uses.
+  integrations: ["admin"],
   today: ["admin", "resourcer"], // gaps, urgent shifts, cancellations, requests, expiries
   shifts: ["admin", "resourcer"], // the shift list, creating, editing, importing, assigning
-  requests: ["admin", "resourcer"], // workers' requests: approve or decline with a note
+  // Enquiries (12D.1): the shifts line's messages (replying, closing) and the requests made in the
+  // app (approve or decline with a note). Called "requests" before 12D.1.
+  enquiries: ["admin", "resourcer"],
   cancellations: ["admin", "resourcer"], // cancellation records, their PDFs and the CSV (12C.3)
   strikes: ["admin", "resourcer"], // the Strikes page, withdrawing and keeping a strike (12C.5)
   log: ["admin", "resourcer"], // the action log, with filters
@@ -20,7 +24,9 @@ export const OFFICE_AREAS = {
   pilot: ["admin", "resourcer"], // pilot metrics: the baseline, weekly tallies, the figures
   pay: ["admin", "payroll"], // pay queries, grouped by likely cause
   data: ["admin"], // GDPR: a worker's data (download, delete) and the firm's own download
-  workers: ["admin", "resourcer"], // a worker's access: inactive, active, unblock, site blocks
+  // Casuals (12F.1; Workers until then): their qualifications, travel area, strikes, bookings and
+  // access (inactive, active, unblock, site blocks).
+  casuals: ["admin", "resourcer"],
   guide: ["admin", "resourcer", "payroll"], // the how-to guide (it shows each role its own parts)
 } as const satisfies Record<string, readonly OfficeRole[]>;
 

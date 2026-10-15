@@ -15,5 +15,8 @@ export function printSeedSummary(summary: SeedSummary): void {
       `Urgent dropout (a door supervisor shift): http://${urgent.slug}.localhost:3000/shifts/${urgent.urgentShiftId}`,
     );
   }
+  console.log(
+    "The mock-up's story: Zoe Adeyemi 07700 900400, Kieran Doyle 900401, Ben Fraser 900402, Priya Shah 900403, Leah Ward 900404, Jamal Morgan 900405, Mo Rahman 900406, Tom Hale 900407",
+  );
   console.log("Seed loaded. Try http://acme.localhost:3000 and http://northline.localhost:3000");
 }

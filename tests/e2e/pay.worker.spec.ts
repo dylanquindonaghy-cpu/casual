@@ -29,7 +29,7 @@ test("pay needs a code: a wrong one counts down, the right one opens the page", 
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
 
-  await page.getByRole("link", { name: "See your pay" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
   await expect(page).toHaveURL(`${acme}/pay`);
   await expect(page.getByText("To see your pay, we'll send you a 6-digit code.")).toBeVisible();
   const codeAsked = new Date(Date.now() - 1000);

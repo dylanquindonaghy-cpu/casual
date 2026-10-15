@@ -39,7 +39,7 @@ test("a worker texts STOP: texts are off, confirmed by text, shown on their prof
     await sentTo(
       worker,
       stopped,
-      /(You won't get texts from Acme Events now\. Reply START to turn them back on\. - Acme Events Shift Team)/,
+      /(You won't get texts from Acme Events now\. Reply START to turn them back on\. Automatic reply\. Send OFFICE to reach a person\. - Acme Events Shift Team)/,
     ),
   ).toBeTruthy();
 
@@ -61,7 +61,7 @@ test("a worker texts STOP: texts are off, confirmed by text, shown on their prof
     await sentTo(
       worker,
       started,
-      /(Texts from Acme Events are back on\. Reply STOP to turn them off\. - Acme Events Shift Team)/,
+      /(Texts from Acme Events are back on\. Reply STOP to turn them off\. Automatic reply\. Send OFFICE to reach a person\. - Acme Events Shift Team)/,
     ),
   ).toBeTruthy();
   await page.reload();

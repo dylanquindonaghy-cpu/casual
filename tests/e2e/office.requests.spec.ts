@@ -1,13 +1,13 @@
 import type { Page } from "@playwright/test";
 import { addOfficeUser, addSwapRequest } from "./db";
-import { expect, test } from "./fixtures";
+import { expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// Answering a worker's request in a real browser: a resourcer opens Requests from Today, declines
-// a swap request (a note is needed to decline), sees the confirmation, then sees it answered with
-// the note and that the worker was told (or that telling them waits for quiet hours, if this runs
-// at night). The request and the resourcer are this spec's own, so the demo's requests stay
-// waiting for the Today spec and the seeded users' login links aren't used up.
+// Answering a worker's request in a real browser: a resourcer opens Enquiries' "Requests from the
+// app" (from Today until 12E.1), declines a swap request (a note is needed to decline), sees the
+// confirmation, then sees it answered with the note and that the worker was told (or that telling
+// them waits for quiet hours, if this runs at night). The request and the resourcer are this
+// spec's own, so the demo's requests stay waiting and the seeded users' login links aren't used up.
 
 const acme = "http://acme.localhost:3100";
 
@@ -32,8 +32,16 @@ test("decline a request with a note: the confirmation, then answered and the wor
   const { ref, worker, firstName } = await addSwapRequest("acme", note);
   await officeLogin(page, email);
 
-  await page.getByRole("link", { name: "See requests" }).click();
-  await expect(page).toHaveURL(`${acme}/office/requests`);
+  // Enquiries' "Requests from the app" (12D.1); the old Requests address leads there too.
+  await (await menuLink(page, "Enquiries")).click();
+  await page.getByRole("link", { name: "Requests from the app" }).click();
+  await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
+  await page.goto(`${acme}/office/requests`);
+  await expect(page).toHaveURL(`${acme}/office/enquiries?view=app`);
+  await expect(page.getByRole("link", { name: "Requests from the app" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   const waiting = page.getByRole("region", { name: "Waiting for an answer" });
   const card = waiting.locator("li", { hasText: `Reference ${ref}` });
   await expect(card.getByText(`Swap: ${worker}`)).toBeVisible();

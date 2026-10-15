@@ -131,7 +131,7 @@ export async function dueReminders(
      where a.status = 'confirmed' and a.worker_id is not null
        and w.mobile_e164 is not null -- only an erased worker has none (erasure needs no bookings ahead)
        -- Only active workers: one made inactive or blocked can't log in to cancel, as a reminder
-       -- asks (audit M22); their bookings are on the office's Today to cancel or keep. Nor a
+       -- asks (audit M22); their bookings are on the office's dashboard to cancel or keep. Nor a
        -- booking at a site they're blocked from, until the office keeps it.
        and w.status = 'active'
        and (a.office_kept_at is not null

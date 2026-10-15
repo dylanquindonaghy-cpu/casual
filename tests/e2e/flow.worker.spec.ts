@@ -38,7 +38,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await expect(page.getByText("No shifts booked yet.")).toBeVisible();
 
   await timed("take a shift", async () => {
-    await page.getByRole("link", { name: "See open shifts" }).click();
+    await page.getByRole("link", { name: "See all open shifts" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
     const racecourse = page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" });
     await expect(racecourse).toHaveCount(1);
@@ -67,7 +67,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await expect(page.getByText("No shifts booked yet.")).toBeVisible();
 
   await timed("ask for a change", async () => {
-    await page.getByRole("link", { name: "See open shifts" }).click();
+    await page.getByRole("link", { name: "See all open shifts" }).click();
     const centre = page.getByRole("listitem").filter({ hasText: "Acme Demo Shopping Centre" });
     await expect(centre).toHaveCount(1);
     await centre.getByRole("button", { name: "Take shift" }).click();
@@ -89,7 +89,7 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
   await page.getByRole("link", { name: "Back to my shifts" }).click();
 
   await timed("see pay with a code", async () => {
-    await page.getByRole("link", { name: "See your pay" }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pay" }).click();
     await expect(page.getByText("To see your pay, we'll send you a 6-digit code.")).toBeVisible();
     const asked = new Date(Date.now() - 1000);
     await page.getByRole("button", { name: "Send me a code" }).click();

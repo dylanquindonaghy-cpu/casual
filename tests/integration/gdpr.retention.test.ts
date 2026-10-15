@@ -177,6 +177,7 @@ describe("the retention purge", () => {
       sessions: 2,
       codes: 1,
       travelEstimates: 1,
+      uploads: 0,
     });
 
     // The old message goes; a reply to it newer than the cut-off stays, no longer pointing at it.
@@ -227,6 +228,7 @@ describe("the retention purge", () => {
       sessions: 0,
       codes: 0,
       travelEstimates: 0,
+      uploads: 0,
     });
     const { rows } = await su.query(
       `select actor_type, entity_type, entity_id::text, data from events
@@ -248,6 +250,7 @@ describe("the retention purge", () => {
           sessions: 2,
           codes: 1,
           travelEstimates: 1,
+          uploads: 0,
         },
       },
       { actor_type: "system", entity_type: "firm", entity_id: t.firmId, data: again },
@@ -355,6 +358,7 @@ describe("the retention purge", () => {
       sessions: 2,
       codes: 1,
       travelEstimates: 1, // keyed by postcode, not personal: a hold doesn't keep them
+      uploads: 0,
     });
     expect(await ids("messages", t.firmId)).toContain(a.oldMessage);
     const { rows } = await su.query(

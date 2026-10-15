@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { btn, card, h2, meta, nums, page, row, rows } from "@/app/ui/classes";
+import { btn, card, h2, meta, nums, page, row, rows, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
@@ -23,8 +23,10 @@ export const metadata: Metadata = { title: "Cancellations" };
 const isView = (v: unknown): v is CancellationView =>
   typeof v === "string" && (CANCELLATION_VIEWS as readonly string[]).includes(v);
 
-const hrefOf = (view: CancellationView) =>
-  view === "all" ? "/office/cancellations" : `/office/cancellations?view=${view}`;
+const hrefOf = (view: CancellationView, day?: "today") => {
+  const q = [...(view === "all" ? [] : [`view=${view}`]), ...(day ? [`day=${day}`] : [])];
+  return q.length === 0 ? "/office/cancellations" : `/office/cancellations?${q.join("&")}`;
+};
 
 // Cancellations (docs/office-v2.md 3.4; docs/screens.md `/office/cancellations`): this week's
 // counts, then every cancelled booking, newest first, in the chosen view (links: All · Under 48
@@ -33,12 +35,17 @@ const hrefOf = (view: CancellationView) =>
 export default async function CancellationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; day?: string }>;
 }) {
   const { firm } = await requireOfficeArea("cancellations");
-  const { view: viewParam } = await searchParams;
+  const { view: viewParam, day: dayParam } = await searchParams;
   const view: CancellationView = isView(viewParam) ? viewParam : "all";
-  const list = await officeCancellations({ firm }, (await readSessionToken("office")) ?? "", view);
+  // Only today's (since midnight, the firm's time): the dashboard's "Cancellations today" link.
+  const day = dayParam === "today" ? ("today" as const) : undefined;
+  const list = await officeCancellations({ firm }, (await readSessionToken("office")) ?? "", view, {
+    limit: CANCELLATIONS_PAGE_ROWS,
+    ...(day ? { day } : {}),
+  });
   if (!list) notFound();
   const tz = list.timeZone;
   const week = weekCountsText(list.week);
@@ -77,7 +84,7 @@ export default async function CancellationsPage({
         {CANCELLATION_VIEWS.map((v) => (
           <Link
             key={v}
-            href={hrefOf(v)}
+            href={hrefOf(v, day)}
             aria-current={v === view ? "page" : undefined}
             className={v === view ? `${btn.primary} rounded-full` : `${btn.secondary} rounded-full`}
           >
@@ -86,9 +93,20 @@ export default async function CancellationsPage({
         ))}
       </nav>
 
+      {day && (
+        <p className={`${meta} mt-3`}>
+          Only today&apos;s.{" "}
+          <Link href={hrefOf(view)} className={textLink}>
+            Show every day
+          </Link>
+        </p>
+      )}
+
       <h2 className={`${h2} mt-6`}>{VIEW_WORDS[view](list.threshold)}</h2>
       {list.rows.length === 0 ? (
-        <p className={`${card} mt-3 text-ink-muted`}>{VIEW_EMPTY[view]}</p>
+        <p className={`${card} mt-3 text-ink-muted`}>
+          {day ? "No cancellations today." : VIEW_EMPTY[view]}
+        </p>
       ) : (
         <ul role="list" className={`${rows} mt-3`}>
           {list.rows.map((r) => (

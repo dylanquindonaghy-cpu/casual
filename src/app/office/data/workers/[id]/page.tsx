@@ -54,6 +54,24 @@ export default async function OfficeWorkerDataPage({
               Download (CSV, opens in Excel)
             </a>
           </div>
+          {worker.images.length > 0 && (
+            // Their photos and certificate images (12F.2): the files above carry each one's details
+            // only, so each image is its own download here.
+            <div className="mt-4 border-t border-line pt-4">
+              <p className="font-semibold">Their photos and card images</p>
+              <ul role="list" className="mt-2 flex flex-col gap-1">
+                {worker.images.map((image) => (
+                  <li key={image.id}>
+                    <a href={`/files/${image.id}?download=1`} className={btn.link}>
+                      Download {image.kind === "photo" ? "photo" : `${image.type ?? "card"} image`}{" "}
+                      ({dayWithYear(localDateOf(image.createdAt, firm.timezone), today.slice(0, 4))}
+                      )
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </section>
 

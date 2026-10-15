@@ -22,6 +22,8 @@ const env = {
   // `next start` runs with NODE_ENV=production, which refuses .env.example's secret: one of its own,
   // shared by the web app and the worker.
   SESSION_SECRET: "walkthrough-e2e-only-secret-not-for-any-real-use",
+  // Likewise the planner integration secret (12J.1): its own, never .env.example's.
+  INTEGRATIONS_SECRET: "walkthrough-e2e-only-integrations-secret-not-real",
 };
 
 export default defineConfig({

@@ -33,9 +33,10 @@ architecture.md, Tenancy).
 | worker_site_blocks | Sites a worker may not work at (rules check 9), set by the office with a reason | 10 |
 | worker_travel | A casual's travel area: start postcode and its central point, ways of travelling, time limit (12G.1, S8) | 12 |
 | travel_estimates | Travel time (and distance by car) from a postcode to a site, by car or public transport, arriving by a time; keyed by postcode, never by person (12G.2, S9) | 12 |
-| credentials | Licences/cards per worker: type, number, expiry, status | 1 |
+| credentials | Licences/cards per worker: type, number, expiry, status; whether the office has checked it (verified, or a casual's upload waiting or turned down), and the upload it came from (12F.2, S6) | 1 |
+| uploads | A casual's staff photos and certificate images (JPEG re-encoded by the server, 1 MB at most): kind, type, size, sha256, the bytes, and the office's check (waiting, approved or rejected with a reason) (12F.2, S7) | 12 |
 | credential_rules | Which credentials a role needs, per sector | 2 |
-| credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count), seeded from its sector's pack | 2 |
+| credential_types | The credential types a firm uses (code, name, sector, whether "applied" may count, whether only the office records it: 12F.2), seeded from its sector's pack | 2 |
 | sites | Venues/sites (address; the postcode's central point in lat/lng, looked up when the postcode is saved: 12G.1) | 1 |
 | shift_events | Events: the sessions (shifts) of one job, with a "show to casuals" switch. Not `events`, the action log | 12 |
 | shifts | Sessions: site, role, start/end, headcount, urgent flag, source; their event, pay rate, post, meeting point, uniform, extra requirements and "show to casuals" switch (12B.1) | 2 |
@@ -50,6 +51,7 @@ architecture.md, Tenancy).
 | events | Append-only action log (the evidence trail) | 1 |
 | magic_links / sessions / otp_codes | Login (hashes only, never raw tokens or codes) | 1 |
 | auth_throttle | Rate-limit counters for login and OTP requests (HMAC-keyed buckets) | 1 |
+| api_keys | A planner's API keys: a label, the key's sha256 and last 4 characters (never the key), who made and revoked it, when last used (12J.1, S11) | 12 |
 | push_subscriptions | Web push endpoints per worker | 4 |
 | roster_sources | Where a firm's rota lives when it isn't our tables (Google Sheet id, column mapping, last sync, error code, sync lease) | 2 |
 | metrics_daily | Pilot baseline and daily counts | 5 |
@@ -94,6 +96,16 @@ never a word like `now` or `infinity`), refuses every other key (`retention.*` f
 clears the confirmed time when the address changes, needs an address before a time, and refuses
 `settings` or `settings.strikes` that aren't JSON objects rather than replacing them. Every other setting stays with the owner (`npm run firm:settings`).
 
+`webhook` (12J.2, S11 (b); migration 0047): `{ "url": "https://…", "signing_version": 3 }`, the
+firm's planner's webhook address (no default; a secret: never logged, shown on the page as its host
+and last 4 characters) and the version its signing secret is derived from
+(`src/lib/integrations/secrets.ts`; the secret itself is never stored). `app_set_firm_setting()`
+also accepts `webhook.url` (an `https://` address of at most 500 characters, or NULL to remove it;
+the same address again changes nothing) and `webhook.rotate` (NULL only, and only while an address
+is set). Each adds 1 to `signing_version`, which no call can set or lower, so an old signing secret
+never comes back. Admins change it on Integrations (`src/lib/office/webhook-settings.ts`), logged
+`firm.settings_changed` with the keys, what changed and the version's old and new numbers.
+
 The owner's strike settings (12C.1), in the same object, read by `src/lib/strikes/settings.ts`
 (a value out of range is ignored for the default) and set with `npm run firm:settings`:
 `strikes.notice_hours` (48, 1 to 336: a casual's own cancellation with less notice is a strike;
@@ -106,6 +118,11 @@ The owner's travel setting (12G.1), read by `src/lib/travel/settings.ts`:
 `travel.default_max_minutes` (45; 30, 45, 60 or 90): a casual's time limit on `/profile/travel`
 until they choose their own. Which look-up service is used is a server setting
 (`TRAVEL_PROVIDER`), never per firm.
+
+The owner's staff photo setting (12F.2), read by `src/lib/uploads/settings.ts`:
+`photo.renewal_months` (36; whole months, 12 to 60): how often a casual's staff photo is due again,
+from the day the current one (the latest approved) was uploaded. "Due soon" starts 30 days before
+(`EXPIRING_SOON_DAYS`).
 
 ## DDL sketch (Postgres)
 
@@ -298,8 +315,46 @@ create table credentials (
   -- the last threshold sent. A new expires_on (a renewal) means none sent yet for it.
   expiry_warned_for date,
   expiry_warned_days smallint,           -- 30 | 14 | 7; set together with expiry_warned_for (check)
+  -- The office's check (S6; 12F.2): 'verified' is the office's own (imported, recorded, or an upload
+  -- a named person approved: verified_at/by filled); 'waiting' and 'rejected' are a casual's upload
+  -- not (yet) accepted. Only verified records count anywhere (the rules engine, the expiry scan,
+  -- the dashboard, the import's "latest record"), and an unchecked one is always stored as expired with
+  -- its upload (credentials_unchecked_never_valid), so a reader that missed the filter still
+  -- couldn't count it.
+  check_state text not null default 'verified',  -- verified | waiting | rejected
+  rejected_reason text,                  -- blurry | wrong_document | expired | doesnt_match | other; only when rejected
+  evidence_upload_id uuid,               -- (firm_id, evidence_upload_id) -> uploads(firm_id, id)
   created_at timestamptz not null default now()
 );
+
+-- Photos and certificate images (S7; 12F.2; docs/office-v2.md 5.5), in Postgres so RLS, erasure and
+-- export cover them. Re-encoded by the server (src/lib/uploads/image.ts): always a JPEG, no location
+-- or other hidden data, 1 MB at most. The app may add, check (status, checked_by, checked_at,
+-- reject_reason: COLUMN_UPDATES) and delete them (a waiting one replaced, the retention purge,
+-- erasure), never rewrite the bytes or whose they are. Served only by /files/[id]. The current
+-- staff photo is the latest approved one, so workers has no photo column. The JSON exports carry
+-- every column but `data`.
+create table uploads (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  worker_id uuid not null,               -- (firm_id, worker_id) -> workers(firm_id, id), on delete cascade
+  kind text not null,                    -- photo | certificate
+  credential_type text,                  -- a certificate's type code; null for a photo (check)
+  content_type text not null,            -- always 'image/jpeg'
+  size integer not null,                 -- = octet_length(data), 1 to 1,000,000
+  sha256 text not null,                  -- hex: the fingerprint the exports carry
+  data bytea not null,
+  uploaded_by text not null default 'casual',
+  status text not null default 'waiting', -- waiting | approved | rejected
+  checked_by uuid,                       -- (firm_id, checked_by) -> office_users(firm_id, id)
+  checked_at timestamptz,                -- set with checked_by, when not waiting (check)
+  reject_reason text,                    -- as credentials.rejected_reason; only when rejected
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
+);
+-- One waiting per casual, kind and type: a new one replaces it.
+create unique index uploads_one_waiting on uploads (firm_id, worker_id, kind, coalesce(credential_type, ''))
+  where status = 'waiting';
 
 -- The rota (Phase 2, src/lib/db/schema/roster.ts). Its foreign keys have no ON DELETE action:
 -- deleting a worker, site, shift or office user that rota rows point at fails, so history is
@@ -315,6 +370,11 @@ create table credential_types (
   name text not null,                    -- as workers know it: "SIA door supervisor licence"
   sector text not null,                  -- the pack: security | rail | construction | cleaning | any
   applied_allowed boolean not null default false,  -- "applied" may count (SIA licences)
+  -- Only the office records it (12F.2, migration 0043): a casual can't upload an image of it. From
+  -- the pack's `officeRecorded` (right to work, CSAS, drugs and alcohol tests, rail medicals, DBS),
+  -- backfilled for existing firms; a firm may mark its own types too, and the packs' list always
+  -- holds (`casualMayUpload`).
+  office_recorded boolean not null default false,
   created_at timestamptz not null default now(),
   unique (firm_id, code)
 );
@@ -333,7 +393,8 @@ create table credential_rules (
 );
 
 -- Events (Phase 12, 12B.1; docs/office-v2.md 3.3, S1). Every shift belongs to one. "Shifts for an
--- event" makes its own (planner_ref empty). The sheet sync, the file import, "New shift" and
+-- event" makes its own (planner_ref empty); the planner API finds or makes its own by the
+-- planner's ref (source api, 12J.1). The sheet sync, the file import, "New shift" and
 -- migration 0035 put a new shift in its site and day's automatic event: named "Acme Demo Arena ·
 -- Sat 10 Oct" ("Sat 10 Oct" with no site; a long site name is cut to fit 200 characters), the day
 -- being the shift's start in the firm's time zone, and found again by its key in planner_ref,
@@ -341,19 +402,23 @@ create table credential_rules (
 -- the shifts already there the same way (the first migration that changes data). A shift whose
 -- date or site later changes keeps its event. The switch is ShiftDesk's own, never read from or
 -- written to a planner. Never deleted, only hidden: the app may insert rows and update only
--- showing_to_casuals (TABLE_ACCESS SELECT, INSERT; COLUMN_UPDATES), so a key, site or firm can't
--- be rewritten. 'auto:' keys are reserved: S11's planner refs must never start with it.
+-- showing_to_casuals and name (the planner renames its own events: TABLE_ACCESS SELECT, INSERT;
+-- COLUMN_UPDATES), so a key, site, source or firm can't be rewritten. 'auto:' keys are reserved:
+-- the planner API refuses a ref that starts with it.
 create table shift_events (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id),
   name text not null,                    -- 1..200 characters
   site_id uuid,                          -- (firm_id, site_id) -> sites(firm_id, id)
-  source text not null default 'native', -- native | sheets | csv: who made it (an automatic
-                                         -- event's earliest shift)
-  planner_ref text,                      -- 1..200; an automatic event's 'auto:' key
+  source text not null default 'native', -- native | sheets | csv | api: who made it (an
+                                         -- automatic event's earliest shift; api: the planner)
+  planner_ref text,                      -- 1..200; an automatic event's 'auto:' key, or the
+                                         -- planner's own id for its event (source api)
   showing_to_casuals boolean not null default true,
   created_at timestamptz not null default now(),
-  unique (firm_id, id)
+  unique (firm_id, id),
+  unique (firm_id, source, planner_ref)  -- one event per planner ref (12J.1; NULLs don't collide),
+                                         -- so two PUTs naming one new event share its row
 );
 create unique index shift_events_auto_key on shift_events (firm_id, planner_ref)
   where planner_ref like 'auto:%';       -- one automatic event per firm, site and day
@@ -370,15 +435,18 @@ create table shifts (
   headcount int not null default 1,      -- 1..1000
   is_urgent boolean not null default false, -- a dropout inside urgent_window_hours, or the office (src/lib/roster/urgent.ts)
   status text not null default 'open',   -- draft | open | filled | cancelled
-  source text not null default 'native', -- native | sheets | csv
-  external_ref text,                     -- the row's key in the firm's sheet or import
+  source text not null default 'native', -- native | sheets | csv | api (the planner API, 12J.1:
+                                         -- the office's whole-session edits, moves and cancels
+                                         -- of these get "planner")
+  external_ref text,                     -- the row's key in the firm's sheet or import, or the
+                                         -- planner's ref for the session (source api)
   instructions text,
   synced_holders text[],                 -- Sheets: the "Assigned" cell's staff ids after the last
                                          -- successful sync (the three-way merge's base; names the
                                          -- sync couldn't book left out, so they're tried again)
   sheet_issues jsonb,                    -- Sheets only (Phase 10): what the sheet asks for that the last
                                          -- sync couldn't do ({change?: {fields, wanted, reason, workers},
-                                         -- names?: [{workerId, codes, dropped?}]}), for Today; null: none
+                                         -- names?: [{workerId, codes, dropped?}]}), for the dashboard; null: none
   -- The session's own details (12B.1, S2): set in ShiftDesk's session editor for every source;
   -- the sheet sync and the file import never write them, nor the switch.
   pay_rate_pence int,                    -- whole pence an hour, 0 or more
@@ -395,7 +463,8 @@ create table shifts (
                                          -- (src/lib/roster/visibility.ts, 12B.4)
   created_at timestamptz not null default now(),
   unique (firm_id, id),
-  unique (firm_id, source, external_ref) -- one shift per sheet/import row (NULLs don't collide)
+  unique (firm_id, source, external_ref) -- one shift per sheet/import row or planner ref (NULLs
+                                         -- don't collide)
 );
 
 -- One row per holder of a slot. A cancellation keeps its row (worker, reason, notice hours) and
@@ -416,9 +485,10 @@ create table assignments (
                                          --   the retention purge)
   notice_hours numeric(8,2),             -- starts_at - cancelled_at, in hours; negative if after the start
   office_kept_at timestamptz,            -- Phase 10: the office kept it though its worker stopped being
-                                         -- active or was blocked from the site (Today's "Bookings to
-                                         -- check"); cleared when that happens again
-  cancel_via text,                       -- 12C.1: app | office | sheet | import (empty on older rows)
+                                         -- active or was blocked from the site (the dashboard's "Bookings
+                                         -- to check"); cleared when that happens again
+  cancel_via text,                       -- 12C.1: app | office | sheet | import | api (the planner
+                                         -- API, 12J.1); empty on older rows
   strike_warning_version text,           -- 12C.1: on a casual's own cancellation in the app, the strike
   strike_warning_shown_at timestamptz,   --   warning on screen when they confirmed (its version) and
                                          --   then; both or neither, only on cancelled_worker
@@ -486,6 +556,13 @@ create table requests (
                                          -- approved/declined only, 1-500 characters; free text, so
                                          -- never copied into events
   -- open/escalated: neither set. approved/declined: both set. auto_resolved: resolved_at only.
+  -- A question (general) answered is stored approved and shown "Answered" (12D.1).
+  message_id uuid,                       -- 12D.1 (S5): the shifts-line message a question came from,
+                                         -- (firm_id, message_id) -> messages ON DELETE SET NULL
+                                         -- (message_id): the 90-day purge or an erasure clears the link,
+                                         -- never the request (migration 0044, by hand). One request per
+                                         -- message (unique (firm_id, message_id) where set). Until 0044 the
+                                         -- id was payload.messageId; 0044 moved it here
   created_at timestamptz not null default now(),
   unique (firm_id, id)
 );
@@ -582,7 +659,11 @@ create table messages (                 -- built in Phase 7 (migrations 0022-002
   handled_as text,                       -- keyword | ai | office | unknown | opt_out (inbound only)
   intent text,                           -- shifts | cancel | pay | office
   handled_at timestamptz,                -- the reply job claimed it (at most one reply)
-  reply_to uuid,                         -- outbound: (firm_id, reply_to) -> the message it answers
+  reply_to uuid,                         -- outbound: (firm_id, reply_to) -> the message it answers;
+                                         -- indexed (firm_id, reply_to) for Enquiries (12D.1, S5). The
+                                         -- office's reply on Enquiries is stored when sent from the page,
+                                         -- provider_message_id "office-reply:{uuid}" until the
+                                         -- enquiry-reply job has sent it (then the provider's id)
   twilio_opt_out text,                   -- stop | start: Twilio's own opt-out handling acted on this
                                          -- incoming text (and confirmed it); null otherwise
   created_at timestamptz not null default now(),
@@ -644,7 +725,7 @@ create table events (
   data jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
--- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (Today's
+-- Indexed by (firm_id, created_at) and by (firm_id, entity_id, id): one thing's history (the dashboard's
 -- wave status, the action log by shift or worker).
 -- events is append-only: the app role has SELECT and INSERT only, and events has only
 -- select and insert policies. data never holds tokens, codes, phones, emails or IPs
@@ -744,6 +825,35 @@ create table auth_throttle (
   unique (firm_id, bucket, window_start)
 );
 
+-- A planner's API keys (12J.1, S11; docs/office-v2.md 5.3.2; ADR-022). The key itself
+-- (`shiftdesk_` and 43 random characters, src/lib/integrations/keys.ts) is shown once and never
+-- stored or logged. The app may only read and add rows and change last_used_at, revoked_at and
+-- revoked_by (TABLE_ACCESS SELECT, INSERT; COLUMN_UPDATES), so a key's hash, label or maker can
+-- never be rewritten; never deleted (its id is the actor on every change it made); left out of the
+-- firm's data export. At most 10 live per firm (in code). Logged: api_key.created and
+-- api_key.revoked (actor office; {keyId}: never the label, which is typed text); the API's own
+-- changes carry {by: "firm", via: "api", keyId} with the system actor.
+create table api_keys (
+  id uuid primary key default gen_random_uuid(),
+  firm_id uuid not null references firms(id),
+  label text not null,                   -- 1..60 characters, trimmed; the admin's name for it
+  token_hash bytea not null unique,      -- sha256 of the whole key (32 bytes)
+  hint text not null,                    -- the key's last 4 characters ([A-Za-z0-9_-]), shown "…k3F9"
+  created_by uuid not null,              -- (firm_id, created_by) -> office_users
+  revoked_by uuid,                       -- (firm_id, revoked_by) -> office_users
+  last_used_at timestamptz,              -- updated at most once a minute
+  revoked_at timestamptz,                -- revoked_at and revoked_by: both or neither
+  created_at timestamptz not null default now(),
+  unique (firm_id, id)
+);
+-- app_api_key_lookup(hash) (migration 0045): the firm id and key id of the key with this sha256,
+-- if it isn't revoked, before any firm is known (runs as the owner, through a select policy for the
+-- owner only; ids only; like app_firm_by_line for a number). Only the app role may call it, through
+-- resolveApiKey() (src/lib/db/directory.ts); the API's work then runs in withFirm() for that firm.
+-- Trigger api_keys_revocation_final (migration 0046): once revoked_at is set, any UPDATE of
+-- revoked_at or revoked_by fails (23514), whoever runs it, so a revoked key never comes back
+-- (only a migration, as the owner, could drop the trigger).
+
 -- The firm for the current transaction. NULL when unset, so policies fail closed. The nullif
 -- matters: a pooled connection that ran a firm transaction returns '' afterwards, not NULL.
 create function app_current_firm_id() returns uuid language sql stable as
@@ -764,11 +874,11 @@ create policy firm_isolation on workers for all to public
 **Grants.** drizzle-kit never writes `FORCE ROW LEVEL SECURITY` or grants, so `db:migrate`
 applies `src/lib/db/admin/access.ts` after the migrations: FORCE on every table and exactly the
 listed privileges for `shiftdesk_app` (never TRUNCATE, which ignores RLS; no DELETE on `events`,
-`shift_events`, `shifts`, `assignments`, `requests`, `offers`, `shift_reminders` or `strikes`; on
-`shift_events` only its switch may be updated, and on `strikes` only the review, withdrawal and
-evidence columns). A new table without an
-entry there fails the migrate. Adding a table: Drizzle schema + `.enableRLS()` + the tenant
-policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
+`shift_events`, `shifts`, `assignments`, `requests`, `offers`, `shift_reminders`, `strikes` or
+`api_keys`; on `shift_events` only its switch and name may be updated, on `strikes` only the
+review, withdrawal and evidence columns, and on `api_keys` only when it was last used and its
+revocation). A new table without an entry there fails the migrate. Adding a table: Drizzle schema +
+`.enableRLS()` + the tenant policy, `npm run db:generate`, a `TABLE_ACCESS` entry, and fixtures in
 `tests/helpers/tenant-rows.ts` (the isolation tests fail by name until they exist).
 
 ## Retention (defaults, per firm)
@@ -783,14 +893,16 @@ owner's; `src/lib/gdpr/retention-settings.ts`): `message_days` (default 90), `re
 | Raw messages and transcripts | `retention.message_days` (90) | Yes: `messages` older than that, by `app_purge_old_messages()`, which reads the firm's settings itself; a newer reply stays (its `reply_to` cleared) |
 | The words typed into a request (`requests.payload.note`, `.swapWith`) | `retention.request_note_days` (365) after it closed | Yes: removed from closed requests (approved, declined, auto-resolved), the request stays; open and escalated ones keep them |
 | The office's override reason (`assignments.override_reason`) | The same, after the booking | Yes: cleared |
+| Photos and certificate images (`uploads`, 12F.2) | One turned down: 30 days after the check (with its "Not accepted" record). A staff photo replaced by a newer approved one: 30 days after that one was approved. The current photo and a certificate's image stay with what they prove | Yes: `retention-purge` (none during a hold); erasure deletes them all |
 | Strikes (`strikes`) | `strikes.keep_months` (12) after it was issued, which always covers the 90 days it counts plus 6 months | Yes: deleted by `app_purge_old_strikes()` (12C.1, migrations 0038 and 0039), which reads the firm's settings itself; their `strike.issued` log entries (ids and hours) stay with the action log |
-| Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words, override reasons and strikes (logins still tidy up) |
+| Everything personal, during a hold | Until the day after `retention.hold_until` | The purge skips messages, request words, override reasons, strikes and uploads (logins still tidy up) |
 | Call audio | Don't store by default (30 days if enabled) | Not stored |
 | Cases, requests, events, notice report | 12 months (check 2027 rules; may need longer) | **Not yet**: events are append-only and no policy lets anyone delete them (PLAN.md Parking lot) |
 | Workers and credentials | Until the firm deletes them | An admin erases a worker (`/office/data`) |
 | Magic links and OTP codes | 7 days after expiry | Yes |
 | Sessions | 30 days after expiry or revocation | Yes (their codes go with them) |
 | Rate-limit counters (auth_throttle) | 1 day | Yes (a day after the window started; the longest window is a day) |
+| A planner's API keys (`api_keys`, 12J.1) | For good: a revoked key stays, since its id is the actor on what it changed (only the key's hash and last 4 characters are kept) | Nothing to purge |
 | Finished pg-boss jobs | 1 day (ids-only payloads) | Yes (queue option) |
 
 The nightly `retention-purge` job (`src/lib/gdpr/retention.ts`, 03:30 London, one per firm)

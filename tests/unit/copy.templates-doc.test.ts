@@ -7,13 +7,13 @@ import {
   callGreeting,
   credentialExpiredMessage,
   credentialExpiringMessage,
-  credentialMarkedExpiredMessage,
   credentialWeeklyListEmail,
   firmChangePush,
   loginCodeMessage,
   loginLinkMessage,
   offerPush,
   officeLoginLinkEmail,
+  officeReplyMessage,
   payDigestEmail,
   payQueryUpdateMessage,
   payQueryUpdatePush,
@@ -42,6 +42,7 @@ import {
   voicemailReceivedMessage,
 } from "@/lib/messaging/templates";
 import { TEXTS_OFF } from "@/app/profile/profile-view";
+import { askedDays, cancelReplyText, shiftsReplyText } from "@/lib/inbound/personal-reply";
 import { fillWhatsAppTemplate, WHATSAPP_TEMPLATES } from "@/lib/messaging/whatsapp-templates";
 
 // All copy from docs/messaging-templates.md (Phase 4). Every message the code builds is checked
@@ -289,12 +290,116 @@ describe("the code says what the doc says", () => {
       return /^\|[^|]*\| "([^"]+)"/.exec(row)?.[1];
     };
     const signed = (text: string | undefined) => `${text} — {firm} Shift Team`;
-    for (const intent of ["shifts", "cancel", "pay"] as const) {
-      expect(shiftsLineReply(docVoice, { intent, link: "{link}" })).toBe(signed(replyFor(intent)));
-    }
+    expect(shiftsLineReply(docVoice, { intent: "pay", link: "{link}" })).toBe(
+      signed(replyFor("pay")),
+    );
     expect(shiftsLineReply(docVoice, { intent: "office", ref: "{ref}" })).toBe(
       signed(replyFor("help")),
     );
+    // Shifts and cancel: the personal replies (below), not a fixed row.
+    expect(table).toMatch(/\| "cancel" \| The personal cancel reply \(below/);
+    expect(table).toMatch(/\| "shifts", "work", "available" \| The personal shift list \(below/);
+  });
+
+  it("the personal replies, exactly as the doc shows them (12D.2)", () => {
+    const personal = doc.slice(
+      doc.indexOf("## Personal replies on the shifts line"),
+      doc.indexOf("\n## ", doc.indexOf("## Personal replies on the shifts line") + 1),
+    );
+    const TZ = "Europe/London";
+    const acme = { name: "Acme Events", signOff: "Acme Events Shift Team" };
+    const est = (car: number, metres: number, pt: number) =>
+      ({
+        kind: "estimated",
+        straightMetres: metres,
+        arriveBy: new Date("2026-10-10T06:30:00Z"),
+        car: { minutes: car, metres },
+        publicTransport: { minutes: pt },
+      }) as const;
+    const shiftsInput = {
+      firstName: "Zoe",
+      firm: acme,
+      timeZone: TZ,
+      asked: askedDays("any shifts this weekend?", new Date("2026-10-09T18:00:00Z"), TZ),
+      booked: [
+        {
+          role: "steward",
+          eventName: "Riverside Food Festival",
+          startsAt: new Date("2026-10-11T09:00:00Z"),
+          endsAt: new Date("2026-10-11T17:00:00Z"),
+        },
+      ],
+      shifts: [
+        {
+          shiftId: "s1",
+          role: "door_supervisor",
+          eventName: "Northern Lights Live",
+          siteName: "Acme Demo Arena",
+          startsAt: new Date("2026-10-10T07:00:00Z"),
+          endsAt: new Date("2026-10-10T15:00:00Z"),
+          payRatePence: 1550,
+          post: "Gate A",
+          urgent: true,
+          holdsCsas: false,
+          travel: est(12, 4989, 24),
+        },
+        {
+          shiftId: "s2",
+          role: "csas_officer",
+          eventName: "Night patrols",
+          siteName: "Northgate Town Centre",
+          startsAt: new Date("2026-10-10T16:00:00Z"),
+          endsAt: new Date("2026-10-10T22:00:00Z"),
+          payRatePence: 1500,
+          post: "town centre patrol",
+          urgent: false,
+          holdsCsas: true,
+          travel: est(21, 13518, 38),
+        },
+      ],
+      area: { maxMinutes: 45 },
+      offerAlerts: true,
+      links: { take: "{link}", profile: "{profile link}" },
+    };
+    const block = /```\n([\s\S]*?)\n```/.exec(personal)?.[1];
+    expect(shiftsReplyText(shiftsInput, "whatsapp").text).toBe(block);
+    const [textVersion] = quotes(oneLine(personal), "By text:");
+    expect(shiftsReplyText({ ...shiftsInput, booked: [] }, "sms").text).toBe(textVersion);
+    const cancelInput = {
+      firstName: "Kieran",
+      firm: acme,
+      timeZone: TZ,
+      next: {
+        role: "steward",
+        eventName: "Raceday",
+        siteName: "Acme Demo Racecourse",
+        startsAt: new Date("2026-10-07T09:30:00Z"),
+        endsAt: new Date("2026-10-07T17:30:00Z"),
+        post: "parade ring",
+        link: "{link}",
+      },
+      strike: { thresholdHours: 48 },
+      others: 0,
+      links: { booked: "{Booked link}" },
+    };
+    const [cancelDoc] = quotes(oneLine(personal), `"Hi Kieran, you're booked`);
+    expect(oneLine(cancelReplyText(cancelInput, "whatsapp"))).toBe(cancelDoc);
+  });
+
+  it("the office's reply on Enquiries: free text signed, or request_update as a question answered", () => {
+    const office = section("The office's reply on Enquiries");
+    const [whatsapp, sms] = quotes(office, "Inside WhatsApp's 24-hour window");
+    expect(officeReplyMessage(docVoice, "{words}", "whatsapp")).toBe(whatsapp);
+    expect(officeReplyMessage(docVoice, "{words}", "sms")).toBe(sms);
+    const [template] = quotes(office, "Outside the window");
+    expect(
+      requestUpdateMessage(docVoice, {
+        type: "question",
+        ref: "{ref}",
+        status: "answered",
+        note: "{words}",
+      }),
+    ).toBe(oneLine(template ?? ""));
   });
 
   it("pay_query_update: payroll's note in the doc's words", () => {
@@ -330,15 +435,32 @@ describe("the code says what the doc says", () => {
     );
   });
 
-  it("credential_expiring, credential_expired and the My shifts banner", () => {
-    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}")).toBe(
+  it("credential_expiring and credential_expired, with the upload page's link (12F.2)", () => {
+    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}", "{link}")).toBe(
       docBody("credential_expiring"),
     );
-    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}")).toBe(
+    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", "{link}")).toBe(
       docBody("credential_expired"),
     );
-    const banner = /^\| \(screen only: My shifts banner\) \| [^|]+ \| "([^"]+)"/m.exec(doc)?.[1];
-    expect(credentialMarkedExpiredMessage(docVoice, "{credential}")).toBe(banner);
+    // One she can't upload: the row's second quote, with no link.
+    const second = (name: string) =>
+      [
+        ...(doc.split("\n").find((l) => l.startsWith(`| \`${name}\``)) ?? "").matchAll(
+          /"([^"]+)"/g,
+        ),
+      ][1]?.[1];
+    expect(credentialExpiringMessage(docVoice, "{credential}", "{date}", null)).toBe(
+      second("credential_expiring"),
+    );
+    expect(credentialExpiredMessage(docVoice, "{credential}", "{date}", null)).toBe(
+      second("credential_expired"),
+    );
+    // The screen copy is My shifts' "Needs updating" card (12F.1), not a message: the doc says so
+    // and points to its words; its rows lead to the same upload page.
+    const screen = doc.split("\n").find((l) => l.startsWith("| (screen only: My shifts"));
+    expect(screen).toContain("Needs updating");
+    expect(screen).toContain("needsText()");
+    expect(screen).toContain("Upload it");
   });
 
   it("office_login_link (email): the subject, and the body's words", () => {
@@ -566,9 +688,8 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
     ["shift_urgent (SMS)", shiftUrgentSms(voice, { ...shift, link: "L" })],
     ["shift_reminder_24h", shiftReminder24hMessage(voice, { ...shift, link: "L" })],
     ["shift_reminder_2h", shiftReminder2hMessage(voice, { ...shift, link: "L" })],
-    ["credential_expiring", credentialExpiringMessage(voice, "PTS card", "3 Oct")],
-    ["credential_expired", credentialExpiredMessage(voice, "PTS card", "3 Oct")],
-    ["the My shifts banner", credentialMarkedExpiredMessage(voice, "PTS card")],
+    ["credential_expiring", credentialExpiringMessage(voice, "PTS card", "3 Oct", "L")],
+    ["credential_expired", credentialExpiredMessage(voice, "PTS card", "3 Oct", "L")],
     ["office_login_link", officeLoginLinkEmail(voice, "L").body],
     ["voicemail_received", voicemailReceivedMessage(voice, "R")],
     ["sms_stopped", smsStoppedMessage(voice)],
@@ -653,7 +774,6 @@ describe("every template function is checked here", () => {
         "callGreeting",
         "credentialExpiredMessage",
         "credentialExpiringMessage",
-        "credentialMarkedExpiredMessage",
         "credentialWeeklyListEmail",
         "bookedPush",
         "changeWords",
@@ -662,6 +782,7 @@ describe("every template function is checked here", () => {
         "loginLinkMessage",
         "offerPush",
         "officeLoginLinkEmail",
+        "officeReplyMessage",
         "payDigestEmail",
         "payQueryUpdateMessage",
         "payQueryUpdatePush",
@@ -835,12 +956,28 @@ describe("the WhatsApp submission pack", () => {
         voice("credential_expiring"),
         ex("credential_expiring", "credential"),
         ex("credential_expiring", "date"),
+        ex("credential_expiring", "link"),
       ),
     credential_expired: () =>
       credentialExpiredMessage(
         voice("credential_expired"),
         ex("credential_expired", "credential"),
         ex("credential_expired", "date"),
+        ex("credential_expired", "link"),
+      ),
+    credential_expiring_to_office: () =>
+      credentialExpiringMessage(
+        voice("credential_expiring_to_office"),
+        ex("credential_expiring_to_office", "credential"),
+        ex("credential_expiring_to_office", "date"),
+        null,
+      ),
+    credential_expired_to_office: () =>
+      credentialExpiredMessage(
+        voice("credential_expired_to_office"),
+        ex("credential_expired_to_office", "credential"),
+        ex("credential_expired_to_office", "date"),
+        null,
       ),
     request_update: () =>
       requestUpdateMessage(voice("request_update"), {
@@ -900,11 +1037,20 @@ describe("the WhatsApp submission pack", () => {
     };
     for (const t of WHATSAPP_TEMPLATES) {
       const values = Object.fromEntries(t.variables.map((v) => [v, placeholder[v] ?? `{${v}}`]));
+      // A "_to_office" variant (12F.2) is the second wording in its doc row (no upload link).
+      const toOffice = () =>
+        [
+          ...(doc.split("\n").find((l) => l.startsWith(`| \`${t.docName}\``)) ?? "").matchAll(
+            /"([^"]+)"/g,
+          ),
+        ][1]?.[1];
       const expected = t.name.endsWith("_no_site")
         ? docBody(t.docName).replace(" at {site}", "")
         : t.name.endsWith("_no_note")
           ? docBody(t.docName).replace(" The office says: {note}", "")
-          : docBody(t.docName);
+          : t.name.endsWith("_to_office")
+            ? toOffice()
+            : docBody(t.docName);
       expect(fillWhatsAppTemplate(t, values), t.name).toBe(expected);
     }
   });

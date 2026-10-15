@@ -1,8 +1,12 @@
+import type { RejectReason } from "../db/schema";
 import { noticeText } from "../portal/cancel-reasons";
 import { ISSUE_LABELS, type PayIssue } from "../portal/pay-query-kinds";
+import { REJECT_CHOICES } from "../portal/qualification-copy";
 import { KIND_NAMES } from "../portal/request-kinds";
 import { dayLabel } from "../rules/reasons";
 import { syncErrorWords } from "../roster/sheets/error-words";
+import { CLOSE_REASON_WORDS } from "./enquiries-copy";
+import type { CloseReason } from "./enquiry-rules";
 import { REASON_WORDS } from "./worker-reasons";
 
 // The action log in plain words for the office (docs/screens.md: short sentences, plain words): a
@@ -42,6 +46,9 @@ const FIELD_WORDS: Record<string, string> = {
   meetingPoint: "meeting point",
   uniform: "uniform",
   requirements: "extra requirements",
+  // Only the planner moves a session to another event or renames one (12J.1).
+  event: "event",
+  eventName: "event name",
 };
 
 const CODE_WORDS: Record<string, string> = {
@@ -114,6 +121,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
   const d = e.data;
   const byOffice = d.by === "firm" || e.actorType === "office";
   const officeName = e.actorType === "office" ? names.office(e.actorId) : "The office";
+  // The firm's planner changing its sessions through the API (12J.1; {via: "api", keyId}).
+  const fromPlanner = d.via === "api";
+  const firmName = fromPlanner ? "Your planner" : officeName;
   const worker = names.worker(d.workerId);
   // Whoever did it: a worker or an office user logging in, say.
   const who =
@@ -131,6 +141,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     isDay(from) && isDay(to) ? ` (${dayLabel(from)} to ${dayLabel(to)})` : "";
   switch (e.action) {
     case "shift.created":
+      if (fromPlanner) return "Created by your planner.";
       return e.actorType === "office" ? `Created by ${officeName}.` : "Shift created.";
     case "shift.changed": {
       const fields = Array.isArray(d.fields)
@@ -147,7 +158,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
           : fields.length > 0
             ? `Changed the ${list(fields)}.`
             : "Changed.";
-      return e.actorType === "office" ? `${officeName}: ${what}` : what;
+      return e.actorType === "office" || fromPlanner ? `${firmName}: ${what}` : what;
     }
     case "shift.assigned": {
       const overridden = Array.isArray(d.overridden)
@@ -172,7 +183,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       return `${worker} tried before the place opened to them (fair rotation).`;
     case "shift.cancelled": {
       const notice = hours(d.noticeHours);
-      const who = byOffice ? `${officeName} cancelled ${worker}` : `${worker} cancelled`;
+      const who = byOffice ? `${firmName} cancelled ${worker}` : `${worker} cancelled`;
       const reason = byOffice && typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
       return `${who}${notice ? `, with ${notice}` : ""}.${reason}`;
     }
@@ -225,7 +236,7 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       const reason = typeof d.reason === "string" ? ` Reason: ${d.reason}.` : "";
       const rules =
         d.rulesOk === false ? " The rules said they may not be able to work the new time." : "";
-      return `${officeName} ${what} ${worker}'s shift${notice ? `, with ${notice}` : ""}.${reason}${rules}`;
+      return `${firmName} ${what} ${worker}'s shift${notice ? `, with ${notice}` : ""}.${reason}${rules}`;
     }
     case "shift.completed":
     case "shift.no_show": {
@@ -238,10 +249,18 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             : "";
       return `${officeName} marked ${worker} as ${what}${was}.`;
     }
+    // A change the planner sent for a booked session, refused (12J.1); the office's Needs
+    // attention shows it too.
+    case "api.change_refused":
+      return d.code === "places_below_booked"
+        ? "Your planner's change was refused: a booking holds a place above the new number of places."
+        : d.code === "change_reason_required"
+          ? "Your planner's change was refused: it moved or cancelled a session with casuals booked, and gave no reason."
+          : "Your planner's change was refused: casuals are booked, so its role and requirements can't change.";
     case "shift.move_refused":
-      return `${officeName} tried to move the shift. Not moved: someone booked can't work the new time.`;
+      return `${firmName} tried to move the shift. Not moved: someone booked can't work the new time.`;
     case "shift.cancelled_by_firm":
-      return `${officeName} cancelled the shift.${typeof d.reason === "string" ? ` Reason: ${d.reason}.` : ""}`;
+      return `${firmName} cancelled the shift.${typeof d.reason === "string" ? ` Reason: ${d.reason}.` : ""}`;
     case "shift.change_notice":
       return `Telling ${worker} about the change.`;
     case "shift.change_notice_sent":
@@ -300,6 +319,8 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "shift.closed":
       return `${officeName} marked it as filled.`;
     case "shift.reopened":
+      if (fromPlanner)
+        return "Your planner's change opened it again: it has more places than bookings.";
       return d.source === "csv"
         ? `${officeName}'s import opened it again: it needs more people than it has booked.`
         : `${officeName} opened it again.`;
@@ -392,7 +413,48 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "message.office_alert_failed":
       return "Emailing the office about a message from a number we don't know failed.";
     case "message.office_alert_skipped":
-      return "Nobody in the office could be emailed about a message from a number we don't know (no active admin or resourcer with an email address). It's on Today.";
+      return "Nobody in the office could be emailed about a message from a number we don't know (no active admin or resourcer with an email address). It's on Enquiries.";
+    case "enquiry.checks": {
+      const offered = Array.isArray(d.offered) ? d.offered.length : 0;
+      const notOffered =
+        (Array.isArray(d.notOffered) ? d.notOffered.length : 0) + Number(d.notOfferedMore ?? 0);
+      const what =
+        d.template === "cancel_booking"
+          ? "the cancel reply, naming their next booking"
+          : d.template === "cancel_none"
+            ? "the cancel reply (no booking ahead)"
+            : offered > 0
+              ? `the shift list with ${offered} ${offered === 1 ? "shift" : "shifts"}${notOffered > 0 ? ` (${notOffered} not offered)` : ""}`
+              : `the shift list: nothing they could take${notOffered > 0 ? ` (${notOffered} not offered)` : ""}`;
+      return `The shifts line built ${worker}'s reply: ${what}${d.sent === false ? " (it couldn't be sent)" : ""}.`;
+    }
+    case "enquiry.answered": {
+      const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      const how =
+        d.form === "template"
+          ? "as the request update template: outside WhatsApp's 24 hours"
+          : d.channel === "sms"
+            ? "by text"
+            : "on WhatsApp";
+      return `${officeName} replied to ${whose} (${how}).`;
+    }
+    case "enquiry.closed": {
+      const whose = d.workerId ? `${worker}'s message` : "a message from a number we don't know";
+      const reason = CLOSE_REASON_WORDS[d.reason as CloseReason] ?? "Other";
+      return `${officeName} closed ${whose} without a reply (${reason.toLowerCase()}).`;
+    }
+    case "enquiry.reply_sending":
+      return `Sending the office's reply to ${d.workerId ? worker : "a number we don't know"}.`;
+    case "enquiry.reply_sent":
+      return `The office's reply to ${d.workerId ? worker : "a number we don't know"} went${
+        d.fellBackFrom === "whatsapp"
+          ? " by text (WhatsApp didn't take it)"
+          : d.channel === "sms"
+            ? " by text"
+            : " on WhatsApp"
+      }.`;
+    case "enquiry.reply_failed":
+      return `The office's reply to ${d.workerId ? worker : "a number we don't know"} couldn't be sent. Their message is back in Need a person.`;
     case "request.created":
       return `${worker} sent a request (${kind(d.type)}).`;
     case "request.approved":
@@ -411,7 +473,24 @@ export function eventWords(e: LoggedEvent, names: Names): string {
 
     // Credentials.
     case "credential.added":
-      return `${credential(d.type)} added for ${worker}.`;
+      // The office records CSAS itself, under its own scheme (12F.2).
+      return d.via === "office"
+        ? `${officeName} recorded ${worker}'s ${credential(d.type)}${d.ownScheme ? ", under the firm's own scheme" : ""}.`
+        : `${credential(d.type)} added for ${worker}.`;
+
+    // Photos and certificate images (12F.2): what was sent and the check, never the image.
+    case "upload.received":
+      return `${worker} sent ${d.kind === "photo" ? "a new staff photo" : `their ${credential(d.qualificationType)}`}${
+        d.replaced ? ", in place of the one waiting" : ""
+      }.`;
+    case "upload.approved":
+      return `${officeName} approved ${worker}'s ${
+        d.kind === "photo" ? "staff photo" : credential(d.qualificationType)
+      }${typeof d.expiresOn === "string" ? ` (expires ${dayLabel(d.expiresOn)})` : ""}.`;
+    case "upload.rejected":
+      return `${officeName} didn't accept ${worker}'s ${
+        d.kind === "photo" ? "staff photo" : credential(d.qualificationType)
+      }: ${REJECT_CHOICES[d.reason as RejectReason]?.toLowerCase() ?? "other"}.`;
     case "credential.updated":
       return `${worker}'s ${credential(d.type)} was updated.`;
     case "credential.expired":
@@ -496,6 +575,16 @@ export function eventWords(e: LoggedEvent, names: Names): string {
             : `${person} was logged out of the office on every device.`;
       }
     }
+    // The planner's API keys (12J.1): the log holds the key's id only, never its name.
+    case "api_key.created":
+      return `${officeName} created an API key for your planner.`;
+    case "api_key.revoked":
+      return `${officeName} revoked an API key. It stopped working at once.`;
+    // The planner's webhook (12J.2): the outcome of one delivery, never the address.
+    case "webhook.delivered":
+      return `Your planner was told by webhook ${webhookWhat(d.type)}.`;
+    case "webhook.failed":
+      return `Your planner couldn't be reached by webhook ${webhookWhat(d.type)}, after an hour of tries (${webhookFailure(d.code)}). It can catch up from ShiftDesk.`;
     case "firm.agreement_recorded":
       if (d.cleared === true) {
         return `The firm's recorded agreement was removed${typeof d.was === "string" ? ` (it said ${dayLabel(d.was)} ${d.was.slice(0, 4)})` : ""}.`;
@@ -511,6 +600,19 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         return keys.includes("strikes.email")
           ? `${officeName} changed the strikes team's email.`
           : `${officeName} changed whether the strikes team's email is confirmed.`;
+      }
+      // The planner's webhook (12J.2): what changed, never the address.
+      if (keys.length > 0 && keys.every((k) => k.startsWith("webhook."))) {
+        switch (d.webhook) {
+          case "added":
+            return `${officeName} added a webhook for your planner.`;
+          case "replaced":
+            return `${officeName} changed your planner's webhook address. Its signing secret changed too.`;
+          case "removed":
+            return `${officeName} removed your planner's webhook.`;
+          default:
+            return `${officeName} made a new signing secret for your planner's webhook. The old one stopped working.`;
+        }
       }
       const n = keys.length;
       return `The firm's settings changed (${n === 1 ? "1 setting" : `${n} settings`}).`;
@@ -553,7 +655,12 @@ export function eventWords(e: LoggedEvent, names: Names): string {
         return `Old login records were tidied up (${logins}). Nothing else was deleted: a hold is on (a dispute).`;
       }
       const of = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
-      return `Old data was deleted on schedule, by the firm's retention settings: ${of(n("messages"), "message", "messages")}, ${of(n("requestNotes"), "request note", "request notes")}, ${of(n("overrideReasons"), "reason on a booking", "reasons on bookings")} and ${of(logins, "old login record", "old login records")}.`;
+      // Photos and card images (12F.2) only when there were some, so older entries read as before.
+      const images =
+        n("uploads") > 0
+          ? `, ${of(n("uploads"), "turned-down or replaced photo or card image", "turned-down or replaced photos and card images")}`
+          : "";
+      return `Old data was deleted on schedule, by the firm's retention settings: ${of(n("messages"), "message", "messages")}, ${of(n("requestNotes"), "request note", "request notes")}, ${of(n("overrideReasons"), "reason on a booking", "reasons on bookings")}${images} and ${of(logins, "old login record", "old login records")}.`;
     }
     case "credential_pack.applied":
       return "The credential rules for the firm's sector were set up.";
@@ -688,6 +795,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "auth.otp_locked":
       return `${who}'s code stopped working after too many wrong tries.`;
     case "auth.rate_limited":
+      if (d.limit === "api:key") {
+        return "Too many calls from your planner: its API key was paused for the rest of the minute.";
+      }
       return typeof d.limit === "string" && d.limit.startsWith("strikes_link:")
         ? "Too many links to confirm the strikes team's email: sending them was paused for a while."
         : "Too many tries: logging in was paused for a while.";
@@ -788,9 +898,11 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     case "metrics.tally_saved":
       return `${officeName} saved the weekly tally${isDay(d.weekStart) ? ` (the week of ${dayLabel(d.weekStart)})` : ""}.`;
     case "site.created":
-      return "A site was added from the rota sheet.";
+      return fromPlanner ? "Your planner added a site." : "A site was added from the rota sheet.";
     case "site.changed": {
       const site = names.site?.(d.siteId) ?? "a site";
+      // A site's first postcode, from a planner's session (12J.1).
+      if (fromPlanner) return `Your planner gave ${site} its postcode.`;
       // The same postcode, its location found (12G.1); otherwise the postcode changed.
       const fields = Array.isArray(d.fields) ? d.fields.map(String) : [];
       return fields.includes("location") && !fields.includes("postcode")
@@ -799,5 +911,44 @@ export function eventWords(e: LoggedEvent, names: Names): string {
     }
     default:
       return `Recorded: ${e.action}.`;
+  }
+}
+
+// What a webhook was about, for its log entry (12J.2).
+function webhookWhat(type: unknown): string {
+  switch (type) {
+    case "booking.created":
+      return "about a booking";
+    case "booking.cancelled":
+      return "about a cancellation";
+    case "strike.withdrawn":
+      return "about a withdrawn strike";
+    case "test.ping":
+      return "with a test event";
+    default:
+      return "about a change";
+  }
+}
+
+// Why a webhook failed, in plain words.
+function webhookFailure(code: unknown): string {
+  if (typeof code === "string" && /^http_\d{3}$/.test(code)) {
+    return `it answered with an error, ${code.slice(5)}`;
+  }
+  switch (code) {
+    case "timeout":
+      return "it didn't answer in time";
+    case "dns":
+      return "its address couldn't be found";
+    case "tls":
+      return "its security certificate wasn't valid";
+    case "refused_address":
+      return "its address points somewhere ShiftDesk won't send to";
+    case "redirect":
+      return "it tried to send us somewhere else";
+    case "not_configured":
+      return "webhooks aren't switched on for ShiftDesk";
+    default:
+      return "it couldn't be reached";
   }
 }

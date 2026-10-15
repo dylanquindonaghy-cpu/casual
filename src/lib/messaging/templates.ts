@@ -123,27 +123,32 @@ export function strikeEvidenceEmail(
   };
 }
 
-// credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires.
+// credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires. The
+// link is the casual's upload page for it (12F.2; docs/office-v2.md 5.7 item 5). One she can't
+// upload (the office records it, or none of her roles needs it: no link, null) is
+// credential_expiring_to_office, the words before 12F.2.
 export function credentialExpiringMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
+  link: string | null,
 ): string {
-  return `Your ${credential} expires on ${date}. Renew it and send the new details to the office so you can keep taking shifts. — ${firm.signOff}`;
+  return link
+    ? `Your ${credential} expires on ${date}. Upload your renewed card so you can keep taking shifts that need it: ${link} — ${firm.signOff}`
+    : `Your ${credential} expires on ${date}. Renew it and send the new details to the office so you can keep taking shifts. — ${firm.signOff}`;
 }
 
-// credential_expired (WhatsApp, utility): the day after a credential's expiry date.
+// credential_expired (WhatsApp, utility): the day after a credential's expiry date, with the same
+// upload link (credential_expired_to_office, no link, for one she can't upload).
 export function credentialExpiredMessage(
   firm: FirmVoice,
   credential: string,
   date: string,
+  link: string | null,
 ): string {
-  return `Your ${credential} expired on ${date}. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
-}
-
-// On screen only (the My shifts banner): a credential the office marked expired with no date.
-export function credentialMarkedExpiredMessage(firm: FirmVoice, credential: string): string {
-  return `Your ${credential} is marked as expired. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
+  return link
+    ? `Your ${credential} expired on ${date}. You can't take shifts that need it until you upload your renewed card and the office checks it: ${link} — ${firm.signOff}`
+    : `Your ${credential} expired on ${date}. You can't take shifts that need it until you renew it and send the new details to the office. — ${firm.signOff}`;
 }
 
 // credential_weekly_list (email to admins and resourcers, Mondays): what expires in the next 30
@@ -314,6 +319,17 @@ export function requestUpdateMessage(
   return `Your request (${request.type}, ref ${request.ref}) is ${request.status}.${note} — ${firm.signOff}`;
 }
 
+// The office's own reply on Enquiries (docs/messaging-templates.md "The office's reply on Enquiries";
+// 12D.1): their words on one line, signed. Free text only inside WhatsApp's 24-hour window or by
+// text; outside the window it goes as `request_update` instead (src/lib/office/enquiry-rules.ts).
+export function officeReplyMessage(
+  firm: FirmVoice,
+  text: string,
+  channel: "whatsapp" | "sms",
+): string {
+  return channel === "sms" ? `${text} - ${firm.signOff}` : `${text} — ${firm.signOff}`;
+}
+
 // pay_query_update (WhatsApp or SMS, utility): payroll has sorted a worker's pay query
 // (src/lib/notices/pay-query-update.ts). {status} is "sorted"; {note} is payroll's note on one line
 // (always written by a person: pay disputes never get an AI answer, golden rule 9).
@@ -328,30 +344,28 @@ export function payQueryUpdateMessage(
 // line"): the answer to a worker's own WhatsApp, sent at once (free text: within 24 hours of their
 // message WhatsApp needs no template). The app's fixed words only: a keyword or the AI picks which
 // (src/lib/inbound/reply.ts), never what it says.
-export type ShiftsLineReply =
-  { intent: "shifts" | "cancel" | "pay"; link: string } | { intent: "office"; ref: string };
+// "shifts" and "cancel" get the personal reply instead (src/lib/inbound/personal-reply.ts, 12D.2).
+// The pay reply is automatic, so it says how to reach a person (WhatsApp's escalation rule); the
+// office's reply already goes to one.
+export type ShiftsLineReply = { intent: "pay"; link: string } | { intent: "office"; ref: string };
+
+// Before the sign-off of every automatic reply on the shifts line (docs/office-v2.md 5.7 item 3:
+// WhatsApp's rule that people can reach a person; "office" is a keyword).
+export const AUTOMATIC_REPLY = "Automatic reply. Send OFFICE to reach a person.";
 
 export function shiftsLineReply(firm: FirmVoice, reply: ShiftsLineReply): string {
-  const text = (() => {
-    switch (reply.intent) {
-      case "shifts":
-        return `Open shifts you're eligible for: ${reply.link}`;
-      case "cancel":
-        return `To cancel a shift, tap here and choose the shift: ${reply.link}. It's recorded instantly.`;
-      case "pay":
-        return `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in).`;
-      case "office":
-        return `The office will see this and get back to you. Ref ${reply.ref}.`;
-    }
-  })();
-  return `${text} — ${firm.signOff}`;
+  const text =
+    reply.intent === "pay"
+      ? `Your hours, rates and pay dates: ${reply.link} (you'll get a code to log in).`
+      : `The office will see this and get back to you. Ref ${reply.ref}.`;
+  return `${text} ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }
 
 // unknown_number (WhatsApp, a service reply within 24 hours of their message): someone messaged the
 // shifts line from a number that isn't any worker's here (src/lib/inbound/reply.ts). At most once
 // per number per 24 hours.
 export function unknownNumberMessage(firm: FirmVoice): string {
-  return `Thanks for your message. We don't recognise this number. If you work with ${firm.name}, reply with your full name and the office will get back to you. — ${firm.signOff}`;
+  return `Thanks for your message. We don't recognise this number. If you work with ${firm.name}, reply with your full name and the office will get back to you. ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }
 
 // unknown_number_alert (email to the office's active admins and resourcers): a message on the
@@ -394,18 +408,18 @@ export function callGreeting(firm: FirmVoice, link: CallLink): string {
 // became a request for the office (src/lib/inbound/reply.ts). A phone call doesn't open WhatsApp's
 // 24-hour window for free text, so this is a template, sent by the channel the worker chose.
 export function voicemailReceivedMessage(firm: FirmVoice, ref: string): string {
-  return `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. — ${firm.signOff}`;
+  return `Thanks for your voicemail. The office will see it and get back to you. Ref ${ref}. ${AUTOMATIC_REPLY} — ${firm.signOff}`;
 }
 
 // sms_stopped / sms_started (text only, the answer to their own text): a worker replied STOP or
 // START to a text (src/lib/inbound/opt-out.ts). A plain hyphen before the sign-off: a text-only
 // message, kept to standard text characters.
 export function smsStoppedMessage(firm: FirmVoice): string {
-  return `You won't get texts from ${firm.name} now. Reply START to turn them back on. - ${firm.signOff}`;
+  return `You won't get texts from ${firm.name} now. Reply START to turn them back on. ${AUTOMATIC_REPLY} - ${firm.signOff}`;
 }
 
 export function smsStartedMessage(firm: FirmVoice): string {
-  return `Texts from ${firm.name} are back on. Reply STOP to turn them off. - ${firm.signOff}`;
+  return `Texts from ${firm.name} are back on. Reply STOP to turn them off. ${AUTOMATIC_REPLY} - ${firm.signOff}`;
 }
 
 // After a voicemail, and when the number called isn't any firm's.

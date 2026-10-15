@@ -7,7 +7,7 @@ import { sheetsRosterPlug } from "@/lib/roster/native";
 import { automaticEventName } from "@/lib/roster/shift-events";
 import type { RosterPlug } from "@/lib/roster/plug";
 import { eventsAboutWorker, loadActionLog, parseLogQuery } from "@/lib/office/action-log";
-import { loadToday } from "@/lib/office/today";
+import { loadSheetIssues } from "@/lib/office/today";
 import { DEFAULT_SHEET_MAPPING } from "@/lib/roster/sheets/mapping";
 import {
   CANCELLED_ON_SHEET,
@@ -647,7 +647,7 @@ describe("sheets.sync: from our tables back to the sheet", () => {
     expect(await sync(f)).toMatchObject({ notBooked: 1, writes: 1 });
     expect(await holdersOf(f.firmId, "P1")).toEqual(["N001", "N002"]);
     // The portal booking goes into the sheet. N003 can't stay: the cell would name three people
-    // for two places (the next read couldn't use it). It's on Today and in the log instead.
+    // for two places (the next read couldn't use it). It's on the dashboard and in the log instead.
     expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N001, N002");
     expect((await eventsOf(f.firmId, "roster.sheet_booking_refused"))[0]?.data).toMatchObject({
       workerId: await idOf("workers", f.firmId, "N003"),
@@ -1286,7 +1286,7 @@ describe("sheets.sync: a booked or started shift follows the office editor's rul
       },
     ]);
     // The next sync sees the same sheet: still not made, nothing new logged, and the shift's row
-    // isn't rewritten (what Today shows is unchanged).
+    // isn't rewritten (what the dashboard shows is unchanged).
     const version = async () =>
       (await su.query<{ v: string }>("select xmin::text as v from shifts where id = $1", [shiftId]))
         .rows[0]?.v;
@@ -1307,7 +1307,7 @@ describe("sheets.sync: a booked or started shift follows the office editor's rul
     expect((await shiftRow2(f))?.role).toBe("coss");
   });
 
-  it("Today shows what the sheet asks for that wasn't done, until it's true again", async () => {
+  it("the dashboard shows what the sheet asks for that wasn't done, until it's true again", async () => {
     const f = await northline();
     await sync(f);
     await su.query(
@@ -1317,7 +1317,7 @@ describe("sheets.sync: a booked or started shift follows the office editor's rul
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Role", "Steward"); // Ada isn't a steward
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N002"); // Ben has no PTS card
     await sync(f);
-    const today = () => withFirm(f.firmId, async (tx) => (await loadToday(tx, NOW)).fromSheet);
+    const today = () => withFirm(f.firmId, async (tx) => (await loadSheetIssues(tx, NOW)).items);
     expect(await today()).toEqual([
       expect.objectContaining({
         change: {
@@ -1454,9 +1454,9 @@ describe("sheets.sync: a booked or started shift follows the office editor's rul
     f.fake.setCell(f.sheetId, SHIFTS, 2, "Assigned", "N001, N004, N003");
     expect(await sync(f)).toMatchObject({ booked: 1, notBooked: 1 });
     expect(await holdersOf(f.firmId, "P1")).toEqual(["N001", "N002", "N003"]);
-    // Full now: the cell names the three booked (Dee is on Today and in the log).
+    // Full now: the cell names the three booked (Dee is on the dashboard and in the log).
     expect(f.fake.cell(f.sheetId, SHIFTS, 2, "Assigned")).toBe("N001, N002, N003");
-    const today = () => withFirm(f.firmId, async (tx) => (await loadToday(tx, NOW)).fromSheet);
+    const today = () => withFirm(f.firmId, async (tx) => (await loadSheetIssues(tx, NOW)).items);
     expect((await today())[0]?.names).toEqual([
       { name: "Dee Example", codes: ["credential_missing"], dropped: true },
     ]);

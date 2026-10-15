@@ -108,9 +108,11 @@ describe("applyCredentialPack", () => {
     expect(event).toMatchObject({ sector: "security", typesAdded: 8, rulesAdded: 5 });
     expect(event.types).toEqual(
       expect.arrayContaining([
-        { code: "SIA_DS", appliedAllowed: true },
-        { code: "STEWARD_L2", appliedAllowed: false },
-        { code: "RTW", appliedAllowed: false },
+        { code: "SIA_DS", appliedAllowed: true, officeRecorded: false },
+        { code: "STEWARD_L2", appliedAllowed: false, officeRecorded: false },
+        // Only the office records these (12F.2): never uploaded by a casual.
+        { code: "CSAS", appliedAllowed: false, officeRecorded: true },
+        { code: "RTW", appliedAllowed: false, officeRecorded: true },
       ]),
     );
     expect(event.types).toHaveLength(8);

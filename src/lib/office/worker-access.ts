@@ -1,21 +1,26 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { systemClock } from "../auth/clock";
 import { endEverySession } from "../auth/sessions";
+import { qualificationsFor, type CasualQualifications } from "../credentials/qualifications";
 import {
   assignments,
+  credentialTypes,
+  firms,
+  type SITE_BLOCK_REASONS,
   sites,
+  type TravelMode,
+  uploads,
   workers,
   workerSiteBlocks,
   workerTravel,
-  type SITE_BLOCK_REASONS,
-  type TravelMode,
 } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { retryAborted } from "../db/retry";
 import { recordEvent } from "../events/record";
 import { forgetPhones, reflagFutureBookings } from "../roster/worker-effects";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
+import { STRIKES_PER_CASUAL, strikesOf, type CasualStrike } from "./strikes";
 import type {
   DeactivateReason,
   ReactivateReason,
@@ -24,7 +29,7 @@ import type {
 } from "./worker-reasons";
 
 // The office's controls for one worker (Phase 10; audit M22, M23, L24, L81; docs/screens.md
-// `/office/workers/[id]`), for active admins and resourcers (checked again inside each change).
+// `/office/casuals/[id]`, `/office/workers/[id]` until 12F.1), for active admins and resourcers (checked again inside each change).
 // One transaction each, the worker's row locked first (FOR NO KEY UPDATE, as the office team's
 // changes: a login finishing at the same moment can't deadlock with it, and its session is ended
 // too: src/lib/auth/sessions.ts endEverySession). Every change has a reason from a fixed list and
@@ -32,15 +37,15 @@ import type {
 //
 // - Make inactive (they've left): status inactive, and the office's mark that it decided this
 //   (`office_deactivated_at`): no rota sheet or file makes them active again, only the office.
-//   Every session and unused login link ended. Their future bookings are flagged on Today.
+//   Every session and unused login link ended. Their future bookings are flagged on the dashboard.
 // - Make active again (inactive only) and unblock (blocked only): status active, the mark
 //   cleared, anything left from before ended. A rota sheet or file still saying "blocked" blocks
 //   them again at its next sync: the page says to change it there too.
 // - Block from a site / unblock from a site: rules check 9 (src/lib/rules/eligibility.ts). Their
-//   future bookings at that site are flagged on Today.
+//   future bookings at that site are flagged on the dashboard.
 // - Log out on every device (a lost phone): sessions and links ended, and the phone's
 //   notifications forgotten (so a reminder can't show on the lost phone).
-// - Keep a flagged booking: Today's "Bookings to check" no longer shows it, until the worker's
+// - Keep a flagged booking: the dashboard's "Bookings to check" no longer shows it, until the worker's
 //   status or a site block changes again.
 
 type WorkerStatus = "active" | "inactive" | "blocked";
@@ -57,7 +62,7 @@ export type WorkerStatusResult =
       status: "done";
       change: WorkerStatusChange["kind"];
       name: string;
-      futureBookings: number; // flagged on Today (making inactive)
+      futureBookings: number; // flagged on the dashboard (making inactive)
       // After the change: unblocking someone the office made inactive leaves them inactive.
       now: WorkerStatus;
     }
@@ -91,7 +96,7 @@ const nowOf = (ctx: OfficeContext) => (ctx.clock ?? systemClock).now();
 
 // Inside the firm's transaction: the acting office user may use `area`, and the worker, locked.
 async function lockWorker(tx: FirmTx, ctx: OfficeContext, workerId: string) {
-  if (!(await officeUserMay(tx, ctx.officeUserId, "workers"))) return "not_allowed" as const;
+  if (!(await officeUserMay(tx, ctx.officeUserId, "casuals"))) return "not_allowed" as const;
   const [worker] = await tx
     .select({
       id: workers.id,
@@ -165,7 +170,7 @@ export async function changeWorkerStatus(
       // old session comes back.
       const ended = await endEverySession(tx, { kind: "worker", subjectId: worker.id, now });
       // No longer active: their phones' notifications go too (a firm-change notice's push must not
-      // reach a leaver's phone). Any change: their bookings ahead are looked at again on Today (one
+      // reach a leaver's phone). Any change: their bookings ahead are looked at again on the dashboard (one
       // kept while they were inactive may still be at a site they're blocked from).
       const phones = after === "active" ? 0 : await forgetPhones(tx, worker.id);
       // "They've left": their travel area goes (docs/office-v2.md 5.4: the start point is kept only
@@ -310,7 +315,7 @@ export async function unblockFromSite(
   );
 }
 
-// Today's "Bookings to check": the office keeps a booking whose worker isn't active, or is
+// the dashboard's "Bookings to check": the office keeps a booking whose worker isn't active, or is
 // blocked from the shift's site. Only a booking still flagged (confirmed, ahead, not kept).
 export async function keepFlaggedBooking(
   ctx: OfficeContext,
@@ -371,9 +376,11 @@ export async function keepFlaggedBooking(
   );
 }
 
-// What a worker's page shows (docs/screens.md `/office/workers/[id]`): who they are, their status,
-// the sites they're blocked from, the sites they could be blocked from, and their bookings ahead
-// (the first 20). Null: not an office user who may see workers, or no such worker here.
+// What a casual's page shows (docs/screens.md `/office/casuals/[id]`; 12F.1): who they are, their
+// status, what needs updating, their qualifications and right to work (src/lib/credentials/
+// status.ts), their travel district, their strikes, the sites they're blocked from and could be
+// blocked from, and their bookings ahead (the first 20). Null: not an office user who may see
+// casuals, or no such casual here.
 export interface WorkerAccessView {
   id: string;
   name: string;
@@ -394,6 +401,24 @@ export interface WorkerAccessView {
     endsAt: Date;
   }[];
   aheadMore: boolean;
+  qualifications: CasualQualifications["qualifications"];
+  rightToWork: CasualQualifications["rightToWork"];
+  needs: CasualQualifications["needs"];
+  rolesWithoutRule: string[];
+  photo: CasualQualifications["photo"]; // their staff photo (12F.2)
+  // Every upload of theirs waiting for the office, oldest first: each can be checked here, even one
+  // for a type their roles no longer need (otherwise it would wait for ever).
+  waitingUploads: {
+    id: string;
+    kind: "photo" | "certificate";
+    type: string | null;
+    name: string | null; // the type's name, mid-sentence
+    sentAt: Date;
+  }[];
+  strikes: CasualStrike[]; // newest first, at most STRIKES_PER_CASUAL
+  strikesMore: boolean;
+  liveStrikes: number; // live and still counting
+  timeZone: string;
 }
 
 export const WORKER_AHEAD_MAX = 20;
@@ -406,7 +431,7 @@ export async function workerAccessView(
   const { run } = parts(ctx);
   const now = nowOf(ctx);
   return run(ctx.firm.id, async (tx) => {
-    if (!(await officeUserMay(tx, ctx.officeUserId, "workers"))) return null;
+    if (!(await officeUserMay(tx, ctx.officeUserId, "casuals"))) return null;
     const [worker] = await tx
       .select({
         id: workers.id,
@@ -464,6 +489,18 @@ export async function workerAccessView(
        order by s.starts_at, s.id
        limit ${WORKER_AHEAD_MAX + 1}
     `);
+    const [firm] = await tx
+      .select({ timezone: firms.timezone })
+      .from(firms)
+      .where(eq(firms.id, ctx.firm.id));
+    const timeZone = firm?.timezone ?? "Europe/London";
+    const held = (await qualificationsFor(tx, [worker.id], { now, timeZone })).get(worker.id);
+    const strikes = (await strikesOf(tx, [worker.id], now)).get(worker.id) ?? [];
+    // Counted on its own: the list above holds only the latest few.
+    const { rows: live } = await tx.execute<{ n: number }>(sql`
+      select count(*)::int as n from strikes st
+       where st.worker_id = ${worker.id} and st.status = 'live' and st.expires_at > ${now}
+    `);
     return {
       id: worker.id,
       name: `${worker.firstName} ${worker.lastName}`,
@@ -494,6 +531,33 @@ export async function workerAccessView(
         endsAt: new Date(a.ends_at),
       })),
       aheadMore: ahead.length > WORKER_AHEAD_MAX,
+      qualifications: held?.qualifications ?? [],
+      rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null, expired: false },
+      needs: held?.needs ?? [],
+      rolesWithoutRule: held?.rolesWithoutRule ?? [],
+      photo: held?.photo ?? { status: "missing", current: null, waiting: null },
+      waitingUploads: await tx
+        .select({
+          id: uploads.id,
+          kind: uploads.kind,
+          type: uploads.credentialType,
+          name: credentialTypes.name,
+          sentAt: uploads.createdAt,
+        })
+        .from(uploads)
+        .leftJoin(
+          credentialTypes,
+          and(
+            eq(credentialTypes.firmId, uploads.firmId),
+            eq(credentialTypes.code, uploads.credentialType),
+          ),
+        )
+        .where(and(eq(uploads.workerId, worker.id), eq(uploads.status, "waiting")))
+        .orderBy(asc(uploads.createdAt), asc(uploads.id)),
+      strikes: strikes.slice(0, STRIKES_PER_CASUAL),
+      strikesMore: strikes.length > STRIKES_PER_CASUAL,
+      liveStrikes: Number(live[0]?.n ?? 0),
+      timeZone,
     };
   });
 }

@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { parseEnv as parseDotenv } from "node:util";
 import { describe, expect, it } from "vitest";
-import { parseAdminEnv, parseAppEnv, parseWorkerEnv } from "@/lib/env";
+import { serverEnv } from "../../playwright.config";
+import walkthrough from "../../playwright.walkthrough.config";
+import { EXAMPLE_INTEGRATIONS_SECRET, parseAdminEnv, parseAppEnv, parseWorkerEnv } from "@/lib/env";
 
 const app = {
   DATABASE_URL: "postgres://shiftdesk_app:p@localhost:5432/shiftdesk",
@@ -82,6 +84,71 @@ describe("environment", () => {
     );
   });
 
+  // The planner API (12J.1; docs/office-v2.md 5.3.6): unset, every call answers 503.
+  it("INTEGRATIONS_SECRET: optional, empty means unset, 32+ characters, for the web and the worker", () => {
+    for (const parse of [parseAppEnv, parseWorkerEnv]) {
+      expect(parse(worker).INTEGRATIONS_SECRET).toBeUndefined();
+      expect(parse({ ...worker, INTEGRATIONS_SECRET: "" }).INTEGRATIONS_SECRET).toBeUndefined();
+      expect(() => parse({ ...worker, INTEGRATIONS_SECRET: "s".repeat(31) })).toThrow(
+        /INTEGRATIONS_SECRET/,
+      );
+      const secret = "s".repeat(32);
+      expect(parse({ ...worker, INTEGRATIONS_SECRET: secret }).INTEGRATIONS_SECRET).toBe(secret);
+      // .env.example's value is fine locally.
+      expect(
+        parse({ ...worker, INTEGRATIONS_SECRET: EXAMPLE_INTEGRATIONS_SECRET }).INTEGRATIONS_SECRET,
+      ).toBe(EXAMPLE_INTEGRATIONS_SECRET);
+    }
+  });
+
+  it("INTEGRATIONS_SECRET: never .env.example's value in production (the web and the worker)", () => {
+    const prod = {
+      NODE_ENV: "production",
+      SESSION_SECRET: "a-real-production-secret-0123456789abc",
+    };
+    const real = "a-real-integrations-secret-0123456789abcdef";
+    expect(() =>
+      parseAppEnv({ ...app, ...prod, INTEGRATIONS_SECRET: EXAMPLE_INTEGRATIONS_SECRET }),
+    ).toThrow(/INTEGRATIONS_SECRET/);
+    expect(parseAppEnv({ ...app, ...prod, INTEGRATIONS_SECRET: real }).INTEGRATIONS_SECRET).toBe(
+      real,
+    );
+    expect(parseAppEnv({ ...app, ...prod }).INTEGRATIONS_SECRET).toBeUndefined();
+    // The worker can't start in production yet (its console transport), so compare what it says.
+    const workerProblems = (secret: string) => {
+      try {
+        parseWorkerEnv({ ...worker, ...prod, PUSH_TRANSPORT: "none", INTEGRATIONS_SECRET: secret });
+        return "";
+      } catch (err) {
+        return String(err);
+      }
+    };
+    expect(workerProblems(EXAMPLE_INTEGRATIONS_SECRET)).toMatch(/INTEGRATIONS_SECRET/);
+    expect(workerProblems(real)).toMatch(/MESSAGING_TRANSPORT/);
+    expect(workerProblems(real)).not.toMatch(/INTEGRATIONS_SECRET/);
+  });
+
+  it("INTEGRATIONS_SECRET is pinned to made-up values a production build takes, for the tests and the browser tests' servers", () => {
+    const prod = {
+      ...app,
+      NODE_ENV: "production",
+      SESSION_SECRET: "a-real-production-secret-0123456789abc",
+    };
+    const pinned = [
+      process.env.INTEGRATIONS_SECRET,
+      serverEnv(3100, ".dev/outbox").INTEGRATIONS_SECRET,
+      ...[walkthrough.webServer ?? []].flat().map((server) => server.env?.INTEGRATIONS_SECRET),
+    ];
+    expect(pinned).toHaveLength(4); // the walkthrough's worker and web app share theirs
+    expect(new Set(pinned).size).toBe(3);
+    for (const secret of pinned) {
+      expect(secret).not.toBe(EXAMPLE_INTEGRATIONS_SECRET);
+      expect(parseAppEnv({ ...prod, INTEGRATIONS_SECRET: secret }).INTEGRATIONS_SECRET).toBe(
+        secret,
+      );
+    }
+  });
+
   it("rejects the twilio transport until it exists (Phase 4)", () => {
     expect(() => parseWorkerEnv({ ...worker, MESSAGING_TRANSPORT: "twilio" })).toThrow(
       /MESSAGING_TRANSPORT/,
@@ -157,6 +224,7 @@ describe("environment", () => {
   it("the app environment never needs the jobs or owner credentials", () => {
     expect(parseAppEnv(app).DATABASE_URL).toBe(app.DATABASE_URL);
     expect(Object.keys(parseAppEnv(admin)).sort()).toEqual([
+      "AI_TRANSPORT", // not a credential: "none" when unset; the web app shows Enquiries' banner (12D.1)
       "APP_BASE_DOMAIN",
       "DATABASE_URL",
       "NODE_ENV",
@@ -175,6 +243,7 @@ describe("environment", () => {
     const example = parseDotenv(readFileSync(".env.example", "utf8"));
     expect(parseAppEnv(example).DATABASE_URL).toMatch(/shiftdesk_app/);
     expect(parseAppEnv(example).APP_BASE_DOMAIN).toBe("localhost:3000");
+    expect(parseAppEnv(example).INTEGRATIONS_SECRET).toBe(EXAMPLE_INTEGRATIONS_SECRET);
     expect(parseWorkerEnv(example).DATABASE_JOBS_URL).toMatch(/shiftdesk_jobs/);
     expect(parseAdminEnv(example).DATABASE_ADMIN_URL).toMatch(/role%3Dshiftdesk_owner/);
   });

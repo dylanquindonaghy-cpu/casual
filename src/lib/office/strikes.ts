@@ -100,7 +100,39 @@ export async function loadStrikes(
      order by live desc, latest desc, w.id
      limit ${limit}
   `);
-  const ids = casuals.map((c) => c.worker_id);
+  const byWorker = await strikesOf(
+    tx,
+    casuals.map((c) => c.worker_id),
+    o.now,
+  );
+  return {
+    view: o.view,
+    timeZone: firm?.timezone ?? "Europe/London",
+    liveDays: strikeSettings(firm?.settings ?? {}).liveDays,
+    noticeHours: strikeSettings(firm?.settings ?? {}).noticeHours,
+    rows: casuals.map((c) => {
+      const list = byWorker.get(c.worker_id) ?? [];
+      return {
+        workerId: c.worker_id,
+        casual: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "A casual",
+        live: Number(c.live),
+        review: c.review,
+        strikes: list.slice(0, STRIKES_PER_CASUAL),
+        more: list.length > STRIKES_PER_CASUAL,
+      };
+    }),
+    total: Number(casuals[0]?.total ?? 0),
+  };
+}
+
+// Each casual's strikes, newest first, at most `perCasual` each (one more than a page shows, so it
+// can say there are more): the Strikes page and a casual's own page (12F.1).
+export async function strikesOf(
+  tx: FirmTx,
+  ids: readonly string[],
+  now: Date,
+  perCasual = STRIKES_PER_CASUAL + 1,
+): Promise<Map<string, CasualStrike[]>> {
   const { rows: strikeRows } =
     ids.length === 0
       ? { rows: [] }
@@ -140,7 +172,7 @@ export async function loadStrikes(
                sql`, `,
              )})
           ) x
-          where x.n <= ${STRIKES_PER_CASUAL + 1}
+          where x.n <= ${perCasual}
           order by x.worker_id, x.n
         `);
   const byWorker = new Map<string, CasualStrike[]>();
@@ -156,7 +188,7 @@ export async function loadStrikes(
       cancelledAt: new Date(r.cancelled_at),
       noticeHours: Number(r.notice_hours),
       status: r.status,
-      counting: r.status === "live" && expiresAt.getTime() > o.now.getTime(),
+      counting: r.status === "live" && expiresAt.getTime() > now.getTime(),
       expiresAt,
       reviewNeeded: r.review_needed,
       evidence: {
@@ -168,24 +200,7 @@ export async function loadStrikes(
     });
     byWorker.set(r.worker_id, list);
   }
-  return {
-    view: o.view,
-    timeZone: firm?.timezone ?? "Europe/London",
-    liveDays: strikeSettings(firm?.settings ?? {}).liveDays,
-    noticeHours: strikeSettings(firm?.settings ?? {}).noticeHours,
-    rows: casuals.map((c) => {
-      const list = byWorker.get(c.worker_id) ?? [];
-      return {
-        workerId: c.worker_id,
-        casual: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "A casual",
-        live: Number(c.live),
-        review: c.review,
-        strikes: list.slice(0, STRIKES_PER_CASUAL),
-        more: list.length > STRIKES_PER_CASUAL,
-      };
-    }),
-    total: Number(casuals[0]?.total ?? 0),
-  };
+  return byWorker;
 }
 
 export async function officeStrikes(

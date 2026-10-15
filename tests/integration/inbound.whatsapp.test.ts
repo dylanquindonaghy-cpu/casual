@@ -7,7 +7,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { INBOUND_MESSAGE_QUEUE } from "@/lib/inbound/job";
 import { receiveWhatsApp } from "@/lib/inbound/receive";
 import { runInboundMessage } from "@/lib/inbound/reply";
-import { loadToday } from "@/lib/office/today";
+import { loadEnquiries } from "@/lib/office/enquiries";
 import { twilioSignature } from "@/lib/inbound/twilio-signature";
 import { handleTwilioWhatsApp, MAX_WEBHOOK_BYTES } from "@/lib/inbound/webhook";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
@@ -272,31 +272,32 @@ describe("replying (the inbound-message job)", () => {
     );
   const onlyBody = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
 
-  it("keywords: open shifts, cancelling and pay get their link, from the firm's line, signed; logged without the text", async () => {
+  it("keywords: open shifts, cancelling and pay get their reply, from the firm's line, signed; logged without the text", async () => {
     const t = await lineFirm();
     const { transport, sent } = captureTransport();
     const portal = `https://${t.slug}.shiftdesk.test`;
-    for (const [text, reply] of [
-      ["Any shifts this weekend?", `Open shifts you're eligible for: ${portal}/shifts/open`],
+    const automatic = "Automatic reply. Send OFFICE to reach a person.";
+    // Shifts and cancel: her personal reply (12D.2; tests/integration/personal-reply.test.ts has the
+    // lists); Ann has no shifts to take and none booked. Pay: the link, never a list.
+    for (const [text, body] of [
+      [
+        "Any shifts this weekend?",
+        `Hi Ann, there's nothing you can take at the weekend right now. We'll message you if something comes up. All open shifts: ${portal}/shifts/open\n${automatic}\n— ${t.name} Shift Team`,
+      ],
       [
         "Can I cancel my shift on Saturday",
-        `To cancel a shift, tap here and choose the shift: ${portal}/. It's recorded instantly.`,
+        `Hi Ann, you have no shifts booked, so there's nothing to cancel. ${automatic}\n— ${t.name} Shift Team`,
       ],
       [
         "When do wages go in",
-        `Your hours, rates and pay dates: ${portal}/pay (you'll get a code to log in).`,
+        `Your hours, rates and pay dates: ${portal}/pay (you'll get a code to log in). ${automatic} — ${t.name} Shift Team`,
       ],
     ] as const) {
       expect(await run(await t.incoming(text), transport)).toMatchObject({
         status: "replied",
         handledAs: "keyword",
       });
-      expect(sent.at(-1)).toEqual({
-        channel: "whatsapp",
-        to: t.mobile,
-        from: t.line,
-        body: `${reply} — ${t.name} Shift Team`,
-      });
+      expect(sent.at(-1)).toEqual({ channel: "whatsapp", to: t.mobile, from: t.line, body });
     }
     const rows = await t.messageRows();
     expect(rows.filter((r) => r.direction === "in").map((r) => [r.handled_as, r.intent])).toEqual([
@@ -320,7 +321,13 @@ describe("replying (the inbound-message job)", () => {
       ["message.received", "pay"],
       ["message.replied", "pay"],
     ]);
-    const text = JSON.stringify(logged);
+    // How the two personal replies were built, for the office's Enquiries page: no words of hers.
+    const built = await t.eventsOf("enquiry.checks");
+    expect(built.map((e) => [e.data.template, e.data.sent, e.data.channel])).toEqual([
+      ["shifts_none", true, "whatsapp"],
+      ["cancel_none", true, "whatsapp"],
+    ]);
+    const text = JSON.stringify([...logged, ...built]);
     expect(text).not.toMatch(/weekend|Saturday|wages/);
     expect(text).not.toContain(t.mobile);
   });
@@ -336,8 +343,10 @@ describe("replying (the inbound-message job)", () => {
       shift_id: string | null;
       payload: Record<string, unknown>;
       worker_id: string;
+      message_id: string | null;
     }>(
-      `select id::text as id, type, status, shift_id, payload, worker_id::text as worker_id
+      `select id::text as id, type, status, shift_id, payload, worker_id::text as worker_id,
+              message_id::text as message_id
          from requests where firm_id = $1`,
       [t.f.firmId],
     );
@@ -348,16 +357,14 @@ describe("replying (the inbound-message job)", () => {
         status: "open",
         shift_id: null,
         worker_id: t.ann,
-        payload: {
-          note: "I need to talk to someone about my DBS",
-          via: "whatsapp",
-          messageId: (await t.messageRows())[0]?.id,
-        },
+        payload: { note: "I need to talk to someone about my DBS", via: "whatsapp" },
+        // Linked to the message it came from (12D.1, S5), no longer by an id in the payload.
+        message_id: (await t.messageRows())[0]?.id,
       },
     ]);
     const ref = (rows[0]?.id ?? "").slice(0, 8).toUpperCase();
     expect(onlyBody(sent)).toEqual([
-      `The office will see this and get back to you. Ref ${ref}. — ${t.name} Shift Team`,
+      `The office will see this and get back to you. Ref ${ref}. Automatic reply. Send OFFICE to reach a person. — ${t.name} Shift Team`,
     ]);
     expect((await t.eventsOf("request.created"))[0]).toMatchObject({
       actor_type: "worker",
@@ -374,11 +381,11 @@ describe("replying (the inbound-message job)", () => {
         asked.push(r);
         return answer;
       });
-    // The AI says "cancel": the cancel reply, handled by AI.
+    // The AI says "cancel": the cancel reply (her own: she has nothing booked), handled by AI.
     expect(
       await run(await t.incoming("running late, can't make it"), transport, answering("cancel")),
     ).toMatchObject({ status: "replied", intent: "cancel", handledAs: "ai" });
-    expect(onlyBody(sent).at(-1)).toMatch(/^To cancel a shift, tap here/);
+    expect(onlyBody(sent).at(-1)).toMatch(/^Hi Ann, you have no shifts booked/);
     expect(asked[0]).toMatchObject({
       purpose: "classify_message",
       prompt: "running late, can't make it",
@@ -417,7 +424,7 @@ describe("replying (the inbound-message job)", () => {
     expect(rows.map((r) => r.note)).toEqual(["(A photo or file, with no text.)"]);
   });
 
-  it("a number we don't know: the polite reply from the firm's line, and the office's admins and resourcers emailed (no number, no message); shown on Today", async () => {
+  it("a number we don't know: the polite reply from the firm's line, and the office's admins and resourcers emailed (no number, no message); shown on Enquiries", async () => {
     const t = await lineFirm();
     const admin = await t.f.office("admin");
     const resourcer = await t.f.office("resourcer");
@@ -439,7 +446,7 @@ describe("replying (the inbound-message job)", () => {
         channel: "whatsapp",
         to: stranger,
         from: t.line,
-        body: `Thanks for your message. We don't recognise this number. If you work with ${t.name}, reply with your full name and the office will get back to you. — ${t.name} Shift Team`,
+        body: `Thanks for your message. We don't recognise this number. If you work with ${t.name}, reply with your full name and the office will get back to you. Automatic reply. Send OFFICE to reach a person. — ${t.name} Shift Team`,
       },
     ]);
     const emails = sent.filter(
@@ -476,22 +483,18 @@ describe("replying (the inbound-message job)", () => {
       ],
     ]);
     expect(JSON.stringify(logged)).not.toMatch(/900998|Sam/);
-    // Today shows it to the office.
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages).toEqual([
-      {
-        messageId: expect.any(String),
+    // Enquiries shows it to the office, waiting for a person.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows).toEqual([
+      expect.objectContaining({
         channel: "whatsapp",
-        from: stranger,
+        who: { kind: "unknown", from: stranger },
         text: "Hi, it's Sam, new phone",
-        receivedAt: expect.any(Date),
-        formerWorker: null,
-        formerWorkerActive: false,
-      },
+      }),
     ]);
   });
 
-  it("from the same number again within 24 hours: stored and on Today, but no second reply or email (no loops)", async () => {
+  it("from the same number again within 24 hours: stored and on Enquiries, but no second reply or email (no loops)", async () => {
     const t = await lineFirm();
     await t.f.office("admin");
     const stranger = "+447700900997";
@@ -505,8 +508,9 @@ describe("replying (the inbound-message job)", () => {
     });
     expect(sent).toHaveLength(before);
     expect((await t.eventsOf("message.received")).at(-1)?.data).toMatchObject({ repeat: true });
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages.map((u) => u.text)).toEqual(["Sam Smith", "hello?"]);
+    // Need a person lists the oldest first.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows.map((u) => u.text)).toEqual(["hello?", "Sam Smith"]);
     // Another number is its own first message.
     expect(await run(await t.incoming("hi", "+447700900996"), transport)).toMatchObject({
       reply: "sent",
@@ -514,7 +518,7 @@ describe("replying (the inbound-message job)", () => {
     });
   });
 
-  it("a worker who has left: no 'we don't recognise this number'; the office is alerted, and Today names them", async () => {
+  it("a worker who has left: no 'we don't recognise this number'; the office is alerted, and Enquiries names them", async () => {
     const t = await lineFirm();
     await t.f.office("resourcer");
     await su.query("update workers set status = 'inactive' where id = $1", [t.ann]);
@@ -532,8 +536,12 @@ describe("replying (the inbound-message job)", () => {
     expect((await t.eventsOf("message.office_alerted"))[0]?.data).toMatchObject({
       reason: "former_worker",
     });
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages[0]?.formerWorker).toBe(`Ann Booker`);
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows[0]?.who).toMatchObject({
+      kind: "casual",
+      name: "Ann Booker",
+      active: false,
+    });
   });
 
   it("two messages from one stranger handled at once: one reply and one set of emails", async () => {

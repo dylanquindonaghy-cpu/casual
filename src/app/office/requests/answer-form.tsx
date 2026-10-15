@@ -3,15 +3,24 @@
 import { useState, useTransition } from "react";
 import { btn, field, label } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
-import { answerResultText } from "@/lib/office/requests-copy";
+import { answerResultText, approveWord } from "@/lib/office/requests-copy";
 import { answerRequestAction } from "./actions";
 
 const failed = { status: "error" as const };
 
-// "Note to {name}", then "Approve and tell {name}" (the main action) / "Decline and tell {name}".
+// "Note to {name}", then "Approve and tell {name}" ("Answer and tell {name}" for a question: the
+// main action) / "Decline and tell {name}".
 // The server checks everything again. Once answered, the confirmation stays in place of the
 // buttons (the page isn't refreshed under it); reloading moves the request to "Answered".
-export function AnswerForm({ requestId, firstName }: { requestId: string; firstName: string }) {
+export function AnswerForm({
+  requestId,
+  firstName,
+  type,
+}: {
+  requestId: string;
+  firstName: string;
+  type: string;
+}) {
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -26,7 +35,7 @@ export function AnswerForm({ requestId, firstName }: { requestId: string; firstN
         return;
       }
       const result = await answerRequestAction({ requestId, decision, note }).catch(() => failed);
-      setMessage(answerResultText(result, firstName));
+      setMessage(answerResultText(result, firstName, type));
       setAnswered(result.status === "resolved");
       if (result.status === "resolved" || result.status === "already") setDone(true);
     });
@@ -54,7 +63,7 @@ export function AnswerForm({ requestId, firstName }: { requestId: string; firstN
               disabled={pending || !ready}
               onClick={() => answer("approved")}
             >
-              Approve and tell {firstName}
+              {approveWord(type)} and tell {firstName}
             </button>
             <button
               type="button"

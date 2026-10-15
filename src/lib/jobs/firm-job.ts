@@ -36,7 +36,15 @@ export function defineFirmJob<P extends FirmJobEnvelope>(job: FirmJob<P>): FirmJ
 export interface FirmTask<P extends FirmJobEnvelope> {
   queue: string;
   schema: z.ZodType<P>;
-  task: (payload: P, run: WithFirm) => Promise<unknown>;
+  task: (payload: P, run: WithFirm, attempt: JobAttempt) => Promise<unknown>;
+}
+
+// Which try this is: pg-boss's retry count (0 on the first), and the queue's retry limit when the
+// worker asked for it (`includeMetadata`; null otherwise). A task that must act on its last try
+// (the planner's webhook logs webhook.failed and completes) reads both.
+export interface JobAttempt {
+  retryCount: number;
+  retryLimit: number | null;
 }
 
 export type FirmSendOptions = Omit<SendOptions, "db" | "id">;
@@ -96,19 +104,24 @@ export async function runFirmJob<P extends FirmJobEnvelope>(
   );
 }
 
-// The same for a FirmTask: validated payload, one result per job, codes only on failure.
+// The same for a FirmTask: validated payload, one result per job, codes only on failure. The try
+// number (and the retry limit, from a queue registered with `includeMetadata`) is passed on.
 export async function runFirmTask<P extends FirmJobEnvelope>(
   task: FirmTask<P>,
-  input: { id: string; data: unknown },
+  input: { id: string; data: unknown; retryCount?: number; retryLimit?: number },
   run: WithFirm = withFirm,
   logger: Logger = log,
 ): Promise<JobResult> {
+  const attempt: JobAttempt = {
+    retryCount: input.retryCount ?? 0,
+    retryLimit: input.retryLimit ?? null,
+  };
   return runValidated(task, input, logger, (payload) => {
     const bound: WithFirm = (firmId, fn) => {
       if (firmId !== payload.firmId) throw new Error("a firm task may only use its own firm");
       return run(firmId, fn);
     };
-    return task.task(payload, bound);
+    return task.task(payload, bound, attempt);
   });
 }
 

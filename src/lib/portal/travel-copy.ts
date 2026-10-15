@@ -91,3 +91,23 @@ export function removeTravelText(r: RemoveTravelOutcome): string {
       return "Something went wrong. Try again.";
   }
 }
+
+// The lists' travel area words (docs/office-v2.md 4.2, 4.3; 12G.3): Open shifts and the urgent
+// board.
+export const TRAVEL_PATH = "/profile/travel";
+
+// No travel area: everything is shown, with this prompt and a link to add one.
+export const AREA_PROMPT =
+  "Add your home area to see how far each shift is and only see shifts you can get to.";
+export const AREA_PROMPT_LINK = "Add your home area";
+
+// Under the list: the shifts she could take that are further than she travels.
+export function furtherText(further: { count: number; atLeast: boolean }, urgent = false): string {
+  const kind = urgent ? "urgent shift" : "shift";
+  const n = further.count;
+  const many = n === 1 ? `1 more ${kind} is` : `${n} more ${kind}s are`;
+  return `${further.atLeast ? `At least ${many}` : capitalised(many)} further than you travel.`;
+}
+export const FURTHER_LINK = "Change how far";
+
+const capitalised = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

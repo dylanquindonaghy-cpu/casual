@@ -496,7 +496,15 @@ function rowImporter(
           verifiedAt: credentials.verifiedAt,
         })
         .from(credentials)
-        .where(and(eq(credentials.workerId, worker.id), eq(credentials.type, type)))
+        // The office's own records only: a casual's upload waiting for a check (or turned down)
+        // is never updated by a file (12F.2).
+        .where(
+          and(
+            eq(credentials.workerId, worker.id),
+            eq(credentials.type, type),
+            eq(credentials.checkState, "verified"),
+          ),
+        )
         .orderBy(desc(credentials.createdAt))
         .limit(1)
         // Locked, so a renewal waits for a credential scan that is marking this row expired, then

@@ -10,7 +10,7 @@ import { keepBookingAction } from "./today-actions";
 // The browser's request failed: the server may have kept it.
 const failed = { status: "error" as const };
 
-// Today's "Bookings to check", one booking: "Cancel {name}'s booking" (the shift page's form, its
+// the dashboard's "Bookings to check", one booking: "Cancel {name}'s booking" (the shift page's form, its
 // reasons with "They've left, or can't work here") or "Keep the booking". The server checks
 // everything again. Whichever is done, its confirmation stays in place and the other goes (no
 // refresh: that would take the booking, and the confirmation with it, off the list); the list

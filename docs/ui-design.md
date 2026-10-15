@@ -150,17 +150,17 @@ you on to `/office` as before.
 
   | Group | Links |
   |---|---|
-  | Operations | Today, Shifts, Requests |
-  | Pay | Home (payroll only), Pay queries, Import pay records |
-  | Records | Workers, Action log, Notice report, Pilot metrics |
-  | Configuration | Office team, Data requests |
+  | Operations | Dashboard, Events & sessions, Cancellations, Enquiries |
+  | Pay | Pay dashboard, Pay queries, Import pay records |
+  | Records | Strikes, Casuals, Action log, Notice report, Pilot metrics |
+  | Configuration | Office team, Settings, Data requests |
   | Help | How-to guide |
 
 - The current page's link has `aria-current="page"`, bold text on the soft background, a 3px dark
   bar at the menu's edge and its icon filled in. On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
-  shift marks Shifts, the offer page marks Today, a worker marks Workers, a worker's data page
-  marks Data requests.
+  shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
+  cancellation's record marks Cancellations, a worker's data page marks Data requests.
 - **Badges:** a link can carry a count. The number sits inside the link but hidden from screen
   readers, and its words ("3 waiting") follow the link as visually hidden text, so the link's name
   stays exactly its label.
@@ -201,9 +201,13 @@ you on to `/office` as before.
 - **Imports** (shifts and pay records): one card with the same layout and the same answer box as
   the shift forms. The next step is always the dark button: "Check the file", then "Import these
   …", then the link on ("See the shifts", "Go to pay queries").
-- **Today:** a summary of counts at the top (each a link to its section), then the sections in
-  the order things need doing: urgent shifts, bookings to check, from your rota sheet, requests,
-  gaps, who worked, cancellations, messages from unknown numbers, licences expiring.
+- **Dashboard** (12E.1; "Today" until then): four counts at the top, each a link to its filtered
+  list, the first ("Urgent shifts not filled") tinted red and larger; then the sections, each a
+  heading with a muted hint under it: urgent shifts not filled (a card per event, a red edge),
+  showing to casuals (two columns of event cards from 1024px, each with its switch), the latest
+  cancellations, the latest enquiries, and Needs attention (its parts as h3s with a count chip).
+  A section that can't load shows its own error and the rest of the page still shows. The bell in
+  the top bar counts Needs attention's items and links to it.
 
 ## Forms wait for the page
 

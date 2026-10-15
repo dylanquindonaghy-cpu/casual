@@ -10,6 +10,7 @@ import { refreshSessionAction } from "../session-actions";
 import { HomeScreenHint } from "../home-screen-hint";
 import { SessionKeeper } from "../session-keeper";
 import { ProfileView } from "./profile-view";
+import { CasualTabBar } from "../casual-tab-bar";
 
 export const metadata: Metadata = { title: "My profile" };
 
@@ -31,6 +32,7 @@ export default async function ProfilePage() {
         travel={travel}
       />
       <HomeScreenHint />
+      <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
     </main>
   );
 }

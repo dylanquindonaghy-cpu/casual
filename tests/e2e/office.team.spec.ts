@@ -43,7 +43,8 @@ test("an admin turns a resourcer's access off, back on, and changes their role",
   try {
     const lee = await theirPhone.newPage();
     await officeLogin(lee, leaver);
-    await expect(lee.getByText("You're logged in as Resourcer.")).toBeVisible();
+    // The account button names them and their role (on a phone, to screen readers only).
+    await expect(lee.getByRole("button", { name: "Lee Leaver Resourcer" })).toBeAttached();
 
     await officeLogin(page, admin);
     await (await menuLink(page, "Office team")).click();

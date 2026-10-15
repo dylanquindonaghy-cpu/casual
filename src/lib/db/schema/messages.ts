@@ -69,6 +69,8 @@ export const messages = pgTable(
       foreignColumns: [t.firmId, t.id] as [AnyPgColumn, AnyPgColumn],
     }),
     index("messages_firm_id_created_at_idx").on(t.firmId, t.createdAt),
+    // A message's replies (Enquiries, 12D.1, S5).
+    index("messages_firm_id_reply_to_idx").on(t.firmId, t.replyTo),
     index("messages_firm_id_worker_id_idx").on(t.firmId, t.workerId),
     // Messages from a number: STOP, an unknown number's repeats, a worker's data export (L76).
     index("messages_firm_id_from_e164_idx").on(t.firmId, t.fromE164),

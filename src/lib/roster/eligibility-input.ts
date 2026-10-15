@@ -95,7 +95,8 @@ export async function loadEligibilityInput(
       expiresOn: credentials.expiresOn,
     })
     .from(credentials)
-    .where(eq(credentials.workerId, workerId));
+    // Checked records only (D3; 12F.2): a casual's upload counts once the office approves it.
+    .where(and(eq(credentials.workerId, workerId), eq(credentials.checkState, "verified")));
   const [rule] = await tx
     .select({ requiredTypes: credentialRules.requiredTypes })
     .from(credentialRules)
@@ -210,6 +211,7 @@ async function deployedThatDay(
                join credential_types t
                  on t.firm_id = c.firm_id and t.code = c.type and t.applied_allowed
               where c.firm_id = s.firm_id and c.worker_id = a.worker_id and c.status = 'applied'
+                and c.check_state = 'verified'
                 and (c.type = any (s.required_credentials)
                   or exists (select 1 from credential_rules r
                               where r.firm_id = s.firm_id and r.role = s.role
@@ -217,7 +219,8 @@ async function deployedThatDay(
                 and not exists (
                   select 1 from credentials v
                    where v.firm_id = c.firm_id and v.worker_id = c.worker_id and v.type = c.type
-                     and v.status = 'valid' and (v.expires_on is null or v.expires_on >= ${day}::date))
+                     and v.status = 'valid' and v.check_state = 'verified'
+                     and (v.expires_on is null or v.expires_on >= ${day}::date))
            ))::int as applied
       from assignments a
       join shifts s on s.firm_id = a.firm_id and s.id = a.shift_id
@@ -287,7 +290,10 @@ export async function loadEligibilityInputs(
       expiresOn: credentials.expiresOn,
     })
     .from(credentials)
-    .where(inArray(credentials.workerId, presentWorkers));
+    // Checked records only (D3; 12F.2).
+    .where(
+      and(inArray(credentials.workerId, presentWorkers), eq(credentials.checkState, "verified")),
+    );
   const roles = [...new Set(shiftRows.map((s) => s.role))];
   const rules = await tx
     .select({ role: credentialRules.role, requiredTypes: credentialRules.requiredTypes })
@@ -468,6 +474,7 @@ async function bookedOnDays(
                  join credential_types t
                    on t.firm_id = c.firm_id and t.code = c.type and t.applied_allowed
                 where c.firm_id = s.firm_id and c.worker_id = a.worker_id and c.status = 'applied'
+                  and c.check_state = 'verified'
                   and (c.type = any (s.required_credentials)
                     or exists (select 1 from credential_rules r
                                 where r.firm_id = s.firm_id and r.role = s.role
@@ -475,7 +482,7 @@ async function bookedOnDays(
                   and not exists (
                     select 1 from credentials v
                      where v.firm_id = c.firm_id and v.worker_id = c.worker_id and v.type = c.type
-                       and v.status = 'valid'
+                       and v.status = 'valid' and v.check_state = 'verified'
                        and (v.expires_on is null
                             or v.expires_on >= (s.starts_at at time zone ${timeZone})::date))
              ) as applied

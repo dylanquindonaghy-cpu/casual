@@ -41,6 +41,9 @@ export const LOG_TYPES = {
       "shift.moved",
       "shift.curtailed",
       "shift.move_refused",
+      // The planner's change to a booked session refused (12J.1): role or requirements, or places
+      // below a booked one ({shiftId, code}).
+      "api.change_refused",
       "shift.status_changed",
       "shift.closed",
       "shift.reopened",
@@ -109,6 +112,14 @@ export const LOG_TYPES = {
       "message.office_alerted",
       "message.office_alert_failed",
       "message.office_alert_skipped",
+      // What the shifts line's personal reply was built from (12D.2).
+      "enquiry.checks",
+      // The office's reply or close on Enquiries (12D.1).
+      "enquiry.answered",
+      "enquiry.closed",
+      "enquiry.reply_sending",
+      "enquiry.reply_sent",
+      "enquiry.reply_failed",
     ],
   },
   requests: {
@@ -122,6 +133,10 @@ export const LOG_TYPES = {
       "credential.updated",
       "credential.expired",
       "credential_pack.applied",
+      // Photos and certificate images (12F.2).
+      "upload.received",
+      "upload.approved",
+      "upload.rejected",
     ],
   },
   workers: {
@@ -211,6 +226,13 @@ export const LOG_TYPES = {
       "firm.domain_changed",
       "firm.shifts_line_changed",
       "firm.agreement_recorded",
+      // The planner's API keys (12J.1): the key's id only.
+      "api_key.created",
+      "api_key.revoked",
+      // The planner's webhook (12J.2): each delivery's outcome ({eventRef, bookingId, type}, and
+      // the failure's code), never the address.
+      "webhook.delivered",
+      "webhook.failed",
     ],
   },
   sheet: {

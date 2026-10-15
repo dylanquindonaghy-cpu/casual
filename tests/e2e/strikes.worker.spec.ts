@@ -3,17 +3,32 @@ import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
 
 // Strikes on cancel in a real browser, on a phone (12C.1; docs/office-v2.md 4.5): a casual takes
-// two sessions of this spec's own, one starting in about 20 hours and one in about 4 days, and
-// cancels both. The first shows the strike warning and records a strike; the second says it
-// doesn't and records none. The casual, the sessions and their sites are made up and this spec's
-// own (the sessions are cancelled at the end); a retry makes new sessions (the run's suffix) and
-// finds the casual again (who may then already have a strike, so the count isn't fixed).
+// two sessions of this spec's own, one starting in about 20 hours and one 2 to 9 days ahead (in a
+// later week), and cancels both. The first shows the strike warning and records a strike; the
+// second says it doesn't and records none. The casual, the sessions and their sites are made up
+// and this spec's own (the sessions are cancelled at the end); a retry makes new sessions (the
+// run's suffix) and finds the casual again (who may then already have a strike, so the count
+// isn't fixed).
 
 const acme = "http://acme.localhost:3100";
 const RUN = Date.now().toString(36);
 const SOON = `Strike Test Yard ${RUN}`;
 const LATER = `Strike Test Park ${RUN}`;
 const CASUAL = { firstName: "Stella", lastName: "Strike", mobileE164: "+447700900613" };
+const DAY = 86_400_000;
+
+// The later session starts at noon (UTC, so Monday in London too) on a Monday after the sooner
+// one's week, and over 49 hours ahead. In the sooner one's week the casual already has hours from
+// taking it, and fair rotation (ADR-015) would hold a new session there for casuals with fewer
+// hours that week: "Take shift" wouldn't be on it yet.
+function laterDaysAhead(now: Date, soonDaysAhead: number): number {
+  const soon = new Date(now.getTime() + soonDaysAhead * DAY);
+  const target = new Date(soon);
+  target.setUTCHours(12, 0, 0, 0);
+  do target.setUTCDate(target.getUTCDate() + 1);
+  while (target.getUTCDay() !== 1 || target.getTime() - now.getTime() < 49 * 3_600_000);
+  return (target.getTime() - now.getTime()) / DAY;
+}
 
 test("a cancellation under 48 hours shows the warning and records a strike; one over 48 hours records none", async ({
   page,
@@ -29,7 +44,7 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     name: `Strike Test Later ${RUN}`,
     site: LATER,
     role: "steward",
-    daysAhead: 4,
+    daysAhead: laterDaysAhead(new Date(), 20 / 24),
   });
   await addSteward("acme", CASUAL);
   try {
@@ -77,7 +92,7 @@ test("a cancellation under 48 hours shows the warning and records a strike; one 
     await expect(page.getByText(/^Sent to the office\. Reference [0-9A-F]{8}\.$/)).toBeVisible();
     await page.getByRole("button", { name: "Back to my shifts" }).click();
 
-    // The one in about 4 days: no strike.
+    // The later one: no strike.
     await expect(page.getByText(LATER).first()).toBeVisible();
     await page.getByRole("button", { name: "Cancel this shift" }).first().click();
     await expect(page.getByRole("note")).toHaveText(

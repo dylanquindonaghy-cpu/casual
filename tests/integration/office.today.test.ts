@@ -1,13 +1,24 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createSession } from "@/lib/auth/sessions";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { loadToday, todayView } from "@/lib/office/today";
-import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
+import {
+  loadBookingsToCheck,
+  loadEvidence,
+  loadSheetIssues,
+  loadToMark,
+  loadUrgentOffers,
+} from "@/lib/office/today";
+import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
-// The office's Today view (src/lib/office/today.ts) on the real database, as the app role. NOW is
-// Monday 2 November 2026, 09:00 London (GMT).
+// The office's to-do queries (src/lib/office/today.ts), read by the dashboard (12E.1), on the
+// real database as the app role. Who may see them, and which sessions count as urgent gaps, are
+// tested in tests/integration/office.dashboard.test.ts. Each part has its own tests too: bookings
+// to check (office.workers), from your rota sheet (sheets.sync), who worked? (office.attendance),
+// strike evidence (strikes.evidence). Until 12E.1 they made the Today page, with its gaps,
+// cancellations, requests, unknown numbers and expiring credentials: those moved to Events &
+// sessions, Cancellations, Enquiries and Casuals, each tested there. NOW is Monday 2 November
+// 2026, 09:00 London (GMT).
 
 let su: Pool;
 let app: Pool;
@@ -22,60 +33,10 @@ afterAll(async () => {
   await Promise.all([su.end(), app.end()]);
 });
 
-// A cancellation recorded `hoursAgo`, as the worker's or the office's.
-async function cancelled(
-  f: BookingFirm,
-  workerId: string,
-  shiftId: string,
-  hoursAgo: number,
-  o: { byFirm?: boolean; reason?: string; notice?: number; slot?: number } = {},
-) {
-  const { rows } = await su.query<{ id: string }>(
-    `insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at,
-                              cancelled_at, cancel_reason, notice_hours)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id::text as id`,
-    [
-      f.firmId,
-      shiftId,
-      o.slot ?? 1,
-      workerId,
-      o.byFirm ? "cancelled_firm" : "cancelled_worker",
-      hoursFromNow(-100),
-      hoursFromNow(-hoursAgo),
-      o.reason ?? "I'm unwell",
-      o.notice ?? 30,
-    ],
-  );
-  return rows[0]?.id ?? "";
-}
-
-async function credential(
-  f: BookingFirm,
-  workerId: string,
-  expiresOn: string | null,
-  status = "valid",
-) {
-  await su.query(
-    "insert into credentials (firm_id, worker_id, type, status, expires_on) values ($1, $2, 'PTS', $3, $4)",
-    [f.firmId, workerId, status, expiresOn],
-  );
-}
-
 async function todayFirm() {
   const f = await bookingFirm(su, withFirm);
   const ann = await f.worker({ first: "Ann" });
   const ben = await f.worker({ first: "Ben" });
-
-  // Gaps: two places tomorrow with Ann on one; full, past, far off, draft and cancelled don't count.
-  const tomorrow = await f.shift({ startsAt: hoursFromNow(20), headcount: 2 });
-  await f.booking(ann, tomorrow, "confirmed", 1);
-  const full = await f.shift({ startsAt: hoursFromNow(30) });
-  await f.booking(ben, full);
-  await f.shift({ startsAt: hoursFromNow(-2) });
-  await f.shift({ startsAt: hoursFromNow(24 * 8) });
-  await f.shift({ startsAt: hoursFromNow(22), status: "draft" });
-  await f.shift({ startsAt: hoursFromNow(23), status: "cancelled" });
-  const inAWeek = await f.shift({ startsAt: hoursFromNow(24 * 7 - 1) });
 
   // An urgent shift at 19:00: wave 1 to Ann and Ben (Ben's failed), then the office offered Cal;
   // the waves stopped for want of people, and the office was emailed.
@@ -101,90 +62,49 @@ async function todayFirm() {
   await event("offer.waves_stopped", { reason: "no_candidates", wave: 2 });
   await event("shift.escalated", { notified: 1 });
 
-  // Cancellations: two in the last 24 hours (one by the office), one older.
-  const c1 = await f.shift({ startsAt: hoursFromNow(40) });
-  const c2 = await f.shift({ startsAt: hoursFromNow(50) });
-  const c3 = await f.shift({ startsAt: hoursFromNow(60) });
-  const recent = await cancelled(f, ann, c1, 2, { notice: 40, reason: "Travel problem" });
-  const byOffice = await cancelled(f, ben, c2, 1, {
-    byFirm: true,
-    notice: 49,
-    reason: "Venue closed",
-  });
-  await cancelled(f, cal, c3, 30);
-
-  // Requests: three waiting, one answered (declined by the office).
-  const request = (type: string, status: string, shiftId: string | null) =>
-    su.query(
-      `insert into requests (firm_id, worker_id, shift_id, type, status, resolved_by, resolved_at)
-       values ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        f.firmId,
-        ann,
-        shiftId,
-        type,
-        status,
-        status === "declined" ? resourcer : null,
-        status === "declined" ? hoursFromNow(-1) : null,
-      ],
-    );
-  await request("time_change", "open", tomorrow);
-  await request("time_change", "open", c1);
-  await request("swap", "escalated", tomorrow);
-  await request("general", "declined", null);
-
-  // Credentials: Dee's PTS card expires on Thursday; Eve renewed hers; Fay left; Gus's is in 10 days.
+  // A to-do in every other part: Ann made inactive while booked tomorrow (bookings to check); a
+  // shift that ended yesterday with Ben not marked (who worked?); a sheet issue; no strikes-team
+  // address (strike evidence).
+  const tomorrow = await f.shift({ startsAt: hoursFromNow(20) });
+  await f.booking(ann, tomorrow);
+  await su.query("update workers set status = 'inactive' where id = $1", [ann]);
+  const ended = await f.shift({ startsAt: hoursFromNow(-30) });
+  await f.booking(ben, ended);
+  const sheetShift = await f.shift({ startsAt: hoursFromNow(40) });
   const dee = await f.worker({ first: "Dee" });
-  await credential(f, dee, "2026-11-05");
-  const eve = await f.worker({ first: "Eve" });
-  await credential(f, eve, "2026-11-04");
-  await credential(f, eve, "2027-11-04");
-  const fay = await f.worker({ first: "Fay", status: "inactive" });
-  await credential(f, fay, "2026-11-03");
-  const gus = await f.worker({ first: "Gus" });
-  await credential(f, gus, "2026-11-12");
+  await su.query("update shifts set sheet_issues = $2 where id = $1", [
+    sheetShift,
+    JSON.stringify({ names: [{ workerId: dee, codes: ["credential_missing"] }] }),
+  ]);
 
-  return { f, tomorrow, inAWeek, urgent, recent, byOffice, resourcer };
+  return { f, urgent, tomorrow, ended, sheetShift };
 }
 
-describe("loadToday", () => {
-  it("shows each section from the firm's own rows", async () => {
+describe("loadUrgentOffers", () => {
+  it("each session's offers, why they stopped, and the email", async () => {
     const t = await todayFirm();
-    const view = await withFirm(t.f.firmId, (tx) => loadToday(tx, NOW));
-
-    expect(view.timeZone).toBe("Europe/London");
-    expect(view.urgent).toEqual([
-      expect.objectContaining({
-        shiftId: t.urgent,
-        placesLeft: 1,
-        wave: 1,
-        offered: 2, // Ann's and the office's to Cal (Ben's failed)
-        byOffice: 1,
-        accepted: 0,
-        failed: 1,
-        stopped: "no_candidates",
-        escalated: true,
-      }),
-    ]);
-    expect(view.gaps.map((g) => [g.shiftId, g.placesLeft, g.headcount])).toEqual([
-      [t.tomorrow, 1, 2],
-      [expect.any(String), 1, 1], // Tue 21:00 (c1's shift, reopened by its cancellation)
-      [expect.any(String), 1, 1], // c2
-      [expect.any(String), 1, 1], // c3
-      [t.inAWeek, 1, 1],
-    ]);
-    expect(view.gapsMore).toBe(false);
-    expect(
-      view.cancellations.map((c) => [c.assignmentId, c.byFirm, c.noticeHours, c.reason]),
-    ).toEqual([
-      [t.byOffice, true, 49, "Venue closed"],
-      [t.recent, false, 40, "Travel problem"],
-    ]);
-    expect(view.cancellations[1]).toMatchObject({ worker: "Ann Booker", role: "door_supervisor" });
-    expect(view.requests).toEqual({ total: 3, byType: { time_change: 2, swap: 1 } });
-    expect(view.expiring).toEqual([
-      { worker: "Dee Booker", credential: "PTS", expiresOn: "2026-11-05" },
-    ]);
+    const plain = await t.f.shift({ startsAt: hoursFromNow(12) });
+    const offers = await withFirm(t.f.firmId, (tx) => loadUrgentOffers(tx, [t.urgent, plain]));
+    expect(offers.get(t.urgent)).toEqual({
+      wave: 1,
+      offered: 2, // Ann's and the office's to Cal (Ben's failed)
+      byOffice: 1,
+      accepted: 0,
+      failed: 1,
+      stopped: "no_candidates",
+      escalated: true,
+    });
+    // None sent yet: every number 0.
+    expect(offers.get(plain)).toEqual({
+      wave: null,
+      offered: 0,
+      byOffice: 0,
+      accepted: 0,
+      failed: 0,
+      stopped: null,
+      escalated: false,
+    });
+    expect(await withFirm(t.f.firmId, (tx) => loadUrgentOffers(tx, []))).toEqual(new Map());
   });
 
   it("an old stop isn't shown once a later offer went (a second dropout restarted the waves)", async () => {
@@ -195,80 +115,72 @@ describe("loadToday", () => {
        values ($1, $2, $3, 3, 'sms', $4)`,
       [t.f.firmId, t.urgent, zed, NOW],
     );
-    const view = await withFirm(t.f.firmId, (tx) => loadToday(tx, NOW));
-    expect(view.urgent[0]).toMatchObject({ wave: 3, offered: 3, stopped: null });
+    const offers = await withFirm(t.f.firmId, (tx) => loadUrgentOffers(tx, [t.urgent]));
+    expect(offers.get(t.urgent)).toMatchObject({ wave: 3, offered: 3, stopped: null });
   });
+});
 
-  it("an urgent shift that's full or has started isn't listed; one closed by the office isn't either", async () => {
+describe("the to-do parts", () => {
+  it("each finds its own firm's item", async () => {
     const t = await todayFirm();
-    await su.query("update shifts set status = 'filled' where id = $1", [t.urgent]);
-    const view = await withFirm(t.f.firmId, (tx) => loadToday(tx, NOW));
-    expect(view.urgent).toEqual([]);
-    expect(view.gaps.map((g) => g.shiftId)).not.toContain(t.urgent);
+    const got = await withFirm(t.f.firmId, async (tx) => ({
+      toCheck: (await loadBookingsToCheck(tx, NOW)).items.map((b) => [b.shiftId, b.cause]),
+      fromSheet: (await loadSheetIssues(tx, NOW)).items.map((i) => i.shiftId),
+      toMark: (await loadToMark(tx, NOW)).items.map((m) => [m.shiftId, m.unmarked]),
+      evidence: await loadEvidence(tx, NOW),
+    }));
+    expect(got).toEqual({
+      toCheck: [[t.tomorrow, "inactive"]],
+      fromSheet: [t.sheetShift],
+      toMark: [[t.ended, 1]],
+      evidence: { addressConfirmed: false, waiting: 0, failed: [], failedMore: false },
+    });
   });
 
   it("never shows another firm's rows", async () => {
     const mine = await bookingFirm(su, withFirm);
-    const other = await todayFirm(); // another firm, full of data
-    // Including a WhatsApp from a number it doesn't know.
-    await su.query(
-      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
-                             body, handled_as, handled_at)
-       values ($1, 'in', 'whatsapp', $2, '+447700900986', '+447700900985', 'hello', 'unknown', now())`,
-      [other.f.firmId, `SM${"a".repeat(32)}`],
-    );
-    const view = await withFirm(mine.firmId, (tx) => loadToday(tx, NOW));
-    expect(view).toMatchObject({
-      urgent: [],
-      gaps: [],
-      cancellations: [],
-      requests: { total: 0, byType: {} },
-      expiring: [],
-      unknownMessages: [],
+    const theirs = await todayFirm(); // another firm, with something in every part
+    const got = await withFirm(mine.firmId, async (tx) => ({
+      // Another firm's shift id gives nothing away: no offers, no stop, no email.
+      urgent: (await loadUrgentOffers(tx, [theirs.urgent])).get(theirs.urgent),
+      toCheck: await loadBookingsToCheck(tx, NOW),
+      fromSheet: await loadSheetIssues(tx, NOW),
+      toMark: await loadToMark(tx, NOW),
+      failed: (await loadEvidence(tx, NOW)).failed,
+    }));
+    expect(got).toEqual({
+      urgent: {
+        wave: null,
+        offered: 0,
+        byOffice: 0,
+        accepted: 0,
+        failed: 0,
+        stopped: null,
+        escalated: false,
+      },
+      toCheck: { items: [], more: false },
+      fromSheet: { items: [], more: false },
+      toMark: { items: [], more: false },
+      failed: [],
     });
   });
 
-  it("says when there are more than 50 gaps", async () => {
+  it("says when a list stopped at 50", async () => {
     const f = await bookingFirm(su, withFirm);
+    const ben = await f.worker({ first: "Ben" });
     await su.query(
-      `insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source)
-       select $1, $3, 'steward', $2::timestamptz + (n || ' minutes')::interval,
-              $2::timestamptz + (n || ' minutes')::interval + interval '8 hours', 1, 'open', 'native'
-         from generate_series(1, 51) as n`,
-      [f.firmId, hoursFromNow(5), await f.event()],
+      `with s as (
+         insert into shifts (firm_id, event_id, role, starts_at, ends_at, headcount, status, source)
+         select $1, $3, 'steward', $2::timestamptz - (n || ' minutes')::interval,
+                $2::timestamptz - (n || ' minutes')::interval + interval '8 hours', 1, 'filled', 'native'
+           from generate_series(1, 51) as n
+         returning id)
+       insert into assignments (firm_id, shift_id, slot, worker_id, status, confirmed_at)
+       select $1, s.id, 1, $4, 'confirmed', $2::timestamptz - interval '3 days' from s`,
+      [f.firmId, hoursFromNow(-30), await f.event(), ben],
     );
-    const view = await withFirm(f.firmId, (tx) => loadToday(tx, NOW));
-    expect(view.gaps).toHaveLength(50);
-    expect(view.gapsMore).toBe(true);
-  });
-});
-
-describe("todayView: who may see it", () => {
-  const ctx = (firmId: string) => ({
-    firm: { id: firmId },
-    run: withFirm,
-    clock: { now: () => NOW },
-  });
-  const sessionFor = async (firmId: string, officeUserId: string) =>
-    (
-      await withFirm(firmId, (tx) =>
-        createSession(tx, { kind: "office", subjectId: officeUserId, now: NOW }),
-      )
-    ).token;
-
-  it("admins and resourcers; not payroll; not logged out; not another firm's session", async () => {
-    const t = await todayFirm();
-    const admin = await t.f.office("admin");
-    const payroll = await t.f.office("payroll");
-    const view = await todayView(ctx(t.f.firmId), await sessionFor(t.f.firmId, t.resourcer));
-    expect(view?.officeUser).toMatchObject({ id: t.resourcer, role: "resourcer" });
-    expect(view?.urgent).toHaveLength(1);
-    expect(await todayView(ctx(t.f.firmId), await sessionFor(t.f.firmId, admin))).not.toBeNull();
-    expect(await todayView(ctx(t.f.firmId), await sessionFor(t.f.firmId, payroll))).toBeNull();
-    expect(await todayView(ctx(t.f.firmId), "")).toBeNull();
-    const other = await bookingFirm(su, withFirm);
-    expect(
-      await todayView(ctx(other.firmId), await sessionFor(t.f.firmId, t.resourcer)),
-    ).toBeNull();
+    const toMark = await withFirm(f.firmId, (tx) => loadToMark(tx, NOW));
+    expect(toMark.items).toHaveLength(50);
+    expect(toMark.more).toBe(true);
   });
 });

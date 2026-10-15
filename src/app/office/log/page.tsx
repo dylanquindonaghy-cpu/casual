@@ -185,7 +185,7 @@ export default async function ActionLogPage({
       )}
       <p className="mt-10">
         <Link href="/office" className={btn.link}>
-          Back to Today
+          Back to the dashboard
         </Link>
       </p>
     </main>

@@ -129,14 +129,28 @@ describe("expiry message copy (docs/messaging-templates.md)", () => {
   const voice = { name: "Acme Events", signOff: "Acme Events Shift Team" };
 
   it("warns in the firm's voice, signed by the Shift Team", () => {
-    expect(credentialExpiringMessage(voice, "SIA door supervisor licence", "3 Oct")).toBe(
-      "Your SIA door supervisor licence expires on 3 Oct. Renew it and send the new details to the office so you can keep taking shifts. — Acme Events Shift Team",
+    expect(
+      credentialExpiringMessage(
+        voice,
+        "SIA door supervisor licence",
+        "3 Oct",
+        "https://acme.example.com/profile/upload/SIA_DS",
+      ),
+    ).toBe(
+      "Your SIA door supervisor licence expires on 3 Oct. Upload your renewed card so you can keep taking shifts that need it: https://acme.example.com/profile/upload/SIA_DS — Acme Events Shift Team",
     );
   });
 
   it("says what expiry means and what to do", () => {
-    expect(credentialExpiredMessage(voice, "PTS card", "30 Sep")).toBe(
-      "Your PTS card expired on 30 Sep. You can't take shifts that need it until you renew it and send the new details to the office. — Acme Events Shift Team",
+    expect(
+      credentialExpiredMessage(
+        voice,
+        "PTS card",
+        "30 Sep",
+        "https://acme.example.com/profile/upload/PTS",
+      ),
+    ).toBe(
+      "Your PTS card expired on 30 Sep. You can't take shifts that need it until you upload your renewed card and the office checks it: https://acme.example.com/profile/upload/PTS — Acme Events Shift Team",
     );
   });
 

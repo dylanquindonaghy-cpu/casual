@@ -4,7 +4,7 @@ import { expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // Marking who worked a shift in a real browser: a shift that ran 3 days ago with three people
-// booked shows on Today under "Who worked?"; the resourcer marks one as not attended, the rest as
+// booked shows on the dashboard under "Who worked?" (in Needs attention); the resourcer marks one as not attended, the rest as
 // worked in one go, then puts a mistake right. The resourcer is this spec's own (the seeded ones'
 // login links are used up by the other office specs: 3 per email every 15 minutes).
 
@@ -35,8 +35,8 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
   const [first = "", second = "", third = ""] = names;
   await officeLogin(page, email);
 
-  // Today lists it under "Who worked?".
-  await page.goto(`${acme}/office/today`);
+  // The dashboard's Needs attention lists it under "Who worked?".
+  await page.goto(`${acme}/office`);
   const section = page.getByRole("region", { name: "Who worked?" });
   const card = section.locator("li", { has: page.locator(`a[href="/office/shifts/${shiftId}"]`) });
   await expect(card.getByText("3 people not marked yet.")).toBeVisible();
@@ -72,7 +72,7 @@ test("mark who worked a shift that ended: one not attended, the rest worked, a m
     history.getByText(`marked ${second} as worked (was: not attended).`, { exact: false }),
   ).toBeVisible();
 
-  // Nothing left to mark on Today.
-  await page.goto(`${acme}/office/today`);
+  // Nothing left to mark on the dashboard.
+  await page.goto(`${acme}/office`);
   await expect(section.locator(`a[href="/office/shifts/${shiftId}"]`)).toHaveCount(0);
 });

@@ -9,7 +9,7 @@ import { startOfferWaves } from "../offers/waves";
 import { officeCanPlace } from "./book";
 import { refreshShiftStatus } from "./native";
 
-// The office's "Mark as filled" and "Open it again" (docs/screens.md, Today's quick actions).
+// The office's "Mark as filled" and "Open it again" (docs/screens.md, The dashboard's quick actions).
 //
 // - closeShift: the office filled the free places another way (someone rang in, an agency), so
 //   nobody else should be offered it. The shift's status becomes `filled` with places still free;
@@ -21,8 +21,9 @@ import { refreshShiftStatus } from "./native";
 //   Logged shift.reopened. An urgent shift's offer waves start again.
 //
 // Active admins and resourcers only. A shift from a Google Sheet is changed in the sheet (the next
-// sync would put the sheet's status back). A booked worker cancelling a closed shift reopens it as
-// usual (native.ts): that's a new gap.
+// sync would put the sheet's status back), and a session from the firm's planner in the planner
+// (its places decide the status: docs/office-v2.md 5.3.2). A booked worker cancelling a closed
+// shift reopens it as usual (native.ts): that's a new gap.
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));
 const uuid = z.uuid();
@@ -39,6 +40,7 @@ export type CloseShiftResult =
   | { status: "not_found" }
   | { status: "not_open" } // a draft, cancelled, or started
   | { status: "sheet" } // change it in the Google Sheet
+  | { status: "planner" } // change it in the firm's planner
   | { status: "not_allowed" };
 
 async function lockForOffice(tx: FirmTx, shiftId: string) {
@@ -76,6 +78,7 @@ export async function closeShift(
     const shift = await lockForOffice(tx, request.shiftId);
     if (!shift) return { status: "not_found" };
     if (shift.source === "sheets") return { status: "sheet" };
+    if (shift.source === "api") return { status: "planner" };
     if (shift.status === "filled") return { status: "unchanged" };
     if (shift.status !== "open" || shift.startsAt.getTime() <= now.getTime()) {
       return { status: "not_open" };
@@ -110,6 +113,7 @@ export async function reopenShift(
     const shift = await lockForOffice(tx, request.shiftId);
     if (!shift) return { status: "not_found" };
     if (shift.source === "sheets") return { status: "sheet" };
+    if (shift.source === "api") return { status: "planner" };
     // Only a shift closed with places free: a full one is filled by its bookings.
     if (shift.status === "open" || (shift.status === "filled" && shift.placesLeft === 0)) {
       return { status: "unchanged" };

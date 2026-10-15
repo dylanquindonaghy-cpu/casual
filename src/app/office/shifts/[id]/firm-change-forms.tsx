@@ -211,7 +211,7 @@ export function CancelShiftForm({ shiftId, booked }: { shiftId: string; booked: 
 }
 
 // "Cancel {name}'s booking", with a reason: they're told, with the notice they had logged. On the
-// shift's page the page refreshes to show it; on Today (refreshOnDone false) a refresh would take
+// shift's page the page refreshes to show it; on the dashboard (refreshOnDone false) a refresh would take
 // the booking, and this confirmation with it, off the list, so the confirmation stays in place of
 // the button and the list updates on the next visit.
 export function CancelBookingForm({

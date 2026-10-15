@@ -14,6 +14,7 @@ import {
   type EligibilityInput,
   type EligibilityResult,
   type OverridableCode,
+  type RuleCheck,
   type RuleCode,
 } from "../rules/eligibility";
 import { localDateOf } from "../time/zoned";
@@ -154,7 +155,7 @@ export async function lockAppliedDay(tx: FirmTx, day: string): Promise<void> {
 export async function previewBooking(
   tx: FirmTx,
   request: { shiftId: string; workerId: string; now: Date },
-): Promise<{ ok: boolean; reasons: string[]; codes: RuleCode[] } | null> {
+): Promise<Verdict | null> {
   if (!uuid.safeParse(request.shiftId).success || !uuid.safeParse(request.workerId).success) {
     return null;
   }
@@ -162,8 +163,9 @@ export async function previewBooking(
   const { shiftId, workerId, now } = request;
   const input = await loadEligibilityInput(tx, { shiftId, workerId, now });
   if (!input) return null;
-  const { ok, reasons, codes } = checkEligibility(input);
-  return { ok, reasons, codes };
+  // The same verdict as previewBookings() gives for the pair (never the pass).
+  const { ok, reasons, codes, checks } = checkEligibility(input);
+  return { ok, reasons, codes, checks };
 }
 
 // The same verdicts for many pairs at once (Open shifts, the urgent board, the offer candidate
@@ -172,19 +174,28 @@ export async function previewBooking(
 export async function previewBookings(
   tx: FirmTx,
   request: { shiftIds: string[]; workerIds: string[]; now: Date },
-): Promise<Map<string, { ok: boolean; reasons: string[]; codes: RuleCode[] }>> {
+): Promise<Map<string, Verdict>> {
   const valid = (ids: string[]) => ids.filter((id) => uuid.safeParse(id).success);
   const inputs = await loadEligibilityInputs(tx, {
     shiftIds: valid(request.shiftIds),
     workerIds: valid(request.workerIds),
     now: request.now,
   });
-  const verdicts = new Map<string, { ok: boolean; reasons: string[]; codes: RuleCode[] }>();
+  const verdicts = new Map<string, Verdict>();
   for (const [key, input] of inputs) {
-    const { ok, reasons, codes } = checkEligibility(input);
-    verdicts.set(key, { ok, reasons, codes });
+    const { ok, reasons, codes, checks } = checkEligibility(input);
+    verdicts.set(key, { ok, reasons, codes, checks });
   }
   return verdicts;
+}
+
+// One pair's verdict, without the pass: the decision, its reasons and every check with its figures
+// (the shifts line's personal reply shows the office the checks, 12D.2).
+export interface Verdict {
+  ok: boolean;
+  reasons: string[];
+  codes: RuleCode[];
+  checks: RuleCheck[];
 }
 
 // Whether the rules may count one of the worker's applications in progress for this shift: a

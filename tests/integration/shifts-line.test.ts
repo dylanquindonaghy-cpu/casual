@@ -146,7 +146,7 @@ describe("messages go from the firm's shifts line", () => {
     await scanCredentials(
       { firmId: t.f.firmId, idempotencyKey: "credential-scan:2026-11-03" },
       withFirm,
-      { transport },
+      { transport, baseDomain: "localhost:3000" },
     );
     expect(sent.filter((m) => m.channel === "whatsapp")).toEqual([
       expect.objectContaining({ from: line }),

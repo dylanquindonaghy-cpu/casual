@@ -55,7 +55,14 @@ type EligibilityResult = {
   reasons: string[];                    // plain English, in check order
   codes: RuleCode[];                    // one per reason ('credential_expired', 'overlap', ...)
   overridden: ('started' | 'rest' | 'weekly_hours' | 'unavailable')[];
+  checks: RuleCheck[];                  // every check it ran, passed or not, with its figures (12D.2)
   pass?: EligibilityPass;               // only when ok; isEligibilityPass() tells a real one
+};
+
+type RuleCheck = {
+  code: CheckCode;                      // see "Checks made by code" below
+  passed: boolean;
+  detail: Record<string, string | number | boolean | null | string[]>;
 };
 ```
 
@@ -74,6 +81,12 @@ type EligibilityResult = {
 | 8 | Not marked unavailable for any calendar day the shift touches (a night shift touches two) | "You've marked yourself unavailable that day. Change it in your profile to take this shift." |
 | 9 | Site not in worker's blocked list (`worker_site_blocks`, set by the office on the worker's page: Phase 10) | "This site isn't available to you. Contact the office." |
 
+**Not a check: the travel area** (12G.3; D2, Rules 14). A casual's travel area is a preference,
+not a rule. It narrows what she sees (Open shifts, the urgent board, Home) and what offer waves send
+her (`src/lib/travel/area.ts`), but the rules engine never reads it: a shift opened from a direct
+link stays bookable, the office may offer or assign outside it, and an unknown distance is never a
+reason to refuse.
+
 Office users can **override** checks 6–8, and check 0 (booking a late replacement onto a shift
 that has started), with a logged reason (`overrides`; the result lists what was overridden).
 Checks 3–4 (credentials) and all the others can never be overridden in the app: asking to throws.
@@ -91,6 +104,34 @@ expired. Renew it, then send the new number to the office."; applied over the al
 [name] is still being processed. Only a few people waiting for theirs can work each day, and
 today's places are taken." A booking that clashes only because of the travel buffer: "This is too
 close to your booking at [time] to travel between them."
+
+## Checks made by code (what each check records, 12D.2)
+
+`checkEligibility()` also returns `checks`: one entry for every check it ran, in the order above,
+passed or failed, with the figures it used. They never change the decision: `ok`, `reasons` and
+`codes` are worked out exactly as before, and `ok` is "every check passed" (overrides aside;
+`tests/unit/rules.checks.test.ts`). The shifts line's personal replies log them in `enquiry.checks`
+for the office's Enquiries page ("Checks made by code", `docs/screens.md`), lists written as text.
+Dates are firm-local `yyyy-mm-dd`, times ISO, hours rounded to one decimal.
+
+| Code | Check | Detail |
+|---|---|---|
+| `started` | 0 | `startsAt` |
+| `active` | 1 | `status` (`active`, `inactive` or `blocked`) |
+| `role` | 2 | `role` (the shift's) |
+| `qualification` | 3–4, one per required type | `type`; `neededBy`: `role`, `session` or `both`; `held`: the record used (`valid`, `expired`, `applied`, `suspended`, or `none`); `expiresOn` (null: no expiry or none held); `until`: the last local day the shift touches. No rule for the role: one failed entry, `{ rule: "none", role }` |
+| `overlap` | 5 | `withStart`, `withEnd`: the booking it clashes with (null: none); `bufferMinutes` |
+| `rest` | 6 | `hoursBefore`, `hoursAfter`: the gaps to the nearest bookings either side (null: none loaded on that side); `minimumHours` |
+| `weekly_hours` | 7 | `hours`: the busiest week the shift touches, with it; `capHours` |
+| `days_off` | 8 | `dates`: the days off it touches (none: `[]`) |
+| `site` | 9 | `siteId` |
+
+Why a session wasn't offered (the Enquiries page's "Considered but not offered") comes from the
+same result: each failed rule's code, with the qualification's `type` for a credential code and
+the clashing booking's times for `overlap` (`ruleReasons()`, `src/lib/portal/open-shifts.ts`), plus
+the casual app's own filters, which aren't rules: `hidden` (the session or its event isn't showing
+to casuals), `outside_area` (her travel area), `full`, and `held` (fair rotation holds it for
+others until a time).
 
 ## Credential packs (data, per sector)
 
@@ -170,7 +211,69 @@ the current SIA rule before enabling.
 - The day **after** the expiry date: status → `expired` (a credential is in date on its expiry day)
   and the worker gets `credential_expired`; worker sees a red banner; offers stop automatically.
   Blocking never waits for the scan: rule 3 already fails a `valid` credential with a past date.
-- Office can record a renewal (new number + expiry) → status `valid` → offers resume.
+- Office can record a renewal (new number + expiry) → status `valid` → offers resume. Since 12F.2
+  the casual can also upload her renewed card (`/profile/upload/{type}`, where both messages link):
+  it counts once a named office person approves it (below).
+- **Only checked records count** (12F.2, S6, D3). `credentials.check_state` is `verified` for the
+  office's own records (imported, recorded, or an upload approved: `verified_at` and `verified_by`
+  filled), `waiting` or `rejected` for a casual's upload. Every reader filters on `verified`: rule
+  3's two loaders and check 4's SQL (`src/lib/roster/eligibility-input.ts`), the expiry scan (and its
+  "already replaced" test), the dashboard's "Qualifications out of date on a booking", the import's "latest record" (a file never
+  updates a casual's upload) and readiness. And the database stores an unchecked record as
+  `expired` with its upload (`credentials_unchecked_never_valid`), so a reader that ever missed the
+  filter still couldn't count it. Tested in `tests/integration/uploads.test.ts`.
+- **What a casual can't upload** (`officeRecorded` in `src/lib/rules/packs.ts`): CSAS (only the
+  firm's own scheme covers its shifts, Police Reform Act 2002 s.41: the office records it on the
+  casual's page after confirming that), right to work (Rules 15), and documents holding health or
+  criminal record details (`RAIL_DA`, `RAIL_MEDICAL`, `DBS`). It's the firm's own data too
+  (`credential_types.office_recorded`, from the pack, migration 0043): a firm may mark its own types
+  so, and the packs' list always holds. The expiry reminders for one she can't upload (the office
+  records it, or none of her roles needs it) keep the words "send the new details to the office",
+  with no upload link (`credential_expiring_to_office`, `credential_expired_to_office`).
+- **Approving one** takes the expiry date as the person reads it from the card: a date already gone
+  is refused (reject it as expired), as is one more than 10 years ahead; no date only when they
+  tick "It has no expiry date". The casual's row is locked first, as saving one, erasure and
+  recording CSAS do, so a resend never deletes one just checked.
+
+## Qualification statuses (what casuals and the office see, 12F.1)
+
+`src/lib/credentials/status.ts` (pure; `tests/unit/credentials.status.test.ts`) turns a type's
+records into one status, reading them the same way as rule 3 above. Staff-facing words say
+"qualification" (or the item's own name), never "credential".
+
+| Status | When |
+|---|---|
+| Suspended | any record of the type is `suspended` (it fails whatever else is held) |
+| Valid | a `valid` record in date (no expiry, or expiring after the next 30 days); the longest-lasting counts |
+| Expiring soon | that record expires within `EXPIRING_SOON_DAYS` (30: the scan's first warning, `src/lib/credentials/expiry.ts`); one window for the scan, the office's Casuals pages and the casual's My shifts and Profile |
+| Applied for | no record in date, but one `applied` (an application in progress). It counts towards booking only as check 4 allows: a type with `applied_allowed`, at a firm whose `credential_applied_allowance_pct` is above 0 (`appliedCounts`) |
+| Expired | records, none in date or applied (marked `expired`, or `valid` with a past date) |
+| Being checked | no record in date, and her upload of it waits for the office (12F.2). It never counts until approved |
+| Not accepted | no record in date, and the office turned down her latest upload, with a reason ("Not accepted: too blurry to read", …); it goes 30 days after the check, with the image |
+| Missing | no record of a type one of her roles needs |
+
+An upload never hides a suspension, and a renewal sent while hers is still in date leaves that one
+showing ("renewing"), with the new one waiting for the office.
+
+- **Which are listed:** every type a rule for one of her roles requires (`credential_rules`), with
+  the roles that need it, worst first (suspended, expired, not accepted, missing, being checked,
+  expiring soon, applied for, valid). A type nothing she does needs isn't listed. A session's own extra requirements
+  (`shifts.required_credentials`) show on that shift's page (12H.2).
+- **Right to work** (`RTW`) is a status only (Rules 15): "Checked by the office on {date}" (a check
+  in date; its `verified_at`), "The office's check has run out: ask the office" (a time-limited
+  check past its date) or "Not checked yet: ask the office". It's never in the list and never
+  enforced: no role's rule requires it, so the rules engine can book a casual without one.
+- **A role with no rule** (`credential_rules` has no row for it): check 3 refuses its shifts (fail
+  closed), so the pages say so ("… shifts aren't set up yet, so you can't take them. Ask the
+  office."), never that her roles "need none".
+- **Needs updating** (`needsUpdating()`), in four levels: (1) it stops a booked shift (expired,
+  suspended, missing, not accepted or still being checked; applied for where check 4 won't accept
+  it; or in date only until before the shift's last day, as rule 3 reads it); (2) expired,
+  suspended or not accepted; (3) expiring soon, unless an application or her new card is on its
+  way; (4) missing. Otherwise applied for and being checked aren't listed (nothing for her to do
+  yet). Within a level: the shift it stops soonest, the worst status, the soonest date, then the
+  name. The staff photo has its own status (`src/lib/uploads/photo.ts`: Up to date, Due soon 30
+  days before `photo.renewal_months`, Overdue, Missing, Waiting for check), not a level.
 
 ## Test cases (table-driven, all must pass)
 

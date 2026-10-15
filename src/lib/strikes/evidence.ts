@@ -169,7 +169,7 @@ async function claim(tx: FirmTx, p: StrikeEvidencePayload, now: Date): Promise<C
   }
   const found = await loadCancellationRecord(tx, strike.assignmentId, now);
   // A strike's booking is always a cancelled one: without it, fail loudly (the job's failure alert;
-  // the evidence shows as held up on Today after EVIDENCE_STUCK_HOURS).
+  // the evidence shows as held up on the dashboard after EVIDENCE_STUCK_HOURS).
   if (found?.status !== "found") throw new Error("the strike's cancellation record wasn't found");
   // Which of their strikes this is: those counting when it was recorded (its own window), it too.
   const window = strike.expiresAt.getTime() - strike.issuedAt.getTime();

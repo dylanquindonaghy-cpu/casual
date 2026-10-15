@@ -10,13 +10,14 @@ import { PAY_QUERY_DAYS_BACK } from "@/lib/portal/pay-query-kinds";
 import { refreshSessionAction } from "../../session-actions";
 import { SessionKeeper } from "../../session-keeper";
 import { PayQueryForm } from "./pay-query-form";
+import { CasualTabBar } from "../../casual-tab-bar";
 
 export const metadata: Metadata = { title: "Raise a pay query" };
 
 // "Raise a pay query" (docs/screens.md `/pay/query`): behind the pay code, like the pay figures.
 // Without a code from the last 30 minutes, it points back to the pay page for one.
 export default async function PayQueryPage() {
-  const { firm, session } = await requireWorker();
+  const { firm, worker, session } = await requireWorker();
   const stepped = await steppedUpWorker();
   const today = localDateOf(new Date(), firm.timezone);
   const shifts: PayQueryShift[] | null = stepped
@@ -47,6 +48,7 @@ export default async function PayQueryPage() {
           </Link>
         </>
       )}
+      <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
     </main>
   );
 }

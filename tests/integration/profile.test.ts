@@ -43,16 +43,18 @@ const workerEvents = async (firmId: string) =>
   ).rows;
 
 describe("myProfile", () => {
-  it("shows the worker's details, credentials with expiry, marked days and settings", async () => {
+  it("shows the worker's details, qualifications as they stand, marked days and settings", async () => {
     const f = await bookingFirm(su, withFirm);
+    // Every security role, so every type the pack's rules need is listed (12F.1).
     const sam = await f.worker({
+      roles: ["door_supervisor", "steward", "security_officer", "close_protection_officer"],
       credentials: [
         { type: "SIA_DS", expiresOn: "2029-01-01" },
         { type: "STEWARD_L2", expiresOn: null },
-        { type: "FIRST_AID", status: "expired", expiresOn: "2026-06-01" },
         { type: "SIA_CP", expiresOn: "2026-11-01" }, // "valid", but its date went yesterday
         { type: "SIA_SG", status: "applied" },
-        { type: "OWN_CARD" }, // a type the firm hasn't named
+        { type: "FIRST_AID", status: "expired", expiresOn: "2026-06-01" }, // no role needs it
+        { type: "OWN_CARD" }, // a type nothing needs
       ],
     });
     await su.query("update workers set email = 'sam.booker@example.com' where id = $1", [sam]);
@@ -77,68 +79,108 @@ describe("myProfile", () => {
         { day: "2026-11-04", booked: true },
         { day: "2026-11-07", booked: false },
       ],
+      rightToWork: { checked: false, checkedOn: null, expired: false },
+      rolesWithoutRule: [],
     });
     expect(profile?.mobile).toMatch(/^\+447700900\d{3}$/);
-    expect(profile?.credentials).toEqual(
-      expect.arrayContaining([
-        {
-          type: "SIA_DS",
-          name: "SIA door supervisor licence",
-          status: "valid",
-          expiresOn: "2029-01-01",
-          expired: false,
-        },
-        {
-          type: "STEWARD_L2",
-          name: "Level 2 spectator safety qualification",
-          status: "valid",
-          expiresOn: null,
-          expired: false,
-        },
-        {
-          type: "FIRST_AID",
-          name: "first aid at work certificate",
-          status: "expired",
-          expiresOn: "2026-06-01",
-          expired: true,
-        },
-        {
-          type: "SIA_CP",
-          name: "SIA close protection licence",
-          status: "valid",
-          expiresOn: "2026-11-01",
-          expired: true,
-        },
-        {
-          type: "SIA_SG",
-          name: "SIA security guard licence",
-          status: "applied",
-          expiresOn: null,
-          expired: false,
-        },
-        { type: "OWN_CARD", name: "OWN CARD", status: "valid", expiresOn: null, expired: false },
-      ]),
-    );
-    expect(profile?.credentials).toHaveLength(6);
+    // Worst first; only the types her roles need.
+    expect(profile?.qualifications).toEqual([
+      {
+        type: "SIA_CP",
+        name: "SIA close protection licence",
+        status: "expired",
+        expiresOn: "2026-11-01",
+        neededFor: ["close_protection_officer"],
+        appliedCounts: false,
+        renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
+      },
+      {
+        type: "SIA_SG",
+        name: "SIA security guard licence",
+        status: "applied",
+        expiresOn: null,
+        neededFor: ["security_officer"],
+        appliedCounts: false,
+        renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
+      },
+      {
+        type: "STEWARD_L2",
+        name: "Level 2 spectator safety qualification",
+        status: "valid",
+        expiresOn: null,
+        neededFor: ["steward"],
+        appliedCounts: false,
+        renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
+      },
+      {
+        type: "SIA_DS",
+        name: "SIA door supervisor licence",
+        status: "valid",
+        expiresOn: "2029-01-01",
+        neededFor: ["door_supervisor"],
+        appliedCounts: false,
+        renewing: false,
+        uploadable: true,
+        evidenceUploadId: null,
+        waiting: null,
+        rejected: null,
+      },
+    ]);
   });
 
-  it("leaves out an expired credential the worker has replaced or is renewing", async () => {
+  it("an expired one the worker has replaced or is renewing counts as the newer one", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker({
+      roles: ["door_supervisor", "steward", "security_officer"],
       credentials: [
         { type: "SIA_DS", status: "expired", expiresOn: "2026-06-01" },
         { type: "SIA_DS", expiresOn: "2029-06-01" }, // the renewed licence
-        { type: "FIRST_AID", expiresOn: "2026-10-01" }, // out of date...
-        { type: "FIRST_AID", status: "applied" }, // ...and being renewed
+        { type: "SIA_SG", expiresOn: "2026-10-01" }, // out of date...
+        { type: "SIA_SG", status: "applied" }, // ...and being renewed
         { type: "STEWARD_L2", status: "expired", expiresOn: "2026-06-01" }, // nothing newer
       ],
     });
-    const shown = (await myProfile(ctxFor(f), sam))?.credentials.map((c) => [c.type, c.status]);
-    expect(shown?.sort()).toEqual([
-      ["FIRST_AID", "applied"],
-      ["SIA_DS", "valid"],
+    const shown = (await myProfile(ctxFor(f), sam))?.qualifications.map((q) => [q.type, q.status]);
+    expect(shown).toEqual([
       ["STEWARD_L2", "expired"],
+      ["SIA_SG", "applied"],
+      ["SIA_DS", "valid"],
     ]);
+  });
+
+  it("right to work: a status only, with the date the office checked it", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    const kit = await f.worker({ first: "Kit" });
+    await su.query(
+      `insert into credentials (firm_id, worker_id, type, status, verified_at)
+       values ($1, $2, 'RTW', 'valid', '2026-01-12T10:00:00Z')`,
+      [f.firmId, sam],
+    );
+    const profile = await myProfile(ctxFor(f), sam);
+    expect(profile?.rightToWork).toEqual({
+      checked: true,
+      checkedOn: "2026-01-12",
+      expired: false,
+    });
+    expect(profile?.qualifications.map((q) => q.type)).not.toContain("RTW");
+    expect((await myProfile(ctxFor(f), kit))?.rightToWork).toEqual({
+      checked: false,
+      checkedOn: null,
+      expired: false,
+    });
   });
 
   it("never shows a worker from another firm", async () => {

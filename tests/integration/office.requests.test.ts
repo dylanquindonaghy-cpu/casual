@@ -17,7 +17,7 @@ import { QUEUES } from "@/worker/jobs/queues";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
-// The office answering workers' requests (docs/screens.md `/office/requests`; product spec P0-6)
+// The office answering workers' requests (docs/screens.md `/office/enquiries` "Requests from the app", `/office/requests` until 12D.1; product spec P0-6)
 // and the worker being told (docs/messaging-templates.md `request_update`). On the real database,
 // as the app role, with a capturing transport. NOW is Monday 2 November 2026, 09:00 London (GMT).
 
@@ -136,6 +136,24 @@ describe("the office's requests page", () => {
     );
     await answerRequest(t.ctx(t.resourcer, hoursFromNow(-24 * 8)), old, "approved", "");
 
+    // A question still linked to its shifts-line message is on Enquiries instead (12D.1): left out
+    // here. The one above has no message (deleted at 90 days, say): it's answered here, never lost.
+    const linked = await t.request(
+      t.ben,
+      "general",
+      { note: "Where do I park?" },
+      { shiftId: null },
+    );
+    const { rows: msg } = await su.query<{ id: string }>(
+      `insert into messages (firm_id, direction, channel, provider_message_id, from_e164, to_e164,
+                             body, handled_at, handled_as, intent)
+       values ($1, 'in', 'whatsapp', $2, '+447700900113', '+447700900000', 'Where do I park?', now(),
+               'office', 'office')
+       returning id::text as id`,
+      [t.f.firmId, `SM${Math.random().toString(16).slice(2)}`],
+    );
+    await su.query("update requests set message_id = $2 where id = $1", [linked, msg[0]?.id]);
+
     const queue = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
     expect(queue.waiting.map((r) => r.requestId)).toEqual([
       t.swap,
@@ -165,6 +183,12 @@ describe("the office's requests page", () => {
     await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free that day.");
     const after = await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW));
     expect(after.waiting.map((r) => r.requestId)).toEqual([t.timeChange, escalated, general]);
+    // The linked question can't be answered here: Enquiries answers it, with its message locked.
+    expect(await answerRequest(t.ctx(), linked, "approved", "Car park B.")).toEqual({
+      status: "on_enquiries",
+    });
+    const { rows: still } = await su.query("select status from requests where id = $1", [linked]);
+    expect(still).toEqual([{ status: "open" }]);
     expect(after.answered).toMatchObject([
       {
         requestId: t.swap,
@@ -365,6 +389,23 @@ describe("telling the worker (the request-update job)", () => {
     await n.run((await jobsOf(t.f.firmId))[0] ?? {});
     expect(bodies(n.sent)).toEqual([
       `Your request (time change, ref ${ref(t.timeChange)}) is approved. — Booking Test ${n.slug} Shift Team`,
+    ]);
+  });
+
+  it('a question the office approved is told as answered ("approved" can read as "booked")', async () => {
+    const t = await requestFirm();
+    const n = await notices(t);
+    const question = await t.request(
+      t.ann,
+      "general",
+      { note: "Is parking free?" },
+      { shiftId: null },
+    );
+    await answerRequest(t.ctx(), question, "approved", "Yes, in car park B.");
+    const job = (await jobsOf(t.f.firmId)).find((j) => j.requestId === question);
+    expect(await n.run(job ?? {})).toMatchObject({ output: { status: "sent" } });
+    expect(bodies(n.sent)).toEqual([
+      `Your request (question, ref ${ref(question)}) is answered. The office says: Yes, in car park B. — Booking Test ${n.slug} Shift Team`,
     ]);
   });
 

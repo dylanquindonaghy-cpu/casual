@@ -5,6 +5,7 @@ import { refreshSessionAction } from "../session-actions";
 import { SessionKeeper } from "../session-keeper";
 import { page } from "../ui/classes";
 import { UrgentView } from "./urgent-view";
+import { CasualTabBar } from "../casual-tab-bar";
 
 export const metadata: Metadata = { title: "Urgent shifts" };
 
@@ -18,6 +19,7 @@ export default async function UrgentPage() {
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <UrgentView list={list} timeZone={firm.timezone} now={now} eyebrow={firm.name} />
+      <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
     </main>
   );
 }

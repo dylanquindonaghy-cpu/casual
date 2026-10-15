@@ -1,6 +1,9 @@
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
-import { credentials, credentialTypes, workers, workerUnavailableDays } from "../db/schema";
+import { qualificationsFor } from "../credentials/qualifications";
+import type { StaffPhoto } from "../uploads/photo";
+import type { Qualification, RightToWork } from "../credentials/status";
+import { workers, workerUnavailableDays } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
@@ -18,9 +21,10 @@ import {
 // The profile page (docs/screens.md, `/profile`), for the logged-in worker only, inside their
 // firm. Server only (it reaches the database); the browser-safe parts are profile-kinds.ts.
 //
-// - myProfile: contact details and credentials as the office holds them (read-only here; an
-//   expired one already replaced or being renewed is left out), the days marked unavailable from
-//   today on (with whether a booking falls on each), and the notification settings.
+// - myProfile: contact details; her qualifications as they stand today (12F.1: every type one of her
+//   roles needs, with its status, src/lib/credentials/status.ts) and her right-to-work check (a
+//   status only); the days marked unavailable from today on (with whether a booking falls on
+//   each); and the notification settings.
 // - setUnavailable: mark or clear one firm-local day, today to 180 days ahead, at most 60 marked.
 //   Marking never touches a booking already made that day (a cancellation must be deliberate);
 //   the answer says if there is one. The rules engine's check 8 uses these days.
@@ -28,14 +32,6 @@ import {
 // Every change is logged with dates and choices only (golden rule 5).
 
 type Ctx = PortalContext & { firm: { id: string; timezone: string } };
-
-export interface ProfileCredential {
-  type: string;
-  name: string;
-  status: "valid" | "expired" | "applied" | "suspended";
-  expiresOn: string | null;
-  expired: boolean; // marked expired, or valid with its date gone
-}
 
 export interface Profile {
   firstName: string;
@@ -45,7 +41,10 @@ export interface Profile {
   notifyChannel: Channel;
   offerAlerts: boolean;
   textsOff: boolean; // they replied STOP to a text: no texts until they reply START
-  credentials: ProfileCredential[];
+  qualifications: Qualification[];
+  rightToWork: RightToWork;
+  rolesWithoutRule: string[]; // her roles the firm has no rule for (she can't take those shifts)
+  photo: StaffPhoto; // her staff photo (12F.2)
   unavailable: { day: string; booked: boolean }[];
   today: string;
 }
@@ -88,23 +87,9 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       .from(workers)
       .where(eq(workers.id, workerId));
     if (!me || me.mobile === null) return null; // erased (their sessions went with them)
-    const held = await tx
-      .select({
-        type: credentials.type,
-        status: credentials.status,
-        expiresOn: credentials.expiresOn,
-        name: credentialTypes.name,
-      })
-      .from(credentials)
-      .leftJoin(
-        credentialTypes,
-        and(
-          eq(credentialTypes.firmId, credentials.firmId),
-          eq(credentialTypes.code, credentials.type),
-        ),
-      )
-      .where(eq(credentials.workerId, workerId))
-      .orderBy(asc(credentials.type), asc(credentials.expiresOn));
+    const held = (
+      await qualificationsFor(tx, [workerId], { now, timeZone: ctx.firm.timezone })
+    ).get(workerId);
     const days = await tx
       .select({ day: workerUnavailableDays.day })
       .from(workerUnavailableDays)
@@ -118,28 +103,15 @@ export async function myProfile(ctx: Ctx, workerId: string): Promise<Profile | n
       days.map((d) => d.day),
       ctx.firm.timezone,
     );
-    const shown = held.map((c) => ({
-      type: c.type,
-      name: c.name ?? c.type.replace(/_/g, " "),
-      status: c.status,
-      expiresOn: c.expiresOn,
-      expired:
-        c.status === "expired" ||
-        (c.status === "valid" && c.expiresOn !== null && c.expiresOn < today),
-    }));
-    // An expired one the worker has replaced (a valid one in date) or is renewing (applied for)
-    // isn't shown: it no longer stops them working (as the home page's notices).
-    const covered = new Set(
-      shown
-        .filter((c) => (c.status === "valid" && !c.expired) || c.status === "applied")
-        .map((c) => c.type),
-    );
     const { smsOptedOutAt, ...contact } = me;
     return {
       ...contact,
       mobile: me.mobile,
       textsOff: smsOptedOutAt !== null,
-      credentials: shown.filter((c) => !(c.expired && covered.has(c.type))),
+      qualifications: held?.qualifications ?? [],
+      rightToWork: held?.rightToWork ?? { checked: false, checkedOn: null, expired: false },
+      rolesWithoutRule: held?.rolesWithoutRule ?? [],
+      photo: held?.photo ?? { status: "missing", current: null, waiting: null },
       unavailable: days.map(({ day }) => ({ day, booked: booked.has(day) })),
       today,
     };

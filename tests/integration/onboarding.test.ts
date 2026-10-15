@@ -211,6 +211,8 @@ describe("a firm's settings", () => {
       "strikes.keep_months": [12, "default"],
       // Travel (12G.1): a casual's time limit until they choose their own.
       "travel.default_max_minutes": [45, "default"],
+      // Staff photo (12F.2): how often it's renewed.
+      "photo.renewal_months": [36, "default"],
     });
     expect(await readFirmSettings(urls.admin, "no-such-firm")).toEqual({ status: "no_firm" });
   });

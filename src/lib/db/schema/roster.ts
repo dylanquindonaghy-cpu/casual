@@ -15,6 +15,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, firmIsolation, timestamptz } from "./helpers";
+import { messages } from "./messages";
 import { officeUsers, workers } from "./people";
 import { firms, SECTORS, sites } from "./tenancy";
 
@@ -36,7 +37,8 @@ if (/['\\]/.test(ROLE_PATTERN)) throw new Error("ROLE_PATTERN must not contain '
 const roleFormat = (column: AnyPgColumn) => sql`${column} ~ ${sql.raw(`'${ROLE_PATTERN}'`)}`;
 
 export const SHIFT_STATUSES = ["draft", "open", "filled", "cancelled"] as const;
-export const SHIFT_SOURCES = ["native", "sheets", "csv"] as const;
+// `api`: sent by the firm's planner through the API (S11, 12J.1; docs/office-v2.md 5.3.2).
+export const SHIFT_SOURCES = ["native", "sheets", "csv", "api"] as const;
 
 export const ASSIGNMENT_STATUSES = [
   "open",
@@ -50,8 +52,9 @@ export const ASSIGNMENT_STATUSES = [
 // A cancelled row keeps its worker, reason and notice hours; a new open row reopens the slot.
 export const CANCELLED_ASSIGNMENT_STATUSES = ["cancelled_worker", "cancelled_firm"] as const;
 // Where a cancellation was made (12C.1, S3): the casual in the app, the office, the firm's rota
-// sheet or a file import (`api` comes with the planner API, S11). Empty on rows from before.
-export const CANCEL_VIAS = ["app", "office", "sheet", "import"] as const;
+// sheet, a file import or the firm's planner through the API (S11, 12J.1). Empty on rows from
+// before.
+export const CANCEL_VIAS = ["app", "office", "sheet", "import", "api"] as const;
 export type CancelVia = (typeof CANCEL_VIAS)[number];
 
 // review: the worker asks the office to look again at a shift the rules won't let them take.
@@ -93,6 +96,10 @@ export const credentialTypes = pgTable(
     // The pack it came from; "any" for types every sector uses (right to work).
     sector: text("sector", { enum: CREDENTIAL_TYPE_SECTORS }).notNull(),
     appliedAllowed: boolean("applied_allowed").notNull().default(false),
+    // Recorded by the office only: a casual can't upload an image of it (12F.2). From the pack
+    // (src/lib/rules/packs.ts `officeRecorded`); a firm may mark its own types so too, and the
+    // pack's list always holds (casualMayUpload).
+    officeRecorded: boolean("office_recorded").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [
@@ -200,13 +207,15 @@ export const shiftEvents = pgTable(
     uniqueIndex("shift_events_auto_key")
       .on(t.firmId, t.plannerRef)
       .where(sql`${t.plannerRef} like 'auto:%'`),
+    // A planner's event by its own id (S11): two PUTs naming one new event share one row.
+    unique("shift_events_firm_id_source_planner_ref_key").on(t.firmId, t.source, t.plannerRef),
     foreignKey({
       name: "shift_events_site_fk",
       columns: [t.firmId, t.siteId],
       foreignColumns: [sites.firmId, sites.id],
     }),
     check("shift_events_name_length", sql`char_length(${t.name}) between 1 and 200`),
-    check("shift_events_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check("shift_events_source_check", sql`${t.source} in ('native', 'sheets', 'csv', 'api')`),
     check(
       "shift_events_planner_ref_length",
       sql`${t.plannerRef} is null or char_length(${t.plannerRef}) between 1 and 200`,
@@ -241,8 +250,8 @@ export const shifts = pgTable(
     // (src/lib/roster/sheets/merge.ts). Null until first synced.
     syncedHolders: text("synced_holders").array(),
     // What the firm's Google Sheet asks for that the last sync couldn't do (Phase 10, audit M1, M2,
-    // L12), for Today's "From your rota sheet": a change to a booked or started shift the rules
-    // refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
+    // L12), for the dashboard's "From your rota sheet": a change to a booked or started shift the
+    // rules refused, and names it couldn't book. Set by each sync to what's true then; null: nothing.
     sheetIssues: jsonb("sheet_issues").$type<SheetIssues>(),
     // The session's own details (docs/office-v2.md S2), set in ShiftDesk's session editor for
     // every source: the sheet sync and the file import never write them. Pay is whole pence an
@@ -279,7 +288,7 @@ export const shifts = pgTable(
     check("shifts_ends_after_start", sql`${t.endsAt} > ${t.startsAt}`),
     check("shifts_headcount_range", sql`${t.headcount} between 1 and 1000`),
     check("shifts_status_check", sql`${t.status} in ('draft', 'open', 'filled', 'cancelled')`),
-    check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv')`),
+    check("shifts_source_check", sql`${t.source} in ('native', 'sheets', 'csv', 'api')`),
     check("shifts_pay_rate_range", sql`${t.payRatePence} is null or ${t.payRatePence} >= 0`),
     check("shifts_post_length", sql`${t.post} is null or char_length(${t.post}) between 1 and 200`),
     check(
@@ -328,7 +337,7 @@ export const assignments = pgTable(
     // Shift start minus cancelled_at, in hours. Negative when cancelled after the start.
     noticeHours: numeric("notice_hours", { precision: 8, scale: 2 }),
     // When the office chose to keep this booking though its worker stopped being active, or was
-    // blocked from the shift's site (Today's "Bookings to check", Phase 10). Cleared when that
+    // blocked from the shift's site (the dashboard's "Bookings to check", Phase 10). Cleared when that
     // happens again, so the booking is flagged again.
     officeKeptAt: timestamptz("office_kept_at"),
     // How it was cancelled (CANCEL_VIAS), and for a casual's own cancellation in the app, the
@@ -387,7 +396,7 @@ export const assignments = pgTable(
     ),
     check(
       "assignments_cancel_via_check",
-      sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import')`,
+      sql`${t.cancelVia} is null or ${t.cancelVia} in ('app', 'office', 'sheet', 'import', 'api')`,
     ),
     // A warning is stored whole (its version and when), only on a casual's own cancellation.
     check(
@@ -419,10 +428,26 @@ export const requests = pgTable(
     // The office's note to the worker with its answer (free text: stays on the row and in the
     // message to them, never in an event).
     resolutionNote: text("resolution_note"),
+    // The shifts-line message this question came from (12D.1, S5): a real link, so Enquiries can
+    // join a message to its question. Cleared, never the request, when the message is deleted
+    // (the 90-day purge, an erasure).
+    messageId: uuid("message_id"),
     createdAt: createdAt(),
   },
   (t) => [
     unique("requests_firm_id_id_key").on(t.firmId, t.id),
+    // ON DELETE SET NULL clears message_id only: the column list is written by hand in migration
+    // 0044 (Drizzle would clear firm_id too, which can't be null). The one exception to "no ON
+    // DELETE action" above: the message goes at 90 days, the question stays as evidence.
+    foreignKey({
+      name: "requests_message_fk",
+      columns: [t.firmId, t.messageId],
+      foreignColumns: [messages.firmId, messages.id],
+    }).onDelete("set null"),
+    // One question per message; also the look-up from a message to its question.
+    uniqueIndex("requests_one_per_message")
+      .on(t.firmId, t.messageId)
+      .where(sql`message_id is not null`),
     foreignKey({
       name: "requests_worker_fk",
       columns: [t.firmId, t.workerId],

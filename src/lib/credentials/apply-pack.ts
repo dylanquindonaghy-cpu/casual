@@ -28,10 +28,15 @@ export async function applyCredentialPack(
         name: t.name,
         sector: t.sector,
         appliedAllowed: t.appliedAllowed ?? false,
+        officeRecorded: t.officeRecorded !== undefined,
       })),
     )
     .onConflictDoNothing({ target: [credentialTypes.firmId, credentialTypes.code] })
-    .returning({ code: credentialTypes.code, appliedAllowed: credentialTypes.appliedAllowed });
+    .returning({
+      code: credentialTypes.code,
+      appliedAllowed: credentialTypes.appliedAllowed,
+      officeRecorded: credentialTypes.officeRecorded,
+    });
   const addedRules = await tx
     .insert(credentialRules)
     .values(

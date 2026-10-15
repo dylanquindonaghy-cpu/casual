@@ -7,7 +7,7 @@ import { CANCELLED_ASSIGNMENT_STATUSES, firms, offers, shifts, sites, workers } 
 import { officeOfferCandidates, type OfficeCandidate } from "../offers/office-offer";
 import { isVisibleToCasuals } from "../roster/visibility";
 
-// "Offer to someone" for one shift (Today's quick action): the shift, who could be offered it now
+// "Offer to someone" for one shift (the dashboard's quick action): the shift, who could be offered it now
 // (the candidate list: the booking rules, offer messages on, never offered it, the daily cap unless
 // urgent) and who has been offered it already; nobody while it's hidden from casuals (the session's
 // switch or its event's). Admins and resourcers; reads only.

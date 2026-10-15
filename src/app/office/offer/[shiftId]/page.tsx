@@ -9,7 +9,7 @@ import { OfferView } from "./offer-view";
 
 export const metadata: Metadata = { title: "Offer this shift" };
 
-// "Offer to someone" for one shift (Today's quick action). Admins and resourcers.
+// "Offer to someone" for one shift (the dashboard's quick action). Admins and resourcers.
 export default async function OfferPage({ params }: { params: Promise<{ shiftId: string }> }) {
   const { firm } = await requireOfficeArea("today");
   const { shiftId } = await params;
@@ -20,7 +20,7 @@ export default async function OfferPage({ params }: { params: Promise<{ shiftId:
       <OfferView page={page} eyebrow={`${firm.name} office`} />
       <p className={sectionGap.office}>
         <Link href="/office" className={btn.link}>
-          Back to Today
+          Back to the dashboard
         </Link>
       </p>
     </main>

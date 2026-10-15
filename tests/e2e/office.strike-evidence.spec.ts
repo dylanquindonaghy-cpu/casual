@@ -12,7 +12,7 @@ import { sentTo } from "./outbox";
 
 // The evidence email to the strikes team in a real browser (12C.4): a casual of this spec's own
 // cancels a session a day away (a strike); its evidence email is marked failed, as the job leaves
-// one that may have arrived. A resourcer sees it on Today under "Strike evidence", opens the record
+// one that may have arrived. A resourcer sees it on the dashboard under "Strike evidence" (Needs attention; the bell counts it), opens the record
 // from there and selects "Resend evidence". Nothing on the way offers Approve, Decline or Deny. The
 // session, its site, the casual and the resourcer are made up and this spec's own; a retry makes a
 // new session (the run's suffix).
@@ -46,7 +46,9 @@ const noSidewaysScroll = async (page: Page) =>
     0,
   );
 
-test("a failed evidence email shows on Today, and its record resends it", async ({ page }) => {
+test("a failed evidence email shows on the dashboard, and its record resends it", async ({
+  page,
+}) => {
   const { shiftId } = await addEventWithSession("acme", {
     name: `Evidence Test Event ${RUN}`,
     site: `Evidence Test Hall ${RUN}`,
@@ -67,7 +69,11 @@ test("a failed evidence email shows on Today, and its record resends it", async 
 
     const section = page.getByRole("region", { name: "Strike evidence" });
     await expect(section).toContainText("Erin Evidence's strike record couldn't be emailed");
-    await expect(page.getByRole("link", { name: /Strike evidence/ })).toBeVisible();
+    // The bell in the top bar counts it, and goes to Needs attention.
+    await expect(page.getByRole("link", { name: /^Needs attention, \d+\+?$/ })).toHaveAttribute(
+      "href",
+      "/office#needs-attention",
+    );
     await noSidewaysScroll(page);
     await section.locator(`a[href="/office/cancellations/${assignmentId}"]`).click();
     await expect(page).toHaveURL(`${acme}/office/cancellations/${assignmentId}`);
@@ -80,8 +86,12 @@ test("a failed evidence email shows on Today, and its record resends it", async 
     await expect(page.getByRole("status")).toHaveText(
       "Sending it again. This record shows when it has gone.",
     );
-    // Queued again: no longer failed, so the button goes.
+    // Queued again: no longer failed, so the button goes, and the answer stays after the refresh.
     await expect(page.getByRole("heading", { name: "The evidence email failed" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Resend evidence" })).toHaveCount(0);
+    await expect(page.getByRole("status")).toHaveText(
+      "Sending it again. This record shows when it has gone.",
+    );
   } finally {
     await cancelOwnShift("acme", shiftId);
   }

@@ -7,7 +7,7 @@ import type { FirmTx } from "../db/scoped";
 // the caller's transaction; the caller logs it.
 
 // The worker's confirmed bookings on shifts still ahead (and not cancelled), optionally at one
-// site, are flagged on Today again: "kept" is cleared. Returns how many there are.
+// site, are flagged on the dashboard again: "kept" is cleared. Returns how many there are.
 export async function reflagFutureBookings(
   tx: FirmTx,
   opts: { workerId: string; now: Date; siteId?: string },

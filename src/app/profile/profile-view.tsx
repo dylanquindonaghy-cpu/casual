@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { card, h2, headingGap, muted, nums, sectionGap, staffBtn } from "@/app/ui/classes";
+import { LogoutButton } from "../logout-button";
+import { Icon } from "../ui/icons";
+import { btn, card, h2, headingGap, muted, nums, sectionGap, staffBtn } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import type { MyStrikes } from "@/lib/portal/my-strikes";
@@ -14,33 +16,31 @@ import {
 } from "@/lib/portal/my-strikes-copy";
 import type { Profile } from "@/lib/portal/profile";
 import type { MyTravel } from "@/lib/portal/travel";
-import { TRAVEL_TITLE, travelSummaryText } from "@/lib/portal/travel-copy";
+import { TRAVEL_PATH, TRAVEL_TITLE, travelSummaryText } from "@/lib/portal/travel-copy";
 import { MAX_UNAVAILABLE_DAYS, UNAVAILABLE_AHEAD_DAYS } from "@/lib/portal/profile-kinds";
+import {
+  dateLine,
+  meaning,
+  noRuleText,
+  qualificationTitle,
+  rightToWorkText,
+  statusLabel,
+  STATUS_TONES as QUALIFICATION_TONES,
+} from "@/lib/portal/qualification-copy";
+import { PHOTO_GUIDANCE, PHOTO_TONES, PHOTO_WORDS, photoDates } from "@/lib/portal/upload-copy";
 import { shortDate } from "@/lib/rules/reasons";
 import { addDays } from "@/lib/time/zoned";
 import { WhatHappened } from "../shifts/cancel-shift-result";
 import { AvailabilityForm } from "./availability-form";
 import { NotificationForm } from "./notification-form";
 import { PushSetting } from "./push-setting";
+import { UploadForm } from "./upload-form";
 
-// Me (docs/screens.md, `/profile`): contact details and credentials as the office holds them
-// (read-only), where I work (12G.1), my strikes (12C.5), days I can't work, and how we reach me. One
-// card per section.
-
-const STATUS_WORDS = {
-  valid: "Valid",
-  expired: "Expired",
-  applied: "Applied for",
-  suspended: "Suspended",
-} as const;
-
-// Each status word's colour (docs/ui-design.md "Status tones").
-const TONES: Record<keyof typeof STATUS_WORDS, StatusTone> = {
-  valid: "done",
-  expired: "urgent",
-  applied: "attention",
-  suspended: "urgent",
-};
+// Me (docs/screens.md, `/profile`): contact details (read-only), my staff photo (12F.2: the current
+// one, when it's due again, its status and "Upload a new photo"), my qualifications as they stand
+// today (12F.1: each status, its date line and what it means, then right to work; 12F.2: "Upload a
+// certificate" for the ones I may upload), where I work (12G.1), my strikes (12C.5), days I can't
+// work, and how we reach me. One card per section.
 
 // A worker who replied STOP to a text (docs/screens.md `/profile`): texts are off until START.
 export const TEXTS_OFF =
@@ -49,10 +49,6 @@ export const TEXTS_OFF =
 // "07700 900123" from "+447700900123"; other numbers as stored.
 export const ukMobile = (e164: string) =>
   /^\+44\d{10}$/.test(e164) ? `0${e164.slice(3, 7)} ${e164.slice(7)}` : e164;
-
-// Credential names are stored as workers say them mid-sentence ("first aid at work certificate");
-// as a heading they start with a capital.
-const title = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
 export function ProfileView({
   profile,
@@ -80,61 +76,111 @@ export function ProfileView({
         </h2>
         <p className={`${headingGap} ${nums}`}>Mobile: {ukMobile(profile.mobile)}</p>
         <p className="break-words">Email: {profile.email ?? "none"}</p>
-        <p className={`mt-2 ${muted}`}>To change these, ask the office.</p>
+        <p className={`mt-2 ${muted}`}>To change your name or number, ask the office.</p>
+      </section>
+
+      <section aria-labelledby="photo-heading" className={`${card} ${sectionGap.staff}`}>
+        <h2 id="photo-heading" className={h2}>
+          Staff photo
+        </h2>
+        <div className={`${headingGap} flex items-center gap-4`}>
+          {profile.photo.current ? (
+            // An access-checked image of her own (src/app/files/[id]/route.ts), never cached.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/files/${profile.photo.current.id}`}
+              alt={`Staff photo of ${profile.firstName} ${profile.lastName}`}
+              width={72}
+              height={72}
+              className="h-18 w-18 shrink-0 rounded-lg border border-line object-cover"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="flex h-18 w-18 shrink-0 items-center justify-center rounded-lg border border-dashed border-line-strong text-sm text-ink-muted"
+            >
+              No photo
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className={`text-base ${nums}`}>{photoDates(profile.photo, year)}</p>
+            <p className="mt-1">
+              <StatusChip tone={PHOTO_TONES[profile.photo.status]}>
+                {PHOTO_WORDS[profile.photo.status]}
+              </StatusChip>
+            </p>
+          </div>
+        </div>
+        {profile.photo.waiting && (
+          <p className={`mt-3 ${muted} ${nums}`}>
+            You sent a new one on {shortDate(profile.photo.waiting.uploadedOn, year)}. Until the
+            office checks it, this one stays.
+          </p>
+        )}
+        <UploadForm
+          kind="photo"
+          camera="user"
+          button="Upload a new photo"
+          guidance={PHOTO_GUIDANCE}
+        />
       </section>
 
       <section
-        aria-labelledby="credentials-heading"
+        aria-labelledby="qualifications-heading"
         className={`${card} ${sectionGap.staff} overflow-hidden`}
       >
-        <h2 id="credentials-heading" className={h2}>
-          Licences and cards
+        <h2 id="qualifications-heading" className={h2}>
+          Qualifications
         </h2>
-        {profile.credentials.length === 0 ? (
-          <p className={headingGap}>None on file. Send yours to the office to be checked.</p>
+        {profile.rolesWithoutRule.length > 0 && (
+          <p className={headingGap}>{noRuleText(profile.rolesWithoutRule)}</p>
+        )}
+        {profile.qualifications.length === 0 ? (
+          profile.rolesWithoutRule.length === 0 && (
+            <p className={headingGap}>Your roles don&apos;t need any.</p>
+          )
         ) : (
           // Rows run to the card's edges; one that stops you working is red, with a red edge.
           <ul
             role="list"
-            className={`${headingGap} -mx-4 -mb-4 divide-y divide-line border-t border-line`}
+            className={`${headingGap} -mx-4 divide-y divide-line border-t border-line`}
           >
-            {profile.credentials.map((c, i) => {
-              const blocked = c.expired || c.status === "suspended";
+            {profile.qualifications.map((q) => {
+              const blocked =
+                q.status === "expired" || q.status === "suspended" || q.status === "rejected";
+              const means = meaning(q);
               return (
                 <li
-                  key={`${c.type}:${i}`}
+                  key={q.type}
                   className={
                     blocked
                       ? "border-l-4 border-urgent bg-urgent-soft py-3 pr-4 pl-3 text-urgent-ink"
                       : "px-4 py-3"
                   }
                 >
-                  <p className="font-semibold">{title(c.name)}</p>
+                  <p className="font-semibold">{qualificationTitle(q.name)}</p>
                   <p className={`mt-1 text-base ${nums}`}>
-                    <StatusChip tone={c.expired ? "urgent" : TONES[c.status]}>
-                      {c.expired ? "Expired" : STATUS_WORDS[c.status]}
-                    </StatusChip>
-                    {c.expiresOn
-                      ? ` · ${c.expired ? "expired" : "expires"} ${shortDate(c.expiresOn, year)}`
-                      : c.status === "valid"
-                        ? " · no expiry date"
-                        : ""}
+                    <StatusChip tone={QUALIFICATION_TONES[q.status]}>{statusLabel(q)}</StatusChip>
+                    {dateLine(q, year) && ` · ${dateLine(q, year)}`}
                   </p>
-                  {c.expired ? (
-                    <p className="mt-2 text-base">
-                      You can&apos;t take shifts that need it. Renew it and send the new details to
-                      the office.
+                  {means && <p className="mt-2 text-base">{means}</p>}
+                  {/* An upload can't lift a suspension; one waiting may be replaced. */}
+                  {q.uploadable && q.status !== "suspended" && (
+                    <p className="mt-2">
+                      <Link href={`/profile/upload/${q.type}`} className={btn.link}>
+                        Upload a certificate
+                      </Link>
                     </p>
-                  ) : c.status === "suspended" ? (
-                    <p className="mt-2 text-base">
-                      You can&apos;t take shifts that need it. Contact the office.
-                    </p>
-                  ) : null}
+                  )}
                 </li>
               );
             })}
           </ul>
         )}
+        <div className="-mx-4 -mb-4 border-t border-line px-4 py-3">
+          <p className="font-semibold">Right to work</p>
+          <p className={`mt-1 text-base ${nums}`}>{rightToWorkText(profile.rightToWork, year)}</p>
+        </div>
       </section>
 
       {travel && (
@@ -143,7 +189,7 @@ export function ProfileView({
             {TRAVEL_TITLE}
           </h2>
           <p className={`${headingGap} ${nums}`}>{travelSummaryText(travel)}</p>
-          <Link href="/profile/travel" className={`${staffBtn.secondary} mt-4`}>
+          <Link href={TRAVEL_PATH} className={`${staffBtn.secondary} mt-4`}>
             {travel.set ? "Change your travel area" : "Set your travel area"}
           </Link>
         </section>
@@ -188,9 +234,27 @@ export function ProfileView({
         {push && <PushSetting publicKey={push.publicKey} firmName={push.firmName} />}
       </section>
 
-      <Link href="/" className={`${staffBtn.secondary} mt-8`}>
-        Back to my shifts
-      </Link>
+      {/* Her requests, help, and last, Log out (docs/office-v2.md 4.1; 12H.1). */}
+      <ul role="list" className="mt-8 flex flex-col gap-3 border-t border-line pt-8">
+        <li>
+          <Link href="/requests" className={staffBtn.secondary}>
+            My requests
+          </Link>
+        </li>
+        <li>
+          <Link href="/help" className={staffBtn.secondary}>
+            Help
+          </Link>
+        </li>
+        <li>
+          <LogoutButton
+            kind="worker"
+            after="/login?out=1"
+            className={`${staffBtn.secondary} w-full`}
+            icon={<Icon name="logout" />}
+          />
+        </li>
+      </ul>
     </>
   );
 }

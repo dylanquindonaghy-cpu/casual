@@ -42,6 +42,44 @@ async function siteFor(f: BookingFirm, shiftId: string, name: string): Promise<s
 }
 
 describe("openShiftsFor", () => {
+  it("each shift carries what it needs (the role's, then its extras) and the event as the app names it (12H.2)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker({ roles: ["steward"] });
+    const named = await f.shift({ role: "steward", startsAt: hoursFromNow(24) });
+    await su.query("update shifts set required_credentials = '{FIRST_AID}' where id = $1", [named]);
+    const auto = await su.query<{ id: string }>(
+      `insert into shift_events (firm_id, name, planner_ref) values ($1, 'Arena · Tue 3 Nov', $2)
+       returning id::text as id`,
+      [f.firmId, `auto:none:2026-11-03:${Math.random().toString(36).slice(2, 8)}`],
+    );
+    const automatic = await f.shift({
+      role: "steward",
+      startsAt: hoursFromNow(30),
+      eventId: auto.rows[0]?.id,
+    });
+    // She holds first aid, so the session needing it is listed too.
+    await su.query(
+      `insert into credentials (firm_id, worker_id, type, status) values ($1, $2, 'FIRST_AID', 'valid')`,
+      [f.firmId, sam],
+    );
+    const list = await openShiftsFor(ctxFor(f), sam);
+    const byId = new Map(list.shifts.map((s) => [s.shiftId, s]));
+    expect(byId.get(named)).toMatchObject({
+      eventName: "Fixture event",
+      casualEvent: "Fixture event",
+      requirements: [
+        { code: "STEWARD_L2", name: expect.any(String) },
+        { code: "FIRST_AID", name: "first aid at work certificate" },
+      ],
+    });
+    // The shifts line keeps the stored name; the app leaves out an automatic one.
+    expect(byId.get(automatic)).toMatchObject({
+      eventName: "Arena · Tue 3 Nov",
+      casualEvent: null,
+      requirements: [{ code: "STEWARD_L2", name: expect.any(String) }],
+    });
+  });
+
   it("lists only the open shifts this worker could take, soonest first", async () => {
     const f = await bookingFirm(su, withFirm);
     const other = await bookingFirm(su, withFirm);
@@ -277,7 +315,10 @@ describe("previewBooking", () => {
     const verdict = await withFirm(f.firmId, (tx) =>
       previewBooking(tx, { shiftId, workerId: sam, now: NOW }),
     );
-    expect(verdict).toEqual({ ok: true, reasons: [], codes: [] });
+    // The rules' answer and every check they ran (12D.2), all passed; never a pass.
+    expect(verdict).toEqual({ ok: true, reasons: [], codes: [], checks: expect.any(Array) });
+    expect(verdict?.checks.length).toBeGreaterThan(0);
+    expect(verdict?.checks.every((c) => c.passed)).toBe(true);
     expect(verdict && "pass" in verdict).toBe(false);
     expect(
       await withFirm(f.firmId, (tx) =>

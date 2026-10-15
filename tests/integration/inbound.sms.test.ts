@@ -10,7 +10,7 @@ import { runInboundMessage } from "@/lib/inbound/reply";
 import { twilioSignature } from "@/lib/inbound/twilio-signature";
 import { handleTwilioSms } from "@/lib/inbound/webhook";
 import type { MessagingTransport } from "@/lib/messaging/transport";
-import { loadToday } from "@/lib/office/today";
+import { loadEnquiries } from "@/lib/office/enquiries";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, freeNoFirmLine, NO_FIRM_LINE, superuserPool } from "../helpers/db";
@@ -251,7 +251,7 @@ describe("STOP and START (the inbound-message job)", () => {
         channel: "sms",
         to: t.mobile,
         from: t.line,
-        body: `You won't get texts from ${t.name} now. Reply START to turn them back on. - ${t.name} Shift Team`,
+        body: `You won't get texts from ${t.name} now. Reply START to turn them back on. Automatic reply. Send OFFICE to reach a person. - ${t.name} Shift Team`,
       },
     ]);
     expect(
@@ -337,7 +337,7 @@ describe("STOP and START (the inbound-message job)", () => {
       channel: "sms",
       to: t.mobile,
       from: t.line,
-      body: `Texts from ${t.name} are back on. Reply STOP to turn them off. - ${t.name} Shift Team`,
+      body: `Texts from ${t.name} are back on. Reply STOP to turn them off. Automatic reply. Send OFFICE to reach a person. - ${t.name} Shift Team`,
     });
     // START again, or UNSTOP, with texts on: nothing to change, nothing sent.
     expect(await run(await t.text("UNSTOP"), transport)).toMatchObject({
@@ -466,7 +466,7 @@ describe("STOP and START (the inbound-message job)", () => {
     ]);
   });
 
-  it("a former worker's number is marked too; a stranger's STOP marks nobody, gets nothing, and isn't on Today", async () => {
+  it("a former worker's number is marked too; a stranger's STOP marks nobody, gets nothing, and isn't left for a person", async () => {
     const t = await lineFirm();
     await t.f.office("admin");
     const former = await t.f.worker({ first: "Old", status: "inactive" });
@@ -493,8 +493,9 @@ describe("STOP and START (the inbound-message job)", () => {
       changed: false,
       workerId: null,
     });
-    const today = await withFirm(t.f.firmId, (tx) => loadToday(tx, new Date()));
-    expect(today.unknownMessages).toEqual([]);
+    // A STOP from a number we don't know isn't left for a person on Enquiries.
+    const person = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
+    expect(person.rows).toEqual([]);
   });
 
   it("after STOP, the shifts line answers them by WhatsApp, never by text", async () => {

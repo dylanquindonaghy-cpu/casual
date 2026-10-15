@@ -33,6 +33,8 @@ const list = (o: Partial<OpenShiftsList> = {}): OpenShiftsList => ({
   shifts: [],
   truncated: false,
   offerAlerts: true,
+  area: { maxMinutes: 45 },
+  further: { count: 0, atLeast: false },
   choices: { days: [], sites: [], roles: [] },
   ...o,
 });
@@ -54,6 +56,68 @@ describe("Open shifts page body", () => {
     expect(words).not.toContain("We'll message you");
   });
 
+  it("each row (§4.3; 12H.2): role · event linking to its page, site, when · £/hour · post, chips, places, travel", () => {
+    const words = text(
+      render(
+        list({
+          shifts: [
+            {
+              shiftId: "s1",
+              role: "door_supervisor",
+              startsAt: at("2026-11-07T14:00:00Z"),
+              endsAt: at("2026-11-07T22:00:00Z"),
+              placesLeft: 2,
+              opensAt: null,
+              isUrgent: false,
+              site: arena,
+              casualEvent: "Riverside Festival",
+              payRatePence: 1550,
+              post: "Gate A",
+              requirements: [
+                { code: "SIA_DS", name: "SIA door supervisor licence" },
+                { code: "CSAS", name: "CSAS accreditation" },
+              ],
+              travel: {
+                kind: "estimated",
+                straightMetres: 4000,
+                arriveBy: at("2026-11-07T13:30:00Z"),
+                car: { minutes: 12, metres: 5000 },
+                publicTransport: { minutes: 24 },
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    expect(words).toContain(
+      "Door supervisor · Riverside Festival Demo Arena Sat 7 Nov, 14:00 to 22:00 · £15.50/hour · Gate A Needs: SIA DS , CSAS 2 places left 3.1 miles · 12 min by car · 24 min by public transport Take shift",
+    );
+    const html = render(list({ shifts: [] }));
+    expect(html).not.toContain("data-requirements");
+  });
+
+  it("links each row's role · event to the shift's page", () => {
+    const html = render(
+      list({
+        shifts: [
+          {
+            shiftId: "s1",
+            role: "steward",
+            startsAt: at("2026-11-07T14:00:00Z"),
+            endsAt: at("2026-11-07T22:00:00Z"),
+            placesLeft: 1,
+            opensAt: null,
+            isUrgent: false,
+            site: null,
+            casualEvent: null,
+            travel: { kind: "unknown" },
+          },
+        ],
+      }),
+    );
+    expect(html).toMatch(/<a [^>]*href="\/shifts\/s1"[^>]*>Steward<\/a>/);
+  });
+
   it("shows each shift with its time, role, site, places left and a Take shift button", () => {
     const html = render(
       list({
@@ -65,6 +129,7 @@ describe("Open shifts page body", () => {
             endsAt: at("2026-11-07T22:00:00Z"),
             placesLeft: 1,
             opensAt: null,
+            travel: { kind: "unknown" },
             isUrgent: false,
             site: arena,
           },
@@ -75,6 +140,7 @@ describe("Open shifts page body", () => {
             endsAt: at("2026-11-08T17:00:00Z"),
             placesLeft: 3,
             opensAt: null,
+            travel: { kind: "unknown" },
             isUrgent: false,
             site: null,
           },
@@ -90,7 +156,8 @@ describe("Open shifts page body", () => {
     expect(words).toContain("Sat 7 Nov, 14:00 to 22:00");
     expect(words).toContain("Door supervisor");
     expect(words).toContain("Demo Arena");
-    expect(words).toContain("1 Test Road, Leeds, LS1 1AA");
+    // The address is on the shift's page, not the row (§4.3; 12H.2).
+    expect(words).not.toContain("1 Test Road");
     expect(words).toContain("1 place left");
     expect(words).toContain("3 places left");
     expect(html.match(/>Take shift</g)).toHaveLength(2);
@@ -113,6 +180,7 @@ describe("Open shifts page body", () => {
             endsAt: at("2026-11-07T22:00:00Z"),
             placesLeft: 1,
             opensAt: at("2026-11-07T09:15:00Z"),
+            travel: { kind: "unknown" },
             isUrgent: false,
             site: null,
           },

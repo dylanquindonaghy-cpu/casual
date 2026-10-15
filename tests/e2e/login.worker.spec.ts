@@ -33,9 +33,12 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/`);
   await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
-  // My shifts: this seeded worker has no bookings yet; the toggle shows the last 30 days.
+  // Home (12H.1): this seeded worker has no bookings yet. The tab bar is at the bottom.
   await expect(page.getByText("No shifts booked yet.")).toBeVisible();
-  await page.getByRole("link", { name: "See open shifts" }).click();
+  const tabs = page.getByRole("navigation", { name: "Main" });
+  await expect(tabs.getByRole("link")).toHaveText(["Home", "Shifts", "Pay", "Profile"]);
+  await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+  await page.getByRole("link", { name: "See all open shifts" }).click();
   await expect(page).toHaveURL(`${acme}/shifts/open`);
   await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
   // The demo seed's Saturday: this steward is free, and the four open steward places are theirs
@@ -46,16 +49,21 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await expect(page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" })).toHaveCount(
     1,
   );
-  await page.getByRole("link", { name: "Back to my shifts" }).click();
-  await expect(page).toHaveURL(`${acme}/`);
+  // My requests is on Profile now (12H.1).
+  await tabs.getByRole("link", { name: "Profile" }).click();
+  await expect(page).toHaveURL(`${acme}/profile`);
   await page.getByRole("link", { name: "My requests" }).click();
   await expect(page).toHaveURL(`${acme}/requests`);
   await expect(page.getByText("No requests yet.")).toBeVisible();
-  await page.getByRole("link", { name: "Back to my shifts" }).click();
-  await expect(page).toHaveURL(`${acme}/`);
+  // Booked is on the Shifts tab, with the last 30 days a toggle away; the old address goes there.
+  await tabs.getByRole("link", { name: "Shifts" }).click();
+  await expect(page).toHaveURL(`${acme}/shifts`);
+  await expect(page.getByRole("heading", { name: "Booked shifts" })).toBeVisible();
   await page.getByRole("link", { name: "Past 30 days" }).click();
-  await expect(page).toHaveURL(`${acme}/?view=past`);
+  await expect(page).toHaveURL(`${acme}/shifts?view=past`);
   await expect(page.getByText("No shifts in the last 30 days.")).toBeVisible();
+  await page.goto(`${acme}/?view=past`);
+  await expect(page).toHaveURL(`${acme}/shifts?view=past`);
 
   const [cookie] = (await context.cookies(acme)).filter((c) => c.name === "__Host-sd_session");
   expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax", path: "/" });
@@ -71,7 +79,8 @@ test("a worker logs in with a link, the link works once, and they can log out", 
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page.getByText("This link has expired or was already used.")).toBeVisible();
 
-  await page.goto(`${acme}/`);
+  // Log out is the last thing on Profile (12H.1).
+  await page.goto(`${acme}/profile`);
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(`${acme}/login?out=1`);
   await expect(page.getByText("You're logged out.")).toBeVisible();

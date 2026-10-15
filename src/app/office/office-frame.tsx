@@ -16,7 +16,9 @@ import { ThemeButton } from "./theme-button";
 // action still checks access.
 //
 // The top bar: the Menu button (below 1024px), ShiftDesk's mark with the firm's name, the pay
-// week (from 1024px), the moon/sun button and the account button (How-to guide, Log out). From 1024px the menu is a
+// week (from 1024px), the bell (admins and resourcers: "Needs attention, N", a link to that section
+// of the dashboard), the moon/sun button and the account button (How-to guide, Log out). From
+// 1024px the menu is a
 // 272px sidebar. Below that, the Menu button opens it as a drawer, a native <dialog>: the same
 // <nav> moves into it while it's open (so a page never has two), Escape, the dimmed backdrop and
 // "Close menu" close it, and so does moving to another page or widening the window to 1024px.
@@ -58,6 +60,7 @@ export function OfficeFrame({
   theme,
   rotationDue,
   refresh,
+  bell = null,
   children,
 }: {
   name: string;
@@ -68,6 +71,9 @@ export function OfficeFrame({
   theme: Theme | undefined;
   rotationDue: boolean;
   refresh: () => Promise<void>;
+  // The bell (admins and resourcers): its name ("Needs attention, 3") and the number it shows
+  // (null: none, when there's nothing or it couldn't be read).
+  bell?: { label: string; shown: string | null } | null;
   children: ReactNode;
 }) {
   const hydrated = useHydrated();
@@ -140,6 +146,24 @@ export function OfficeFrame({
             {payWeek}
           </p>
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            {bell && (
+              <Link
+                href="/office#needs-attention"
+                aria-label={bell.label}
+                title={bell.label}
+                className="relative inline-flex size-11 items-center justify-center rounded-lg text-ink hover:bg-quiet-soft"
+              >
+                <Icon name="bell" />
+                {bell.shown && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1 right-0.5 min-w-5 rounded-full bg-urgent px-1 text-center text-xs leading-5 font-bold text-on-ink tabular-nums"
+                  >
+                    {bell.shown}
+                  </span>
+                )}
+              </Link>
+            )}
             <ThemeButton initial={theme} />
             <button
               type="button"

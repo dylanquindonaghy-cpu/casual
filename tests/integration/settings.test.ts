@@ -6,6 +6,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import type { MessagingTransport } from "@/lib/messaging/transport";
 import { editSitePostcode, officeSettingsPage } from "@/lib/office/settings-page";
 import { bookShift } from "@/lib/roster/book";
+import { fakeGeocoder, type Geocoder } from "@/lib/travel/geocoder";
 import {
   confirmedStrikesEmail,
   confirmStrikesEmail,
@@ -166,7 +167,9 @@ describe("app_set_firm_setting(): the only way the app may change firms.settings
     ["retention.request_note_days", "30"],
     ["wave_size", "1"],
     ["strikes.notice_hours", "1"],
-    ["webhook.url", "https://hooks.example.com/x"],
+    // 12J.2: the webhook's address is accepted now (its own tests below), but its signing version
+    // is only ever raised by the function itself.
+    ["webhook.signing_version", "0"],
     ["strikes", '{"email":"a@example.com"}'],
     [null, "x"],
   ])("refuses %s through the function", async (key, value) => {
@@ -715,6 +718,33 @@ describe("a site's postcode", () => {
     expect(await booking).toMatchObject({ status: "booked" });
     await moving;
     expect(await postcodeOf(t.siteId)).toBe("ZZ9 9ZZ");
+  });
+
+  it("runs again after a deadlock (as a planner's PUT can cause), without a second look-up", async () => {
+    const t = await siteFirm();
+    let runs = 0;
+    let lookUps = 0;
+    const flaky: WithFirm = (firmId, fn) => {
+      runs += 1;
+      if (runs === 1) {
+        return Promise.reject(Object.assign(new Error("deadlock detected"), { code: "40P01" }));
+      }
+      return withFirm(firmId, fn);
+    };
+    const counting: Geocoder = {
+      locate: (postcode) => {
+        lookUps += 1;
+        return fakeGeocoder.locate(postcode);
+      },
+    };
+    expect(
+      await editSitePostcode({ ...t.office(t.admin), run: flaky, geocoder: counting }, t.siteId, {
+        postcode: "ZZ9 9ZZ",
+      }),
+    ).toEqual({ status: "saved" });
+    expect([runs, lookUps]).toEqual([2, 1]);
+    expect(await postcodeOf(t.siteId)).toBe("ZZ9 9ZZ");
+    expect(await t.logged("site.changed")).toHaveLength(1);
   });
 
   it("only active admins, and only the firm's own sites", async () => {

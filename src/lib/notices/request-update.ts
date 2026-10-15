@@ -15,7 +15,7 @@ import {
   type WorkerChannel,
   smsAllowedFor,
 } from "../notify/send";
-import { KIND_NAMES } from "../portal/request-kinds";
+import { KIND_NAMES, statusWord } from "../portal/request-kinds";
 import { getPushTransport } from "../push/transport";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { insideUrgentWindow, urgentWindowHours } from "../rules/urgent";
@@ -158,10 +158,12 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
 
   const voice = { name: row.firmName, signOff: signOffFor(row.firmName, row.settings.sign_off) };
   const kind = KIND_NAMES[row.type] ?? "Request";
+  // "approved", "declined", or "answered" for a question (PLAN.md Messages 13).
+  const status = statusWord(row.type, row.status).toLowerCase();
   const body = requestUpdateMessage(voice, {
     type: kind.toLowerCase(),
     ref: payload.requestId.slice(0, 8).toUpperCase(),
-    status: row.status,
+    status,
     note: row.note ? oneLineNote(row.note) || null : null,
   });
   await recordEvent(tx, {
@@ -179,7 +181,7 @@ async function claim(tx: FirmTx, payload: RequestUpdatePayload, now: Date): Prom
     smsAllowed: smsAllowedFor(row),
     body,
     from: row.line,
-    push: { ...requestUpdatePush({ type: kind, status: row.status }), url: "/requests" },
+    push: { ...requestUpdatePush({ type: kind, status }), url: "/requests" },
   };
 }
 

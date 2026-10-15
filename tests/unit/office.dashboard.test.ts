@@ -84,7 +84,7 @@ const empty: Dashboard = {
   urgent: ok({ events: [], more: false }),
   showing: ok({ events: [], more: 0 }),
   cancellations: ok({ rows: [], threshold: 48 }),
-  enquiries: ok({ rows: [], replies: {} }),
+  enquiries: ok({ rows: [], replies: {}, days: 90 }),
   needs: ok(noNeeds),
 };
 
@@ -273,6 +273,7 @@ const full: Dashboard = {
       },
     ],
     replies: { m1: "Hi Zoe, for the weekend you can take:", m2: null },
+    days: 90,
   }),
   needs: ok({
     ...noNeeds,
@@ -560,7 +561,11 @@ describe("the page", () => {
   it("says so when each section is empty", () => {
     const text = words(render(empty));
     for (const s of Object.values(SECTIONS)) expect(text).toContain(s.empty);
+    expect(text).toContain("No enquiries in the last 90 days.");
     expect(text).toContain("Every urgent shift is filled.");
+    // A firm that keeps its messages longer: its own number of days.
+    const longer = { ...empty, enquiries: ok({ rows: [], replies: {}, days: 200 }) };
+    expect(words(render(longer))).toContain("No enquiries in the last 200 days.");
     expect(text).toContain("Nothing needs attention.");
     // The links to the full lists stay.
     expect(links(render(empty)).map((l) => l.name)).toEqual(

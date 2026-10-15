@@ -79,6 +79,9 @@ export function countLine(key: CountKey, c: DashboardCounts, tz: string): string
 }
 
 // The sections, in order, with their hint under the heading, and what each says when empty.
+// Enquiries' empty words name the firm's message retention (90 days unless the owner changed it).
+export const enquiriesEmpty = (days: number) => `No enquiries in the last ${days} days.`;
+
 export const SECTIONS = {
   urgent: {
     heading: "Urgent shifts not filled",
@@ -98,7 +101,7 @@ export const SECTIONS = {
   enquiries: {
     heading: "Enquiries",
     hint: "What casuals asked, and the reply they got",
-    empty: "No enquiries in the last 90 days.",
+    empty: enquiriesEmpty(90),
   },
   needs: {
     heading: "Needs attention",

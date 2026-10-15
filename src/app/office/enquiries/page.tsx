@@ -26,14 +26,14 @@ import { RequestQueueView } from "./request-queue-view";
 export const metadata: Metadata = { title: "Enquiries" };
 
 // Enquiries (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1): what casuals and
-// strangers sent the shifts line in the last 90 days and what came of it, the ones that need a
+// strangers sent the shifts line in the firm's message retention (90 days by default) and what came of it, the ones that need a
 // person, the requests made in the app (the old Requests page) and pay. Views are links. Each row
 // opens the message's own page. Admins and resourcers.
 
-const EMPTY: Record<Exclude<EnquiryView, "app">, string> = {
-  all: "No messages to the shifts line in the last 90 days.",
-  person: "Nothing needs a person. Messages the shifts line can't answer show here.",
-  pay: "No pay messages in the last 90 days.",
+const EMPTY: Record<Exclude<EnquiryView, "app">, (days: number) => string> = {
+  all: (days) => `No messages to the shifts line in the last ${days} days.`,
+  person: () => "Nothing needs a person. Messages the shifts line can't answer show here.",
+  pay: (days) => `No pay messages in the last ${days} days.`,
 };
 
 // Only today's (since midnight, the firm's time): the dashboard's "Enquiries today" link.
@@ -103,7 +103,7 @@ export default async function EnquiriesPage({
         <p className={`${meta} mt-3`}>
           Only today&apos;s.{" "}
           <Link href={hrefOf(view)} className={textLink}>
-            Show the last 90 days
+            Show the last {list.days} days
           </Link>
         </p>
       )}
@@ -127,7 +127,7 @@ export default async function EnquiriesPage({
           </div>
         ) : list.rows.length === 0 ? (
           <p className={`${card} ${headingGap} text-ink-muted`}>
-            {day ? EMPTY_TODAY : EMPTY[view as Exclude<EnquiryView, "app">]}
+            {day ? EMPTY_TODAY : EMPTY[view as Exclude<EnquiryView, "app">](list.days)}
           </p>
         ) : (
           <>

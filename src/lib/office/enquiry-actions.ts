@@ -9,7 +9,7 @@ import { recordEvent } from "../events/record";
 import { officeReplyMessage, requestUpdateMessage } from "../messaging/templates";
 import { OFFICE_REPLY_PREFIX, queueEnquiryReply } from "../notices/enquiry-reply";
 import { signOffFor } from "../tenancy/sign-off";
-import { ENQUIRY_DAYS, needsPerson, replyPlanFor } from "./enquiries";
+import { enquiryWindow, needsPerson, replyPlanFor } from "./enquiries";
 import { CLOSE_REASONS, REPLY_MAX, replyLine, type CloseReason } from "./enquiry-rules";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
@@ -62,7 +62,7 @@ type Locked = {
 
 // The casual's message, locked, and whether it still needs a person (enquiries.ts's rule).
 async function lockMessage(tx: FirmTx, messageId: string, now: Date): Promise<Locked | null> {
-  const since = new Date(now.getTime() - ENQUIRY_DAYS * 86_400_000);
+  const { since } = await enquiryWindow(tx, now);
   const [row] = await tx
     .select({ id: messages.id })
     .from(messages)

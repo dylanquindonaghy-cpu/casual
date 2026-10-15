@@ -621,6 +621,32 @@ describe("what the office can see", () => {
     expect((await t.load("all")).rows).toEqual([]);
     expect(await t.detail(old)).toBeNull();
   });
+
+  it("a firm that keeps messages longer: shown for as long as it keeps them", async () => {
+    const t = await enquiryFirm();
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{retention}', '{"message_days": 200}')
+        where id = $1`,
+      [t.f.firmId],
+    );
+    const old = await t.incoming("office: an old question");
+    const age = (days: number) =>
+      su.query(`update messages set created_at = now() - make_interval(days => $2) where id = $1`, [
+        old,
+        days,
+      ]);
+    const badge = () => withFirm(t.f.firmId, (tx) => needPersonCount(tx, new Date()));
+    await age(120);
+    expect((await t.load("all")).rows.map((r) => r.messageId)).toEqual([old]);
+    expect((await t.load("person")).rows.map((r) => r.messageId)).toEqual([old]);
+    expect((await t.detail(old))?.messageId).toBe(old);
+    expect(await badge()).toBe(1);
+    // Past the firm's 200 days: gone from Enquiries too.
+    await age(201);
+    expect((await t.load("all")).rows).toEqual([]);
+    expect(await t.detail(old)).toBeNull();
+    expect(await badge()).toBe(0);
+  });
 });
 
 describe("where a reply goes from, and who never gets one", () => {

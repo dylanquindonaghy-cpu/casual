@@ -335,7 +335,7 @@ describe("the Needs attention item on the dashboard (12E.1)", () => {
     urgent: { ok: true, data: { events: [], more: false } },
     showing: { ok: true, data: { events: [], more: 0 } },
     cancellations: { ok: true, data: { rows: [], threshold: 48 } },
-    enquiries: { ok: true, data: { rows: [], replies: {} } },
+    enquiries: { ok: true, data: { rows: [], replies: {}, days: 90 } },
     needs: { ok: true, data: needs(evidence) },
   });
   const render = (v: Dashboard, isAdmin: boolean) =>

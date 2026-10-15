@@ -12592,9 +12592,12 @@ log entry was replaced by this one. Two things from that session were kept:
   `TextDecoder("windows-1252")` decodes bytes 0x80–0x9F as Latin-1 control characters, not
   Windows-1252's letters. A Windows Excel CSV's "O’Brien" (0x92) or "€" came in with an invisible
   control character, and a Mac CSV ("RenŽe") wasn't refused: `tests/unit/imports.files.test.ts`
-  "refuses a Mac CSV" failed. The Docker image (`node:22-bookworm-slim`) and CI (`.nvmrc` "22")
-  pull this release. Now the bytes are read as Latin-1 and 0x80–0x9F mapped with WHATWG's table.
-  The new test checks every byte against Python's cp1252, and it fails with the old decoder.
+  "refuses a Mac CSV" failed. Not every Node 22 release does this. This container's 22.22.0
+  does. The 22.23.3 that `node:22-bookworm-slim` gave on 2026-10-15 decodes correctly (checked
+  in the image). Commit `7f07cb3`'s message says both the image and CI pull the faulty release,
+  and that's wrong. Now the bytes are read as Latin-1 and 0x80–0x9F mapped with WHATWG's table,
+  so the result doesn't depend on the Node release, a pinned older one included. The new test
+  checks every byte against Python's cp1252, and it fails with the old decoder.
 - **Three 12G.2 tests** (`tests/integration/travel.estimates.test.ts`), each break-checked:
   - a casual's ways of travelling alone queue the shared window run (the time limit alone
     doesn't);

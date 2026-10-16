@@ -202,6 +202,7 @@ export function sortedStep(
         why: "asked" | "ai_asked" | "voicemail" | "no_text" | "not_sorted";
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
+    | { how: "person"; why: "answer_failed"; code: string }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" },
@@ -220,6 +221,8 @@ export function sortedStep(
     case "not_yet":
       return "Not sorted yet: the shifts line hasn't answered it.";
     default:
+      if (s.why === "answer_failed")
+        return `The automatic answer failed on every try (${s.code}): passed to a person.`;
       if (s.why === "not_sorted" && s.ai) {
         return {
           not_connected: "AI not available: passed to a person (not connected).",

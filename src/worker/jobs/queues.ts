@@ -4,7 +4,7 @@ import { SEND_PORTAL_LINK_QUEUE } from "../../lib/auth/send-portal-link";
 import { CREDENTIAL_SCAN_QUEUE, CREDENTIAL_SCAN_TICK_QUEUE } from "../../lib/credentials/scan";
 import { FIRM_CHANGE_NOTICE_QUEUE } from "../../lib/notices/firm-change";
 import { METRICS_ROLLUP_QUEUE, METRICS_ROLLUP_TICK_QUEUE } from "../../lib/metrics/rollup";
-import { INBOUND_MESSAGE_QUEUE } from "../../lib/inbound/job";
+import { INBOUND_MESSAGE_QUEUE, INBOUND_RETRY_LIMIT } from "../../lib/inbound/job";
 import { PAY_QUERY_UPDATE_QUEUE } from "../../lib/notices/pay-query-update";
 import { ENQUIRY_REPLY_QUEUE } from "../../lib/notices/enquiry-reply";
 import { REQUEST_UPDATE_QUEUE } from "../../lib/notices/request-update";
@@ -79,7 +79,6 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
   METRICS_ROLLUP_QUEUE,
   PAY_DIGEST_QUEUE,
   PAY_QUERY_UPDATE_QUEUE,
-  INBOUND_MESSAGE_QUEUE,
   RETENTION_PURGE_QUEUE,
   STRIKES_EMAIL_LINK_QUEUE,
   STRIKE_EVIDENCE_QUEUE,
@@ -88,6 +87,7 @@ const FIRM_QUEUE_NAMES: readonly string[] = [
 const sheetsSync = firmQueue(SHEETS_SYNC_QUEUE);
 const travelEstimates = firmQueue(TRAVEL_ESTIMATES_QUEUE);
 const webhookDeliver = firmQueue(WEBHOOK_DELIVER_QUEUE);
+const inboundMessage = firmQueue(INBOUND_MESSAGE_QUEUE);
 
 export const QUEUES: readonly QueueSpec[] = [
   { name: HELLO_QUEUE },
@@ -147,6 +147,20 @@ export const QUEUES: readonly QueueSpec[] = [
       retryDelay: 5 * 60,
       retryBackoff: true,
       retryDelayMax: 60 * 60,
+    },
+  },
+  // The shifts line (13.2; src/lib/inbound/reply.ts): a reply that fails is tried again 3 times,
+  // 2 seconds apart (no backoff: pg-boss's doubling, with its random part, would make a waiting
+  // casual wait 35 to 70 seconds), so with the worker's polling the last try comes after about
+  // 15 seconds of waiting, plus each try's own time. The last try passes the message to a person (Need a person on Enquiries), then the
+  // job still fails: the failure is ours, and the ops alert for failed jobs reports it.
+  {
+    ...inboundMessage,
+    options: {
+      ...inboundMessage.options,
+      retryLimit: INBOUND_RETRY_LIMIT,
+      retryDelay: 2,
+      retryBackoff: false,
     },
   },
   // The planner's webhooks (12J.2; src/lib/integrations/deliver.ts): a failed try is tried again

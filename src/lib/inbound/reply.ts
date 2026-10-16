@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getAi } from "../ai/anthropic";
 import { sortMessage, type AiFallback } from "../ai/classify-message";
@@ -24,7 +24,13 @@ import { systemClock, type Clock } from "../auth/clock";
 import { lockUnhandled } from "./claim";
 import { INBOUND_RETRY_LIMIT, inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
-import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from "./opt-out";
+import {
+  answerOptOut,
+  claimOptOut,
+  optOutWordOf,
+  type OptOutRead,
+  type OptOutResult,
+} from "./opt-out";
 import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 
 // Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
@@ -50,7 +56,7 @@ import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 //   5. the reply stored as an outbound message, and `message.replied`, or `message.reply_failed`
 //      (never retried).
 // A failure before the claim (a bug, or the database failing) is retried by the queue; on its last
-// try the message is passed to a person instead (runInboundWithLastTry, below).
+// try the message is passed to a person, and the job still fails (runInboundWithLastTry, below).
 // The reply is always one of the app's fixed texts (shiftsLineReply, voicemailReceivedMessage): the
 // AI only ever picks which, so nothing it writes reaches the worker, and a pay question gets the
 // pay link, never an answer (golden rules 1 and 9). Events hold labels and ids, never the text or a number.
@@ -72,7 +78,6 @@ export type InboundResult =
       alerted: number; // office users emailed
     }
   | OptOutResult
-  | { status: "for_a_person"; code: string } // the last try failed: passed to a person
   | { status: "already" }
   | { status: "gone" };
 
@@ -128,28 +133,18 @@ async function read(tx: FirmTx, messageId: string): Promise<Read> {
     .where(eq(firms.id, sql`app_current_firm_id()`));
   if (!firm) throw new Error("firm not visible inside its own transaction");
   const from = m.from;
-  // A text saying only STOP or START (or one Twilio's own opt-out handling acted on).
-  if (m.channel === "sms" && from) {
-    const ours = smsOptOutWord(m.body);
-    let word = m.twilioOptOut ?? ours;
-    // YES, or anything else Twilio calls START: only for a number with texts off.
-    if (word === "yes" || (word === "start" && ours !== "start")) {
-      const [off] = await tx
-        .select({ id: workers.id })
-        .from(workers)
-        .where(and(eq(workers.mobileE164, from), isNotNull(workers.smsOptedOutAt)));
-      word = off ? "start" : null;
-    }
-    if (word) {
-      return {
-        kind: "opt_out",
-        word,
-        byTwilio: m.twilioOptOut !== null,
-        from,
-        line: m.to,
-        firm: { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) },
-      };
-    }
+  // A text saying only STOP or START (or one Twilio's own opt-out handling acted on; YES, or
+  // anything else Twilio calls START, only for a number with texts off).
+  const word = await optOutWordOf(tx, m);
+  if (word && from) {
+    return {
+      kind: "opt_out",
+      word,
+      byTwilio: m.twilioOptOut !== null,
+      from,
+      line: m.to,
+      firm: { name: firm.name, signOff: signOffFor(firm.name, firm.settings.sign_off) },
+    };
   }
   const [worker] = from
     ? await tx
@@ -631,14 +626,18 @@ async function answerUnknown(
   });
 }
 
-// The last try (13.2), like the planner webhooks' (12J.2): a message whose answer fails on every
-// try is never left unanswered and unseen. Before the last try a failure is thrown, and the queue
-// tries again (src/worker/jobs/queues.ts). On the last, the message is passed to a person: marked
-// handled as the office's (so it's in Need a person on Enquiries) with `message.received` saying
-// why ({ answerFailed: the error's code, never its text }), and the job completes. Nothing is sent:
-// the casual's answer comes from the office. A message someone else answered meanwhile is left as
-// it is: the mark takes the same claim as the answer, so it happens at most once. If the database
-// itself is down, the mark fails too and the job fails for good (an ops alert: failedJobCounts()).
+// The last try (13.2). A failure before the claim (a bug, or the database failing) is thrown, and
+// the queue tries again (src/worker/jobs/queues.ts: 3 more tries, 2 seconds apart). On the last
+// try the message is first passed to a person, then the failure is thrown anyway: the job ends
+// failed, so the ops alert for failed jobs tells Dylan (failedJobCounts(): the failure is always
+// ours, unlike a firm's own webhook endpoint), and the job's log line carries the error.
+// Passed to a person: marked handled as the office's, so it waits in Need a person on Enquiries,
+// with `message.received` saying why ({ answerFailed: the error's code, never its text }). Nothing
+// is sent: the casual's answer comes from the office. A STOP or START text still counts: it's
+// claimed as the reply job claims one (claimOptOut), without the confirmation text. A message
+// someone else answered meanwhile is left as it is: the mark takes the same claim as an answer, so
+// it happens at most once, and a later try finds it handled. Not covered: a worker killed in the
+// middle of the last try (pg-boss counts the try when it's taken; Parking lot "Messages stranded").
 export async function runInboundWithLastTry(
   payload: InboundMessagePayload,
   run: WithFirm,
@@ -649,45 +648,81 @@ export async function runInboundWithLastTry(
     return await runInboundMessage(payload, run, deps);
   } catch (err) {
     if (attempt.retryCount < (attempt.retryLimit ?? INBOUND_RETRY_LIMIT)) throw err;
-    const code = errorCode(err);
-    log.warn("inbound: the last try failed; the message is passed to a person", {
-      firmId: payload.firmId,
-      messageId: payload.messageId,
-      code,
-    });
-    return passToAPerson(payload, run, code);
+    const code = safeCode(errorCode(err));
+    try {
+      const marked = await passToAPerson(payload, run, code);
+      log.warn("inbound: the last try failed", {
+        firmId: payload.firmId,
+        messageId: payload.messageId,
+        code,
+        passedTo: marked,
+      });
+    } catch (markErr) {
+      log.error("inbound: the last try failed, and so did passing it to a person", {
+        firmId: payload.firmId,
+        messageId: payload.messageId,
+        code,
+        markCode: errorCode(markErr),
+      });
+    }
+    throw err;
   }
 }
+
+// An error's code as the log and the office see it: a Postgres SQLSTATE or an error class's name,
+// never anything longer or stranger.
+const safeCode = (code: string) => (/^[A-Za-z0-9_]{1,60}$/.test(code) ? code : "unknown");
 
 async function passToAPerson(
   payload: InboundMessagePayload,
   run: WithFirm,
   code: string,
-): Promise<InboundResult> {
-  return run(payload.firmId, async (tx): Promise<InboundResult> => {
-    if (!(await lockUnhandled(tx, payload.messageId))) return { status: "already" };
-    // Who sent it, by the number alone: whatever failed may have been in the full read.
-    const { rows } = await tx.execute<{
-      direction: string;
-      channel: Channel;
-      worker_id: string | null;
-    }>(sql`
-      select m.direction, m.channel,
-             (select w.id::text from workers w
-               where w.firm_id = m.firm_id and w.mobile_e164 = m.from_e164 and w.status = 'active'
-               limit 1) as worker_id
-        from messages m
-       where m.id = ${payload.messageId}
-    `);
-    const m = rows[0];
-    if (!m || m.direction !== "in") return { status: "gone" };
-    const workerId = m.worker_id;
+): Promise<"person" | "opt_out" | "already" | "gone"> {
+  return run(payload.firmId, async (tx) => {
+    if (!(await lockUnhandled(tx, payload.messageId))) return "already";
+    // Only the message's own row and the number's worker: whatever failed may be in the full read.
+    const [m] = await tx
+      .select({
+        direction: messages.direction,
+        channel: messages.channel,
+        from: messages.fromE164,
+        body: messages.body,
+        twilioOptOut: messages.twilioOptOut,
+      })
+      .from(messages)
+      .where(eq(messages.id, payload.messageId));
+    if (!m || m.direction !== "in") return "gone";
+    const word = await optOutWordOf(tx, m);
+    if (word && m.from) {
+      const claimed = await claimOptOut(
+        tx,
+        payload.messageId,
+        { word, byTwilio: m.twilioOptOut !== null, from: m.from },
+        { answerFailed: code },
+      );
+      return claimed ? "opt_out" : "already";
+    }
+    // The worker with this number, whatever their status (one per number in a firm), as the
+    // shifts line names them.
+    const [worker] = m.from
+      ? await tx
+          .select({ id: workers.id, status: workers.status })
+          .from(workers)
+          .where(eq(workers.mobileE164, m.from))
+          .limit(1)
+      : [];
+    const active = worker?.status === "active";
     await tx
       .update(messages)
-      .set({ handledAt: new Date(), handledAs: "office", intent: "office", workerId })
+      .set({
+        handledAt: new Date(),
+        handledAs: "office",
+        intent: "office",
+        workerId: worker?.id ?? null,
+      })
       .where(eq(messages.id, payload.messageId));
     await recordEvent(tx, {
-      ...(workerId ? { actorType: "worker", actorId: workerId } : { actorType: "system" }),
+      ...(worker && active ? { actorType: "worker", actorId: worker.id } : { actorType: "system" }),
       action: "message.received",
       entityType: "message",
       entityId: payload.messageId,
@@ -696,10 +731,10 @@ async function passToAPerson(
         handledAs: "office",
         intent: "office",
         answerFailed: code,
-        ...(workerId ? { workerId } : {}),
+        ...(worker ? { workerId: worker.id, ...(active ? {} : { formerWorker: true }) } : {}),
       },
     });
-    return { status: "for_a_person", code };
+    return "person";
   });
 }
 

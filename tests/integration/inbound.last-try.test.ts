@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -6,23 +6,24 @@ import type { Clock } from "@/lib/auth/clock";
 import { noAi } from "@/lib/ai/client";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { INBOUND_MESSAGE_QUEUE, INBOUND_RETRY_LIMIT } from "@/lib/inbound/job";
-import { receiveWhatsApp } from "@/lib/inbound/receive";
+import { receiveSms, receiveWhatsApp } from "@/lib/inbound/receive";
 import { inboundMessageTask, type InboundReplyDeps } from "@/lib/inbound/reply";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { loadEnquiries, loadEnquiry } from "@/lib/office/enquiries";
 import { sortedStep } from "@/lib/office/enquiries-copy";
 import { createBoss } from "@/worker/boss";
-import { INBOUND_WORK_OPTIONS, registerInboundTask } from "@/worker/jobs";
-import { ensureQueues, QUEUES } from "@/worker/jobs/queues";
+import { failedJobCounts, INBOUND_WORK_OPTIONS, registerInboundTask } from "@/worker/jobs";
+import { QUEUES } from "@/worker/jobs/queues";
 import { captureTransport } from "../helpers/auth";
 import { bookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool, urls } from "../helpers/db";
 
 // The shifts line's last try (13.2): a message whose answer fails on every try is passed to a
-// person (Need a person on Enquiries) with the reason logged, once, and nothing is sent. The fault
-// is a clock that throws, standing in for a bug before the claim; on the real database as the app
-// role, no Twilio and no AI. Numbers are from Ofcom's drama range (07700 900200-900399 for the
-// lines here, freed from any earlier test's firm first).
+// person (Need a person on Enquiries) with the reason logged, once; nothing is sent; and the job
+// still fails, so the ops alert for failed jobs reports it. A STOP still turns texts off. The
+// faults stand in for a bug before the claim: a clock that throws, or a database call that fails.
+// On the real database as the app role; no Twilio, no AI. Numbers are from Ofcom's drama range
+// (07700 900200-900399 for the lines here, freed from any earlier test's firm first).
 
 let su: Pool;
 let app: Pool;
@@ -55,23 +56,31 @@ async function lineFirm() {
     [ann],
   );
   const mobile = rows[0]?.mobile ?? "";
-  // A WhatsApp stored as the webhook would; its job's payload.
-  const incoming = async (body: string) => {
-    const messageSid = sid();
-    await receiveWhatsApp(
-      f.firmId,
-      { messageSid, from: mobile, to: line, body },
-      { run: withFirm },
-    );
-    const { rows: queued } = await su.query<{ data: Record<string, unknown>; message_id: string }>(
+  // A message stored as the webhook would; its job's payload and the message's id.
+  const queued = async (messageSid: string) => {
+    const { rows: jobs } = await su.query<{ data: Record<string, unknown>; message_id: string }>(
       `select j.data, m.id::text as message_id from pgboss.job j
          join messages m on m.id::text = j.data ->> 'messageId'
         where j.name = $1 and m.firm_id = $2 and m.provider_message_id = $3`,
       [INBOUND_MESSAGE_QUEUE, f.firmId, messageSid],
     );
-    const job = queued[0];
-    if (queued.length !== 1 || !job) throw new Error("expected one job for the message");
+    const job = jobs[0];
+    if (jobs.length !== 1 || !job) throw new Error("expected one job for the message");
     return { data: job.data, messageId: job.message_id };
+  };
+  const incoming = async (body: string, from = mobile) => {
+    const messageSid = sid();
+    await receiveWhatsApp(f.firmId, { messageSid, from, to: line, body }, { run: withFirm });
+    return queued(messageSid);
+  };
+  const text = async (body: string) => {
+    const messageSid = sid();
+    await receiveSms(
+      f.firmId,
+      { messageSid, from: mobile, to: line, body, twilioOptOut: null },
+      { run: withFirm },
+    );
+    return queued(messageSid);
   };
   const message = async (id: string) =>
     (
@@ -99,12 +108,16 @@ async function lineFirm() {
     ).rows;
   const replies = async () =>
     (
-      await su.query<{ id: string }>(
-        "select id::text as id from messages where firm_id = $1 and direction = 'out'",
+      await su.query<{ reply_to: string | null }>(
+        "select reply_to::text as reply_to from messages where firm_id = $1 and direction = 'out'",
         [f.firmId],
       )
     ).rows;
-  return { f, line, ann, mobile, incoming, message, received, replies };
+  const person = async () =>
+    (await withFirm(f.firmId, (tx) => loadEnquiries(tx, "person", new Date()))).rows.map(
+      (r) => r.messageId,
+    );
+  return { f, line, ann, mobile, incoming, text, message, received, replies, person };
 }
 
 // A clock that throws: every try fails before the claim, as a bug there would.
@@ -113,6 +126,26 @@ const broken: Clock = {
     throw new TypeError("a bug before the claim");
   },
 };
+// A clock that throws or works call by call, in the order given (then works).
+function scripted(...plan: ("throw" | "ok")[]): Clock {
+  return {
+    now() {
+      if (plan.shift() === "throw") throw new TypeError("a bug before the claim");
+      return new Date();
+    },
+  };
+}
+// The database failing for one try's first call (a lost connection: Postgres's 57P01), then back.
+function failingFirstCall(): WithFirm {
+  let calls = 0;
+  return (firmId, fn) => {
+    calls += 1;
+    if (calls === 1)
+      return Promise.reject(Object.assign(new Error("terminating connection"), { code: "57P01" }));
+    return withFirm(firmId, fn);
+  };
+}
+
 function depsWith(clock?: Clock) {
   const capture = captureTransport();
   const deps: InboundReplyDeps = {
@@ -124,35 +157,41 @@ function depsWith(clock?: Clock) {
   return { deps, sent: capture.sent };
 }
 
-// One try of the job, as the worker runs it (try `retryCount` of the queue's INBOUND_RETRY_LIMIT).
+// One try of the job as the worker runs it: try `retryCount` of the queue's INBOUND_RETRY_LIMIT
+// (the limit left out: a job fetched without its metadata).
 const attempt = (
   deps: InboundReplyDeps,
   data: Record<string, unknown>,
   retryCount: number,
-  run: WithFirm = withFirm,
+  o: { run?: WithFirm; withLimit?: boolean } = {},
 ) =>
   runFirmTask(
     inboundMessageTask(() => deps),
-    { id: `job-${retryCount}`, data, retryCount, retryLimit: INBOUND_RETRY_LIMIT },
-    run,
+    {
+      id: `job-${retryCount}`,
+      data,
+      retryCount,
+      ...(o.withLimit === false ? {} : { retryLimit: INBOUND_RETRY_LIMIT }),
+    },
+    o.run ?? withFirm,
   );
 
 describe("the shifts line's last try", () => {
-  it("fails for a retry until the last try, which passes the message to a person, logged once, sending nothing", async () => {
+  it("fails for a retry until the last try, which passes it to a person, logged once, sends nothing and still fails the job", async () => {
     const t = await lineFirm();
     const { data, messageId } = await t.incoming("is there anything on saturday");
     const { deps, sent } = depsWith(broken);
     for (let n = 0; n < INBOUND_RETRY_LIMIT; n++) {
-      const r = await attempt(deps, data, n);
-      expect(r.status, `try ${n}`).toBe("failed");
+      expect((await attempt(deps, data, n)).status, `try ${n}`).toBe("failed");
       expect((await t.message(messageId))?.handled_at, `try ${n}`).toBeNull();
     }
     expect(await t.received(messageId)).toEqual([]);
+    expect(await t.person()).not.toContain(messageId);
 
-    const last = await attempt(deps, data, INBOUND_RETRY_LIMIT);
-    expect(last).toMatchObject({
-      status: "completed",
-      output: { status: "for_a_person", code: "TypeError" },
+    // The last try: passed to a person, and the job fails with the failure's code (the ops alert).
+    expect(await attempt(deps, data, INBOUND_RETRY_LIMIT)).toMatchObject({
+      status: "failed",
+      output: { error: "handler_failed", code: "TypeError" },
     });
     expect(await t.message(messageId)).toMatchObject({
       handled_as: "office",
@@ -176,8 +215,7 @@ describe("the shifts line's last try", () => {
     expect(await t.replies()).toEqual([]);
 
     // The office sees it in Need a person, and why.
-    const list = await withFirm(t.f.firmId, (tx) => loadEnquiries(tx, "person", new Date()));
-    expect(list.rows.map((r) => r.messageId)).toContain(messageId);
+    expect(await t.person()).toContain(messageId);
     const page = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, messageId, new Date()));
     expect(page?.waiting).toBe(true);
     expect(page?.timeline.sorted).toEqual({
@@ -190,11 +228,11 @@ describe("the shifts line's last try", () => {
     );
   });
 
-  it("a repeat of the last try, or a later try that works, doesn't mark or answer it again", async () => {
+  it("a repeat of the last try, or a later try that works, finds it handled: no second mark, nothing sent", async () => {
     const t = await lineFirm();
     const { data, messageId } = await t.incoming("is there anything on saturday");
     const failing = depsWith(broken);
-    await attempt(failing.deps, data, INBOUND_RETRY_LIMIT);
+    expect((await attempt(failing.deps, data, INBOUND_RETRY_LIMIT)).status).toBe("failed");
     // pg-boss runs a job at least once: the last try again.
     expect(await attempt(failing.deps, data, INBOUND_RETRY_LIMIT)).toMatchObject({
       status: "completed",
@@ -222,56 +260,188 @@ describe("the shifts line's last try", () => {
       output: { status: "replied", intent: "shifts" },
     });
     expect(await attempt(failing.deps, data, INBOUND_RETRY_LIMIT)).toMatchObject({
+      status: "completed",
       output: { status: "already" },
     });
     expect(await t.message(messageId)).toMatchObject({ handled_as: "keyword", intent: "shifts" });
     expect(await t.received(messageId)).toHaveLength(1);
   });
 
-  it("if another job answers it while the last try fails, the mark leaves it alone", async () => {
+  it("the mark waits for another job's claim on the message, then leaves it alone", async () => {
     const t = await lineFirm();
     const { data, messageId } = await t.incoming("is there anything on saturday");
-    // Between the failure and the mark, another job's claim commits (the superuser's update here).
-    let claimFirst = false;
-    const racing: Clock = {
+    // Another job holds the message's row: its claim, not committed yet.
+    const other = await su.connect();
+    try {
+      await other.query("begin");
+      await other.query(
+        `update messages set handled_at = now(), handled_as = 'keyword', intent = 'shifts'
+          where id = $1`,
+        [messageId],
+      );
+      const { deps, sent } = depsWith(broken);
+      let settled = false;
+      const last = attempt(deps, data, INBOUND_RETRY_LIMIT).then((r) => {
+        settled = true;
+        return r;
+      });
+      await new Promise((r) => setTimeout(r, 500));
+      // The read saw it unanswered, the try failed, and the mark is waiting for the row.
+      expect(settled).toBe(false);
+      await other.query("commit");
+      expect((await last).status).toBe("failed");
+      expect(await t.message(messageId)).toMatchObject({ handled_as: "keyword", intent: "shifts" });
+      expect(await t.received(messageId)).toEqual([]);
+      expect(sent).toEqual([]);
+    } finally {
+      await other.query("rollback").catch(() => undefined);
+      other.release();
+    }
+  });
+
+  it("a STOP whose answer fails every try still turns texts off, with no confirmation sent", async () => {
+    const t = await lineFirm();
+    const { data, messageId } = await t.text("STOP");
+    const { deps, sent } = depsWith();
+    for (let n = 0; n < INBOUND_RETRY_LIMIT; n++)
+      expect((await attempt(deps, data, n, { run: failingFirstCall() })).status).toBe("failed");
+    expect(
+      await attempt(deps, data, INBOUND_RETRY_LIMIT, { run: failingFirstCall() }),
+    ).toMatchObject({ status: "failed", output: { code: "57P01" } });
+    expect(await t.message(messageId)).toMatchObject({ handled_as: "opt_out", worker_id: t.ann });
+    const { rows } = await su.query<{ off: Date | null }>(
+      "select sms_opted_out_at as off from workers where id = $1",
+      [t.ann],
+    );
+    expect(rows[0]?.off).toBeInstanceOf(Date);
+    expect(await t.received(messageId)).toEqual([
+      expect.objectContaining({
+        data: {
+          channel: "sms",
+          handledAs: "opt_out",
+          optOut: "stop",
+          changed: true,
+          answerFailed: "57P01",
+          workerId: t.ann,
+        },
+      }),
+    ]);
+    const { rows: optedOut } = await su.query(
+      "select 1 from events where firm_id = $1 and entity_id = $2 and action = 'worker.sms_opted_out'",
+      [t.f.firmId, t.ann],
+    );
+    expect(optedOut).toHaveLength(1);
+    // On Enquiries it reads as the STOP it was, not as a message waiting for a person.
+    const page = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, messageId, new Date()));
+    expect(page?.timeline.sorted).toEqual({ how: "opt_out" });
+    expect(await t.person()).not.toContain(messageId);
+    expect(sent).toEqual([]);
+  });
+
+  it("a number that isn't a casual's is passed to a person with nobody named", async () => {
+    const t = await lineFirm();
+    // Any drama-range number that isn't Ann's (the firm's only casual).
+    const stranger = t.mobile === "+447700900198" ? "+447700900197" : "+447700900198";
+    const { data, messageId } = await t.incoming("hi is this the security firm", stranger);
+    const { deps, sent } = depsWith();
+    expect(
+      (await attempt(deps, data, INBOUND_RETRY_LIMIT, { run: failingFirstCall() })).status,
+    ).toBe("failed");
+    expect(await t.message(messageId)).toMatchObject({
+      handled_as: "office",
+      intent: "office",
+      worker_id: null,
+    });
+    expect(await t.received(messageId)).toEqual([
+      {
+        actor_type: "system",
+        actor_id: null,
+        data: { channel: "whatsapp", handledAs: "office", intent: "office", answerFailed: "57P01" },
+      },
+    ]);
+    expect(await t.person()).toContain(messageId);
+    expect(sent).toEqual([]);
+  });
+
+  it("a former casual's message keeps their name on file", async () => {
+    const t = await lineFirm();
+    const { data, messageId } = await t.incoming("is there anything on saturday");
+    await su.query("update workers set status = 'inactive' where id = $1", [t.ann]);
+    const { deps } = depsWith();
+    await attempt(deps, data, INBOUND_RETRY_LIMIT, { run: failingFirstCall() });
+    expect(await t.message(messageId)).toMatchObject({ handled_as: "office", worker_id: t.ann });
+    expect(await t.received(messageId)).toEqual([
+      expect.objectContaining({
+        actor_type: "system",
+        data: expect.objectContaining({
+          workerId: t.ann,
+          formerWorker: true,
+          answerFailed: "57P01",
+        }),
+      }),
+    ]);
+    expect(await t.person()).toContain(messageId);
+  });
+
+  it("an older message that fails is passed on by its own last try, never by a later message's job", async () => {
+    const t = await lineFirm();
+    const first = await t.incoming("is there anything on saturday");
+    const second = await t.incoming("pay");
+    // The second's job answers the first before it (it fails: logged and left), then the second.
+    // Then the first's own last try fails again and passes it on.
+    const { deps, sent } = depsWith(scripted("throw", "ok", "throw"));
+    expect(await attempt(deps, second.data, 0)).toMatchObject({
+      status: "completed",
+      output: { status: "replied", intent: "pay" },
+    });
+    expect((await t.message(first.messageId))?.handled_at).toBeNull();
+    expect((await attempt(deps, first.data, INBOUND_RETRY_LIMIT)).status).toBe("failed");
+    expect(await t.message(first.messageId)).toMatchObject({ handled_as: "office" });
+    expect(await t.received(first.messageId)).toHaveLength(1);
+    expect(await t.received(second.messageId)).toHaveLength(1);
+    expect(sent).toHaveLength(1);
+    expect((await t.replies()).map((r) => r.reply_to)).toEqual([second.messageId]);
+  });
+
+  it("an error whose name isn't a plain code is logged and shown as unknown", async () => {
+    const t = await lineFirm();
+    const { data, messageId } = await t.incoming("is there anything on saturday");
+    const odd: Clock = {
       now() {
-        claimFirst = true;
-        throw new TypeError("a bug before the claim");
+        const e = new Error("odd");
+        e.name = "Not a <code> at all";
+        throw e;
       },
     };
-    const run: WithFirm = async (firmId, fn) => {
-      if (claimFirst) {
-        claimFirst = false;
-        await su.query(
-          `update messages set handled_at = now(), handled_as = 'keyword', intent = 'shifts'
-            where id = $1 and handled_at is null`,
-          [messageId],
-        );
-      }
-      return withFirm(firmId, fn);
-    };
-    const { deps, sent } = depsWith(racing);
-    expect(await attempt(deps, data, INBOUND_RETRY_LIMIT, run)).toMatchObject({
-      output: { status: "already" },
-    });
-    expect(await t.message(messageId)).toMatchObject({ handled_as: "keyword", intent: "shifts" });
-    expect(await t.received(messageId)).toEqual([]);
-    expect(sent).toEqual([]);
+    await attempt(depsWith(odd).deps, data, INBOUND_RETRY_LIMIT);
+    expect((await t.received(messageId))[0]?.data).toMatchObject({ answerFailed: "unknown" });
+  });
+
+  it("without the limit in the job (fetched without its metadata), the queue's own limit counts", async () => {
+    const t = await lineFirm();
+    const { data, messageId } = await t.incoming("is there anything on saturday");
+    const { deps } = depsWith(broken);
+    await attempt(deps, data, INBOUND_RETRY_LIMIT - 1, { withLimit: false });
+    expect((await t.message(messageId))?.handled_at).toBeNull();
+    await attempt(deps, data, INBOUND_RETRY_LIMIT, { withLimit: false });
+    expect(await t.message(messageId)).toMatchObject({ handled_as: "office" });
   });
 });
 
 describe("through a real pg-boss worker", () => {
+  // A queue of its own with the shifts line's own options, so no other test's jobs are touched.
+  const QUEUE = `inbound-last-try-${randomUUID().slice(0, 8)}`;
   let boss: PgBoss;
   beforeAll(async () => {
     boss = createBoss(urls.jobs);
     await boss.start();
-    await ensureQueues(
-      boss,
-      QUEUES.filter((q) => q.name === INBOUND_MESSAGE_QUEUE),
-    );
+    const spec = QUEUES.find((q) => q.name === INBOUND_MESSAGE_QUEUE);
+    await boss.createQueue(QUEUE, spec?.options);
   });
   afterAll(async () => {
-    await boss.stop({ graceful: false });
+    await boss.offWork(QUEUE);
+    await boss.deleteQueue(QUEUE);
+    await boss.stop({ graceful: true, timeout: 10_000 });
   });
 
   const until = async (check: () => Promise<boolean>, ms: number) => {
@@ -283,40 +453,40 @@ describe("through a real pg-boss worker", () => {
     return false;
   };
 
-  it("the queue's own retries, then the last try marks it once and leaves no failed job", async () => {
+  it("the queue's own retries, 2 seconds apart, then the last try passes it on and the job fails (the ops alert)", async () => {
     expect(QUEUES.find((q) => q.name === INBOUND_MESSAGE_QUEUE)?.options).toMatchObject({
       retryLimit: INBOUND_RETRY_LIMIT,
-      retryDelay: 5,
-      retryBackoff: true,
-      retryDelayMax: 60,
+      retryDelay: 2,
+      retryBackoff: false,
     });
     expect(INBOUND_WORK_OPTIONS).toMatchObject({ includeMetadata: true });
     const t = await lineFirm();
-    const { messageId } = await t.incoming("is there anything on saturday");
-    // No waiting between tries in a test: the queue's own waits are in queues.ts.
-    await su.query(
-      `update pgboss.job set retry_delay = 0, retry_backoff = false, retry_delay_max = null
-        where name = $1 and data ->> 'firmId' = $2`,
-      [INBOUND_MESSAGE_QUEUE, t.f.firmId],
-    );
-    const { deps } = depsWith(broken);
-    // Registered as the worker registers it (its own options), tried by pg-boss itself.
-    await registerInboundTask(
-      boss,
-      inboundMessageTask(() => deps),
-    );
-    try {
-      expect(await until(async () => (await t.received(messageId)).length > 0, 30_000)).toBe(true);
-    } finally {
-      await boss.offWork(INBOUND_MESSAGE_QUEUE);
-    }
+    const { data, messageId } = await t.incoming("is there anything on saturday");
+    const { deps, sent } = depsWith(broken);
+    // Registered as the worker registers it, on this test's queue.
+    await registerInboundTask(boss, { ...inboundMessageTask(() => deps), queue: QUEUE });
+    const startedAt = Date.now();
+    await boss.send(QUEUE, data);
+    expect(await until(async () => (await t.received(messageId)).length > 0, 30_000)).toBe(true);
+    // The last try within about 15 seconds of the first.
+    expect(Date.now() - startedAt).toBeLessThan(20_000);
     expect(await t.received(messageId)).toHaveLength(1);
-    // This message's job (the worker also takes what earlier test files left queued): tried
-    // 1 + INBOUND_RETRY_LIMIT times by pg-boss, then completed, not failed.
+    expect(sent).toEqual([]);
+    expect(
+      await until(async () => {
+        const { rows } = await su.query<{ state: string }>(
+          "select state from pgboss.job where name = $1",
+          [QUEUE],
+        );
+        return rows[0]?.state === "failed";
+      }, 10_000),
+    ).toBe(true);
     const { rows } = await su.query<{ state: string; retry_count: number }>(
-      "select state, retry_count from pgboss.job where name = $1 and data ->> 'messageId' = $2",
-      [INBOUND_MESSAGE_QUEUE, messageId],
+      "select state, retry_count from pgboss.job where name = $1",
+      [QUEUE],
     );
-    expect(rows).toEqual([{ state: "completed", retry_count: INBOUND_RETRY_LIMIT }]);
+    expect(rows).toEqual([{ state: "failed", retry_count: INBOUND_RETRY_LIMIT }]);
+    // What the ops alert counts.
+    expect(await failedJobCounts(boss)).toContainEqual({ queue: QUEUE, count: 1 });
   }, 45_000);
 });

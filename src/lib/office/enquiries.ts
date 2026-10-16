@@ -597,7 +597,7 @@ export async function loadEnquiry(
   const sorted: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
-      : answerFailed !== null
+      : answerFailed !== null && handledAs === "office"
         ? { how: "person", why: "answer_failed", code: answerFailed }
         : handledAs === "keyword" && intent
           ? intent === "office"

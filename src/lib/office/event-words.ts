@@ -377,8 +377,12 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       }
       const what = voicemail ? "A voicemail was left on" : `A ${kind} came to`;
       // The last try failed (13.2): passed to a person, with nothing sent.
-      if (typeof d.answerFailed === "string") {
-        const from = d.workerId ? `from ${who}` : "from a number that isn't one of your staff's";
+      if (typeof d.answerFailed === "string" && d.handledAs === "office") {
+        const from = !d.workerId
+          ? "from a number that isn't one of your staff's"
+          : d.formerWorker
+            ? "from someone who isn't active any more"
+            : `from ${worker}`;
         return `${voicemail ? "A voicemail" : `A ${kind}`} ${from} couldn't be answered automatically (${d.answerFailed}), so it's waiting for a person.`;
       }
       if (d.handledAs === "unknown") {

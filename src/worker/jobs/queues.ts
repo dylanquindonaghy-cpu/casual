@@ -150,17 +150,17 @@ export const QUEUES: readonly QueueSpec[] = [
     },
   },
   // The shifts line (13.2; src/lib/inbound/reply.ts): a reply that fails is tried again 3 times,
-  // 5 seconds later and doubling (pg-boss adds a random part), within about half a minute: a casual
-  // is waiting. The last try passes the message to a person (Need a person on Enquiries) and
-  // completes the job, so a message is never lost to a bug or an outage that outlasts the retries.
+  // 2 seconds apart (no backoff: pg-boss's doubling, with its random part, would make a waiting
+  // casual wait 35 to 70 seconds), so with the worker's polling the last try comes within about
+  // 15 seconds. The last try passes the message to a person (Need a person on Enquiries), then the
+  // job still fails: the failure is ours, and the ops alert for failed jobs reports it.
   {
     ...inboundMessage,
     options: {
       ...inboundMessage.options,
       retryLimit: INBOUND_RETRY_LIMIT,
-      retryDelay: 5,
-      retryBackoff: true,
-      retryDelayMax: 60,
+      retryDelay: 2,
+      retryBackoff: false,
     },
   },
   // The planner's webhooks (12J.2; src/lib/integrations/deliver.ts): a failed try is tried again

@@ -3099,7 +3099,7 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
     "I'm unwell" (DPA 2018 Schedule 1 paragraph 1) needs each firm to have one
     (`docs/compliance.md` "Health reasons"). Write a template for the firm's pack before a pilot;
     a solicitor checks it with the DPA.
-- Inbound messages (12L.1 guardrails review, 2026-10-15; **built in 13.2**): the shifts line's reply job has no
+- Inbound messages (12L.1 guardrails review, 2026-10-15; taken up by 13.2): the shifts line's reply job has no
   last-try step. A message whose job throws before its claim (a bug, or the database failing on
   every retry) is never marked handled. The casual gets no reply, and it never reaches Need a
   person. Add a last try that marks it for a person and logs why, like the planner webhooks' last
@@ -3127,6 +3127,17 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io
   and TravelTime" checks them against a live answer. The first audit took that step as covering
   it.
+- Messages stranded (13.2 guardrails review, 2026-10-16; small, rare): the last try passes a
+  failing message to a person, but two cases still leave one unhandled and out of Need a person: a
+  worker killed in the middle of a message's last try (pg-boss counts a try when it's taken, so the
+  supervisor fails it for good and the mark never runs), and messages whose jobs failed before 13.2.
+  Each is a failed job, so the ops alert reports it. To close it: Need a person (and its badge) also
+  counts an inbound message still unhandled some minutes after it arrived, or a sweep marks them.
+- **Needs Dylan:** an answer on the shifts line's last try (13.2 guardrails review, 2026-10-16). When
+  a message is passed to a person after every try failed, the casual gets nothing until the office
+  replies. Should the last try also send the fixed "the office will get back to you" reply (the
+  same words as a question for the office, built by code, claim / send / record), so every message
+  gets an answer (golden rule 11)? The cost: if what failed was the sending, it fails again.
 - The shell-tick watch is after the fact (13.1 audit round 3, 2026-10-16; small, nothing lost):
   `plan-bash-check.sh` reports a task ticked from the shell once the command has run, and only then
   refuses `git commit` and `git push`. A single command that both ticks `PLAN.md` and commits

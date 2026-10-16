@@ -3055,6 +3055,15 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   Enquiries row's 139-character preview (display only) and `src/lib/portal/review.ts`'s 300-unit
   reasons (safe today: its only non-ASCII text ends long before the cut). Optional: show the date
   in the action log's sentence for today's cancellations CSV (it's logged, not shown).
+- Security warnings (2026-10-16): GitHub's warnings were fixed by `next` 16.3.8, `sharp`
+  0.35.5, `source-map-js` 1.2.2 and two `overrides` in `package.json` (`drizzle-kit`'s old
+  `esbuild` to 0.25.12, `exceljs`'s `uuid` to 11.1.1). One is left: `braces` (a slowdown on deeply
+  nested glob patterns), reached only through `eslint-config-next` → `@next/eslint-plugin-next` →
+  `fast-glob` 3.3.1. No fixed `braces` exists (3.0.3 is the latest and is affected), and even
+  `@next/eslint-plugin-next` 16.4.2 still pins `fast-glob` 3.3.1. It runs only in `npm run lint`,
+  on our own patterns. Recheck when either releases a fix. Related, not urgent: the image copies
+  every dependency, development tools included (the worker runs TypeScript with `tsx`); a
+  production-only install would leave out tools like the linter.
 - Travel estimates, a second audit (12G.2, 2026-10-15). 12G.2 was audited DONE on 2026-10-09. A
   later re-audit found three paths no test reached; 12L.1 tests all three. It also asks **Dylan to accept** that hand-written TravelTime answers
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io

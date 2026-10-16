@@ -39,8 +39,11 @@ RUN mkdir -p /app/.next/cache && chown -R node:node /app/.next/cache
 # native image library, installed by npm ci for this platform. Load it here, so an image without it
 # fails to build instead of failing the first casual who uploads a photo.
 RUN node -e "require('sharp')"
-# The worker and migrate start with tsx (deploy/docker-compose.yml): an image without it fails here.
-RUN node --import tsx -e "" && test ! -e node_modules/vitest && test ! -e node_modules/eslint
+# The worker and migrate start with tsx (deploy/docker-compose.yml): it compiles a real TypeScript
+# file here (which needs esbuild's native binary too), so an image without it fails to build. And
+# no test tool or linter is left.
+RUN node --import tsx --input-type=module -e "await import('./src/lib/text/cut.ts')" \
+ && test ! -e node_modules/vitest && test ! -e node_modules/eslint
 # Never root.
 USER node
 EXPOSE 3000

@@ -3141,6 +3141,20 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   every retry) is never marked handled. The casual gets no reply, and it never reaches Need a
   person. Add a last try that marks it for a person and logs why, like the planner webhooks' last
   try (12J.2). Found when a day word crashed the reply (fixed in 12L.1).
+- 13.5 guardrails review, small and left for later:
+  - The office log's "Logins" filter also holds the casuals' own limits (`auth.rate_limited` for
+    `take:worker` and `push:worker`; `src/lib/office/log-types.ts`): their words are right, the
+    filter isn't. Group by the limit's name.
+  - A backstop for the higher per-address login limit (60 per 15 minutes since 13.5): an ops alert,
+    or a firm-wide daily ceiling, on login-link messages.
+  - The shifts reply's last resort (`lastResort`, `src/lib/inbound/personal-reply.ts`) sends the
+    unsigned text when even the signed link is too long (golden rule 8). It can't happen with real
+    names; signing a shorter cut would be cleaner.
+  - Automatic event names cut the site's name by code point, to match Postgres's `left()` in the
+    same name built in SQL (`src/lib/roster/shift-events.ts`): a flag at the cut can lose half.
+    Changing it needs both sides changed together.
+  - A warning claimed before 13.5 and caught up after logs the worker's channel now, not the
+    WhatsApp it was sent by (one deploy's window; the entry is marked unconfirmed).
 - ~~Text cuts that count UTF-16 units~~ **Done in 13.5**: one shared cut, `src/lib/text/cut.ts`
   (`cutChars` for the database's character count, `cutUnits` for UTF-16 limits), cutting only
   between whole characters; used at both webhooks, the voicemail, the AI's input, the Enquiries

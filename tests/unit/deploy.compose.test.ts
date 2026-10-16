@@ -354,25 +354,29 @@ describe("the image (Dockerfile)", () => {
       expect(pkg.devDependencies[tool], tool).toBeDefined();
       expect(pkg.dependencies[tool], tool).toBeUndefined();
     }
-    expect(runtime).toMatch(
-      /^RUN node --import tsx -e "" && test ! -e node_modules\/vitest && test ! -e node_modules\/eslint$/m,
+    // It compiles a real TypeScript file (esbuild's native binary included), not just loads tsx.
+    expect(runtime).toContain(
+      `RUN node --import tsx --input-type=module -e "await import('./src/lib/text/cut.ts')" \\\n && test ! -e node_modules/vitest && test ! -e node_modules/eslint`,
     );
     expect(runtime.indexOf("--import tsx")).toBeLessThan(runtime.indexOf("USER node"));
     const compose = read("deploy/docker-compose.yml");
     expect(compose).toContain('["node", "--import", "tsx", "src/worker/index.ts"]');
-    // Nothing the image runs imports a dev tool: the app (src/), migrate and the owner's commands
-    // (scripts/firm-*.ts, import.ts, logs-scan.ts, ops-test-alert.ts). The dev-only scripts (the
-    // seed, the fake phone, db-reset, the walkthrough's files) may.
-    const runs = [
-      ...listFiles("src"),
-      ...readdirSync(join(ROOT, "scripts"))
-        .filter((f) => /^(firm-.*|migrate|import|logs-scan|ops-test-alert)\.ts$/.test(f))
-        .map((f) => join("scripts", f)),
-    ].filter((f) => /\.(ts|tsx|mjs)$/.test(f));
+    // Nothing the image runs imports a dev tool: the app (src/), migrate, the owner's commands and
+    // the helpers they import (every TypeScript script but the development-only ones: the seed, the
+    // fake phone, db-reset, the walkthrough's files). Any form: from, import(), a bare import,
+    // require().
+    const devOnly = /^(db-reset|fake-phone|seed|seed-summary|sim|walkthrough-files)\.ts$/;
+    const scripts = readdirSync(join(ROOT, "scripts")).filter(
+      (f) => f.endsWith(".ts") && !devOnly.test(f),
+    );
+    expect(scripts).toEqual(expect.arrayContaining(["migrate.ts", "shifts-line-owner.ts"]));
+    const runs = [...listFiles("src"), ...scripts.map((f) => join("scripts", f))].filter((f) =>
+      /\.(ts|tsx|mjs)$/.test(f),
+    );
     expect(runs.length).toBeGreaterThan(300);
     const dev = Object.keys(pkg.devDependencies);
     const uses = runs.flatMap((f) =>
-      [...read(f).matchAll(/(?:from|import\()\s*"([^"]+)"/g)]
+      [...read(f).matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\(\s*)"([^"]+)"/g)]
         .map((m) => m[1] ?? "")
         .filter((spec) => dev.some((d) => spec === d || spec.startsWith(`${d}/`)))
         .map((spec) => `${f}: ${spec}`),

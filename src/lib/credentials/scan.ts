@@ -30,6 +30,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { addDays, localDateOf } from "../time/zoned";
 import { EXPIRING_SOON_DAYS, expiryAction, isWeeklyListDay } from "./expiry";
+import { cutUnits } from "../text/cut";
 
 // The credential expiry jobs (docs/api-and-jobs.md, docs/rules-and-credentials.md "Expiry
 // warnings"):
@@ -38,8 +39,8 @@ import { EXPIRING_SOON_DAYS, expiryAction, isWeeklyListDay } from "./expiry";
 // - credential-scan: one firm's scan for the date in its payload. It warns active workers at 30,
 //   14 and 7 days (expiry.ts decides) and marks credentials expired the day after their expiry
 //   date, telling the worker: by the channel they chose, with the normal WhatsApp-to-text fallback
-//   and never a text after STOP (sendToWorker, 13.5; before, WhatsApp only). Then, on Mondays, it emails active admins and resourcers
-//   the week's list. Every change writes an event.
+//   and never a text after STOP (sendToWorker, 13.5; before, WhatsApp only). Then, on Mondays, it
+//   emails active admins and resourcers the week's list. Every change writes an event.
 //
 // At most once, like the notices (claim → send → record; no claim or outcome transaction is held
 // across a message: the firm's scan lock is held by one that writes nothing, oneScanAtATime). Per
@@ -435,7 +436,6 @@ async function warnAndExpire(
   today: string,
   deps: CredentialScanDeps,
 ): Promise<{ warned: number; expired: number; failed: number }> {
-  const { transport } = deps;
   const inFirm = <T>(fn: (tx: FirmTx) => Promise<T>) => run(firmId, fn);
   // Every credential the planner could act on today (read only: each is locked when claimed).
   const { voice, due } = await inFirm(async (tx) => ({
@@ -469,16 +469,13 @@ async function warnAndExpire(
 
     // (2) The message, outside any transaction: by the channel they chose, with the fallback.
     const m = claim.message;
-    const sent = await sendToWorker(
-      { transport },
-      {
-        mobile: m.mobile,
-        channel: m.channel,
-        smsAllowed: m.smsAllowed,
-        body: { whatsapp: m.text, sms: m.text },
-        from: m.from,
-      },
-    );
+    const sent = await sendToWorker(deps, {
+      mobile: m.mobile,
+      channel: m.channel,
+      smsAllowed: m.smsAllowed,
+      body: { whatsapp: m.text, sms: m.text },
+      from: m.from,
+    });
 
     // (3) The outcome, logged once (a rerun may have caught it up already, as unconfirmed).
     const ok = sent.ok;
@@ -580,7 +577,7 @@ async function claimWeeklyList(
     .orderBy(asc(credentials.expiresOn), asc(workers.lastName), asc(workers.firstName));
 
   const entry = (r: (typeof rows)[number]) => ({
-    person: `${r.firstName} ${r.lastName}`.slice(0, MAX_NAME_LENGTH),
+    person: cutUnits(`${r.firstName} ${r.lastName}`, MAX_NAME_LENGTH),
     credential: r.typeName ?? displayCode(r.type),
     date: shortDate(r.expiresOn ?? "", year),
   });

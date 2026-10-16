@@ -98,6 +98,25 @@ export async function setFirmSetting(slug: string, key: string, value: unknown):
   }
 }
 
+// Clears a seeded firm's per-worker push limit counts (13.3) in the e2e database (never the dev
+// one), so a retried test starts from nothing saved, as the first try did. Returns how many it
+// cleared.
+export async function clearPushLimit(slug: string): Promise<number> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    return await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      const { rowCount } = await tx.execute(
+        sql`delete from auth_throttle where bucket like 'push:worker:%'`,
+      );
+      return rowCount ?? 0;
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
 // An open shift for a seeded firm ("acme" or "northline"), starting `daysAhead` days from now.
 export async function addOpenShift(
   slug: string,

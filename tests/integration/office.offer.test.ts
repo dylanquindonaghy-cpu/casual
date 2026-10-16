@@ -13,7 +13,7 @@ import {
 import { runOfferWave, startOfferWaves, type OfferDeps } from "@/lib/offers/waves";
 import { officeOfferPage } from "@/lib/office/offer-page";
 import { offerTo } from "@/lib/office/quick-actions";
-import type { PushTransport } from "@/lib/push/transport";
+import type { PushPayload, PushTransport } from "@/lib/push/transport";
 import { registerJobs } from "@/worker/jobs";
 import { QUEUES } from "@/worker/jobs/queues";
 import { bookingFirm, hoursFromNow, NOW } from "../helpers/booking-fixture";
@@ -52,7 +52,7 @@ async function offerFirm(settings: Record<string, unknown> = {}) {
     await su.query<{ slug: string }>("select slug from firms where id = $1", [f.firmId])
   ).rows[0]?.slug;
   const sent: OutboundMessage[] = [];
-  const pushed: { title: string; body: string; url: string }[] = [];
+  const pushed: PushPayload[] = [];
   const state = { refuseWhatsApp: false, fail: false };
   const deps = (when = NOW): OfferDeps => ({
     transport: {
@@ -221,6 +221,8 @@ describe("queueing the offer", () => {
         title: "Shift available",
         body: "Tue 3 Nov 15:00. Tap to take it.",
         url: `/shifts/${t.shiftId}`,
+        // Not delivered once the shift has started (13.3).
+        until: hoursFromNow(30),
       },
     ]);
     expect((await t.offersOf())[0]).toMatchObject({ channel: "sms" });

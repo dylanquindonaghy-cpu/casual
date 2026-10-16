@@ -161,6 +161,10 @@ describe("push subscriptions", () => {
       "https://fcm.googleapis.com/fcm/../send/x",
       "https://user@fcm.googleapis.com/fcm/send/x",
       "https://api.push.apple.com/x", // Apple's web push host is web.push.apple.com
+      // A host over DNS's length (round 2): the older parser blanks it, and Node would connect
+      // to localhost.
+      `https://${"a".repeat(237)}.notify.windows.com/x`,
+      `https://${"a".repeat(64)}.notify.windows.com/x`,
     ])
       expect(bad({ endpoint }), endpoint).toBe(false);
     // Keys web push can use: a 65-byte P-256 point and a 16-byte secret.
@@ -244,12 +248,23 @@ describe("pushing to a worker's phones (13.3)", () => {
        values ($1, $2, 'https://attacker.example%2Epush.apple.com/x', $3, $4)`,
       [f.firmId, sam, PHONE_KEY, PHONE_AUTH],
     );
-    // The real sender, with a stand-in for the push services (nothing leaves the test).
+    // The real sender, with a stand-in for the push services (nothing leaves the test). Each
+    // stand-in waits until all four phones' pushes have started: pushed one after another, the
+    // first would wait in vain (then go on, noting it).
     const called: string[] = [];
+    let waitedInVain = false;
+    let started = 0;
+    let allStarted: () => void = () => undefined;
+    const everyoneStarted = new Promise<void>((r) => (allStarted = r));
     const send: WebPushSend = async (subscription) => {
       const phone = subscription.endpoint.split("/").pop() ?? "";
       called.push(phone);
-      await new Promise((r) => setTimeout(r, 200));
+      if (++started === 4) allStarted();
+      const met = await Promise.race([
+        everyoneStarted.then(() => true),
+        new Promise<boolean>((r) => setTimeout(() => r(false), 1_000)),
+      ]);
+      if (!met) waitedInVain = true;
       if (phone === "phone-down")
         throw new webpush.WebPushError("refused", 500, {}, "", subscription.endpoint);
       if (phone === "phone-gone")
@@ -266,12 +281,11 @@ describe("pushing to a worker's phones (13.3)", () => {
       { send },
     );
     const kept = keptLog();
-    const started = Date.now();
     const pushes = await withFirm(f.firmId, (tx) =>
       pushToWorker(tx, { push, logger: kept.logger }, sam, { title: "t", body: "b", url: "/" }),
     );
-    // Four phones at 200 ms each, at once.
-    expect(Date.now() - started).toBeLessThan(700);
+    // All four were under way at once.
+    expect(waitedInVain).toBe(false);
     expect(pushes).toBe(2);
     // The made-up host was never contacted.
     expect(called.sort()).toEqual(["phone-down", "phone-gone", "phone-ok", "phone-slow"]);

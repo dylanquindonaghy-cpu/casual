@@ -20,7 +20,7 @@ const PUSH_HOSTS = [
   /^fcm\.googleapis\.com$/,
   /^web\.push\.apple\.com$/,
   /^updates\.push\.services\.mozilla\.com$/,
-  /^[a-z0-9-]+\.notify\.windows\.com$/,
+  /^[a-z0-9-]{1,63}\.notify\.windows\.com$/,
 ];
 export const MAX_PHONES_PER_WORKER = 10;
 
@@ -29,15 +29,26 @@ export const MAX_PHONES_PER_WORKER = 10;
 // a URL parser would rewrite. Two parsers must read the same host: this one (WHATWG) and the older
 // one web-push connects with, which ends a host at a "%" where this one decodes it: with
 // "https://attacker.example%2Epush.apple.com/x" the check saw Apple and web-push would have
-// connected to attacker.example. Checked when a subscription is saved and again before each push.
+// connected to attacker.example. The host also keeps to DNS's lengths (withinDnsLengths): the
+// older parser blanks a longer one, and Node would then connect to localhost (13.3 guardrails round
+// 2; the push services' own hosts are all short, so this guards the list if it ever grows). Checked
+// when a subscription is saved and again before each push.
 export function isPushServiceUrl(raw: string): boolean {
   if (!/^https:\/\/[a-z0-9.-]+\//.test(raw)) return false;
   try {
     const url = new URL(raw);
-    return url.href === raw && PUSH_HOSTS.some((h) => h.test(url.hostname));
+    const host = url.hostname;
+    return url.href === raw && withinDnsLengths(host) && PUSH_HOSTS.some((h) => h.test(host));
   } catch {
     return false;
   }
+}
+
+// A host name DNS allows: 253 characters at most, each dot-separated part 1 to 63.
+export function withinDnsLengths(host: string): boolean {
+  return (
+    host.length <= 253 && host.split(".").every((part) => part.length >= 1 && part.length <= 63)
+  );
 }
 
 // A phone's keys as web push needs them: the public key a 65-byte uncompressed P-256 point, the

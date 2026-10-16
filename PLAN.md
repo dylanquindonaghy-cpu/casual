@@ -2459,7 +2459,8 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   browser's own form is never contacted), the worker's settings in the compose file, the rate limit
   on `POST /api/push/subscribe`, and the compliance and privacy wording. One is left:
   0. **Claude, before step 2:** push outside the record's transaction (the Parking lot item "Pushes
-     inside the record's transaction" below).
+     inside the record's transaction" below). Until then the worker refuses `PUSH_TRANSPORT=webpush`
+     in production; that build round lifts it.
   The rest is yours, on the server. The worker sends the pushes, and in production it only runs once
   Twilio is connected (`COMPOSE_PROFILES=worker`: docs/runbooks.md), so do these after "Connect
   Twilio":

@@ -120,7 +120,6 @@ const appFields = {
   ),
 };
 
-// Tests never reach postcodes.io or TravelTime.
 // The VAPID public key is the private key's P-256 point: work it out and compare.
 function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
   try {
@@ -132,6 +131,7 @@ function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
   }
 }
 
+// Tests never reach postcodes.io or TravelTime.
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
   e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
 const noRealTravelInTestsMessage = {
@@ -199,10 +199,12 @@ export const workerEnvSchema = z
     // Web push. "console" prints what would be pushed (development and tests); "none" pushes
     // nothing; "webpush" sends through the browser makers' push services (src/lib/push/
     // transport.ts), signed with the deployment's VAPID keys: refused under NODE_ENV=test, so no
-    // test reaches a push service. Production keeps "none" until the keys are set (PLAN.md Parking
-    // lot, "Connect the real web push").
+    // test reaches a push service, and in production until the push goes outside the record's
+    // transaction (PLAN.md Parking lot, "Connect the real web push" step 0). Production keeps
+    // "none" until then.
     PUSH_TRANSPORT: z.enum(["console", "none", "webpush"]).default("console"),
-    // The private half of the VAPID key pair (npx web-push generate-vapid-keys), for
+    // The private half of the VAPID key pair (made with the image's own web-push: PLAN.md
+    // Parking lot, "Connect the real web push"), for
     // PUSH_TRANSPORT=webpush. A secret: worker only, never logged, never in the repo. An empty
     // value (as the env examples ship it) means not set.
     VAPID_PRIVATE_KEY: unsetIfEmpty(
@@ -294,6 +296,14 @@ export const workerEnvSchema = z
   .refine((e) => e.NODE_ENV !== "test" || e.PUSH_TRANSPORT !== "webpush", {
     path: ["PUSH_TRANSPORT"],
     message: "tests never reach a push service: webpush is refused when NODE_ENV=test",
+  })
+  // Not in production until the push goes outside the record's transaction (PLAN.md Parking lot,
+  // "Connect the real web push" step 0): a slow push service would hold the worker's database
+  // connections meanwhile. That build round lifts this.
+  .refine((e) => e.NODE_ENV !== "production" || e.PUSH_TRANSPORT !== "webpush", {
+    path: ["PUSH_TRANSPORT"],
+    message:
+      'webpush waits on one more build step before production (PLAN.md, "Connect the real web push" step 0)',
   })
   .refine(
     (e) =>

@@ -86,6 +86,10 @@ let server: Server;
 let port = 0;
 const received: Received[] = [];
 const drips: NodeJS.Timeout[] = [];
+// When each trickling answer's connection closed (the sender's deadline should close it).
+const dripsClosedAt: number[] = [];
+// The host and TLS name each connection was made for, as web-push worked them out.
+const aimedAt: { host: string | undefined; servername: string | undefined }[] = [];
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "fake-push-"));
@@ -110,7 +114,10 @@ beforeAll(async () => {
         res.writeHead(201);
         const drip = setInterval(() => res.write(" "), 100);
         drips.push(drip);
-        res.on("close", () => clearInterval(drip));
+        res.on("close", () => {
+          clearInterval(drip);
+          dripsClosedAt.push(Date.now());
+        });
         return;
       }
       const statuses: Record<string, number> = {
@@ -133,19 +140,24 @@ afterAll(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-// Every connection the sender makes goes to the fake service, checked against its certificate.
+// Every connection the sender makes goes to the fake service, checked against its certificate,
+// and the host web-push meant to reach is kept (it must be the push service's own).
 class ToFakePushService extends Agent {
   override createConnection(
-    _options: RequestOptions,
+    options: RequestOptions & { servername?: string },
     callback?: (err: Error | null, stream: Duplex) => void,
   ): Duplex {
+    aimedAt.push({ host: options.host ?? undefined, servername: options.servername });
     const socket = connect({ host: "127.0.0.1", port, ca: cert, servername: "fcm.googleapis.com" });
     if (callback) socket.once("secureConnect", () => callback(null, socket));
     return socket;
   }
 }
 const sender = (o: { timeoutMs?: number; send?: WebPushSend } = {}) =>
-  createWebPushTransport(keys, { agent: new ToFakePushService({ keepAlive: false }), ...o });
+  createWebPushTransport(keys, {
+    agentFor: () => new ToFakePushService({ keepAlive: false }),
+    ...o,
+  });
 
 // The VAPID signature as a push service checks it: an ES256 JWT, verified with the key it names.
 function vapidOf(r: Received | undefined, publicKey = keys.publicKey) {
@@ -180,9 +192,14 @@ const lastTo = (path: string) => received.filter((r) => r.path === path).at(-1);
 describe("the web push sender (PUSH_TRANSPORT=webpush) against a fake push service", () => {
   it("posts the push to the phone's push service, signed with our keys, readable by that phone only", async () => {
     const p = phone("ok");
+    const before = aimedAt.length;
     expect(await sender().send(p.target, payload)).toEqual({ status: "sent" });
     const r = lastTo("/fcm/send/ok");
     expect(r).toBeDefined();
+    // web-push aimed at the push service named in the address, nowhere else.
+    expect(aimedAt.slice(before)).toEqual([
+      { host: "fcm.googleapis.com", servername: "fcm.googleapis.com" },
+    ]);
     // Signed with our VAPID key, for this push service, for a day at most (what the service checks).
     const v = vapidOf(r);
     expect(v.k).toBe(keys.publicKey);
@@ -222,14 +239,21 @@ describe("the web push sender (PUSH_TRANSPORT=webpush) against a fake push servi
     });
   });
 
-  it("a push service that never finishes is cut off at the deadline, even while it trickles", async () => {
+  it("a push service that never finishes is cut off at the deadline, connection closed, even while it trickles", async () => {
     const started = Date.now();
+    const closedBefore = dripsClosedAt.length;
     expect(await sender({ timeoutMs: 500 }).send(phone("drip").target, payload)).toEqual({
       status: "failed",
       code: "timeout",
     });
-    expect(Date.now() - started).toBeLessThan(2_000);
+    const gaveUp = Date.now();
+    expect(gaveUp - started).toBeLessThan(2_000);
     expect(lastTo("/fcm/send/drip")).toBeDefined();
+    // The sender closed its connection: the fake service sees it go within a moment.
+    for (let n = 0; n < 20 && dripsClosedAt.length === closedBefore; n++)
+      await new Promise((r) => setTimeout(r, 50));
+    expect(dripsClosedAt.length).toBe(closedBefore + 1);
+    expect((dripsClosedAt.at(-1) ?? Infinity) - gaveUp).toBeLessThan(1_000);
     expect(PUSH_TIMEOUT_MS).toBe(5_000);
   });
 
@@ -245,6 +269,8 @@ describe("the web push sender (PUSH_TRANSPORT=webpush) against a fake push servi
       "https://attacker.example%2Epush.apple.com/x",
       "https://evil.example/x",
       "https://FCM.googleapis.com/fcm/send/ok",
+      // A host over DNS's length: the older parser blanks it, and Node would go to localhost.
+      `https://${"a".repeat(237)}.notify.windows.com/x`,
     ]) {
       const target = { ...phone("ok").target, endpoint };
       expect(await sender().send(target, payload), endpoint).toEqual({ status: "refused" });
@@ -322,6 +348,10 @@ describe("the settings for web push", () => {
     expect(() => parseWorkerEnv({ ...worker, ...all, NODE_ENV: "test" })).toThrow(
       /tests never reach a push service/,
     );
+    // Nor production yet: the push must first go outside the record's transaction.
+    const production = () =>
+      parseWorkerEnv({ ...worker, ...all, NODE_ENV: "production", PUSH_TRANSPORT: "webpush" });
+    expect(production).toThrow(/webpush waits on one more build step/);
     // The test setup itself keeps it off (tests/setup/env.ts).
     expect(process.env.PUSH_TRANSPORT).toBe("console");
     expect(process.env.VAPID_PRIVATE_KEY).toBe("");

@@ -7,6 +7,7 @@ import { parseWorkerEnv } from "@/lib/env";
 import { stopOfflineCopy } from "@/lib/portal/offline";
 import { urgentPush } from "@/lib/messaging/templates";
 import { keyBytes, pushSettingState } from "@/lib/portal/push-state";
+import { isPushServiceUrl, withinDnsLengths } from "@/lib/push/subscriptions";
 import {
   createConsolePushTransport,
   getPushTransport,
@@ -170,6 +171,28 @@ describe("which push sender (PUSH_TRANSPORT)", () => {
     ).toThrow();
     const production = parseWorkerEnv.bind(null, { ...worker, NODE_ENV: "production" });
     expect(production).toThrow(/PUSH_TRANSPORT/);
+  });
+});
+
+describe("a push address's host keeps to DNS's lengths (13.3)", () => {
+  const part = (n: number) => "a".repeat(n);
+  it("each part 1 to 63 characters, the whole 253 at most", () => {
+    expect(withinDnsLengths("fcm.googleapis.com")).toBe(true);
+    expect(withinDnsLengths(`${part(63)}.notify.windows.com`)).toBe(true);
+    expect(withinDnsLengths(`${part(64)}.notify.windows.com`)).toBe(false);
+    expect(withinDnsLengths("fcm..googleapis.com")).toBe(false);
+    expect(withinDnsLengths(".fcm.googleapis.com")).toBe(false);
+    // 4 parts of 63 and the dots between them: 255 characters, over the 253.
+    const long = [part(63), part(63), part(63), part(63)].join(".");
+    expect(long).toHaveLength(255);
+    expect(withinDnsLengths(long)).toBe(false);
+    const most = [part(63), part(63), part(63), part(61)].join(".");
+    expect(most).toHaveLength(253);
+    expect(withinDnsLengths(most)).toBe(true);
+  });
+  it("the address check refuses a part over 63 characters", () => {
+    expect(isPushServiceUrl(`https://${part(63)}.notify.windows.com/x`)).toBe(true);
+    expect(isPushServiceUrl(`https://${part(64)}.notify.windows.com/x`)).toBe(false);
   });
 });
 

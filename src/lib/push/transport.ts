@@ -1,4 +1,4 @@
-import type { Agent } from "node:https";
+import { Agent } from "node:https";
 import webpush from "web-push";
 import { isPushServiceUrl, type PushTarget } from "./subscriptions";
 
@@ -90,9 +90,10 @@ export type WebPushSend = (
 export interface WebPushOptions {
   send?: WebPushSend;
   timeoutMs?: number;
-  // Where the connection goes: the default; a test points it at a fake push service on this
-  // machine, so nothing ever leaves a test (tests/unit/push.webpush.test.ts).
-  agent?: Agent;
+  // Each push's own connection pool (a fresh one per push, closed at the deadline). The default
+  // connects where the address says; a test's points at a fake push service on this machine, so
+  // nothing ever leaves a test (tests/unit/push.webpush.test.ts).
+  agentFor?: () => Agent;
 }
 
 export function createWebPushTransport(keys: VapidKeys, opts: WebPushOptions = {}): PushTransport {
@@ -112,6 +113,9 @@ export function createWebPushTransport(keys: VapidKeys, opts: WebPushOptions = {
               Math.min(PUSH_TTL_SECONDS, Math.floor((payload.until.getTime() - Date.now()) / 1000)),
             );
       let timer: ReturnType<typeof setTimeout> | undefined;
+      // The deadline closes the push's own connection too: web-push's time-out only counts
+      // silence, so a push service that trickles would otherwise keep it open.
+      const agent = opts.agentFor ? opts.agentFor() : new Agent({ keepAlive: false });
       try {
         await Promise.race([
           send(
@@ -122,11 +126,14 @@ export function createWebPushTransport(keys: VapidKeys, opts: WebPushOptions = {
               TTL: ttl,
               urgency: payload.urgent ? "high" : "normal",
               timeout: timeoutMs,
-              ...(opts.agent ? { agent: opts.agent } : {}),
+              agent,
             },
           ),
           new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error("Socket timeout")), timeoutMs);
+            timer = setTimeout(() => {
+              agent.destroy();
+              reject(new Error("Socket timeout"));
+            }, timeoutMs);
           }),
         ]);
         return { status: "sent" };

@@ -129,7 +129,7 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     category: "utility",
     language: "en_GB",
     variables: ["day", "start", "end", "site", "link", "signOff"],
-    body: "Reminder: {{1}} {{2}}–{{3}} at {{4}}. Details: {{5}}. Can't make it? Cancel in the app as early as you can. — {{6}}",
+    body: "Reminder: {{1}} {{2}}–{{3}} at {{4}}. Details: {{5}}. Can't make it? Cancel with the link as early as you can. — {{6}}",
     example: {
       day: "tomorrow",
       start: "08:00",
@@ -145,7 +145,7 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     category: "utility",
     language: "en_GB",
     variables: ["day", "start", "end", "link", "signOff"],
-    body: "Reminder: {{1}} {{2}}–{{3}}. Details: {{4}}. Can't make it? Cancel in the app as early as you can. — {{5}}",
+    body: "Reminder: {{1}} {{2}}–{{3}}. Details: {{4}}. Can't make it? Cancel with the link as early as you can. — {{5}}",
     example: { day: "tomorrow", start: "08:00", end: "16:00", link: LINK, signOff: SIGN_OFF },
   },
   {

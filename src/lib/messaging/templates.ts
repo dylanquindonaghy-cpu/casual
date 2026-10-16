@@ -444,7 +444,7 @@ export function shiftReminder24hMessage(
   shift: { site: string | null; day: string; start: string; end: string; link: string },
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
-  return `Reminder: ${shift.day} ${shift.start}–${shift.end}${at}. Details: ${shift.link}. Can't make it? Cancel in the app as early as you can. — ${firm.signOff}`;
+  return `Reminder: ${shift.day} ${shift.start}–${shift.end}${at}. Details: ${shift.link}. Can't make it? Cancel with the link as early as you can. — ${firm.signOff}`;
 }
 
 // shift_reminder_2h (WhatsApp or SMS, utility): 2 hours before a booked shift.

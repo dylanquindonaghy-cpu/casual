@@ -393,9 +393,9 @@ at once and make a new one for their planner.)
 
 ## Workers at one venue can't get login links
 
-Everyone on the same Wi-Fi (or mobile carrier NAT) shares one IP, and the login limit is 10 link
-requests per IP per 15 minutes per firm. At a briefing, ask people to switch Wi-Fi off and use
-mobile data, or wait for the window to pass. Workers who already logged in stay logged in for
+Everyone on the same Wi-Fi (or mobile carrier NAT) shares one IP, and the login limit is 60 link
+requests per IP per 15 minutes per firm (13.5; enough for a briefing of about 50). For a bigger
+briefing, ask people to switch Wi-Fi off and use mobile data, or wait for the window to pass. Workers who already logged in stay logged in for
 30 days, and using a link that works never counts. If it keeps happening, raise
 `LIMITS.loginPerIp` in `src/lib/auth/throttle.ts`.
 

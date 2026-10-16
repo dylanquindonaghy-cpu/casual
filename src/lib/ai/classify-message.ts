@@ -2,6 +2,7 @@ import { MESSAGE_INTENTS } from "../db/schema/messages";
 import type { Intent } from "../inbound/keywords";
 import { AI_TIMEOUT_MS, askAi } from "./ask";
 import type { AiClient } from "./client";
+import { cutChars } from "../text/cut";
 
 // Sorting a worker's message on the shifts line when no keyword matched (docs/messaging-templates.md
 // "Instant replies": "anything else → Haiku classifies"). The AI sees the worker's text only and
@@ -35,7 +36,7 @@ export async function sortMessage(
   if (ai.name === "none") return { label: null, why: "not_connected" };
   const raw = await askAi(
     ai,
-    { purpose: "classify_message", system: SYSTEM, prompt: text.slice(0, 1600), maxTokens: 5 },
+    { purpose: "classify_message", system: SYSTEM, prompt: cutChars(text, 1600), maxTokens: 5 },
     opts.timeoutMs ?? AI_TIMEOUT_MS,
   );
   if (typeof raw !== "string") return { label: null, why: "no_answer" };

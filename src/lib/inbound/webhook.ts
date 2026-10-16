@@ -3,6 +3,7 @@ import type { ResolveFirmByLine } from "../db/directory";
 import { log, type Logger } from "../log";
 import type { InboundSms, InboundWhatsApp } from "./receive";
 import { plainResponse as plain, readTwilioRequest } from "./twilio-request";
+import { cutChars } from "../text/cut";
 
 export { MAX_WEBHOOK_BYTES } from "./twilio-request";
 
@@ -24,6 +25,7 @@ export interface WhatsAppWebhookDeps {
   logger?: Logger;
 }
 
+// At most 1,600 characters stored (the messages_body_length check), cut between characters.
 const MAX_BODY_CHARS = 1600;
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
@@ -67,7 +69,7 @@ export async function handleTwilioWhatsApp(
     logger.warn("twilio webhook: a number no firm has");
     return twiml();
   }
-  const body = parsed.data.Body?.trim() ? parsed.data.Body.slice(0, MAX_BODY_CHARS) : null;
+  const body = parsed.data.Body?.trim() ? cutChars(parsed.data.Body, MAX_BODY_CHARS) : null;
   const { stored } = await deps.receive(firm.id, {
     messageSid: parsed.data.MessageSid,
     from: parsed.data.From,
@@ -119,7 +121,7 @@ export async function handleTwilioSms(request: Request, deps: SmsWebhookDeps): P
     messageSid: parsed.data.MessageSid,
     from: parsed.data.From,
     to: parsed.data.To,
-    body: parsed.data.Body?.trim() ? parsed.data.Body.slice(0, MAX_BODY_CHARS) : null,
+    body: parsed.data.Body?.trim() ? cutChars(parsed.data.Body, MAX_BODY_CHARS) : null,
     twilioOptOut: optOut === "stop" || optOut === "start" ? optOut : null,
   });
   logger.info("twilio sms webhook: text received", { firmId: firm.id, stored });

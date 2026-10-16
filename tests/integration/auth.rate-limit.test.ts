@@ -12,7 +12,8 @@ import { superuserPool } from "../helpers/db";
 import { barrier, fulfilled, race } from "../helpers/race";
 import { createTenant, type Tenant } from "../helpers/tenant-rows";
 
-// Login rate limits: 3 links per number and 10 per IP every 15 minutes, 20 link uses per IP.
+// Login rate limits: 3 links per number and 60 per IP every 15 minutes (13.5: a team on one venue's
+// Wi-Fi), 20 link uses per IP.
 
 const SECRET = "test-only-secret-not-for-any-real-use-0123";
 const t0 = new Date("2026-10-01T09:00:00.000Z"); // the start of a 15-minute window
@@ -98,7 +99,8 @@ describe("a refused IP can't lock anyone else out", () => {
     const T = await createTenant(su);
     const victim = await mobileOf(su, T.workerId);
     const attacker = freshIp();
-    for (let i = 0; i < 10; i++) await request(T, "junk", { ip: attacker }); // uses up the IP
+    // Uses up the IP.
+    for (let i = 0; i < LIMITS.loginPerIp.max; i++) await request(T, "junk", { ip: attacker });
     for (let i = 0; i < 3; i++) {
       expect(await request(T, victim, { ip: attacker })).toMatchObject({ status: "rate_limited" });
     }
@@ -113,10 +115,11 @@ describe("a refused IP can't lock anyone else out", () => {
 });
 
 describe("per IP", () => {
-  it("10 requests per IP across different numbers; the 11th is refused", async () => {
+  it("60 requests per IP across different numbers (a team on one venue's Wi-Fi); the 61st is refused", async () => {
+    expect(LIMITS.loginPerIp.max).toBe(60);
     const T = await createTenant(su);
     const ip = freshIp();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < LIMITS.loginPerIp.max; i++) {
       expect(await request(T, `+4477009007${String(i).padStart(2, "0")}`, { ip })).toEqual({
         status: "sent",
       });
@@ -128,7 +131,7 @@ describe("per IP", () => {
   it("junk counts against the IP too", async () => {
     const T = await createTenant(su);
     const ip = freshIp();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < LIMITS.loginPerIp.max; i++) {
       expect(await request(T, "not a number", { ip })).toEqual({ status: "invalid_number" });
     }
     expect(await request(T, await mobileOf(su, T.workerId), { ip })).toMatchObject({

@@ -1410,13 +1410,13 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 3 | **When you create the accounts:** MFA on every account, least-privilege access, a one-page breach plan (72 hours to report) | You | compliance.md |
 | 4 | **When you deploy:** the first deploy's database step connects with checked encryption (a certificate error: tell Claude) | You | runbooks "Deploy" |
 | 5 | **Before any firm uses its own address:** a regular re-check that it still points to us | Claude | docs/testing.md pre-pilot checklist; ADR-019 |
-| 6 | **Before a pilot:** a per-worker limit on "Take shift" | Claude | Parking lot |
+| 6 | ~~**Before a pilot:** a per-worker limit on "Take shift"~~ **Done in 13.5**: 20 taps every 15 minutes | Claude | Parking lot |
 | 7 | **Before a pilot:** licence expiry messages go by WhatsApp whatever the worker chose (a worker who chose texts gets none): move them onto the normal sender | Claude | Parking lot (credential expiry items) |
 | 8 | **Before a pilot:** the dry-run event day on the firm's real setup | You, with the firm | pilot-playbook.md; Phase 9 |
 | 9 | **Before the first real import:** how a real file gets into the server's owner container (a mounted folder, or `docker compose cp`) | Claude, then you | Parking lot "Import the pilot firm's real data" |
 | 10 | On the first restore: check a snapshot keeps the database's logins | You | "Try the runbooks for real" |
 | 11 | Monitoring and alerts as the runbook says (the host's own alerts, an outside uptime check, the app's alerts to you) | You | runbooks "Monitoring and alerts" |
-| 12 | Fix the flaky test (`sheets.jobs.test.ts`): its fix is written out | Claude | Parking lot |
+| 12 | ~~Fix the flaky test (`sheets.jobs.test.ts`): its fix is written out~~ **Already done** on 2026-10-06 (40a7590: the tick's key holds its minute; checked again in 13.5) | Claude | Parking lot |
 | 13 | Capture real Twilio requests for the tests | You, then Claude | "Connect Twilio" step 11 |
 | 14 | **Before a pilot:** a TravelTime production quote (the price isn't published; 12 months minimum; the free key is "not for commercial use") and its data processing agreement; TravelTime and postcodes.io added to the sub-processors (Legal 2) | You (the quote and agreement), Claude (the docs) | `docs/office-v2.md` §5.4; Product 9 |
 | 15 | **Before a pilot:** add the strike and CSAS questions in `docs/office-v2.md` §6.4 to the solicitor's list (Legal 1) | You | `docs/office-v2.md` §6.4; Legal 16 |
@@ -1490,9 +1490,9 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   database accepts `a@b`, which login's stricter check would never match).
 - Per-IP login limits are per firm (auth_throttle is firm-scoped); a cross-firm IP limit needs a
   non-tenant table. Revisit if abuse shows up.
-- Before the pilot: review the per-IP login limit (10 per 15 minutes) against how the pilot firm
-  onboards staff. A briefing on venue Wi-Fi shares one IP (see runbooks). Options: a higher
-  limit, or a per-firm setting.
+- ~~Before the pilot: review the per-IP login limit (10 per 15 minutes) against how the pilot firm
+  onboards staff.~~ **Done in 13.5** (Dylan, 2026-10-16: raise it): 60 per 15 minutes, the
+  per-number limits unchanged. A per-firm setting stays an option if a firm's briefings are bigger.
 - auth_throttle holds HMACs of phone numbers; with SESSION_SECRET those can be reversed (UK
   mobiles are ~10^9), so treat the rows as pseudonymous personal data: the 1-day purge (Phase 8
   retention job) matters.
@@ -1655,12 +1655,16 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   bookings (it checks My shifts' empty state) and Acme to have no open shifts for them ("Nothing
   open right now."). Keep that worker unbooked in the demo seed, or move
   the check to a worker who stays unbooked.
-- **Before the pilot:** the Open shifts list checks each shift with the rules on its own (about
+- ~~**Before the pilot:** the Open shifts list checks each shift with the rules on its own~~
+  **Already done** in Phase 10 ("Speed at pilot size", 0429ef0; confirmed in 13.5): one rules
+  check for the whole list (`previewBookings`), the same number of queries for 5 shifts as for
+  40 (`tests/integration/eligibility.batch.test.ts`, with travel areas on since 13.5). Was: (about
   ten small queries each, up to 50 shifts), holding one of the pool's connections for the whole
   page view. Batch the rules loader (one read of the worker's credentials, bookings and the firm's
   rules for the whole list) so an urgent message to many workers can't starve "Take shift".
-- "Take shift" has no rate limit, and every refused tap writes a `shift.booking_refused` event.
-  Add a per-worker limit (like the login ones) before the pilot.
+- ~~"Take shift" has no rate limit, and every refused tap writes a `shift.booking_refused` event.~~
+  **Done in 13.5**: 20 taps per worker every 15 minutes (`LIMITS.takePerWorker`), booked or not,
+  then "Too many tries. Try again in {n} minutes."; logged once (`auth.rate_limited`, take:worker).
 - Phase 5: let the office look a booking up by the 8-character reference on the worker's
   confirmation.
 - Open shifts cards: the pay rate "if the firm shows it" comes with pay data (Phase 6).
@@ -1857,8 +1861,9 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   - **Dylan to confirm:** quiet hours hold reminders; a 2-hour reminder for a shift starting
     before 07:00 (default quiet hours) is skipped and logged, not sent at 04:00. The worker still
     gets the 24-hour one the day before.
-  - **Dylan to confirm:** the approved `shift_reminder_24h` says "Cancel in the app", but there is
-    no app to download (it's a link). Consider "Cancel with the link" before submitting templates.
+  - ~~**Dylan to confirm:** the approved `shift_reminder_24h` says "Cancel in the app", but there is
+    no app to download (it's a link).~~ **Done in 13.5** (Dylan, 2026-10-16): "Can't make it? Cancel
+    with the link as early as you can." (the link opens the shift, where Cancel is).
   - ~~Reminders go to every confirmed booking, including a worker the office has since made
     inactive or blocked.~~ Since Phase 10 task 7 they don't (nor for a booking at a site the
     worker is blocked from, until the office keeps it); those bookings show on Today as "Bookings
@@ -3135,7 +3140,11 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   every retry) is never marked handled. The casual gets no reply, and it never reaches Need a
   person. Add a last try that marks it for a person and logs why, like the planner webhooks' last
   try (12J.2). Found when a day word crashed the reply (fixed in 12L.1).
-- Text cuts that count UTF-16 units (12L.1 guardrails round 3, 2026-10-15; small, nothing lost):
+- ~~Text cuts that count UTF-16 units~~ **Done in 13.5**: one shared cut, `src/lib/text/cut.ts`
+  (`cutChars` for the database's character count, `cutUnits` for UTF-16 limits), cutting only
+  between whole characters; used at both webhooks, the voicemail, the AI's input, the Enquiries
+  preview, the review reasons, the office note and the shifts reply's last resort. Was (12L.1
+  guardrails round 3, 2026-10-15; small, nothing lost):
   the shifts line's webhooks (`src/lib/inbound/webhook.ts`, WhatsApp and SMS) and the voicemail
   transcript (`src/lib/inbound/voice.ts`) cut at 1,600 units, so an emoji across the cut can leave
   a "�" at the end of a message that was already cut (a text column stores half an emoji as

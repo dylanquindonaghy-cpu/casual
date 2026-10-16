@@ -1,7 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
+import { LIMITS, throttle } from "../auth/throttle";
 import { shifts, sites } from "../db/schema";
 import { withFirm } from "../db/scoped";
+import { appEnv } from "../env";
 import { bookShift } from "../roster/book";
 import { roleLabel, shiftWhen, soonLabel } from "./format";
 import type { PortalContext } from "./my-shifts";
@@ -29,16 +31,34 @@ export type TakeShiftOutcome =
   | { status: "not_eligible"; reasons: string[] }
   | { status: "try_again" } // the firm's sheet copy is too old to confirm against
   | { status: "not_yet"; opensAt: string } // fair rotation: held for others until this time
+  | { status: "rate_limited"; retryAfterMinutes: number } // too many taps (LIMITS.takePerWorker)
   | { status: "logged_out" }
   | { status: "error" };
 
 export async function takeShift(
-  ctx: PortalContext & { firm: { id: string; timezone: string; signOff: string } },
+  ctx: PortalContext & {
+    firm: { id: string; timezone: string; signOff: string };
+    secret?: string; // for the limit's bucket (SESSION_SECRET by default)
+  },
   workerId: string,
   shiftId: string,
 ): Promise<TakeShiftOutcome> {
   const run = ctx.run ?? withFirm;
   const clock = ctx.clock ?? systemClock;
+  // Every tap counts, in its own short transaction before the booking (13.5): a refused or failed
+  // one still counts. The limit is logged once, when it's first reached (auth.rate_limited).
+  const limited = await throttle(
+    run,
+    ctx.firm.id,
+    [{ limit: LIMITS.takePerWorker, value: workerId }],
+    {
+      now: clock.now(),
+      secret: ctx.secret ?? appEnv().SESSION_SECRET,
+      entityType: "worker",
+      entityId: workerId,
+    },
+  );
+  if (limited) return { status: "rate_limited", retryAfterMinutes: limited.retryAfterMinutes };
   const result = await bookShift(
     run,
     ctx.firm.id,

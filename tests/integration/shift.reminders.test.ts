@@ -125,7 +125,7 @@ describe("the 24-hour and 2-hour reminders", () => {
       {
         channel: "whatsapp",
         to: t.mobile,
-        body: `Reminder: tomorrow 15:00–23:00. Details: http://${t.slug}.localhost:3000/shifts/${shiftId}. Can't make it? Cancel in the app as early as you can. — Booking Test ${t.slug} Shift Team`,
+        body: `Reminder: tomorrow 15:00–23:00. Details: http://${t.slug}.localhost:3000/shifts/${shiftId}. Can't make it? Cancel with the link as early as you can. — Booking Test ${t.slug} Shift Team`,
       },
     ]);
     // Again, and again later the same day: nothing more.

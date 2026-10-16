@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
 import { tryAgainText } from "@/lib/portal/copy";
+import { TooManyTries } from "../../too-many-tries";
 import { staffBtn } from "../../ui/classes";
 
 // What the worker sees after tapping "Take shift" (docs/screens.md copy rules: plain words, and a
@@ -82,6 +83,8 @@ export function TakeShiftResult({
           We can&apos;t confirm this shift right now. Try again in a few minutes.
         </p>
       );
+    case "rate_limited":
+      return <TooManyTries minutes={outcome.retryAfterMinutes} />;
     case "error":
       return (
         <p role="alert" className="font-semibold text-urgent">

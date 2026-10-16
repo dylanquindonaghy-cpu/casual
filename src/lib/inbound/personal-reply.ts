@@ -10,6 +10,7 @@ import { casualEventName } from "../roster/shift-events";
 import { decideForWorker, firmStrikeSettings } from "../strikes/issue";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { travelLineText, type TravelFacts } from "../travel/line-copy";
+import { cutUnits } from "../text/cut";
 
 // The shifts line's personal replies (docs/office-v2.md 3.6, 5.7 items 1 and 2; 12D.2): the answer
 // to "shifts" and "cancel", built by code from the firm's data, never by AI. Server only.
@@ -326,7 +327,7 @@ export function shiftsReplyText(
 function lastResort(input: ShiftsReplyInput, channel: Channel): string {
   const text = `Shifts you can take: ${input.links.take} ${AUTOMATIC}`;
   const body = signed(input.firm, channel, text);
-  return body.length <= MAX_BODY ? body : text.slice(0, MAX_BODY);
+  return body.length <= MAX_BODY ? body : cutUnits(text, MAX_BODY);
 }
 
 export interface CancelReplyInput {

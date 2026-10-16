@@ -34,8 +34,7 @@ describe("messages go from the firm's shifts line", () => {
     expect(found.map((m) => m.path).sort()).toEqual([
       "src/lib/auth/send-login-code.ts",
       "src/lib/auth/send-portal-link.ts",
-      "src/lib/credentials/scan.ts",
-      "src/lib/credentials/scan.ts",
+      // (The credential scan goes through sendToWorker since 13.5: the worker's own channel.)
       "src/lib/inbound/reply.ts",
     ]);
     for (const m of found) expect(m.next, m.path).toMatch(/\bfrom\b/);

@@ -486,6 +486,22 @@ describe("the transcription webhook", () => {
     expect(await t.jobsOf(INBOUND_MESSAGE_QUEUE)).toHaveLength(1);
   });
 
+  it("a long transcription is cut to the 1,600 characters we store, never inside an emoji (13.5)", async () => {
+    const t = await lineFirm();
+    for (const text of [`${"y".repeat(1599)}😀END`, `${"z".repeat(1599)}🇬🇧END`]) {
+      const fields = transcription(t, t.mobile, { text });
+      const res = await handleTwilioTranscription(
+        signed(URLS.transcription, fields),
+        transcriptionDeps(),
+      );
+      expect(res.status).toBe(200);
+    }
+    const bodies = (await t.messageRows()).map((r) => r.body);
+    expect(bodies).toContain(`${"y".repeat(1599)}😀`);
+    expect(bodies).toContain("z".repeat(1599));
+    expect(bodies.join("")).not.toContain("\uFFFD");
+  });
+
   it("no text when Twilio couldn't make any; a withheld number is kept without one", async () => {
     const t = await lineFirm();
     for (const fields of [

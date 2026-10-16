@@ -11,6 +11,7 @@ import {
   whoName,
 } from "@/lib/office/enquiries-copy";
 import { timeOnDay } from "@/lib/portal/format";
+import { cutChars } from "@/lib/text/cut";
 
 // One enquiry in a list (Enquiries, and the dashboard's latest four): who sent it, by which
 // channel, the outcome chip and when; their words in quotes; on the dashboard, the first line of
@@ -20,7 +21,9 @@ import { timeOnDay } from "@/lib/portal/format";
 export const preview = (text: string | null) => {
   if (text === null) return null;
   const line = text.replace(/\s+/g, " ").trim();
-  return line.length > 140 ? `${line.slice(0, 139)}…` : line;
+  // Cut between characters, never inside an emoji (13.5).
+  const cut = cutChars(line, 140);
+  return cut === line ? line : `${cutChars(line, 139)}…`;
 };
 
 export function EnquiryItem({

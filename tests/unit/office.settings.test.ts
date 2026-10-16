@@ -196,5 +196,12 @@ describe("the words", () => {
     expect(say("auth.rate_limited", { limit: "link_fail:ip" }, "system")).toBe(
       "Too many tries: logging in was paused for a while.",
     );
+    // A casual's own limits (13.3, 13.5): not "logging in".
+    expect(say("auth.rate_limited", { limit: "take:worker" }, "system")).toBe(
+      "Too many taps on Take shift: taking shifts was paused for a while.",
+    );
+    expect(say("auth.rate_limited", { limit: "push:worker" }, "system")).toBe(
+      "Too many changes to phone notifications: saving them was paused for a while.",
+    );
   });
 });

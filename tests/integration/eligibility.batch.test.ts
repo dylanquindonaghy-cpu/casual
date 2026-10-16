@@ -370,6 +370,8 @@ describe("a bounded number of queries (audit L73, L75)", () => {
           wave_size: 2,
           wave_minutes: 120,
           credential_applied_allowance_pct: 15,
+          // Travel areas on (13.4), so the travel reads are counted too.
+          travel: { enabled: true },
         },
       });
       const me = await f.worker({ first: "Me" });

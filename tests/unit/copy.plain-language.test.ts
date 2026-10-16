@@ -432,6 +432,7 @@ const SCREENS: [string, ReactElement][] = [
       { status: "not_eligible", reasons: everyReason },
       { status: "try_again" },
       { status: "not_yet", opensAt: "14:15" },
+      { status: "rate_limited", retryAfterMinutes: 12 },
       { status: "error" },
     ] as const
   ).map((outcome): [string, ReactElement] => [

@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
+import { LIMITS } from "@/lib/auth/throttle";
 import { takeShift } from "@/lib/portal/take-shift";
 import { bookingFirm, hoursFromNow, NOW, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -255,11 +256,12 @@ describe("takeShift", () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker();
     const shiftId = await f.shift();
-    // Call 1 is the booking itself; call 2 reads the confirmation's details.
+    // Call 1 counts the tap (13.5), call 2 is the booking itself; call 3 reads the confirmation's
+    // details.
     let calls = 0;
     const flaky: WithFirm = (firmId, fn) => {
       calls += 1;
-      if (calls === 2) return Promise.reject(new Error("connection lost"));
+      if (calls === 3) return Promise.reject(new Error("connection lost"));
       return withFirm(firmId, fn);
     };
     const outcome = await takeShift({ ...ctxFor(f), run: flaky }, sam, shiftId);
@@ -303,6 +305,39 @@ describe("takeShift", () => {
     ).toEqual({
       status: "try_again",
     });
+  });
+
+  it("20 taps per casual every 15 minutes, refused ones too; the 21st waits, logged once (13.5)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const kit = await f.worker({ first: "Kit", credentials: [] }); // every tap refused
+    const sam = await f.worker();
+    const shiftId = await f.shift();
+    expect(LIMITS.takePerWorker).toMatchObject({ max: 20, windowMs: 15 * 60_000 });
+    for (let i = 0; i < LIMITS.takePerWorker.max; i++) {
+      expect((await takeShift(ctxFor(f), kit, shiftId)).status).toBe("not_eligible");
+    }
+    // NOW is 09:00, a window's start: 15 minutes to wait.
+    expect(await takeShift(ctxFor(f), kit, shiftId)).toEqual({
+      status: "rate_limited",
+      retryAfterMinutes: 15,
+    });
+    expect(await takeShift(ctxFor(f), kit, shiftId)).toMatchObject({ status: "rate_limited" });
+    const logged = async (action: string) =>
+      (
+        await su.query<{ entity_id: string; data: Record<string, unknown> }>(
+          "select entity_id::text, data from events where firm_id = $1 and action = $2",
+          [f.firmId, action],
+        )
+      ).rows;
+    // The refused taps logged as before, the limit once; nothing more once it's reached.
+    expect(await logged("shift.booking_refused")).toHaveLength(LIMITS.takePerWorker.max);
+    expect(await logged("auth.rate_limited")).toEqual([
+      { entity_id: kit, data: { limit: "take:worker" } },
+    ]);
+    // Another casual isn't held back, and the next window starts again.
+    expect((await takeShift(ctxFor(f), sam, shiftId)).status).toBe("booked");
+    const later = { ...ctxFor(f), clock: { now: () => new Date(NOW.getTime() + 15 * 60_000) } };
+    expect((await takeShift(later, kit, shiftId)).status).not.toBe("rate_limited");
   });
 });
 

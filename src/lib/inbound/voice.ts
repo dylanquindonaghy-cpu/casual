@@ -16,6 +16,7 @@ import {
 } from "../messaging/templates";
 import { queueInboundMessage } from "./job";
 import { plainResponse, readTwilioRequest } from "./twilio-request";
+import { cutChars } from "../text/cut";
 
 // Call-to-text (docs/api-and-jobs.md `POST /api/webhooks/twilio/voice…`; docs/architecture.md
 // "Call-to-text"). Someone rings the firm's shifts line:
@@ -259,7 +260,7 @@ export async function handleTwilioTranscription(
   const from = callerNumber(parsed.data.From);
   const text =
     parsed.data.TranscriptionStatus === "completed" && parsed.data.TranscriptionText?.trim()
-      ? parsed.data.TranscriptionText.slice(0, 1600)
+      ? cutChars(parsed.data.TranscriptionText, 1600) // the messages_body_length check
       : null;
   const stored = await (deps.run ?? withFirm)(firm.id, async (tx) => {
     const [row] = await tx

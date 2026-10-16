@@ -737,9 +737,11 @@ create table events (
 -- link was on the firm's own domain), auth.link_rejected
 -- (magic_link or none; {kind, reason: unknown|used|expired|wrong_kind|inactive}), auth.login
 -- (session; actor worker/office), auth.session_rotated, auth.logout, auth.rate_limited
--- (login_request, magic_link or session; {limit: "login:mobile" | "login:ip" | "office:email" |
--- "office:ip" | "link_fail:ip" | "otp:worker" | "otp:worker_day"}; once per window, when the
--- limit is first reached). Pay-page codes: auth.otp_requested (session),
+-- (login_request, magic_link, session, api_key or worker; {limit: "login:mobile" |
+-- "login:mobile_day" | "login:ip" | "office:email" | "office:email_day" | "office:ip" |
+-- "link_fail:ip" | "otp:worker" | "otp:worker_day" | "api:key" | "push:worker" (13.3) |
+-- "take:worker" (13.5) | "strikes_link:…"}; once per window, when the limit is first reached;
+-- the worker's own limits name them as the entity). Pay-page codes: auth.otp_requested (session),
 -- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
 -- Worker requests (src/lib/portal/requests.ts): request.created (request; actor worker; {type,
 -- shiftId}): the typed note and any colleague's name stay on the row (requests.payload:

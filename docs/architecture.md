@@ -106,9 +106,10 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    Each try is taken by one conditional UPDATE (parallel guesses can't get more than 5), then
    compared in constant time. A correct code opens the pay pages for 30 minutes
    (`sessions.stepped_up_until`).
-6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 10 link
-   requests per IP (anything typed, junk included) and 3 per number, plus at most 10 per number a
-   day (Phase 10, audit L49: each link is a billed message); 20 failed link uses per IP
+6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 60 link
+   requests per IP (anything typed, junk included; raised from 10 in 13.5 so a team briefed on one
+   venue's Wi-Fi isn't locked out) and 3 per number, plus at most 10 per number a day (Phase 10,
+   audit L49: each link is a billed message); 20 failed link uses per IP
    (successful logins don't count; the strikes team's confirmation links count here too, 12B.7).
    Those confirmation links are emails too: a firm sends at most 3 every 15 minutes and 10 a day
    (`STRIKES_LINK_LIMITS`, `src/lib/office/strikes-email.ts`). Checked IP first, stopping at the first refusal, so a refused
@@ -121,7 +122,9 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    one bucket. A refusal says "Too many tries. Try again in {n} minutes."; `auth.rate_limited` is
    logged once per window, when a limit is first reached. Known and unknown numbers are treated
    identically. Known trade-off: people behind one shared IP (venue Wi-Fi, mobile carrier NAT)
-   share the per-IP request limit (docs/runbooks.md).
+   share the per-IP request limit (docs/runbooks.md); at 60 it covers a briefing of about 50, and
+   one address can then cost the firm up to 240 link messages an hour (the per-number limits stop
+   any one number being flooded).
 
 **Office users:** email magic link; roles `admin`, `resourcer`, `payroll`. Add TOTP later.
 Same flow as workers (`src/lib/auth/office-login.ts`, shared parts in `link-login.ts`): work
@@ -294,7 +297,9 @@ then send the new number to the office").
 
 **Take an open shift**
 1. Worker opens Open shifts → only eligible shifts listed (rules engine).
-2. Tap "Take shift" → `bookShift()`: lock the shift and the worker → re-check the rules on the
+2. Tap "Take shift" → counted against the worker's limit first (20 taps every 15 minutes, booked
+   or not: `LIMITS.takePerWorker`, 13.5; over it, "Too many tries. Try again in {n} minutes." and
+   nothing else happens) → `bookShift()`: lock the shift and the worker → re-check the rules on the
    current rows → the firm's allocation mode (fair rotation may hold a new place a few minutes for
    the workers with the fewest hours that week) → re-check the live source → `UPDATE assignments ... WHERE shift slot is unfilled`
    (one statement).

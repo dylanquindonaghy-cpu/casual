@@ -285,16 +285,16 @@ describe("payroll's page", () => {
 
   it("the result of Mark as sorted and tell them", () => {
     expect(sortText({ status: "sorted", count: 2, skipped: 0 })).toBe(
-      "Marked as sorted: 2 queries. Each person will get your note by message.",
+      "Marked as sorted: 2 queries. Each person gets a message saying payroll has answered, and sees your note on their pay page.",
     );
     expect(sortText({ status: "sorted", count: 1, skipped: 0 })).toBe(
-      "Marked as sorted: 1 query. Each person will get your note by message.",
+      "Marked as sorted: 1 query. Each person gets a message saying payroll has answered, and sees your note on their pay page.",
     );
     expect(sortText({ status: "sorted", count: 3, skipped: 1 })).toBe(
-      "Marked as sorted: 3 queries. 1 was already sorted by someone else. Each person will get your note by message.",
+      "Marked as sorted: 3 queries. 1 was already sorted by someone else. Each person gets a message saying payroll has answered, and sees your note on their pay page.",
     );
     expect(sortText({ status: "sorted", count: 1, skipped: 2 })).toBe(
-      "Marked as sorted: 1 query. 2 were already sorted by someone else. Each person will get your note by message.",
+      "Marked as sorted: 1 query. 2 were already sorted by someone else. Each person gets a message saying payroll has answered, and sees your note on their pay page.",
     );
     expect(sortText({ status: "already" })).toBe("These were already sorted by someone else.");
     expect(sortText({ status: "note_needed" })).toBe("Tell them what payroll did first.");

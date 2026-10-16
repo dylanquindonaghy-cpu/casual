@@ -43,6 +43,7 @@ const home = (shifts: OpenShift[]) => {
     shifts,
     truncated: false,
     offerAlerts: true,
+    travelOn: true,
     area: { maxMinutes: 45 },
     further: { count: 0, atLeast: false },
     choices: { days: [], sites: [], roles: [] },
@@ -83,5 +84,38 @@ describe("Home's shift cards", () => {
     expect(text(urgent)).toContain("Needs: SIA DS , CSAS");
     expect(urgent.match(/data-requirements=""/g)).toHaveLength(1);
     expect(html.match(/data-requirements=""/g)).toHaveLength(1);
+  });
+});
+
+describe("Home with travel areas switched off for the firm (13.4)", () => {
+  it("no 'up to N minutes' line, no prompt for an area and no travel lines", () => {
+    const html = renderToStaticMarkup(
+      createElement(HomeView, {
+        firstName: "Zoe",
+        voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
+        timeZone: TZ,
+        now: NOW,
+        next: null,
+        needs: [],
+        photo: { status: "up_to_date", current: null, waiting: null },
+        open: {
+          shifts: [
+            shift(1, { isUrgent: true, travel: undefined }),
+            shift(2, { travel: undefined }),
+          ],
+          truncated: false,
+          offerAlerts: true,
+          travelOn: false,
+          area: null,
+          further: { count: 0, atLeast: false },
+          choices: { days: [], sites: [], roles: [] },
+        },
+      }),
+    );
+    const words = text(html);
+    expect(words).not.toMatch(/minutes from your home area|home area|miles|min by car/);
+    expect(html).not.toContain("data-travel-line");
+    expect(html).not.toContain('href="/profile/travel"');
+    expect(words).toContain("Demo Arena");
   });
 });

@@ -7,6 +7,7 @@ import { runOfferWave } from "@/lib/offers/waves";
 import { myShifts } from "@/lib/portal/my-shifts";
 import { MAX_CANDIDATES, openShiftsFor } from "@/lib/portal/open-shifts";
 import { takeShift } from "@/lib/portal/take-shift";
+import { shiftForWorker } from "@/lib/portal/shift-detail";
 import { saveMyTravel } from "@/lib/portal/travel";
 import { areaVerdict, type TravelArea, type WayEstimate } from "@/lib/travel/area";
 import { fakeGeocoder, fakePoint } from "@/lib/travel/geocoder";
@@ -39,8 +40,9 @@ afterAll(async () => {
 const clock = { now: () => NOW };
 const HOME = "ZZ2 2BB";
 
+// Travel areas on (13.4: a firm's are off until its owner switches them on).
 async function filterFirm() {
-  const f = await bookingFirm(su, withFirm);
+  const f = await bookingFirm(su, withFirm, { settings: { travel: { enabled: true } } });
   const site = async (o: { located?: boolean; postcode?: string } = {}) => {
     const postcode = o.postcode ?? "ZZ1 1AA";
     const point = o.located === false ? null : fakePoint(postcode);
@@ -109,7 +111,14 @@ async function filterFirm() {
     withFirm(f.firmId, async (tx) =>
       (await waveCandidates(tx, shiftId, NOW, opts)).map((c) => c.workerId),
     );
-  return { f, site, arena, casual, session, estimate, open, listed, candidates };
+  // The firm's travel areas switched on or off (13.4), as the owner's `firm:settings` sets them.
+  const travelSwitch = (on: boolean) =>
+    su.query(
+      `update firms set settings = jsonb_set(settings, '{travel,enabled}', to_jsonb($2::boolean))
+        where id = $1`,
+      [f.firmId, on],
+    );
+  return { f, site, arena, casual, session, estimate, open, listed, candidates, travelSwitch };
 }
 
 describe("in her travel area", () => {
@@ -201,7 +210,7 @@ describe("in her travel area", () => {
     ];
     const list = await t.open(cass);
     expect(list.shifts.map((s) => s.shiftId)).toEqual([noLocation, noSite, notYet]);
-    const words = list.shifts.map((s) => travelLineText(s.travel, "Europe/London"));
+    const words = list.shifts.map((s) => travelLineText(s.travel!, "Europe/London"));
     expect(words[0]).toBe("Distance not known yet");
     expect(words[1]).toBe("Distance not known yet");
     expect(words[2]).toMatch(/^about \d+ miles? \(straight line\) · Travel time not known yet$/);
@@ -429,5 +438,76 @@ describe("each firm's own", () => {
     expect(await a.listed(cass)).toEqual([shiftId]);
     // Firm B's run never sees firm A's casual.
     expect(await b.candidates(shiftId)).toEqual([]);
+  });
+});
+
+describe("travel areas switched off for the firm (13.4)", () => {
+  it("a saved area filters, orders and shows nothing; Home, the lists and waves as if none; on again: as before", async () => {
+    const t = await filterFirm();
+    const cass = await t.casual("car", 45);
+    // Inside her area, later but nearer; inside, sooner but further; outside (60 minutes).
+    const near = await t.session(48);
+    await t.estimate(near, "car", 10);
+    const inside = await t.session(24);
+    await t.estimate(inside, "car", 40);
+    const outside = await t.session(36);
+    await t.estimate(outside, "car", 60);
+    // On: the outside one left out (counted as further), the nearest first, each with its line.
+    expect(await t.listed(cass)).toEqual([near, inside]);
+    expect(await t.candidates(outside)).toEqual([]);
+
+    await t.travelSwitch(false);
+    const list = await t.open(cass);
+    // Every one listed, by date only; no area (so no prompt), nothing further, no travel lines.
+    expect(list.shifts.map((s) => s.shiftId)).toEqual([inside, outside, near]);
+    expect(list).toMatchObject({
+      travelOn: false,
+      area: null,
+      further: { count: 0, atLeast: false },
+    });
+    expect(list.shifts.every((s) => !("travel" in s))).toBe(true);
+    expect(await t.listed(cass, { urgent: true })).toEqual([]);
+    // The shifts line's reasons never say "outside their travel area".
+    const explained = await openShiftsFor(
+      { firm: { id: t.f.firmId }, run: withFirm, clock },
+      cass,
+      {},
+      { explain: true },
+    );
+    expect(
+      explained.explain?.notOffered.flatMap((n) => n.reasons.map((r) => r.code)),
+    ).not.toContain("outside_area");
+    // A wave offers it to her.
+    expect(await t.candidates(outside)).toEqual([cass]);
+
+    await t.travelSwitch(true);
+    expect(await t.listed(cass)).toEqual([near, inside]);
+    expect(await t.candidates(outside)).toEqual([]);
+  });
+
+  it("Booked and the shift page carry no travel lines (the maps button stays: the page's own)", async () => {
+    const t = await filterFirm();
+    const cass = await t.casual("car", 45);
+    const ahead = await t.session(48);
+    await t.estimate(ahead, "car", 20);
+    await t.f.booking(cass, ahead);
+    const other = await t.session(72);
+    await t.estimate(other, "car", 20);
+    const ctx = { firm: { id: t.f.firmId }, run: withFirm, clock };
+    // On: both carry their travel.
+    expect((await myShifts(ctx, cass, "upcoming"))[0]?.travel).toBeDefined();
+    const before = await shiftForWorker(ctx, cass, other);
+    expect(before.state === "open" && before.facts.travel).toBeTruthy();
+
+    await t.travelSwitch(false);
+    const [booked] = await myShifts(ctx, cass, "upcoming");
+    expect(booked?.shiftId).toBe(ahead);
+    expect(booked && "travel" in booked).toBe(false);
+    const page = await shiftForWorker(ctx, cass, other);
+    expect(page.state).toBe("open");
+    expect(page.state === "open" && "travel" in page.facts).toBe(false);
+    const mine = await shiftForWorker(ctx, cass, ahead);
+    expect(mine.state).toBe("booked");
+    expect(mine.state === "booked" && "travel" in mine.facts).toBe(false);
   });
 });

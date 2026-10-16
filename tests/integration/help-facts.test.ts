@@ -25,17 +25,24 @@ describe("helpFacts", () => {
   it("uses the defaults when the firm hasn't set them, and each firm's own otherwise", async () => {
     const plain = await bookingFirm(su, withFirm);
     const own = await bookingFirm(su, withFirm, {
-      settings: { strikes: { notice_hours: 24, live_days: 30 }, photo: { renewal_months: 24 } },
+      settings: {
+        strikes: { notice_hours: 24, live_days: 30 },
+        photo: { renewal_months: 24 },
+        travel: { enabled: true },
+      },
     });
+    // Travel areas off unless the firm switched them on (13.4).
     expect(await helpFacts(plain.firmId, withFirm)).toEqual({
       noticeHours: 48,
       liveDays: 90,
       photoRenewalMonths: 36,
+      travelOn: false,
     });
     expect(await helpFacts(own.firmId, withFirm)).toEqual({
       noticeHours: 24,
       liveDays: 30,
       photoRenewalMonths: 24,
+      travelOn: true,
     });
   });
 });

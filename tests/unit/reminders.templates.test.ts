@@ -21,7 +21,7 @@ describe("shift_reminder_24h", () => {
         link: "https://acme.example/shifts/1",
       }),
     ).toBe(
-      "Reminder: tomorrow 08:00–16:00 at Acme Demo Arena. Details: https://acme.example/shifts/1. Can't make it? Cancel in the app as early as you can. — Acme Events Shift Team",
+      "Reminder: tomorrow 08:00–16:00 at Acme Demo Arena. Details: https://acme.example/shifts/1. Can't make it? Cancel with the link as early as you can. — Acme Events Shift Team",
     );
     expect(
       shiftReminder24hMessage(voice, {
@@ -32,7 +32,7 @@ describe("shift_reminder_24h", () => {
         link: "L",
       }),
     ).toBe(
-      "Reminder: today 19:00–03:00. Details: L. Can't make it? Cancel in the app as early as you can. — Acme Events Shift Team",
+      "Reminder: today 19:00–03:00. Details: L. Can't make it? Cancel with the link as early as you can. — Acme Events Shift Team",
     );
   });
 });

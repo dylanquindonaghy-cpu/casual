@@ -35,6 +35,7 @@ export const SETTING_KEYS = [
   "strikes.notice_hours",
   "strikes.live_days",
   "strikes.keep_months",
+  "travel.enabled",
   "travel.default_max_minutes",
   "photo.renewal_months",
 ] as const;
@@ -73,6 +74,7 @@ const READ: Record<SettingKey, (s: Settings) => SettingValue> = {
   "strikes.notice_hours": (s) => strikeSettings(s).noticeHours,
   "strikes.live_days": (s) => strikeSettings(s).liveDays,
   "strikes.keep_months": (s) => strikeSettings(s).keepMonths,
+  "travel.enabled": (s) => travelSettings(s).enabled,
   "travel.default_max_minutes": (s) => travelSettings(s).defaultMaxMinutes,
   "photo.renewal_months": (s) => photoSettings(s).renewalMonths,
 };
@@ -95,6 +97,8 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "strikes.notice_hours": `a casual's own cancellation with less notice than this many hours is a strike (${STRIKE_LIMITS.noticeHours.min} to ${STRIKE_LIMITS.noticeHours.max})`,
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,
+  "travel.enabled":
+    "travel areas are on: casuals may add a home area, and see and get shifts within their travel time (true or false; agree the travel DPIA first, docs/dpia-travel.md; switching off keeps the home areas already saved, unused: decide on them first, its Part 2 item 3)",
   "travel.default_max_minutes":
     "a casual's travel time limit until they choose their own (30, 45, 60 or 90 minutes)",
   "photo.renewal_months": `months before a casual's staff photo is due again, from the day the current one was uploaded (${PHOTO_RENEWAL_LIMITS.min} to ${PHOTO_RENEWAL_LIMITS.max})`,
@@ -133,7 +137,7 @@ function parseValue(key: SettingKey, raw: string): SettingValue | null {
   if (key === "allocation_mode" || key === "quiet_hours.start" || key === "quiet_hours.end") {
     return text === "" ? null : text;
   }
-  if (key === "quiet_hours.urgent_override") {
+  if (key === "quiet_hours.urgent_override" || key === "travel.enabled") {
     return text === "true" ? true : text === "false" ? false : null;
   }
   if (!/^\d+(\.\d+)?$/.test(text)) return null;

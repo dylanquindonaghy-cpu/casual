@@ -268,3 +268,15 @@ describe("after Ask the office to review", () => {
     expect(show({ status: "not_open" })).toContain("This shift isn't open any more.");
   });
 });
+
+describe("ShiftView with travel areas switched off for the firm (13.4)", () => {
+  it("Getting there has only the maps button; with no site, no Getting there at all", () => {
+    const off: ShiftFacts = { ...facts };
+    delete off.travel;
+    const words = text(render({ state: "open", shift: summary, facts: off }));
+    expect(words).toContain("Getting there Open in maps");
+    expect(words).not.toMatch(/From your home area|miles|min by car|Distance not known/);
+    const noSite = text(render({ state: "open", shift: { ...summary, site: null }, facts: off }));
+    expect(noSite).not.toContain("Getting there");
+  });
+});

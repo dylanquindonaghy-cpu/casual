@@ -57,7 +57,8 @@ const { PushSettingView } = await import("@/app/profile/push-setting-view");
 import { postcodeAttribution } from "@/lib/travel/attribution";
 const { HelpView } = await import("@/app/help/help-view");
 // The firm's own strike and photo numbers the help page states (12H.3).
-const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36 };
+// A firm with travel areas on: every help section shows.
+const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36, travelOn: true };
 
 // Words a worker shouldn't have to know. Whole words, any case.
 const JARGON = [
@@ -251,6 +252,7 @@ const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {})
   shifts: [],
   truncated: false,
   offerAlerts: true,
+  travelOn: true,
   area: { maxMinutes: 45 },
   further: { count: 0, atLeast: false },
   choices: { days: [], sites: [], roles: [] },
@@ -430,6 +432,7 @@ const SCREENS: [string, ReactElement][] = [
       { status: "not_eligible", reasons: everyReason },
       { status: "try_again" },
       { status: "not_yet", opensAt: "14:15" },
+      { status: "rate_limited", retryAfterMinutes: 12 },
       { status: "error" },
     ] as const
   ).map((outcome): [string, ReactElement] => [

@@ -19,6 +19,7 @@ import { readTable } from "@/lib/imports/table";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { WEEKLY_LIST_MAX_LINES } from "@/lib/messaging/templates";
 import {
+  ChannelRefusedError,
   outboundMessageSchema,
   type MessagingTransport,
   type OutboundMessage,
@@ -408,7 +409,8 @@ describe("credential-scan: expiry (block on expiry)", () => {
       expect.arrayContaining([
         {
           entity_id: yesterday,
-          data: { type: "SIA_DS", expiresOn: "2026-10-05", notified: true },
+          // The channel it goes by first (13.5): the worker's own.
+          data: { type: "SIA_DS", expiresOn: "2026-10-05", notified: true, channel: "whatsapp" },
         },
         {
           entity_id: leaversExpired,
@@ -917,5 +919,104 @@ describe("credential-scan: failures and races", () => {
         ),
       ).rejects.toThrow(/credentials_expiry_warned_days/);
     }
+  });
+});
+
+describe("credential-scan: by the channel the casual chose (13.5)", () => {
+  // A transport that refuses WhatsApp for some numbers (a number not on WhatsApp).
+  const refusing = (noWhatsApp: string[]) => {
+    const sent: OutboundMessage[] = [];
+    const transport: MessagingTransport = {
+      name: "capture",
+      async send(message) {
+        if (message.channel === "whatsapp" && noWhatsApp.includes(message.to)) {
+          throw new ChannelRefusedError("whatsapp");
+        }
+        sent.push(message);
+        return { providerMessageId: `capture-${sent.length}` };
+      },
+    };
+    return { transport, sent };
+  };
+
+  it("texts a casual who chose texts; WhatsApp after STOP; a text when WhatsApp refuses; each logged by its channel", async () => {
+    const f = await newFirm();
+    const tess = await addWorker(f.firmId, { first: "Tess", roles: ["door_supervisor"] });
+    const stop = await addWorker(f.firmId, { first: "Stop", roles: ["door_supervisor"] });
+    const wren = await addWorker(f.firmId, { first: "Wren", roles: ["door_supervisor"] });
+    await su.query("update workers set notify_channel = 'sms' where id = any($1)", [
+      [tess.id, stop.id],
+    ]);
+    await su.query("update workers set sms_opted_out_at = now() where id = $1", [stop.id]);
+    // A warning (30 days) for each, and an expiry for Tess.
+    const warnings = await Promise.all(
+      [tess, stop, wren].map((w) =>
+        addCredential(f.firmId, w.id, { type: "SIA_DS", expiresOn: "2026-11-05" }),
+      ),
+    );
+    const expired = await addCredential(f.firmId, tess.id, {
+      type: "FIRST_AID",
+      expiresOn: "2026-10-05",
+      warnedFor: "2026-10-05",
+      warnedDays: 7,
+    });
+    const { transport, sent } = refusing([wren.mobile]);
+    const scan = await scanCredentials(
+      { firmId: f.firmId, idempotencyKey: `credential-scan:${TUESDAY_DATE}` },
+      withFirm,
+      { transport, baseDomain: BASE_DOMAIN },
+    );
+    expect(scan).toMatchObject({ warned: 3, expired: 1, failed: 0 });
+    // Who got what, by which channel (the words are the same either way).
+    const by = (to: string) => sent.filter((m) => m.to === to).map((m) => m.channel);
+    expect(by(tess.mobile)).toEqual(["sms", "sms"]);
+    expect(by(stop.mobile)).toEqual(["whatsapp"]);
+    expect(by(wren.mobile)).toEqual(["sms"]);
+    for (const m of sent) expect(m.body).toMatch(/Shift Team$/);
+    // Logged by the channel each went by; the fallback says so.
+    const warned = await eventsOf(f.firmId, "credential.expiry_warning");
+    const channelOf = (id: string | undefined) => warned.find((e) => e.entity_id === id)?.data;
+    expect(channelOf(warnings[0])).toMatchObject({ channel: "sms" });
+    expect(channelOf(warnings[1])).toMatchObject({ channel: "whatsapp" });
+    expect(channelOf(warnings[2])).toMatchObject({ channel: "sms", fellBackFrom: "whatsapp" });
+    expect(await eventsOf(f.firmId, "credential.expiry_notice_sent")).toEqual([
+      {
+        entity_id: expired,
+        data: expect.objectContaining({ type: "FIRST_AID", channel: "sms" }),
+      },
+    ]);
+    expect(await eventsOf(f.firmId, "credential.expired")).toEqual([
+      {
+        entity_id: expired,
+        data: { type: "FIRST_AID", expiresOn: "2026-10-05", notified: true, channel: "sms" },
+      },
+    ]);
+  });
+
+  it("STOP and no WhatsApp: nothing sent, logged as failed with the reason, never retried", async () => {
+    const f = await newFirm();
+    const kit = await addWorker(f.firmId, { first: "Kit", roles: ["door_supervisor"] });
+    await su.query("update workers set sms_opted_out_at = now() where id = $1", [kit.id]);
+    const credential = await addCredential(f.firmId, kit.id, {
+      type: "SIA_DS",
+      expiresOn: "2026-11-05",
+    });
+    const { transport, sent } = refusing([kit.mobile]);
+    const deps = { transport, baseDomain: BASE_DOMAIN };
+    const run = () =>
+      scanCredentials(
+        { firmId: f.firmId, idempotencyKey: `credential-scan:${TUESDAY_DATE}` },
+        withFirm,
+        deps,
+      );
+    expect(await run()).toMatchObject({ warned: 0, failed: 1 });
+    expect(sent).toEqual([]);
+    expect(await eventsOf(f.firmId, "credential.expiry_warning_failed")).toEqual([
+      {
+        entity_id: credential,
+        data: expect.objectContaining({ channel: "whatsapp", code: "sms_opted_out" }),
+      },
+    ]);
+    expect(await run()).toMatchObject({ warned: 0, failed: 0 });
   });
 });

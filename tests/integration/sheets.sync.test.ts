@@ -1695,6 +1695,11 @@ describe("sheets.sync: travel estimates (12G.2)", () => {
 
   it("a new session gets its estimates without waiting for the nightly run", async () => {
     const f = await sheetFirm([ADA].map(staffRow), [P1].map(shiftRow));
+    // Travel areas on (13.4: a firm's are off until its owner switches them on).
+    await su.query(
+      `update firms set settings = settings || '{"travel": {"enabled": true}}' where id = $1`,
+      [f.firmId],
+    );
     // The sheet's site was placed on Settings already.
     const point = fakePoint("ZZ1 1AA");
     await su.query(

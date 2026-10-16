@@ -34,9 +34,9 @@ export function SortGroupForm({ ids }: { ids: string[] }) {
             Tell them what payroll did
           </label>
           <p id={hintId} className={`mt-1 ${hint}`}>
-            Everyone in this group gets the same note, by message and on their pay page, so
-            don&apos;t name anyone or give one person&apos;s figures. At most 500 characters.
-            Don&apos;t include bank details.
+            Everyone in this group gets the same note on their pay page (their message only says
+            payroll has answered), so don&apos;t name anyone or give one person&apos;s figures. At
+            most 500 characters. Don&apos;t include bank details.
           </p>
           <textarea
             id={fieldId}

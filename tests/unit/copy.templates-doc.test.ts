@@ -357,6 +357,7 @@ describe("the code says what the doc says", () => {
           travel: est(21, 13518, 38),
         },
       ],
+      travelOn: true,
       area: { maxMinutes: 45 },
       offerAlerts: true,
       links: { take: "{link}", profile: "{profile link}" },
@@ -402,10 +403,10 @@ describe("the code says what the doc says", () => {
     ).toBe(oneLine(template ?? ""));
   });
 
-  it("pay_query_update: payroll's note in the doc's words", () => {
-    expect(
-      payQueryUpdateMessage(docVoice, { ref: "{ref}", status: "{status}", note: "{note}" }),
-    ).toBe(docBody("pay_query_update"));
+  it("pay_query_update: payroll has answered, see the pay page, in the doc's words", () => {
+    expect(payQueryUpdateMessage(docVoice, { ref: "{ref}", link: "{link}" })).toBe(
+      docBody("pay_query_update"),
+    );
   });
 
   it("shift_urgent, with and without a site", () => {
@@ -669,10 +670,7 @@ describe("every message to a worker ends with the firm's sign-off (golden rule 8
       "request_update (no note)",
       requestUpdateMessage(voice, { type: "swap", ref: "R", status: "approved", note: null }),
     ],
-    [
-      "pay_query_update",
-      payQueryUpdateMessage(voice, { ref: "R", status: "sorted", note: "Paid on Friday." }),
-    ],
+    ["pay_query_update", payQueryUpdateMessage(voice, { ref: "R", link: "L" })],
     [
       "shift_changed_by_firm",
       shiftChangedByFirmMessage(voice, { ...shift, date: "Sat 7 Nov", change: "c", link: "L" }),
@@ -989,8 +987,7 @@ describe("the WhatsApp submission pack", () => {
     pay_query_update: () =>
       payQueryUpdateMessage(voice("pay_query_update"), {
         ref: ex("pay_query_update", "ref"),
-        status: ex("pay_query_update", "status"),
-        note: ex("pay_query_update", "note"),
+        link: ex("pay_query_update", "link"),
       }),
     voicemail_received: () =>
       voicemailReceivedMessage(voice("voicemail_received"), ex("voicemail_received", "ref")),

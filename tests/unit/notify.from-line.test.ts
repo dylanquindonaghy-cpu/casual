@@ -34,8 +34,7 @@ describe("messages go from the firm's shifts line", () => {
     expect(found.map((m) => m.path).sort()).toEqual([
       "src/lib/auth/send-login-code.ts",
       "src/lib/auth/send-portal-link.ts",
-      "src/lib/credentials/scan.ts",
-      "src/lib/credentials/scan.ts",
+      // (The credential scan goes through sendToWorker since 13.5: the worker's own channel.)
       "src/lib/inbound/reply.ts",
     ]);
     for (const m of found) expect(m.next, m.path).toMatch(/\bfrom\b/);
@@ -62,6 +61,7 @@ describe("messages go from the firm's shifts line", () => {
       ),
     );
     expect(calls.map((c) => c.path).sort()).toEqual([
+      "src/lib/credentials/scan.ts", // licence expiry messages (13.5)
       "src/lib/inbound/reply.ts",
       "src/lib/notices/enquiry-reply.ts", // the office's reply on Enquiries (12D.1)
       "src/lib/notices/firm-change.ts",
@@ -85,11 +85,12 @@ describe("messages go from the firm's shifts line", () => {
         (m) => ({ path: f.path, args: m[2] ?? "" }),
       ),
     );
-    expect(calls).toHaveLength(9);
+    expect(calls).toHaveLength(10);
     // Never a hard-coded value: always the worker's, read with their channel.
     for (const c of calls) expect(c.args, c.path).toMatch(/\bsmsAllowed: \w+\.smsAllowed,/);
     // Where each reads it: the worker row's sms_opted_out_at.
     for (const path of [
+      "src/lib/credentials/scan.ts",
       "src/lib/inbound/reply.ts",
       "src/lib/notices/enquiry-reply.ts", // and a stranger's own last STOP or START (12D.1)
       "src/lib/notices/firm-change.ts",

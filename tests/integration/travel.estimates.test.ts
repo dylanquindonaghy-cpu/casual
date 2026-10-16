@@ -78,8 +78,9 @@ function recording(answer?: (s: TravelSearch) => ReturnType<TravelProvider["sear
   return { searches, provider };
 }
 
+// Travel areas on (13.4: a firm's are off until its owner switches them on).
 async function travelFirm() {
-  const f = await bookingFirm(su, withFirm);
+  const f = await bookingFirm(su, withFirm, { settings: { travel: { enabled: true } } });
   const admin = await f.office("admin");
   const point = fakePoint("ZZ1 1AA");
   const { rows } = await su.query<{ id: string }>(
@@ -1011,5 +1012,68 @@ describe("each firm's own", () => {
     expect(await b.estimates()).toEqual([]);
     // Firm B's job, given firm A's session, finds nothing.
     expect(await b.fill({ shiftIds: [shiftId] }, look.provider)).toMatchObject({ searches: 0 });
+  });
+});
+
+describe("travel areas switched off for the firm (13.4)", () => {
+  it("no search for its sessions, by any route, and the nightly run queues nothing for it", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const shiftId = await t.session(48);
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{travel,enabled}', 'false') where id = $1`,
+      [t.f.firmId],
+    );
+    const look = recording();
+    expect(await t.fill({ shiftIds: [shiftId] }, look.provider)).toMatchObject({ searches: 0 });
+    expect(await t.fill({ window: true }, look.provider)).toMatchObject({ searches: 0 });
+    await estimatesBeforeWave(
+      withFirm,
+      t.f.firmId,
+      shiftId,
+      { provider: look.provider, clock },
+      quietLogger,
+    );
+    expect(look.searches).toEqual([]);
+    expect(await t.estimates()).toEqual([]);
+    await t.clearQueued();
+    const tick = () =>
+      runTravelEstimatesTick({
+        listFirmIds: async () => [t.f.firmId],
+        run: withFirm,
+        clock,
+        logger: quietLogger,
+      });
+    expect(await tick()).toBe(0);
+    expect(await t.queued()).toEqual([]);
+    // On again: the same session is searched.
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{travel,enabled}', 'true') where id = $1`,
+      [t.f.firmId],
+    );
+    expect(await t.fill({ shiftIds: [shiftId] }, look.provider)).toMatchObject({ searches: 2 });
+    expect(await tick()).toBe(1);
+  });
+
+  it("switched off during a run: no more searches from the next group on", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const first = await t.session(24);
+    const second = await t.session(48);
+    // The first search switches the firm's travel areas off (the owner, meanwhile).
+    const look = recording(async (s) => {
+      await su.query(
+        `update firms set settings = jsonb_set(settings, '{travel,enabled}', 'false') where id = $1`,
+        [t.f.firmId],
+      );
+      return fakeTravelProvider.search(s);
+    });
+    // The first group's two ways (both read before the switch), and nothing for the second.
+    expect(await t.fill({ shiftIds: [first, second] }, look.provider)).toMatchObject({
+      searches: 2,
+    });
+    expect(look.searches).toHaveLength(2);
   });
 });

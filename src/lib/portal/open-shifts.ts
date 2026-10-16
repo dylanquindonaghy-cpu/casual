@@ -21,6 +21,7 @@ import { addDays, localDateOf, zonedToUtc } from "../time/zoned";
 import { nearestMinutes, outsideArea } from "../travel/area";
 import type { TravelFacts } from "../travel/line-copy";
 import { travelFor } from "../travel/lines";
+import { travelSettings } from "../travel/settings";
 import type { MyShift, PortalContext } from "./my-shifts";
 
 // The staff portal's Open shifts list (docs/screens.md, `/shifts/open`): only shifts this worker
@@ -41,7 +42,9 @@ import type { MyShift, PortalContext } from "./my-shifts";
 // Urgent first, then the nearest (the quickest of her chosen ways), then the date. Each shift
 // carries its travel facts (src/lib/travel/lines.ts), and `further` counts the shifts she could
 // otherwise take that are further than she travels (the same filters and rules). With no area,
-// nothing is left out and `area` is null (the pages ask her to add one).
+// nothing is left out and `area` is null (the pages ask her to add one). Only where the firm has
+// travel areas switched on (`travelOn`, 13.4): off, nothing is left out or ordered by distance,
+// `area` is null, no shift carries travel facts, and the pages ask for no area.
 
 export const OPEN_WINDOW_DAYS = 28;
 export const MAX_CANDIDATES = 50;
@@ -56,7 +59,8 @@ export interface OpenShift {
   // Fair rotation: held for workers with fewer hours that week (the shift's own Monday-to-Sunday week) until then (null: takeable now).
   opensAt: Date | null;
   isUrgent: boolean; // marked urgent (src/lib/roster/urgent.ts)
-  travel: TravelFacts; // for the travel line (src/lib/travel/line-copy.ts)
+  // For the travel line (src/lib/travel/line-copy.ts); none where the firm has travel areas off.
+  travel?: TravelFacts;
   // The session's details the shifts line's personal reply names (12D.2; always set here, optional
   // for the pages' own fixtures).
   eventName?: string | null;
@@ -83,7 +87,10 @@ export interface OpenShiftsList {
   // The worker wants to hear about open shifts (their profile setting): the empty list says
   // "We'll message you" only then.
   offerAlerts: boolean;
-  // Her travel area's limit, or null: no area set (everything shown, with the prompt).
+  // The firm has travel areas switched on (13.4): only then are pages to ask for an area.
+  travelOn: boolean;
+  // Her travel area's limit, or null: no area set (everything shown; with travel areas on, the
+  // prompt), or travel areas off.
   area: { maxMinutes: number } | null;
   // Shifts she could take but for her travel area; `atLeast`: more than the rules checked.
   further: { count: number; atLeast: boolean };
@@ -174,14 +181,17 @@ export async function openShiftsFor(
       .where(eq(firms.id, ctx.firm.id));
     // Read once for the page; first come, first served never holds, so no gate is asked.
     const allocation = parseAllocationSettings(firm?.settings ?? {});
+    const travelOn = travelSettings(firm?.settings ?? {}).enabled;
     const [me] = await tx
       .select({ roles: workers.roles, offerAlerts: workers.offerAlerts })
       .from(workers)
       .where(eq(workers.id, workerId));
-    const [home] = await tx
-      .select({ maxMinutes: workerTravel.maxMinutes })
-      .from(workerTravel)
-      .where(eq(workerTravel.workerId, workerId));
+    const [home] = travelOn
+      ? await tx
+          .select({ maxMinutes: workerTravel.maxMinutes })
+          .from(workerTravel)
+          .where(eq(workerTravel.workerId, workerId))
+      : [];
     const area = home ? { maxMinutes: home.maxMinutes } : null;
     const zone = firm?.timezone ?? "Europe/London";
     const offerAlerts = me?.offerAlerts ?? false;
@@ -190,6 +200,7 @@ export async function openShiftsFor(
         shifts: [],
         truncated: false,
         offerAlerts,
+        travelOn,
         area,
         further: NONE_FURTHER,
         choices: EMPTY,
@@ -214,7 +225,8 @@ export async function openShiftsFor(
       siteId: sql`${shifts.siteId}`,
       startsAt: sql`${shifts.startsAt}`,
     };
-    const outside = outsideArea(travel);
+    // Travel areas off: nothing is outside.
+    const outside = travelOn ? outsideArea(travel) : sql`false`;
     const inArea = sql`not ${outside}`;
 
     // The choices: every open shift in the window and her area, whatever the filters.
@@ -297,7 +309,7 @@ export async function openShiftsFor(
       .where(and(inWindow, inArea, ...narrowed))
       .orderBy(
         desc(shifts.isUrgent),
-        sql`${nearestMinutes(travel)} asc nulls last`,
+        ...(travelOn ? [sql`${nearestMinutes(travel)} asc nulls last`] : []),
         asc(shifts.startsAt),
         asc(shifts.id),
       )
@@ -328,11 +340,13 @@ export async function openShiftsFor(
     const ok = (shiftId: string) => !!verdicts.get(pairKey(shiftId, workerId))?.ok;
     const gates = await loadAllocationGates(tx, { shiftIds, workerId, now }, allocation);
     const allowed = free.filter((c) => ok(c.shiftId));
-    const travelOf = await travelFor(
-      tx,
-      workerId,
-      allowed.map((c) => c.shiftId),
-    );
+    const travelOf = travelOn
+      ? await travelFor(
+          tx,
+          workerId,
+          allowed.map((c) => c.shiftId),
+        )
+      : null;
     const requirements = await readRequirements(
       tx,
       allowed.map((c) => c.role),
@@ -348,7 +362,7 @@ export async function openShiftsFor(
         placesLeft: c.headcount - c.held,
         opensAt: gate.ok ? null : gate.opensAt,
         isUrgent: c.isUrgent,
-        travel: travelOf.get(c.shiftId) ?? { kind: "unknown" },
+        ...(travelOf ? { travel: travelOf.get(c.shiftId) ?? { kind: "unknown" } } : {}),
         eventName: c.eventName,
         casualEvent: c.casualEvent,
         payRatePence: c.payRatePence,
@@ -450,6 +464,7 @@ export async function openShiftsFor(
       shifts: kept,
       truncated: candidates.length > MAX_CANDIDATES,
       offerAlerts,
+      travelOn,
       area,
       further: {
         count: freeBeyond.filter((c) => ok(c.shiftId)).length,

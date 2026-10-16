@@ -291,7 +291,7 @@ describe("every sender logs a Twilio-shaped message id as it is", () => {
     await runPayQueryUpdate(
       { firmId: f.firmId, idempotencyKey: `pay-query-update:${payQueryId}`, payQueryId },
       withFirm,
-      { transport: t.transport, push: noPush, clock },
+      { transport: t.transport, push: noPush, clock, baseDomain: "localhost:3000" },
     );
     expect(t.ids).toHaveLength(1);
     expect(await loggedIds(f.firmId, "pay_query.update_sent")).toEqual(t.ids);

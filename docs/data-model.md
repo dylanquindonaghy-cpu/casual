@@ -114,9 +114,11 @@ how long a strike counts) and `strikes.keep_months` (12, 7 to 72: when its row i
 inside the 6-month tribunal limit; `firm:settings` accepts it only if it covers `live_days` plus 6
 months, a month counted as 28 days, so with 90 days counting the shortest is 10).
 
-The owner's travel setting (12G.1), read by `src/lib/travel/settings.ts`:
-`travel.default_max_minutes` (45; 30, 45, 60 or 90): a casual's time limit on `/profile/travel`
-until they choose their own. Which look-up service is used is a server setting
+The owner's travel settings, read by `src/lib/travel/settings.ts`: `travel.enabled` (13.4; off
+unless exactly `true`): travel areas are on for the firm (off, no casual sees or saves one, and
+nothing is filtered, ordered or worked out by distance; the firm's DPIA Part 2 comes first,
+`docs/dpia-travel.md`); `travel.default_max_minutes` (12G.1; 45; 30, 45, 60 or 90): a casual's
+time limit on `/profile/travel` until they choose their own. Which look-up service is used is a server setting
 (`TRAVEL_PROVIDER`), never per firm.
 
 The owner's staff photo setting (12F.2), read by `src/lib/uploads/settings.ts`:
@@ -735,9 +737,11 @@ create table events (
 -- link was on the firm's own domain), auth.link_rejected
 -- (magic_link or none; {kind, reason: unknown|used|expired|wrong_kind|inactive}), auth.login
 -- (session; actor worker/office), auth.session_rotated, auth.logout, auth.rate_limited
--- (login_request, magic_link or session; {limit: "login:mobile" | "login:ip" | "office:email" |
--- "office:ip" | "link_fail:ip" | "otp:worker" | "otp:worker_day"}; once per window, when the
--- limit is first reached). Pay-page codes: auth.otp_requested (session),
+-- (login_request, magic_link, session, api_key or worker; {limit: "login:mobile" |
+-- "login:mobile_day" | "login:ip" | "office:email" | "office:email_day" | "office:ip" |
+-- "link_fail:ip" | "otp:worker" | "otp:worker_day" | "api:key" | "push:worker" (13.3) |
+-- "take:worker" (13.5) | "strikes_link:…"}; once per window, when the limit is first reached;
+-- the worker's own limits name them as the entity). Pay-page codes: auth.otp_requested (session),
 -- auth.otp_sent, auth.otp_failed ({attemptsLeft}), auth.otp_locked, auth.otp_verified (otp_code).
 -- Worker requests (src/lib/portal/requests.ts): request.created (request; actor worker; {type,
 -- shiftId}): the typed note and any colleague's name stay on the row (requests.payload:

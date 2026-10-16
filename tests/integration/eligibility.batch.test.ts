@@ -370,9 +370,18 @@ describe("a bounded number of queries (audit L73, L75)", () => {
           wave_size: 2,
           wave_minutes: 120,
           credential_applied_allowance_pct: 15,
+          // Travel areas on (13.4), so the travel reads are counted too.
+          travel: { enabled: true },
         },
       });
       const me = await f.worker({ first: "Me" });
+      // With a travel area, so the "further than you travel" read is counted too.
+      await su.query(
+        `insert into worker_travel (firm_id, worker_id, start_postcode, lat, lng, modes,
+                                    max_minutes, privacy_notice_version, updated_at)
+         values ($1, $2, 'ZZ2 2BB', 53.89, -1.49, 'both', 45, 'travel-v1', now())`,
+        [f.firmId, me],
+      );
       for (let i = 0; i < 4; i += 1) await f.worker({ first: `O${i}` });
       for (let i = 0; i < n; i += 1) {
         const id = await f.shift({ startsAt: hoursFromNow(30 + i), headcount: 2 });

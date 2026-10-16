@@ -27,6 +27,7 @@ import type {
   SiteUnblockReason,
   UnblockReason,
 } from "./worker-reasons";
+import { travelOn as travelOnFor } from "../travel/on";
 
 // The office's controls for one worker (Phase 10; audit M22, M23, L24, L81; docs/screens.md
 // `/office/casuals/[id]`, `/office/workers/[id]` until 12F.1), for active admins and resourcers (checked again inside each change).
@@ -391,8 +392,10 @@ export interface WorkerAccessView {
   byOffice: boolean; // made inactive by the office (a sheet or file can't undo it)
   siteBlocks: { siteId: string; site: string; reason: string; since: Date }[];
   otherSites: { id: string; name: string }[];
-  // Their travel area (12G.1): the district only ("ZZ1"), never the postcode or its point.
+  // Their travel area (12G.1): the district only ("ZZ1"), never the postcode or its point. Null
+  // too where the firm has travel areas off (`travelOn`, 13.4).
   travel: { district: string; maxMinutes: number; modes: TravelMode } | null;
+  travelOn: boolean;
   ahead: {
     shiftId: string;
     role: string;
@@ -459,16 +462,20 @@ export async function workerAccessView(
        order by s.name
     `);
     const blocked = new Set(blocks.map((b) => b.site_id));
-    // The district is cut out in the database: the full postcode never reaches the office.
-    const { rows: travel } = await tx.execute<{
-      district: string;
-      max_minutes: number;
-      modes: TravelMode;
-    }>(sql`
-      select split_part(t.start_postcode, ' ', 1) as district, t.max_minutes, t.modes
-        from worker_travel t
-       where t.worker_id = ${worker.id}
-    `);
+    // The district is cut out in the database: the full postcode never reaches the office. Not
+    // read where the firm has travel areas off.
+    const travelOn = await travelOnFor(tx);
+    const { rows: travel } = travelOn
+      ? await tx.execute<{
+          district: string;
+          max_minutes: number;
+          modes: TravelMode;
+        }>(sql`
+          select split_part(t.start_postcode, ' ', 1) as district, t.max_minutes, t.modes
+            from worker_travel t
+           where t.worker_id = ${worker.id}
+        `)
+      : { rows: [] };
     const allSites = await tx
       .select({ id: sites.id, name: sites.name })
       .from(sites)
@@ -523,6 +530,7 @@ export async function workerAccessView(
             modes: travel[0].modes,
           }
         : null,
+      travelOn,
       ahead: ahead.slice(0, WORKER_AHEAD_MAX).map((a) => ({
         shiftId: a.shift_id,
         role: a.role,

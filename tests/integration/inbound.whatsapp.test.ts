@@ -224,6 +224,30 @@ describe("the WhatsApp webhook", () => {
     );
     expect(res.status).toBe(200);
     expect((await t.messageRows())[0]?.body).toBe("x".repeat(1600));
+    // An emoji across the cut (13.5): the 1,600th character, kept whole; never half of one ("�").
+    await handleTwilioWhatsApp(
+      signedRequest({
+        MessageSid: sid(),
+        From: `whatsapp:${t.mobile}`,
+        To: `whatsapp:${t.line}`,
+        Body: `${"y".repeat(1599)}😀END`,
+      }),
+      deps(),
+    );
+    // A flag (two characters) across it: left out whole.
+    await handleTwilioWhatsApp(
+      signedRequest({
+        MessageSid: sid(),
+        From: `whatsapp:${t.mobile}`,
+        To: `whatsapp:${t.line}`,
+        Body: `${"z".repeat(1599)}🇬🇧END`,
+      }),
+      deps(),
+    );
+    const bodies = (await t.messageRows()).map((r) => r.body);
+    expect(bodies).toContain(`${"y".repeat(1599)}😀`);
+    expect(bodies).toContain("z".repeat(1599));
+    expect(bodies.join("")).not.toContain("\uFFFD");
     // A signed request with a bad field: the field's name is logged, never its value.
     await handleTwilioWhatsApp(
       signedRequest({

@@ -208,12 +208,14 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
               )}
             </section>
 
-            <section className={card} aria-labelledby="travel">
-              <h2 id="travel" className={h2}>
-                Travel area
-              </h2>
-              <p className="mt-2 tabular-nums">{officeTravelText(worker.travel)}</p>
-            </section>
+            {worker.travelOn && (
+              <section className={card} aria-labelledby="travel">
+                <h2 id="travel" className={h2}>
+                  Travel area
+                </h2>
+                <p className="mt-2 tabular-nums">{officeTravelText(worker.travel)}</p>
+              </section>
+            )}
 
             <section className={card} aria-labelledby="strikes">
               <h2 id="strikes" className={h2}>

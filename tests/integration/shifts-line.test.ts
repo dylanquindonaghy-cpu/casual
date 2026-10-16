@@ -178,6 +178,7 @@ describe("messages go from the firm's shifts line", () => {
         transport: answer.transport,
         push: { name: "none", send: async () => ({ status: "skipped" as const }) },
         clock: { now: () => NOW },
+        baseDomain: "localhost:3000",
       })),
       { id: "job", data: jobs[0]?.data ?? {} },
       withFirm,

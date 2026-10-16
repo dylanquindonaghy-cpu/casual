@@ -16,12 +16,14 @@ export interface Limit {
 }
 
 export const LIMITS = {
-  // Login links: 3 per number and 10 per IP every 15 minutes, and 10 per number a day (Phase 10,
-  // audit L49: 3 every 15 minutes alone allowed 288 messages a day to one number, each billed to
-  // the firm, and the IP limit is easy to spread). Each link costs a message.
+  // Login links: 3 per number every 15 minutes and 10 per number a day (Phase 10, audit L49: 3
+  // every 15 minutes alone allowed 288 messages a day to one number, each billed to the firm), and
+  // 60 per IP every 15 minutes: a team briefed on one venue's Wi-Fi shares one address, so 10 left
+  // most of them out (Dylan, 2026-10-16; 13.5). The per-number limits are what stop one number
+  // being flooded; the IP limit is easy to spread anyway. Each link costs a message.
   loginPerNumber: { name: "login:mobile", max: 3, windowMs: 15 * MINUTE },
   loginPerNumberDaily: { name: "login:mobile_day", max: 10, windowMs: 24 * 60 * MINUTE },
-  loginPerIp: { name: "login:ip", max: 10, windowMs: 15 * MINUTE },
+  loginPerIp: { name: "login:ip", max: 60, windowMs: 15 * MINUTE },
   // Using links: 20 failed attempts (expired, used, junk) per IP. Successful logins don't count,
   // so a whole crew logging in on one venue Wi-Fi isn't locked out by its own success.
   linkFailuresPerIp: { name: "link_fail:ip", max: 20, windowMs: 15 * MINUTE },
@@ -41,6 +43,10 @@ export const LIMITS = {
   // minutes, counted by the worker's id, only for a save that writes (and so logs). Turning
   // notifications on, or the browser renewing a subscription, takes one. Removing is never limited.
   pushPerWorker: { name: "push:worker", max: 10, windowMs: 15 * MINUTE },
+  // "Take shift" (13.5; Checks 6): 20 taps per worker every 15 minutes, counted by the worker's id,
+  // booked or not. Plenty for anyone picking up shifts; it stops one session hammering the rules
+  // and the action log (every refused tap logs shift.booking_refused).
+  takePerWorker: { name: "take:worker", max: 20, windowMs: 15 * MINUTE },
 } as const satisfies Record<string, Limit>;
 
 export function bucketFor(limit: Limit, value: string, secret: string): string {

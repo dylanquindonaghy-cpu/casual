@@ -129,7 +129,7 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     category: "utility",
     language: "en_GB",
     variables: ["day", "start", "end", "site", "link", "signOff"],
-    body: "Reminder: {{1}} {{2}}–{{3}} at {{4}}. Details: {{5}}. Can't make it? Cancel in the app as early as you can. — {{6}}",
+    body: "Reminder: {{1}} {{2}}–{{3}} at {{4}}. Details: {{5}}. Can't make it? Cancel with the link as early as you can. — {{6}}",
     example: {
       day: "tomorrow",
       start: "08:00",
@@ -145,7 +145,7 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     category: "utility",
     language: "en_GB",
     variables: ["day", "start", "end", "link", "signOff"],
-    body: "Reminder: {{1}} {{2}}–{{3}}. Details: {{4}}. Can't make it? Cancel in the app as early as you can. — {{5}}",
+    body: "Reminder: {{1}} {{2}}–{{3}}. Details: {{4}}. Can't make it? Cancel with the link as early as you can. — {{5}}",
     example: { day: "tomorrow", start: "08:00", end: "16:00", link: LINK, signOff: SIGN_OFF },
   },
   {
@@ -339,12 +339,11 @@ export const WHATSAPP_TEMPLATES: readonly WhatsAppTemplate[] = [
     docName: "pay_query_update",
     category: "utility",
     language: "en_GB",
-    variables: ["ref", "status", "note", "signOff"],
-    body: "Update on your pay query (ref {{1}}): {{2}}. {{3}} — {{4}}",
+    variables: ["ref", "link", "signOff"],
+    body: "Payroll has answered your pay query (ref {{1}}). See their answer on your pay page: {{2}} — {{3}}",
     example: {
       ref: "3F2A9C1B",
-      status: "sorted",
-      note: "The new rate is now applied. The difference is paid on Fri 13 Nov.",
+      link: "https://acme.shiftdesk.example/pay",
       signOff: SIGN_OFF,
     },
   },

@@ -106,7 +106,7 @@ function Facts({
 }
 
 // "Getting there", from her home area: the distance, by car, by public transport, then the maps
-// button.
+// button. Where the firm has travel areas off (13.4), only the maps button (nothing without one).
 function GettingThere({
   shift,
   facts,
@@ -117,17 +117,22 @@ function GettingThere({
   timeZone: string;
 }) {
   const map = shift.site ? mapLink(shift.site) : null;
+  if (!facts.travel && !map) return null;
   return (
     <section aria-labelledby="getting-there-heading" className={sectionGap.staff}>
       <h2 id="getting-there-heading" className={h2}>
         Getting there
       </h2>
-      <p className={`mt-1 ${muted}`}>From your home area</p>
-      <ul role="list" className={`${headingGap} flex flex-col gap-1`} data-travel-line="">
-        {gettingThereLines(facts.travel, timeZone).map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
+      {facts.travel && (
+        <>
+          <p className={`mt-1 ${muted}`}>From your home area</p>
+          <ul role="list" className={`${headingGap} flex flex-col gap-1`} data-travel-line="">
+            {gettingThereLines(facts.travel, timeZone).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </>
+      )}
       {map && (
         <a
           href={map}

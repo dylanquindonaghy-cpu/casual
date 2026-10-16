@@ -659,10 +659,10 @@ test("Part 3: as the office", async ({ browser }) => {
     const asked = justBefore();
     await group.getByRole("button", { name: "Mark as sorted and tell them" }).click();
     await expect(group.getByRole("status")).toHaveText(
-      "Marked as sorted: 7 queries. Each person will get your note by message.",
+      "Marked as sorted: 7 queries. Each person gets a message saying payroll has answered, and sees your note on their pay page.",
     );
     // Sam Walsh is one of them.
-    await sent(SAM.e164, asked, /^(Update on your pay query \(ref [0-9A-F]{8}\): sorted\.)/);
+    await sent(SAM.e164, asked, /^(Payroll has answered your pay query \(ref [0-9A-F]{8}\)\.)/);
   });
 
   await test.step("38. Import pay records", async () => {

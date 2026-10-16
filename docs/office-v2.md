@@ -1109,7 +1109,7 @@ Each key needs a `SETTING_KEYS` entry and a reader function in `src/lib/onboardi
 | Strikes | `strikes.notice_hours` 48 (kept separate from the existing legal `short_notice_threshold_hours`, so firm policy doesn't move when the law changes), `strikes.live_days` 90, `strikes.keep_months` 12 | the owner (`firm:settings`) |
 | Strikes team | `strikes.email` (none), `strikes.email_verified_at` | admins, on Settings (S10) |
 | Qualifications and photos | `credentials.expiring_days` 30, `photo.renewal_months` 36 (D3) | the owner |
-| Travel | `travel.default_max_minutes` 45. Which provider to use is a server environment setting (`TRAVEL_PROVIDER`: `fake` or `traveltime`), not a per-firm setting | the owner |
+| Travel | `travel.enabled` off (on per firm once its DPIA Part 2 is signed; 13.4), `travel.default_max_minutes` 45. Which provider to use is a server environment setting (`TRAVEL_PROVIDER`: `fake` or `traveltime`), not a per-firm setting | the owner |
 | Planner webhook | `webhook.url` (none); `webhook.signing_version` (0; only ever raised by `app_set_firm_setting()` itself) | admins, on Integrations (S11) |
 
 `retention.*`, quiet hours, offer waves, the urgent window, the digest time (`pay_digest`) and the

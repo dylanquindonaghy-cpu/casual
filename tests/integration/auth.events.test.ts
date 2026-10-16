@@ -9,6 +9,7 @@ import {
   requestOfficeLoginLink,
 } from "@/lib/auth/office-login";
 import { sendLoginCode } from "@/lib/auth/send-login-code";
+import { LIMITS } from "@/lib/auth/throttle";
 import { createSession } from "@/lib/auth/sessions";
 import { requestStepUpCode, verifyStepUpCode } from "@/lib/auth/step-up";
 import { hashToken } from "@/lib/auth/tokens";
@@ -316,7 +317,7 @@ describe("rate-limit events, all seven limits", () => {
   it("login:ip", async () => {
     const T = await createTenant(su);
     const since = await eventMark(su);
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < LIMITS.loginPerIp.max + 2; i++) {
       await requestWorkerLoginLink(ctx(T, 0, "203.0.113.10"), `07700 9001${10 + i}`);
     }
     expect(await onlyLimits(T.firmId, since)).toEqual([rateLimited("login:ip", "login_request")]);

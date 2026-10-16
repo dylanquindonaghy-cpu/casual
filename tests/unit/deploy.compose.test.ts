@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -13,6 +20,12 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
+// Every file under a folder of the repo, as repo paths.
+const listFiles = (dir: string): string[] =>
+  readdirSync(join(ROOT, dir)).flatMap((name) => {
+    const path = join(dir, name);
+    return statSync(join(ROOT, path)).isDirectory() ? listFiles(path) : [path];
+  });
 
 // Every value the compose file asks for, made up.
 const ENV = [
@@ -301,7 +314,7 @@ describe("the image (Dockerfile)", () => {
 
   it("builds with npm ci and next build, runs as the unprivileged node user in production", () => {
     expect(dockerfile).toContain("RUN npm ci");
-    expect(dockerfile).toContain("RUN npm run build");
+    expect(dockerfile).toMatch(/^RUN npm run build/m);
     expect(runtime).toMatch(/^USER node$/m);
     expect(runtime).toMatch(/NODE_ENV=production/);
     expect(runtime).toContain('CMD ["node_modules/.bin/next", "start", "-p", "3000"]');
@@ -323,6 +336,52 @@ describe("the image (Dockerfile)", () => {
     // A direct dependency, at an exact version, so npm ci always installs it.
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
     expect(pkg.dependencies.sharp).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("production dependencies only (13.5): dev tools pruned after the build; tsx kept, and checked", () => {
+    const build = dockerfile.slice(0, dockerfile.indexOf("AS runtime"));
+    // Pruned in the build stage, after the build (which needs the dev tools), before the copy.
+    expect(build).toMatch(/^RUN npm run build && npm prune --omit=dev$/m);
+    // The worker and migrate run with tsx (deploy/docker-compose.yml): a dependency, not a dev
+    // tool, so the prune keeps it; the build fails if it can't load, or if a test tool is left.
+    const pkg = JSON.parse(read("package.json")) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies.tsx).toBeDefined();
+    expect(pkg.devDependencies.tsx).toBeUndefined();
+    for (const tool of ["vitest", "eslint", "typescript", "prettier", "drizzle-kit"]) {
+      expect(pkg.devDependencies[tool], tool).toBeDefined();
+      expect(pkg.dependencies[tool], tool).toBeUndefined();
+    }
+    // It compiles a real TypeScript file (esbuild's native binary included), not just loads tsx.
+    expect(runtime).toContain(
+      `RUN node --import tsx --input-type=module -e "await import('./src/lib/text/cut.ts')" \\\n && test ! -e node_modules/vitest && test ! -e node_modules/eslint`,
+    );
+    expect(runtime.indexOf("--import tsx")).toBeLessThan(runtime.indexOf("USER node"));
+    const compose = read("deploy/docker-compose.yml");
+    expect(compose).toContain('["node", "--import", "tsx", "src/worker/index.ts"]');
+    // Nothing the image runs imports a dev tool: the app (src/), migrate, the owner's commands and
+    // the helpers they import (every TypeScript script but the development-only ones: the seed, the
+    // fake phone, db-reset, the walkthrough's files). Any form: from, import(), a bare import,
+    // require().
+    const devOnly = /^(db-reset|fake-phone|seed|seed-summary|sim|walkthrough-files)\.ts$/;
+    const scripts = readdirSync(join(ROOT, "scripts")).filter(
+      (f) => f.endsWith(".ts") && !devOnly.test(f),
+    );
+    expect(scripts).toEqual(expect.arrayContaining(["migrate.ts", "shifts-line-owner.ts"]));
+    const runs = [...listFiles("src"), ...scripts.map((f) => join("scripts", f))].filter((f) =>
+      /\.(ts|tsx|mjs)$/.test(f),
+    );
+    expect(runs.length).toBeGreaterThan(300);
+    const dev = Object.keys(pkg.devDependencies);
+    const uses = runs.flatMap((f) =>
+      [...read(f).matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\(\s*)"([^"]+)"/g)]
+        .map((m) => m[1] ?? "")
+        .filter((spec) => dev.some((d) => spec === d || spec.startsWith(`${d}/`)))
+        .map((spec) => `${f}: ${spec}`),
+    );
+    expect(uses).toEqual([]);
   });
 
   it("no secrets in the image: the build-only placeholders stay in the build stage", () => {

@@ -39,6 +39,7 @@ import { lockOfferCounts, waveCandidates, type WaveCandidate } from "./candidate
 import { closeOpenOffers } from "./close";
 import { lockOfferOutcome, logUnconfirmedOffers } from "./unconfirmed";
 import { lockLiveContact, type LiveContact } from "./reachable";
+import { travelSettings } from "../travel/settings";
 
 // Offer waves and escalation (docs/api-and-jobs.md, "Job catalogue" and "Offer-wave ranking";
 // docs/architecture.md, "Offer waves"). Two firm jobs:
@@ -388,8 +389,14 @@ export async function runOfferWave(
 
   // The first wave of a session (an urgent one made close to the start may have none yet): its
   // travel estimates first, outside any transaction, so they're there before anyone is offered it.
-  // Best-effort: a travel service that doesn't answer never holds the offers back.
-  if (payload.wave === 1 && already === 0 && deps.travelBeforeFirstWave) {
+  // Best-effort: a travel service that doesn't answer never holds the offers back. None where the
+  // firm has travel areas off (13.4).
+  if (
+    payload.wave === 1 &&
+    already === 0 &&
+    deps.travelBeforeFirstWave &&
+    travelSettings(firm.settings).enabled
+  ) {
     try {
       await deps.travelBeforeFirstWave(run, payload.firmId, shift.id);
     } catch (error) {

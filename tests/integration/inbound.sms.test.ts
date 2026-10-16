@@ -180,6 +180,25 @@ describe("the SMS webhook", () => {
     expect(await t.jobs()).toHaveLength(1);
   });
 
+  it("a long text is cut to the 1,600 characters we store, never inside an emoji (13.5)", async () => {
+    const t = await lineFirm();
+    const text = (body: string) => ({
+      MessageSid: sid(),
+      AccountSid: `AC${randomBytes(16).toString("hex")}`,
+      From: t.mobile,
+      To: t.line,
+      Body: body,
+      NumMedia: "0",
+    });
+    for (const body of [`${"y".repeat(1599)}😀END`, `${"z".repeat(1599)}🇬🇧END`]) {
+      expect((await handleTwilioSms(signed(text(body)), deps())).status).toBe(200);
+    }
+    const bodies = (await t.messageRows()).map((r) => r.body);
+    expect(bodies).toContain(`${"y".repeat(1599)}😀`);
+    expect(bodies).toContain("z".repeat(1599));
+    expect(bodies.join("")).not.toContain("\uFFFD");
+  });
+
   it("keeps Twilio's own STOP or START (any case); HELP or anything else is an ordinary text", async () => {
     const t = await lineFirm();
     for (const [type, body] of [

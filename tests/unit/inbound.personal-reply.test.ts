@@ -67,6 +67,7 @@ const base = (o: Partial<ShiftsReplyInput> = {}): ShiftsReplyInput => ({
   asked: askedDays("anything on saturday?", FRIDAY, TZ),
   booked: [],
   shifts: [arena, patrol],
+  travelOn: true,
   area: { maxMinutes: 45 },
   offerAlerts: true,
   links: { take: LINK, profile: PROFILE },
@@ -482,5 +483,27 @@ describe("enquiry.checks passes the log's check", () => {
         workerId: id(7),
       }),
     ).toBe(true);
+  });
+});
+
+describe("travel areas switched off for the firm (13.4)", () => {
+  it("no travel lines and no ask for a home area, by WhatsApp or text", () => {
+    const off = base({
+      travelOn: false,
+      area: null,
+      shifts: [
+        { ...arena, travel: undefined },
+        { ...patrol, travel: undefined },
+      ],
+    });
+    for (const channel of ["whatsapp", "sms"] as const) {
+      const { text, listed } = shiftsReplyText(off, channel);
+      expect(listed).toBe(2);
+      expect(text).not.toMatch(/home area|min by car|miles|public transport/i);
+      expect(text).not.toContain(PROFILE);
+    }
+    // Nothing to take: no "within N minutes of your home area" either.
+    const none = shiftsReplyText({ ...off, shifts: [] }, "whatsapp").text;
+    expect(none).toContain("there's nothing you can take on Saturday right now.");
   });
 });

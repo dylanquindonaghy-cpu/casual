@@ -179,7 +179,7 @@ describe("the demo story", () => {
     // minutes and can come between the story's two. Any other day it has none and comes last.
     const urgent = list.shifts.filter((s) => s.isUrgent);
     const nearest = (t: (typeof urgent)[number]["travel"]) =>
-      t.kind === "estimated"
+      t?.kind === "estimated"
         ? Math.min(t.car?.minutes ?? Infinity, t.publicTransport?.minutes ?? Infinity)
         : Infinity;
     const minutes = urgent.map((s) => nearest(s.travel));
@@ -194,10 +194,10 @@ describe("the demo story", () => {
       ["door_supervisor", "Acme Demo Arena", "Northern Lights Live"],
       ["csas_officer", "Northgate Demo Town Centre", "Night patrols"],
     ]);
-    expect(travelLineText(storyUrgent[0]!.travel, "Europe/London")).toBe(
+    expect(travelLineText(storyUrgent[0]!.travel!, "Europe/London")).toBe(
       "3.1 miles · 12 min by car · 24 min by public transport",
     );
-    expect(travelLineText(storyUrgent[1]!.travel, "Europe/London")).toBe(
+    expect(travelLineText(storyUrgent[1]!.travel!, "Europe/London")).toBe(
       "8.4 miles · 21 min by car · 38 min by public transport",
     );
     // Home's top 3 to apply for: the story's, nearest first.

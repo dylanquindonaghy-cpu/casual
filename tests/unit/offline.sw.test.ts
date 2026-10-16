@@ -863,6 +863,7 @@ describe("My shifts and the kept copy together", () => {
                 shifts: [],
                 truncated: false,
                 offerAlerts: true,
+                travelOn: true,
                 area: null,
                 further: { count: 0, atLeast: false },
                 choices: { days: [], sites: [], roles: [] },

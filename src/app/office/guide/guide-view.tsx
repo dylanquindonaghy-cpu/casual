@@ -189,7 +189,8 @@ const MENU_WORDS: Record<string, string> = {
   Requests: "Time changes, swaps and reviews workers have asked for.",
   Strikes:
     "Who has strikes for cancelling late, and which need a review. Withdraw or keep one from its record.",
-  Casuals: "Their qualifications, travel areas and strikes, and their access.",
+  Casuals:
+    "Their qualifications, strikes and access, and their travel areas where your firm uses them.",
   "Action log": "Everything that happened, newest first.",
   "Notice report": "Every offer, booking, move and cancellation, with the notice given.",
   "Pilot metrics": "The pilot's figures against your week-0 baseline.",
@@ -831,8 +832,9 @@ function Pay() {
           </Step>
         </Steps>
         <Note>
-          Everyone in the group gets the same note, by message and on their pay page. So don&apos;t
-          name anyone, give one person&apos;s figures or include bank details.
+          Everyone in the group gets the same note on their pay page. Their message only says
+          payroll has answered. So don&apos;t name anyone, give one person&apos;s figures or include
+          bank details.
         </Note>
       </Task>
       <Task title="The payroll digest">

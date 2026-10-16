@@ -10,6 +10,7 @@ import { casualEventName } from "../roster/shift-events";
 import { decideForWorker, firmStrikeSettings } from "../strikes/issue";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { travelLineText, type TravelFacts } from "../travel/line-copy";
+import { cutChars, cutUnits } from "../text/cut";
 
 // The shifts line's personal replies (docs/office-v2.md 3.6, 5.7 items 1 and 2; 12D.2): the answer
 // to "shifts" and "cancel", built by code from the firm's data, never by AI. Server only.
@@ -39,16 +40,12 @@ const signed = (firm: FirmVoice, channel: Channel, text: string) =>
   channel === "sms" ? `${text} - ${firm.signOff}` : `${text}\n— ${firm.signOff}`;
 
 // A name cut to `max` characters. A text's cut ends "..." (GSM-7: "…" would make the whole text
-// cost 70-character parts), and never splits a character in two.
-const cut = (text: string, max: number, ellipsis = "…") => {
-  const chars = [...text];
-  return chars.length <= max
+// cost 70-character parts), and never splits a character in two (nor a flag or skin tone: the
+// shared cut, 13.5).
+const cut = (text: string, max: number, ellipsis = "…") =>
+  cutChars(text, max) === text
     ? text
-    : `${chars
-        .slice(0, Math.max(1, max - ellipsis.length))
-        .join("")
-        .trimEnd()}${ellipsis}`;
-};
+    : `${cutChars(text, Math.max(1, max - ellipsis.length)).trimEnd()}${ellipsis}`;
 const FIRST_NAME_MAX = 40;
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -181,7 +178,7 @@ export interface ListedShift {
   post: string | null;
   urgent: boolean;
   holdsCsas: boolean; // the session needs CSAS, which she holds (§5.7's "you hold CSAS")
-  travel: TravelFacts;
+  travel?: TravelFacts; // none where the firm has travel areas off (13.4)
 }
 
 export interface BookedLine {
@@ -198,7 +195,8 @@ export interface ShiftsReplyInput {
   asked: AskedDays | null;
   booked: BookedLine[]; // her bookings on the days she asked about
   shifts: ListedShift[]; // all she could take, in order
-  area: { maxMinutes: number } | null; // her travel area (null: none set)
+  travelOn: boolean; // the firm has travel areas on (13.4): only then is she asked to add one
+  area: { maxMinutes: number } | null; // her travel area (null: none set, or travel areas off)
   offerAlerts: boolean; // she gets told of new shifts ("We'll message you…")
   links: { take: string; profile: string };
 }
@@ -214,7 +212,7 @@ function whatsappLine(s: ListedShift, i: number, tz: string, max: number, area: 
     ...(s.holdsCsas ? ["you hold CSAS"] : []),
   ];
   const line = parts.join(" · ");
-  return area ? `${line}\n   ${travelLineText(s.travel, tz)}` : line;
+  return area && s.travel ? `${line}\n   ${travelLineText(s.travel, tz)}` : line;
 }
 
 // A text's travel: the app's travel line (the distance and the time by car and by public
@@ -227,7 +225,7 @@ function smsTravel(f: TravelFacts, tz: string): string {
 }
 
 function smsLine(s: ListedShift, i: number, tz: string, max: number, area: boolean): string {
-  const travel = area ? smsTravel(s.travel, tz) : null;
+  const travel = area && s.travel ? smsTravel(s.travel, tz) : null;
   const parts = [
     `${when(s, tz, "-")} ${cut(roleLabel(s.role), max, "...")}`,
     ...(s.siteName ? [cut(s.siteName, max, "...")] : []),
@@ -257,6 +255,8 @@ export function shiftsReplyText(
   channel: Channel,
 ): { text: string; listed: number } {
   const { firm, timeZone: tz, asked, area } = input;
+  // Asked to add a home area: only where the firm has travel areas on, and she has none.
+  const askForArea = input.travelOn && !area;
   const firstName = cut(input.firstName, FIRST_NAME_MAX);
   const booked = (max: number) =>
     asked && input.booked.length > 0
@@ -292,7 +292,7 @@ export function shiftsReplyText(
         text = [
           `${firm.name}: shifts for you: ${lines}`,
           ...(more > 0 ? [`+ ${more} more.`] : []),
-          ...(area ? [] : [`Add your home area: ${input.links.profile}`]),
+          ...(askForArea ? [`Add your home area: ${input.links.profile}`] : []),
           `Take one: ${input.links.take}`,
           AUTOMATIC,
         ].join(" ");
@@ -305,9 +305,9 @@ export function shiftsReplyText(
           opening,
           ...listed.map((s, i) => whatsappLine(s, i, tz, max, area !== null)),
           ...(more > 0 ? [`+ ${more} more: ${input.links.take}`] : []),
-          ...(area
-            ? []
-            : [`Add your home area to see how far each one is: ${input.links.profile}`]),
+          ...(askForArea
+            ? [`Add your home area to see how far each one is: ${input.links.profile}`]
+            : []),
           `Take one here: ${input.links.take}`,
           AUTOMATIC,
         ].join("\n");
@@ -323,7 +323,7 @@ export function shiftsReplyText(
 function lastResort(input: ShiftsReplyInput, channel: Channel): string {
   const text = `Shifts you can take: ${input.links.take} ${AUTOMATIC}`;
   const body = signed(input.firm, channel, text);
-  return body.length <= MAX_BODY ? body : text.slice(0, MAX_BODY);
+  return body.length <= MAX_BODY ? body : cutUnits(text, MAX_BODY);
 }
 
 export interface CancelReplyInput {
@@ -382,6 +382,7 @@ export interface EnquiryChecks {
   template: "shifts_list" | "shifts_none" | "cancel_booking" | "cancel_none";
   days: string[]; // the days she asked about (none: any)
   area: { maxMinutes: number } | null;
+  travelOff?: true; // the firm had travel areas off (13.4): nothing filtered by distance
   offered: {
     shiftId: string;
     car: number | null; // minutes (null: over 90 or not known)
@@ -406,8 +407,8 @@ export const loggedCheck = (c: RuleCheck): LoggedCheck => {
   return { ...flat, code: c.code, passed: c.passed };
 };
 
-const minutesOf = (f: TravelFacts) =>
-  f.kind === "estimated"
+const minutesOf = (f: TravelFacts | undefined) =>
+  f?.kind === "estimated"
     ? { car: f.car?.minutes ?? null, publicTransport: f.publicTransport?.minutes ?? null }
     : { car: null, publicTransport: null };
 
@@ -474,7 +475,7 @@ export async function shiftsReply(
         c.detail.type === "CSAS" &&
         c.detail.held === "valid",
     ),
-    travel: s.travel,
+    ...(s.travel ? { travel: s.travel } : {}),
   }));
   const booked = asked
     ? await run(firmId, (tx) => bookingsOn(tx, workerId, asked.dates, facts.timeZone, now))
@@ -486,6 +487,7 @@ export async function shiftsReply(
     asked,
     booked,
     shifts: listed,
+    travelOn: list.travelOn,
     area: list.area,
     offerAlerts: list.offerAlerts,
     links: { take: `${input.portal}/shifts/open`, profile: `${input.portal}/profile/travel` },
@@ -504,6 +506,7 @@ export async function shiftsReply(
     template: listed.length > 0 ? "shifts_list" : "shifts_none",
     days: asked?.dates ?? [],
     area: list.area,
+    ...(list.travelOn ? {} : { travelOff: true as const }),
     offered: listed.slice(0, count).map((s) => ({
       shiftId: s.shiftId,
       ...minutesOf(s.travel),

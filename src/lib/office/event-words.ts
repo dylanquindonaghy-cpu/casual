@@ -808,6 +808,13 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       if (d.limit === "api:key") {
         return "Too many calls from your planner: its API key was paused for the rest of the minute.";
       }
+      // A casual's own limits (13.3, 13.5): not logging in.
+      if (d.limit === "take:worker") {
+        return "Too many taps on Take shift: taking shifts was paused for a while.";
+      }
+      if (d.limit === "push:worker") {
+        return "Too many changes to phone notifications: saving them was paused for a while.";
+      }
       return typeof d.limit === "string" && d.limit.startsWith("strikes_link:")
         ? "Too many links to confirm the strikes team's email: sending them was paused for a while."
         : "Too many tries: logging in was paused for a while.";

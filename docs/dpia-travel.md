@@ -12,6 +12,12 @@ Part 1 is about how ShiftDesk builds the travel area, and is the same for every 
 template each firm fills in for itself, because the firm is the controller of its casuals' data and
 ShiftDesk is its processor.
 
+**Each firm switches the travel area on for itself (13.4).** It's off for a new firm
+(`travel.enabled`, set by the owner with `npm run firm:settings -- --firm <slug> --set travel.enabled=true` once that
+firm's Part 2 is signed). Off, its casuals aren't asked for a postcode, see no "Where you work",
+no travel lines and no prompt to add a home area, and nothing is filtered, ordered or worked out
+by distance (no TravelTime search for that firm). The made-up demo firm (Acme) has it on.
+
 No real firm uses ShiftDesk yet (the pilot hasn't started), so the only data is made up (`ZZ`
 postcodes, golden rule 7). Today the server runs with `TRAVEL_PROVIDER=fake`, which knows only the
 made-up postcodes and sends nothing anywhere. **Before the travel area is used for a real firm:**
@@ -68,7 +74,10 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
    postcode, which needn't be home. The office never needs the full postcode, so it sees only the
    district.
 3. **Balancing test (do the casual's interests override it?).** No, with these safeguards:
-   - it's optional, and removable by the casual at any time ("Remove my travel area");
+   - it's optional, and removable by the casual at any time ("Remove my travel area") while the
+     firm has travel areas on (if a firm switches them off, "Where you work" is hidden, so what
+     happens to the areas already saved must be decided first: `PLAN.md` Parking lot, "Travel
+     areas", Needs Dylan (13.4));
    - nothing happens to a casual without one: they see every shift;
    - the office sees only the district ("ZZ1"), and replies say "from your home area", because the
      office sees replies word for word;
@@ -85,7 +94,9 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 
 ### How long
 
-- While the casual keeps it. It's deleted when they remove it, when the office makes them
+- While the casual keeps it (if the firm switches travel areas off, it's kept but not used until
+  the decision in `PLAN.md` Parking lot, "Travel areas", is made). It's deleted when they remove
+  it, when the office makes them
   inactive with the reason "They've left" (`DEACTIVATE_REASONS.left`,
   `src/lib/office/worker-reasons.ts`), and when they're erased (`src/lib/gdpr/worker-erase.ts`).
   Made inactive for another reason (a pause), it's kept for when they come back.
@@ -133,7 +144,7 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 |---|---|---|
 | The office learns where they live | Possible, moderate | They choose the postcode (needn't be home); the office sees the district only; no house number, GPS or history |
 | It's used to judge or rank them | Unlikely, moderate | Never used for pay, strikes or eligibility; no ranking; the office may still offer anything by hand |
-| They miss offers because of a wrong postcode or a limit set too low | Possible, minor | They see their own setting on Profile and can change or remove it; an unknown distance is shown and still offered (D2, 12G.3) |
+| They miss offers because of a wrong postcode or a limit set too low | Possible, minor | They see their own setting on Profile and can change or remove it (while the firm has travel areas on; off, nothing is filtered at all); an unknown distance is shown and still offered (D2, 12G.3) |
 | Their postcode leaks through the log | Unlikely, moderate | Never logged (the log check refuses a field named "postcode"; tested) |
 | A look-up service learns who they are | Unlikely, minor | Only the postcode is sent (tested); TravelTime gets coordinates and meaningless ids |
 | Kept after they leave | Possible, minor | Deleted on "They've left" and on erasure (tested). A casual already made inactive by a sheet or file, or blocked, keeps it until erased (parked: see "How long") |
@@ -154,8 +165,11 @@ Fill this in before your casuals' travel areas are used. Keep it with your own r
 1. **Your firm:** name, who is responsible for data protection.
 2. **Your casuals:** roughly how many; whether they're employees, workers or agency workers (ask
    your adviser: it changes which rules apply).
-3. **Your setting:** the default time limit (`travel.default_max_minutes`, 45 minutes unless you
-   choose 30, 60 or 90). If you change it, say why.
+3. **Your settings:** travel areas on (`travel.enabled`: off until this Part is signed), and the
+   default time limit (`travel.default_max_minutes`, 45 minutes unless you choose 30, 60 or 90).
+   If you change the limit, say why. If you later switch travel areas off, the home areas already
+   saved are kept but not used, and casuals no longer see them to remove them: decide whether to
+   delete them (`PLAN.md` Parking lot, "Travel areas").
 4. **Your lawful basis:** legitimate interests. Record your own balancing test, using Part 1's as
    a start: your interest (offering shifts casuals can reach), why the postcode is needed for it,
    and why it doesn't override your casuals' interests (optional, removable, district only, never

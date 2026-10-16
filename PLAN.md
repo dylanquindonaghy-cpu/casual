@@ -1117,13 +1117,13 @@ same day ("Decided on 2026-10-16" under "Decisions waiting for Dylan"). Docs: `d
       are set), `POST /api/push/subscribe` rate-limited with the auth throttle, and the browser push
       services in `docs/compliance.md` and `docs/privacy-notice.md`. Tests: a fake push service;
       no real push is ever sent from tests. Testing on real phones waits for the server (13.3)
-- [ ] Privacy (Decided 2026-10-16): travel areas switched on per firm (`travel.enabled`, off by
+- [x] Privacy (Decided 2026-10-16): travel areas switched on per firm (`travel.enabled`, off by
       default): off, a casual sees no "Where you work", no "Add your home area" prompt and no
       travel lines, and Open shifts and offer waves don't filter by area; the demo firm has it on.
       Payroll's note stays behind the pay code: the `pay_query_update` message says payroll has
       answered and to see the pay page (Messages 17). Tests: both switch states, the message's
       words. Docs: `docs/screens.md`, `docs/messaging-templates.md`, `docs/dpia-travel.md` (13.4)
-- [ ] Tidy-ups: "Cancel with the link" in `shift_reminder_24h` (Messages 11); the per-address
+- [x] Tidy-ups: "Cancel with the link" in `shift_reminder_24h` (Messages 11); the per-address
       login limit raised so a team on one venue's Wi-Fi isn't locked out, the per-number limits
       unchanged (Office 10); text cut by whole characters at the webhooks, the voicemail and the
       AI's input (Parking lot "Text cuts that count UTF-16 units"); Open shifts' rules checked for
@@ -1410,13 +1410,13 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 3 | **When you create the accounts:** MFA on every account, least-privilege access, a one-page breach plan (72 hours to report) | You | compliance.md |
 | 4 | **When you deploy:** the first deploy's database step connects with checked encryption (a certificate error: tell Claude) | You | runbooks "Deploy" |
 | 5 | **Before any firm uses its own address:** a regular re-check that it still points to us | Claude | docs/testing.md pre-pilot checklist; ADR-019 |
-| 6 | **Before a pilot:** a per-worker limit on "Take shift" | Claude | Parking lot |
-| 7 | **Before a pilot:** licence expiry messages go by WhatsApp whatever the worker chose (a worker who chose texts gets none): move them onto the normal sender | Claude | Parking lot (credential expiry items) |
+| 6 | ~~**Before a pilot:** a per-worker limit on "Take shift"~~ **Done in 13.5**: 20 taps every 15 minutes | Claude | Parking lot |
+| 7 | ~~**Before a pilot:** licence expiry messages go by WhatsApp whatever the worker chose (a worker who chose texts gets none): move them onto the normal sender~~ **Done in 13.5** | Claude | Parking lot (credential expiry items) |
 | 8 | **Before a pilot:** the dry-run event day on the firm's real setup | You, with the firm | pilot-playbook.md; Phase 9 |
 | 9 | **Before the first real import:** how a real file gets into the server's owner container (a mounted folder, or `docker compose cp`) | Claude, then you | Parking lot "Import the pilot firm's real data" |
 | 10 | On the first restore: check a snapshot keeps the database's logins | You | "Try the runbooks for real" |
 | 11 | Monitoring and alerts as the runbook says (the host's own alerts, an outside uptime check, the app's alerts to you) | You | runbooks "Monitoring and alerts" |
-| 12 | Fix the flaky test (`sheets.jobs.test.ts`): its fix is written out | Claude | Parking lot |
+| 12 | ~~Fix the flaky test (`sheets.jobs.test.ts`): its fix is written out~~ **Already done** on 2026-10-06 (40a7590: the tick's key holds its minute; checked again in 13.5) | Claude | Parking lot |
 | 13 | Capture real Twilio requests for the tests | You, then Claude | "Connect Twilio" step 11 |
 | 14 | **Before a pilot:** a TravelTime production quote (the price isn't published; 12 months minimum; the free key is "not for commercial use") and its data processing agreement; TravelTime and postcodes.io added to the sub-processors (Legal 2) | You (the quote and agreement), Claude (the docs) | `docs/office-v2.md` §5.4; Product 9 |
 | 15 | **Before a pilot:** add the strike and CSAS questions in `docs/office-v2.md` §6.4 to the solicitor's list (Legal 1) | You | `docs/office-v2.md` §6.4; Legal 16 |
@@ -1490,9 +1490,9 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   database accepts `a@b`, which login's stricter check would never match).
 - Per-IP login limits are per firm (auth_throttle is firm-scoped); a cross-firm IP limit needs a
   non-tenant table. Revisit if abuse shows up.
-- Before the pilot: review the per-IP login limit (10 per 15 minutes) against how the pilot firm
-  onboards staff. A briefing on venue Wi-Fi shares one IP (see runbooks). Options: a higher
-  limit, or a per-firm setting.
+- ~~Before the pilot: review the per-IP login limit (10 per 15 minutes) against how the pilot firm
+  onboards staff.~~ **Done in 13.5** (Dylan, 2026-10-16: raise it): 60 per 15 minutes, the
+  per-number limits unchanged. A per-firm setting stays an option if a firm's briefings are bigger.
 - auth_throttle holds HMACs of phone numbers; with SESSION_SECRET those can be reversed (UK
   mobiles are ~10^9), so treat the rows as pseudonymous personal data: the 1-day purge (Phase 8
   retention job) matters.
@@ -1655,12 +1655,16 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   bookings (it checks My shifts' empty state) and Acme to have no open shifts for them ("Nothing
   open right now."). Keep that worker unbooked in the demo seed, or move
   the check to a worker who stays unbooked.
-- **Before the pilot:** the Open shifts list checks each shift with the rules on its own (about
+- ~~**Before the pilot:** the Open shifts list checks each shift with the rules on its own~~
+  **Already done** in Phase 10 ("Speed at pilot size", 0429ef0; confirmed in 13.5): one rules
+  check for the whole list (`previewBookings`), the same number of queries for 5 shifts as for
+  40 (`tests/integration/eligibility.batch.test.ts`, with travel areas on since 13.5). Was: (about
   ten small queries each, up to 50 shifts), holding one of the pool's connections for the whole
   page view. Batch the rules loader (one read of the worker's credentials, bookings and the firm's
   rules for the whole list) so an urgent message to many workers can't starve "Take shift".
-- "Take shift" has no rate limit, and every refused tap writes a `shift.booking_refused` event.
-  Add a per-worker limit (like the login ones) before the pilot.
+- ~~"Take shift" has no rate limit, and every refused tap writes a `shift.booking_refused` event.~~
+  **Done in 13.5**: 20 taps per worker every 15 minutes (`LIMITS.takePerWorker`), booked or not,
+  then "Too many tries. Try again in {n} minutes."; logged once (`auth.rate_limited`, take:worker).
 - Phase 5: let the office look a booking up by the 8-character reference on the worker's
   confirmation.
 - Open shifts cards: the pay rate "if the firm shows it" comes with pay data (Phase 6).
@@ -1857,8 +1861,9 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   - **Dylan to confirm:** quiet hours hold reminders; a 2-hour reminder for a shift starting
     before 07:00 (default quiet hours) is skipped and logged, not sent at 04:00. The worker still
     gets the 24-hour one the day before.
-  - **Dylan to confirm:** the approved `shift_reminder_24h` says "Cancel in the app", but there is
-    no app to download (it's a link). Consider "Cancel with the link" before submitting templates.
+  - ~~**Dylan to confirm:** the approved `shift_reminder_24h` says "Cancel in the app", but there is
+    no app to download (it's a link).~~ **Done in 13.5** (Dylan, 2026-10-16): "Can't make it? Cancel
+    with the link as early as you can." (the link opens the shift, where Cancel is).
   - ~~Reminders go to every confirmed booking, including a worker the office has since made
     inactive or blocked.~~ Since Phase 10 task 7 they don't (nor for a booking at a site the
     worker is blocked from, until the office keeps it); those bookings show on Today as "Bookings
@@ -2627,10 +2632,11 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
     `resolveFirmBySlug()`; `resolveFirmByLine()` is now the second look-up allowed before a firm is
     known (ADR-018). Dylan may want to add it to that line.
 - Pay query status follow-ups (Phase 6 "Worker sees status updates" task):
-  - **Dylan to confirm:** payroll's note goes in the WhatsApp/text message itself, as the doc's
-    `pay_query_update` template says (the pay page is behind a code, but the message isn't). The
-    push says nothing about pay. If the note should stay behind the code, the message becomes
-    "Payroll has answered your pay query. See it on your pay page." (a template change for Meta).
+  - ~~**Dylan to confirm:** payroll's note in the message itself?~~ **Done in 13.4** (Dylan,
+    2026-10-16: the note stays behind the pay code): `pay_query_update` is now "Payroll has
+    answered your pay query (ref {ref}). See their answer on your pay page: {link} — {firm} Shift
+    Team" (variables ref, link, signOff: submit this wording to Meta), and payroll's own words say
+    the note is on the pay page.
   - Sorting one query on its own when a group holds a few different cases (today payroll sorts the
     whole group it sees, with one note).
   - A sorted query leaves payroll's page: a "Sorted recently" list (with who sorted it and the note)
@@ -2673,8 +2679,9 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 - Profile follow-ups (from the Phase 3 profile task):
   - Phase 4's sender must honour `workers.notify_channel` (WhatsApp or SMS) and
     `workers.offer_alerts` (false means no open-shift offers). Login links and codes are always sent.
-    The credential expiry reminders (`src/lib/credentials/scan.ts`) send WhatsApp today whatever
-    the setting: move them onto the same sender (see the credential-scan item above).
+    ~~The credential expiry reminders (`src/lib/credentials/scan.ts`) send WhatsApp today whatever
+    the setting.~~ **Done in 13.5**: they go through `sendToWorker` (the casual's channel, the
+    WhatsApp-to-text fallback, never a text after STOP).
     Offer waves should skip workers who marked the shift's day unavailable. The rules already refuse
     them, so this only saves sending a pointless offer.
   - Office (Phase 5): see a worker's unavailable days on their record and in the booking picker,
@@ -2968,12 +2975,25 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   (`casualMoved()`), but nothing yet stops one casual changing theirs all day.
   If a worker job ever looks postcodes up (12G.2's job doesn't: it uses the saved points), build
   its geocoder from `workerEnv()`, not `appEnv()` (`src/lib/travel/server.ts`).
-- Travel areas (12G.1 review): **Decided** (Dylan, 2026-10-16: yes, built in 13.4) whether a firm switches the travel area on
+- Travel areas (12G.1 review): **Done in 13.4** (Dylan, 2026-10-16: yes) whether a firm switches the travel area on
   for itself (a per-firm `travel.enabled`, off by default, hiding "Where you work"), since the DPIA's
   Part 2 is per firm and `TRAVEL_PROVIDER` is per server. Today it shows for every firm (with the
   fake look-up, a real postcode is refused with "postcode look-ups aren't switched on"). Since
   12G.3, Open shifts and the urgent board also ask every casual with no area to "Add your home
   area": the same switch should hide that prompt where travel areas are off.
+  - **Needs Dylan (13.4):** a firm that switches travel areas off keeps the home areas already
+    saved (kept but not used: no filter, no search, not on the office's pages; the firm's data
+    export still lists their districts). Should switching off
+    delete them (data minimisation), or keep them so switching back on needs nothing from casuals?
+    With "Where you work" hidden a casual has no button to remove theirs (the remove action itself
+    still works), and the office can't remove one either (only "They've left" does). Today: kept.
+    The owner's `firm:settings travel.enabled false` could delete them, or print how many are kept;
+    or Profile could offer "Remove your saved home area" while they're off. If they're deleted on
+    switch-off: a casual's save that checked the switch just before it changed can still land after
+    the delete (the save reads the setting without a lock; the app role can't lock `firms`), so the
+    owner's script and `saveMyTravel` would take one advisory lock (exclusive / shared) around it
+    (13.4 guardrails review). Deploying 13.4 flips every firm but Acme to off with no data step: fine
+    before Gate B (no real firm), but a firm that had saved areas goes straight to "kept, unused".
 - Travel filter (12G.3 review): before TravelTime goes live (the "Connect" step), confirm that a
   start point it lists as unreachable means "over 90 minutes" (or no public transport in time), never
   "no timetable data": the filter treats it as out of reach, so a casual who only uses public
@@ -3121,7 +3141,25 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   every retry) is never marked handled. The casual gets no reply, and it never reaches Need a
   person. Add a last try that marks it for a person and logs why, like the planner webhooks' last
   try (12J.2). Found when a day word crashed the reply (fixed in 12L.1).
-- Text cuts that count UTF-16 units (12L.1 guardrails round 3, 2026-10-15; small, nothing lost):
+- 13.5 guardrails review, small and left for later:
+  - The office log's "Logins" filter also holds the casuals' own limits (`auth.rate_limited` for
+    `take:worker` and `push:worker`; `src/lib/office/log-types.ts`): their words are right, the
+    filter isn't. Group by the limit's name.
+  - A backstop for the higher per-address login limit (60 per 15 minutes since 13.5): an ops alert,
+    or a firm-wide daily ceiling, on login-link messages.
+  - The shifts reply's last resort (`lastResort`, `src/lib/inbound/personal-reply.ts`) sends the
+    unsigned text when even the signed link is too long (golden rule 8). It can't happen with real
+    names; signing a shorter cut would be cleaner.
+  - Automatic event names cut the site's name by code point, to match Postgres's `left()` in the
+    same name built in SQL (`src/lib/roster/shift-events.ts`): a flag at the cut can lose half.
+    Changing it needs both sides changed together.
+  - A warning claimed before 13.5 and caught up after logs the worker's channel now, not the
+    WhatsApp it was sent by (one deploy's window; the entry is marked unconfirmed).
+- ~~Text cuts that count UTF-16 units~~ **Done in 13.5**: one shared cut, `src/lib/text/cut.ts`
+  (`cutChars` for the database's character count, `cutUnits` for UTF-16 limits), cutting only
+  between whole characters; used at both webhooks, the voicemail, the AI's input, the Enquiries
+  preview, the review reasons, the office note and the shifts reply's last resort. Was (12L.1
+  guardrails round 3, 2026-10-15; small, nothing lost):
   the shifts line's webhooks (`src/lib/inbound/webhook.ts`, WhatsApp and SMS) and the voicemail
   transcript (`src/lib/inbound/voice.ts`) cut at 1,600 units, so an emoji across the cut can leave
   a "�" at the end of a message that was already cut (a text column stores half an emoji as
@@ -3136,9 +3174,13 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   nested glob patterns), reached only through `eslint-config-next` → `@next/eslint-plugin-next` →
   `fast-glob` 3.3.1. No fixed `braces` exists (3.0.3 is the latest and is affected), and even
   `@next/eslint-plugin-next` 16.4.2 still pins `fast-glob` 3.3.1. It runs only in `npm run lint`,
-  on our own patterns. Recheck when either releases a fix. Related, not urgent: the image copies
-  every dependency, development tools included (the worker runs TypeScript with `tsx`); a
-  production-only install would leave out tools like the linter.
+  on our own patterns. Recheck when either releases a fix. ~~Related, not urgent: the image copies
+  every dependency, development tools included.~~ **Done in 13.5**: the build prunes development
+  dependencies after `next build` (`npm prune --omit=dev`), so the linter (and `braces` with it),
+  the test runners and TypeScript's compiler aren't in the image (2.22 GB to 1.73 GB, measured on a
+  local build); `tsx` is a dependency now (the worker and migrate run with it). `@playwright/test`
+  stays: npm keeps it as `next`'s optional peer (`--omit=peer` doesn't remove it either); nothing
+  loads it at run time.
 - Travel estimates, a second audit (12G.2, 2026-10-15). 12G.2 was audited DONE on 2026-10-09. A
   later re-audit found three paths no test reached; 12L.1 tests all three. It also asked Dylan to accept (**accepted** 2026-10-16) that hand-written TravelTime answers
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io
@@ -3309,3 +3351,5 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 2026-10-16 | 13 | 1.8 | Safety net (13.1): verify.sh fingerprints the files at the start and refuses the stamp if they change, runs the production build, never skips invariants.sh; a tick needs a stamp with the browser tests; the tick guard reads each task's own box (a moved tick, `[X]`) and watches shell commands that write PLAN.md; the Stop hook catches more ways of saying done, up to 3 blocks; invariants.sh refuses Playwright's fixme, fail and run-time skips (code and JSON reports), checks scripts/ for the firm setting, and refuses a Twilio import in tests; the reviewers and the auditor are read-only by hook (commands read as the shell reads them); 34 safety-net tests run every hook, invariants.sh and verify.sh on sample input; 4,890 tests + 91 e2e + the walkthrough's 3; audits NOT DONE ×2, round 3 DONE (see docs/work-log.md) |
 | 2026-10-16 | 13 | 1.1 | The shifts line's last try (13.2): a message whose answer fails on every try (3 retries, 2 seconds apart) is passed to a person on the last try (Need a person on Enquiries, "The automatic answer failed on every try ({code})"), logged once, nothing sent, and the job still fails so the ops alert reports it; a STOP or START still counts (claimOptOut, shared with the reply job); former casuals keep their name; the code clamped; 11 integration tests (a real pg-boss worker on its own queue, a row-lock race, a STOP, a stranger, an older message) and 13 break checks; guardrails FIX FIRST ×1 (the lost ops alert) and every SHOULD over two rounds; 4,901 tests + 91 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
 | 2026-10-16 | 13 | 1.8 | Web push sender (13.3): `web-push` behind `PUSH_TRANSPORT=webpush` (refused in tests, and in production until the push leaves the record's transaction: "Connect the real web push" step 0); each push encrypted for its phone, signed with the VAPID keys, kept 12 hours at most or until the shift starts, urgent ones at high urgency, cut off at 5 seconds (connection closed), a worker's phones pushed at once; 404 and 410 forget the phone, other failures keep it and log the host and a code; push addresses only in the exact form a browser gives, to the browser makers' push services (guardrails found a `%2E` host that web-push would have sent elsewhere: fixed); 10 saves every 15 minutes per casual (429); compliance and privacy notice; a fake HTTPS push service that checks the signature and decrypts; guardrails FIX FIRST ×2 over three rounds; 4,912 tests + 91 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
+| 2026-10-16 | 13 | 1.4 | Privacy switches (13.4): travel areas per firm (`travel.enabled`, off unless the owner switches them on; on for the demo firm): off, no "Where you work" (its page not found, saving refused, even mid-look-up), no prompt, travel lines, "further" line or help on it, nothing filtered or ordered by distance (lists, urgent board, shifts line, waves), no travel-time search (and a running job stops), the office's column and card hidden, an enquiry's check says so; `pay_query_update` now says payroll has answered with the pay page's link, the note only on the pay page; both states tested (unit, integration, a browser test), 24 break checks; guardrails FIX FIRST ×2 (docs) over two rounds; CI's one failure, a webhook test reading a job's state before pg-boss finished it (offWork without `wait`), reproduced and fixed; saved areas when switched off parked for Dylan; 4,927 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
+| 2026-10-16 | 13 | 1.5 | Tidy-ups (13.5): "Cancel with the link" in the 24-hour reminder; login links 60 per address every 15 minutes (was 10; per number unchanged); one shared cut between whole characters (`src/lib/text/cut.ts`) at both webhooks, the voicemail, the AI's input and four more places; "Take shift" 20 taps per casual every 15 minutes; licence expiry messages by the casual's own channel (`sendToWorker`); the image with production dependencies only (2.22 GB to 1.73 GB locally; `tsx` a dependency, a build-time check); Open shifts batching and the flaky sheets test found already done (Phase 10; 2026-10-06), both now pinned by tests; 18 break checks; guardrails no FIX FIRST, 2 SHOULDs fixed, over two rounds; a container restart mid-task (its 2.6 hours not counted); 4,942 tests + 92 e2e + the walkthrough's 3; audit DONE first round, with Phase 13's Done-when line (see docs/work-log.md) |

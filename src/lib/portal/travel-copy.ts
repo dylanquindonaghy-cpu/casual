@@ -45,6 +45,7 @@ export type SaveTravelOutcome =
         | "lookup_failed"
         | "lookups_off"
         | "try_again"
+        | "off"
         | "not_active";
     }
   | { status: "logged_out" | "error" };
@@ -65,6 +66,8 @@ export function saveTravelText(r: SaveTravelOutcome): string {
       return "Travel areas can't be saved yet: postcode look-ups aren't switched on. Nothing was saved.";
     case "try_again":
       return "Your travel area changed while this was saving, so nothing was saved. Check it and save again.";
+    case "off":
+      return "Travel areas aren't used here, so nothing was saved.";
     case "not_active":
       return "Your account isn't active, so nothing was saved. Contact the office.";
     case "logged_out":

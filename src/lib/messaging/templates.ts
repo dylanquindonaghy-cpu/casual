@@ -123,10 +123,11 @@ export function strikeEvidenceEmail(
   };
 }
 
-// credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires. The
-// link is the casual's upload page for it (12F.2; docs/office-v2.md 5.7 item 5). One she can't
-// upload (the office records it, or none of her roles needs it: no link, null) is
-// credential_expiring_to_office, the words before 12F.2.
+// credential_expiring (WhatsApp or SMS, utility): sent 30, 14 and 7 days before a credential
+// expires, by the worker's channel (13.5; the same words by text). The link is the casual's upload
+// page for it (12F.2; docs/office-v2.md 5.7 item 5). One she can't upload (the office records it,
+// or none of her roles needs it: no link, null) is credential_expiring_to_office, the words before
+// 12F.2.
 export function credentialExpiringMessage(
   firm: FirmVoice,
   credential: string,
@@ -138,8 +139,9 @@ export function credentialExpiringMessage(
     : `Your ${credential} expires on ${date}. Renew it and send the new details to the office so you can keep taking shifts. — ${firm.signOff}`;
 }
 
-// credential_expired (WhatsApp, utility): the day after a credential's expiry date, with the same
-// upload link (credential_expired_to_office, no link, for one she can't upload).
+// credential_expired (WhatsApp or SMS, utility): the day after a credential's expiry date, by the
+// worker's channel (13.5), with the same upload link (credential_expired_to_office, no link, for
+// one she can't upload).
 export function credentialExpiredMessage(
   firm: FirmVoice,
   credential: string,
@@ -331,13 +333,13 @@ export function officeReplyMessage(
 }
 
 // pay_query_update (WhatsApp or SMS, utility): payroll has sorted a worker's pay query
-// (src/lib/notices/pay-query-update.ts). {status} is "sorted"; {note} is payroll's note on one line
-// (always written by a person: pay disputes never get an AI answer, golden rule 9).
+// (src/lib/notices/pay-query-update.ts). Payroll's answer itself stays behind the pay code: the
+// message only says there is one and links to the pay page (13.4; Messages 17).
 export function payQueryUpdateMessage(
   firm: FirmVoice,
-  query: { ref: string; status: string; note: string },
+  query: { ref: string; link: string },
 ): string {
-  return `Update on your pay query (ref ${query.ref}): ${query.status}. ${query.note} — ${firm.signOff}`;
+  return `Payroll has answered your pay query (ref ${query.ref}). See their answer on your pay page: ${query.link} — ${firm.signOff}`;
 }
 
 // Instant replies on the shifts line (docs/messaging-templates.md "Instant replies on the shifts
@@ -444,7 +446,7 @@ export function shiftReminder24hMessage(
   shift: { site: string | null; day: string; start: string; end: string; link: string },
 ): string {
   const at = shift.site ? ` at ${shift.site}` : "";
-  return `Reminder: ${shift.day} ${shift.start}–${shift.end}${at}. Details: ${shift.link}. Can't make it? Cancel in the app as early as you can. — ${firm.signOff}`;
+  return `Reminder: ${shift.day} ${shift.start}–${shift.end}${at}. Details: ${shift.link}. Can't make it? Cancel with the link as early as you can. — ${firm.signOff}`;
 }
 
 // shift_reminder_2h (WhatsApp or SMS, utility): 2 hours before a booked shift.

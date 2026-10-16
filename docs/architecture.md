@@ -106,9 +106,10 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    Each try is taken by one conditional UPDATE (parallel guesses can't get more than 5), then
    compared in constant time. A correct code opens the pay pages for 30 minutes
    (`sessions.stepped_up_until`).
-6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 10 link
-   requests per IP (anything typed, junk included) and 3 per number, plus at most 10 per number a
-   day (Phase 10, audit L49: each link is a billed message); 20 failed link uses per IP
+6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 60 link
+   requests per IP (anything typed, junk included; raised from 10 in 13.5 so a team briefed on one
+   venue's Wi-Fi isn't locked out) and 3 per number, plus at most 10 per number a day (Phase 10,
+   audit L49: each link is a billed message); 20 failed link uses per IP
    (successful logins don't count; the strikes team's confirmation links count here too, 12B.7).
    Those confirmation links are emails too: a firm sends at most 3 every 15 minutes and 10 a day
    (`STRIKES_LINK_LIMITS`, `src/lib/office/strikes-email.ts`). Checked IP first, stopping at the first refusal, so a refused
@@ -121,7 +122,9 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    one bucket. A refusal says "Too many tries. Try again in {n} minutes."; `auth.rate_limited` is
    logged once per window, when a limit is first reached. Known and unknown numbers are treated
    identically. Known trade-off: people behind one shared IP (venue Wi-Fi, mobile carrier NAT)
-   share the per-IP request limit (docs/runbooks.md).
+   share the per-IP request limit (docs/runbooks.md); at 60 it covers a briefing of about 50, and
+   one address can then cost the firm up to 240 link messages an hour (the per-number limits stop
+   any one number being flooded).
 
 **Office users:** email magic link; roles `admin`, `resourcer`, `payroll`. Add TOTP later.
 Same flow as workers (`src/lib/auth/office-login.ts`, shared parts in `link-login.ts`): work
@@ -294,7 +297,9 @@ then send the new number to the office").
 
 **Take an open shift**
 1. Worker opens Open shifts → only eligible shifts listed (rules engine).
-2. Tap "Take shift" → `bookShift()`: lock the shift and the worker → re-check the rules on the
+2. Tap "Take shift" → counted against the worker's limit first (20 taps every 15 minutes, booked
+   or not: `LIMITS.takePerWorker`, 13.5; over it, "Too many tries. Try again in {n} minutes." and
+   nothing else happens) → `bookShift()`: lock the shift and the worker → re-check the rules on the
    current rows → the firm's allocation mode (fair rotation may hold a new place a few minutes for
    the workers with the fewest hours that week) → re-check the live source → `UPDATE assignments ... WHERE shift slot is unfilled`
    (one statement).
@@ -372,9 +377,10 @@ stays out of the rules engine. Personal enquiry replies (12D.2) must use the sam
    setting, default 09:00 Monday to Friday): the new queries, grouped, emailed to payroll with the
    list attached (names and workers' words only in the attachment), marked `in_digest`. Payroll can
    also send it at once from its page.
-4. Payroll marks a group sorted with a note (built: `src/lib/pay/resolve.ts`); each worker gets it
-   by message (`pay_query_update`, quiet hours respected) and sees "Sorted on {day}" with the note on
-   their pay page. The note is always a person's words: no AI answers a pay dispute. A test
+4. Payroll marks a group sorted with a note (built: `src/lib/pay/resolve.ts`); each worker gets a
+   message that payroll has answered, with the pay page's link (`pay_query_update`, quiet hours
+   respected), and sees "Sorted on {day}" with the note on their pay page, behind the pay code (the
+   note is never in the message: 13.4). The note is always a person's words: no AI answers a pay dispute. A test
    (`tests/unit/ai.boundary.test.ts`) keeps AI code out of the code that builds what workers see or
    receive and out of payroll's sorting path, and pins which files may use the AI modules.
 
@@ -584,7 +590,9 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   ours (below). Not in `deploy/docker-compose.yml` yet: added only if the chosen host needs it.
 - Docker Compose: `web`, `worker`, `caddy`. GitHub Actions builds the image; the server pulls it
   and runs `up -d` (no SSH). (As built in Phase 8, short of a server: deploys pull. `.github/workflows/deploy.yml` builds the
-  image (`Dockerfile`: one image, non-root, no secrets) after CI passes on `main` and pushes it to
+  image (`Dockerfile`: one image, non-root, no secrets, production dependencies only since 13.5:
+  the build prunes the development tools, and `tsx`, which runs the worker and migrate, is a
+  dependency) after CI passes on `main` and pushes it to
   GitHub's registry; `deploy/deploy.sh`, every 2 minutes on the server (a systemd timer), pulls a
   new image, runs the one-off `migrate` step, then `up -d`, never between 05:30 and 09:00 UK.
   `deploy/docker-compose.yml`: only Caddy published (80/443), each service given only the secrets

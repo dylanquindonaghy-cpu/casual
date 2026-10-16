@@ -32,6 +32,7 @@ import {
   type OptOutResult,
 } from "./opt-out";
 import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
+import { cutChars } from "../text/cut";
 
 // Answering a WhatsApp, a text or a voicemail on the shifts line (docs/api-and-jobs.md `inbound-message`;
 // docs/messaging-templates.md "Instant replies on the shifts line", "Call-to-text recording").
@@ -329,9 +330,10 @@ async function answerMessage(
           type: "general",
           payload: {
             // Cut by characters, never inside an emoji: half of one is refused by jsonb, which
-            // would fail the job on every try and lose the message (12L.1 guardrails review).
+            // would fail the job on every try and lose the message (12L.1 guardrails review; the
+            // shared cut since 13.5, which also keeps a flag or skin tone whole).
             note: c.body
-              ? [...c.body].slice(0, OFFICE_NOTE_MAX).join("")
+              ? cutChars(c.body, OFFICE_NOTE_MAX)
               : c.channel === "voice"
                 ? NO_VOICE_TEXT_NOTE
                 : NO_TEXT_NOTE,

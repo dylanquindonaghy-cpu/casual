@@ -17,6 +17,7 @@ import {
   type ReviewOutcome,
 } from "./request-kinds";
 import { refOf, takenPlaces, waitingReview } from "./shift-detail";
+import { cutUnits } from "../text/cut";
 
 // "Ask the office to review" on the blocked-shift screen (docs/screens.md, `/shifts/[id]`): the
 // worker asks the office to look again at a shift the rules won't let them take. Server only.
@@ -86,7 +87,9 @@ export async function askForReview(
     // Cut to size rather than refuse: an unusually long role name must not stop a review.
     const payload = reviewPayloadSchema.parse({
       codes: verdict.codes.slice(0, MAX_REVIEW_ITEMS),
-      reasons: verdict.reasons.slice(0, MAX_REVIEW_ITEMS).map((r) => r.slice(0, MAX_REASON)),
+      // Cut between characters, within the schema's UTF-16 count (13.5). Defensive: with today's
+      // sentences a name (at most 100 characters) ends long before unit 300.
+      reasons: verdict.reasons.slice(0, MAX_REVIEW_ITEMS).map((r) => cutUnits(r, MAX_REASON)),
       note: note.data,
     });
     const [created] = await tx

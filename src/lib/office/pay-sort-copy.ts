@@ -15,7 +15,7 @@ export function sortText(result: ResolvePayQueriesResult | Common): string {
         result.skipped > 0
           ? ` ${result.skipped === 1 ? "1 was" : `${result.skipped} were`} already sorted by someone else.`
           : ""
-      } Each person will get your note by message.`;
+      } Each person gets a message saying payroll has answered, and sees your note on their pay page.`;
     case "already":
       return "These were already sorted by someone else.";
     case "note_needed":

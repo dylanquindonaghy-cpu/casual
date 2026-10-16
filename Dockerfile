@@ -17,15 +17,18 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+# Build with every tool, then keep only what runs (13.5): the linter, test runners, TypeScript's
+# compiler and the like aren't in the image. tsx stays (a dependency): the worker and migrate run
+# TypeScript with it.
+RUN npm run build && npm prune --omit=dev
 
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
-# The whole app with its dependencies (the worker and migrate run TypeScript with tsx), owned by
-# root: the app can't change its own code. Only Next's cache is writable by the app's user.
+# The app with its production dependencies only (the worker and migrate run TypeScript with tsx),
+# owned by root: the app can't change its own code. Only Next's cache is writable by the app's user.
 COPY --from=build /app /app
 # The database's CA certificate isn't in the image: it's the host's, saved on the server as
 # /opt/shiftdesk/secrets/db-ca.pem and mounted read-only at /app/db-ca.pem by
@@ -36,6 +39,11 @@ RUN mkdir -p /app/.next/cache && chown -R node:node /app/.next/cache
 # native image library, installed by npm ci for this platform. Load it here, so an image without it
 # fails to build instead of failing the first casual who uploads a photo.
 RUN node -e "require('sharp')"
+# The worker and migrate start with tsx (deploy/docker-compose.yml): it compiles a real TypeScript
+# file here (which needs esbuild's native binary too), so an image without it fails to build. And
+# no test tool or linter is left.
+RUN node --import tsx --input-type=module -e "await import('./src/lib/text/cut.ts')" \
+ && test ! -e node_modules/vitest && test ! -e node_modules/eslint
 # Never root.
 USER node
 EXPOSE 3000

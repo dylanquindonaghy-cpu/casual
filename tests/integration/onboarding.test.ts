@@ -209,7 +209,9 @@ describe("a firm's settings", () => {
       "strikes.notice_hours": [48, "default"],
       "strikes.live_days": [90, "default"],
       "strikes.keep_months": [12, "default"],
-      // Travel (12G.1): a casual's time limit until they choose their own.
+      // Travel: off until the owner switches it on (13.4), and a casual's time limit until they
+      // choose their own (12G.1).
+      "travel.enabled": [false, "default"],
       "travel.default_max_minutes": [45, "default"],
       // Staff photo (12F.2): how often it's renewed.
       "photo.renewal_months": [36, "default"],

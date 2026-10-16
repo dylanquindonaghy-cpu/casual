@@ -1,3 +1,4 @@
+import { createECDH } from "node:crypto";
 import { z } from "zod";
 import { databaseTlsOn } from "./db/tls";
 
@@ -74,7 +75,8 @@ const appFields = {
   // page is "not found" and nothing fails.
   E2E_TEST_PAGES: z.enum(["on"]).optional(),
   // The public half of the deployment's VAPID key pair, for web push subscriptions. Unset: the profile says
-  // phone notifications aren't switched on yet (PLAN.md Parking lot, "connect the real web push").
+  // phone notifications aren't switched on yet (PLAN.md Parking lot, "Connect the real web push").
+  // The worker sends the pushes with the private half (VAPID_PRIVATE_KEY, PUSH_TRANSPORT=webpush).
   // An empty value (as .env.example ships it) means not set.
   VAPID_PUBLIC_KEY: z.preprocess(
     (v) => (v === "" ? undefined : v),
@@ -117,6 +119,17 @@ const appFields = {
     z.string().min(32, { message: "must be at least 32 characters" }).optional(),
   ),
 };
+
+// The VAPID public key is the private key's P-256 point: work it out and compare.
+function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
+  try {
+    const ecdh = createECDH("prime256v1");
+    ecdh.setPrivateKey(Buffer.from(privateKey, "base64url"));
+    return ecdh.getPublicKey("base64url") === publicKey;
+  } catch {
+    return false;
+  }
+}
 
 // Tests never reach postcodes.io or TravelTime.
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
@@ -184,9 +197,32 @@ export const workerEnvSchema = z
       z.string().max(500).optional(),
     ),
     // Web push. "console" prints what would be pushed (development and tests); "none" pushes
-    // nothing. The real sender ("webpush", with VAPID keys) is added when it's connected (PLAN.md
-    // Parking lot); until then production must use "none".
-    PUSH_TRANSPORT: z.enum(["console", "none"]).default("console"),
+    // nothing; "webpush" sends through the browser makers' push services (src/lib/push/
+    // transport.ts), signed with the deployment's VAPID keys: refused under NODE_ENV=test, so no
+    // test reaches a push service, and in production until the push goes outside the record's
+    // transaction (PLAN.md Parking lot, "Connect the real web push" step 0). Production keeps
+    // "none" until then.
+    PUSH_TRANSPORT: z.enum(["console", "none", "webpush"]).default("console"),
+    // The private half of the VAPID key pair (made with the image's own web-push: PLAN.md
+    // Parking lot, "Connect the real web push"), for
+    // PUSH_TRANSPORT=webpush. A secret: worker only, never logged, never in the repo. An empty
+    // value (as the env examples ship it) means not set.
+    VAPID_PRIVATE_KEY: unsetIfEmpty(
+      z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{43}$/, { message: "must be a base64url VAPID private key" })
+        .optional(),
+    ),
+    // Who the push services can contact about this sender: a mailto: or https: address.
+    VAPID_SUBJECT: unsetIfEmpty(
+      z
+        .string()
+        .max(200)
+        .regex(/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/, {
+          message: "must be a mailto: or https: address",
+        })
+        .optional(),
+    ),
     // The web app's health check as the worker reaches it inside the server
     // (http://web:3000/api/health in deploy/docker-compose.yml). Unset: the ops alerts don't check it.
     HEALTH_CHECK_URL: z.url({ protocol: /^https?$/ }).optional(),
@@ -257,6 +293,40 @@ export const workerEnvSchema = z
     path: ["PUSH_TRANSPORT"],
     message: "console push is not allowed when NODE_ENV=production",
   })
+  .refine((e) => e.NODE_ENV !== "test" || e.PUSH_TRANSPORT !== "webpush", {
+    path: ["PUSH_TRANSPORT"],
+    message: "tests never reach a push service: webpush is refused when NODE_ENV=test",
+  })
+  // Not in production until the push goes outside the record's transaction (PLAN.md Parking lot,
+  // "Connect the real web push" step 0): a slow push service would hold the worker's database
+  // connections meanwhile. That build round lifts this.
+  .refine((e) => e.NODE_ENV !== "production" || e.PUSH_TRANSPORT !== "webpush", {
+    path: ["PUSH_TRANSPORT"],
+    message:
+      'webpush waits on one more build step before production (PLAN.md, "Connect the real web push" step 0)',
+  })
+  .refine(
+    (e) =>
+      e.PUSH_TRANSPORT !== "webpush" ||
+      (e.VAPID_PUBLIC_KEY && e.VAPID_PRIVATE_KEY && e.VAPID_SUBJECT),
+    {
+      path: ["VAPID_PRIVATE_KEY"],
+      message: "PUSH_TRANSPORT=webpush needs VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT",
+    },
+  )
+  // Keys from two different pairs would make every push fail (the push service checks the
+  // signature against the key each phone subscribed with), with nothing saying why.
+  .refine(
+    (e) =>
+      e.PUSH_TRANSPORT !== "webpush" ||
+      !e.VAPID_PUBLIC_KEY ||
+      !e.VAPID_PRIVATE_KEY ||
+      vapidKeysMatch(e.VAPID_PUBLIC_KEY, e.VAPID_PRIVATE_KEY),
+    {
+      path: ["VAPID_PRIVATE_KEY"],
+      message: "VAPID_PRIVATE_KEY isn't the private half of VAPID_PUBLIC_KEY (they come as a pair)",
+    },
+  )
   // Production must never silently print messages instead of sending them.
   .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "console", {
     path: ["MESSAGING_TRANSPORT"],

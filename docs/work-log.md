@@ -12519,3 +12519,81 @@ Now:
 
 `npm test -- tests/integration/inbound.last-try.test.ts` runs the 11 tests. On a running app you'd
 see it only when something is broken: the message appears in Need a person with the reason.
+
+## 2026-10-16 — The web push sender (13.3)
+
+**Time spent:** about 1.8 hours (12:49 to 14:35 UTC on 16 Oct).
+
+**Result:** `VERIFIED tree=48e314a921e1e97b e2e=true`: typecheck, lint, the production build,
+4,912 tests, 91 browser tests, the walkthrough's 3, and the invariants all passed. Auditor:
+`VERDICT: DONE` (first round).
+
+### What was built
+
+A **web push** is the small notification that pops up on a phone's lock screen, sent through the
+browser maker's own **push service** (Google for Chrome and Android, Apple for iPhones, Mozilla
+for Firefox, Microsoft for Edge). Until now the app only *printed* pushes (the console sender).
+This task adds the real sender, still switched off.
+
+- **The sender** uses the `web-push` package. Each push is **encrypted** so only that phone can
+  read it, and **signed** with the deployment's **VAPID keys** (a key pair that proves the push
+  came from us).
+- Only the title, the words and the link go to the phone.
+- A push the phone hasn't picked up is kept for 12 hours at most, or until the shift starts
+  (offers and reminders). Urgent offers go at high urgency.
+- A push that hasn't finished in 5 seconds is given up on, and its connection is closed. A worker's
+  phones are pushed at the same time, not one after another.
+- **404 or 410** from the push service means the phone's subscription is gone: the app forgets it.
+  Any other failure keeps the phone and logs the firm, the push service's host and a short code,
+  never the phone's address.
+- **Push addresses** are only saved in the exact form a browser gives, and only for the four
+  browser makers' push services. The sender checks again before every push.
+- **Saving a phone** (`POST /api/push/subscribe`) is limited to 10 saves every 15 minutes per
+  casual (then "429, try again in …"). Re-saving the same phone and turning notifications off are
+  never refused.
+- **Settings:** `PUSH_TRANSPORT=webpush` needs all three keys, as a matching pair. It's refused in
+  tests, and in production too until one more build step is done (below). The worker alone gets
+  the private key.
+- **Docs:** the push services are listed as sub-processors (`docs/compliance.md`), with what a
+  locked phone shows, in the privacy notice too.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Only the exact address form a browser gives | The guardrails review found `https://attacker.example%2Epush.apple.com/x`: our check read it as Apple, but web-push would have connected to `attacker.example` | Decoding and re-checking the address |
+| Production refuses `webpush` for now | Pushes still go inside the database transaction of the record they follow; a slow push service would hold it open | Switching on with the 5-second cut-off only |
+| A save that changes nothing isn't counted | The first version's limit could stop a casual turning notifications off | Counting every request |
+| A worker's phones pushed at once | Three phones one after another could hold a transaction for 15 seconds | One after another |
+| Forget a phone only on 404 or 410 | A 403 means our keys are wrong, not the phone | Forgetting on any failure |
+
+### What the new tests prove
+
+- `tests/unit/push.webpush.test.ts` (7 tests) runs web-push's own sender over real HTTPS to a
+  **fake push service on this machine** (with a certificate made for the test). It checks the
+  signature with our public key, decrypts the push with the phone's keys, and checks the 12-hour
+  limit and urgency. It also covers the 201, 410, 404 and 403 answers, and a service that never
+  finishes (cut off at the deadline, connection closed). Refused addresses are never contacted.
+- `tests/integration/push.test.ts` (8 tests) covers saving: the address and key checks and the
+  limit. It also covers pushing: all at once, a failed push kept and logged, gone or bad addresses
+  forgotten.
+- `tests/e2e/push.worker.spec.ts` sends the route nine 200s, then the 429, in a real browser. A CI
+  retry starts fresh: running it twice on one database passes, and fails without the reset.
+- No test reaches a real push service: the test settings pin the console sender, and
+  `scripts/invariants.sh` checks it.
+
+Three guardrails rounds: 2 blocking findings in the first (the address trick, and the limit), none
+after. Each round's fixes were broken on purpose to check a test catches them. In the last round,
+one gap turned up: the length check was only covered by the host list. It now has its own test.
+
+### What's parked or needs Dylan
+
+- **Before web push is switched on** (Claude): push after the record's transaction, not inside
+  it. PLAN.md, "Connect the real web push" step 0.
+- **Needs the server:** making the VAPID keys and testing on real phones. Steps 1 to 4 of the same
+  Parking lot item.
+
+### How to see it working
+
+`npm test -- tests/unit/push.webpush.test.ts tests/integration/push.test.ts` runs the push tests.
+Nothing changes on screen yet: the profile still says phone notifications aren't switched on.

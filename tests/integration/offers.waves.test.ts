@@ -357,12 +357,19 @@ describe("a wave", () => {
       [t.f.firmId, t.ann.id],
     );
     await t.wave(1); // Ann and Ben: only Ann has a phone subscribed
+    const { rows: start } = await su.query<{ starts_at: Date }>(
+      "select starts_at from shifts where id = $1",
+      [t.shiftId],
+    );
     expect(t.pushed).toEqual([
       {
         endpoint: "https://push.example.test/ann-phone",
         title: "Urgent shift",
         body: "Door supervisor needed today 19:00.",
         url: `/shifts/${t.shiftId}`, // the path: opened on whichever address the phone uses
+        // For the push service only (13.3): high urgency, and no use after the shift starts.
+        urgent: true,
+        until: start[0]?.starts_at,
       },
     ]);
     const { rows } = await su.query(

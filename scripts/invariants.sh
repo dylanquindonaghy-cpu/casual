@@ -83,6 +83,13 @@ has_pin tests/setup/env.ts 'process.env.WEBHOOK_TRANSPORT = "console";' ||
   pins_missing="$pins_missing tests/setup/env.ts:WEBHOOK_TRANSPORT"
 has_pin playwright.config.ts 'WEBHOOK_TRANSPORT: "console",' ||
   pins_missing="$pins_missing playwright.config.ts:WEBHOOK_TRANSPORT"
+# And never a real push service (13.3): the console push sender, and no private VAPID key.
+for pin in 'process.env.PUSH_TRANSPORT = "console";' 'process.env.VAPID_PRIVATE_KEY = "";'; do
+  has_pin tests/setup/env.ts "$pin" || pins_missing="$pins_missing tests/setup/env.ts:'$pin'"
+done
+for pin in 'PUSH_TRANSPORT: "console",' 'VAPID_PRIVATE_KEY: "",'; do
+  has_pin playwright.config.ts "$pin" || pins_missing="$pins_missing playwright.config.ts:'$pin'"
+done
 if [ -n "$pins_missing" ]; then
   echo "FAIL: a test setup no longer keeps a real sender off:$pins_missing"; fail=1
 else echo "ok: the test setups keep every real sender off"; fi

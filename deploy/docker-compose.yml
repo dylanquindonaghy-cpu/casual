@@ -105,7 +105,11 @@ services:
       # choice in production.
       INTEGRATIONS_SECRET: ${INTEGRATIONS_SECRET:-}
       WEBHOOK_TRANSPORT: ${WEBHOOK_TRANSPORT:-https}
+      # Web push (13.3): none until the VAPID keys are made (PLAN.md Parking lot, "Connect the real
+      # web push"); then webpush, with all three. The private key is the worker's alone (a secret).
       PUSH_TRANSPORT: ${PUSH_TRANSPORT:-none}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       SHEETS_TRANSPORT: ${SHEETS_TRANSPORT:-none}
       # With SHEETS_TRANSPORT=google: /app/secrets/google-service-account.json (PLAN.md Parking lot,
       # "Connect the real Google Sheets").

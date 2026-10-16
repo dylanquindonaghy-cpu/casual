@@ -1111,7 +1111,7 @@ same day ("Decided on 2026-10-16" under "Decisions waiting for Dylan"). Docs: `d
       person in Enquiries), with the reason logged, like the planner webhooks' last try (12J.2).
       Tests: a job that throws every time ends in Need a person, once; a later success doesn't
       double it. Docs: `docs/api-and-jobs.md` (13.2)
-- [ ] Web push sender ("Connect the real web push", Claude's steps; no account needed): the
+- [x] Web push sender ("Connect the real web push", Claude's steps; no account needed): the
       `web-push` package, an adapter next to the console one (404 and 410 mean the subscription
       is gone), `PUSH_TRANSPORT=webpush` (refused in tests; production keeps `none` until the keys
       are set), `POST /api/push/subscribe` rate-limited with the auth throttle, and the browser push
@@ -2453,27 +2453,44 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   texts): decide what to shorten first. The pack is kept in step with the code by a hand-kept list
   in the test; tagging each template function by channel would make a missing WhatsApp template
   fail by itself.
-- **Connect the real web push** (the Phase 4 web push task is blocked on it: an outside service
-  and a secret key):
-  **Who does what:** steps marked **You** are yours (an account, a console, a phone, a decision).
-  Steps marked **Claude** are code still to write after yours: the real sender for this service
-  doesn't exist yet (the app has only a console or fake one), so each is a build round with its own
-  tests, verify and audit, not a switch to flip. Tell Claude when your steps are done.
-  1. **Claude:** `npm install web-push`. **You:** then `npx web-push generate-vapid-keys` on the
-     server (never commit the private key).
-  2. **You:** set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (mailto:) in
-     production's `.env` (Claude adds the last two to the compose file's worker settings).
-  3. **Claude:** write the web-push adapter next to the console one (`src/lib/push/transport.ts`), treating
-     404/410 as "gone"; add `PUSH_TRANSPORT=webpush` (production currently must use `none`).
-  4. (Built: the service worker re-saves a renewed subscription, `pushsubscriptionchange`.)
-  5. **Claude:** rate-limit `POST /api/push/subscribe` (each save writes an event) with the auth
-     throttle.
-  6. **You:** test on a real Android phone and an iPhone (added to the home screen).
-  7. **Claude:** docs/compliance.md and docs/privacy-notice.md: add the browser push services as
-     sub-processors, how long `push_subscriptions` rows are kept, and what notifications show on a
-     locked phone.
+- **Connect the real web push** (the Phase 4 web push task is blocked on it: a secret key and real
+  phones; no account or money). Most of Claude's steps were built in 13.3: the sender (`web-push`,
+  `PUSH_TRANSPORT=webpush`, 404/410 forget the phone, an address that isn't a push service's in a
+  browser's own form is never contacted), the worker's settings in the compose file, the rate limit
+  on `POST /api/push/subscribe`, and the compliance and privacy wording. One is left:
+  0. **Claude, before step 2:** push outside the record's transaction (the Parking lot item "Pushes
+     inside the record's transaction" below). Until then the worker refuses `PUSH_TRANSPORT=webpush`
+     in production; that build round lifts it.
+  The rest is yours, on the server. The worker sends the pushes, and in production it only runs once
+  Twilio is connected (`COMPOSE_PROFILES=worker`: docs/runbooks.md), so do these after "Connect
+  Twilio":
+  1. **You:** on the server, in the app's folder, type
+     `docker compose run --rm --no-deps web node_modules/.bin/web-push generate-vapid-keys`. (It
+     uses the copy of web-push inside the app's image, the version the app was tested with.) It
+     prints a "Public Key" and a "Private Key" (two long lines of letters and numbers). Never put
+     the private one in the repo or send it to anyone.
+  2. **You:** in production's `.env` (beside `deploy/docker-compose.yml`), set
+     `VAPID_PUBLIC_KEY=` the public key, `VAPID_PRIVATE_KEY=` the private key,
+     `VAPID_SUBJECT=mailto:` your email address, and `PUSH_TRANSPORT=webpush`. Then restart:
+     `docker compose up -d`. If a key is missing or mistyped, or the two keys aren't a pair, the
+     worker refuses to start and its log (`docker compose logs worker`) names the setting.
+  3. (Built: the service worker re-saves a renewed subscription, `pushsubscriptionchange`.)
+  4. **You:** test on a real Android phone and an iPhone (added to the home screen first): log in as
+     a casual, Profile → "Turn on notifications", allow them; then have the office offer that
+     casual a shift ("Offer to someone" on the Dashboard). You should see "Shift available" on the
+     phone, even when it's locked. Nothing arrives? `docker compose logs worker | grep push` shows
+     "push not delivered" with the push service's host and a code (an `http_403` means the keys in
+     `.env` don't match the ones the phone subscribed with: turn notifications off and on again).
   Also: push the office's escalation alert, and the push-first-then-WhatsApp order (the `notify`
   task).
+- Pushes inside the record's transaction (13.3, 2026-10-16; **before web push is switched on**):
+  every sender pushes after its message has gone, inside the short transaction that records it
+  (`pushToWorker(tx, …)`, 7 callers: offer waves, the office's offer, reminders, the firm's change
+  notices, booked notices, request updates, pay query updates). A worker's phones are pushed at
+  once and each push is cut off at 5 seconds, so a slow push service holds that transaction's
+  database connection 5 seconds at most per message; across a wave that adds up, on the worker's
+  shared pool of 10. To close it: read the phones in the record's transaction, push with none
+  open, then forget gone ones and log the count in a second short one (13.3 guardrails review).
 - **Connect the Anthropic API** (the Phase 6 "Group queries by likely cause … Haiku summarises"
   task is blocked on it: an Anthropic account and money; Bedrock was ruled out on 2026-10-06,
   ADR-021). The grouping is built; only the AI's one-line summary per group waits (the app writes
@@ -3291,3 +3308,4 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 2026-10-15 | 12 | 2.4 | Phase 12 loose ends (12L.1): travel estimates' three untested paths tested (the 02:20 nightly run, a dropout's queued run, the wave's worker deps); the three older downloads refuse another site (403); shifts-line replies name events as the app does; day words read only as days (apostrophes kept, "I sat", "the sun", "getting wed", possessives); Home's urgent chips pinned; today's cancellations CSV holds today's only, named and logged with its date; Enquiries follows the firm's message retention; the unknown-number alert links Need a person; the planner API's own 405 and OPTIONS (logged, host-checked); the guide's planner note; tests for the phone's theme and the AI's fallback reasons; guardrails FIX FIRST ×2 ("constructor" crashed the reply; an emoji at the 500th character lost the message) over three rounds; 4,856 tests + 91 e2e + the walkthrough's 3; audits NOT DONE ×2, round 3 DONE; not pushed (the ruleset) (see docs/work-log.md) |
 | 2026-10-16 | 13 | 1.8 | Safety net (13.1): verify.sh fingerprints the files at the start and refuses the stamp if they change, runs the production build, never skips invariants.sh; a tick needs a stamp with the browser tests; the tick guard reads each task's own box (a moved tick, `[X]`) and watches shell commands that write PLAN.md; the Stop hook catches more ways of saying done, up to 3 blocks; invariants.sh refuses Playwright's fixme, fail and run-time skips (code and JSON reports), checks scripts/ for the firm setting, and refuses a Twilio import in tests; the reviewers and the auditor are read-only by hook (commands read as the shell reads them); 34 safety-net tests run every hook, invariants.sh and verify.sh on sample input; 4,890 tests + 91 e2e + the walkthrough's 3; audits NOT DONE ×2, round 3 DONE (see docs/work-log.md) |
 | 2026-10-16 | 13 | 1.1 | The shifts line's last try (13.2): a message whose answer fails on every try (3 retries, 2 seconds apart) is passed to a person on the last try (Need a person on Enquiries, "The automatic answer failed on every try ({code})"), logged once, nothing sent, and the job still fails so the ops alert reports it; a STOP or START still counts (claimOptOut, shared with the reply job); former casuals keep their name; the code clamped; 11 integration tests (a real pg-boss worker on its own queue, a row-lock race, a STOP, a stranger, an older message) and 13 break checks; guardrails FIX FIRST ×1 (the lost ops alert) and every SHOULD over two rounds; 4,901 tests + 91 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
+| 2026-10-16 | 13 | 1.8 | Web push sender (13.3): `web-push` behind `PUSH_TRANSPORT=webpush` (refused in tests, and in production until the push leaves the record's transaction: "Connect the real web push" step 0); each push encrypted for its phone, signed with the VAPID keys, kept 12 hours at most or until the shift starts, urgent ones at high urgency, cut off at 5 seconds (connection closed), a worker's phones pushed at once; 404 and 410 forget the phone, other failures keep it and log the host and a code; push addresses only in the exact form a browser gives, to the browser makers' push services (guardrails found a `%2E` host that web-push would have sent elsewhere: fixed); 10 saves every 15 minutes per casual (429); compliance and privacy notice; a fake HTTPS push service that checks the signature and decrypts; guardrails FIX FIRST ×2 over three rounds; 4,912 tests + 91 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |

@@ -419,10 +419,11 @@ export async function runOfficeOffer(
       });
       return { status: "failed" };
     }
-    // The push once the message has gone.
+    // The push once the message has gone: no use once the shift has started.
     const pushes = await pushToWorker(tx, deps, payload.workerId, {
       ...claim.push,
       url: `/shifts/${claim.shiftId}`,
+      until: claim.startsAt,
     });
     if (sent.fellBackFrom) {
       await tx.update(offers).set({ channel: sent.channel }).where(eq(offers.id, claim.offerId));

@@ -16,7 +16,11 @@ reviewed once by a solicitor before the first pilot.
   Cloud service account reads and writes the sheet the firm shares with it; the sheet itself stays
   in the firm's own Google account), postcodes.io (turns a postcode into its central point: only the
   postcode is sent, never who it's for) and TravelTime (travel times, from 12G.2: coordinates and
-  meaningless ids only), both only once `TRAVEL_PROVIDER=traveltime` (`docs/dpia-travel.md`). List
+  meaningless ids only), both only once `TRAVEL_PROVIDER=traveltime` (`docs/dpia-travel.md`), and
+  the browser makers' push services (Google's for Android and Chrome, Apple's for iPhones, Mozilla's,
+  Microsoft's), only once web push is switched on (`PUSH_TRANSPORT=webpush`, 13.3) and only for a
+  phone whose owner turned notifications on: each push is encrypted for that phone alone (RFC 8291),
+  so the push service sees where to deliver it, its size and its timing, never its words. List
   them in the DPA. Twilio, Meta, ElevenLabs and Google are US-linked: check each one's DPA and UK
   transfer terms. **Dylan to confirm** the Google line with
   the solicitor (added in Phase 10 task 10).
@@ -27,6 +31,14 @@ A firm's admin can connect its planner: the planner sends sessions with an API k
 bookings, cancellations and withdrawn strikes by signed webhook (`docs/integrations.md`). The firm
 is the controller and its admin chooses where the data goes; the planner is the firm's own
 recipient.
+- **Phone notifications (web push, 13.3):** a phone's notification address (`push_subscriptions`:
+  the push service's address and the phone's keys) is kept until notifications are turned off on
+  that phone, the casual logs out or logs in again on it, the push service says it no longer works
+  (it's then deleted and `push.forgotten` logged), an eleventh phone replaces the oldest, or the
+  casual's details are erased. The action log never holds the address. A notification can show on
+  a locked phone: its words name the shift (the role, the place, the day and time) or say a request
+  or pay question was answered, never pay figures, a reason or anyone's details
+  (`docs/messaging-templates.md` "Push").
 - **Sent:** the session's facts (event, site name and postcode, role, times, pay rate, post,
   meeting point, uniform, requirements), the booking's facts (status, who booked it, times), the
   casual's first and last name and staff ref, and the cancellation and strike result (notice hours,

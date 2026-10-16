@@ -1,4 +1,4 @@
-import { and, arrayContains, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, arrayContains, desc, eq, gt, inArray, like, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { Pool } from "pg";
 import { seedId } from "../../src/lib/db/admin/seed-data";
@@ -8,6 +8,7 @@ import {
   credentials,
   firms,
   officeUsers,
+  pushSubscriptions,
   requests,
   shifts,
   sites,
@@ -94,6 +95,28 @@ export async function setFirmSetting(slug: string, key: string, value: unknown):
     }
   } finally {
     client.release();
+    await pool.end();
+  }
+}
+
+// Puts a seeded firm's push back as a push spec found it (13.3), in the e2e database (never the
+// dev one): the per-worker push limit counts cleared, and the phones the spec saves (addresses
+// starting `endpointPrefix`, its own made-up ones) removed. A retried test then starts as the first
+// try did: a phone left saved would be re-saved without counting, and the limit never reached.
+export async function resetPushSpec(slug: string, endpointPrefix: string): Promise<void> {
+  if (!/^https:\/\/fcm\.googleapis\.com\/fcm\/send\/e2e-[a-z-]+$/.test(endpointPrefix))
+    throw new Error("only a push spec's own made-up addresses");
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    await createWithFirm(pool)(seedId(`firm/${slug}`), async (tx) => {
+      await tx.execute(sql`delete from auth_throttle where bucket like 'push:worker:%'`);
+      await tx
+        .delete(pushSubscriptions)
+        .where(like(pushSubscriptions.endpoint, `${endpointPrefix}%`));
+    });
+  } finally {
     await pool.end();
   }
 }

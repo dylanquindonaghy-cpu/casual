@@ -133,6 +133,20 @@ describe("deploy/docker-compose.yml", () => {
     for (const name of ["web", "caddy", "migrate"]) {
       expect(keys(name), name).not.toContain("ANTHROPIC_API_KEY");
     }
+    // Web push (13.3): the worker alone sends pushes, so only it gets the private VAPID key; the
+    // web app has the public half (the phones subscribe with it). Off until the keys are made.
+    expect(keys("worker")).toEqual(
+      expect.arrayContaining([
+        "PUSH_TRANSPORT",
+        "VAPID_PUBLIC_KEY",
+        "VAPID_PRIVATE_KEY",
+        "VAPID_SUBJECT",
+      ]),
+    );
+    expect(services.worker?.environment?.PUSH_TRANSPORT).toBe("none");
+    for (const name of Object.keys(services).filter((n) => n !== "worker")) {
+      expect(keys(name), name).not.toContain("VAPID_PRIVATE_KEY");
+    }
     // Travel times (12G.2): the worker alone asks TravelTime, so only it gets the keys.
     expect(keys("worker")).toEqual(
       expect.arrayContaining(["TRAVEL_PROVIDER", "TRAVELTIME_APP_ID", "TRAVELTIME_API_KEY"]),

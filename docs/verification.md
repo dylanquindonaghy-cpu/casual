@@ -59,6 +59,11 @@ What the hooks catch (Phase 13 task 13.1, closing the audit's L1 to L6, L61, L62
   (`scripts/check-e2e-report.mjs`, which Playwright doesn't count as failures); they check
   `scripts/` as well as `src/` for anything setting the firm outside `withFirm()` (the owner-run
   admin commands are named one by one); and no test imports the Twilio SDK.
+- **Tested like the app.** `tests/unit/safety-net.test.ts` runs each hook as Claude Code runs it,
+  in a throwaway git repository. It also runs `invariants.sh` on sample trees (a `fixme`, a test
+  marked to fail, a run-time skip, a new script setting the firm, a Twilio import, and a passing
+  case for each), and runs `verify.sh` with stand-in commands: the build is called, a file changed
+  mid-run or a missing or non-executable `invariants.sh` gives NOT VERIFIED.
 
 ## Why the auditor is a separate agent
 
@@ -66,8 +71,13 @@ Anthropic's subagent design gives each subagent its own context. The auditor is 
 nothing but the task text. It cannot be fooled by the builder's narrative because it never
 reads it. It's read-only so it can't "fix" things to make its own verdict come out right: its
 tools are `Read, Grep, Glob, Bash`, and a hook (`.claude/hooks/readonly-agents.mjs`) refuses any
-edit and any shell command that writes or runs the project. Reading, searching and git's reading
-commands (`git diff`, `git log`) still work. It runs on Sonnet: capable enough to spot a mocked test, cheap enough
+edit and any shell command that writes or runs the project. It reads the command the way the shell
+does (quotes, escapes, comments), so `sed "-i"` counts as `sed -i`. Options that write or run
+something are refused too (`sort -o`, `uniq in out`, a sed script with `w` or `e`, `rg --pre`,
+`git grep -O`), and so is anything whose value isn't known in advance: a variable, `$(…)`, brace
+expansion, or a setting put in front of a command (`GIT_PAGER=… git log`). When it can't be sure,
+it refuses. Reading, searching and git's reading commands (`git diff`, `git log`) still work, one
+command at a time. It runs on Sonnet: capable enough to spot a mocked test, cheap enough
 to run on every task.
 
 The same principle covers `guardrails-reviewer` (golden rules) and `doc-fact-checker` (docs).

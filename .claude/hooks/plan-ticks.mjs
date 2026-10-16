@@ -89,8 +89,15 @@ function main() {
   process.exit(2);
 }
 
-const invoked = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : "";
-if (import.meta.url === invoked) {
+function runAsScript() {
+  try {
+    return !!process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url;
+  } catch {
+    return false;
+  }
+}
+
+if (runAsScript()) {
   try {
     main();
   } catch (error) {

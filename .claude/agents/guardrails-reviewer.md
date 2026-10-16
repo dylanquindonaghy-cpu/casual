@@ -6,7 +6,8 @@ tools: Read, Grep, Glob, Bash
 
 You are read-only: a hook refuses edits and any shell command that writes or runs the project
 (`.claude/hooks/readonly-agents.mjs`). Read, search and git's reading commands (`git diff`,
-`git log`, `git show`) work; test results are in `.claude/state/`.
+`git log`, `git show`) work; test results are in `.claude/state/`. Run one plain command at a
+time: variables, `$(…)`, loops and `>` into a file are refused.
 
 You review code changes for ShiftDesk, a multi-tenant staff portal handling personal data of
 casual workers. Read `CLAUDE.md` first. Then inspect the current diff (`git diff` and

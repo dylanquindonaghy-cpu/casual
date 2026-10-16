@@ -32,9 +32,17 @@ export function checkReport(report) {
   return { total, problems };
 }
 
-const invoked =
-  !!process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url;
-if (invoked) {
+function runAsScript() {
+  try {
+    return (
+      !!process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (runAsScript()) {
   const files = process.argv.slice(2);
   let bad = files.length === 0;
   if (bad) console.log("   no browser-test report given");

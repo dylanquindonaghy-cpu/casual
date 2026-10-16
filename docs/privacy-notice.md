@@ -116,7 +116,7 @@ Replace the parts in [brackets]. Send both parts.
 > turned down, or an old photo you've replaced, 30 days later. A strike, [12 months] after it was
 > given. Your travel area, until you remove it or we record that you've left [if the firm stops
 > using travel areas: say whether the areas already saved are deleted then, or kept unused until
-> you leave (PLAN.md Parking lot, "Travel areas")]. A phone's
+> you leave (docs/dpia-travel.md, Part 2 item 3)]. A phone's
 > notification address, until you turn notifications off on it, log out on it, or its push service
 > says it no longer works. If there's a dispute, we may keep
 > things longer, until it's settled. Your details, shifts, requests, pay records and the

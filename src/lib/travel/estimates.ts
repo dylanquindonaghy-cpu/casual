@@ -46,7 +46,8 @@ import { workerTravelProvider } from "./worker-provider";
 //   its time budget stops between searches and, if it saved anything, queues the rest as a fresh
 //   run.
 // - Nothing for a firm with travel areas off (`travel.enabled`, 13.4): no search, and the nightly
-//   run queues nothing for it.
+//   run queues nothing for it; a run already going when they're switched off stops searching
+//   before its next group.
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -295,7 +296,9 @@ export async function fillEstimates(
   for (const group of await groupsFor(run, firmId, scope, now)) {
     if (outOfTime()) return { ...result, more: true };
     const missing = await missingFor(run, firmId, group, deps.provider.name);
-    if (!missing) continue; // the site moved: its new estimates are queued with the move
+    // The site moved (its new estimates are queued with the move), or travel areas were switched
+    // off (every later group is skipped the same way).
+    if (!missing) continue;
     for (const mode of MODES) {
       const origins = missing.get(mode) ?? [];
       for (let i = 0; i < origins.length; i += SEARCH_MAX_ORIGINS) {

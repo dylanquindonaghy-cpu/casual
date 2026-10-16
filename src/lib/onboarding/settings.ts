@@ -98,7 +98,7 @@ export const SETTING_WORDS: Record<SettingKey, string> = {
   "strikes.live_days": `days a strike counts (${STRIKE_LIMITS.liveDays.min} to ${STRIKE_LIMITS.liveDays.max})`,
   "strikes.keep_months": `months before a strike's record is deleted, unless a hold is on (${STRIKE_LIMITS.keepMonths.min} to ${STRIKE_LIMITS.keepMonths.max}, and at least 6 months more than a strike counts)`,
   "travel.enabled":
-    "travel areas are on: casuals may add a home area, and see and get shifts within their travel time (true or false; agree the travel DPIA first, docs/dpia-travel.md)",
+    "travel areas are on: casuals may add a home area, and see and get shifts within their travel time (true or false; agree the travel DPIA first, docs/dpia-travel.md; switching off keeps the home areas already saved, unused: decide on them first, its Part 2 item 3)",
   "travel.default_max_minutes":
     "a casual's travel time limit until they choose their own (30, 45, 60 or 90 minutes)",
   "photo.renewal_months": `months before a casual's staff photo is due again, from the day the current one was uploaded (${PHOTO_RENEWAL_LIMITS.min} to ${PHOTO_RENEWAL_LIMITS.max})`,

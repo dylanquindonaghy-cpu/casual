@@ -976,7 +976,10 @@ describe("through a real pg-boss worker", () => {
         await until(async () => (await logged(t.f.firmId, "webhook.failed")).length > 0, 45_000),
       ).toBe(true);
     } finally {
-      await boss.offWork(WEBHOOK_DELIVER_QUEUE, { id: workId });
+      // `wait`: until the job in hand has finished and been marked done. Passing any options
+      // replaces pg-boss's default ({ wait: true }), and without it the state below could still
+      // read "active" (the event is logged inside the try, before pg-boss completes the job).
+      await boss.offWork(WEBHOOK_DELIVER_QUEUE, { id: workId, wait: true });
     }
     // This firm's tries (the worker also takes what earlier tests here left queued).
     expect(fake.sent.filter((r) => r.url === t.url)).toHaveLength(WEBHOOK_RETRY_LIMIT + 1);
@@ -1028,7 +1031,7 @@ describe("through a real pg-boss worker", () => {
     } finally {
       release();
       await until(async () => (await logged(a.f.firmId, "webhook.delivered")).length === 3, 10_000);
-      await boss.offWork(WEBHOOK_DELIVER_QUEUE, { id: workId });
+      await boss.offWork(WEBHOOK_DELIVER_QUEUE, { id: workId, wait: true });
     }
   }, 30_000);
 });

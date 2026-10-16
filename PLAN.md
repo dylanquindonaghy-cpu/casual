@@ -1411,7 +1411,7 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 4 | **When you deploy:** the first deploy's database step connects with checked encryption (a certificate error: tell Claude) | You | runbooks "Deploy" |
 | 5 | **Before any firm uses its own address:** a regular re-check that it still points to us | Claude | docs/testing.md pre-pilot checklist; ADR-019 |
 | 6 | ~~**Before a pilot:** a per-worker limit on "Take shift"~~ **Done in 13.5**: 20 taps every 15 minutes | Claude | Parking lot |
-| 7 | **Before a pilot:** licence expiry messages go by WhatsApp whatever the worker chose (a worker who chose texts gets none): move them onto the normal sender | Claude | Parking lot (credential expiry items) |
+| 7 | ~~**Before a pilot:** licence expiry messages go by WhatsApp whatever the worker chose (a worker who chose texts gets none): move them onto the normal sender~~ **Done in 13.5** | Claude | Parking lot (credential expiry items) |
 | 8 | **Before a pilot:** the dry-run event day on the firm's real setup | You, with the firm | pilot-playbook.md; Phase 9 |
 | 9 | **Before the first real import:** how a real file gets into the server's owner container (a mounted folder, or `docker compose cp`) | Claude, then you | Parking lot "Import the pilot firm's real data" |
 | 10 | On the first restore: check a snapshot keeps the database's logins | You | "Try the runbooks for real" |
@@ -2679,8 +2679,9 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 - Profile follow-ups (from the Phase 3 profile task):
   - Phase 4's sender must honour `workers.notify_channel` (WhatsApp or SMS) and
     `workers.offer_alerts` (false means no open-shift offers). Login links and codes are always sent.
-    The credential expiry reminders (`src/lib/credentials/scan.ts`) send WhatsApp today whatever
-    the setting: move them onto the same sender (see the credential-scan item above).
+    ~~The credential expiry reminders (`src/lib/credentials/scan.ts`) send WhatsApp today whatever
+    the setting.~~ **Done in 13.5**: they go through `sendToWorker` (the casual's channel, the
+    WhatsApp-to-text fallback, never a text after STOP).
     Offer waves should skip workers who marked the shift's day unavailable. The rules already refuse
     them, so this only saves sending a pointless offer.
   - Office (Phase 5): see a worker's unavailable days on their record and in the booking picker,
@@ -3159,9 +3160,13 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   nested glob patterns), reached only through `eslint-config-next` → `@next/eslint-plugin-next` →
   `fast-glob` 3.3.1. No fixed `braces` exists (3.0.3 is the latest and is affected), and even
   `@next/eslint-plugin-next` 16.4.2 still pins `fast-glob` 3.3.1. It runs only in `npm run lint`,
-  on our own patterns. Recheck when either releases a fix. Related, not urgent: the image copies
-  every dependency, development tools included (the worker runs TypeScript with `tsx`); a
-  production-only install would leave out tools like the linter.
+  on our own patterns. Recheck when either releases a fix. ~~Related, not urgent: the image copies
+  every dependency, development tools included.~~ **Done in 13.5**: the build prunes development
+  dependencies after `next build` (`npm prune --omit=dev`), so the linter (and `braces` with it),
+  the test runners and TypeScript's compiler aren't in the image (2.22 GB to 1.73 GB, measured on a
+  local build); `tsx` is a dependency now (the worker and migrate run with it). `@playwright/test`
+  stays: npm keeps it as `next`'s optional peer (`--omit=peer` doesn't remove it either); nothing
+  loads it at run time.
 - Travel estimates, a second audit (12G.2, 2026-10-15). 12G.2 was audited DONE on 2026-10-09. A
   later re-audit found three paths no test reached; 12L.1 tests all three. It also asked Dylan to accept (**accepted** 2026-10-16) that hand-written TravelTime answers
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io

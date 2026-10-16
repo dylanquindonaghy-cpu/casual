@@ -590,7 +590,9 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   ours (below). Not in `deploy/docker-compose.yml` yet: added only if the chosen host needs it.
 - Docker Compose: `web`, `worker`, `caddy`. GitHub Actions builds the image; the server pulls it
   and runs `up -d` (no SSH). (As built in Phase 8, short of a server: deploys pull. `.github/workflows/deploy.yml` builds the
-  image (`Dockerfile`: one image, non-root, no secrets) after CI passes on `main` and pushes it to
+  image (`Dockerfile`: one image, non-root, no secrets, production dependencies only since 13.5:
+  the build prunes the development tools, and `tsx`, which runs the worker and migrate, is a
+  dependency) after CI passes on `main` and pushes it to
   GitHub's registry; `deploy/deploy.sh`, every 2 minutes on the server (a systemd timer), pulls a
   new image, runs the one-off `migrate` step, then `up -d`, never between 05:30 and 09:00 UK.
   `deploy/docker-compose.yml`: only Caddy published (80/443), each service given only the secrets

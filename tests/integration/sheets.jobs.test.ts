@@ -141,6 +141,15 @@ describe("sheets-sync-tick", () => {
       `sheets-sync:${minute}`,
       `sheets-sync:${minute + 1}`,
     ]);
+    // pg-boss's own time slot is the largest it has (one slot from 1970), so only the key decides:
+    // with a short slot, two ticks a moment apart could fall either side of a slot edge on the
+    // database's clock and both queue (the flaky test, fixed 2026-10-06; pinned in 13.5).
+    const { rows } = await su.query<{ slot: string }>(
+      `select to_char(singleton_on, 'YYYY-MM-DD') as slot from pgboss.job
+        where name = $1 and data ->> 'firmId' = $2`,
+      [SHEETS_SYNC_QUEUE, f.firmId],
+    );
+    expect(rows.map((r) => r.slot)).toEqual(["1970-01-01", "1970-01-01"]);
   });
 
   it("backs off while a firm's syncs are failing", async () => {

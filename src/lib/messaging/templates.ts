@@ -123,10 +123,11 @@ export function strikeEvidenceEmail(
   };
 }
 
-// credential_expiring (WhatsApp, utility): sent 30, 14 and 7 days before a credential expires. The
-// link is the casual's upload page for it (12F.2; docs/office-v2.md 5.7 item 5). One she can't
-// upload (the office records it, or none of her roles needs it: no link, null) is
-// credential_expiring_to_office, the words before 12F.2.
+// credential_expiring (WhatsApp or SMS, utility): sent 30, 14 and 7 days before a credential
+// expires, by the worker's channel (13.5; the same words by text). The link is the casual's upload
+// page for it (12F.2; docs/office-v2.md 5.7 item 5). One she can't upload (the office records it,
+// or none of her roles needs it: no link, null) is credential_expiring_to_office, the words before
+// 12F.2.
 export function credentialExpiringMessage(
   firm: FirmVoice,
   credential: string,
@@ -138,8 +139,9 @@ export function credentialExpiringMessage(
     : `Your ${credential} expires on ${date}. Renew it and send the new details to the office so you can keep taking shifts. — ${firm.signOff}`;
 }
 
-// credential_expired (WhatsApp, utility): the day after a credential's expiry date, with the same
-// upload link (credential_expired_to_office, no link, for one she can't upload).
+// credential_expired (WhatsApp or SMS, utility): the day after a credential's expiry date, by the
+// worker's channel (13.5), with the same upload link (credential_expired_to_office, no link, for
+// one she can't upload).
 export function credentialExpiredMessage(
   firm: FirmVoice,
   credential: string,

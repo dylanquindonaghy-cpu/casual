@@ -297,7 +297,8 @@ describe("how a reminder goes", () => {
        values ($1, $2, 'https://push.example.test/rae', 'k', 'a')`,
       [t.f.firmId, t.workerId],
     );
-    const shiftId = await t.f.shift({ startsAt: hoursFromNow(20) });
+    const startsAt = hoursFromNow(20);
+    const shiftId = await t.f.shift({ startsAt });
     await t.f.booking(t.workerId, shiftId);
     await t.run(NOW);
     expect(t.sent.map((m) => m.channel)).toEqual(["sms"]);
@@ -306,6 +307,7 @@ describe("how a reminder goes", () => {
         title: "Tomorrow: your shift",
         body: "05:00–13:00. Tap for instructions.",
         url: `/shifts/${shiftId}`,
+        until: startsAt, // for the push service only (13.3): not delivered once it has started
       },
     ]);
     expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "sms", pushes: 1 });

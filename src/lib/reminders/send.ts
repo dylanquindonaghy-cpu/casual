@@ -295,9 +295,11 @@ export async function runShiftReminders(
         });
         return;
       }
+      // Not delivered once the shift has started.
       const pushes = await pushToWorker(tx, deps, b.workerId, {
         ...reminderPush({ kind, site: b.siteName, day, start, end }),
         url: `/shifts/${b.shiftId}`,
+        until: b.startsAt,
       });
       await tx
         .update(shiftReminders)

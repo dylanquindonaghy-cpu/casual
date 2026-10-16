@@ -144,7 +144,7 @@ describe("deploy/docker-compose.yml", () => {
       ]),
     );
     expect(services.worker?.environment?.PUSH_TRANSPORT).toBe("none");
-    for (const name of ["web", "caddy", "migrate"]) {
+    for (const name of Object.keys(services).filter((n) => n !== "worker")) {
       expect(keys(name), name).not.toContain("VAPID_PRIVATE_KEY");
     }
     // Travel times (12G.2): the worker alone asks TravelTime, so only it gets the keys.

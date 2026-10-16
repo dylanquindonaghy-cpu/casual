@@ -37,9 +37,9 @@ export const LIMITS = {
   // The planner API (12J.1; docs/office-v2.md 5.3.2): 300 calls a minute per key, counted by the
   // key's id. Its answer gives the wait in seconds (Retry-After).
   apiPerKey: { name: "api:key", max: 300, windowMs: MINUTE },
-  // A phone's push subscription saved or removed (POST and DELETE /api/push/subscribe; 13.3): 10
-  // per worker every 15 minutes, counted by the worker's id. Each save writes to the action log;
-  // turning notifications on or off, or the browser renewing a subscription, takes one or two.
+  // A phone's push subscription saved (POST /api/push/subscribe; 13.3): 10 per worker every 15
+  // minutes, counted by the worker's id, only for a save that writes (and so logs). Turning
+  // notifications on, or the browser renewing a subscription, takes one. Removing is never limited.
   pushPerWorker: { name: "push:worker", max: 10, windowMs: 15 * MINUTE },
 } as const satisfies Record<string, Limit>;
 

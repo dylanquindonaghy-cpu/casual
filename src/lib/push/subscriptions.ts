@@ -14,31 +14,52 @@ import type { PortalContext } from "../portal/my-shifts";
 // go into the action log or the logs (the events say only that one was added or removed).
 
 // The browser makers' push services: a subscription must point at one of them (never at a host of
-// the sender's choosing, which the real sender would then post to).
+// the sender's choosing, which the real sender would then post to). Chrome and Android: Google's;
+// Safari and iPhones: Apple's web push host; Firefox: Mozilla's; Edge on Windows: Microsoft's.
 const PUSH_HOSTS = [
   /^fcm\.googleapis\.com$/,
-  /^([a-z0-9-]+\.)*push\.apple\.com$/,
+  /^web\.push\.apple\.com$/,
   /^updates\.push\.services\.mozilla\.com$/,
-  /^([a-z0-9-]+\.)*notify\.windows\.com$/,
+  /^[a-z0-9-]+\.notify\.windows\.com$/,
 ];
 export const MAX_PHONES_PER_WORKER = 10;
 
+// Only the exact form a browser gives (13.3 guardrails review): https, a plain lower-case host
+// (letters, digits, dots and hyphens: no %-escape, no user name, no port), then a path, and nothing
+// a URL parser would rewrite. Two parsers must read the same host: this one (WHATWG) and the older
+// one web-push connects with, which ends a host at a "%" where this one decodes it: with
+// "https://attacker.example%2Epush.apple.com/x" the check saw Apple and web-push would have
+// connected to attacker.example. Checked when a subscription is saved and again before each push.
 export function isPushServiceUrl(raw: string): boolean {
+  if (!/^https:\/\/[a-z0-9.-]+\//.test(raw)) return false;
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" && !url.port && PUSH_HOSTS.some((h) => h.test(url.hostname));
+    return url.href === raw && PUSH_HOSTS.some((h) => h.test(url.hostname));
   } catch {
     return false;
   }
 }
+
+// A phone's keys as web push needs them: the public key a 65-byte uncompressed P-256 point, the
+// auth secret 16 bytes. Anything else could never be pushed to.
+const keyBytes = (raw: string, length: number, first?: number) => {
+  const bytes = Buffer.from(raw, "base64url");
+  return bytes.length === length && (first === undefined || bytes[0] === first);
+};
 
 // What the browser's PushSubscription.toJSON() gives, checked.
 export const pushSubscriptionSchema = z.object({
   endpoint: z.url().max(2048).refine(isPushServiceUrl, "must be a browser push service address"),
   expirationTime: z.number().nullable().optional(),
   keys: z.object({
-    p256dh: z.string().regex(/^[A-Za-z0-9_-]{16,200}={0,2}$/),
-    auth: z.string().regex(/^[A-Za-z0-9_-]{8,100}={0,2}$/),
+    p256dh: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{87}=?$/)
+      .refine((k) => keyBytes(k, 65, 0x04), "must be the phone's P-256 public key"),
+    auth: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{22}(==)?$/)
+      .refine((k) => keyBytes(k, 16), "must be the phone's 16-byte auth secret"),
   }),
 });
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;
@@ -50,31 +71,57 @@ export interface PushTarget {
   auth: string;
 }
 
+export type SaveResult =
+  | { status: "saved" }
+  | { status: "not_found" }
+  | { status: "rate_limited"; retryAfterSeconds: number };
+
+// Saved again unchanged (the profile re-checks on load): nothing to do or log.
+async function unchanged(tx: FirmTx, workerId: string, input: PushSubscriptionInput) {
+  const [same] = await tx
+    .select({ id: pushSubscriptions.id })
+    .from(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.endpoint, input.endpoint),
+        eq(pushSubscriptions.workerId, workerId),
+        eq(pushSubscriptions.p256dh, input.keys.p256dh),
+        eq(pushSubscriptions.auth, input.keys.auth),
+      ),
+    );
+  return same !== undefined;
+}
+
+// `limit` (the route, 13.3): a save that would write counts against the worker's limit first
+// (throttlePushChanges); one that changes nothing doesn't count.
 export async function savePushSubscription(
-  ctx: PortalContext,
+  ctx: PortalContext & { secret?: string },
   workerId: string,
   input: PushSubscriptionInput,
-): Promise<{ status: "saved" } | { status: "not_found" }> {
+  opts: { limit?: boolean } = {},
+): Promise<SaveResult> {
   const run = ctx.run ?? withFirm;
+  if (opts.limit) {
+    const before = await run(ctx.firm.id, async (tx) => {
+      const [me] = await tx
+        .select({ id: workers.id })
+        .from(workers)
+        .where(and(eq(workers.id, workerId), eq(workers.status, "active")));
+      if (!me) return "not_found" as const;
+      return (await unchanged(tx, workerId, input)) ? ("same" as const) : ("write" as const);
+    });
+    if (before === "not_found") return { status: "not_found" };
+    if (before === "same") return { status: "saved" };
+    const limited = await throttlePushChanges(ctx, workerId);
+    if (limited) return { status: "rate_limited", retryAfterSeconds: limited.retryAfterSeconds };
+  }
   return run(ctx.firm.id, async (tx) => {
     const [me] = await tx
       .select({ id: workers.id })
       .from(workers)
       .where(and(eq(workers.id, workerId), eq(workers.status, "active")));
     if (!me) return { status: "not_found" };
-    // Saved again unchanged (the profile re-checks on load): nothing to do or log.
-    const [same] = await tx
-      .select({ id: pushSubscriptions.id })
-      .from(pushSubscriptions)
-      .where(
-        and(
-          eq(pushSubscriptions.endpoint, input.endpoint),
-          eq(pushSubscriptions.workerId, workerId),
-          eq(pushSubscriptions.p256dh, input.keys.p256dh),
-          eq(pushSubscriptions.auth, input.keys.auth),
-        ),
-      );
-    if (same) return { status: "saved" };
+    if (await unchanged(tx, workerId, input)) return { status: "saved" };
     // One row per endpoint: a new login on the same phone takes it over.
     const [row] = await tx
       .insert(pushSubscriptions)
@@ -156,9 +203,10 @@ export async function forgetPushTarget(tx: FirmTx, id: string): Promise<void> {
   await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.id, id));
 }
 
-// Counts one save or removal by this worker (the auth throttle, LIMITS.pushPerWorker), in its own
-// short transaction before the work, so a refused or failed request still counts. Null: within
-// the limit.
+// Counts one save that writes, by this worker (the auth throttle, LIMITS.pushPerWorker), in its own
+// short transaction before the work, so a refused or failed save still counts. Removing a phone is
+// never limited: turning notifications off, or logging out, must always work. Null: within the
+// limit.
 export async function throttlePushChanges(
   ctx: PortalContext & { secret?: string },
   workerId: string,

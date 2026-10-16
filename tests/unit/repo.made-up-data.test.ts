@@ -35,6 +35,12 @@ const ALLOWED = [
     domain: "example-project.iam.gserviceaccount.com",
     why: "a made-up Google service account, in the form Google's key files use",
   },
+  {
+    file: "tests/integration/push.test.ts",
+    local: "user",
+    domain: "fcm.googleapis.com",
+    why: "not an email: a push address with a user name in it, which the address check refuses (13.3)",
+  },
 ].map((entry) => ({ ...entry, text: `${entry.local}@${entry.domain}` }));
 
 function isReserved(domain: string): boolean {

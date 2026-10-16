@@ -1,11 +1,11 @@
-import type { FirmTx } from "../db/scoped";
+import { activeFirmId, type FirmTx } from "../db/scoped";
 import { recordEvent } from "../events/record";
 import { errorCode } from "../jobs/firm-job";
 import type { MessagingTransport } from "../messaging";
 import { ChannelRefusedError } from "../messaging/transport";
 import { forgetPushTarget, pushTargets } from "../push/subscriptions";
 import type { PushPayload, PushTransport } from "../push/transport";
-import { log } from "../log";
+import { log, type Logger } from "../log";
 
 const pushHost = (endpoint: string) => {
   try {
@@ -102,34 +102,43 @@ export async function sendToWorker(
   };
 }
 
-// The push to each phone the worker turned notifications on for; how many took it. A phone the
-// push service says is gone is forgotten and logged. One that failed this time (a refusal, a
-// time-out: PUSH_TIMEOUT_MS) is kept, and the log line names the push service's host and a code,
-// never the address (it addresses one person's phone).
+// The push to each phone the worker turned notifications on for, all at once; how many took it.
+// A phone the push service says is gone, or whose address isn't a push service's (refused), is
+// forgotten and logged. One that failed this time (a refusal, a time-out: PUSH_TIMEOUT_MS) is kept,
+// and the log line names the firm, the push service's host and a code, never the address (it
+// addresses one person's phone). Each push is cut off at PUSH_TIMEOUT_MS, so the phones together
+// hold this transaction that long at most (pushing outside it: PLAN.md Parking lot).
 export async function pushToWorker(
   tx: FirmTx,
-  deps: Pick<NotifyDeps, "push">,
+  deps: Pick<NotifyDeps, "push"> & { logger?: Logger },
   workerId: string,
   payload: PushPayload,
 ): Promise<number> {
+  const targets = await pushTargets(tx, workerId);
+  // The path only: the service worker opens it on whichever address the phone subscribed on
+  // (a firm's custom domain included).
+  const results = await Promise.all(targets.map((target) => deps.push.send(target, payload)));
   let pushes = 0;
-  for (const target of await pushTargets(tx, workerId)) {
-    // The path only: the service worker opens it on whichever address the phone subscribed on
-    // (a firm's custom domain included).
-    const sent = await deps.push.send(target, payload);
-    if (sent.status === "gone") {
+  for (const [i, sent] of results.entries()) {
+    const target = targets[i];
+    if (!target) continue;
+    if (sent.status === "gone" || sent.status === "refused") {
       await forgetPushTarget(tx, target.id);
       await recordEvent(tx, {
         actorType: "system",
         action: "push.forgotten",
         entityType: "push_subscription",
         entityId: target.id,
-        data: { reason: "gone" },
+        data: { reason: sent.status === "gone" ? "gone" : "not_a_push_service" },
       });
     } else if (sent.status === "sent") {
       pushes += 1;
     } else if (sent.status === "failed") {
-      log.warn("push not delivered", { host: pushHost(target.endpoint), code: sent.code });
+      (deps.logger ?? log).warn("push not delivered", {
+        firmId: activeFirmId(),
+        host: pushHost(target.endpoint),
+        code: sent.code,
+      });
     }
   }
   return pushes;

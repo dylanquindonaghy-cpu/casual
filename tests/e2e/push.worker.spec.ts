@@ -10,9 +10,11 @@ const acme = "http://acme.localhost:3100";
 const fake = {
   endpoint: "https://fcm.googleapis.com/fcm/send/e2e-phone",
   expirationTime: null,
+  // A phone's keys as a browser gives them (a P-256 public key, a 16-byte auth secret): made up.
   keys: {
-    p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u",
-    auth: "tBHItJI5svbpez7KI4CCXg",
+    p256dh:
+      "BMjKn90ImxFVU1zSHNEtruyhx0HMcUneBp1ALg-PY6_yI87c_6dAPQLNPXaYzumNeXGAWfJ_VLuP-VKZbmUba3Q",
+    auth: "6rFtYx17VYjqn0un5estNA",
   },
 };
 
@@ -74,17 +76,31 @@ test("the subscribe route: logged in, from our own page, a proper subscription",
     headers: { origin: acme },
   });
   expect(await removed.json()).toEqual({ status: "removed" });
-  // Each save or removal from our own page counts against the worker's limit (10 every 15
-  // minutes, 13.3; 4 so far): past it, refused with how long to wait.
+  // Each save that writes counts against the worker's limit (10 every 15 minutes, 13.3; 1 so
+  // far): new phones until it's refused with how long to wait, the 11th.
+  const statuses: number[] = [];
   let answer = removed;
-  for (let n = 0; n < 10 && answer.status() !== 429; n++)
-    answer = await page.request.delete(url, {
-      data: { endpoint: fake.endpoint },
+  for (let n = 1; n <= 12 && answer.status() !== 429; n++) {
+    answer = await page.request.post(url, {
+      data: { ...fake, endpoint: `${fake.endpoint}-${n}` },
       headers: { origin: acme },
     });
-  expect(answer.status()).toBe(429);
+    statuses.push(answer.status());
+  }
+  expect(statuses).toEqual([...Array<number>(9).fill(200), 429]);
   expect(Number(answer.headers()["retry-after"])).toBeGreaterThan(0);
   expect(await answer.json()).toEqual({ status: "rate_limited" });
+  // Re-saving a phone already saved writes nothing, so isn't refused; nor is turning one off.
+  const again = await page.request.post(url, {
+    data: { ...fake, endpoint: `${fake.endpoint}-1` },
+    headers: { origin: acme },
+  });
+  expect(again.status()).toBe(200);
+  const off = await page.request.delete(url, {
+    data: { endpoint: `${fake.endpoint}-2` },
+    headers: { origin: acme },
+  });
+  expect(await off.json()).toEqual({ status: "removed" });
 });
 
 test("the profile says phone notifications aren't switched on yet", async ({ page }) => {

@@ -1,3 +1,4 @@
+import { createECDH } from "node:crypto";
 import { z } from "zod";
 import { databaseTlsOn } from "./db/tls";
 
@@ -120,6 +121,17 @@ const appFields = {
 };
 
 // Tests never reach postcodes.io or TravelTime.
+// The VAPID public key is the private key's P-256 point: work it out and compare.
+function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
+  try {
+    const ecdh = createECDH("prime256v1");
+    ecdh.setPrivateKey(Buffer.from(privateKey, "base64url"));
+    return ecdh.getPublicKey("base64url") === publicKey;
+  } catch {
+    return false;
+  }
+}
+
 const noRealTravelInTests = (e: { NODE_ENV: string; TRAVEL_PROVIDER: string }) =>
   e.NODE_ENV !== "test" || e.TRAVEL_PROVIDER !== "traveltime";
 const noRealTravelInTestsMessage = {
@@ -290,6 +302,19 @@ export const workerEnvSchema = z
     {
       path: ["VAPID_PRIVATE_KEY"],
       message: "PUSH_TRANSPORT=webpush needs VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT",
+    },
+  )
+  // Keys from two different pairs would make every push fail (the push service checks the
+  // signature against the key each phone subscribed with), with nothing saying why.
+  .refine(
+    (e) =>
+      e.PUSH_TRANSPORT !== "webpush" ||
+      !e.VAPID_PUBLIC_KEY ||
+      !e.VAPID_PRIVATE_KEY ||
+      vapidKeysMatch(e.VAPID_PUBLIC_KEY, e.VAPID_PRIVATE_KEY),
+    {
+      path: ["VAPID_PRIVATE_KEY"],
+      message: "VAPID_PRIVATE_KEY isn't the private half of VAPID_PUBLIC_KEY (they come as a pair)",
     },
   )
   // Production must never silently print messages instead of sending them.

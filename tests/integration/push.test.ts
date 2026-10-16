@@ -9,9 +9,11 @@ import {
   savePushSubscription,
   throttlePushChanges,
 } from "@/lib/push/subscriptions";
-import type { PushSendResult, PushTransport } from "@/lib/push/transport";
+import webpush from "web-push";
+import { createWebPushTransport, type WebPushSend } from "@/lib/push/transport";
 import { bookingFirm, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
+import { keptLog } from "../helpers/planner-api";
 
 // Web push subscriptions on the real database, as the app role: saved and removed by the worker,
 // moved to a new login on the same phone, never another firm's, never logged by address.
@@ -30,13 +32,17 @@ afterAll(async () => {
 });
 
 const ctxFor = (f: BookingFirm) => ({ firm: { id: f.firmId }, run: withFirm });
+// A phone's keys as a browser gives them (a P-256 public key, a 16-byte auth secret): made up here.
+const PHONE_KEY =
+  "BMjKn90ImxFVU1zSHNEtruyhx0HMcUneBp1ALg-PY6_yI87c_6dAPQLNPXaYzumNeXGAWfJ_VLuP-VKZbmUba3Q";
+const PHONE_AUTH = "6rFtYx17VYjqn0un5estNA";
 const subscription = (endpoint = "https://fcm.googleapis.com/fcm/send/phone-1") =>
   pushSubscriptionSchema.parse({
     endpoint,
     expirationTime: null,
     keys: {
-      p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u",
-      auth: "tBHItJI5svbpez7KI4CCXg",
+      p256dh: PHONE_KEY,
+      auth: PHONE_AUTH,
     },
   });
 const rowsFor = async (firmId: string) =>
@@ -131,7 +137,7 @@ describe("push subscriptions", () => {
     const bad = (o: Record<string, unknown>) =>
       pushSubscriptionSchema.safeParse({
         endpoint: "https://fcm.googleapis.com/fcm/send/x",
-        keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA", auth: "tBHItJI5svbpez7K" },
+        keys: { p256dh: PHONE_KEY, auth: PHONE_AUTH },
         ...o,
       }).success;
     expect(bad({})).toBe(true);
@@ -145,10 +151,24 @@ describe("push subscriptions", () => {
     expect(bad({ endpoint: "https://updates.push.services.mozilla.com/wpush/v2/abc" })).toBe(true);
     expect(bad({ endpoint: "https://wns2-db5p.notify.windows.com/w/?token=abc" })).toBe(true);
     expect(bad({ endpoint: "not a url" })).toBe(false);
-    expect(bad({ keys: { p256dh: "short", auth: "tBHItJI5svbpez7K" } })).toBe(false);
-    expect(bad({ keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA", auth: "a b" } })).toBe(
-      false,
-    );
+    // Only the exact form a browser gives (13.3 guardrails review): a %-escape in the host read one
+    // way by this check and another by web-push, which would have connected to attacker.example.
+    for (const endpoint of [
+      "https://attacker.example%2Epush.apple.com/x",
+      "https://attacker.example%2Ewns2-db5p.notify.windows.com/x",
+      "https://FCM.googleapis.com/fcm/send/x",
+      "https://fcm.googleapis.com:443/fcm/send/x",
+      "https://fcm.googleapis.com/fcm/../send/x",
+      "https://user@fcm.googleapis.com/fcm/send/x",
+      "https://api.push.apple.com/x", // Apple's web push host is web.push.apple.com
+    ])
+      expect(bad({ endpoint }), endpoint).toBe(false);
+    // Keys web push can use: a 65-byte P-256 point and a 16-byte secret.
+    expect(bad({ keys: { p256dh: "short", auth: PHONE_AUTH } })).toBe(false);
+    expect(bad({ keys: { p256dh: PHONE_KEY.slice(0, 64), auth: PHONE_AUTH } })).toBe(false);
+    expect(bad({ keys: { p256dh: `A${PHONE_KEY.slice(1)}`, auth: PHONE_AUTH } })).toBe(false);
+    expect(bad({ keys: { p256dh: PHONE_KEY, auth: "a b" } })).toBe(false);
+    expect(bad({ keys: { p256dh: PHONE_KEY, auth: PHONE_AUTH.slice(0, 20) } })).toBe(false);
   });
 
   it("the database refuses a push address that isn't https", async () => {
@@ -163,20 +183,31 @@ describe("push subscriptions", () => {
   });
 });
 
-describe("saving and removing phones is rate-limited (13.3)", () => {
-  it("10 saves or removals per worker every 15 minutes; the 11th is refused, logged once", async () => {
+describe("saving phones is rate-limited (13.3)", () => {
+  it("10 saves that write per worker every 15 minutes; the 11th is refused, logged once; re-saving and removing never are", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker();
     const ann = await f.worker({ first: "Ann" });
     const at = (iso: string) => ({ ...ctxFor(f), clock: { now: () => new Date(iso) } });
+    const phone = (n: number) => subscription(`https://fcm.googleapis.com/fcm/send/sam-${n}`);
+    const save = (iso: string, who: string, n: number) =>
+      savePushSubscription(at(iso), who, phone(n), { limit: true });
     for (let n = 1; n <= 10; n++)
-      expect(await throttlePushChanges(at("2026-10-16T10:01:00Z"), sam), `try ${n}`).toBeNull();
-    const refused = await throttlePushChanges(at("2026-10-16T10:05:00Z"), sam);
-    expect(refused).toMatchObject({ limit: "push:worker", retryAfterSeconds: 600 });
-    expect(await throttlePushChanges(at("2026-10-16T10:06:00Z"), sam)).not.toBeNull();
+      expect(await save("2026-10-16T10:01:00Z", sam, n), `save ${n}`).toEqual({ status: "saved" });
+    expect(await save("2026-10-16T10:05:00Z", sam, 11)).toEqual({
+      status: "rate_limited",
+      retryAfterSeconds: 600,
+    });
+    expect((await rowsFor(f.firmId)).length).toBe(10);
+    // The profile re-saving a phone it already has writes nothing, so it's never refused.
+    expect(await save("2026-10-16T10:06:00Z", sam, 3)).toEqual({ status: "saved" });
+    // Nor is turning notifications off.
+    expect(
+      await removePushSubscription(at("2026-10-16T10:06:00Z"), sam, phone(4).endpoint),
+    ).toEqual({ status: "removed" });
     // Another worker has their own count; the next window starts afresh.
-    expect(await throttlePushChanges(at("2026-10-16T10:06:00Z"), ann)).toBeNull();
-    expect(await throttlePushChanges(at("2026-10-16T10:15:00Z"), sam)).toBeNull();
+    expect(await save("2026-10-16T10:06:00Z", ann, 20)).toEqual({ status: "saved" });
+    expect(await save("2026-10-16T10:15:00Z", sam, 11)).toEqual({ status: "saved" });
     // Reaching it is logged once, with the worker's id (never a number or an address).
     const { rows } = await su.query(
       `select entity_type, entity_id::text, data from events
@@ -186,42 +217,85 @@ describe("saving and removing phones is rate-limited (13.3)", () => {
     expect(rows).toEqual([
       { entity_type: "worker", entity_id: sam, data: { limit: "push:worker" } },
     ]);
+    // The limit itself, counted directly.
+    const fresh = await f.worker({ first: "Cal" });
+    for (let n = 1; n <= 10; n++)
+      expect(await throttlePushChanges(at("2026-10-16T11:01:00Z"), fresh)).toBeNull();
+    expect(await throttlePushChanges(at("2026-10-16T11:01:00Z"), fresh)).toMatchObject({
+      limit: "push:worker",
+    });
   });
 });
 
-describe("a push that fails this time (13.3)", () => {
-  it("keeps the phone and isn't counted; a phone that's gone is forgotten", async () => {
+describe("pushing to a worker's phones (13.3)", () => {
+  it("all at once; a failed push keeps the phone, logged by host and code; gone or not a push service: forgotten", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker();
-    for (const phone of ["phone-ok", "phone-down", "phone-gone"])
+    for (const phone of ["phone-ok", "phone-down", "phone-gone", "phone-slow"])
       await savePushSubscription(
         ctxFor(f),
         sam,
         subscription(`https://fcm.googleapis.com/fcm/send/${phone}`),
       );
-    const answers: Record<string, PushSendResult> = {
-      "phone-ok": { status: "sent" },
-      "phone-down": { status: "failed", code: "http_500" },
-      "phone-gone": { status: "gone" },
-    };
-    const push: PushTransport = {
-      name: "fake",
-      async send(target) {
-        return answers[target.endpoint.split("/").pop() ?? ""] ?? { status: "skipped" };
-      },
-    };
-    const pushes = await withFirm(f.firmId, (tx) =>
-      pushToWorker(tx, { push }, sam, { title: "t", body: "b", url: "/" }),
+    // Saved before the address check existed: a host that reads one way here and another to
+    // web-push. The database only asks for https.
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://attacker.example%2Epush.apple.com/x', $3, $4)`,
+      [f.firmId, sam, PHONE_KEY, PHONE_AUTH],
     );
-    expect(pushes).toBe(1);
+    // The real sender, with a stand-in for the push services (nothing leaves the test).
+    const called: string[] = [];
+    const send: WebPushSend = async (subscription) => {
+      const phone = subscription.endpoint.split("/").pop() ?? "";
+      called.push(phone);
+      await new Promise((r) => setTimeout(r, 200));
+      if (phone === "phone-down")
+        throw new webpush.WebPushError("refused", 500, {}, "", subscription.endpoint);
+      if (phone === "phone-gone")
+        throw new webpush.WebPushError("gone", 410, {}, "", subscription.endpoint);
+      return { statusCode: 201 };
+    };
+    const vapid = webpush.generateVAPIDKeys();
+    const push = createWebPushTransport(
+      {
+        publicKey: vapid.publicKey,
+        privateKey: vapid.privateKey,
+        subject: "mailto:ops@example.com",
+      },
+      { send },
+    );
+    const kept = keptLog();
+    const started = Date.now();
+    const pushes = await withFirm(f.firmId, (tx) =>
+      pushToWorker(tx, { push, logger: kept.logger }, sam, { title: "t", body: "b", url: "/" }),
+    );
+    // Four phones at 200 ms each, at once.
+    expect(Date.now() - started).toBeLessThan(700);
+    expect(pushes).toBe(2);
+    // The made-up host was never contacted.
+    expect(called.sort()).toEqual(["phone-down", "phone-gone", "phone-ok", "phone-slow"]);
     expect((await rowsFor(f.firmId)).map((r: { endpoint: string }) => r.endpoint)).toEqual([
       "https://fcm.googleapis.com/fcm/send/phone-down",
       "https://fcm.googleapis.com/fcm/send/phone-ok",
+      "https://fcm.googleapis.com/fcm/send/phone-slow",
     ]);
     const { rows } = await su.query(
-      "select data from events where firm_id = $1 and action = 'push.forgotten'",
+      "select data from events where firm_id = $1 and action = 'push.forgotten' order by data ->> 'reason'",
       [f.firmId],
     );
-    expect(rows).toEqual([{ data: { reason: "gone" } }]);
+    expect(rows).toEqual([
+      { data: { reason: "gone" } },
+      { data: { reason: "not_a_push_service" } },
+    ]);
+    // The failed one: the firm, the push service's host and a code; never the phone's address.
+    expect(kept.lines).toEqual([
+      {
+        level: "warn",
+        msg: "push not delivered",
+        fields: { firmId: f.firmId, host: "fcm.googleapis.com", code: "http_500" },
+      },
+    ]);
+    expect(JSON.stringify(kept.lines)).not.toContain("phone-down");
   });
 });

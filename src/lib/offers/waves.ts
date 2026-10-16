@@ -60,8 +60,8 @@ import { lockLiveContact, type LiveContact } from "./reachable";
 // urgent session to casuals again: src/lib/office/showing.ts). A session hidden from casuals gets
 // no wave, only the office's escalation check.
 // Messages go through the configured transport (console in development and tests); each offer is
-// also pushed to the worker's subscribed phones (PUSH_TRANSPORT: console or none until the real
-// sender is connected). Quiet hours hold a wave unless the firm lets urgent override them; a
+// also pushed to the worker's subscribed phones (PUSH_TRANSPORT: webpush once the keys are set,
+// console in development and tests). Quiet hours hold a wave unless the firm lets urgent override them; a
 // WhatsApp that won't send goes by SMS. Workers come only from waveCandidates() (the rules, and the
 // daily cap, which never holds back an urgent offer).
 //
@@ -451,9 +451,12 @@ export async function runOfferWave(
     }),
     sms: shiftUrgentSms(firm.voice, { role: shift.role, site: shift.siteName, day, start, link }),
   };
+  // An urgent offer goes at high urgency, and is no use once the shift has started.
   const pushed = {
     ...urgentPush({ role: shift.role, site: shift.siteName, day, start }),
     url: `/shifts/${shift.id}`,
+    urgent: true,
+    until: shift.startsAt,
   };
 
   // 3. One worker at a time: claim, send, record.

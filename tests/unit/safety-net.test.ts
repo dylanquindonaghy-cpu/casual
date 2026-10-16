@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -83,6 +84,40 @@ function stamp(dir: string, over: { ok?: boolean; e2e?: boolean; tree?: string }
 const edit = (dir: string, oldS: string, newS: string) => ({
   tool_name: "Edit",
   tool_input: { file_path: join(dir, "PLAN.md"), old_string: oldS, new_string: newS },
+});
+
+describe("the hooks are wired where Claude Code runs them (.claude/settings.json)", () => {
+  type Entry = { matcher?: string; hooks: { type: string; command: string }[] };
+  const settings = JSON.parse(readFileSync(join(REPO, ".claude/settings.json"), "utf8")) as {
+    hooks: Record<string, Entry[]>;
+  };
+  // Every hook command on that event whose matcher covers the tool.
+  const wired = (event: string, tool?: string) =>
+    (settings.hooks[event] ?? [])
+      .filter((e) => !tool || !e.matcher || new RegExp(`^(${e.matcher})$`).test(tool))
+      .flatMap((e) => e.hooks.map((h) => h.command));
+  const runs = (event: string, tool: string | undefined, hookFile: string) =>
+    wired(event, tool).some((c) => c.includes(`/.claude/hooks/${hookFile}`));
+
+  it("each tool's guards run before it, the shell's check after it, the claims check at the end", () => {
+    for (const tool of ["Edit", "Write", "MultiEdit"]) {
+      expect(runs("PreToolUse", tool, "guard-plan-tick.sh"), tool).toBe(true);
+      expect(runs("PreToolUse", tool, "readonly-agents.mjs"), tool).toBe(true);
+    }
+    expect(runs("PreToolUse", "NotebookEdit", "readonly-agents.mjs")).toBe(true);
+    expect(runs("PreToolUse", "Bash", "plan-bash-snapshot.sh")).toBe(true);
+    expect(runs("PreToolUse", "Bash", "readonly-agents.mjs")).toBe(true);
+    expect(runs("PostToolUse", "Bash", "plan-bash-check.sh")).toBe(true);
+    expect(runs("Stop", undefined, "stop-unverified-claims.sh")).toBe(true);
+    // Each named file exists, and the shell ones can run.
+    for (const command of Object.keys(settings.hooks).flatMap((e) => wired(e))) {
+      const file = /\/\.claude\/hooks\/([\w.-]+)/.exec(command)?.[1] ?? "";
+      expect(file, command).not.toBe("");
+      const path = join(HOOKS, file);
+      if (file.endsWith(".mjs")) expect(command, command).toMatch(/^node /);
+      else expect(statSync(path).mode & 0o111, path).not.toBe(0);
+    }
+  });
 });
 
 describe("which edits tick a task (plan-ticks.mjs)", () => {

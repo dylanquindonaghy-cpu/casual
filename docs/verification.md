@@ -121,8 +121,8 @@ tangle you're trying to avoid.
 
 ## Adding project invariants
 
-Put extra checks in `scripts/invariants.sh` (exit non-zero on failure). verify.sh runs it if
-present. Good candidates from `docs/testing.md`: every firm-scoped table has RLS enabled; no
+Put extra checks in `scripts/invariants.sh` (exit non-zero on failure). verify.sh always runs
+it, after the tests: if it's missing or not executable, the run is NOT VERIFIED. Good candidates from `docs/testing.md`: every firm-scoped table has RLS enabled; no
 `.only` in tests; no secrets in tracked files; phone numbers never appear in logs.
 
 ## Cost

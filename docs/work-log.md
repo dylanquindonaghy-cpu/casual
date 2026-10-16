@@ -12597,3 +12597,84 @@ one gap turned up: the length check was only covered by the host list. It now ha
 
 `npm test -- tests/unit/push.webpush.test.ts tests/integration/push.test.ts` runs the push tests.
 Nothing changes on screen yet: the profile still says phone notifications aren't switched on.
+
+## 2026-10-16 — Privacy switches (13.4)
+
+**Time spent:** about 1.4 hours (14:29 to 15:52 UTC on 16 Oct).
+
+**Result:** `VERIFIED tree=9829a293a6d0ae1a e2e=true`: typecheck, lint, the production build,
+4,927 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor:
+`VERDICT: DONE` (first round).
+
+### What was built
+
+Two privacy changes you decided on 16 October.
+
+**1. Travel areas are switched on per firm.** A **travel area** is a casual's start postcode and
+how far they'll travel. The app uses it to show only shifts they can reach. A firm's own **DPIA**
+(the data protection check it must sign first) is per firm, so the switch is too:
+`travel.enabled`, set by the owner with `npm run firm:settings`. It's off for every new firm. The
+demo firm, Acme, has it on.
+
+When it's off:
+
+- A casual sees no "Where you work" on their profile, and its page isn't found. Saving one is
+  refused, even if the switch changes while the postcode is being looked up.
+- No "Add your home area" prompt, no travel lines ("3.1 miles · 12 min by car"), no "further than
+  you travel" line, and no help section about it.
+- The shift page's "Getting there" keeps only the "Open in maps" button.
+- Nothing is filtered or sorted by distance: Open shifts, the urgent board, Home, the shifts
+  line's reply and offer waves all treat everyone as if they had no area.
+- No travel times are worked out for that firm. A run already going stops before its next group.
+- The office's Casuals page has no "Travel area" column or card. A message's checks say "Travel
+  areas are off for this firm: not filtered by distance ✓".
+- Home areas saved before are kept but not used (see "Needs Dylan" below).
+
+**2. Payroll's note stays behind the pay code.** When payroll sorts a pay query, the casual's
+message used to include payroll's note. Now it says: "Payroll has answered your pay query (ref
+3F2A9C1B). See their answer on your pay page: {link} — Acme Events Shift Team". The note is only
+on the pay page, which needs the 6-digit pay code. Payroll's own screen and guide now say so.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Off unless the setting is exactly `true` | Off is the private side: a typo or a missing setting can't switch it on | Treating any "truthy" value as on |
+| The office's travel column and card hidden too when off | The data isn't used, so it shouldn't be shown | Showing districts that no longer do anything |
+| Saved home areas kept when switched off | Not in the task, and it's your call | Deleting them on switch-off (parked) |
+| The pay message carries the pay page's link | Every other message gives a link; the casual knows where to go | Words only, no link |
+
+### What the new tests prove
+
+- **Both switch states**, in each place: the lists, the urgent board, Home, booked shifts, the
+  shift page, the help page, the profile, the shifts line's reply and its log entry, offer waves,
+  the travel-time job and its nightly run, and the office's pages. Most "off" tests switch a firm
+  off, check, then switch it back on and see the old behaviour return.
+- **A browser test** switches the demo firm off, checks a casual's pages, and puts it back.
+- **The pay message** is checked word for word, and no part of the note may appear in it (the
+  integration test, the template-doc test and two browser tests).
+- 24 deliberate breaks of the new code were each caught by a test.
+
+### Something else that came up
+
+CI's `verify` job failed once, on a planner webhook test this task didn't touch. **Root cause:**
+the test stopped its job worker with `offWork(queue, { id })`. Passing any options replaces
+pg-boss's default `{ wait: true }`, so it didn't wait for the job in hand. The test then read the
+job's state while pg-boss was still finishing it ("active", not "completed"). A slower runner
+showed it. I reproduced it by adding a delay after the job's handler (it failed the same way),
+then fixed it with `{ id, wait: true }` (the same slowed run passed).
+
+### What's parked or needs Dylan
+
+- **Needs you:** when a firm switches travel areas off, should the home areas already saved be
+  deleted? Today they're kept, unused, and the casual has no button to remove theirs while it's
+  off. (PLAN.md Parking lot, "Travel areas", Needs Dylan (13.4).)
+- **Before submitting the WhatsApp templates:** `pay_query_update`'s new wording and variables
+  (ref, link, signOff) are what goes to Meta.
+
+### How to see it working
+
+On the demo (`npm run dev`, then `http://acme.localhost:3000`), travel areas are on as before. To
+see them off, as the owner: `npm run firm:settings -- --firm acme --set travel.enabled=false`; a
+casual's profile then has no "Where you work", and Open shifts no travel lines. Switch back with
+`--set travel.enabled=true`.

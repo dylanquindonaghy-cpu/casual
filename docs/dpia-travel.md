@@ -13,7 +13,7 @@ template each firm fills in for itself, because the firm is the controller of it
 ShiftDesk is its processor.
 
 **Each firm switches the travel area on for itself (13.4).** It's off for a new firm
-(`travel.enabled`, set by the owner with `npm run firm:settings travel.enabled true` once that
+(`travel.enabled`, set by the owner with `npm run firm:settings -- --firm <slug> --set travel.enabled=true` once that
 firm's Part 2 is signed). Off, its casuals aren't asked for a postcode, see no "Where you work",
 no travel lines and no prompt to add a home area, and nothing is filtered, ordered or worked out
 by distance (no TravelTime search for that firm). The made-up demo firm (Acme) has it on.

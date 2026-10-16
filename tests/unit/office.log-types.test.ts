@@ -288,6 +288,26 @@ describe("the action log's types and words", () => {
     expect(
       received({ channel: "whatsapp", handledAs: "unknown", formerWorker: true }, "system"),
     ).toBe("A WhatsApp came to the shifts line from someone who isn't active any more.");
+    // The last try failed (13.2): passed to a person, with the code logged.
+    expect(
+      received({
+        channel: "whatsapp",
+        handledAs: "office",
+        intent: "office",
+        answerFailed: "TypeError",
+        workerId: "w",
+      }),
+    ).toBe(
+      "A WhatsApp from Ann Booker couldn't be answered automatically (TypeError), so it's waiting for a person.",
+    );
+    expect(
+      received(
+        { channel: "voice", handledAs: "office", intent: "office", answerFailed: "57P01" },
+        "system",
+      ),
+    ).toBe(
+      "A voicemail from a number that isn't one of your staff's couldn't be answered automatically (57P01), so it's waiting for a person.",
+    );
     expect(say("call.received", { linkRequested: true, withheld: false })).toBe(
       "Someone rang the shifts line. A login link was asked for (it goes only to your staff's numbers).",
     );

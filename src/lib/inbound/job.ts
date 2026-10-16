@@ -9,6 +9,10 @@ import { firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
 
 export const INBOUND_MESSAGE_QUEUE = "inbound-message";
 
+// A reply that fails is tried again this many times (src/worker/jobs/queues.ts), the last within
+// about half a minute. The last try passes the message to a person (src/lib/inbound/reply.ts).
+export const INBOUND_RETRY_LIMIT = 3;
+
 export const inboundMessagePayload = firmJobEnvelope.extend({
   idempotencyKey: z.string().regex(/^inbound-message:[0-9a-f-]{36}$/),
   messageId: z.uuid(),

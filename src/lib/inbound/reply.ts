@@ -7,7 +7,7 @@ import { firms, messages, officeUsers, requests, workers } from "../db/schema";
 import type { FirmTx, WithFirm } from "../db/scoped";
 import { workerEnv } from "../env";
 import { passesLogCheck, recordEvent } from "../events/record";
-import { errorCode, type FirmTask } from "../jobs/firm-job";
+import { errorCode, type FirmTask, type JobAttempt } from "../jobs/firm-job";
 import { log } from "../log";
 import { getTransport, type MessagingTransport } from "../messaging";
 import { sendToWorker, smsAllowedFor } from "../notify/send";
@@ -22,7 +22,7 @@ import { portalUrl } from "../tenancy/portal-url";
 import { signOffFor } from "../tenancy/sign-off";
 import { systemClock, type Clock } from "../auth/clock";
 import { lockUnhandled } from "./claim";
-import { inboundMessageJob, type InboundMessagePayload } from "./job";
+import { INBOUND_RETRY_LIMIT, inboundMessageJob, type InboundMessagePayload } from "./job";
 import { keywordIntent, type Intent } from "./keywords";
 import { answerOptOut, smsOptOutWord, type OptOutRead, type OptOutResult } from "./opt-out";
 import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
@@ -49,6 +49,8 @@ import { cancelReply, shiftsReply, type EnquiryChecks } from "./personal-reply";
 //      their own message: quiet hours don't apply);
 //   5. the reply stored as an outbound message, and `message.replied`, or `message.reply_failed`
 //      (never retried).
+// A failure before the claim (a bug, or the database failing) is retried by the queue; on its last
+// try the message is passed to a person instead (runInboundWithLastTry, below).
 // The reply is always one of the app's fixed texts (shiftsLineReply, voicemailReceivedMessage): the
 // AI only ever picks which, so nothing it writes reaches the worker, and a pay question gets the
 // pay link, never an answer (golden rules 1 and 9). Events hold labels and ids, never the text or a number.
@@ -70,6 +72,7 @@ export type InboundResult =
       alerted: number; // office users emailed
     }
   | OptOutResult
+  | { status: "for_a_person"; code: string } // the last try failed: passed to a person
   | { status: "already" }
   | { status: "gone" };
 
@@ -628,8 +631,83 @@ async function answerUnknown(
   });
 }
 
+// The last try (13.2), like the planner webhooks' (12J.2): a message whose answer fails on every
+// try is never left unanswered and unseen. Before the last try a failure is thrown, and the queue
+// tries again (src/worker/jobs/queues.ts). On the last, the message is passed to a person: marked
+// handled as the office's (so it's in Need a person on Enquiries) with `message.received` saying
+// why ({ answerFailed: the error's code, never its text }), and the job completes. Nothing is sent:
+// the casual's answer comes from the office. A message someone else answered meanwhile is left as
+// it is: the mark takes the same claim as the answer, so it happens at most once. If the database
+// itself is down, the mark fails too and the job fails for good (an ops alert: failedJobCounts()).
+export async function runInboundWithLastTry(
+  payload: InboundMessagePayload,
+  run: WithFirm,
+  deps: InboundReplyDeps,
+  attempt: JobAttempt,
+): Promise<InboundResult> {
+  try {
+    return await runInboundMessage(payload, run, deps);
+  } catch (err) {
+    if (attempt.retryCount < (attempt.retryLimit ?? INBOUND_RETRY_LIMIT)) throw err;
+    const code = errorCode(err);
+    log.warn("inbound: the last try failed; the message is passed to a person", {
+      firmId: payload.firmId,
+      messageId: payload.messageId,
+      code,
+    });
+    return passToAPerson(payload, run, code);
+  }
+}
+
+async function passToAPerson(
+  payload: InboundMessagePayload,
+  run: WithFirm,
+  code: string,
+): Promise<InboundResult> {
+  return run(payload.firmId, async (tx): Promise<InboundResult> => {
+    if (!(await lockUnhandled(tx, payload.messageId))) return { status: "already" };
+    // Who sent it, by the number alone: whatever failed may have been in the full read.
+    const { rows } = await tx.execute<{
+      direction: string;
+      channel: Channel;
+      worker_id: string | null;
+    }>(sql`
+      select m.direction, m.channel,
+             (select w.id::text from workers w
+               where w.firm_id = m.firm_id and w.mobile_e164 = m.from_e164 and w.status = 'active'
+               limit 1) as worker_id
+        from messages m
+       where m.id = ${payload.messageId}
+    `);
+    const m = rows[0];
+    if (!m || m.direction !== "in") return { status: "gone" };
+    const workerId = m.worker_id;
+    await tx
+      .update(messages)
+      .set({ handledAt: new Date(), handledAs: "office", intent: "office", workerId })
+      .where(eq(messages.id, payload.messageId));
+    await recordEvent(tx, {
+      ...(workerId ? { actorType: "worker", actorId: workerId } : { actorType: "system" }),
+      action: "message.received",
+      entityType: "message",
+      entityId: payload.messageId,
+      data: {
+        channel: m.channel,
+        handledAs: "office",
+        intent: "office",
+        answerFailed: code,
+        ...(workerId ? { workerId } : {}),
+      },
+    });
+    return { status: "for_a_person", code };
+  });
+}
+
 export function inboundMessageTask(deps: () => InboundReplyDeps): FirmTask<InboundMessagePayload> {
-  return { ...inboundMessageJob, task: (payload, run) => runInboundMessage(payload, run, deps()) };
+  return {
+    ...inboundMessageJob,
+    task: (payload, run, attempt) => runInboundWithLastTry(payload, run, deps(), attempt),
+  };
 }
 
 // The worker's wiring. The AI is Claude once AI_TRANSPORT=anthropic ("Connect the Anthropic API",

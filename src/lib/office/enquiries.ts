@@ -281,6 +281,8 @@ export interface EnquiryTimeline {
         // The AI's own reason, when it was logged (12D.2).
         ai?: "not_connected" | "no_answer" | "not_a_label";
       }
+    // The shifts line's last try failed (13.2): the error's code, as logged.
+    | { how: "person"; why: "answer_failed"; code: string }
     | { how: "unknown"; repeat: boolean }
     | { how: "opt_out" }
     | { how: "not_yet" };
@@ -591,32 +593,35 @@ export async function loadEnquiry(
   );
   const handledAs = m.handled_as;
   const intent = m.intent;
+  const answerFailed = str(received?.data.answerFailed);
   const sorted: EnquiryTimeline["sorted"] =
     m.handled_at === null
       ? { how: "not_yet" }
-      : handledAs === "keyword" && intent
-        ? intent === "office"
-          ? { how: "person", why: "asked" }
-          : { how: "keyword", intent }
-        : handledAs === "ai" && intent
+      : answerFailed !== null
+        ? { how: "person", why: "answer_failed", code: answerFailed }
+        : handledAs === "keyword" && intent
           ? intent === "office"
-            ? { how: "person", why: "ai_asked" }
-            : { how: "ai", intent }
-          : handledAs === "unknown"
-            ? { how: "unknown", repeat: received?.data.repeat === true }
-            : handledAs === "opt_out"
-              ? { how: "opt_out" }
-              : m.channel === "voice"
-                ? { how: "person", why: "voicemail" }
-                : m.body === null
-                  ? { how: "person", why: "no_text" }
-                  : {
-                      how: "person",
-                      why: "not_sorted",
-                      ...(aiReason(received?.data.aiFallback)
-                        ? { ai: aiReason(received?.data.aiFallback) }
-                        : {}),
-                    };
+            ? { how: "person", why: "asked" }
+            : { how: "keyword", intent }
+          : handledAs === "ai" && intent
+            ? intent === "office"
+              ? { how: "person", why: "ai_asked" }
+              : { how: "ai", intent }
+            : handledAs === "unknown"
+              ? { how: "unknown", repeat: received?.data.repeat === true }
+              : handledAs === "opt_out"
+                ? { how: "opt_out" }
+                : m.channel === "voice"
+                  ? { how: "person", why: "voicemail" }
+                  : m.body === null
+                    ? { how: "person", why: "no_text" }
+                    : {
+                        how: "person",
+                        why: "not_sorted",
+                        ...(aiReason(received?.data.aiFallback)
+                          ? { ai: aiReason(received?.data.aiFallback) }
+                          : {}),
+                      };
 
   // The automatic reply: the first one logged against the message.
   const replied = events.find(

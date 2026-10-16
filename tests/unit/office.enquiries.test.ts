@@ -286,6 +286,10 @@ describe("words", () => {
     expect(sortedStep({ how: "person", why: "not_sorted" })).toBe(
       "No keyword matched and AI didn't sort it: passed to a person.",
     );
+    // The shifts line's last try failed (13.2), with the error's code.
+    expect(sortedStep({ how: "person", why: "answer_failed", code: "TypeError" })).toBe(
+      "The automatic answer failed on every try (TypeError): passed to a person.",
+    );
   });
 
   it("a failed office reply says it's back in Need a person", () => {

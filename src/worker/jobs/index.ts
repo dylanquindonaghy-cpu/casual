@@ -178,11 +178,7 @@ export async function registerJobs(boss: PgBoss, deps: JobDeps = {}): Promise<vo
   // The evidence email to the strikes team, with the record's PDF (12C.4).
   await registerFirmTask(boss, deps.strikeEvidence ?? strikeEvidenceTask);
   // Answering WhatsApps on the shifts line (stored by the Twilio webhook).
-  await registerFirmTask(
-    boss,
-    deps.inboundMessages ?? inboundMessageFirmTask,
-    INBOUND_WORK_OPTIONS,
-  );
+  await registerInboundTask(boss, deps.inboundMessages ?? inboundMessageFirmTask);
 
   // The planner's webhooks (12J.2): each try knows whether it's the last (includeMetadata), and a
   // firm's deliveries never run two at once (WEBHOOK_WORK_OPTIONS).
@@ -337,10 +333,13 @@ export const FIRM_WORK_OPTIONS = {
 // answers a sender's older messages first (src/lib/inbound/reply.ts), so a STOP still comes before
 // the text after it. tests/integration/inbound.load.test.ts holds the bound: 200 workers' messages
 // answered within INBOUND_DRAIN_BOUND_MS of the last one arriving when each send takes 300 ms.
+// With includeMetadata each job carries its retry limit, so the last try can pass the message to a
+// person (src/lib/inbound/reply.ts).
 export const INBOUND_LOOPS = 8;
 export const INBOUND_DRAIN_BOUND_MS = 20_000;
 export const INBOUND_WORK_OPTIONS = {
   ...FIRM_WORK_OPTIONS,
+  includeMetadata: true,
   localConcurrency: INBOUND_LOOPS,
   localGroupConcurrency: 1,
 } as const;
@@ -367,14 +366,23 @@ export const WEBHOOK_WORK_OPTIONS = {
 // inside its own expiry.
 export const TRAVEL_WORK_OPTIONS = { ...FIRM_WORK_OPTIONS, batchSize: 1 } as const;
 
-type FirmWorkOptions =
-  typeof FIRM_WORK_OPTIONS | typeof INBOUND_WORK_OPTIONS | typeof TRAVEL_WORK_OPTIONS;
+type FirmWorkOptions = typeof FIRM_WORK_OPTIONS | typeof TRAVEL_WORK_OPTIONS;
 
 // One after another, in the batch's order, one result per job.
 export async function inOrder<J, R>(jobs: J[], run: (job: J) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
   for (const job of jobs) results.push(await run(job));
   return results;
+}
+
+// The shifts line's task (INBOUND_WORK_OPTIONS): each try knows whether it's the last.
+export async function registerInboundTask<P extends FirmJobEnvelope>(
+  boss: PgBoss,
+  task: FirmTask<P>,
+): Promise<void> {
+  await boss.work(task.queue, INBOUND_WORK_OPTIONS, (jobs) =>
+    inOrder(jobs, (j) => runFirmTask(task, j)),
+  );
 }
 
 export async function registerFirmTask<P extends FirmJobEnvelope>(

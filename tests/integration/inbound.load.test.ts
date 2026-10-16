@@ -9,7 +9,7 @@ import { inboundMessageTask, runInboundMessage } from "@/lib/inbound/reply";
 import { sendFirmJob } from "@/lib/jobs/firm-job";
 import type { MessagingTransport, OutboundMessage } from "@/lib/messaging/transport";
 import { createBoss } from "@/worker/boss";
-import { INBOUND_DRAIN_BOUND_MS, INBOUND_WORK_OPTIONS, registerFirmTask } from "@/worker/jobs";
+import { INBOUND_DRAIN_BOUND_MS, registerInboundTask } from "@/worker/jobs";
 import { firmQueue } from "@/worker/jobs/queues";
 import { bookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
@@ -17,7 +17,7 @@ import { testUrls } from "../setup/test-db";
 
 // The shifts line at pilot size (audit finding M14): each answer waits on the provider, so with
 // one job at a time 200 WhatsApps took a minute or more to answer once a real send took ~300 ms.
-// Here the real inbound task, registered exactly as the worker does (INBOUND_WORK_OPTIONS), answers
+// Here the real inbound task, registered exactly as the worker does (registerInboundTask), answers
 // through a fake provider that takes 300 ms a message: 200 workers' messages are all answered
 // within INBOUND_DRAIN_BOUND_MS of the last one arriving, and one worker's messages are still
 // answered in the order they came (a STOP before the text after it). A queue of its own, so other
@@ -48,14 +48,10 @@ beforeAll(async () => {
   boss = createBoss(urls.jobs);
   await boss.start();
   await boss.createQueue(QUEUE, firmQueue(QUEUE).options);
-  await registerFirmTask(
-    boss,
-    {
-      ...inboundMessageTask(() => ({ transport: slow, ai: noAi, baseDomain: "localhost:3000" })),
-      queue: QUEUE,
-    },
-    INBOUND_WORK_OPTIONS,
-  );
+  await registerInboundTask(boss, {
+    ...inboundMessageTask(() => ({ transport: slow, ai: noAi, baseDomain: "localhost:3000" })),
+    queue: QUEUE,
+  });
 });
 afterAll(async () => {
   await boss.offWork(QUEUE);

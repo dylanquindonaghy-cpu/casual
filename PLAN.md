@@ -3099,7 +3099,7 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
     "I'm unwell" (DPA 2018 Schedule 1 paragraph 1) needs each firm to have one
     (`docs/compliance.md` "Health reasons"). Write a template for the firm's pack before a pilot;
     a solicitor checks it with the DPA.
-- Inbound messages (12L.1 guardrails review, 2026-10-15): the shifts line's reply job has no
+- Inbound messages (12L.1 guardrails review, 2026-10-15; **built in 13.2**): the shifts line's reply job has no
   last-try step. A message whose job throws before its claim (a bug, or the database failing on
   every retry) is never marked handled. The casual gets no reply, and it never reaches Need a
   person. Add a last try that marks it for a person and logs why, like the planner webhooks' last

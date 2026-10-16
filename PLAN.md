@@ -3128,11 +3128,14 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   and TravelTime" checks them against a live answer. The first audit took that step as covering
   it.
 - Messages stranded (13.2 guardrails review, 2026-10-16; small, rare): the last try passes a
-  failing message to a person, but two cases still leave one unhandled and out of Need a person: a
+  failing message to a person, but three cases still leave one unhandled and out of Need a person: a
   worker killed in the middle of a message's last try (pg-boss counts a try when it's taken, so the
-  supervisor fails it for good and the mark never runs), and messages whose jobs failed before 13.2.
-  Each is a failed job, so the ops alert reports it. To close it: Need a person (and its badge) also
-  counts an inbound message still unhandled some minutes after it arrived, or a sweep marks them.
+  supervisor fails it for good and the mark never runs); the mark failing too (the database
+  unreachable for every try and the mark, or a STOP whose own claim keeps failing: the mark retries
+  that claim); and messages whose jobs failed before 13.2. Each is a failed job, so the ops alert
+  reports it. To close it: Need a person (and its badge) also counts an inbound message still
+  unhandled some minutes after it arrived, or a sweep marks them; optionally, a STOP whose claim
+  fails falls back to the office mark (a savepoint).
 - **Needs Dylan:** an answer on the shifts line's last try (13.2 guardrails review, 2026-10-16). When
   a message is passed to a person after every try failed, the casual gets nothing until the office
   replies. Should the last try also send the fixed "the office will get back to you" reply (the

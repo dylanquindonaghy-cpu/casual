@@ -10,8 +10,9 @@ import { firmJobEnvelope, sendFirmJob } from "../jobs/firm-job";
 export const INBOUND_MESSAGE_QUEUE = "inbound-message";
 
 // A reply that fails is tried again this many times, 2 seconds apart (src/worker/jobs/queues.ts):
-// the last try comes within about 15 seconds, polling included. It passes the message to a person
-// and still fails the job (src/lib/inbound/reply.ts).
+// about 15 seconds of waiting and polling before the last try, plus each try's own time (the AI's
+// label, once connected, takes up to 5 seconds). The last try passes the message to a person and
+// still fails the job (src/lib/inbound/reply.ts).
 export const INBOUND_RETRY_LIMIT = 3;
 
 export const inboundMessagePayload = firmJobEnvelope.extend({

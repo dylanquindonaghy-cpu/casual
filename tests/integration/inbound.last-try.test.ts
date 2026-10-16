@@ -405,16 +405,23 @@ describe("the shifts line's last try", () => {
 
   it("an error whose name isn't a plain code is logged and shown as unknown", async () => {
     const t = await lineFirm();
-    const { data, messageId } = await t.incoming("is there anything on saturday");
-    const odd: Clock = {
-      now() {
-        const e = new Error("odd");
-        e.name = "Not a <code> at all";
-        throw e;
-      },
-    };
-    await attempt(depsWith(odd).deps, data, INBOUND_RETRY_LIMIT);
-    expect((await t.received(messageId))[0]?.data).toMatchObject({ answerFailed: "unknown" });
+    // A strange name, and one that's a run of digits (it could read as a phone number).
+    for (const name of ["Not a <code> at all", "07700900123"]) {
+      const { data, messageId } = await t.incoming(
+        `is there anything on saturday (${name.length})`,
+      );
+      const odd: Clock = {
+        now() {
+          const e = new Error("odd");
+          e.name = name;
+          throw e;
+        },
+      };
+      await attempt(depsWith(odd).deps, data, INBOUND_RETRY_LIMIT);
+      expect((await t.received(messageId))[0]?.data, name).toMatchObject({
+        answerFailed: "unknown",
+      });
+    }
   });
 
   it("without the limit in the job (fetched without its metadata), the queue's own limit counts", async () => {

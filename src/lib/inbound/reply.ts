@@ -631,13 +631,15 @@ async function answerUnknown(
 // try the message is first passed to a person, then the failure is thrown anyway: the job ends
 // failed, so the ops alert for failed jobs tells Dylan (failedJobCounts(): the failure is always
 // ours, unlike a firm's own webhook endpoint), and the job's log line carries the error.
+// (3 more tries 2 seconds apart: about 15 seconds of waiting and polling, plus each try's own time.)
 // Passed to a person: marked handled as the office's, so it waits in Need a person on Enquiries,
 // with `message.received` saying why ({ answerFailed: the error's code, never its text }). Nothing
 // is sent: the casual's answer comes from the office. A STOP or START text still counts: it's
 // claimed as the reply job claims one (claimOptOut), without the confirmation text. A message
 // someone else answered meanwhile is left as it is: the mark takes the same claim as an answer, so
 // it happens at most once, and a later try finds it handled. Not covered: a worker killed in the
-// middle of the last try (pg-boss counts the try when it's taken; Parking lot "Messages stranded").
+// middle of the last try (pg-boss counts the try when it's taken), or the mark failing too (the
+// database unreachable throughout): Parking lot "Messages stranded".
 export async function runInboundWithLastTry(
   payload: InboundMessagePayload,
   run: WithFirm,
@@ -663,15 +665,18 @@ export async function runInboundWithLastTry(
         messageId: payload.messageId,
         code,
         markCode: errorCode(markErr),
+        error: markErr,
       });
     }
     throw err;
   }
 }
 
-// An error's code as the log and the office see it: a Postgres SQLSTATE or an error class's name,
-// never anything longer or stranger.
-const safeCode = (code: string) => (/^[A-Za-z0-9_]{1,60}$/.test(code) ? code : "unknown");
+// An error's code as the log and the office see it: a Postgres SQLSTATE (5 characters) or an error
+// class's name (a letter first), never anything longer or stranger (a run of digits could read as
+// a phone number, which the log refuses).
+const safeCode = (code: string) =>
+  /^[0-9A-Z]{5}$/.test(code) || /^[A-Za-z][A-Za-z0-9_]{0,59}$/.test(code) ? code : "unknown";
 
 async function passToAPerson(
   payload: InboundMessagePayload,

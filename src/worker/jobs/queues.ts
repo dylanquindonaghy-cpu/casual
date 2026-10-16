@@ -151,8 +151,8 @@ export const QUEUES: readonly QueueSpec[] = [
   },
   // The shifts line (13.2; src/lib/inbound/reply.ts): a reply that fails is tried again 3 times,
   // 2 seconds apart (no backoff: pg-boss's doubling, with its random part, would make a waiting
-  // casual wait 35 to 70 seconds), so with the worker's polling the last try comes within about
-  // 15 seconds. The last try passes the message to a person (Need a person on Enquiries), then the
+  // casual wait 35 to 70 seconds), so with the worker's polling the last try comes after about
+  // 15 seconds of waiting, plus each try's own time. The last try passes the message to a person (Need a person on Enquiries), then the
   // job still fails: the failure is ours, and the ops alert for failed jobs reports it.
   {
     ...inboundMessage,

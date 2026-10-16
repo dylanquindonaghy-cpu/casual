@@ -113,10 +113,10 @@ export function createWebPushTransport(keys: VapidKeys, opts: WebPushOptions = {
               Math.min(PUSH_TTL_SECONDS, Math.floor((payload.until.getTime() - Date.now()) / 1000)),
             );
       let timer: ReturnType<typeof setTimeout> | undefined;
-      // The deadline closes the push's own connection too: web-push's time-out only counts
-      // silence, so a push service that trickles would otherwise keep it open.
-      const agent = opts.agentFor ? opts.agentFor() : new Agent({ keepAlive: false });
       try {
+        // The deadline closes the push's own connection too: web-push's time-out only counts
+        // silence, so a push service that trickles would otherwise keep it open.
+        const agent = opts.agentFor ? opts.agentFor() : new Agent({ keepAlive: false });
         await Promise.race([
           send(
             { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },

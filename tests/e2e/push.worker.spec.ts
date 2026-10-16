@@ -1,4 +1,4 @@
-import { clearPushLimit } from "./db";
+import { resetPushSpec } from "./db";
 import { expect, test } from "./fixtures";
 import { loginLinkSentTo } from "./outbox";
 
@@ -23,8 +23,8 @@ test("the subscribe route: logged in, from our own page, a proper subscription",
   page,
 }) => {
   const url = `${acme}/api/push/subscribe`;
-  // A retried test starts with nothing counted against the limit, like the first try.
-  await clearPushLimit("acme");
+  // A retried test starts as the first try did: nothing counted, none of its phones saved.
+  await resetPushSpec("acme", fake.endpoint);
   // Not logged in.
   expect((await page.request.post(url, { data: fake, headers: { origin: acme } })).status()).toBe(
     401,

@@ -235,7 +235,7 @@ describe("pushing to a worker's phones (13.3)", () => {
   it("all at once; a failed push keeps the phone, logged by host and code; gone or not a push service: forgotten", async () => {
     const f = await bookingFirm(su, withFirm);
     const sam = await f.worker();
-    for (const phone of ["phone-ok", "phone-down", "phone-gone", "phone-slow"])
+    for (const phone of ["phone-ok", "phone-down", "phone-gone", "phone-ok-2"])
       await savePushSubscription(
         ctxFor(f),
         sam,
@@ -288,11 +288,11 @@ describe("pushing to a worker's phones (13.3)", () => {
     expect(waitedInVain).toBe(false);
     expect(pushes).toBe(2);
     // The made-up host was never contacted.
-    expect(called.sort()).toEqual(["phone-down", "phone-gone", "phone-ok", "phone-slow"]);
+    expect(called.sort()).toEqual(["phone-down", "phone-gone", "phone-ok", "phone-ok-2"]);
     expect((await rowsFor(f.firmId)).map((r: { endpoint: string }) => r.endpoint)).toEqual([
       "https://fcm.googleapis.com/fcm/send/phone-down",
       "https://fcm.googleapis.com/fcm/send/phone-ok",
-      "https://fcm.googleapis.com/fcm/send/phone-slow",
+      "https://fcm.googleapis.com/fcm/send/phone-ok-2",
     ]);
     const { rows } = await su.query(
       "select data from events where firm_id = $1 and action = 'push.forgotten' order by data ->> 'reason'",

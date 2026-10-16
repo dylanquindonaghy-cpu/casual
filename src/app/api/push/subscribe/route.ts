@@ -4,6 +4,7 @@ import {
   pushSubscriptionSchema,
   removePushSubscription,
   savePushSubscription,
+  throttlePushChanges,
 } from "@/lib/push/subscriptions";
 import { requestLog } from "@/lib/request";
 import { getCurrentFirm } from "@/lib/tenancy/current-firm";
@@ -12,10 +13,20 @@ import { getCurrentFirm } from "@/lib/tenancy/current-firm";
 // when it was already gone (so it can be repeated) (docs/api-and-jobs.md). A route, not a server action, so the service worker could post a
 // renewed subscription too. The firm comes from the host and the worker from the session; the
 // request must come from the portal's own page (its Origin is this host), the body is checked
-// with zod and kept small. Answers are plain JSON statuses; nothing about the subscription is
-// logged.
+// with zod and kept small. Each save or removal counts against the worker's limit first (10 every
+// 15 minutes, the auth throttle: 429 with Retry-After past it), since each writes to the action
+// log. Answers are plain JSON statuses; nothing about the subscription is logged.
 
 const MAX_BODY = 4096;
+
+async function limited(firm: { id: string }, workerId: string): Promise<Response | null> {
+  const hit = await throttlePushChanges({ firm }, workerId);
+  if (!hit) return null;
+  return Response.json(
+    { status: "rate_limited" },
+    { status: 429, headers: { "retry-after": String(hit.retryAfterSeconds) } },
+  );
+}
 
 async function checked(request: Request): Promise<Response | { body: unknown }> {
   const origin = request.headers.get("origin");
@@ -47,6 +58,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!session) return Response.json({ status: "logged_out" }, { status: 401 });
   const input = await checked(request);
   if (input instanceof Response) return input;
+  // After the same-origin and size checks: only the portal's own page uses up the limit.
+  const refused = await limited(firm, session.worker.id);
+  if (refused) return refused;
   const subscription = pushSubscriptionSchema.safeParse(input.body);
   if (!subscription.success) return Response.json({ status: "invalid" }, { status: 400 });
   try {
@@ -64,6 +78,9 @@ export async function DELETE(request: Request): Promise<Response> {
   if (!session) return Response.json({ status: "logged_out" }, { status: 401 });
   const input = await checked(request);
   if (input instanceof Response) return input;
+  // After the same-origin and size checks: only the portal's own page uses up the limit.
+  const refused = await limited(firm, session.worker.id);
+  if (refused) return refused;
   const endpoint = z.object({ endpoint: z.url().max(2048) }).safeParse(input.body);
   if (!endpoint.success) return Response.json({ status: "invalid" }, { status: 400 });
   try {

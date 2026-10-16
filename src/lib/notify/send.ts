@@ -5,6 +5,15 @@ import type { MessagingTransport } from "../messaging";
 import { ChannelRefusedError } from "../messaging/transport";
 import { forgetPushTarget, pushTargets } from "../push/subscriptions";
 import type { PushPayload, PushTransport } from "../push/transport";
+import { log } from "../log";
+
+const pushHost = (endpoint: string) => {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return "unknown";
+  }
+};
 
 // One message to a worker (docs/messaging-templates.md, "Notification policy"), the same way for
 // every sender (offer waves, shift reminders):
@@ -94,7 +103,9 @@ export async function sendToWorker(
 }
 
 // The push to each phone the worker turned notifications on for; how many took it. A phone the
-// push service says is gone is forgotten and logged.
+// push service says is gone is forgotten and logged. One that failed this time (a refusal, a
+// time-out: PUSH_TIMEOUT_MS) is kept, and the log line names the push service's host and a code,
+// never the address (it addresses one person's phone).
 export async function pushToWorker(
   tx: FirmTx,
   deps: Pick<NotifyDeps, "push">,
@@ -115,7 +126,11 @@ export async function pushToWorker(
         entityId: target.id,
         data: { reason: "gone" },
       });
-    } else if (sent.status === "sent") pushes += 1;
+    } else if (sent.status === "sent") {
+      pushes += 1;
+    } else if (sent.status === "failed") {
+      log.warn("push not delivered", { host: pushHost(target.endpoint), code: sent.code });
+    }
   }
   return pushes;
 }

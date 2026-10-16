@@ -32,3 +32,8 @@ process.env.INTEGRATIONS_SECRET = "test-only-integrations-secret-not-for-any-rea
 // Never a real webhook address (12J.2), whatever .env says: the console transport (the worker's
 // settings also refuse https under NODE_ENV=test). Tests of the sender pass their own fake.
 process.env.WEBHOOK_TRANSPORT = "console";
+// Never a real push service (13.3), whatever .env says: the console transport, and no private key
+// (the worker's settings also refuse webpush under NODE_ENV=test). Tests of the sender pass their
+// own stand-in. scripts/invariants.sh checks these lines stay.
+process.env.PUSH_TRANSPORT = "console";
+process.env.VAPID_PRIVATE_KEY = "";

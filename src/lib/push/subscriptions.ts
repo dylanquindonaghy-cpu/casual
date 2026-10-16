@@ -4,6 +4,8 @@ import { pushSubscriptions, workers } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { withFirm } from "../db/scoped";
 import { recordEvent } from "../events/record";
+import { appEnv } from "../env";
+import { LIMITS, throttle, type Throttled } from "../auth/throttle";
 import type { PortalContext } from "../portal/my-shifts";
 
 // A worker's web push subscriptions (docs/api-and-jobs.md, `POST /api/push/subscribe`): the
@@ -152,4 +154,24 @@ export async function pushTargets(tx: FirmTx, workerId: string): Promise<PushTar
 // The push service said this subscription no longer exists: forget it.
 export async function forgetPushTarget(tx: FirmTx, id: string): Promise<void> {
   await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.id, id));
+}
+
+// Counts one save or removal by this worker (the auth throttle, LIMITS.pushPerWorker), in its own
+// short transaction before the work, so a refused or failed request still counts. Null: within
+// the limit.
+export async function throttlePushChanges(
+  ctx: PortalContext & { secret?: string },
+  workerId: string,
+): Promise<Throttled | null> {
+  return throttle(
+    ctx.run ?? withFirm,
+    ctx.firm.id,
+    [{ limit: LIMITS.pushPerWorker, value: workerId }],
+    {
+      now: ctx.clock?.now() ?? new Date(),
+      secret: ctx.secret ?? appEnv().SESSION_SECRET,
+      entityType: "worker",
+      entityId: workerId,
+    },
+  );
 }

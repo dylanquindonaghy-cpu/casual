@@ -30,7 +30,10 @@ Replace the parts in [brackets]. Send both parts.
 > offered, take, work, miss or cancel, with the notice given and the reason; requests you send us
 > and our answers; your hours, pay rates and pay dates as our payroll records them, and any pay
 > questions you raise; how you want to hear from us (WhatsApp or text); when you log in; and, if you
-> turn on notifications on a phone, that phone's notification address.
+> turn on notifications on a phone, that phone's notification address. Notifications can show on
+> your phone's lock screen: they say what the shift is (the role, the place, the day and time) or
+> that we've answered you, never your pay or anyone's details. You can turn them off on your
+> profile.
 >
 > **Why:** to run your shifts with you (our contract with you), to check you hold the licences a
 > shift needs (a legal requirement for some roles), and to keep a record of every offer, change
@@ -99,7 +102,9 @@ Replace the parts in [brackets]. Send both parts.
 > runs its servers and database). It uses [email company] to send emails, postcodes.io[ and
 > TravelTime] for your travel area (above), Twilio (texts, WhatsApp
 > and calls) and Meta (WhatsApp) to send and receive messages[, and Google, as we keep our rota in
-> a Google Sheet], and, once the AI service above is switched on, Anthropic [where Anthropic
+> a Google Sheet], [if you turn on notifications on a phone, your phone's push service (Google's,
+> Apple's, Mozilla's or Microsoft's) to deliver them: each one is locked so only your phone can
+> read it,] and, once the AI service above is switched on, Anthropic [where Anthropic
 > processes it, and the safeguard for any transfer outside the UK: confirmed before the AI is
 > switched on]. Twilio and Meta may handle your number and messages in the United States, under
 > their data transfer terms.
@@ -109,7 +114,9 @@ Replace the parts in [brackets]. Send both parts.
 > stopped, [12 months] after the request closed or the booking was made. Login links and codes, 7
 > days after they run out; login sessions, 30 days after they end. A photo or card picture we
 > turned down, or an old photo you've replaced, 30 days later. A strike, [12 months] after it was
-> given. Your travel area, until you remove it or we record that you've left. If there's a dispute, we may keep
+> given. Your travel area, until you remove it or we record that you've left. A phone's
+> notification address, until you turn notifications off on it, log out on it, or its push service
+> says it no longer works. If there's a dispute, we may keep
 > things longer, until it's settled. Your details, shifts, requests, pay records and the
 > record of offers, changes and cancellations are kept as our records [for as long as you work with
 > us and then for [period]].

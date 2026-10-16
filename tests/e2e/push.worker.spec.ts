@@ -74,6 +74,17 @@ test("the subscribe route: logged in, from our own page, a proper subscription",
     headers: { origin: acme },
   });
   expect(await removed.json()).toEqual({ status: "removed" });
+  // Each save or removal from our own page counts against the worker's limit (10 every 15
+  // minutes, 13.3; 4 so far): past it, refused with how long to wait.
+  let answer = removed;
+  for (let n = 0; n < 10 && answer.status() !== 429; n++)
+    answer = await page.request.delete(url, {
+      data: { endpoint: fake.endpoint },
+      headers: { origin: acme },
+    });
+  expect(answer.status()).toBe(429);
+  expect(Number(answer.headers()["retry-after"])).toBeGreaterThan(0);
+  expect(await answer.json()).toEqual({ status: "rate_limited" });
 });
 
 test("the profile says phone notifications aren't switched on yet", async ({ page }) => {

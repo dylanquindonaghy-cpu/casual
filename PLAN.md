@@ -2453,27 +2453,35 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   texts): decide what to shorten first. The pack is kept in step with the code by a hand-kept list
   in the test; tagging each template function by channel would make a missing WhatsApp template
   fail by itself.
-- **Connect the real web push** (the Phase 4 web push task is blocked on it: an outside service
-  and a secret key):
-  **Who does what:** steps marked **You** are yours (an account, a console, a phone, a decision).
-  Steps marked **Claude** are code still to write after yours: the real sender for this service
-  doesn't exist yet (the app has only a console or fake one), so each is a build round with its own
-  tests, verify and audit, not a switch to flip. Tell Claude when your steps are done.
-  1. **Claude:** `npm install web-push`. **You:** then `npx web-push generate-vapid-keys` on the
-     server (never commit the private key).
-  2. **You:** set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (mailto:) in
-     production's `.env` (Claude adds the last two to the compose file's worker settings).
-  3. **Claude:** write the web-push adapter next to the console one (`src/lib/push/transport.ts`), treating
-     404/410 as "gone"; add `PUSH_TRANSPORT=webpush` (production currently must use `none`).
-  4. (Built: the service worker re-saves a renewed subscription, `pushsubscriptionchange`.)
-  5. **Claude:** rate-limit `POST /api/push/subscribe` (each save writes an event) with the auth
-     throttle.
-  6. **You:** test on a real Android phone and an iPhone (added to the home screen).
-  7. **Claude:** docs/compliance.md and docs/privacy-notice.md: add the browser push services as
-     sub-processors, how long `push_subscriptions` rows are kept, and what notifications show on a
-     locked phone.
+- **Connect the real web push** (the Phase 4 web push task is blocked on it: a secret key and real
+  phones; no account or money). Claude's steps were built in 13.3: the sender (`web-push`,
+  `PUSH_TRANSPORT=webpush`, 404/410 forget the phone), the worker's settings in the compose file,
+  the rate limit on `POST /api/push/subscribe`, and the compliance and privacy wording. What's left
+  is yours, on the server. The worker sends the pushes, and in production it only runs once Twilio
+  is connected (`COMPOSE_PROFILES=worker`: docs/runbooks.md), so do these after "Connect Twilio":
+  1. **You:** on the server, in the app's folder, type `npx web-push generate-vapid-keys`. It prints
+     a "Public Key" and a "Private Key" (two long lines of letters and numbers). Never put the
+     private one in the repo or send it to anyone.
+  2. **You:** in production's `.env` (beside `deploy/docker-compose.yml`), set
+     `VAPID_PUBLIC_KEY=` the public key, `VAPID_PRIVATE_KEY=` the private key,
+     `VAPID_SUBJECT=mailto:` your email address, and `PUSH_TRANSPORT=webpush`. Then restart:
+     `docker compose up -d`. If a key is missing or mistyped, the worker refuses to start and its
+     log (`docker compose logs worker`) names the setting.
+  3. (Built: the service worker re-saves a renewed subscription, `pushsubscriptionchange`.)
+  4. **You:** test on a real Android phone and an iPhone (added to the home screen first): log in as
+     a casual, Profile → "Turn on notifications", allow them; then have the office offer that
+     casual a shift ("Offer to someone" on the Dashboard). You should see "Shift available" on the
+     phone, even when it's locked. Nothing arrives? `docker compose logs worker | grep push` shows
+     "push not delivered" with the push service's host and a code (an `http_403` means the keys in
+     `.env` don't match the ones the phone subscribed with: turn notifications off and on again).
   Also: push the office's escalation alert, and the push-first-then-WhatsApp order (the `notify`
   task).
+- Pushes inside the record's transaction (13.3, 2026-10-16; small while volumes are low): every
+  sender pushes after its message has gone, inside the short transaction that records it
+  (`pushToWorker(tx, …)`, 7 callers). With the real sender, each push is a network call, given up
+  on after 5 seconds, so a slow push service holds one database connection that long per phone. To
+  close it: read the phones in the record's transaction, push with none open, then forget gone ones
+  and log the count in a second short one.
 - **Connect the Anthropic API** (the Phase 6 "Group queries by likely cause … Haiku summarises"
   task is blocked on it: an Anthropic account and money; Bedrock was ruled out on 2026-10-06,
   ADR-021). The grouping is built; only the AI's one-line summary per group waits (the app writes

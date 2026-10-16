@@ -1,12 +1,15 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { pushToWorker } from "@/lib/notify/send";
 import {
   pushSubscriptionSchema,
   pushTargets,
   removePushSubscription,
   savePushSubscription,
+  throttlePushChanges,
 } from "@/lib/push/subscriptions";
+import type { PushSendResult, PushTransport } from "@/lib/push/transport";
 import { bookingFirm, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 
@@ -157,5 +160,68 @@ describe("push subscriptions", () => {
         [f.firmId, sam],
       ),
     ).rejects.toThrow(/push_subscriptions_endpoint_https/);
+  });
+});
+
+describe("saving and removing phones is rate-limited (13.3)", () => {
+  it("10 saves or removals per worker every 15 minutes; the 11th is refused, logged once", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    const ann = await f.worker({ first: "Ann" });
+    const at = (iso: string) => ({ ...ctxFor(f), clock: { now: () => new Date(iso) } });
+    for (let n = 1; n <= 10; n++)
+      expect(await throttlePushChanges(at("2026-10-16T10:01:00Z"), sam), `try ${n}`).toBeNull();
+    const refused = await throttlePushChanges(at("2026-10-16T10:05:00Z"), sam);
+    expect(refused).toMatchObject({ limit: "push:worker", retryAfterSeconds: 600 });
+    expect(await throttlePushChanges(at("2026-10-16T10:06:00Z"), sam)).not.toBeNull();
+    // Another worker has their own count; the next window starts afresh.
+    expect(await throttlePushChanges(at("2026-10-16T10:06:00Z"), ann)).toBeNull();
+    expect(await throttlePushChanges(at("2026-10-16T10:15:00Z"), sam)).toBeNull();
+    // Reaching it is logged once, with the worker's id (never a number or an address).
+    const { rows } = await su.query(
+      `select entity_type, entity_id::text, data from events
+        where firm_id = $1 and action = 'auth.rate_limited' order by id`,
+      [f.firmId],
+    );
+    expect(rows).toEqual([
+      { entity_type: "worker", entity_id: sam, data: { limit: "push:worker" } },
+    ]);
+  });
+});
+
+describe("a push that fails this time (13.3)", () => {
+  it("keeps the phone and isn't counted; a phone that's gone is forgotten", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    for (const phone of ["phone-ok", "phone-down", "phone-gone"])
+      await savePushSubscription(
+        ctxFor(f),
+        sam,
+        subscription(`https://fcm.googleapis.com/fcm/send/${phone}`),
+      );
+    const answers: Record<string, PushSendResult> = {
+      "phone-ok": { status: "sent" },
+      "phone-down": { status: "failed", code: "http_500" },
+      "phone-gone": { status: "gone" },
+    };
+    const push: PushTransport = {
+      name: "fake",
+      async send(target) {
+        return answers[target.endpoint.split("/").pop() ?? ""] ?? { status: "skipped" };
+      },
+    };
+    const pushes = await withFirm(f.firmId, (tx) =>
+      pushToWorker(tx, { push }, sam, { title: "t", body: "b", url: "/" }),
+    );
+    expect(pushes).toBe(1);
+    expect((await rowsFor(f.firmId)).map((r: { endpoint: string }) => r.endpoint)).toEqual([
+      "https://fcm.googleapis.com/fcm/send/phone-down",
+      "https://fcm.googleapis.com/fcm/send/phone-ok",
+    ]);
+    const { rows } = await su.query(
+      "select data from events where firm_id = $1 and action = 'push.forgotten'",
+      [f.firmId],
+    );
+    expect(rows).toEqual([{ data: { reason: "gone" } }]);
   });
 });

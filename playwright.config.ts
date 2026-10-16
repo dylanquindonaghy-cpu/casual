@@ -41,6 +41,7 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   // Web push: never a real key in e2e (a browser would then ask Google's push service), and the
   // console sender.
   VAPID_PUBLIC_KEY: "",
+  VAPID_PRIVATE_KEY: "",
   PUSH_TRANSPORT: "console",
   // Never a real Google Sheet: .env may switch the sheets on for a local try (PLAN.md "Connect the
   // real Google Sheets"), never for a test run.

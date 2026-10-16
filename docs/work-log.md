@@ -12752,8 +12752,8 @@ Eight small items, most from your decisions of 16 October.
 
 ### How to see it working
 
-`npm test -- tests/unit/text.cut.test.ts` runs the cut's own tests. On the demo, tap "Take shift" on
-a shift you can't take 21 times within 15 minutes to see the wait message.
+`npm test -- tests/unit/text.cut.test.ts` runs the cut's own tests, and
+`npm test -- tests/integration/open-shifts.test.ts` includes the "Take shift" limit.
 
 ### Phase 13 is finished
 

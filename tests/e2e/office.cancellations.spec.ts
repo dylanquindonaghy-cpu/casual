@@ -127,6 +127,25 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
     expect(rows).toMatchObject({ kind: "cancellations_csv", view: "all" });
     expect(rows.rows).toBeGreaterThanOrEqual(1);
 
+    // Today's only (the dashboard's "Cancellations today"): the file holds just the rows the page
+    // lists, fewer than every day's (the demo's cancellations are on earlier days), and is named
+    // with the date.
+    await page.goto(`${acme}/office/cancellations?day=today`);
+    const todayRows = await page.locator('main li a[href^="/office/cancellations/"]').count();
+    const todays = page.waitForEvent("download");
+    await page.getByRole("link", { name: "Download CSV" }).click();
+    const todayFile = await todays;
+    expect(todayFile.suggestedFilename()).toMatch(/^cancellations-all-\d{4}-\d{2}-\d{2}\.csv$/);
+    const todayText = await readFile((await todayFile.path()) ?? "", "utf8");
+    expect(todayText).toContain(ref);
+    const today = (await newDownloads())[2] as { kind: string; date: string; rows: number };
+    expect(today).toMatchObject({ kind: "cancellations_csv", view: "all", day: "today" });
+    // The log names the day the file held, as its name does.
+    expect(todayFile.suggestedFilename()).toBe(`cancellations-all-${today.date}.csv`);
+    expect(today.rows).toBe(todayRows);
+    expect(today.rows).toBeGreaterThanOrEqual(1);
+    expect(today.rows).toBeLessThan(rows.rows);
+
     // Started from another site (or another firm's address): refused, nothing logged.
     for (const site of ["cross-site", "same-site"]) {
       for (const path of ["export", `${assignmentId}/pdf`]) {
@@ -136,7 +155,7 @@ test("a resourcer opens a cancellation's record and downloads its PDF and the CS
         expect(answer.status(), `${site} ${path}`).toBe(403);
       }
     }
-    expect(await newDownloads()).toHaveLength(2);
+    expect(await newDownloads()).toHaveLength(3);
 
     // A second cancellation sharing the reference: a choice, never one picked.
     const other = await bookAndCancel("acme", {

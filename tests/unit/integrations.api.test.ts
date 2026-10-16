@@ -2,7 +2,17 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ApiKeyEntry } from "@/lib/db/directory";
-import { apiNotFound, handleApiRequest, type ApiCall, type ApiDeps } from "@/lib/integrations/api";
+import {
+  apiMethodNotAllowed,
+  apiNotFound,
+  apiOptions,
+  handleApiRequest,
+  type ApiCall,
+  type ApiDeps,
+} from "@/lib/integrations/api";
+import * as catchAllRoute from "@/app/api/v1/[[...path]]/route";
+import * as cancellationsRoute from "@/app/api/v1/cancellations/route";
+import * as sessionRoute from "@/app/api/v1/sessions/[ref]/route";
 import { API_ERRORS } from "@/lib/integrations/errors";
 import { newApiKey } from "@/lib/integrations/keys";
 import { createRefusedKeyCounter, REFUSED_KEYS_PER_MINUTE } from "@/lib/integrations/refused-keys";
@@ -517,6 +527,115 @@ describe("handleApiRequest: the refusals before any look-up", () => {
     expect(response.status).toBe(404);
     expect((await errorOf(response)).code).toBe("not_found");
     expect(lines).toHaveLength(1);
+  });
+
+  it("a method an address doesn't take: the API's own 405, naming the ones it does", async () => {
+    const at = (path: string, method: string) =>
+      new Request(`http://${BASE}${path}`, { method, headers: { host: BASE } });
+    const refused: [Response, string][] = [
+      [sessionRoute.POST(at("/api/v1/sessions/X", "POST")), "GET, HEAD, OPTIONS, PUT"],
+      [sessionRoute.PATCH(at("/api/v1/sessions/X", "PATCH")), "GET, HEAD, OPTIONS, PUT"],
+      [sessionRoute.DELETE(at("/api/v1/sessions/X", "DELETE")), "GET, HEAD, OPTIONS, PUT"],
+      [cancellationsRoute.PUT(at("/api/v1/cancellations", "PUT")), "GET, HEAD, OPTIONS"],
+      [cancellationsRoute.POST(at("/api/v1/cancellations", "POST")), "GET, HEAD, OPTIONS"],
+      [cancellationsRoute.PATCH(at("/api/v1/cancellations", "PATCH")), "GET, HEAD, OPTIONS"],
+      [cancellationsRoute.DELETE(at("/api/v1/cancellations", "DELETE")), "GET, HEAD, OPTIONS"],
+    ];
+    for (const [response, allow] of refused) {
+      expect(response.status).toBe(405);
+      expect(response.headers.get("allow")).toBe(allow);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      const error = await errorOf(response);
+      expect(error.code).toBe("method_not_allowed");
+      expect(error.message).toBe(API_ERRORS.method_not_allowed.message);
+    }
+    // OPTIONS gives the same list as the 405, on the platform address.
+    const options = sessionRoute.OPTIONS(at("/api/v1/sessions/X", "OPTIONS"));
+    expect(options.status).toBe(204);
+    expect(options.headers.get("allow")).toBe("GET, HEAD, OPTIONS, PUT");
+    expect(
+      cancellationsRoute.OPTIONS(at("/api/v1/cancellations", "OPTIONS")).headers.get("allow"),
+    ).toBe("GET, HEAD, OPTIONS");
+    // An unknown API address: the API's 404 for OPTIONS too, never a list of methods.
+    const unknown = catchAllRoute.OPTIONS(at("/api/v1/shifts", "OPTIONS"));
+    expect(unknown.status).toBe(404);
+    expect((await errorOf(unknown)).code).toBe("not_found");
+    // A firm's own address isn't an API address: the API's 404, as for any call there.
+    const onFirm = sessionRoute.POST(
+      new Request(`http://acme.${BASE}/api/v1/sessions/X`, {
+        method: "POST",
+        headers: { host: `acme.${BASE}` },
+      }),
+    );
+    expect(onFirm.status).toBe(404);
+    expect((await errorOf(onFirm)).code).toBe("not_found");
+    const optionsOnFirm = sessionRoute.OPTIONS(
+      new Request(`http://acme.${BASE}/api/v1/sessions/X`, {
+        method: "OPTIONS",
+        headers: { host: `acme.${BASE}` },
+      }),
+    );
+    expect(optionsOnFirm.status).toBe(404);
+  });
+
+  it("OPTIONS and the 405 write one log line each, with the answer's request id", () => {
+    const { logger, lines } = capture();
+    const id = "6f9c2a1e-3b4d-4c5e-8f70-1a2b3c4d5e6f";
+    const at = (path: string, method: string) =>
+      new Request(`http://${BASE}${path}`, {
+        method,
+        headers: { host: BASE, "x-request-id": id },
+      });
+    const options = apiOptions(at("/api/v1/sessions/X", "OPTIONS"), ["GET", "PUT"], { logger });
+    expect(options.status).toBe(204);
+    expect(options.headers.get("x-request-id")).toBe(id);
+    const refused = apiMethodNotAllowed(at("/api/v1/cancellations", "POST"), "POST", ["GET"], {
+      logger,
+    });
+    expect(refused.headers.get("x-request-id")).toBe(id);
+    expect(lines.map((l) => [l.msg, l.fields])).toEqual([
+      [
+        "api request",
+        { requestId: id, route: "/api/v1/sessions/{ref}", method: "OPTIONS", status: 204, ms: 0 },
+      ],
+      [
+        "api request",
+        { requestId: id, route: "/api/v1/cancellations", method: "POST", status: 405, ms: 0 },
+      ],
+    ]);
+  });
+
+  it("settings it can't read: the API's JSON internal_error with its request id, never Next.js's empty 500", async () => {
+    const unreadable = {
+      get APP_BASE_DOMAIN(): string {
+        throw new Error("APP_BASE_DOMAIN: required");
+      },
+      SESSION_SECRET: "x".repeat(32),
+    };
+    const at = (method: string) =>
+      new Request(`http://${BASE}/api/v1/sessions/X`, { method, headers: { host: BASE } });
+    for (const answer of [
+      (logger: Logger) => apiOptions(at("OPTIONS"), ["GET"], { logger, env: unreadable }),
+      (logger: Logger) =>
+        apiMethodNotAllowed(at("POST"), "POST", ["GET"], { logger, env: unreadable }),
+    ]) {
+      const { logger, lines } = capture();
+      const response = answer(logger);
+      expect(response.status).toBe(500);
+      expect(response.headers.get("allow")).toBeNull();
+      const error = await errorOf(response);
+      expect(error).toMatchObject({
+        code: "internal_error",
+        message: API_ERRORS.internal_error.message,
+      });
+      expect(error.request_id).toBe(response.headers.get("x-request-id"));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatchObject({
+        level: "error",
+        msg: "api settings unreadable",
+        fields: { requestId: error.request_id },
+      });
+    }
   });
 });
 

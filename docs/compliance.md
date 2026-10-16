@@ -290,4 +290,4 @@ What the product does about it:
 - ICO fee (above).
 - Professional indemnity + cyber insurance (get quotes).
 - Terms of service + DPA (solicitor review once).
-- Written agreement with CSP before any real data: you own the software, they license it.
+- Written agreement with the pilot firm before any real data: you own the software, they license it.

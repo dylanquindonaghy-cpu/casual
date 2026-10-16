@@ -4,27 +4,30 @@ Goal right now: **one paid pilot**, not £1,000 a month. Talk before you build.
 
 ## Warm network
 
-| Company | What they do | Role for us |
+Real firm and contact names stay out of this repository, which is public. The founder keeps them
+privately.
+
+| Who | What they do | Role for us |
 |---|---|---|
-| **CSP — The Combined Services Provider** (Watford) — your employer | Car parking, traffic management, HVM, security and stewarding at stadia, racecourses, shopping centres and major events. SIA approved contractor; joined the ACS Pacesetters (top 15% of ACS scores) in 2024. Acquired by Norland Equity Partners in 2023. | **First pilot.** You already know the numbers (60+ emails/day, 40% unanswered). "Our own firm uses it" is the best reference for other event firms. |
-| **Teamforce Labour** (Borehamwood) — ex-employer | Family-run labour supplier to construction, civils, rail/safety-critical, power & utilities, tunnelling. 21–50 staff. Has a Director of Digital Strategy & Compliance. Rail roles need CSCS, PTS and a recent drugs and alcohol test. | **Second sector (rail/civils).** Small, family-run, credential-heavy. |
-| **Coyle Personnel / Coyle Rail** (Harrow HQ) — ex-employer | Recruitment since 1988, multi-sector; Coyle Rail works in safety-critical rail with PTS-qualified staff. Much bigger. | **Later**, once you have references. |
-| **Careys** (Wembley) — your mum is Head of Talent and Acquisitions | Family-owned civils/construction group, £400m+ turnover, 800+ staff in the main business. | **Insight and introductions**, not a buyer: how a big contractor judges labour suppliers, and which agencies they use. |
+| **The first pilot firm** (a warm lead) | Event security and stewarding at stadia and major events; an SIA approved contractor. | **First pilot.** A firm that already feels the problem. "A firm like yours uses it" is the best reference for other event firms. |
+| **A rail and civils labour supplier** (a warm lead) | Small, family-run supplier to construction, civils and safety-critical rail. Rail roles need CSCS, PTS and a recent drugs and alcohol test. | **Second sector (rail/civils).** Small, family-run, credential-heavy. |
+| **A larger multi-sector recruiter with a rail arm** (a warm lead) | Recruitment across sectors, including safety-critical rail with PTS-qualified staff. Much bigger. | **Later**, once you have references. |
+| **A large civils contractor** (a personal contact) | A big contractor that buys agency labour. | **Insight and introductions**, not a buyer: how a big contractor judges labour suppliers, and which agencies they use. |
 
 Evidence the pain exists in rail too: a rail recruiter advertised a coordinator whose job is
 scheduling workers, booking accommodation, chasing orders and payroll — the work this product takes on.
 
-## CSP: how to do it cleanly
+## The first pilot firm: how to do it cleanly
 
-- Tell them upfront it's your own side project, built on your own time.
+- Be clear upfront that it's your own product, built on your own time.
 - Build and demo on **fake data only** until an agreement is signed.
 - Written agreement before any real data:
-  - [ ] You own the software; CSP gets a licence to use it
+  - [ ] You own the software; the firm gets a licence to use it
   - [ ] Price (pilot £299, then the plan) and term (monthly rolling)
-  - [ ] Data processing agreement (CSP controller, you processor)
+  - [ ] Data processing agreement (the firm controller, you processor)
   - [ ] No exclusivity (you can sell to other firms), or a short, paid exclusivity if they insist
   - [ ] Permission to name them as a reference if the pilot succeeds
-- Don't pitch CSP's own clients or use CSP data for anything else.
+- Don't pitch the firm's own clients or use its data for anything else.
 
 ## Target list (first 30 firms)
 
@@ -92,21 +95,9 @@ firm:check -- --firm <slug>` shows where a firm is.
 | "Too expensive." | "What does a peak week cost you in overtime or a temp resourcer? And from 2027, what does a short-notice cancellation claim cost?" |
 | "Staff won't use it." | "They don't have to change anything. They message the same number and get an instant reply with a link. Most switch within weeks." |
 
-## Your mum (Careys) — 20-minute chat
+## A contractor contact: 20-minute chat
 
-- How does Careys manage agency labour day to day?
+- How does a large contractor manage agency labour day to day?
 - What do they expect from labour suppliers on compliance and attendance evidence?
 - Which agencies do they use, and would any be open to a chat?
 - Would contractors value a report showing licensed, notified, on-time staff from suppliers?
-
-## Sources (company facts)
-
-- CSP website: https://gotocsp.com/
-- CSP joins ACS Pacesetters: https://www.acspacesetters.co.uk/the-latest-company-to-join-the-acs-pacesetters-csp-the-combined-services-provider/
-- CSP acquired by NEP: https://www.transportxtra.com/publications/new-transit/news/74600/event-parking-company-csp-acquired-by-nep/
-- Teamforce Labour profile: https://prospeo.io/c/teamforce-labour-limited
-- Teamforce rail role requirements: https://findajob.dwp.gov.uk/details/17583547
-- Coyle Rail: https://www.railstaff.co.uk/2012/02/16/candidates-for-coyle-rail/
-- Coyle Personnel: https://www.harrowtowncentre.co.uk/?p=2917
-- Careys (Glenigan): https://insights.dev.glenigan.com/?p=904
-- Rail coordinator role example: https://findajob.dwp.gov.uk/details/18118622

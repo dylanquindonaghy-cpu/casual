@@ -14,6 +14,7 @@ import {
   noticeChip,
   plannerRefusedText,
   webhookFailingText,
+  enquiriesEmpty,
   SECTION_ERROR,
   SECTIONS,
   uploadsText,
@@ -329,7 +330,7 @@ function LatestEnquiries({ d }: { d: Dashboard }) {
       {(q) => (
         <>
           {q.rows.length === 0 ? (
-            <Empty>{SECTIONS.enquiries.empty}</Empty>
+            <Empty>{enquiriesEmpty(q.days)}</Empty>
           ) : (
             <ul role="list" className={`${headingGap} ${rows}`}>
               {q.rows.map((r) => (

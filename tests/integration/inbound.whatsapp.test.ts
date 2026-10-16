@@ -457,7 +457,7 @@ describe("replying (the inbound-message job)", () => {
     );
     expect(emails[0]?.subject).toBe(`${t.name}: a message from a number we don't know`);
     expect(emails[0]?.body).toContain(
-      `See the message on the office dashboard: https://${t.slug}.shiftdesk.test/office`,
+      `See it in Enquiries, under Need a person: https://${t.slug}.shiftdesk.test/office/enquiries?view=person`,
     );
     expect(emails[0]?.body).not.toContain("900998");
     expect(emails[0]?.body).not.toContain("Sam");

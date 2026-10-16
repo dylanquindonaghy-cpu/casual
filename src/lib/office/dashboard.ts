@@ -142,7 +142,7 @@ export interface Dashboard {
   urgent: Part<{ events: UrgentEventCard[]; more: boolean }>;
   showing: Part<{ events: EventCardData[]; more: number }>;
   cancellations: Part<{ rows: CancellationRow[]; threshold: number }>;
-  enquiries: Part<{ rows: EnquiryRow[]; replies: Record<string, string | null> }>;
+  enquiries: Part<{ rows: EnquiryRow[]; replies: Record<string, string | null>; days: number }>;
   needs: Part<NeedsAttention>;
 }
 
@@ -557,7 +557,14 @@ export async function loadDashboard(tx: FirmTx, now: Date): Promise<Dashboard> {
       return { rows: list.rows, threshold: list.threshold };
     }),
     enquiries: enquiries.ok
-      ? { ok: true, data: { rows: enquiries.data.page.rows, replies: enquiries.data.replies } }
+      ? {
+          ok: true,
+          data: {
+            rows: enquiries.data.page.rows,
+            replies: enquiries.data.replies,
+            days: enquiries.data.page.days,
+          },
+        }
       : { ok: false },
     needs: await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone)),
   };

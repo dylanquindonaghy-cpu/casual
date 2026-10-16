@@ -13,8 +13,10 @@ import {
   type CancellationView,
 } from "@/lib/office/cancellations-copy";
 import { requestLog } from "@/lib/request";
+import { localDateOf } from "@/lib/time/zoned";
 
-// GET: the chosen view of cancellations as a CSV (docs/office-v2.md 3.4; 12C.3), for admins and
+// GET: the chosen view of cancellations as a CSV (docs/office-v2.md 3.4; 12C.3), and with
+// ?day=today only today's (the page's own filter, from the dashboard's link), for admins and
 // resourcers (checked here and again in the loader), started from ShiftDesk's own pages
 // (fromOwnPages). Every row or none: more than 20,000 and it says so (counted first, nothing
 // loaded) rather than hand over a file that looks complete. A casual's reason always reads
@@ -36,11 +38,16 @@ export async function GET(request: Request): Promise<Response> {
   const view: CancellationView = (CANCELLATION_VIEWS as readonly string[]).includes(asked ?? "")
     ? (asked as CancellationView)
     : "all";
+  const day = new URL(request.url).searchParams.get("day") === "today" ? ("today" as const) : null;
   const token = (await readSessionToken("office")) ?? "";
+  // One clock for the rows, the log and the file's date (today's file at midnight stays one day).
+  const now = new Date();
+  const ctx = { firm: session.firm, clock: { now: () => now } };
   try {
-    const list = await officeCancellations({ firm: session.firm }, token, view, {
+    const list = await officeCancellations(ctx, token, view, {
       limit: CANCELLATIONS_CSV_ROWS,
       allOrNothing: true,
+      ...(day ? { day } : {}),
     });
     if (!list) return plain("Not found.", 404);
     if (list.total > CANCELLATIONS_CSV_ROWS) {
@@ -50,16 +57,21 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
     const csv = cancellationsCsv(list.rows, { tz: list.timeZone, threshold: list.threshold });
-    const logged = await logDownload({ firm: session.firm }, token, {
+    // Today's file names its day (the firm's), in its name and in the log, so both still say
+    // which day it held once saved.
+    const date = localDateOf(now, list.timeZone);
+    const logged = await logDownload(ctx, token, {
       kind: "cancellations_csv",
       view,
+      ...(day ? { day, date } : {}),
       rows: list.rows.length,
     });
     if (!logged) return plain("Not found.", 404);
+    const fileName = day ? `cancellations-${view}-${date}.csv` : `cancellations-${view}.csv`;
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
-        "content-disposition": `attachment; filename="cancellations-${view}.csv"`,
+        "content-disposition": `attachment; filename="${fileName}"`,
         "cache-control": "no-store",
         "x-content-type-options": "nosniff",
       },

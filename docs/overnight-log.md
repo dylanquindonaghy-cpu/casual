@@ -8025,9 +8025,8 @@ the handover told Dylan to find them with `grep "Dylan to"`, which catches about
   - new deadline buckets: when you create the accounts, before submitting the WhatsApp templates,
     and before the first real import.
   - It flagged one default worth knowing: a real staff file can be checked (a dry run, nothing
-    saved) on the live server before the agreement is recorded, and the first pilot firm is
-    Dylan's employer. That row is now "before any real data", with "until you decide, don't check
-    a real file there". The code is unchanged (a docs task).
+    saved) on the live server before the agreement is recorded. That row is now "before any real
+    data", with "until you decide, don't check a real file there". The code is unchanged (a docs task).
 
 **Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=39c7a3e1964edc01 e2e=true` (3,126 tests,
 60 browser tests; documentation only).
@@ -8408,8 +8407,8 @@ log entry says otherwise.
 - **Wording:** keep the mock-up's words where the spec doesn't override them. For example, use
   "Urgent shifts not filled", never "Urgently looking for".
 - **Themes:** dark and light are both required. Dark is navy (D7).
-- **Golden rule 7, extra:** the mock-up's look is modelled on a tool from Dylan's employer.
-  - Never put that employer's name, logo, venues, staff or email addresses in the repo, the seed,
+- **Golden rule 7, extra:** the mock-up's look is modelled on a real firm's tool.
+  - Never put that firm's name, logo, venues, staff or email addresses in the repo, the seed,
     the tests or the docs.
   - The strikes-team email is a per-firm setting. Demo and test addresses use reserved example
     domains.
@@ -10779,8 +10778,8 @@ in `PLAN.md` (12G.1).
 Point 3 is tidied in the Parking lot after the tick (wording only). Points 1, 2 and 4 are as
 recorded above.
 
-**Hours:** 1.5 (10:15 to 11:47 UTC, about 5 minutes of it on Dylan's TikTok check, which he asked for
-mid-run: read-only, findings in `docs/work-log.md`). Phase 12 so far: 17.6 hours over 18 Hours-log
+**Hours:** 1.5 (10:15 to 11:47 UTC, about 5 minutes of it on an unrelated check Dylan asked for
+mid-run). Phase 12 so far: 17.6 hours over 18 Hours-log
 rows (no estimate for Phase 12). **Commit:** "Phase 12: Postcode look-ups and the casual's travel
 area (12G.1)", pushed (its hash in the next entry). CI passed on the checkpoints (`96116c6`,
 `d3cad42`).
@@ -12624,3 +12623,266 @@ section in your settings". The repository is private (`"visibility": "private"` 
 - add `acme.localhost`, `northline.localhost` and `no-such-firm.localhost` to `/etc/hosts`;
 - add `.test` to `NO_PROXY`, so Chromium reaches `shifts.acme-events.test` directly;
 - link `/opt/pw-browsers/chromium_headless_shell-1243` to the installed 1194 build.
+
+## 2026-10-15 — Phase 12, task 12L.1: Phase 12 loose ends
+
+**Task:** the code-only items Phase 12's reviews and audits parked, chosen by Dylan ("Phase 12
+loose ends"). Items needing a decision of his, an outside account or a rework of their own stay in
+the Parking lot.
+
+**What changed, and the tests** (every test below was seen to fail with its code broken on
+purpose, then pass with it put back):
+
+- **(a) Travel estimates' untested paths.**
+  - `tests/integration/travel.estimates.test.ts`: "the worker works the nightly run's queue,
+    scheduled for 02:20 London"; "a dropout inside the urgent window: its session's job, after
+    the first wave's own fill".
+  - `tests/unit/offers.worker-deps.test.ts`: the worker's wave deps fill estimates through
+    `estimatesBeforeWave`. `workerDeps` in `src/lib/offers/waves.ts` is exported as
+    `offerWorkerDeps` for it.
+  - Break checks: dropping the dropout's queue line, the tick's schedule, and the wave deps'
+    travel step.
+- **(b) The older downloads** (`/office/data/export`, `/office/data/workers/[id]/export`,
+  `/office/reports/notice/export`) refuse a download another site started.
+  - Tests: `tests/e2e/gdpr.spec.ts` and `tests/e2e/office.reports.spec.ts` send cross-site and
+    same-site requests and get 403. The specs' own downloads (clicked links) still work.
+  - Break checks: each route without its check returned 200.
+- **(c) Event names in shifts-line replies.** `src/lib/inbound/personal-reply.ts` names an event
+  with `casualEventName`, in the list, the booked line and the cancel reply.
+  - Test: `tests/integration/personal-reply.test.ts` "an automatic event isn't named…". It fails
+    with the old file.
+- **(d) Day words.** `askedDays()` keeps apostrophes inside a word (a phone's curly one too). "sat",
+  "sun" and "wed" are days unless the word before makes them ordinary English.
+  - Tests: `tests/unit/inbound.personal-reply.test.ts`: six ordinary messages give no day, while
+    "any shifts sat?", "anything on sun", "can I do wed" and "mon please" still do.
+- **(e) Home's urgent cards.** The chips were already built (12H.2's `ShiftSummary`).
+  - Test: `tests/unit/portal.home.test.ts`. It fails with the chips removed.
+- **(f) Today's cancellations CSV.** The page's link keeps `day=today`. The export passes it to
+  the loader, names the file `cancellations-{view}-{date}.csv`, and logs `day: "today"` (the log
+  reads "…(all, today's only, 1 row)…").
+  - Tests: `tests/e2e/office.cancellations.spec.ts`: today's file has exactly the page's rows,
+    fewer than every day's. Plus `tests/unit/office.cancellations.test.ts` (the log words).
+- **(g) Enquiries and the firm's retention.** `enquiryWindow()` in `src/lib/office/enquiries.ts`
+  reads `retention.message_days` through `retentionSettings()`. It serves the list, the badge, a
+  message's page and the office's reply. The empty words there and on the dashboard say the
+  firm's number of days.
+  - Tests: `tests/integration/enquiries.test.ts` "a firm that keeps messages longer…" (shown at
+    120 of 200 days, gone at 201), and `tests/unit/office.dashboard.test.ts` (200 days).
+  - Docs: `docs/screens.md`.
+- **(h) The unknown-number alert email.** It says "See it in Enquiries, under Need a person:
+  {link}" and links `/office/enquiries?view=person`.
+  - Tests: `docs/messaging-templates.md` with `tests/unit/copy.templates-doc.test.ts`,
+    `tests/integration/inbound.whatsapp.test.ts` and `tests/e2e/whatsapp.inbound.spec.ts`.
+- **(i) The planner API's 405.** It is the error `method_not_allowed`, sent by
+  `apiMethodNotAllowed()` with an `Allow` header. A session answers POST, PATCH and DELETE with it
+  (Allow: GET, HEAD, OPTIONS, PUT); cancellations answers PUT, POST, PATCH and DELETE
+  (Allow: GET, HEAD, OPTIONS). Lists corrected after audit round 2: the first version of this
+  entry gave only GET and PUT.
+  - Tests: `tests/unit/integrations.api.test.ts`. Its existing check that `docs/integrations.md`
+    lists every code holds the new row.
+- **(j) The office guide.** "Change or cancel a shift" quotes the page's own words for a
+  planner's session, and lists what can still be done in the office.
+  - Test: `tests/unit/guides.test.ts`.
+- **(k) Tests only.**
+  - The theme follows the phone on Home (`tests/e2e/casual.app.spec.ts`). It fails when the CSS
+    ignores the phone's setting.
+  - The AI's fallback reasons go through the shifts line's job: slow, failing, a junk answer,
+    not connected, and a photo the AI is never asked about (`tests/integration/enquiries.test.ts`,
+    `tests/unit/office.enquiries.test.ts`). It fails if "not a label" is logged as "no answer".
+
+**Guardrails review (round 1, of `5982e8a..2b16e59`): FIX FIRST.** What it found and what was
+done (`WIP: 12L.1 guardrails fixes`):
+
+| Finding | Severity | Fix |
+|---|---|---|
+| Item (d)'s table of words was a plain object, looked up with her words. "constructor" (any case) found `Object.prototype.constructor`, so the shifts reply threw, the job failed on every retry, and the message never reached Need a person | FIX FIRST | A `Map`, which holds only its own keys. Tests: "any constructor shifts sat?" and "Constructor work tomorrow?" give their days. The old file fails them with the same TypeError |
+| Next.js's automatic OPTIONS listed every exported method, unlike the 405's `Allow` | SHOULD | Each API route exports its own OPTIONS with the same list (`GET, HEAD, OPTIONS, PUT`; `GET, HEAD, OPTIONS`). `docs/integrations.md` says so. Tested |
+| The 405 skipped the platform-address check, so a firm's own address got a 405, not the API's 404 | NICE | `apiMethodNotAllowed()` checks the host first. Tested with a firm's address |
+| Today's CSV was named from a second clock read, so at midnight it could name the next day | NICE | One `now` for the rows, the log and the name |
+| No last-try step on the shifts line's job (before this task) | Parked | Parking lot "Inbound messages (12L.1 guardrails review)" |
+
+Its NICE note on two long comment lines: Prettier passes them; left as they are.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=479f3d332da39da5 e2e=true` (4,851
+tests in 268 files; 91 e2e; the walkthrough's 3).
+
+**Audit round 1 (claims-auditor): NOT DONE.** Verbatim "To reach DONE":
+
+> 1. Add an integration test in tests/integration/enquiries.test.ts that sets `message_days` to 200 and makes a message 120 days old. It should show `replyToEnquiry` and `closeEnquiry` accepting it, and refusing it at 201 days.
+> 2. Pin the Enquiries page's empty words and the "Show the last N days" link with the firm's number of days (All and Pay views, 90 and e.g. 200). Move `EMPTY` into a copy module and unit-test it, or render the page.
+> 3. Record a guardrails-reviewer re-check of the round-1 fixes (the Map lookup, OPTIONS and the host check, the single clock), or state in the log why none is needed.
+> 4. Optionally, handle possessives ("tomorrow's", "Saturday's") in `askedDays` and add a test, or put it in the Parking lot.
+
+What was done:
+
+- **Point 1:** a new test, "a firm that keeps messages longer: the office can reply and close…".
+  Reply and close work at 120 days of 200. At 201 days both answer `not_waiting`, not
+  `not_found`. That's the existing meaning: the message still exists, but it isn't waiting any
+  more. It fails with a fixed 90 days put back.
+- **Point 2:** `enquiriesEmptyText()` and `showLastDaysText()` moved to
+  `src/lib/office/enquiries-copy.ts`, with a unit test at 90 and 200 days. It fails with 90
+  written in.
+- **Point 3:** guardrails round 2, below.
+- **Point 4:** fixed, because it was a regression of this task: before it, the split at the
+  apostrophe made "Saturday's" read as Saturday. A trailing "'s" is now dropped. Tests:
+  "Saturday's event", "tomorrow's" (a curly apostrophe), and "the sun's out" (no day). It fails
+  with the "'s" kept.
+
+**Guardrails review (round 2, of `2b16e59..d337e4c`): FIX FIRST.** All four round-1 fixes were
+confirmed correct and complete. What it found, and what was done:
+
+| Finding | Severity | Fix |
+|---|---|---|
+| The office note was cut with `slice(0, 500)`, counting UTF-16 units. An emoji across the 500th was cut in half, and jsonb refuses half of one ("Unicode low surrogate must follow a high surrogate"). The job failed on every try and the message never reached Need a person. This dates from Phase 7, not this task | FIX FIRST | Cut by characters (`[...body].slice(0, 500)`), as `cut()` already does. Test: "a long message for the office with an emoji at the 500-character cut…". It failed before the fix with that Postgres error |
+| OPTIONS skipped the host check | NICE | `apiOptions()`: the methods on the platform address, the API's 404 elsewhere. Tested |
+| The catch-all route used Next.js's own OPTIONS, which lists every method | NICE | It answers the API's 404. Tested |
+| The download's log entry didn't name the day the file held | NICE | `date` is logged with `day: "today"`. The e2e test checks it matches the file's name |
+| `apiEnv()` was read outside a try in the 405 | NICE | `platformCheck()` turns an unreadable setting into the API's JSON `internal_error` |
+
+Break checks of round 2's fixes: with the old `slice(0, 500)` the emoji test fails with the same
+Postgres error ("Unicode low surrogate must follow a high surrogate"); with the host check off,
+the 405 and OPTIONS test fails.
+
+**Verify:** `RUN_E2E=1 ./scripts/verify.sh` → `VERIFIED tree=19332dd54ff8b521 e2e=true` (4,854
+tests in 268 files; 91 e2e; the walkthrough's 3).
+
+**Audit round 2 (claims-auditor): NOT DONE.** Every item, (a) to (l), was PROVEN; the docs and the
+guardrails re-check were PARTIAL. Verbatim:
+
+> Minor, not blocking: the log says the 405's Allow is "GET, PUT", but the code and test give "GET, HEAD, OPTIONS, PUT". `SECTIONS.enquiries.empty` (dashboard-copy.ts:104) is an unused 90-day default.
+>
+> To reach DONE:
+> 1. Update docs/screens.md. (f) In the Cancellations row (line 148), say the list's "Download CSV" keeps `day=today`, holds today's rows only, is named `cancellations-{view}-{date}.csv`, and logs `day: "today"` plus the date. (b) In the `/office/data`, `/office/data/workers/[id]` and `/office/reports/notice` rows, say a download another site started answers "Open this from ShiftDesk." (403). Today only the cancellations row says it. (j) In the guide row (line 165), add "Change or cancel a shift"'s planner note to its entry.
+> 2. Add a line to the 12L.1 entry in docs/overnight-log.md saying the round-2 guardrails fixes were re-checked, or why none was needed. Better, run `guardrails-reviewer` on `d337e4c..HEAD`.
+
+What was done:
+
+- **Point 1:** `docs/screens.md` now says it in the Cancellations row (today's file, its name, what
+  it logs, and the 403), in the three download rows (the 403), and in the guide row (the
+  planner note, quoted). `tests/unit/copy.plain-language.test.ts` and `office.titles.test.ts`,
+  which read that file, still pass.
+- **Point 2:** guardrails round 3, below.
+- **Minor:** the Allow lists in item (i) above are corrected. `SECTIONS.enquiries.empty` stays: it
+  isn't unused. `tests/unit/office.dashboard.test.ts` checks every section's empty words on an
+  empty dashboard at the default 90 days, and the page itself uses the firm's number.
+
+**Guardrails review (round 3, of `d337e4c..86842b8`): SAFE TO COMMIT.** All five round-2 fixes
+were confirmed correct and complete, with no FIX FIRST. Its NICE items, and what was done:
+
+| Finding | Fix |
+|---|---|
+| `platformCheck()`'s error path had no test, and its log line had no request id | Tested: settings that can't be read give the API's JSON `internal_error` from OPTIONS and the 405, and the log line carries the answer's request id. The test fails with the try removed |
+| OPTIONS wrote no log line and no `x-request-id`, although every API request writes one | Both added. Tested; the test fails with the line removed |
+| The webhooks' and the voicemail's 1,600-unit cuts can leave a "�" at the end (a text column, so nothing fails); the Enquiries row's preview and `review.ts`'s 300-unit cut the same, both safe today | Parked: "Text cuts that count UTF-16 units (12L.1 guardrails round 3)" |
+| The action log's sentence doesn't show today's CSV's date (it's logged) | Parked with the item above (optional) |
+
+**Branch.** This session works on `claude/wizardly-faraday-8lg4g0`, the branch it was set up
+with, not the skill's `build/overnight`. `build/overnight` is already merged into `main` (PR #3)
+and is behind it. Starting fresh from `main` keeps one line of history. Nothing was merged into
+`main`, nothing was force-pushed, and no history was rewritten.
+
+**Push.** Every push to this branch is refused: "GH013: Repository rule violations found … 3 of 3
+required status checks are expected". The repository's "Protect main" ruleset targets all
+branches as well as the default one, so a new commit, which can't have CI's three checks yet, is
+refused on any branch. Tried once at each commit point, never in a loop. The commits are safe
+in this session's copy until Dylan changes the ruleset (steps in the morning summary).
+
+**Verify (after guardrails round 3's fixes):** `RUN_E2E=1 ./scripts/verify.sh` →
+`VERIFIED tree=af39e6a372edb774 e2e=true` (4,856 tests in 268 files; 91 e2e; the walkthrough's 3).
+
+**Audit round 3 (claims-auditor): DONE.** Every item, (a) to (l), the docs and the Parking lot
+PROVEN; no fakes. Verbatim:
+
+> VERDICT: DONE
+>
+> Stamp: `.claude/state/verified.json` has ok=true, e2e=true, tree=af39e6a372edb774. `tree-hash.sh` prints the same value, and `git status` is clean. `test.log` shows 268 files and 4856 tests passed, with no failures. `e2e.log` shows 91 passed plus the walkthrough's 3 passed on the production build.
+>
+> Caveats (not blocking):
+> - The "each break-checked" and `guardrails-reviewer` rounds 1-3 (round 3: SAFE TO COMMIT) are evidenced only by `docs/overnight-log.md` lines 12633-12777. I cannot re-run break checks without editing files, so I judged the tests by their assertions, and they would fail on the broken behaviour.
+> - The last code commit after the round-3 review (`c39492c`: OPTIONS log line and request id) was a NICE-level fix and was not re-reviewed. It is covered by tests that passed.
+>
+> To reach DONE: nothing
+
+On the second caveat: no fourth review. `c39492c` only adds a log line (request id, route, method,
+status: never a key, a body or a header) and an `x-request-id` header, both tested and
+break-checked.
+
+**Ticked.** 2.4 h (13:12 to 15:36 UTC). Phase 12: 43.2 h over 34 rows, with no estimate in
+`PLAN.md`. Commit "Phase 12: Phase 12 loose ends (12L.1)". Push: refused by the ruleset, as above.
+
+**Kept in the Parking lot:** every item needing Dylan's decision or an outside account, and those
+marked as their own task. The second 12G.2 audit's question (are hand-written TravelTime answers
+fine until the live check?) is still his.
+
+**Also this session, before 12L.1:** real firm and family names were taken out of the public repo
+(`5982e8a`). Old versions remain in the git history.
+
+## Morning summary (2026-10-15, written 15:37 UTC)
+
+**All the code that can be built without you is built.** The last task, 12L.1 (Phase 12 loose
+ends), was verified and audited DONE. `RUN_E2E=1 ./scripts/verify.sh` printed
+`VERIFIED tree=af39e6a372edb774 e2e=true`: 4,856 tests in 268 files, 91 browser tests, and the
+walkthrough's 3 on a production build. Every other unticked task needs something only you can
+give, so the loop stops here.
+
+**Branch:** this session worked on `claude/wizardly-faraday-8lg4g0`, the branch the session was
+set up with, not `build/overnight`. `build/overnight` was already merged into `main` (PR #3) and
+is behind it. A new branch from `main` keeps the history simple. Nothing was merged into `main`,
+nothing was force-pushed, and no history was rewritten.
+
+**Not pushed.** GitHub refuses every push to this branch: "3 of 3 required status checks are
+expected" (one try per commit point, no retry loop). The commits are safe in this session's
+copy. The cause is your "Protect main" ruleset: its target includes "All branches", so every
+branch needs CI's three checks before a push, and a new commit can't have them yet. Fix it below
+(step 1).
+
+**Correction to the merge entry above:** the repository is public now, and CI runs again. CI
+went green on PR #3 (`faa8db3`, run 340) and on `main` after the merge (`2652ee0`, run 341). The
+"private" and "CI won't start" notes were true when written.
+
+### Hours per phase (from the Hours log in `PLAN.md`) against the estimates
+
+| Phase | Hours | Estimate |
+|---|---|---|
+| 10 Audit fixes and local walkthrough | 18.6 | 30–45 |
+| 11 UI clarity and how-to guides | 4.8 | none given |
+| 12 Compact office and casual app v2 | 43.2 (34 rows, 12L.1's 2.4 included) | none given |
+
+Phases 0 to 9 are unchanged since the summary of 2026-09-30. No phase went over its estimate.
+
+### Blocked, and why (unchanged)
+
+21 tasks, all needing an outside account, a real firm or real phones:
+- **Phase 4 (3):** real web push (the browser makers' push services and a secret key), WhatsApp
+  offers with the text fallback (Twilio), and the copy submitted to Meta.
+- **Phase 6 (1):** grouping pay queries with Haiku (an Anthropic account).
+- **Phase 7 (5):** the shifts line's real WhatsApp number, texts and calls (Twilio), and the AI
+  for unclear messages (an Anthropic account).
+- **Phase 8 (6):** the server, deploys, backups, alerts, Twilio's call fallback, the runbooks
+  tried for real.
+- **Phase 9 (6):** the pilot firm (Gate B paperwork, the baseline week, the dry run, the report).
+- **Gates A, B and C** are about real firms, not code.
+
+### What needs you
+
+1. **Let pushes through (about 1 minute).**
+   1. On GitHub, open the repo, then **Settings → Rules → Rulesets → Protect main**.
+   2. Under **Target branches**, remove **All branches**. Keep **Default branch**.
+   3. Click **Save changes**.
+   4. Tell Claude "push it". On GitHub, the branch `claude/wizardly-faraday-8lg4g0` should then
+      show the new commits, from "Docs: take real firm and family names out of the public repo"
+      to "docs: morning summary (2026-10-15)". Claude then opens a draft pull request into
+      `main`.
+2. **Look at the preview.** A private page with screenshots of the casual app and the office,
+   taken on the made-up demo data, is linked in the chat.
+3. **Decide:** are the hand-written TravelTime answers fine until the live check? (From the
+   12G.2 audit; in the Parking lot.)
+4. **New in the Parking lot:**
+   - The shifts line's job has no "last try" step ("Inbound messages (12L.1 guardrails
+     review)"). If a message fails every try, nobody is told. Say if you want it built next.
+   - "Text cuts that count UTF-16 units": a very long message can end in a "�". Nothing fails.
+5. **A fresh container** needs the setup notes in the 2026-10-15 merge entry above. None of it
+   changes the repo.
+
+**Next:** nothing is left that the loop can build. Start the next piece of work yourself once
+you've picked it, for example the accounts for Phase 7 (Twilio) when you're ready.

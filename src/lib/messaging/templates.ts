@@ -370,10 +370,11 @@ export function unknownNumberMessage(firm: FirmVoice): string {
 
 // unknown_number_alert (email to the office's active admins and resourcers): a message on the
 // shifts line from a number that isn't one of the firm's active staff. Neither the number nor the
-// message is in the email (previews, forwards): they're on the office dashboard.
+// message is in the email (previews, forwards): they're on Enquiries, under Need a person, which
+// the link opens (the dashboard's latest four could have moved on by then).
 export function unknownNumberAlertEmail(
   firm: FirmVoice,
-  link: string, // the office dashboard
+  link: string, // Enquiries' Need a person (/office/enquiries?view=person)
   opts: { askedName: boolean }, // they were sent unknown_number (a WhatsApp only, and it went)
 ): { subject: string; body: string } {
   return {
@@ -381,7 +382,7 @@ export function unknownNumberAlertEmail(
     body: [
       "Someone messaged the shifts line from a number that isn't one of your active staff.",
       opts.askedName ? "We asked them for their full name." : "We haven't replied to them.",
-      `See the message on the office dashboard: ${link}`,
+      `See it in Enquiries, under Need a person: ${link}`,
       `— ${firm.signOff}`,
     ].join("\n\n"),
   };

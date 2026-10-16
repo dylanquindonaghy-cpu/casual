@@ -8755,10 +8755,9 @@ searching for "Dylan to", which finds only some. Now there's one list:
     the spec reads as "only if the firm allows it";
   - a worker who cancels gets only the on-screen confirmation, never a message.
 - **Before any real data:** a real staff file can be checked (a dry run, nothing saved) on the live
-  server before the agreement is recorded. The first pilot firm is your employer. Until you
-  decide, don't check a real file there.
+  server before the agreement is recorded. Until you decide, don't check a real file there.
 - **Before the pilot agreement:** check your own employment contract (who owns what you make
-  outside work), since the first pilot firm is your employer.
+  outside work).
 
 ### Decisions made
 
@@ -9465,7 +9464,7 @@ file. Each file was then put back.
 An employer's name can't be tested for without writing it into the repo. The task leaves that to a
 person, once. Dylan removed one comment naming the tool the mock-up was modelled on when he
 committed it. Please confirm nothing else in `docs/mockups/office-v2.html` (venue names, staff
-names, wording) comes from your employer.
+names, wording) comes from a real firm.
 
 ### How to see it
 
@@ -10662,7 +10661,7 @@ Strikes section.
 
 ## 2026-10-09 — Phase 12, task 12G.1: Postcode look-ups and the casual's travel area
 
-**Time spent:** 1.5 hours (10:15 to 11:47 UTC; about 5 minutes of it went on Dylan's TikTok check, below).
+**Time spent:** 1.5 hours (10:15 to 11:47 UTC; about 5 minutes of it went on an unrelated check Dylan asked for).
 
 **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed `VERIFIED tree=bedd0cf46cec94b7 e2e=true`. That covers 3884 unit and database tests, 79 browser tests and the walkthrough's 3, all passing. The independent
 auditor said **DONE** in round 2. Round 1 asked for one thing: the planner API (task 12J.1, not built yet) must use this look-up too, so that is now written into 12J.1's task. The commit is "Phase 12: Postcode look-ups and the casual's travel
@@ -10760,16 +10759,6 @@ lets casuals say where they travel from.
 - A casual already made inactive by a sheet, or blocked, keeps their area until erased (parked,
   with two ways to fix it).
 - **Sign** `docs/dpia-travel.md` before a real firm uses travel areas.
-
-### Also this session: the TikTok check Dylan asked for
-
-Read-only, nothing changed. The Velora shop's TikTok connection is live: an active ad account
-(GBP, UK), the Shopify pixel (active, tracking views, cart, checkout and purchases) and a catalogue
-with 2 approved products. Two things to fix before ads: the only TikTok profile linked to the
-Velora ad account is @sottaband1 (the Sotta account), and the account has no funds or payment
-method. Smaller: the product description holds drafting notes, the product's web address has "™"
-in it, no product category is set, and business verification isn't submitted. The Shopify side
-couldn't be checked: its connector needs signing in again.
 
 ### How to see it working
 
@@ -12295,3 +12284,98 @@ Nothing new. Note: Phase 12's tasks are all ticked now.
 
 Follow `docs/walkthrough.md` from step 7 (`npm run db:reset`). Steps 20, 21, 30, 31, 40 and 41 are
 the new pages.
+
+## 2026-10-15 — Phase 12 loose ends (12L.1)
+
+**Time spent:** 2.4 hours (13:12 to 15:36 UTC on 15 Oct).
+
+**Result:** `VERIFIED tree=af39e6a372edb774 e2e=true`: typecheck, lint, 4,856 tests in 268 files, 91 browser tests, the
+walkthrough's 3 on the production build, and the invariants all passed. Auditor: `VERDICT: DONE` (round 3, after two NOT DONE rounds).
+Commit "Phase 12: Phase 12 loose ends (12L.1)". Not pushed: GitHub refused the push (see the
+decision log).
+
+### What was built
+
+Phase 12's reviews and audits left small jobs in the **Parking lot** (the list in `PLAN.md` of
+things for later). You chose the ones that need no account and no decision of yours. Each one is
+small:
+
+- **Travel times:** three code paths had no test. Now one test each: the nightly run at 02:20
+  London time; a casual dropping out of an urgent shift; and the **offer wave** (the batch of
+  shift offers sent out) filling travel times first.
+- **Downloads:** three older download links now refuse a request started by another website, as
+  the newer ones already did. This stops a trick where another site makes your browser download
+  a file in the background.
+- **Shifts-line replies:** an automatic event's name only repeats the site and day, so the reply
+  leaves it out. The app already did this.
+- **Day words:** a message like "I sat my test" or "c'mon" no longer counts as Saturday or
+  Monday. "any shifts sat?" still does.
+- **Today's cancellations:** "Download CSV" on today's list now downloads today's rows only, with
+  the date in the file's name and in the action log.
+- **Enquiries:** it used a fixed 90 days. It now uses the firm's own setting for how long messages
+  are kept, and the empty-page words say that number.
+- **Unknown-number email:** the alert now links straight to Enquiries' "Need a person".
+- **The planner API:** a request with the wrong **method** (the kind of request, such as GET or
+  POST) gets a clear "405" answer, with a list of the methods that address does take.
+- **The office guide:** it now explains what you can still change on a session your planner sent.
+- **Two missing tests:** the casual app following the phone's dark mode, and what happens when
+  the AI is slow, fails or isn't connected.
+
+The **guardrails reviewer** (a separate checker that reads the change against the project's
+golden rules) went over it three times. It found two real bugs, and both are fixed:
+
+1. A message containing the word "constructor" crashed the shifts-line reply. The message then
+   never reached the office. This is a JavaScript trap: a plain object also "has" built-in
+   names. Fixed by using a `Map`, which holds only its own entries.
+2. A long message with an emoji at its 500th character also failed. An emoji is stored as two
+   pieces, the cut split it, and the database refused half an emoji. This bug dates from Phase
+   7. Fixed by cutting whole characters.
+
+Its third look found nothing serious. Two small things were fixed: an `OPTIONS` request to the
+planner API now writes a log line like every other request, and the case where the server can't
+read its settings got a test.
+
+The **claims-auditor** (the independent checker that decides "done") said NOT DONE twice. The
+first time, it asked for more tests (a firm that keeps messages longer, the Enquiries page's
+words). The second time, it asked for missing lines in `docs/screens.md` and a third safety
+review. Both were done before the final check.
+
+### Key facts and numbers
+
+- The office note is cut at 500 characters, now counted as whole characters.
+- Messages stay in Enquiries for the firm's `retention.message_days` (90 unless the firm changed
+  it).
+- The planner API's methods: a session takes `GET, HEAD, OPTIONS, PUT`; cancellations takes
+  `GET, HEAD, OPTIONS`.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A message older than the firm's window answers "not waiting", not "not found" | The message still exists; it just isn't waiting any more. That's what the code already meant | A new answer (more words, same meaning) |
+| "sat", "sun" and "wed" stay day words unless the word before makes them plain English | People do write "any shifts sat?" | Dropping them as day words (would miss real questions) |
+| Fixed "Saturday's" too, though the auditor called it optional | This task had caused it: before, the apostrophe split made it read as Saturday | Parking it |
+| Every `/api/v1` address answers OPTIONS itself | Next.js's automatic answer listed methods the API refuses | Leaving Next.js's answer |
+
+### What the new tests prove
+
+Each fix has a test that fails when the fix is taken out (a **break check**). For example, the
+emoji test fails with the old cut, with the same database error as the bug. Every item's tests
+are listed in `docs/overnight-log.md` under 12L.1.
+
+### What's parked or needs Dylan
+
+- **Parked:** the shifts line's job has no "last try" step. If a message fails every try, no
+  one is told. It's in the Parking lot under "Inbound messages (12L.1 guardrails review)".
+- **Parked:** a few other places cut text without counting whole characters. At worst a "�"
+  shows at the end of a very long message. Nothing fails, and nothing is lost. It's under "Text
+  cuts that count UTF-16 units".
+- **Needs you:** are the hand-written TravelTime answers fine until the live check? (From the
+  12G.2 audit.)
+- **Needs you:** GitHub refuses pushes to every branch. See the morning summary for the steps.
+
+### How to see it working
+
+`npm run dev`, log in to the office as `acme.resourcer@example.com`. On the Dashboard, click
+"Cancellations today", then "Download CSV". The file's name has today's date, and the Action log
+says "today's only".

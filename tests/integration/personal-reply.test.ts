@@ -294,6 +294,47 @@ describe("the shifts reply lists exactly what she could take", () => {
       "Hi Zoe, you're booked on Sun 8 Nov (Door supervisor · Fixture event · 10:00–18:00). For the weekend you can take:",
     );
   });
+
+  it("an automatic event isn't named (it only repeats the site and day), as in the app", async () => {
+    const t = await replyFirm();
+    const zoe = await t.casual();
+    // The events made for sessions that come without one, named after the site and the day.
+    const automatic = async (day: string, label: string) => {
+      const { rows } = await su.query<{ id: string }>(
+        `insert into shift_events (firm_id, name, planner_ref) values ($1, $2, $3)
+         returning id::text as id`,
+        [t.f.firmId, `Acme Test Arena · ${label}`, `auto:${t.arena}:${day}`],
+      );
+      return rows[0]?.id ?? "";
+    };
+    const open = await t.session(48, { eventId: await automatic("2026-11-04", "Wed 4 Nov") });
+    await t.estimate(open, 20);
+    const friday = await t.f.shift({
+      startsAt: hoursFromNow(96), // Fri 6 Nov 09:00-17:00
+      eventId: await automatic("2026-11-06", "Fri 6 Nov"),
+    });
+    await su.query("update shifts set site_id = $2 where id = $1", [friday, t.arena]);
+    await t.f.booking(zoe, friday, "confirmed");
+
+    const list = await t.reply(zoe);
+    expect(list.checks.whatsapp.offered.map((o) => o.shiftId)).toEqual([open]);
+    expect(list.whatsapp).toContain("1. Door supervisor · Acme Test Arena · Wed 4 Nov 09:00–17:00");
+    expect(list.whatsapp).not.toContain("Wed 4 Nov, Acme Test Arena");
+    const day = await t.reply(zoe, "anything on friday?");
+    expect(day.whatsapp).toMatch(
+      /^Hi Zoe, you're booked on Fri 6 Nov \(Door supervisor · 09:00–17:00\)\. /,
+    );
+    const cancel = await cancelReply(withFirm, {
+      firmId: t.f.firmId,
+      workerId: zoe,
+      now: NOW,
+      firm: voice(t.firmName),
+      portal: PORTAL,
+    });
+    expect(cancel.whatsapp).toContain(
+      "you're booked on Door supervisor · Acme Test Arena · Fri 6 Nov 09:00–17:00.",
+    );
+  });
 });
 
 describe("counts and edges", () => {

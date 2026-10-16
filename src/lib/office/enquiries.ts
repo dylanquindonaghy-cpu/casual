@@ -2,6 +2,7 @@ import { eq, sql, type SQL } from "drizzle-orm";
 import { systemClock } from "../auth/clock";
 import { firms } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
+import { retentionSettings } from "../gdpr/retention-settings";
 import { strangerTextsOff } from "../inbound/opt-out";
 import { signOffFor } from "../tenancy/sign-off";
 import { wallTimeOf, zonedToUtc } from "../time/zoned";
@@ -16,7 +17,7 @@ import {
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 
 // Enquiries (docs/office-v2.md 3.6; docs/screens.md `/office/enquiries`; 12D.1): every message to
-// the shifts line in the last 90 days (a WhatsApp, a text, a voicemail's words; a bare call is
+// the shifts line in the firm's message retention, 90 days by default (a WhatsApp, a text, a voicemail's words; a bare call is
 // not one), with its replies (`reply_to`), its office question (`requests.message_id`) and what the
 // log says about it. There is no enquiries table. Reads only, inside the firm (RLS scopes every row
 // to it). Server only.
@@ -29,7 +30,17 @@ import { officeUserMay, parts, type OfficeContext } from "./office-context";
 // The office never sees more of a casual's home than the district: nothing here reads their travel
 // area (the checks that use it are 12D.2's, recorded as minutes only).
 
-export const ENQUIRY_DAYS = 90; // the messages' retention (retention.message_days' default)
+// How far back Enquiries reads: the firm's own message retention (retention.message_days, 90 days
+// unless the owner set it: src/lib/gdpr/retention-settings.ts), so a firm that keeps messages
+// longer sees them for as long as it keeps them; the nightly purge deletes older ones anyway.
+export async function enquiryWindow(tx: FirmTx, now: Date): Promise<{ days: number; since: Date }> {
+  const [firm] = await tx
+    .select({ settings: firms.settings })
+    .from(firms)
+    .where(eq(firms.id, sql`app_current_firm_id()`));
+  const days = retentionSettings(firm?.settings ?? {}).messageDays;
+  return { days, since: new Date(now.getTime() - days * 86_400_000) };
+}
 export const LIST_MAX = 100;
 const CONVERSATION_MAX = 5; // later messages from the same number shown on a message's page
 const IN_APP_HOURS = 24; // a booking or cancellation this soon after a reply was "done in the app"
@@ -96,6 +107,7 @@ export type Who =
 
 export interface EnquiriesPage {
   timeZone: string;
+  days: number; // how far back it reads: the firm's message retention (enquiryWindow)
   day: "today" | null; // the list holds only today's (`?day=today`, the dashboard's link)
   today: number; // enquiries since midnight, the firm's time
   // Of those, answered without a person (by keyword, by the AI's label, done in the app, or STOP
@@ -177,7 +189,7 @@ export async function loadEnquiries(
   opts: { day?: "today"; limit?: number } = {},
 ): Promise<EnquiriesPage> {
   const timeZone = await firmTime(tx);
-  const since = new Date(now.getTime() - ENQUIRY_DAYS * 86_400_000);
+  const { days, since } = await enquiryWindow(tx, now);
   const midnight = zonedToUtc({ ...wallTimeOf(now, timeZone), hour: 0, minute: 0 }, timeZone);
   const limit = Math.min(opts.limit ?? LIST_MAX, LIST_MAX);
   const { rows: counts } = await tx.execute<{
@@ -218,6 +230,7 @@ export async function loadEnquiries(
   }
   return {
     timeZone,
+    days,
     day: opts.day ?? null,
     today: c?.today ?? 0,
     automaticToday: c?.automatic ?? 0,
@@ -237,7 +250,7 @@ export async function loadEnquiries(
 
 // The menu's badge: how many need a person.
 export async function needPersonCount(tx: FirmTx, now: Date): Promise<number> {
-  const since = new Date(now.getTime() - ENQUIRY_DAYS * 86_400_000);
+  const { since } = await enquiryWindow(tx, now);
   const { rows } = await tx.execute<{ n: number }>(sql`
     select count(*)::int as n from messages m
      where ${isEnquiry("m", since)} and ${needsPerson("m")}
@@ -384,7 +397,7 @@ export async function loadEnquiry(
   messageId: string,
   now: Date,
 ): Promise<EnquiryDetail | null> {
-  const since = new Date(now.getTime() - ENQUIRY_DAYS * 86_400_000);
+  const { since } = await enquiryWindow(tx, now);
   const { rows: found } = await tx.execute<
     ListRow & {
       to_e164: string;

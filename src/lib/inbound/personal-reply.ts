@@ -6,6 +6,7 @@ import { openShiftsFor, type NotOfferedReason, type OpenShift } from "../portal/
 import type { RuleCheck } from "../rules/eligibility";
 import { dayLabel } from "../rules/reasons";
 import { noticeHours } from "../roster/notice";
+import { casualEventName } from "../roster/shift-events";
 import { decideForWorker, firmStrikeSettings } from "../strikes/issue";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { travelLineText, type TravelFacts } from "../travel/line-copy";
@@ -108,8 +109,29 @@ export interface AskedDays {
   onWords: string; // "on Saturday", "at the weekend", "today"
 }
 
+// Short forms that are also ordinary words: a day unless the word just before makes them ordinary
+// English ("I sat my test", "in the sun", "getting wed"), so "any shifts sat?" and "sat or sun" still
+// name days. A wrong guess only changes the reply's heading and list, never what she can book.
+// A Map, not an object: her words are its keys, and an object would also find "constructor".
+const NOT_A_DAY_AFTER = new Map<string, ReadonlySet<string>>([
+  [
+    "sat",
+    new Set(["i", "we", "you", "he", "she", "they", "just", "was", "were", "have", "has", "had"]),
+  ],
+  ["sun", new Set(["the", "a"])],
+  ["wed", new Set(["get", "gets", "got", "getting", "be", "been", "being", "newly"])],
+]);
+
 export function askedDays(text: string, now: Date, timeZone: string): AskedDays | null {
-  const words = new Set(text.toLowerCase().match(/[a-z]+/g) ?? []);
+  // Words keep their apostrophes (a phone's curly one too), so "c'mon" isn't "mon".
+  const tokens =
+    text
+      .toLowerCase()
+      .replace(/[\u2018\u2019]/g, "'")
+      .match(/[a-z]+(?:'[a-z]+)*/g)
+      // A possessive is its word: "Saturday's shift", "tomorrow's".
+      ?.map((w) => w.replace(/'s$/, "")) ?? [];
+  const words = new Set(tokens.filter((w, i) => !NOT_A_DAY_AFTER.get(w)?.has(tokens[i - 1] ?? "")));
   const today = localDateOf(now, timeZone);
   const weekdayOf = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
   const next = (weekday: number) => {
@@ -435,7 +457,9 @@ export async function shiftsReply(
   const listed = takeable.map((s: OpenShift): ListedShift => ({
     shiftId: s.shiftId,
     role: s.role,
-    eventName: s.eventName ?? null,
+    // The event as the casual app names it: an automatic event's name, which only repeats the
+    // site and the day, is left out (casualEventName).
+    eventName: s.casualEvent ?? null,
     siteName: s.site?.name ?? null,
     startsAt: s.startsAt,
     endsAt: s.endsAt,
@@ -514,7 +538,7 @@ async function bookingsOn(
       role: shifts.role,
       startsAt: shifts.startsAt,
       endsAt: shifts.endsAt,
-      eventName: shiftEvents.name,
+      eventName: casualEventName,
     })
     .from(assignments)
     .innerJoin(
@@ -565,7 +589,7 @@ export async function cancelReply(
         startsAt: shifts.startsAt,
         endsAt: shifts.endsAt,
         post: shifts.post,
-        eventName: shiftEvents.name,
+        eventName: casualEventName,
         siteName: sites.name,
       })
       .from(assignments)

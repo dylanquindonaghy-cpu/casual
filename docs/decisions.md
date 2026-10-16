@@ -95,9 +95,9 @@ the first call and move on politely if it's one of those. Offer native mode for 
 ## ADR-009: Sell one sector at a time; credentials are generic
 
 **Context:** Rail, civils, construction and cleaning have the same pain.
-**Decision:** Sell events/security first (credibility, CSP pilot). Rules engine treats
+**Decision:** Sell events/security first (credibility, the first pilot firm). Rules engine treats
 credentials as data per sector (SIA, PTS, Sentinel, CSCS, DBS). Next sector: rail/civils via
-Teamforce and Coyle contacts.
+warm contacts at rail and civils labour suppliers.
 **Consequences:** references stay sector-specific; product stays reusable.
 
 ## ADR-010: AI disclosure — no banners, no fake names, legal minimum met

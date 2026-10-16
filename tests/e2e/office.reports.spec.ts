@@ -64,4 +64,14 @@ test("the notice report lists bookings and the dropout, filters, and downloads a
   expect(lines[0]).toMatch(/^When \(firm time\),When \(UTC\),What,Started by,Worker,Shift,/);
   expect(lines.length).toBe((await rows.count()) + 1);
   expect(lines.slice(1).every((l) => l.includes(",Cancelled,"))).toBe(true);
+  // Started from another site (or another firm's address): refused, like the cancellations files.
+  for (const site of ["cross-site", "same-site"]) {
+    const answer = await page.request.get(
+      `${acme}/office/reports/notice/export?kind=cancellations`,
+      {
+        headers: { "sec-fetch-site": site },
+      },
+    );
+    expect(answer.status(), site).toBe(403);
+  }
 });

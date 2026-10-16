@@ -26,6 +26,16 @@ export const OUTCOME_TONES: Record<Outcome, StatusTone> = {
 
 export const PAY_LOCK = "Pay: never answered by AI (rule)";
 
+// A view's empty words, and the link back from today's only: they name how far back the list
+// reads, the firm's message retention (90 days unless the owner changed it: enquiryWindow()).
+export function enquiriesEmptyText(view: "all" | "person" | "pay", days: number): string {
+  if (view === "person")
+    return "Nothing needs a person. Messages the shifts line can't answer show here.";
+  if (view === "pay") return `No pay messages in the last ${days} days.`;
+  return `No messages to the shifts line in the last ${days} days.`;
+}
+export const showLastDaysText = (days: number) => `Show the last ${days} days`;
+
 export const AI_BANNER =
   "AI sorting isn't connected yet: messages without a keyword go to a person.";
 

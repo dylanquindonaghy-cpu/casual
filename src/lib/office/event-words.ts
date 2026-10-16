@@ -193,8 +193,9 @@ export function eventWords(e: LoggedEvent, names: Names): string {
       if (d.kind === "cancellations_csv") {
         const view =
           d.view === "under" ? "short notice" : d.view === "office" ? "by the office" : "all";
+        const today = d.day === "today" ? ", today's only" : "";
         const n = typeof d.rows === "number" ? d.rows : 0;
-        return `${officeName} downloaded the cancellations (${view}, ${n} ${n === 1 ? "row" : "rows"}) as a CSV.`;
+        return `${officeName} downloaded the cancellations (${view}${today}, ${n} ${n === 1 ? "row" : "rows"}) as a CSV.`;
       }
       return `${officeName} downloaded a file.`;
     case "strike.issued": {

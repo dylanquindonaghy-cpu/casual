@@ -741,8 +741,8 @@ export function createEscalateShiftTask(deps: () => OfferDeps): FirmTask<Escalat
 }
 
 // The worker's wiring. Deps are read when a job runs, so the web (which only queues) never needs
-// the worker's configuration.
-const workerDeps = (): OfferDeps => {
+// the worker's configuration. Exported for its test (tests/unit/offers.worker-deps.test.ts).
+export const offerWorkerDeps = (): OfferDeps => {
   const env = workerEnv();
   return {
     transport: getTransport(env),
@@ -756,5 +756,5 @@ const workerDeps = (): OfferDeps => {
       (await import("../travel/estimates")).estimatesBeforeWave(run, firmId, shiftId),
   };
 };
-export const offerWaveTask = createOfferWaveTask(workerDeps);
-export const escalateShiftTask = createEscalateShiftTask(workerDeps);
+export const offerWaveTask = createOfferWaveTask(offerWorkerDeps);
+export const escalateShiftTask = createEscalateShiftTask(offerWorkerDeps);

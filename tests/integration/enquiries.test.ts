@@ -290,6 +290,49 @@ describe("each outcome label comes from what was logged", () => {
       "keyword",
     );
   });
+
+  it("why the AI didn't sort it, through the shifts line's job: logged, then on the page", async () => {
+    const t = await enquiryFirm();
+    // The helper gives the AI 200 ms (deps' aiTimeoutMs).
+    const slow = createFakeAi(
+      () => new Promise<string>((done) => setTimeout(() => done("cancel"), 1_000)),
+    );
+    const broken = createFakeAi(() => {
+      throw new Error("the AI service failed");
+    });
+    const odd = createFakeAi(() => "banana");
+    const cases = [
+      [await t.incoming("question about my uniform", { ai: slow }), "no_answer"],
+      [await t.incoming("question about my badge", { ai: broken }), "no_answer"],
+      [await t.incoming("question about parking", { ai: odd }), "not_a_label"],
+      [await t.incoming("question about the rota", { ai: noAi }), "not_connected"],
+    ] as const;
+    const received = await t.eventsOf("message.received");
+    for (const [id, ai] of cases) {
+      expect((await t.detail(id))?.timeline.sorted, ai).toEqual({
+        how: "person",
+        why: "not_sorted",
+        ai,
+      });
+    }
+    expect(received.map((e) => e.data.aiFallback)).toEqual([
+      "no_answer",
+      "no_answer",
+      "not_a_label",
+      "not_connected",
+    ]);
+    // A photo with no words is never shown to the AI: "no_text", whatever the AI would say.
+    let asked = 0;
+    const photo = await t.incoming(null, {
+      ai: createFakeAi(() => {
+        asked += 1;
+        return "cancel";
+      }),
+    });
+    expect(asked).toBe(0);
+    expect((await t.eventsOf("message.received")).at(-1)?.data.aiFallback).toBe("no_text");
+    expect((await t.detail(photo))?.timeline.sorted).toEqual({ how: "person", why: "no_text" });
+  });
 });
 
 describe("the office's reply", () => {
@@ -620,6 +663,74 @@ describe("what the office can see", () => {
     ]);
     expect((await t.load("all")).rows).toEqual([]);
     expect(await t.detail(old)).toBeNull();
+  });
+
+  it("a long message for the office with an emoji at the 500-character cut: kept whole, and it reaches a person", async () => {
+    const t = await enquiryFirm();
+    // "office " and 492 x's are 499 characters: the emoji is the 500th, two UTF-16 units long.
+    const body = `office ${"x".repeat(492)}\u{1F600} and more after it`;
+    const id = await t.incoming(body);
+    const { rows } = await su.query<{ note: string }>(
+      "select payload ->> 'note' as note from requests where message_id = $1",
+      [id],
+    );
+    expect(rows[0]?.note).toBe(`office ${"x".repeat(492)}\u{1F600}`);
+    expect((await t.load("person")).rows.map((r) => r.messageId)).toEqual([id]);
+  });
+
+  it("a firm that keeps messages longer: the office can reply and close for as long as it keeps them", async () => {
+    const t = await enquiryFirm();
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{retention}', '{"message_days": 200}')
+        where id = $1`,
+      [t.f.firmId],
+    );
+    const age = (id: string, days: number) =>
+      su.query(`update messages set created_at = now() - make_interval(days => $2) where id = $1`, [
+        id,
+        days,
+      ]);
+    const [toReply, toClose, tooOld] = [
+      await t.incoming("office: an old question"),
+      await t.incoming("office: another old question"),
+      await t.incoming("office: a very old question"),
+    ];
+    await age(toReply, 120);
+    await age(toClose, 120);
+    await age(tooOld, 201);
+    expect(await replyToEnquiry(t.ctx(), toReply, "Sorry for the wait.")).toMatchObject({
+      status: "queued",
+    });
+    expect(await closeEnquiry(t.ctx(), toClose, "by_phone")).toEqual({ status: "closed" });
+    // Past the firm's 200 days it isn't waiting any more (off the list too): neither.
+    expect(await replyToEnquiry(t.ctx(), tooOld, "Sorry.")).toEqual({ status: "not_waiting" });
+    expect(await closeEnquiry(t.ctx(), tooOld, "spam")).toEqual({ status: "not_waiting" });
+  });
+
+  it("a firm that keeps messages longer: shown for as long as it keeps them", async () => {
+    const t = await enquiryFirm();
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{retention}', '{"message_days": 200}')
+        where id = $1`,
+      [t.f.firmId],
+    );
+    const old = await t.incoming("office: an old question");
+    const age = (days: number) =>
+      su.query(`update messages set created_at = now() - make_interval(days => $2) where id = $1`, [
+        old,
+        days,
+      ]);
+    const badge = () => withFirm(t.f.firmId, (tx) => needPersonCount(tx, new Date()));
+    await age(120);
+    expect((await t.load("all")).rows.map((r) => r.messageId)).toEqual([old]);
+    expect((await t.load("person")).rows.map((r) => r.messageId)).toEqual([old]);
+    expect((await t.detail(old))?.messageId).toBe(old);
+    expect(await badge()).toBe(1);
+    // Past the firm's 200 days: gone from Enquiries too.
+    await age(201);
+    expect((await t.load("all")).rows).toEqual([]);
+    expect(await t.detail(old)).toBeNull();
+    expect(await badge()).toBe(0);
   });
 });
 

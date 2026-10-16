@@ -12,7 +12,7 @@ import { editSitePostcode } from "@/lib/office/settings-page";
 import { createShifts, editShift } from "@/lib/office/shift-editor";
 import { saveMyTravel } from "@/lib/portal/travel";
 import { moveShiftByFirm } from "@/lib/roster/firm-change";
-import { setShiftUrgent } from "@/lib/roster/urgent";
+import { markUrgentAfterDropout, setShiftUrgent } from "@/lib/roster/urgent";
 import {
   AFTER_WAVE_DELAY_SECONDS,
   CASUAL_CHANGE_DELAY_SECONDS,
@@ -25,6 +25,7 @@ import {
   fillEstimates,
   runTravelEstimatesTick,
   TRAVEL_JOB_BUDGET_MS,
+  TRAVEL_ESTIMATES_TICK_QUEUE,
   TRAVEL_JOB_EXPIRE_SECONDS,
 } from "@/lib/travel/estimates";
 import { fakeGeocoder, fakePoint } from "@/lib/travel/geocoder";
@@ -674,6 +675,34 @@ describe("the job's queue", () => {
     expect(options.get(TRAVEL_ESTIMATES_QUEUE)).toEqual(TRAVEL_WORK_OPTIONS);
   });
 
+  it("the worker works the nightly run's queue, scheduled for 02:20 London", async () => {
+    const worked: string[] = [];
+    const scheduled: unknown[][] = [];
+    const boss = {
+      createQueue: async () => undefined,
+      updateQueue: async () => undefined,
+      work: async (name: string) => {
+        worked.push(name);
+        return "id";
+      },
+      schedule: async (...args: unknown[]) => {
+        scheduled.push(args);
+      },
+      unschedule: async () => undefined,
+    } as unknown as PgBoss;
+    await registerJobs(boss);
+    expect(QUEUES.find((q) => q.name === TRAVEL_ESTIMATES_TICK_QUEUE)).toBeDefined();
+    expect(worked).toEqual(
+      expect.arrayContaining([TRAVEL_ESTIMATES_QUEUE, TRAVEL_ESTIMATES_TICK_QUEUE]),
+    );
+    expect(scheduled).toContainEqual([
+      TRAVEL_ESTIMATES_TICK_QUEUE,
+      "20 2 * * *",
+      null,
+      { tz: "Europe/London" },
+    ]);
+  });
+
   it("tries again after 5 minutes, backing off to an hour apart, 6 times; a run ends before its expiry", () => {
     expect(QUEUES.find((q) => q.name === TRAVEL_ESTIMATES_QUEUE)?.options).toMatchObject({
       policy: "standard",
@@ -849,6 +878,21 @@ describe("what queues the job", () => {
     const jobs = await t.queued();
     expect(jobs).toHaveLength(before + 1);
     expect(jobs.at(-1)?.data.shiftIds).toHaveLength(2);
+  });
+
+  it("a dropout inside the urgent window: its session's job, after the first wave's own fill", async () => {
+    const t = await travelFirm();
+    const soon = await t.session(12); // inside the firm's 24-hour urgent window, its place free
+    const later = await t.session(48); // outside it: not made urgent, nothing queued
+    await t.clearQueued();
+    const dropout = (shiftId: string) =>
+      withFirm(t.f.firmId, (tx) => markUrgentAfterDropout(tx, { shiftId, now: NOW }));
+    expect(await dropout(later)).toBe(false);
+    expect(await t.queued()).toEqual([]);
+    expect(await dropout(soon)).toBe(true);
+    const jobs = await t.queued();
+    expect(jobs.map((j) => j.data.shiftIds)).toEqual([[soon]]);
+    expect(jobs[0]?.delay).toBeCloseTo(AFTER_WAVE_DELAY_SECONDS, 0);
   });
 
   it("a site's postcode changing: its old estimates go, and its sessions get new ones", async () => {

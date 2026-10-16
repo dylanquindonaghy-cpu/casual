@@ -55,7 +55,10 @@ export default async function CancellationsPage({
         eyebrow={`${firm.name} office`}
         title="Cancellations"
         actions={
-          <a href={`/office/cancellations/export?view=${view}`} className={btn.secondary}>
+          <a
+            href={`/office/cancellations/export?view=${view}${day ? `&day=${day}` : ""}`}
+            className={btn.secondary}
+          >
             Download CSV
           </a>
         }

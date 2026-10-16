@@ -12379,3 +12379,76 @@ are listed in `docs/overnight-log.md` under 12L.1.
 `npm run dev`, log in to the office as `acme.resourcer@example.com`. On the Dashboard, click
 "Cancellations today", then "Download CSV". The file's name has today's date, and the Action log
 says "today's only".
+
+## 2026-10-16 — Safety net (13.1)
+
+**Time spent:** about 1.8 hours (09:56 to 11:42 UTC on 16 Oct; three verify runs of about 15
+minutes each are part of it).
+
+**Result:** `VERIFIED tree=cdee41b551f4d9c1 e2e=true`: typecheck, lint, the production build,
+4,890 tests, 91 browser tests, the walkthrough's 3, and the invariants all passed. Auditor:
+`VERDICT: DONE` (round 3, after two NOT DONE rounds). The work was merged with PR #6; the tick
+goes in the next PR.
+
+### What was built
+
+The **safety net** is the set of checks that stop anyone (Claude included) from calling a task
+done when it isn't. You approved fixing the gaps an earlier audit found ("How the build is run" 1
+to 4). In plain words:
+
+- **verify.sh** (the script that runs every check and writes a **stamp**, a small file saying
+  "these exact files passed") now takes the files' **fingerprint** (a short code worked out from
+  their contents) when it starts. If any file changes while it runs, there's no stamp. It also
+  runs the **production build** (the same build the server will run), and it fails if the
+  project's extra checks (`scripts/invariants.sh`) are missing.
+- **Ticks need the browser tests.** A task can only be ticked if the stamp includes the browser
+  tests (`RUN_E2E=1`).
+- **The tick guard** (a **hook**: a small script Claude Code runs before or after each action)
+  reads each task's own box. Moving a tick from one task to another, or writing `[X]`, is caught.
+  It also notices a tick made by a shell command, and then refuses `git commit` and `git push`
+  until it's undone.
+- **The Stop hook** (it runs when Claude finishes a reply) catches more ways of saying "done"
+  ("Phase 0 is done.", "All 2665 tests pass."). It blocks up to 3 times in a row.
+- **invariants.sh** now refuses browser tests that are switched off (Playwright's `fixme`,
+  `fail` and skips decided while a test runs). It reads the browser tests' own result files too,
+  checks `scripts/` for anything setting the firm outside `withFirm()`, and refuses a test that
+  imports the Twilio library.
+- **The reviewers and the auditor are read-only.** A hook refuses any edit from them, and any
+  shell command that could write a file or run the project. It reads each command the way the
+  shell does: quotes, escapes, comments, variables, `$(…)`. So `sed "-i"` counts as `sed -i`, and
+  options that write (`sort -o`, `uniq in out`, a sed script with `w`) are refused.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A shell tick is reported after the command, not undone for you | Undoing it could lose work in a stash, merge or reset | Rewriting `PLAN.md` back automatically |
+| The read-only check refuses whatever it can't read for certain (variables, `$(…)`, loops) | A variable's value could turn into an option that writes; refusing is safe, and the reviewers can run one plain command at a time | Allowing them and trying to guess the value |
+| `less`, `more`, `xxd` and `file` left off the reviewers' command list | Each can run something or write in some mode, and none is needed to read code | Checking each one's options |
+| The tests run verify.sh with stand-in commands | Running the real tests inside the tests would take 15 minutes and loop | Only reading verify.sh's text |
+
+### What the new tests prove
+
+`tests/unit/safety-net.test.ts` has 34 tests. Each runs the real hook or script as a separate
+program in a throwaway copy of a repository:
+
+- every way of ticking (an edit, a moved tick, `[X]`, a shell command);
+- the Stop hook;
+- about 100 reviewer commands, allowed and refused;
+- `invariants.sh` on sample folders, each refusal with a passing case;
+- `verify.sh` with stand-in commands: the build runs, a file changed mid-run gives NOT VERIFIED,
+  and so does a missing or non-executable `invariants.sh`;
+- the hooks wired to the right actions in `.claude/settings.json`.
+
+On top of that, the scripts were broken on purpose 13 ways, and a test failed every time.
+
+### What's parked or needs Dylan
+
+- **Parked:** a single shell command that ticks `PLAN.md` and commits in one go gets its commit in
+  before the warning. The tick is still reported, and the next commit or push is refused. It's in
+  the Parking lot under "The shell-tick watch is after the fact".
+
+### How to see it working
+
+Run `bash scripts/selftest.sh`. It breaks each rule on purpose and shows the hook refusing it,
+ending with "SELFTEST PASSED".

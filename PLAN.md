@@ -1095,7 +1095,7 @@ same day ("Decided on 2026-10-16" under "Decisions waiting for Dylan"). Docs: `d
 `docs/api-and-jobs.md`, `docs/messaging-templates.md`, `docs/compliance.md`,
 `docs/privacy-notice.md`, `docs/screens.md`, `docs/runbooks.md`, `docs/audit-2026-09-30.md`.
 
-- [ ] Safety net (How the build is run 1 to 4, approved 2026-10-16; audit L1 to L6, L61, L62, L65):
+- [x] Safety net (How the build is run 1 to 4, approved 2026-10-16; audit L1 to L6, L61, L62, L65):
       `scripts/verify.sh` takes the files' fingerprint when it starts and refuses its stamp if they
       changed during the run (L4), runs a production build (`npm run build`), and refuses to
       skip `scripts/invariants.sh`; a tick needs a stamp with the browser tests (`e2e=true`; L5,
@@ -3127,6 +3127,13 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io
   and TravelTime" checks them against a live answer. The first audit took that step as covering
   it.
+- The shell-tick watch is after the fact (13.1 audit round 3, 2026-10-16; small, nothing lost):
+  `plan-bash-check.sh` reports a task ticked from the shell once the command has run, and only then
+  refuses `git commit` and `git push`. A single command that both ticks `PLAN.md` and commits
+  (`sed -i … PLAN.md && git commit -am …`) gets its commit in before the report. The tick is still
+  reported, the next commit or push is refused until it's undone, and the commit itself can be
+  reverted. To close it: have `plan-bash-snapshot.sh` refuse, before it runs, a command that both
+  writes `PLAN.md` and commits or pushes.
 
 ## Hours log
 
@@ -3268,3 +3275,4 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 2026-10-12 | 12 | 0.4 | Guides and docs (12I.3): the office guide's "Getting around" (the drawer, Log out under your name, the bell for admins and resourcers) and "Connect your planner" in three steps, with tests; CLAUDE.md planner-first and `integrations/`; compliance (the Article 9 condition for "I'm unwell", strike cautions), the privacy notice (photos, strikes, the planner, the travel services), ADR-023 (TravelTime) and ADR-024 (images in Postgres), testing.md's fakes, the guide row in screens.md; doc-fact-checker's 6 findings fixed; shared verify with 12I.4; audit DONE first round (see docs/work-log.md) |
 | 2026-10-12 | 12 | 0.4 | Verify and the walkthrough (12I.4): 8 new walkthrough steps and their browser test steps (Zoe Adeyemi's travel lines and area, Kieran's strikes and upload page, Enquiries' messages, Cancellations, Strikes, uploads to check, the Pay dashboard, Settings with `/confirm-email`, connecting a planner with a key and a `curl`), steps renumbered; `RUN_E2E=1 ./scripts/verify.sh` VERIFIED (4,839 tests, 91 browser tests, the walkthrough's 3); audit DONE first round (see docs/work-log.md) |
 | 2026-10-15 | 12 | 2.4 | Phase 12 loose ends (12L.1): travel estimates' three untested paths tested (the 02:20 nightly run, a dropout's queued run, the wave's worker deps); the three older downloads refuse another site (403); shifts-line replies name events as the app does; day words read only as days (apostrophes kept, "I sat", "the sun", "getting wed", possessives); Home's urgent chips pinned; today's cancellations CSV holds today's only, named and logged with its date; Enquiries follows the firm's message retention; the unknown-number alert links Need a person; the planner API's own 405 and OPTIONS (logged, host-checked); the guide's planner note; tests for the phone's theme and the AI's fallback reasons; guardrails FIX FIRST ×2 ("constructor" crashed the reply; an emoji at the 500th character lost the message) over three rounds; 4,856 tests + 91 e2e + the walkthrough's 3; audits NOT DONE ×2, round 3 DONE; not pushed (the ruleset) (see docs/work-log.md) |
+| 2026-10-16 | 13 | 1.8 | Safety net (13.1): verify.sh fingerprints the files at the start and refuses the stamp if they change, runs the production build, never skips invariants.sh; a tick needs a stamp with the browser tests; the tick guard reads each task's own box (a moved tick, `[X]`) and watches shell commands that write PLAN.md; the Stop hook catches more ways of saying done, up to 3 blocks; invariants.sh refuses Playwright's fixme, fail and run-time skips (code and JSON reports), checks scripts/ for the firm setting, and refuses a Twilio import in tests; the reviewers and the auditor are read-only by hook (commands read as the shell reads them); 34 safety-net tests run every hook, invariants.sh and verify.sh on sample input; 4,890 tests + 91 e2e + the walkthrough's 3; audits NOT DONE ×2, round 3 DONE (see docs/work-log.md) |

@@ -12452,3 +12452,70 @@ On top of that, the scripts were broken on purpose 13 ways, and a test failed ev
 
 Run `bash scripts/selftest.sh`. It breaks each rule on purpose and shows the hook refusing it,
 ending with "SELFTEST PASSED".
+
+## 2026-10-16 — The shifts line's last try (13.2)
+
+**Time spent:** about 1.1 hours (11:43 to 12:49 UTC on 16 Oct, a container restart included).
+
+**Result:** `VERIFIED tree=c4449b781a9135a0 e2e=true`: typecheck, lint, the production build,
+4,901 tests, 91 browser tests, the walkthrough's 3, and the invariants all passed. Auditor:
+`VERDICT: DONE` (first round). The work was merged with PR #7; the tick goes in the next PR.
+
+### What was built
+
+The **shifts line** answers casuals' WhatsApps and texts by itself, in a **job** (work done in the
+background, after the message is stored). If the job fails, it's tried again. Before this task, a
+message whose job failed every time was never answered and never shown to anyone.
+
+Now:
+
+- A failed answer is tried again 3 times, 2 seconds apart. The last try comes after about 15
+  seconds of waiting.
+- On the **last try**, the message is passed to a person: it shows in **Need a person** on
+  Enquiries, with "The automatic answer failed on every try (TypeError): passed to a person." The
+  action log says the same. Nothing is sent to the casual; the office answers.
+- The job still counts as **failed**, so the alert for failed jobs tells you. The failure is always
+  in our code (unlike a firm's own planner webhook, which completes quietly).
+- A **STOP** or **START** text still counts on the last try: texts are turned off or on, exactly
+  as normal, just without the confirmation text.
+- Only a short **code** for the error is kept (like `TypeError` or `57P01`), never its text.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| The job still fails after passing the message on | The guardrails review found the first version hid the only alert for a broken shifts line | Completing quietly, like the planner webhooks (their failures are the firm's own) |
+| 2 seconds between tries, no doubling | A casual is waiting; doubling waits made it 35 to 70 seconds | pg-boss's doubling waits |
+| A STOP uses the same claim as the normal STOP code | One copy of the rules, so the two can't drift apart | Leaving a failed STOP unanswered |
+| No reply to the casual on the last try | Not in the task; it's your call (Parking lot) | Sending "the office will get back to you" |
+
+### What the new tests prove
+
+`tests/integration/inbound.last-try.test.ts` has 11 tests on the real database. They cover:
+
+- each try before the last fails, and the last passes the message on once and sends nothing;
+- a repeat of the last try, or a later try that works, changes nothing;
+- the hand-off waits for another job holding the message, then leaves it alone;
+- a STOP still turns texts off;
+- a stranger's message and a former casual's message;
+- an older message is passed on only by its own job;
+- an odd error name shows as "unknown";
+- a real background worker retries by itself and ends with the job failed and counted.
+
+13 deliberate breaks of the code were each caught by a test.
+
+### What's parked or needs Dylan
+
+- **Needs you:** should the last try also send the casual the fixed "the office will get back to
+  you" reply? (Parking lot, "Needs Dylan: an answer on the shifts line's last try".)
+- **Parked:** three rare cases still leave a message unanswered and out of Need a person:
+  - a worker killed in the middle of a last try;
+  - the hand-off itself failing;
+  - jobs that failed before this change.
+
+  Each still raises the failed-job alert. It's in the Parking lot under "Messages stranded".
+
+### How to see it working
+
+`npm test -- tests/integration/inbound.last-try.test.ts` runs the 11 tests. On a running app you'd
+see it only when something is broken: the message appears in Need a person with the reason.

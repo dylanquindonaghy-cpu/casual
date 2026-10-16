@@ -170,6 +170,8 @@ async function missingFor(
   provider: TravelProvider["name"],
 ): Promise<Map<EstimateMode, Origin[]> | null> {
   return run(firmId, async (tx) => {
+    // Switched off during a run (13.4): no more searches, from the next group on.
+    if (!(await travelOn(tx))) return null;
     if (!(await siteStill(tx, g))) return null;
     await tx.execute(sql`
       update travel_estimates set expires_at = ${g.expiresAt}

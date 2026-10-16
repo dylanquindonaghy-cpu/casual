@@ -74,7 +74,10 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
    postcode, which needn't be home. The office never needs the full postcode, so it sees only the
    district.
 3. **Balancing test (do the casual's interests override it?).** No, with these safeguards:
-   - it's optional, and removable by the casual at any time ("Remove my travel area");
+   - it's optional, and removable by the casual at any time ("Remove my travel area") while the
+     firm has travel areas on (if a firm switches them off, "Where you work" is hidden, so what
+     happens to the areas already saved must be decided first: `PLAN.md` Parking lot, "Travel
+     areas", Needs Dylan (13.4));
    - nothing happens to a casual without one: they see every shift;
    - the office sees only the district ("ZZ1"), and replies say "from your home area", because the
      office sees replies word for word;
@@ -91,7 +94,9 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 
 ### How long
 
-- While the casual keeps it. It's deleted when they remove it, when the office makes them
+- While the casual keeps it (if the firm switches travel areas off, it's kept but not used until
+  the decision in `PLAN.md` Parking lot, "Travel areas", is made). It's deleted when they remove
+  it, when the office makes them
   inactive with the reason "They've left" (`DEACTIVATE_REASONS.left`,
   `src/lib/office/worker-reasons.ts`), and when they're erased (`src/lib/gdpr/worker-erase.ts`).
   Made inactive for another reason (a pause), it's kept for when they come back.
@@ -139,7 +144,7 @@ The basis is legitimate interests (UK GDPR Article 6(1)(f)), which needs this th
 |---|---|---|
 | The office learns where they live | Possible, moderate | They choose the postcode (needn't be home); the office sees the district only; no house number, GPS or history |
 | It's used to judge or rank them | Unlikely, moderate | Never used for pay, strikes or eligibility; no ranking; the office may still offer anything by hand |
-| They miss offers because of a wrong postcode or a limit set too low | Possible, minor | They see their own setting on Profile and can change or remove it; an unknown distance is shown and still offered (D2, 12G.3) |
+| They miss offers because of a wrong postcode or a limit set too low | Possible, minor | They see their own setting on Profile and can change or remove it (while the firm has travel areas on; off, nothing is filtered at all); an unknown distance is shown and still offered (D2, 12G.3) |
 | Their postcode leaks through the log | Unlikely, moderate | Never logged (the log check refuses a field named "postcode"; tested) |
 | A look-up service learns who they are | Unlikely, minor | Only the postcode is sent (tested); TravelTime gets coordinates and meaningless ids |
 | Kept after they leave | Possible, minor | Deleted on "They've left" and on erasure (tested). A casual already made inactive by a sheet or file, or blocked, keeps it until erased (parked: see "How long") |

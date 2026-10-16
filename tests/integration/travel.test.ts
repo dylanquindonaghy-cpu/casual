@@ -251,6 +251,34 @@ describe("travel areas switched off for the firm (13.4)", () => {
     expect(await removeMyTravel(t.portal(), ann)).toEqual({ status: "removed" });
     expect(await t.row(ann)).toBeUndefined();
   });
+
+  it("switched off during the postcode look-up: nothing saved, logged or queued", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann" });
+    const jobs = async () =>
+      (
+        await su.query(
+          "select 1 from pgboss.job where name = 'travel.estimates' and data ->> 'firmId' = $1",
+          [t.f.firmId],
+        )
+      ).rows.length;
+    const queuedBefore = await jobs();
+    // The owner switches them off while the look-up is out (no transaction is open then).
+    const switching: Geocoder = {
+      async locate(postcode) {
+        await su.query(
+          `update firms set settings = jsonb_set(settings, '{travel,enabled}', 'false')
+            where id = $1`,
+          [t.f.firmId],
+        );
+        return fakeGeocoder.locate(postcode);
+      },
+    };
+    expect(await saveMyTravel(t.portal(switching), ann, area)).toEqual({ status: "off" });
+    expect(await t.row(ann)).toBeUndefined();
+    expect(await t.logged("travel.profile_changed")).toEqual([]);
+    expect(await jobs()).toBe(queuedBefore);
+  });
 });
 
 describe("what the office sees", () => {

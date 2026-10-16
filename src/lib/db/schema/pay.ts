@@ -73,8 +73,8 @@ export const payRecords = pgTable(
 // details are free text: kept here, never copied into events. group_key is set by code when the
 // queries are grouped for payroll's digest (no AI decides anything about pay: golden rule 9).
 // The app may resolve queries but not delete them. Payroll sorts them with a note to the worker
-// (resolution_note: free text, on the row and in the message to them, never in an event), who and
-// when (src/lib/pay/resolve.ts).
+// (resolution_note: free text, on the row and on their pay page, behind the pay code: never in the
+// message to them, 13.4, nor in an event), who and when (src/lib/pay/resolve.ts).
 
 export const PAY_QUERY_ISSUES = ["missing_hours", "wrong_rate", "late_pay", "other"] as const;
 export const PAY_QUERY_STATUSES = ["open", "in_digest", "resolved"] as const;

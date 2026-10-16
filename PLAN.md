@@ -2976,12 +2976,18 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   12G.3, Open shifts and the urgent board also ask every casual with no area to "Add your home
   area": the same switch should hide that prompt where travel areas are off.
   - **Needs Dylan (13.4):** a firm that switches travel areas off keeps the home areas already
-    saved (kept but not used: no filter, no search, not shown to the office). Should switching off
+    saved (kept but not used: no filter, no search, not on the office's pages; the firm's data
+    export still lists their districts). Should switching off
     delete them (data minimisation), or keep them so switching back on needs nothing from casuals?
     With "Where you work" hidden a casual has no button to remove theirs (the remove action itself
     still works), and the office can't remove one either (only "They've left" does). Today: kept.
     The owner's `firm:settings travel.enabled false` could delete them, or print how many are kept;
-    or Profile could offer "Remove your saved home area" while they're off.
+    or Profile could offer "Remove your saved home area" while they're off. If they're deleted on
+    switch-off: a casual's save that checked the switch just before it changed can still land after
+    the delete (the save reads the setting without a lock; the app role can't lock `firms`), so the
+    owner's script and `saveMyTravel` would take one advisory lock (exclusive / shared) around it
+    (13.4 guardrails review). Deploying 13.4 flips every firm but Acme to off with no data step: fine
+    before Gate B (no real firm), but a firm that had saved areas goes straight to "kept, unused".
 - Travel filter (12G.3 review): before TravelTime goes live (the "Connect" step), confirm that a
   start point it lists as unreachable means "over 90 minutes" (or no public transport in time), never
   "no timetable data": the filter treats it as out of reach, so a casual who only uses public

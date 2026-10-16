@@ -114,7 +114,9 @@ Replace the parts in [brackets]. Send both parts.
 > stopped, [12 months] after the request closed or the booking was made. Login links and codes, 7
 > days after they run out; login sessions, 30 days after they end. A photo or card picture we
 > turned down, or an old photo you've replaced, 30 days later. A strike, [12 months] after it was
-> given. Your travel area, until you remove it or we record that you've left. A phone's
+> given. Your travel area, until you remove it or we record that you've left [if the firm stops
+> using travel areas: say whether the areas already saved are deleted then, or kept unused until
+> you leave (PLAN.md Parking lot, "Travel areas")]. A phone's
 > notification address, until you turn notifications off on it, log out on it, or its push service
 > says it no longer works. If there's a dispute, we may keep
 > things longer, until it's settled. Your details, shifts, requests, pay records and the

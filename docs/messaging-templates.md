@@ -148,6 +148,9 @@ Automatic reply. Send OFFICE to reach a person.
   shifts; no booking by reply number: D6 deferred).
 - No home area: the travel lines are left out and "Add your home area to see how far each one is:
   {profile link}" goes before "Take one here".
+- A firm with travel areas off (`travel.enabled`, 13.4): no travel lines, no "Add your home area"
+  line, and no "within N minutes of your home area", whether or not a home area is saved (by
+  WhatsApp and by text).
 - Nothing they can take: "Hi Zoe, there's nothing you can take on Saturday within 45 minutes of
   your home area right now. We'll message you if something comes up. All open shifts: {link}"
   (the day and the area only when known; "We'll message you…" only when they get shift alerts).

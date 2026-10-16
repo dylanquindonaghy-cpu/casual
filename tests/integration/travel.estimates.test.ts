@@ -1055,4 +1055,25 @@ describe("travel areas switched off for the firm (13.4)", () => {
     expect(await t.fill({ shiftIds: [shiftId] }, look.provider)).toMatchObject({ searches: 2 });
     expect(await tick()).toBe(1);
   });
+
+  it("switched off during a run: no more searches from the next group on", async () => {
+    const t = await travelFirm();
+    const ann = await t.f.worker({ first: "Ann", roles: ["steward"] });
+    await t.area(ann, "ZZ2 2BB");
+    const first = await t.session(24);
+    const second = await t.session(48);
+    // The first search switches the firm's travel areas off (the owner, meanwhile).
+    const look = recording(async (s) => {
+      await su.query(
+        `update firms set settings = jsonb_set(settings, '{travel,enabled}', 'false') where id = $1`,
+        [t.f.firmId],
+      );
+      return fakeTravelProvider.search(s);
+    });
+    // The first group's two ways (both read before the switch), and nothing for the second.
+    expect(await t.fill({ shiftIds: [first, second] }, look.provider)).toMatchObject({
+      searches: 2,
+    });
+    expect(look.searches).toHaveLength(2);
+  });
 });

@@ -12678,3 +12678,85 @@ On the demo (`npm run dev`, then `http://acme.localhost:3000`), travel areas are
 see them off, as the owner: `npm run firm:settings -- --firm acme --set travel.enabled=false`; a
 casual's profile then has no "Where you work", and Open shifts no travel lines. Switch back with
 `--set travel.enabled=true`.
+
+## 2026-10-16 — Tidy-ups (13.5)
+
+**Time spent:** about 1.5 hours (15:44 to 16:01, then 18:38 to 19:52 UTC on 16 Oct; the container
+restarted in between and those 2.6 hours aren't counted).
+
+**Result:** `VERIFIED tree=366cd407441f52b5 e2e=true`: typecheck, lint, the production build,
+4,942 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor:
+`VERDICT: DONE` (first round), with Phase 13's whole "Done when" line checked.
+
+### What was built
+
+Eight small items, most from your decisions of 16 October.
+
+1. **The 24-hour reminder** says "Can't make it? Cancel with the link as early as you can." (There's
+   no app to download.)
+2. **Logging in on venue Wi-Fi.** Everyone on one Wi-Fi shares one internet address, and only 10
+   login links per address every 15 minutes were allowed. Now 60, enough for a briefing of about
+   50. The limits per phone number (3 every 15 minutes, 10 a day) are unchanged.
+3. **Cutting long text.** A WhatsApp, text or voicemail over 1,600 characters is cut. The old cut
+   counted the way JavaScript does, where an emoji is two "units", so it could cut one in half and
+   store "�". A new shared helper (`src/lib/text/cut.ts`) only cuts between whole characters as a
+   person sees them (a flag or an emoji with its skin tone stays whole). It's used at both
+   webhooks, the voicemail, the AI's input, and four other places that shorten text.
+4. **Open shifts' rules for the whole list at once:** already built in Phase 10 (one rules check
+   for the list, the same number of database queries for 5 shifts as for 40). Its test now runs
+   with travel areas on, so it counts those reads too.
+5. **"Take shift" limit:** 20 taps per casual every 15 minutes, booked or not. After that: "Too
+   many tries. Try again in {n} minutes." It's logged once. This stops one phone hammering the
+   rules and the action log.
+6. **Licence expiry messages** now go by the channel the casual chose (WhatsApp or text), through
+   the same sender as everything else. If WhatsApp refuses, a text goes instead. A casual who
+   replied STOP gets WhatsApp only. Before, these went by WhatsApp whatever they chose.
+7. **The flaky sheets test** was already fixed on 6 October. There was no test that would notice
+   if that fix were undone, so I added one.
+8. **A leaner server image.** The image the server runs no longer carries the development tools
+   (the linter, the test runners, TypeScript's compiler): 2.22 GB down to 1.73 GB on a local build.
+   `tsx` (which runs the worker and the database migrations) is now a normal dependency. The build
+   itself fails if `tsx` can't compile a file, or a test tool is left in.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| 60 login links per address | Covers a briefing of about 50; the per-number limits stop flooding one phone | A per-firm setting (parked as an option) |
+| 20 taps per casual on "Take shift", counting every tap | Plenty for real use; simple to explain | Counting only refused taps |
+| Cut by whole visible characters | No "�", and a flag never loses half | Cutting by code point only |
+| Event names left cut by code point | They must match the same name built in the database | Changing both sides (parked) |
+| `@playwright/test` left in the image | npm keeps it as Next's optional peer; nothing loads it | Deleting it by hand after the prune |
+
+### What the new tests prove
+
+- Each change has its own test, and 18 deliberate breaks of the new code were each caught.
+- The emoji tests send an emoji or a flag across the 1,600th character through the real webhook
+  handlers and check what's stored.
+- The "Take shift" test taps 20 times as a casual the rules turn down, then checks the 21st waits
+  15 minutes, the log has one limit entry, and another casual isn't affected.
+- The expiry test has three casuals: one who chose texts, one who replied STOP, and one whose
+  WhatsApp is refused. Each gets the right message by the right channel, logged by it.
+- The image test checks nothing the server runs imports a development tool.
+
+### Checked by hand
+
+- I built the lean image locally and ran it: the web app answered (200 on `/`, `/sw.js` and the
+  app manifest), and the worker's and migrate's code loaded. CI builds the image on every push.
+
+### What's parked or needs Dylan
+
+- Small items from the review (PLAN.md Parking lot, "13.5 guardrails review"): the office log's
+  "Logins" filter also holds the casuals' own limits; a backstop alert for the higher login limit;
+  three tiny text-cut leftovers.
+
+### How to see it working
+
+`npm test -- tests/unit/text.cut.test.ts` runs the cut's own tests. On the demo, tap "Take shift" on
+a shift you can't take 21 times within 15 minutes to see the wait message.
+
+### Phase 13 is finished
+
+All five tasks are ticked, each with a verified stamp that includes the browser tests, and the
+auditor checked the phase's "Done when" line. Phase 13 took about 7.6 hours over 16 October
+(1.8, 1.1, 1.8, 1.4 and 1.5).

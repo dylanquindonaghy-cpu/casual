@@ -331,13 +331,13 @@ export function officeReplyMessage(
 }
 
 // pay_query_update (WhatsApp or SMS, utility): payroll has sorted a worker's pay query
-// (src/lib/notices/pay-query-update.ts). {status} is "sorted"; {note} is payroll's note on one line
-// (always written by a person: pay disputes never get an AI answer, golden rule 9).
+// (src/lib/notices/pay-query-update.ts). Payroll's answer itself stays behind the pay code: the
+// message only says there is one and links to the pay page (13.4; Messages 17).
 export function payQueryUpdateMessage(
   firm: FirmVoice,
-  query: { ref: string; status: string; note: string },
+  query: { ref: string; link: string },
 ): string {
-  return `Update on your pay query (ref ${query.ref}): ${query.status}. ${query.note} — ${firm.signOff}`;
+  return `Payroll has answered your pay query (ref ${query.ref}). See their answer on your pay page: ${query.link} — ${firm.signOff}`;
 }
 
 // Instant replies on the shifts line (docs/messaging-templates.md "Instant replies on the shifts

@@ -414,7 +414,9 @@ export function checkWords(
 export function travelCheckWords(
   area: { maxMinutes: number } | null,
   minutes: { car: number | null; publicTransport: number | null },
+  travelOff = false,
 ): string {
+  if (travelOff) return "Travel areas are off for this firm: not filtered by distance ✓";
   if (!area) return "No travel area set: not filtered by distance ✓";
   const parts = [
     ...(minutes.car !== null ? [`${minutes.car} min by car`] : []),

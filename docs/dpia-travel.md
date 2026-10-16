@@ -12,6 +12,12 @@ Part 1 is about how ShiftDesk builds the travel area, and is the same for every 
 template each firm fills in for itself, because the firm is the controller of its casuals' data and
 ShiftDesk is its processor.
 
+**Each firm switches the travel area on for itself (13.4).** It's off for a new firm
+(`travel.enabled`, set by the owner with `npm run firm:settings travel.enabled true` once that
+firm's Part 2 is signed). Off, its casuals aren't asked for a postcode, see no "Where you work",
+no travel lines and no prompt to add a home area, and nothing is filtered, ordered or worked out
+by distance (no TravelTime search for that firm). The made-up demo firm (Acme) has it on.
+
 No real firm uses ShiftDesk yet (the pilot hasn't started), so the only data is made up (`ZZ`
 postcodes, golden rule 7). Today the server runs with `TRAVEL_PROVIDER=fake`, which knows only the
 made-up postcodes and sends nothing anywhere. **Before the travel area is used for a real firm:**
@@ -154,8 +160,11 @@ Fill this in before your casuals' travel areas are used. Keep it with your own r
 1. **Your firm:** name, who is responsible for data protection.
 2. **Your casuals:** roughly how many; whether they're employees, workers or agency workers (ask
    your adviser: it changes which rules apply).
-3. **Your setting:** the default time limit (`travel.default_max_minutes`, 45 minutes unless you
-   choose 30, 60 or 90). If you change it, say why.
+3. **Your settings:** travel areas on (`travel.enabled`: off until this Part is signed), and the
+   default time limit (`travel.default_max_minutes`, 45 minutes unless you choose 30, 60 or 90).
+   If you change the limit, say why. If you later switch travel areas off, the home areas already
+   saved are kept but not used, and casuals no longer see them to remove them: decide whether to
+   delete them (`PLAN.md` Parking lot, "Travel areas").
 4. **Your lawful basis:** legitimate interests. Record your own balancing test, using Part 1's as
    a start: your interest (offering shifts casuals can reach), why the postcode is needed for it,
    and why it doesn't override your casuals' interests (optional, removable, district only, never

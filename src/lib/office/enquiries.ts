@@ -360,6 +360,7 @@ export interface BuiltReply {
   template: string;
   sent: boolean | null;
   area: { maxMinutes: number } | null;
+  travelOff: boolean; // the firm had travel areas off when the reply was built (13.4)
   offered: {
     shiftId: string;
     session: SessionName | null; // null: deleted since
@@ -834,6 +835,7 @@ async function builtReply(tx: FirmTx, entry: EventRow | undefined): Promise<Buil
     template: str(d.template) ?? "",
     sent: typeof d.sent === "boolean" ? d.sent : null,
     area: num(area.maxMinutes) !== null ? { maxMinutes: num(area.maxMinutes) ?? 0 } : null,
+    travelOff: d.travelOff === true,
     offered: offered.map((o) => ({ ...o, session: sessions.get(o.shiftId) ?? null })),
     more: num(d.more) ?? 0,
     notOffered: notOffered.map((n) => ({ ...n, session: sessions.get(n.shiftId) ?? null })),

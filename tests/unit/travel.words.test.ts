@@ -154,12 +154,14 @@ describe("the log", () => {
 
 describe("the firm's default time limit (travel.default_max_minutes)", () => {
   it("30, 45, 60 or 90; 45 otherwise; set by the owner", () => {
-    expect(travelSettings({})).toEqual({ defaultMaxMinutes: 45 });
+    expect(travelSettings({})).toEqual({ enabled: false, defaultMaxMinutes: 45 });
     expect(travelSettings({ travel: { default_max_minutes: 60 } })).toEqual({
+      enabled: false,
       defaultMaxMinutes: 60,
     });
     for (const odd of [50, "60", null, 0]) {
       expect(travelSettings({ travel: { default_max_minutes: odd } })).toEqual({
+        enabled: false,
         defaultMaxMinutes: 45,
       });
     }
@@ -173,5 +175,34 @@ describe("the firm's default time limit (travel.default_max_minutes)", () => {
       value: 45,
       source: "default",
     });
+  });
+});
+
+describe("travel areas on or off per firm (travel.enabled, 13.4)", () => {
+  it("off unless set to exactly true; set by the owner as true or false", () => {
+    expect(travelSettings({}).enabled).toBe(false);
+    expect(travelSettings({ travel: {} }).enabled).toBe(false);
+    expect(travelSettings({ travel: { enabled: true } }).enabled).toBe(true);
+    for (const odd of ["true", 1, "yes", null, false]) {
+      expect(travelSettings({ travel: { enabled: odd } }).enabled).toBe(false);
+    }
+    // Beside the default limit, which stays as it is.
+    expect(applySetting({ travel: { default_max_minutes: 60 } }, "travel.enabled", "true")).toEqual(
+      { travel: { default_max_minutes: 60, enabled: true } },
+    );
+    expect(applySetting({ travel: { enabled: true } }, "travel.enabled", "false")).toEqual({
+      travel: { enabled: false },
+    });
+    for (const odd of ["yes", "on", "1", ""]) {
+      expect(applySetting({}, "travel.enabled", odd)).toBeNull();
+    }
+    expect(effectiveSettings({}).find((s) => s.key === "travel.enabled")).toEqual({
+      key: "travel.enabled",
+      value: false,
+      source: "default",
+    });
+    expect(
+      effectiveSettings({ travel: { enabled: true } }).find((s) => s.key === "travel.enabled"),
+    ).toEqual({ key: "travel.enabled", value: true, source: "set" });
   });
 });

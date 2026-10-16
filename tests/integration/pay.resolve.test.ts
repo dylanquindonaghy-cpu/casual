@@ -129,9 +129,11 @@ async function sortFirm() {
         [PAY_QUERY_UPDATE_QUEUE, f.firmId],
       )
     ).rows.map((r) => r.data);
-  const firmName = (
-    await su.query<{ name: string }>("select name from firms where id = $1", [f.firmId])
-  ).rows[0]?.name;
+  const { name: firmName, slug } = (
+    await su.query<{ name: string; slug: string }>("select name, slug from firms where id = $1", [
+      f.firmId,
+    ])
+  ).rows[0] ?? { name: "", slug: "" };
   return {
     f,
     ann,
@@ -147,6 +149,7 @@ async function sortFirm() {
     eventsOf,
     jobs,
     firmName,
+    slug,
   };
 }
 
@@ -291,6 +294,7 @@ describe("telling the worker (the pay-query-update job)", () => {
         },
       },
       clock: { now: () => when },
+      baseDomain: "localhost:3000",
     });
     const run = (data: Record<string, unknown>, when = NOW) =>
       runFirmTask(
@@ -303,7 +307,7 @@ describe("telling the worker (the pay-query-update job)", () => {
   const bodies = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
   const ref = (id: string) => id.slice(0, 8).toUpperCase();
 
-  it("payroll's note in the doc's words, on one line; once only; a push to the pay page; logged", async () => {
+  it("the doc's words: payroll has answered, with the pay page's link, never the note (13.4); once only; a push to the pay page; logged", async () => {
     const t = await sortFirm();
     await su.query(
       `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
@@ -317,8 +321,12 @@ describe("telling the worker (the pay-query-update job)", () => {
       output: { status: "sent", channel: "whatsapp" },
     });
     expect(bodies(n.sent)).toEqual([
-      `Update on your pay query (ref ${ref(t.qa)}): sorted. ${NOTE_ONE_LINE} — ${t.firmName} Shift Team`,
+      `Payroll has answered your pay query (ref ${ref(t.qa)}). See their answer on your pay page: http://${t.slug}.localhost:3000/pay — ${t.firmName} Shift Team`,
     ]);
+    // Payroll's note stays behind the pay code: no part of it is in the message.
+    for (const part of [NOTE_ONE_LINE, "new rate", "difference", "13 Nov"]) {
+      expect(bodies(n.sent).join(" ")).not.toContain(part);
+    }
     // Nothing about the pay on a lock screen.
     expect(n.pushed).toEqual([
       {

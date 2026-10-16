@@ -125,6 +125,7 @@ const list = (o: Partial<OpenShiftsList> = {}): OpenShiftsList => ({
   shifts: [shift()],
   truncated: false,
   offerAlerts: true,
+  travelOn: true,
   area: { maxMinutes: 45 },
   further: { count: 0, atLeast: false },
   choices: { days: [], sites: [], roles: [] },
@@ -215,6 +216,29 @@ describe("Booked (My shifts' upcoming)", () => {
     );
     expect(words).toContain(
       "Door supervisor at Demo Arena about 7 miles (straight line) · Travel time not known yet",
+    );
+  });
+});
+
+describe("travel areas switched off for the firm (13.4)", () => {
+  it("Open shifts and the urgent board: no prompt for an area, no travel lines, no 'further' line", () => {
+    const off = (o: Partial<OpenShift> = {}) =>
+      list({
+        travelOn: false,
+        area: null,
+        shifts: [shift({ ...o, travel: undefined })],
+      });
+    for (const html of [open(off()), urgent(off({ isUrgent: true }))]) {
+      const words = text(html);
+      expect(words).not.toContain(AREA_PROMPT);
+      expect(html).not.toContain(`href="${TRAVEL_PATH}"`);
+      expect(html).not.toContain("data-travel-line");
+      expect(words).not.toMatch(/miles|min by car|Distance not known/);
+      expect(words).toContain("1 place left Take shift");
+    }
+    // Even with a "further" count somehow set, nothing about distance.
+    expect(text(open({ ...off(), further: { count: 2, atLeast: false } }))).not.toContain(
+      "further than you travel",
     );
   });
 });

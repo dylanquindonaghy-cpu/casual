@@ -46,7 +46,9 @@ export function HelpView({
   year,
 }: {
   firmName: string;
-  facts: HelpFacts; // the firm's own strike and photo numbers (src/lib/portal/help-facts.ts)
+  // The firm's own strike and photo numbers, and whether it has travel areas on
+  // (src/lib/portal/help-facts.ts).
+  facts: HelpFacts;
   year: number; // for the postcode data's attribution
 }) {
   return (
@@ -60,7 +62,7 @@ export function HelpView({
           On this page
         </h2>
         <ul role="list" className={`${rows} mt-2`}>
-          {SECTIONS.map((s) => (
+          {SECTIONS.filter((s) => s.id !== "travel-area" || facts.travelOn).map((s) => (
             <li key={s.id}>
               <a
                 href={`#${s.id}`}
@@ -287,31 +289,33 @@ export function HelpView({
         </Points>
       </Section>
 
-      <Section id="travel-area">
-        <p className="mt-3">
-          Tell us where you start from and how far you&apos;ll travel. Then you only see shifts you
-          can get to in time.
-        </p>
-        <Steps>
-          <Step>
-            Tap the <Name>Profile</Name> tab, then <Name>Set your travel area</Name> under{" "}
-            <Name>Where you work</Name>.
-          </Step>
-          <Step>Enter the postcode you start from. It can be different from your home.</Step>
-          <Step>
-            Choose car, public transport or both, and how many minutes you&apos;ll travel. Then tap{" "}
-            <Name>Save travel area</Name>.
-          </Step>
-        </Steps>
-        <Points>
-          <li>Each shift shows how far it is, and the time by car and by public transport.</li>
-          <li>A link to a shift still opens, however far it is.</li>
-          <li>
-            The office only sees the first part of your postcode, like ZZ1. Your full postcode stays
-            with you.
-          </li>
-        </Points>
-      </Section>
+      {facts.travelOn && (
+        <Section id="travel-area">
+          <p className="mt-3">
+            Tell us where you start from and how far you&apos;ll travel. Then you only see shifts
+            you can get to in time.
+          </p>
+          <Steps>
+            <Step>
+              Tap the <Name>Profile</Name> tab, then <Name>Set your travel area</Name> under{" "}
+              <Name>Where you work</Name>.
+            </Step>
+            <Step>Enter the postcode you start from. It can be different from your home.</Step>
+            <Step>
+              Choose car, public transport or both, and how many minutes you&apos;ll travel. Then
+              tap <Name>Save travel area</Name>.
+            </Step>
+          </Steps>
+          <Points>
+            <li>Each shift shows how far it is, and the time by car and by public transport.</li>
+            <li>A link to a shift still opens, however far it is.</li>
+            <li>
+              The office only sees the first part of your postcode, like ZZ1. Your full postcode
+              stays with you.
+            </li>
+          </Points>
+        </Section>
+      )}
 
       <Section id="qualifications-and-photos">
         <p className="mt-3">

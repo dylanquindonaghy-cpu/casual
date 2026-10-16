@@ -8,6 +8,7 @@ import { strikeSettings } from "../strikes/settings";
 import { localDateOf } from "../time/zoned";
 import type { TravelFacts } from "../travel/line-copy";
 import { travelFor } from "../travel/lines";
+import { travelSettings } from "../travel/settings";
 
 // A shift's page in full (docs/office-v2.md 4.4; 12H.2), for the casual it's shown to: the session's
 // own facts, how she'd get there, what it needs with her status for each (read as Profile reads
@@ -31,7 +32,7 @@ export interface ShiftFacts {
   uniform: string | null;
   isUrgent: boolean;
   headcount: number;
-  travel: TravelFacts;
+  travel?: TravelFacts; // none where the firm has travel areas off (13.4)
   requirements: ShiftRequirement[];
   noticeHours: number; // strikes.notice_hours
   lastDay: string; // yyyy-mm-dd, the firm's calendar: the last day the shift touches
@@ -90,9 +91,9 @@ export async function shiftFacts(
         )
         .where(and(eq(credentials.workerId, o.workerId), inArray(credentials.type, codes)))
     : [];
-  const travel = (await travelFor(tx, o.workerId, [o.shiftId])).get(o.shiftId) ?? {
-    kind: "unknown",
-  };
+  const travel: TravelFacts | undefined = travelSettings(firm?.settings ?? {}).enabled
+    ? ((await travelFor(tx, o.workerId, [o.shiftId])).get(o.shiftId) ?? { kind: "unknown" })
+    : undefined;
   return {
     eventName: session.eventName,
     payRatePence: session.payRatePence,
@@ -101,7 +102,7 @@ export async function shiftFacts(
     uniform: session.uniform,
     isUrgent: session.isUrgent,
     headcount: session.headcount,
-    travel,
+    ...(travel ? { travel } : {}),
     requirements: needed.map((r) => {
       const { status, expiresOn, waiting } = qualificationStatus(
         records

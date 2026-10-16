@@ -13,6 +13,7 @@ import {
 import type { FirmTx } from "../db/scoped";
 import type { StaffPhoto } from "../uploads/photo";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
+import { travelSettings } from "../travel/settings";
 
 // The Casuals list (docs/office-v2.md 3.7; docs/screens.md `/office/casuals`; 12F.1), for admins and
 // resourcers (checked here as well as on the page). Every casual the firm holds (not erased), by
@@ -60,6 +61,8 @@ export interface CasualsList {
   rows: CasualRow[]; // All and Need updating
   uploads: WaitingUpload[]; // Uploads to check
   more: boolean; // more than CASUALS_PAGE_MAX in the view
+  // The firm has travel areas on (13.4): only then is the travel area column shown (and read).
+  travelOn: boolean;
 }
 
 // Every upload waiting for the office, oldest first (casuals not erased: theirs are deleted).
@@ -119,9 +122,10 @@ export async function casualsList(
   return run(ctx.firm.id, async (tx) => {
     if (!(await officeUserMay(tx, ctx.officeUserId, "casuals"))) return null;
     const [firm] = await tx
-      .select({ timezone: firms.timezone })
+      .select({ timezone: firms.timezone, settings: firms.settings })
       .from(firms)
       .where(eq(firms.id, ctx.firm.id));
+    const travelOn = travelSettings(firm?.settings ?? {}).enabled;
     const people = await tx
       .select({
         id: workers.id,
@@ -139,16 +143,18 @@ export async function casualsList(
       timeZone: firm?.timezone ?? "Europe/London",
       people,
     });
-    const { rows: travel } = await tx.execute<{
-      worker_id: string;
-      district: string;
-      max_minutes: number;
-      modes: TravelMode;
-    }>(sql`
-      select t.worker_id::text, split_part(t.start_postcode, ' ', 1) as district, t.max_minutes,
-             t.modes
-        from worker_travel t
-    `);
+    const { rows: travel } = travelOn
+      ? await tx.execute<{
+          worker_id: string;
+          district: string;
+          max_minutes: number;
+          modes: TravelMode;
+        }>(sql`
+          select t.worker_id::text, split_part(t.start_postcode, ' ', 1) as district,
+                 t.max_minutes, t.modes
+            from worker_travel t
+        `)
+      : { rows: [] };
     const travelOf = new Map(travel.map((t) => [t.worker_id, t]));
     const { rows: strikes } = await tx.execute<{ worker_id: string; live: number }>(sql`
       select st.worker_id::text, count(*)::int as live
@@ -191,6 +197,7 @@ export async function casualsList(
         rows: [],
         uploads: await waitingUploads(tx, CASUALS_PAGE_MAX),
         more: waiting > CASUALS_PAGE_MAX,
+        travelOn,
       };
     }
     const shown = view === "needs" ? needing : all;
@@ -200,6 +207,7 @@ export async function casualsList(
       rows: shown.slice(0, CASUALS_PAGE_MAX),
       uploads: [],
       more: shown.length > CASUALS_PAGE_MAX,
+      travelOn,
     };
   });
 }

@@ -47,8 +47,9 @@ async function freshLine(): Promise<string> {
   return line;
 }
 
+// Travel areas on (13.4: a firm's are off until its owner switches them on).
 async function enquiryFirm() {
-  const f = await bookingFirm(su, withFirm);
+  const f = await bookingFirm(su, withFirm, { settings: { travel: { enabled: true } } });
   const line = await freshLine();
   await su.query("update firms set shifts_line_e164 = $2 where id = $1", [f.firmId, line]);
   const zoe = await f.worker({ first: "Zoe" });

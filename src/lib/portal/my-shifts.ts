@@ -7,6 +7,7 @@ import { withFirm, type WithFirm } from "../db/scoped";
 import type { TravelFacts } from "../travel/line-copy";
 import { casualEventName } from "../roster/shift-events";
 import { travelFor } from "../travel/lines";
+import { travelOn } from "../travel/on";
 import type { StaffPhoto } from "../uploads/photo";
 
 // What the staff portal's My shifts page shows (docs/screens.md, `/`), for the logged-in worker
@@ -114,8 +115,9 @@ export async function myShifts(
         view === "upcoming" ? asc(shifts.startsAt) : desc(shifts.startsAt),
         asc(assignments.id),
       );
+    // Travel lines for upcoming shifts, where the firm has travel areas on (13.4).
     const travel =
-      view === "upcoming"
+      view === "upcoming" && (await travelOn(tx))
         ? await travelFor(
             tx,
             workerId,

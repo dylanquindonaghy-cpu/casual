@@ -9,6 +9,7 @@ import {
   enquiriesEmptyText,
   showLastDaysText,
   thenStep,
+  travelCheckWords,
 } from "@/lib/office/enquiries-copy";
 import {
   CLOSE_REASONS,
@@ -319,5 +320,22 @@ describe("words", () => {
     expect(statusWord("general", "declined")).toBe("Declined");
     expect(statusWord("swap", "approved")).toBe("Approved");
     expect(statusWord("time_change", "open")).toBe("Waiting for the office");
+  });
+});
+
+describe("the travel check on an enquiry's reply", () => {
+  const none = { car: null, publicTransport: null };
+  it("inside the area, not known yet, no area set; and travel areas off for the firm (13.4)", () => {
+    expect(travelCheckWords({ maxMinutes: 45 }, { car: 20, publicTransport: null })).toBe(
+      "Inside travel area (20 min by car, limit 45 min) ✓",
+    );
+    expect(travelCheckWords({ maxMinutes: 45 }, none)).toBe(
+      "Travel time not known yet: still offered (limit 45 min) ✓",
+    );
+    expect(travelCheckWords(null, none)).toBe("No travel area set: not filtered by distance ✓");
+    // Off: never "no travel area set", which would read as the casual's own choice.
+    expect(travelCheckWords(null, none, true)).toBe(
+      "Travel areas are off for this firm: not filtered by distance ✓",
+    );
   });
 });

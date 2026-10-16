@@ -372,9 +372,10 @@ stays out of the rules engine. Personal enquiry replies (12D.2) must use the sam
    setting, default 09:00 Monday to Friday): the new queries, grouped, emailed to payroll with the
    list attached (names and workers' words only in the attachment), marked `in_digest`. Payroll can
    also send it at once from its page.
-4. Payroll marks a group sorted with a note (built: `src/lib/pay/resolve.ts`); each worker gets it
-   by message (`pay_query_update`, quiet hours respected) and sees "Sorted on {day}" with the note on
-   their pay page. The note is always a person's words: no AI answers a pay dispute. A test
+4. Payroll marks a group sorted with a note (built: `src/lib/pay/resolve.ts`); each worker gets a
+   message that payroll has answered, with the pay page's link (`pay_query_update`, quiet hours
+   respected), and sees "Sorted on {day}" with the note on their pay page, behind the pay code (the
+   note is never in the message: 13.4). The note is always a person's words: no AI answers a pay dispute. A test
    (`tests/unit/ai.boundary.test.ts`) keeps AI code out of the code that builds what workers see or
    receive and out of payroll's sorting path, and pins which files may use the AI modules.
 

@@ -2627,10 +2627,11 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
     `resolveFirmBySlug()`; `resolveFirmByLine()` is now the second look-up allowed before a firm is
     known (ADR-018). Dylan may want to add it to that line.
 - Pay query status follow-ups (Phase 6 "Worker sees status updates" task):
-  - **Dylan to confirm:** payroll's note goes in the WhatsApp/text message itself, as the doc's
-    `pay_query_update` template says (the pay page is behind a code, but the message isn't). The
-    push says nothing about pay. If the note should stay behind the code, the message becomes
-    "Payroll has answered your pay query. See it on your pay page." (a template change for Meta).
+  - ~~**Dylan to confirm:** payroll's note in the message itself?~~ **Done in 13.4** (Dylan,
+    2026-10-16: the note stays behind the pay code): `pay_query_update` is now "Payroll has
+    answered your pay query (ref {ref}). See their answer on your pay page: {link} — {firm} Shift
+    Team" (variables ref, link, signOff: submit this wording to Meta), and payroll's own words say
+    the note is on the pay page.
   - Sorting one query on its own when a group holds a few different cases (today payroll sorts the
     whole group it sees, with one note).
   - A sorted query leaves payroll's page: a "Sorted recently" list (with who sorted it and the note)
@@ -2968,12 +2969,19 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   (`casualMoved()`), but nothing yet stops one casual changing theirs all day.
   If a worker job ever looks postcodes up (12G.2's job doesn't: it uses the saved points), build
   its geocoder from `workerEnv()`, not `appEnv()` (`src/lib/travel/server.ts`).
-- Travel areas (12G.1 review): **Decided** (Dylan, 2026-10-16: yes, built in 13.4) whether a firm switches the travel area on
+- Travel areas (12G.1 review): **Done in 13.4** (Dylan, 2026-10-16: yes) whether a firm switches the travel area on
   for itself (a per-firm `travel.enabled`, off by default, hiding "Where you work"), since the DPIA's
   Part 2 is per firm and `TRAVEL_PROVIDER` is per server. Today it shows for every firm (with the
   fake look-up, a real postcode is refused with "postcode look-ups aren't switched on"). Since
   12G.3, Open shifts and the urgent board also ask every casual with no area to "Add your home
   area": the same switch should hide that prompt where travel areas are off.
+  - **Needs Dylan (13.4):** a firm that switches travel areas off keeps the home areas already
+    saved (kept but not used: no filter, no search, not shown to the office). Should switching off
+    delete them (data minimisation), or keep them so switching back on needs nothing from casuals?
+    With "Where you work" hidden a casual has no button to remove theirs (the remove action itself
+    still works), and the office can't remove one either (only "They've left" does). Today: kept.
+    The owner's `firm:settings travel.enabled false` could delete them, or print how many are kept;
+    or Profile could offer "Remove your saved home area" while they're off.
 - Travel filter (12G.3 review): before TravelTime goes live (the "Connect" step), confirm that a
   start point it lists as unreachable means "over 90 minutes" (or no public transport in time), never
   "no timetable data": the filter treats it as out of reach, so a casual who only uses public

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { FirmTx } from "../db/scoped";
 import { outsideArea } from "../travel/area";
+import { travelSettings } from "../travel/settings";
 import { weeklyHours } from "../roster/allocation-input";
 import { previewBookings } from "../roster/book";
 import { pairKey } from "../roster/eligibility-input";
@@ -60,10 +61,11 @@ export async function waveCandidates(
     starts_at: string | Date;
     is_urgent: boolean;
     time_zone: string;
+    settings: Record<string, unknown>;
     showing: boolean;
     site_id: string | null;
   }>(sql`
-    select s.role, s.starts_at, s.is_urgent, f.timezone as time_zone,
+    select s.role, s.starts_at, s.is_urgent, f.timezone as time_zone, f.settings,
            s.showing_to_casuals and e.showing_to_casuals as showing, s.site_id::text
       from shifts s join firms f on f.id = s.firm_id
       join shift_events e on e.firm_id = s.firm_id and e.id = s.event_id
@@ -79,9 +81,10 @@ export async function waveCandidates(
     timeZone: row.time_zone,
     siteId: row.site_id,
   };
-  // Outside the casual's travel area: no offer from a wave (a shift with no site has no distance).
+  // Outside the casual's travel area: no offer from a wave (a shift with no site has no distance;
+  // a firm with travel areas off, 13.4, filters nothing by distance).
   const inArea =
-    opts.byHand || shift.siteId === null
+    opts.byHand || shift.siteId === null || !travelSettings(row.settings ?? {}).enabled
       ? sql``
       : sql`and not ${outsideArea({
           firmId: sql`w.firm_id`,

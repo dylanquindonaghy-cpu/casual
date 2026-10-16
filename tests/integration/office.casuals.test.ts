@@ -27,8 +27,9 @@ afterAll(async () => {
 
 const clock = { now: () => NOW };
 
+// Travel areas on (13.4: a firm's are off until its owner switches them on).
 async function casualsFirm() {
-  const f = await bookingFirm(su, withFirm);
+  const f = await bookingFirm(su, withFirm, { settings: { travel: { enabled: true } } });
   const resourcer = await f.office("resourcer");
   const ctx = (officeUserId = resourcer) => ({
     firm: { id: f.firmId },

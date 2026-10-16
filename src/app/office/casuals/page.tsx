@@ -175,8 +175,11 @@ export default async function OfficeCasualsPage({
     <main className={page.office}>
       <PageHeader eyebrow={<>{firm.name} office</>} title="Casuals">
         <p>
-          Their qualifications, travel areas and strikes. Open someone to see more, or to change
-          their access when they leave, come back or lose their phone.
+          {list.travelOn
+            ? "Their qualifications, travel areas and strikes."
+            : "Their qualifications and strikes."}{" "}
+          Open someone to see more, or to change their access when they leave, come back or lose
+          their phone.
         </p>
       </PageHeader>
 
@@ -233,7 +236,7 @@ export default async function OfficeCasualsPage({
                     <th className={table.th}>Casual</th>
                     <th className={table.th}>Qualifications</th>
                     <th className={table.th}>Staff photo</th>
-                    <th className={table.th}>Travel area</th>
+                    {list.travelOn && <th className={table.th}>Travel area</th>}
                     <th className={`${table.th} ${table.num}`}>Live strikes</th>
                     <th className={table.th}>Needs updating</th>
                   </tr>
@@ -261,7 +264,9 @@ export default async function OfficeCasualsPage({
                       <td className={`${table.td} min-w-40`}>
                         <PhotoCell row={r} year={year} />
                       </td>
-                      <td className={`${table.td} ${nums}`}>{officeTravelText(r.travel)}</td>
+                      {list.travelOn && (
+                        <td className={`${table.td} ${nums}`}>{officeTravelText(r.travel)}</td>
+                      )}
                       <td className={`${table.td} ${table.num}`}>{strikesText(r.liveStrikes)}</td>
                       <td className={table.td}>{needsSummary(r.needs)}</td>
                     </tr>
@@ -292,8 +297,12 @@ export default async function OfficeCasualsPage({
                     <dd>
                       <PhotoCell row={r} year={year} />
                     </dd>
-                    <dt className="font-semibold">Travel area</dt>
-                    <dd className={nums}>{officeTravelText(r.travel)}</dd>
+                    {list.travelOn && (
+                      <>
+                        <dt className="font-semibold">Travel area</dt>
+                        <dd className={nums}>{officeTravelText(r.travel)}</dd>
+                      </>
+                    )}
                     <dt className="font-semibold">Live strikes</dt>
                     <dd className={nums}>{strikesText(r.liveStrikes)}</dd>
                     <dt className="font-semibold">Needs updating</dt>

@@ -112,10 +112,12 @@ describe("shiftForWorker", () => {
       uniform: "Black trousers",
       isUrgent: true,
       headcount: 4,
-      travel: { kind: "unknown" }, // no travel area
       noticeHours: 24,
       lastDay: "2026-11-04",
     });
+    // No travel facts: this firm has travel areas off, as every firm does until its owner switches
+    // them on (13.4; on, she'd have "Distance not known yet": tests/integration/travel.filter.test.ts).
+    expect("travel" in shown.facts).toBe(false);
     // The role's first (door supervisor: SIA), then the session's extras, each once, right to work
     // included (the rules engine checks it). "upload it" only where her roles need the type (the
     // upload page takes only those) and the office doesn't record it.

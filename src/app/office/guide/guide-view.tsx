@@ -831,8 +831,9 @@ function Pay() {
           </Step>
         </Steps>
         <Note>
-          Everyone in the group gets the same note, by message and on their pay page. So don&apos;t
-          name anyone, give one person&apos;s figures or include bank details.
+          Everyone in the group gets the same note on their pay page. Their message only says
+          payroll has answered. So don&apos;t name anyone, give one person&apos;s figures or include
+          bank details.
         </Note>
       </Task>
       <Task title="The payroll digest">

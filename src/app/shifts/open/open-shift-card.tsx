@@ -49,9 +49,11 @@ export function OpenShiftCard({
       <p className={`mt-2 ${muted}`}>
         {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
       </p>
-      <p className={`mt-1 ${muted}`} data-travel-line="">
-        {travelLineText(s.travel, timeZone)}
-      </p>
+      {s.travel && (
+        <p className={`mt-1 ${muted}`} data-travel-line="">
+          {travelLineText(s.travel, timeZone)}
+        </p>
+      )}
       {s.opensAt ? (
         <div className="mt-4 rounded-xl bg-quiet-soft p-3">
           <p>

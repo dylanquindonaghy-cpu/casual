@@ -18,7 +18,7 @@ import {
 import { getPushTransport } from "../push/transport";
 import { mayMessageNow, quietHours } from "../rules/quiet-hours";
 import { signOffFor } from "../tenancy/sign-off";
-import { oneLineNote } from "./request-update";
+import { portalUrl } from "../tenancy/portal-url";
 
 // Telling a worker payroll has sorted their pay query (docs/messaging-templates.md
 // `pay_query_update`; docs/api-and-jobs.md): one pay-query-update job per query, queued in the
@@ -33,9 +33,10 @@ import { oneLineNote } from "./request-update";
 // Quiet hours: a pay answer is never urgent, so it waits for them to end (logged
 // pay_query.update_held and queued again, never dropped).
 //
-// The message is the doc's template with payroll's note on one line: a person's words, never an
-// AI's (golden rule 9; tests/unit/ai.boundary.test.ts keeps AI code out of this path). The note
-// never goes in an event, and the push says nothing about the pay itself.
+// The message is the doc's template: payroll has answered, see it on the pay page (its link). The
+// note itself stays behind the pay code (13.4; Messages 17): it's never in the message, the push or
+// an event. It's a person's words, never an AI's (golden rule 9; tests/unit/ai.boundary.test.ts
+// keeps AI code out of this path).
 
 export const PAY_QUERY_UPDATE_QUEUE = "pay-query-update";
 
@@ -56,6 +57,7 @@ export async function queuePayQueryUpdate(tx: FirmTx, q: { payQueryId: string })
 
 export interface PayQueryUpdateDeps extends NotifyDeps {
   clock: Clock;
+  baseDomain: string; // for the pay page's link (APP_BASE_DOMAIN)
 }
 
 export type PayQueryUpdateResult =
@@ -77,7 +79,12 @@ type Claim =
     }
   | Exclude<PayQueryUpdateResult, { status: "sent" } | { status: "failed" }>;
 
-async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Promise<Claim> {
+async function claim(
+  tx: FirmTx,
+  payload: PayQueryUpdatePayload,
+  now: Date,
+  baseDomain: string,
+): Promise<Claim> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtextextended('pay-query-update:' || app_current_firm_id()::text || ':' || ${payload.payQueryId}, 0))`,
   );
@@ -96,6 +103,7 @@ async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Pro
       channel: workers.notifyChannel,
       smsOptedOutAt: workers.smsOptedOutAt,
       firmName: firms.name,
+      slug: firms.slug,
       line: firms.shiftsLineE164,
       timezone: firms.timezone,
       settings: firms.settings,
@@ -144,8 +152,7 @@ async function claim(tx: FirmTx, payload: PayQueryUpdatePayload, now: Date): Pro
   const voice = { name: row.firmName, signOff: signOffFor(row.firmName, row.settings.sign_off) };
   const body = payQueryUpdateMessage(voice, {
     ref: payload.payQueryId.slice(0, 8).toUpperCase(),
-    status: "sorted",
-    note: oneLineNote(row.note),
+    link: `${portalUrl(row.slug, baseDomain)}/pay`,
   });
   await recordEvent(tx, {
     actorType: "system",
@@ -171,7 +178,7 @@ export async function runPayQueryUpdate(
   deps: PayQueryUpdateDeps,
 ): Promise<PayQueryUpdateResult> {
   const now = deps.clock.now();
-  const c = await run(payload.firmId, (tx) => claim(tx, payload, now));
+  const c = await run(payload.firmId, (tx) => claim(tx, payload, now, deps.baseDomain));
   if (c.status !== "send") return c;
   const sent = await sendToWorker(deps, {
     mobile: c.mobile,
@@ -228,6 +235,7 @@ const workerDeps = (): PayQueryUpdateDeps => {
     transport: getTransport(env),
     push: getPushTransport(env),
     clock: systemClock,
+    baseDomain: env.APP_BASE_DOMAIN,
   };
 };
 export const payQueryUpdateTask = createPayQueryUpdateTask(workerDeps);

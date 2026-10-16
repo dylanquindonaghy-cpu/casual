@@ -234,9 +234,11 @@ function ShiftSummary({ shift: s, timeZone }: { shift: OpenShift; timeZone: stri
         <span className={`block ${muted}`}>
           {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
         </span>
-        <span className={`block ${muted}`} data-travel-line="">
-          {travelLineText(s.travel, timeZone)}
-        </span>
+        {s.travel && (
+          <span className={`block ${muted}`} data-travel-line="">
+            {travelLineText(s.travel, timeZone)}
+          </span>
+        )}
       </Link>
     </li>
   );

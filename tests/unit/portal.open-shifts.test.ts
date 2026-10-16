@@ -33,6 +33,7 @@ const list = (o: Partial<OpenShiftsList> = {}): OpenShiftsList => ({
   shifts: [],
   truncated: false,
   offerAlerts: true,
+  travelOn: true,
   area: { maxMinutes: 45 },
   further: { count: 0, atLeast: false },
   choices: { days: [], sites: [], roles: [] },

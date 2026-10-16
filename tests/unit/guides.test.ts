@@ -21,7 +21,8 @@ const { GuideView, guideSections } = await import("@/app/office/guide/guide-view
 const { HelpView } = await import("@/app/help/help-view");
 const { FROM_PLANNER_WORDS } = await import("@/lib/office/shifts-copy");
 // The firm's own strike and photo numbers the help page states (12H.3).
-const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36 };
+// A firm with travel areas on: every help section shows.
+const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36, travelOn: true };
 
 type Role = "admin" | "resourcer" | "payroll";
 
@@ -281,7 +282,7 @@ describe("the workers' help page", () => {
       renderToStaticMarkup(
         createElement(HelpView, {
           firmName: "Acme Events",
-          facts: { noticeHours: 24, liveDays: 30, photoRenewalMonths: 24 },
+          facts: { noticeHours: 24, liveDays: 30, photoRenewalMonths: 24, travelOn: true },
           year: 2026,
         }),
       ),
@@ -317,5 +318,23 @@ describe("the workers' help page", () => {
     expect(page).toContain("getCurrentFirm()");
     expect(page).not.toMatch(/requireWorker|getWorkerSession|readSessionToken/);
     expect(page).toContain('title: "Help"');
+  });
+});
+
+describe("Help with travel areas switched off for the firm (13.4)", () => {
+  it("no 'Your travel area' section, and none in the contents", () => {
+    const html = renderToStaticMarkup(
+      createElement(HelpView, {
+        firmName: "Acme Events",
+        facts: { ...HELP_FACTS, travelOn: false },
+        year: 2026,
+      }),
+    );
+    expect(html).not.toContain('href="#travel-area"');
+    expect(html).not.toContain('id="travel-area"');
+    expect(html).not.toMatch(/Your travel area|Set your travel area|Where you work/);
+    // The rest is all there.
+    expect(help()).toContain('id="travel-area"');
+    expect(html).toContain('id="qualifications-and-photos"');
   });
 });

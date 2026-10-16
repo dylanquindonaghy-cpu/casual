@@ -11,10 +11,10 @@ import { btn, muted } from "../../ui/classes";
 
 // The travel area's notes on Open shifts and the urgent board (docs/office-v2.md 4.3; 12G.3): with
 // no area, a prompt to add one (the list is unfiltered); with one, how many more shifts are further
-// than she travels, and a link to change how far.
+// than she travels, and a link to change how far. Neither where the firm has travel areas off (13.4).
 
 export function AreaPrompt({ list }: { list: OpenShiftsList }) {
-  if (list.area) return null;
+  if (!list.travelOn || list.area) return null;
   return (
     <div className="mb-6 rounded-xl bg-quiet-soft p-4">
       <p>{AREA_PROMPT}</p>

@@ -15,12 +15,16 @@ import { recordEvent } from "../events/record";
 import type { Geocoder, Point } from "../travel/geocoder";
 import { POSTCODE_INPUT_MAX, tidyPostcode } from "../travel/postcode";
 import { serverGeocoder } from "../travel/server";
+import { travelOn } from "../travel/on";
 import { travelSettings } from "../travel/settings";
 import type { PortalContext } from "./my-shifts";
 import { casualMoved } from "../travel/estimate-queue";
 
 // The casual's travel area, "Where you work" (docs/office-v2.md 4.6, 5.4; S8; 12G.1), for the
 // logged-in casual only, inside their firm. Server only; the words are in travel-copy.ts.
+//
+// Only where the firm has travel areas switched on (`travel.enabled`, 13.4): otherwise myTravel is
+// null (no "Where you work") and saveMyTravel saves nothing ("off"). Removing one always works.
 //
 // - myTravel: their start postcode (theirs to see; the office sees the district only), how they
 //   travel and their time limit; or, before they set one, the firm's default limit.
@@ -52,6 +56,7 @@ export type SaveTravelResult =
   | { status: "lookup_failed" } // the look-up didn't answer: nothing saved
   | { status: "lookups_off" } // look-ups aren't switched on (the fake, a real postcode)
   | { status: "try_again" } // their postcode changed in another tab meanwhile: nothing saved
+  | { status: "off" } // the firm has travel areas switched off: nothing saved
   | { status: "not_active" };
 
 export type RemoveTravelResult =
@@ -65,12 +70,14 @@ export const travelInputSchema = z.strictObject({
   maxMinutes: z.union(TRAVEL_MINUTES.map((m) => z.literal(m))),
 });
 
-export async function myTravel(ctx: PortalContext, workerId: string): Promise<MyTravel> {
+export async function myTravel(ctx: PortalContext, workerId: string): Promise<MyTravel | null> {
   return (ctx.run ?? withFirm)(ctx.firm.id, async (tx) => {
     const [firm] = await tx
       .select({ settings: firms.settings })
       .from(firms)
       .where(eq(firms.id, sql`app_current_firm_id()`));
+    const settings = travelSettings(firm?.settings ?? {});
+    if (!settings.enabled) return null;
     const [row] = await tx
       .select({
         postcode: workerTravel.startPostcode,
@@ -84,7 +91,7 @@ export async function myTravel(ctx: PortalContext, workerId: string): Promise<My
         set: false,
         postcode: null,
         modes: "both",
-        maxMinutes: travelSettings(firm?.settings ?? {}).defaultMaxMinutes,
+        maxMinutes: settings.defaultMaxMinutes,
       };
     }
     return {
@@ -108,8 +115,10 @@ export async function saveMyTravel(
   const { modes, maxMinutes } = input.data;
   const run = ctx.run ?? withFirm;
   const now = (ctx.clock ?? systemClock).now();
-  // First, briefly: are they active (no look-up for anyone else), and what's saved now?
+  // First, briefly: travel areas on, are they active (no look-up for anyone else), and what's
+  // saved now?
   const before = await run(ctx.firm.id, async (tx) => {
+    if (!(await travelOn(tx))) return "off" as const;
     const [worker] = await tx
       .select({ status: workers.status, erasedAt: workers.erasedAt })
       .from(workers)
@@ -121,6 +130,7 @@ export async function saveMyTravel(
       .where(eq(workerTravel.workerId, workerId));
     return { postcode: row?.postcode ?? null };
   });
+  if (before === "off") return { status: "off" };
   if (!before) return { status: "not_active" };
   // A new postcode is looked up; the same one keeps the point it was saved with.
   let point: Point | null = null;
@@ -140,6 +150,8 @@ export async function saveMyTravel(
     if (!worker || worker.erasedAt !== null || worker.status !== "active") {
       return { status: "not_active" };
     }
+    // Switched off during the look-up: nothing saved.
+    if (!(await travelOn(tx))) return { status: "off" };
     const [row] = await tx
       .select({
         postcode: workerTravel.startPostcode,

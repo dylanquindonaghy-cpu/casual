@@ -48,7 +48,8 @@ const NOT_EVENTS = new Set<string>([
   "strikes.notice_hours",
   "strikes.live_days",
   "strikes.keep_months",
-  // The owner's travel default (12G.1), in src/lib/onboarding/settings.ts.
+  // The owner's travel settings (12G.1; 13.4), in src/lib/onboarding/settings.ts.
+  "travel.enabled",
   "travel.default_max_minutes",
   // The owner's staff photo renewal (12F.2), in src/lib/onboarding/settings.ts.
   "photo.renewal_months",

@@ -210,7 +210,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
                         <li key={i}>{checkWords(c, wordsCtx)}</li>
                       ))}
                       <li>Showing to casuals ✓</li>
-                      <li>{travelCheckWords(b.area, o)}</li>
+                      <li>{travelCheckWords(b.area, o, b.travelOff)}</li>
                     </ul>
                   </li>
                 ))}

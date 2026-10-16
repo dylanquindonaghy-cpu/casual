@@ -18,7 +18,9 @@ import {
   type TravelEstimatesPayload,
 } from "./estimate-queue";
 import type { Point } from "./geocoder";
+import { travelOn } from "./on";
 import { SEARCH_MAX_ORIGINS, type SearchResult, type TravelProvider, type Trip } from "./provider";
+import { travelSettings } from "./settings";
 import { workerTravelProvider } from "./worker-provider";
 
 // The travel job (docs/office-v2.md 5.4; 12G.2): fills in the travel estimates sessions are missing.
@@ -43,6 +45,8 @@ import { workerTravelProvider } from "./worker-provider";
 //   fails, so pg-boss tries again later; the nightly run catches up after that. A run that uses up
 //   its time budget stops between searches and, if it saved anything, queues the rest as a fresh
 //   run.
+// - Nothing for a firm with travel areas off (`travel.enabled`, 13.4): no search, and the nightly
+//   run queues nothing for it.
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -99,6 +103,7 @@ async function groupsFor(
   now: Date,
 ): Promise<Group[]> {
   return run(firmId, async (tx) => {
+    if (!(await travelOn(tx))) return [];
     const which =
       "window" in scope
         ? sql`true`
@@ -407,10 +412,10 @@ export async function runTravelEstimatesTick(deps: {
     try {
       const id = await deps.run(firmId, async (tx) => {
         const [firm] = await tx
-          .select({ timezone: firms.timezone })
+          .select({ timezone: firms.timezone, settings: firms.settings })
           .from(firms)
           .where(eq(firms.id, firmId));
-        if (!firm) return null;
+        if (!firm || !travelSettings(firm.settings).enabled) return null;
         const day = localDateOf(now, firm.timezone);
         return queueWindowEstimates(tx, day, {
           singletonKey: `travel-estimates-window:${day}`,

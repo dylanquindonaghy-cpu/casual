@@ -54,8 +54,9 @@ async function freshLine(): Promise<string> {
   return line;
 }
 
+// Travel areas on (13.4: a firm's are off until its owner switches them on).
 async function replyFirm() {
-  const f = await bookingFirm(su, withFirm);
+  const f = await bookingFirm(su, withFirm, { settings: { travel: { enabled: true } } });
   const { rows: firmRows } = await su.query<{ name: string }>(
     "select name from firms where id = $1",
     [f.firmId],
@@ -542,6 +543,23 @@ describe("through the shifts line's job", () => {
     });
     expect(e?.built?.notOffered[0]).toMatchObject({ shiftId: firstAid });
     expect(e?.built?.names).toMatchObject({ FIRST_AID: "first aid at work certificate" });
+    expect(e?.built?.travelOff).toBe(false);
+  });
+
+  it("travel areas off for the firm (13.4): the entry says so, and the office's page reads it", async () => {
+    const t = await lined();
+    const ok = await t.session(48);
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{travel,enabled}', 'false') where id = $1`,
+      [t.f.firmId],
+    );
+    const { messageId, result } = await t.send("any shifts this week?");
+    expect(result).toMatchObject({ status: "replied", intent: "shifts" });
+    expect(t.capture.sent.at(-1)?.body).not.toMatch(/home area|min by car|miles/);
+    const [checks] = await t.eventsOf(messageId, "enquiry.checks");
+    expect(checks).toMatchObject({ area: null, travelOff: true, offered: [{ shiftId: ok }] });
+    const e = await withFirm(t.f.firmId, (tx) => loadEnquiry(tx, messageId, NOW));
+    expect(e?.built).toMatchObject({ area: null, travelOff: true });
   });
 
   it('by text: three listed and "+ 2 more", and the entry says the same; WhatsApp lists five', async () => {
@@ -660,5 +678,36 @@ describe("through the shifts line's job", () => {
     expect(unsorted.result).toMatchObject({ intent: "office", handledAs: "office" });
     const [received] = await t.eventsOf(unsorted.messageId, "message.received");
     expect(received).toMatchObject({ handledAs: "office", aiFallback: "not_connected" });
+  });
+});
+
+describe("travel areas switched off for the firm (13.4)", () => {
+  it("lists what she could take wherever it is: no travel lines, no ask for a home area, nothing ruled out by distance; logged as off", async () => {
+    const t = await replyFirm();
+    const zoe = await t.casual(); // her area saved while they were on
+    const near = await t.session(24);
+    await t.estimate(near, 20);
+    const far = await t.session(48);
+    await t.estimate(far, 90); // outside her 45 minutes
+    const on = await t.reply(zoe);
+    expect(on.checks.whatsapp.offered.map((o) => o.shiftId)).toEqual([near]);
+    expect(reasonsOf(on.checks.whatsapp, far)).toEqual(["outside_area"]);
+
+    await su.query(
+      `update firms set settings = jsonb_set(settings, '{travel,enabled}', 'false') where id = $1`,
+      [t.f.firmId],
+    );
+    const off = await t.reply(zoe);
+    for (const channel of ["whatsapp", "sms"] as const) {
+      expect(off.checks[channel]).toMatchObject({ area: null, travelOff: true });
+      expect(off.checks[channel].offered.map((o) => [o.shiftId, o.car])).toEqual([
+        [near, null],
+        [far, null],
+      ]);
+      expect(reasonsOf(off.checks[channel], far)).toBeUndefined();
+    }
+    for (const text of [off.whatsapp, off.sms]) {
+      expect(text).not.toMatch(/home area|miles|min by car|public transport/i);
+    }
   });
 });

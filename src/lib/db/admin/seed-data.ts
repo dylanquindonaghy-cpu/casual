@@ -253,6 +253,9 @@ function acme(today: Date): SeedFirm {
       sign_off: "Acme Events Shift Team",
       // The strikes team, already confirmed (the demo story, 12I.1).
       strikes: storyStrikesSettings(today),
+      // The demo firm has travel areas on (13.4); a new firm starts with them off, and Northline
+      // keeps them off.
+      travel: { enabled: true },
     },
     // Invented places, marked "Demo" so nobody mistakes them for real clients or venues.
     sites: [

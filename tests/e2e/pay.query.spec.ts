@@ -129,14 +129,16 @@ test("raise a pay query about a day, then see it on the pay page", async ({ page
       .fill("Paid on Friday with the rest (e2e).");
     await group.getByRole("button", { name: "Mark as sorted and tell them" }).click();
     await expect(group.getByRole("status")).toHaveText(
-      /^Marked as sorted: \d+ quer(y|ies)\. Each person will get your note by message\.$/,
+      /^Marked as sorted: \d+ quer(y|ies)\. Each person gets a message saying payroll has answered, and sees your note on their pay page\.$/,
     );
     const update = await sentTo(
       mobile,
       sortedAfter,
-      /(Update on your pay query \(ref [0-9A-F]{8}\): sorted\. Paid on Friday with the rest \(e2e\)\. — Acme Events Shift Team)/,
+      /^(Payroll has answered your pay query \(ref [0-9A-F]{8}\)\. See their answer on your pay page: http:\/\/acme\.localhost:3100\/pay — Acme Events Shift Team)$/,
     );
     expect(update).toBeTruthy();
+    // The whole message, as above: payroll's note stays behind the pay code (13.4).
+    expect(update).not.toContain("Paid on Friday");
   } finally {
     await setFirmSetting("acme", "quiet_hours", quietBefore);
   }

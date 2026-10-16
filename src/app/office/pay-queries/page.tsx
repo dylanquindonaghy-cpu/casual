@@ -23,7 +23,7 @@ const group = `${card} mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-
 // Payroll's pay queries (docs/screens.md `/office/pay-queries`): open ones grouped by likely cause,
 // biggest first, with a one-line summary and each worker's query; the digest's schedule, the last
 // one sent and "Send the digest now"; and each group's "Mark as sorted and tell them" (the workers
-// get payroll's note). Payroll and admins.
+// are told payroll has answered, and see the note on their pay page: 13.4). Payroll and admins.
 // Layout (docs/ui-design.md "Action card"): the digest in its own card, then one card per group,
 // named by its one heading (aria-labelledby), the queries as divided rows ("In a digest" as a
 // chip at the end of its line), and the group's one main action.

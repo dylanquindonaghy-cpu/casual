@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { card, muted, page, sectionGap, textLink } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireWorker } from "@/lib/auth/current-worker";
@@ -13,10 +14,12 @@ import { CasualTabBar } from "../../casual-tab-bar";
 export const metadata: Metadata = { title: TRAVEL_TITLE };
 
 // "Where you work" (docs/office-v2.md 4.6; docs/screens.md `/profile/travel`; 12G.1): the casual's
-// start-from postcode, how they travel and how long for, with who sees what. Their own only.
+// start-from postcode, how they travel and how long for, with who sees what. Their own only. Not
+// found where the firm has travel areas switched off (13.4).
 export default async function TravelPage() {
   const { firm, worker, session } = await requireWorker();
   const travel = await myTravel({ firm }, worker.id);
+  if (!travel) notFound();
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />

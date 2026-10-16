@@ -172,18 +172,32 @@ describe("the demo story", () => {
   it("Zoe's Home: the Arena and Northgate urgent, three to apply for, two further than she travels", async () => {
     const list = await openShiftsFor(ctx, who("zoe"));
     const ofStory = (id: string) => STORY.sessions.find((x) => x.id === id);
-    // Urgent first, the nearest first: the story's Arena door supervisors (12 min) and Northgate's
-    // night patrols (21 min). (She could take the walkthrough's Saturday dropout too: it has no
-    // fixed travel time, so it comes after them.)
+    // Urgent first, the nearest first (a shift with no estimate last): the product's rule, on the
+    // whole urgent list. She can also take the walkthrough's Saturday dropout at the Arena (08:00
+    // next Saturday). Estimates are kept per postcode, site and arrival time, so on a Friday, when
+    // the story's "tomorrow 08:00" at the Arena is that same Saturday, the dropout shares its 12
+    // minutes and can come between the story's two. Any other day it has none and comes last.
     const urgent = list.shifts.filter((s) => s.isUrgent);
-    expect(urgent.slice(0, 2).map((s) => [s.role, s.site?.name, s.casualEvent])).toEqual([
+    const nearest = (t: (typeof urgent)[number]["travel"]) =>
+      t.kind === "estimated"
+        ? Math.min(t.car?.minutes ?? Infinity, t.publicTransport?.minutes ?? Infinity)
+        : Infinity;
+    const minutes = urgent.map((s) => nearest(s.travel));
+    expect(minutes).toEqual([...minutes].sort((a, b) => a - b));
+    expect(urgent.some((s) => !ofStory(s.shiftId) && s.site?.name === "Acme Demo Arena")).toBe(
+      true,
+    );
+    // The story's urgent ones: the Arena door supervisors (12 min), then Northgate's night patrols
+    // (21 min).
+    const storyUrgent = urgent.filter((s) => ofStory(s.shiftId));
+    expect(storyUrgent.slice(0, 2).map((s) => [s.role, s.site?.name, s.casualEvent])).toEqual([
       ["door_supervisor", "Acme Demo Arena", "Northern Lights Live"],
       ["csas_officer", "Northgate Demo Town Centre", "Night patrols"],
     ]);
-    expect(travelLineText(urgent[0]!.travel, "Europe/London")).toBe(
+    expect(travelLineText(storyUrgent[0]!.travel, "Europe/London")).toBe(
       "3.1 miles · 12 min by car · 24 min by public transport",
     );
-    expect(travelLineText(urgent[1]!.travel, "Europe/London")).toBe(
+    expect(travelLineText(storyUrgent[1]!.travel, "Europe/London")).toBe(
       "8.4 miles · 21 min by car · 38 min by public transport",
     );
     // Home's top 3 to apply for: the story's, nearest first.

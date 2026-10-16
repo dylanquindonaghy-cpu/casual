@@ -62,9 +62,10 @@ The product sits alongside whatever the firm already uses. It never forces staff
     action ends with a confirmation. Large tap targets and readable sizes.
 12. **Firm-initiated changes are logged like worker ones.** Cancel, move or curtail by the
     office always records a reason and notice hours per assigned worker.
-13. **Only the script says done.** "Verified" means `scripts/verify.sh` printed VERIFIED on the
-    current files. Builders never grade their own work; the `claims-auditor` does, from evidence
-    on disk only. Reviewer agents are read-only. Three audit rounds, then stop and report.
+13. **Only the script says done.** "Verified" means `RUN_E2E=1 ./scripts/verify.sh` printed
+    VERIFIED (with `e2e=true`) on the current files. Builders never grade their own work; the
+    `claims-auditor` does, from evidence on disk only. Reviewer agents are read-only (a hook
+    enforces it). Three audit rounds, then stop and report.
 
 ## Stack
 
@@ -121,7 +122,8 @@ docs/
   `npm run walkthrough:files` — the sample import files (`docs/walkthrough.md`)
 - `npm run build` then `npm start` (with `npm run worker`) — the production-mode run locally;
   `npm run db:down` — stop the local database
-- `./scripts/verify.sh` — runs all of the above and writes the verified stamp
+- `./scripts/verify.sh` — runs all of the above (and a production build) and writes the verified
+  stamp; `RUN_E2E=1` adds the browser tests, which a tick needs
 
 (Create these scripts in Phase 0 if missing.)
 
@@ -152,7 +154,7 @@ docs/
 3. Implement with tests. When something fails, state the root cause (the mechanism) before
    changing any code. Never patch the symptom. Never delete, skip or weaken a test to get green.
 4. For schema, auth, tenancy, messaging or rules changes, run the `guardrails-reviewer` agent.
-5. Run `/close-task`. It runs `scripts/verify.sh`, then the independent `claims-auditor`,
+5. Run `/close-task`. It runs `RUN_E2E=1 ./scripts/verify.sh`, then the independent `claims-auditor`,
    and only then ticks the task. **Never tick a task yourself** (a hook blocks it), and never
    say "done", "complete" or "all tests pass" unless verify.sh printed VERIFIED on the
    current files (a hook blocks that too). If something isn't verified, say so plainly.

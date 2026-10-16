@@ -24,7 +24,7 @@ if git rev-parse --show-toplevel >/dev/null 2>&1; then pass "inside a git reposi
 else failf "not a git repository" "Run: git init && git add -A && git commit -m 'starter pack'"; fi
 
 # 3. Hooks executable
-for h in scripts/verify.sh .claude/hooks/*.sh; do
+for h in scripts/verify.sh .claude/hooks/*.sh .claude/hooks/*.mjs; do
   [ -x "$h" ] && pass "$h is executable" || failf "$h not executable" "Run: chmod +x scripts/*.sh .claude/hooks/*.sh"
 done
 
@@ -68,10 +68,21 @@ d=$(payload "- [ ] Some task" "- [x] Some task" | CLAUDE_PROJECT_DIR=$PWD .claud
 h=$(.claude/hooks/tree-hash.sh 2>/dev/null)
 if printf '%s' "$h" | grep -Eq '^[0-9a-f]{16}$'; then pass "tree-hash.sh produces a fingerprint ($h)"
 else failf "tree-hash.sh failed" "Got: '$h'. Needs git, sha256sum, sort and xargs."; fi
-printf '{"ok":true,"tree":"%s","at":"test"}\n' "$h" > "$STATE"
+printf '{"ok":true,"tree":"%s","e2e":false,"at":"test"}\n' "$h" > "$STATE"
 d=$(payload "- [ ] Some task" "- [x] Some task" | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/guard-plan-tick.sh | decision)
-[ "$d" = "allow" ] && pass "tick guard allows a tick when verify passed on these exact files" || failf "tick guard refused a valid stamp" "Got: '$d'. tree-hash.sh may be failing."
+[ "$d" = "deny" ] && pass "tick guard blocks a stamp without the browser tests" || failf "tick guard accepted a stamp without the browser tests" "Got: '$d'"
+printf '{"ok":true,"tree":"%s","e2e":true,"at":"test"}\n' "$h" > "$STATE"
+d=$(payload "- [ ] Some task" "- [x] Some task" | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/guard-plan-tick.sh | decision)
+[ "$d" = "allow" ] && pass "tick guard allows a tick when verify passed, with the browser tests, on these exact files" || failf "tick guard refused a valid stamp" "Got: '$d'. tree-hash.sh may be failing."
 rm -f "$STATE"
+
+# 8b. Tick guard: a tick moved from one task to another, or an uppercase [X]
+d=$(payload "- [x] Task A
+- [ ] Task B" "- [ ] Task A
+- [x] Task B" | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/guard-plan-tick.sh | decision)
+[ "$d" = "deny" ] && pass "tick guard blocks a tick moved to another task" || failf "tick guard let a moved tick through" "Got: '$d'"
+d=$(payload "- [ ] Some task" "- [X] Some task" | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/guard-plan-tick.sh | decision)
+[ "$d" = "deny" ] && pass "tick guard blocks an uppercase [X]" || failf "tick guard let an uppercase [X] through" "Got: '$d'"
 
 # 9. Stop hook: block a "done" claim with no stamp
 TRANSCRIPT=$(mktemp)
@@ -83,6 +94,17 @@ out=$(jq -n --arg t "$TRANSCRIPT" '{stop_hook_active:false,transcript_path:$t}' 
 printf '%s\n' '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Typecheck passes. Two tests still fail; not verified yet."}]}}' > "$TRANSCRIPT"
 out=$(jq -n --arg t "$TRANSCRIPT" '{stop_hook_active:false,transcript_path:$t}' | .claude/hooks/stop-unverified-claims.sh)
 [ -z "$out" ] && pass "stop hook allows an honest 'not verified yet' message" || failf "stop hook blocked an honest message" "Got: '$out'"
+
+# 11. Stop hook: the short ways of saying it
+out=$(jq -n '{stop_hook_active:false,session_id:"selftest",last_assistant_message:"Phase 0 is done."}' | .claude/hooks/stop-unverified-claims.sh)
+[ "$(echo "$out" | jq -r '.decision // "allow"' 2>/dev/null)" = "block" ] && pass "stop hook blocks 'Phase 0 is done.' with no stamp" || failf "stop hook let 'Phase 0 is done.' through" "Got: '$out'"
+rm -f .claude/state/stop-blocks-selftest
+
+# 12. The reviewers and the auditor are read-only
+d=$(jq -n '{agent_type:"claims-auditor",tool_name:"Bash",tool_input:{command:"rm -rf src"}}' | node .claude/hooks/readonly-agents.mjs | decision)
+[ "$d" = "deny" ] && pass "the auditor can't run a command that writes" || failf "the auditor could run 'rm -rf src'" "Got: '$d'"
+d=$(jq -n '{agent_type:"claims-auditor",tool_name:"Bash",tool_input:{command:"git diff HEAD~1 -- src"}}' | node .claude/hooks/readonly-agents.mjs | decision)
+[ "$d" = "allow" ] && pass "the auditor can still read a diff" || failf "the auditor can't read a diff" "Got: '$d'"
 
 echo
 if [ "$fail" = 0 ]; then echo "SELFTEST PASSED. The safety net works on this machine."

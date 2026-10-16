@@ -81,7 +81,14 @@ export default defineConfig({
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   workers: 1,
-  reporter: ci ? "github" : "list",
+  // With E2E_JSON_REPORT (set by scripts/e2e.mjs for scripts/verify.sh) also a JSON report, which
+  // scripts/invariants.sh reads: Playwright counts skipped and fixme tests as a pass (audit L62).
+  reporter: [
+    [ci ? "github" : "list"],
+    ...(process.env.E2E_JSON_REPORT
+      ? [["json", { outputFile: process.env.E2E_JSON_REPORT }] as const]
+      : []),
+  ],
   globalTeardown: "./tests/e2e/teardown.ts",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   // Mobile first: workers use the portal from a phone. The browser (only) maps a made-up domain

@@ -32,7 +32,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: process.env.CI ? "github" : "list",
+  // The JSON report for scripts/invariants.sh, as in playwright.config.ts.
+  reporter: [
+    [process.env.CI ? "github" : "list"],
+    ...(process.env.E2E_JSON_REPORT
+      ? [["json", { outputFile: process.env.E2E_JSON_REPORT }] as const]
+      : []),
+  ],
   globalTeardown: "./tests/e2e/walkthrough-teardown.ts",
   timeout: 15 * 60_000,
   use: {

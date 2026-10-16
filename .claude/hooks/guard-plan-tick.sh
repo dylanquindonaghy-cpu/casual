@@ -1,30 +1,20 @@
 #!/usr/bin/env bash
-# Blocks any Edit/Write that adds a new "[x]" to PLAN.md unless scripts/verify.sh passed on the
-# CURRENT working tree. Other PLAN.md edits (parking lot, hours log, notes) pass through.
+# Blocks any Edit/Write/MultiEdit that would tick a task in PLAN.md unless scripts/verify.sh
+# passed, browser tests included, on the CURRENT working tree. A tick is a task's box going from
+# "[ ]" to "[x]" or "[X]", a tick moved from one task to another, or a line added already ticked
+# (plan-ticks.mjs; audit L3). Other PLAN.md edits pass through. Shell commands that tick are
+# caught by plan-bash-snapshot.sh and plan-bash-check.sh (audit L1).
 input=$(cat)
 file=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 case "$file" in *PLAN.md) ;; *) exit 0 ;; esac
-
-old=$(echo "$input" | jq -r '.tool_input.old_string // ""')
-new=$(echo "$input" | jq -r '.tool_input.new_string // .tool_input.content // ""')
-# MultiEdit: concatenate all edits
-if echo "$input" | jq -e '.tool_input.edits' >/dev/null 2>&1; then
-  old=$(echo "$input" | jq -r '[.tool_input.edits[].old_string] | join("\n")')
-  new=$(echo "$input" | jq -r '[.tool_input.edits[].new_string] | join("\n")')
-fi
-count() { printf '%s' "$1" | grep -o '\[x\]' | wc -l | tr -d ' '; }
-before=$(count "$old"); after=$(count "$new")
-# Full-file Write: compare against the file on disk
-if [ -z "$old" ] && [ -f "$file" ]; then before=$(grep -o '\[x\]' "$file" | wc -l | tr -d ' '); fi
-[ "$after" -le "$before" ] && exit 0
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 root=$(git rev-parse --show-toplevel 2>/dev/null) || deny "Not a git repo; cannot verify. Do not tick tasks."
-state="$root/.claude/state/verified.json"
-[ -f "$state" ] || deny "Cannot tick a task: scripts/verify.sh has never run. Run /close-task."
-[ "$(jq -r '.ok' "$state")" = "true" ] || deny "Cannot tick a task: the last verify run FAILED. Fix the failures and run /close-task."
-[ "$(jq -r '.tree' "$state")" = "$("$root/.claude/hooks/tree-hash.sh")" ] || deny "Cannot tick a task: files changed since the last passing verify. Run /close-task again."
-exit 0
+ticked=$(echo "$input" | node "$root/.claude/hooks/plan-ticks.mjs" edit) ||
+  deny "Cannot tell whether this edit ticks a task (plan-ticks.mjs failed), so it is refused."
+[ -z "$ticked" ] && exit 0
+why=$("$root/.claude/hooks/stamp-check.sh") && exit 0
+deny "Cannot tick a task ($(echo "$ticked" | head -n 1)): $why. Run /close-task."

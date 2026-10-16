@@ -1088,6 +1088,56 @@ still waiting for Dylan's OK stays unticked, with the reason in the Parking lot.
 
 ---
 
+## Phase 13 — Before the accounts
+
+Added 2026-10-16, Dylan's choice: the code that needs no outside account, and his decisions of the
+same day ("Decided on 2026-10-16" under "Decisions waiting for Dylan"). Docs: `docs/verification.md`,
+`docs/api-and-jobs.md`, `docs/messaging-templates.md`, `docs/compliance.md`,
+`docs/privacy-notice.md`, `docs/screens.md`, `docs/runbooks.md`, `docs/audit-2026-09-30.md`.
+
+- [ ] Safety net (How the build is run 1 to 4, approved 2026-10-16; audit L1 to L6, L61, L62, L65):
+      `scripts/verify.sh` takes the files' fingerprint when it starts and refuses its stamp if they
+      changed during the run (L4), runs a production build (`npm run build`), and refuses to
+      skip `scripts/invariants.sh`; a tick needs a stamp with the browser tests (`e2e=true`; L5,
+      L61); the tick guard counts each task's own box, so a moved tick or `[X]` is caught (L3),
+      and also watches shell commands that write `PLAN.md` (L1); the Stop hook catches more ways
+      of saying done and doesn't give up after one block (L2); `scripts/invariants.sh` fails on
+      Playwright's `fixme`, `fail` and runtime skips (L62), checks `scripts/` in the withFirm check
+      (the owner-run admin scripts listed by name, L65) and `twilio` in tests; the reviewers and
+      the auditor can't write files (L6). Tests: each hook and check run on sample input, the
+      refusals included. Docs: `docs/verification.md`, `CLAUDE.md` (13.1)
+- [ ] The shifts line's last try (Parking lot "Inbound messages (12L.1 guardrails review)"): a
+      shifts-line message whose reply job fails on its final retry is marked for a person (Need a
+      person in Enquiries), with the reason logged, like the planner webhooks' last try (12J.2).
+      Tests: a job that throws every time ends in Need a person, once; a later success doesn't
+      double it. Docs: `docs/api-and-jobs.md` (13.2)
+- [ ] Web push sender ("Connect the real web push", Claude's steps; no account needed): the
+      `web-push` package, an adapter next to the console one (404 and 410 mean the subscription
+      is gone), `PUSH_TRANSPORT=webpush` (refused in tests; production keeps `none` until the keys
+      are set), `POST /api/push/subscribe` rate-limited with the auth throttle, and the browser push
+      services in `docs/compliance.md` and `docs/privacy-notice.md`. Tests: a fake push service;
+      no real push is ever sent from tests. Testing on real phones waits for the server (13.3)
+- [ ] Privacy (Decided 2026-10-16): travel areas switched on per firm (`travel.enabled`, off by
+      default): off, a casual sees no "Where you work", no "Add your home area" prompt and no
+      travel lines, and Open shifts and offer waves don't filter by area; the demo firm has it on.
+      Payroll's note stays behind the pay code: the `pay_query_update` message says payroll has
+      answered and to see the pay page (Messages 17). Tests: both switch states, the message's
+      words. Docs: `docs/screens.md`, `docs/messaging-templates.md`, `docs/dpia-travel.md` (13.4)
+- [ ] Tidy-ups: "Cancel with the link" in `shift_reminder_24h` (Messages 11); the per-address
+      login limit raised so a team on one venue's Wi-Fi isn't locked out, the per-number limits
+      unchanged (Office 10); text cut by whole characters at the webhooks, the voicemail and the
+      AI's input (Parking lot "Text cuts that count UTF-16 units"); Open shifts' rules checked for
+      the whole list at once (Parking lot "Before the pilot: the Open shifts list…"); a per-casual
+      limit on "Take shift" (Checks 6); licence expiry messages through the normal sender, so a
+      casual who chose texts gets them (Checks 7); the flaky `sheets.jobs.test.ts` fixed (Checks
+      12); the image built with production dependencies only (Parking lot "Security warnings").
+      Tests: each item's own, each break-checked. Docs as each item needs (13.5)
+
+Done when: every task above is ticked with a stamp that includes the browser tests; `scripts/verify.sh`
+with `RUN_E2E=1` prints VERIFIED, with the production build in it; no test or browser test calls a
+real push service, Twilio, an email server or Anthropic; the `claims-auditor` checks the phase
+against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -1122,6 +1172,13 @@ S10 (S1 was already approved). A settled row says **Decided**, **Approved**, **R
 the line here. (The old way of finding these, `grep "Dylan to" PLAN.md`, misses many: use this
 list.) After the decisions, a short table of checks and to-dos that aren't choices.
 
+**Decided on 2026-10-16** (Dylan, in chat): How the build is run 1 to 4 approved (13.1); Legal
+6 no; Messages 11 and 17 and Office 10 as their rows say. From the Parking lot: travel areas
+switched on per firm (13.4); resourcers keep seeing pay messages' words in Enquiries; a personal
+reply's log entry keeps the travel minutes; the hand-written TravelTime answers stand until the live
+check. Every other row that confirms what's built stays as it is for now ("keep, and revisit with a
+pilot firm"): rows tagged **Before a pilot** still need that look then.
+
 **When each one matters** (every row with that tag):
 1. **Before any real data** (the pilot firm's staff, even a check of a file): Legal 1, 2, 4 and 6;
    Checks 1.
@@ -1147,7 +1204,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 3 | A limited company, insurance (professional indemnity, cyber) and an accountant, once a pilot says yes | Not done | compliance.md; business.md |
 | 4 | **Before any real data:** the pilot agreement: you own the software and they license it; price and term; the DPA; exclusivity; naming them as a reference. Check your own employment contract (who owns what you make, outside work) first | Not agreed | go-to-market.md |
 | 5 | Short notice in the notice report until the 2027 rules are final (and any compensation rules) | 48 hours unless the owner sets the firm's `short_notice_threshold_hours` | compliance.md; Parking lot "Notice report" items |
-| 6 | **Before any real data:** may a real staff file be checked (a dry run, nothing saved) on the live server before the agreement is recorded? It's still reading personal data, from the pilot firm's files (golden rule 7). Demo firms on the live server would need a made-up signing date | Allowed. Until you decide, the safe course is not to check a real file there | Parking lot "Dylan to confirm (Gate B…)"; log, Phase 10 task 11 |
+| 6 | **Before any real data:** may a real staff file be checked (a dry run, nothing saved) on the live server before the agreement is recorded? It's still reading personal data, from the pilot firm's files (golden rule 7). Demo firms on the live server would need a made-up signing date | **Decided** (Dylan, 2026-10-16): no. A real staff file isn't read on the live server, even as a dry run, until the firm's agreement is recorded | Parking lot "Dylan to confirm (Gate B…)"; log, Phase 10 task 11 |
 | 7 | Notice for a cancellation phoned in counts from when the office types it, not when the worker rang; and the office can't record a cancellation as the worker's own (always the firm's, with notice) | Typed-in time; always the firm's | Parking lot "Firm-initiated changes follow-ups"; log, Phase 5 |
 | 8 | A message that may not have arrived (sent, then its record failed) still counts in the notice evidence, marked "not confirmed" | Counted and marked | log, Phase 10 task 3 |
 | 9 | Workers can't cancel once a shift starts; the office can until it ends (negative notice recorded, the place not reopened) | As stated | log, Phase 3 |
@@ -1219,13 +1276,13 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 8 | The escalation email: 3 hours before the start, to admins and resourcers, once per shift (not per gap) | As stated | Parking lot "Offer waves follow-ups" |
 | 9 | A message that fails isn't retried (at most once: lost, never doubled) | As stated | log, Phases 4 and 10 |
 | 10 | Reminders at 24 hours and 2 hours, held by quiet hours (a 2-hour one before 07:00 is skipped); no opt-out | As stated | Parking lot "Shift reminders follow-ups" |
-| 11 | **Before submitting the WhatsApp templates:** "Cancel in the app" in the 24-hour reminder (there's no app) | "Cancel in the app" | Parking lot "Shift reminders follow-ups" |
+| 11 | **Before submitting the WhatsApp templates:** "Cancel in the app" in the 24-hour reminder (there's no app) | **Decided** (Dylan, 2026-10-16): "Cancel with the link". Built in 13.5 | Parking lot "Shift reminders follow-ups" |
 | 12 | **Before submitting the WhatsApp templates:** texts: the sign-off adds a second text; "{day}" not "today"; short text versions of other messages; nothing limits a text's length; the office's 500-character note is about 9 texts | As stated | "Submit the WhatsApp templates" |
 | 13 | **Before submitting the WhatsApp templates:** the copy written overnight, read once: `credential_expired`, the Monday list email, the "no site" versions, `shift_cancelled_by_firm`, request updates ("approved" can read as "booked"; "answered" for a question) | In `src/lib/messaging/templates.ts` and the docs | docs/messaging-templates.md; log, Phases 2–5 |
 | 14 | **Before submitting the WhatsApp templates:** a worker who cancels gets only the on-screen confirmation; send the `cancellation_ack` message too (it needs its template)? | Not sent | Parking lot; log, Phase 3 |
 | 15 | **Before submitting the WhatsApp templates:** Meta will probably put `login_code` in its "authentication" category: fixed wording and no sign-off, against golden rule 8 | Written with the sign-off | "Submit the WhatsApp templates"; docs/messaging-templates.md |
 | 16 | **Before submitting the WhatsApp templates:** a change notice to a worker who's no longer active still carries the portal link (they can't log in): a version without it? Also check Meta accepts the office's free-text note as a variable | As stated | Parking lot; "Submit the WhatsApp templates" |
-| 17 | **Before submitting the WhatsApp templates:** payroll's note goes in the WhatsApp or text itself (or "See it on your pay page": a different template) | In the message | Parking lot "Pay query status follow-ups" |
+| 17 | **Before submitting the WhatsApp templates:** payroll's note goes in the WhatsApp or text itself (or "See it on your pay page": a different template) | **Decided** (Dylan, 2026-10-16): the note stays behind the pay code; the message says payroll has answered and to see the pay page. Built in 13.4 | Parking lot "Pay query status follow-ups" |
 | 18 | "Offer to someone" uses the same checks as waves (no override); a failed one isn't resent | As stated | log, Phase 5 |
 | 19 | The shifts line's keywords ("work" and "available" give open shifts; "shift" alone doesn't) | As stated | Parking lot "Unknown number follow-ups" |
 | 20 | **When you create the accounts (Twilio):** "CANCEL" by text turns texts off (Twilio's list): drop it so "cancel" means a shift? And Twilio's own opt-out settings (Advanced Opt-Out on, its keyword list the same as ours) | Turns texts off | "Connect Twilio" step 5 |
@@ -1288,7 +1345,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 | 7 | The office's "make inactive" beats the sheet and files; "Bookings to check" on Today, with nothing escalating one left unanswered as the shift gets close (mark it urgent, or email the office?) | As stated | log, Phase 10 task 7; Parking lot |
 | 8 | The pilot metrics' definitions and default period (the last 7 complete days) | As stated | Parking lot; log, Phase 9 |
 | 9 | The action log: last 7 days by default, 92 days per search, no export; Today: no email about a new worker request | As stated | log, Phase 5 |
-| 10 | **Before a pilot:** login limits at a briefing on venue Wi-Fi (one internet address for everyone): raise, or per firm? And the daily cap's trade-off: anyone who knows a worker's number can use up its 10 links for the day, and that worker then can't get a new link until midnight (UTC; a phone already logged in keeps working, and the office has no "send them a link" button yet: parked). Keep it, raise it, or drop it? | 10 per address and 3 per number every 15 minutes; at most 10 links per number (or office email) a day | Parking lot; log, Phase 10 task 19 |
+| 10 | **Before a pilot:** login limits at a briefing on venue Wi-Fi (one internet address for everyone): raise, or per firm? And the daily cap's trade-off: anyone who knows a worker's number can use up its 10 links for the day, and that worker then can't get a new link until midnight (UTC; a phone already logged in keeps working, and the office has no "send them a link" button yet: parked). Keep it, raise it, or drop it? | **Decided** (Dylan, 2026-10-16): raise the per-address limit, so a team on one venue's Wi-Fi isn't locked out (the per-number limits stay). Built in 13.5 | Parking lot; log, Phase 10 task 19 |
 | 11 | Workers can't change their own contact details (the office does) | As stated | log, Phase 3 profile |
 
 ### Deploy, servers and security
@@ -1309,10 +1366,10 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
 
 | # | Decision | Default now | Where |
 |---|---|---|---|
-| 1 | Add `npm run build` to `scripts/verify.sh` (task 17's image break would have been caught) | Not in it | Parking lot "Dylan to confirm: add npm run build…" |
-| 2 | Require the browser tests for a tick; a production-mode browser run | Optional (`RUN_E2E=1`) | Parking lot "Dylan to decide: audit findings the overnight loop may not fix" |
-| 3 | Widen `scripts/invariants.sh` (Playwright skips, `scripts/` in the withFirm check, `twilio` in tests) | Not covered | same |
-| 4 | The safety net's gaps (the tick guard, Stop hook, stamp timing; reviewers read-only by tool) | Unchanged | same |
+| 1 | Add `npm run build` to `scripts/verify.sh` (task 17's image break would have been caught) | **Approved** (Dylan, 2026-10-16). Built in 13.1 | Parking lot "Dylan to confirm: add npm run build…" |
+| 2 | Require the browser tests for a tick; a production-mode browser run | **Approved** (Dylan, 2026-10-16). Built in 13.1 | Parking lot "Dylan to decide: audit findings the overnight loop may not fix" |
+| 3 | Widen `scripts/invariants.sh` (Playwright skips, `scripts/` in the withFirm check, `twilio` in tests) | **Approved** (Dylan, 2026-10-16). Built in 13.1 | same |
+| 4 | The safety net's gaps (the tick guard, Stop hook, stamp timing; reviewers read-only by tool) | **Approved** (Dylan, 2026-10-16). Built in 13.1 | same |
 | 5 | CLAUDE.md: add `resolveFirmByLine()` and the domain look-up to the allowed look-ups; where the "set a firm's line" code sits; and the loop's own edit to CLAUDE.md (the browser tests' port 3443 and `openssl`): keep it? | As is | Parking lot "Shifts line follow-ups"; log, Phase 10 task 15 |
 | 6 | Golden rule 3's wording: message ids are unique per firm, not across all firms | Per firm | log, Phase 7 |
 | 7 | Schema, auth and tenancy changes made overnight without waiting (your standing instruction), to look over once: migrations 0019 to 0034 (`drizzle/`), notably a worker's mobile may be empty once deleted, with owner-run delete and purge functions (0026); `otp_codes.request_id` (0027); the firm's agreement date (0032); the override reason on the booking (0033); per-firm retention read by the database (0034) | Done on `build/overnight` | log (each task's Decisions) |
@@ -2894,7 +2951,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   (`casualMoved()`), but nothing yet stops one casual changing theirs all day.
   If a worker job ever looks postcodes up (12G.2's job doesn't: it uses the saved points), build
   its geocoder from `workerEnv()`, not `appEnv()` (`src/lib/travel/server.ts`).
-- Travel areas (12G.1 review): **Dylan to decide** whether a firm switches the travel area on
+- Travel areas (12G.1 review): **Decided** (Dylan, 2026-10-16: yes, built in 13.4) whether a firm switches the travel area on
   for itself (a per-firm `travel.enabled`, off by default, hiding "Where you work"), since the DPIA's
   Part 2 is per firm and `TRAVEL_PROVIDER` is per server. Today it shows for every firm (with the
   fake look-up, a real postcode is refused with "postcode look-ups aren't switched on"). Since
@@ -2927,7 +2984,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - certificate images kept after their qualification ends: §5.5 says "then follow the firm's
     retention setting", which isn't defined yet. Today a superseded one stays until erasure.
 - Enquiries (12D.1 review):
-  - **Dylan to decide:** resourcers read pay messages' words in Enquiries' Pay and All views
+  - **Decided** (Dylan, 2026-10-16: keep them): resourcers read pay messages' words in Enquiries' Pay and All views
     (the spec gives Enquiries to admins and resourcers), though the pay area itself is admins and
     payroll only. Hide the words of pay messages from resourcers, or keep them?
   - Done in 12L.1: Enquiries reads the firm's `retention.message_days`, not a fixed 90 days.
@@ -2937,7 +2994,8 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   - Standing demo messages for Enquiries (a keyword reply, a question waiting, an unknown number):
     with the demo seed (12I.1).
 - Personal replies (12D.2 review):
-  - **Dylan to confirm** (`docs/dpia-travel.md`): a personal reply's `enquiry.checks` entry keeps
+  - **Decided** (Dylan, 2026-10-16: keep the minutes) (`docs/dpia-travel.md`): a personal reply's
+    `enquiry.checks` entry keeps
     the casual's travel limit and the minutes to each session offered (never the postcode), for
     the office's "Inside travel area (20 min by car, limit 45 min)"; it stays as long as the
     action log. Decision 21 above says the travel area is "never in the action log": keep these
@@ -3065,7 +3123,7 @@ list.) After the decisions, a short table of checks and to-dos that aren't choic
   every dependency, development tools included (the worker runs TypeScript with `tsx`); a
   production-only install would leave out tools like the linter.
 - Travel estimates, a second audit (12G.2, 2026-10-15). 12G.2 was audited DONE on 2026-10-09. A
-  later re-audit found three paths no test reached; 12L.1 tests all three. It also asks **Dylan to accept** that hand-written TravelTime answers
+  later re-audit found three paths no test reached; 12L.1 tests all three. It also asked Dylan to accept (**accepted** 2026-10-16) that hand-written TravelTime answers
   (`tests/fixtures/traveltime/`) stand in for recorded ones until step 2 of "Connect postcodes.io
   and TravelTime" checks them against a live answer. The first audit took that step as covering
   it.

@@ -4,8 +4,9 @@ set -u
 cd "$(git rev-parse --show-toplevel)" || exit 2
 fail=0
 
-# 1. No focused or skipped tests (they silently shrink the suite).
-if hits=$(grep -rnE '\b(it|test|describe)\.(only|skip|todo|fails|skipIf|runIf)\(|\bx(it|describe)\(|\bf(it|describe)\(|\bctx\.skip\(|\bcontext\.skip\(' tests src 2>/dev/null); then
+# 1. No focused or skipped tests (they silently shrink the suite). Playwright's fixme, fail and
+#    run-time skips too (audit L62); a browser test turned off at run time is caught in 3 as well.
+if hits=$(grep -rnE '\b(it|test|describe)\.(only|skip|todo|fails|fail|fixme|skipIf|runIf)\(|\bx(it|describe)\(|\bf(it|describe)\(|\bctx\.skip\(|\bcontext\.skip\(|\btestInfo\.(skip|fixme|fail)\(|\btest\.info\(\)\.(skip|fixme|fail)\(' tests src 2>/dev/null); then
   echo "FAIL: focused/skipped tests found:"; echo "$hits"; fail=1
 else echo "ok: no .only/.skip/.todo in tests"; fi
 
@@ -27,6 +28,13 @@ elif ! node -e '
 ' "$results"; then
   echo "FAIL: some tests were skipped, todo or failed"; fail=1
 else echo "ok: every test ran and passed"; fi
+#    And the browser tests, when this verify run included them (VERIFY_E2E=true): Playwright exits
+#    0 with tests skipped or marked to fail, so read its JSON reports (scripts/e2e.mjs; audit L62).
+if [ "${VERIFY_E2E:-false}" = "true" ]; then
+  if node scripts/check-e2e-report.mjs .claude/state/e2e-main.json .claude/state/e2e-walkthrough.json; then
+    echo "ok: every browser test ran and passed"
+  else echo "FAIL: some browser tests were skipped, marked to fail, flaky or failed"; fail=1; fi
+fi
 
 # 4. Schema and migrations in sync: generating into a copy of drizzle/ must produce nothing.
 #    (drizzle-kit exits 0 even when it stops at an interactive prompt, so check the output.)
@@ -40,12 +48,15 @@ else
   echo "$out" | tail -5; fail=1
 fi
 
-# 5. Only withFirm sets the firm. Nothing else in src may touch app.current_firm_id, except the
-#    seed's owner-only firm provisioning (RLS is forced on the owner too, so creating a firm
-#    means setting it; ESLint keeps app code from importing src/lib/db/admin).
-if hits=$(grep -rnF "app.current_firm_id" src | grep -v -e "^src/lib/db/scoped.ts:" -e "^src/lib/db/admin/seed.ts:"); then
-  echo "FAIL: app.current_firm_id used outside src/lib/db/scoped.ts:"; echo "$hits"; fail=1
-else echo "ok: only withFirm (and the seed's firm provisioning) set the firm"; fi
+# 5. Only withFirm sets the firm. Nothing else in src or scripts may touch app.current_firm_id,
+#    except the seed's owner-only firm provisioning (RLS is forced on the owner too, so creating a
+#    firm means setting it; ESLint keeps app code from importing src/lib/db/admin) and the
+#    owner-run admin commands, each named here (audit L65; integration-tested: onboarding,
+#    custom-domain, brand, shifts-line and the others).
+owner_scripts='^scripts/(firm-agreement-owner|firm-brand-owner|firm-create-owner|firm-domain-owner|firm-settings-owner|firm-sheet-owner|shifts-line-owner)\.ts:'
+if hits=$(grep -rnF "app.current_firm_id" src scripts | grep -v -e "^src/lib/db/scoped.ts:" -e "^src/lib/db/admin/seed.ts:" -e "^scripts/invariants.sh:" | grep -vE "$owner_scripts"); then
+  echo "FAIL: app.current_firm_id used outside src/lib/db/scoped.ts and the named owner commands:"; echo "$hits"; fail=1
+else echo "ok: only withFirm (and the seed's and the owner commands' firm provisioning) set the firm"; fi
 
 # 6. Tests never reach a real outside service (CLAUDE.md conventions): the Vitest setup and the
 #    browser tests' servers (serverEnv(), the walkthrough's too) pin every real sender off, since
@@ -75,5 +86,11 @@ has_pin playwright.config.ts 'WEBHOOK_TRANSPORT: "console",' ||
 if [ -n "$pins_missing" ]; then
   echo "FAIL: a test setup no longer keeps a real sender off:$pins_missing"; fail=1
 else echo "ok: the test setups keep every real sender off"; fi
+
+# 7. No test reaches Twilio itself: nothing under tests/ imports its SDK (the fake phone and the
+#    console transport stand in; How the build is run 3).
+if hits=$(grep -rnE "from ['\"]twilio(/[^'\"]*)?['\"]|require\(['\"]twilio(/[^'\"]*)?['\"]\)|import\(['\"]twilio" tests 2>/dev/null); then
+  echo "FAIL: a test imports the Twilio SDK:"; echo "$hits"; fail=1
+else echo "ok: no test imports the Twilio SDK"; fi
 
 exit $fail

@@ -6,7 +6,8 @@ argument-hint: "[task text or phase]"
 This is the ONLY way a task gets ticked. Follow it exactly. Do not skip steps or paraphrase
 results.
 
-1. Run `./scripts/verify.sh`. Paste the summary lines it prints (the `==` lines and the final
+1. Run `RUN_E2E=1 ./scripts/verify.sh` (with the browser tests: the tick guard refuses a stamp
+   without them). Paste the summary lines it prints (the `==` lines and the final
    VERIFIED / NOT VERIFIED line). If NOT VERIFIED: fix the root cause, re-run, and repeat.
    Never delete, skip or weaken a test to get to green.
 2. Run the `claims-auditor` agent. Give it ONLY: the exact task text from `PLAN.md` ($ARGUMENTS

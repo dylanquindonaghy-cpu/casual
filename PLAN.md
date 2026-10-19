@@ -1153,13 +1153,14 @@ needs no outside account, after Phase 13. Docs: `docs/api-and-jobs.md`, `docs/ru
       during a push, for every sender; a push that throws; a phone saved again meanwhile is kept;
       production accepts webpush with its keys. Docs: `docs/api-and-jobs.md`, the Parking lot's
       "Connect the real web push" (14.1)
-- [ ] Login safety and the log's filters (Parking lot "13.5 guardrails review" 1 and 2): an ops
-      alert when a firm sends more login links in an hour than a set number (the backstop for the
-      60-per-address limit; an alert, not a firm-wide ceiling, so nobody is locked out); the
-      office log files each limit reached by its name ("Take shift" under Bookings, phones under
-      Workers, the planner's key under Firm settings, the rest under Logins), in the filter and the
-      list. Tests: the alert's threshold both sides, its words pass the log masker; each limit in
-      its group. Docs: `docs/api-and-jobs.md`, `docs/runbooks.md`, `docs/screens.md` (14.2)
+- [x] Login safety and the log's filters (Parking lot "13.5 guardrails review" 1 and 2): an ops
+      alert when a firm sends more login links in an hour, or in a day, than a set number (the
+      backstop for the 60-per-address limit; an alert, not a firm-wide ceiling, so nobody is
+      locked out); the office log files each limit reached by its name ("Take shift" under
+      Bookings, phones under Workers, the planner's key and the strikes team's links under Firm
+      settings, the rest under Logins), in the filter and the list. Tests: the alert's threshold
+      both sides, its words pass the log masker; each limit in its group. Docs:
+      `docs/api-and-jobs.md`, `docs/runbooks.md`, `docs/screens.md` (14.2)
 - [ ] Small fixes (Parking lot "13.5 guardrails review" 3 to 5): the shifts reply's last resort is
       signed (golden rule 8) with a shorter cut; automatic event names cut the site's name between
       whole characters; a licence warning caught up after a crash doesn't guess the channel it went
@@ -3185,11 +3186,11 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   person. Add a last try that marks it for a person and logs why, like the planner webhooks' last
   try (12J.2). Found when a day word crashed the reply (fixed in 12L.1).
 - 13.5 guardrails review, small and left for later:
-  - The office log's "Logins" filter also holds the casuals' own limits (`auth.rate_limited` for
-    `take:worker` and `push:worker`; `src/lib/office/log-types.ts`): their words are right, the
-    filter isn't. Group by the limit's name.
-  - A backstop for the higher per-address login limit (60 per 15 minutes since 13.5): an ops alert,
-    or a firm-wide daily ceiling, on login-link messages.
+  - ~~The office log's "Logins" filter also holds the casuals' own limits~~ **Done in 14.2**: each
+    limit reached is filed by its name (`LIMIT_TYPES`, `src/lib/office/log-types.ts`).
+  - ~~A backstop for the higher per-address login limit~~ **Done in 14.2**: an ops alert when a firm
+    sends more than 100 login links by WhatsApp and text in an hour, or 300 in a day (an alert, not
+    a ceiling). Both are starting numbers: revisit them with a pilot firm's real mornings.
   - The shifts reply's last resort (`lastResort`, `src/lib/inbound/personal-reply.ts`) sends the
     unsigned text when even the signed link is too long (golden rule 8). It can't happen with real
     names; signing a shorter cut would be cleaner.
@@ -3398,3 +3399,4 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 2026-10-16 | 13 | 1.5 | Tidy-ups (13.5): "Cancel with the link" in the 24-hour reminder; login links 60 per address every 15 minutes (was 10; per number unchanged); one shared cut between whole characters (`src/lib/text/cut.ts`) at both webhooks, the voicemail, the AI's input and four more places; "Take shift" 20 taps per casual every 15 minutes; licence expiry messages by the casual's own channel (`sendToWorker`); the image with production dependencies only (2.22 GB to 1.73 GB locally; `tsx` a dependency, a build-time check); Open shifts batching and the flaky sheets test found already done (Phase 10; 2026-10-06), both now pinned by tests; 18 break checks; guardrails no FIX FIRST, 2 SHOULDs fixed, over two rounds; a container restart mid-task (its 2.6 hours not counted); 4,942 tests + 92 e2e + the walkthrough's 3; audit DONE first round, with Phase 13's Done-when line (see docs/work-log.md) |
 | 2026-10-19 | — | 0.2 | Not a PLAN task: "ShiftDesk Walkthrough", a page for Dylan's boss telling one urgent gap's story in 12 real screenshots of a production build (the office offers it, a casual without a valid licence is stopped, one with it takes it from the WhatsApp link, the office sees it filled and logged, a cancellation with its notice, the shifts line, payroll's groups), taken by a script on the walkthrough's own seeded demo; published as a private artifact (see docs/work-log.md) |
 | 2026-10-19 | 14 | 1.1 | Pushes after the record's transaction (14.1): all 7 senders push once the message has gone, the phones read in a short transaction of their own and pushed with none open, the outcome (gone phones forgotten, only if their keys are unchanged, in a savepoint; the count) recorded in the sender's own transaction; a push that throws, even at once, or a lookup that fails never loses the record; an error's name never logged; a call with a transaction open refused; production now takes `PUSH_TRANSPORT=webpush`; every sender's test checks no transaction is open at each push; guardrails no FIX FIRST, 5 SHOULDs fixed; the first full check caught 4 no-resend tests whose fault now hit the push's lookup (harness now fails every transaction after a send); 9 break checks; 4,947 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
+| 2026-10-19 | 14 | 0.6 | Login safety and the log's filters (14.2): an ops alert when a firm sends more than 100 login links by WhatsApp and text in an hour, and another over 300 in 24 hours (the review's slow drip), each its own key; an alert, not a ceiling; the words only the firm's short name and a count, through the masker; the office log files each limit reached by its name (Take shift under Bookings, phones under Workers, the planner's key and the strikes team's links under Firm settings, the rest under Logins), the filter and the list agreeing, every limit the app has covered by a test; a stale doc line on login-link failures corrected; guardrails no FIX FIRST, 2 SHOULDs fixed (the strikes links, the day count); 11 break checks; 4,952 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |

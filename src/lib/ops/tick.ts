@@ -6,6 +6,7 @@ import { log, type Logger } from "../log";
 import {
   healthAlert,
   jobFailureAlert,
+  loginLinkAlerts,
   opsAlertSchema,
   sendFailureAlert,
   syncAlert,
@@ -18,8 +19,10 @@ import {
 // no firm, the tick looks at the last hour:
 // - jobs that failed after their last retry (pg-boss `failed`), by queue, across all firms (the
 //   worker's own pg-boss connection reads them: `failedJobs`);
-// - each firm (inside its own transaction, RLS): an enabled rota sheet whose last sync failed, and
-//   its WhatsApp and text sends (the events every sender writes) against the failures;
+// - each firm (inside its own transaction, RLS): an enabled rota sheet whose last sync failed, its
+//   WhatsApp and text sends (the events every sender writes) against the failures, and its login
+//   links by WhatsApp and text (14.2: more than usual means a crowd, or someone running up its
+//   messages);
 // - the web app's health check from inside the server (`health`, when HEALTH_CHECK_URL is set).
 // Each alert that fires is queued as an `ops-alert` job, unless one with the same key was queued in
 // the last hour (the worker looks: `queueOpsAlert()`), so an ongoing problem alerts at most once an
@@ -64,6 +67,9 @@ export const SEND_FAILED_ACTIONS = [
   "message.reply_failed",
 ] as const;
 
+// A casual's login links (sent or tried), counted for the login-link alerts (14.2).
+export const LOGIN_LINK_ACTIONS = ["auth.link_sent", "auth.link_send_failed"] as const;
+
 const list = (actions: readonly string[]) =>
   sql.join(
     actions.map((a) => sql`${a}`),
@@ -75,7 +81,7 @@ const list = (actions: readonly string[]) =>
 // ever).
 export const SYNC_FAILING_MINUTES = 30;
 
-// One firm's part: its failing sheet sync, and its sends over the last hour.
+// One firm's part: its failing sheet sync, its sends and its login links over the last hour.
 export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise<OpsAlert[]> {
   const [firm] = await tx.select({ slug: firms.slug }).from(firms).where(eq(firms.id, firmId));
   if (!firm) return [];
@@ -95,9 +101,23 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
   if (failing?.code) alerts.push(syncAlert({ firmId, slug: firm.slug, code: failing.code }));
 
   const since = new Date(now.getTime() - HOUR_MS);
-  const { rows } = await tx.execute<{ sent: number; failed: number; top_code: string | null }>(sql`
-    select count(*) filter (where e.action in (${list(SEND_ACTIONS)}))::int as sent,
-           count(*) filter (where e.action in (${list(SEND_FAILED_ACTIONS)})
+  const dayAgo = new Date(now.getTime() - 24 * HOUR_MS);
+  // The last hour's sends; the login links over the last 24 hours too (only those are read that
+  // far back).
+  const { rows } = await tx.execute<{
+    sent: number;
+    failed: number;
+    top_code: string | null;
+    login_links: number;
+    login_links_day: number;
+  }>(sql`
+    select count(*) filter (where e.created_at > ${since}
+                              and e.action in (${list(SEND_ACTIONS)}))::int as sent,
+           count(*) filter (where e.created_at > ${since}
+                              and e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links,
+           count(*) filter (where e.action in (${list(LOGIN_LINK_ACTIONS)}))::int as login_links_day,
+           count(*) filter (where e.created_at > ${since}
+                              and e.action in (${list(SEND_FAILED_ACTIONS)})
                               and e.data ->> 'code' is distinct from 'sms_opted_out')::int as failed,
            (select f.data ->> 'code' from events f
              where f.created_at > ${since} and f.created_at <= ${now}
@@ -107,7 +127,9 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
                and f.data ->> 'code' ~ '^[A-Za-z0-9_.-]{1,50}$'
              group by 1 order by count(*) desc, 1 limit 1) as top_code
       from events e
-     where e.created_at > ${since} and e.created_at <= ${now}
+     where e.created_at <= ${now}
+       and (e.created_at > ${since}
+            or (e.created_at > ${dayAgo} and e.action in (${list(LOGIN_LINK_ACTIONS)})))
        and e.data ->> 'channel' in ('whatsapp', 'sms')
   `);
   const counts = rows[0];
@@ -119,6 +141,14 @@ export async function firmAlerts(tx: FirmTx, firmId: string, now: Date): Promise
     topCode: counts?.top_code ?? null,
   });
   if (sends) alerts.push(sends);
+  alerts.push(
+    ...loginLinkAlerts({
+      firmId,
+      slug: firm.slug,
+      lastHour: counts?.login_links ?? 0,
+      lastDay: counts?.login_links_day ?? 0,
+    }),
+  );
   return alerts;
 }
 

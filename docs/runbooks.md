@@ -376,6 +376,7 @@ alert…" line (a text, once the phone sender is connected).
 | "{firm}'s rota sheet sync is failing ({code})" | The firm's Google Sheet hasn't synced for over 30 minutes and is still failing | The code says why: "Google Sheets sync failing" below. The office sees each failed sync in its action log |
 | "{firm}: N of M WhatsApps and texts failed to send in the last hour (P%), mostly {code}" | Twilio refused more than 5% of at least 20 messages (offers, reminders, notices, answers, shifts-line replies; a worker who turned texts off doesn't count) | Twilio's own log shows each refusal with its number (console.twilio.com → Monitor → Logs → Errors). Often: a template not approved, the account out of credit, or a number blocked. (The code in the alert is the app's; Twilio's numbered codes come with the Twilio sender) |
 | "the web app's health check is failing (…)" | The worker can't get an OK from the web app on the same server | `docker compose ps` and `docker compose logs web --since 15m`; the outside uptime check says whether the internet sees it too. "Event-morning outage" below |
+| "{firm}: N login links by WhatsApp and text in the last hour…" or "…in the last 24 hours…" | The firm sent more than 100 login links in an hour, or more than 300 in a day (14.2). A crowd logging in at once (a big briefing) can do the first; otherwise someone may be asking for links to run up the firm's messages (each is paid) | Ask the firm's office whether they had a briefing or a crowd logging in then. If not, or if it comes back day after day: the firm's action log, Type "Logins", shows each link asked for and sent, and "Too many tries: logging in was paused" where a limit stopped someone (the log keeps no address, only who the link was for). If it keeps up, lower `LIMITS.loginPerIp` or `LIMITS.loginPerNumberDaily` in `src/lib/auth/throttle.ts` (tell Claude) |
 | "N Twilio webhook requests with a bad signature in the last hour" | Twilio's messages to us are being refused: `TWILIO_AUTH_TOKEN` in `.env` no longer matches the account (someone rotated it), the address set in Twilio differs from the one the app checks against (http instead of https, or a firm's own domain instead of `<slug>.<our domain>`), or someone is probing | Compare the token with Twilio's console (Account → API keys & tokens), and the webhook addresses with "Connect Twilio". If both match, it's probing: nothing to do unless it keeps up |
 
 ### Checking the logs for personal data
@@ -397,7 +398,9 @@ Everyone on the same Wi-Fi (or mobile carrier NAT) shares one IP, and the login 
 requests per IP per 15 minutes per firm (13.5; enough for a briefing of about 50). For a bigger
 briefing, ask people to switch Wi-Fi off and use mobile data, or wait for the window to pass.
 Workers who already logged in stay logged in for 30 days, and using a link that works never
-counts. If it keeps happening, raise `LIMITS.loginPerIp` in `src/lib/auth/throttle.ts`.
+counts. If it keeps happening, raise `LIMITS.loginPerIp` in `src/lib/auth/throttle.ts`. (More than
+100 login links in an hour, or 300 in a day, from a firm sends you an alert: "Alerts from the app"
+above.)
 
 ## Rate limits look shared by everyone
 

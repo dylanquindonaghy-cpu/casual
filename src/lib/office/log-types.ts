@@ -258,9 +258,37 @@ const TYPE_OF = new Map<string, LogType>(
   LOG_TYPE_KEYS.flatMap((key) => LOG_TYPES[key].actions.map((a) => [a, key] as const)),
 );
 
-// The group an action is in, as the list shows it ("Offers"); "Other" for one not listed.
-export const logTypeLabel = (action: string): string => {
-  const key = TYPE_OF.get(action);
+// A limit reached (`auth.rate_limited` {limit}: src/lib/auth/throttle.ts, and the strikes team's
+// links in src/lib/office/strikes-email.ts) is filed by the limit's name (14.2): a casual's "Take
+// shift" taps with Bookings, their phones' saves with Workers, the planner's key and the strikes
+// team's confirmation links with Firm settings; every other limit (logins, links, codes) under
+// Logins.
+export const RATE_LIMITED = "auth.rate_limited";
+export const LIMIT_TYPES: Readonly<Record<string, LogType>> = {
+  "take:worker": "bookings",
+  "push:worker": "workers",
+  "api:key": "firm",
+  "strikes_link:firm": "firm",
+  "strikes_link:firm_day": "firm",
+};
+const limitType = (data: Record<string, unknown> | undefined): LogType => {
+  const name = data?.limit;
+  return (
+    (typeof name === "string" && Object.hasOwn(LIMIT_TYPES, name) && LIMIT_TYPES[name]) || "logins"
+  );
+};
+// The limits filed under a type, and whether it also takes every limit not named in LIMIT_TYPES.
+export function limitsFiledUnder(type: LogType): { names: string[]; others: boolean } {
+  return {
+    names: Object.keys(LIMIT_TYPES).filter((name) => LIMIT_TYPES[name] === type),
+    others: type === "logins",
+  };
+}
+
+// The group an action is in, as the list shows it ("Offers"); "Other" for one not listed. A limit
+// reached goes by the limit's name (its `data`).
+export const logTypeLabel = (action: string, data?: Record<string, unknown>): string => {
+  const key = action === RATE_LIMITED ? limitType(data) : TYPE_OF.get(action);
   return key ? LOG_TYPES[key].label : "Other";
 };
 

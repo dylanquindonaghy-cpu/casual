@@ -14,6 +14,7 @@ export const ALERT_KINDS = [
   "send_failures", // a firm's WhatsApps and texts failing to send
   "health_down", // the web app's health check failing
   "webhook_signatures", // many Twilio webhook requests with a bad signature
+  "login_links", // a firm sending far more login links than usual (14.2)
   "test", // `npm run ops:test-alert`: checks alerts reach you
 ] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
@@ -45,6 +46,17 @@ export const THRESHOLDS = {
   // Bad webhook signatures in the last hour, per web process: one is a scanner; 20 is a wrong auth
   // token or someone probing.
   badSignatures: 20,
+  // Login links a firm sent by WhatsApp and text in the last hour (14.2): the backstop for the
+  // per-address limit (60 every 15 minutes since 13.5, so one address alone can ask for 240 an
+  // hour). A briefing of about 50 on one venue's Wi-Fi is the busiest real case; each link is a
+  // paid message. An alert, not a ceiling: a ceiling would lock a whole firm's casuals out. A
+  // starting number: revisit it with a pilot firm's real mornings.
+  loginLinksPerHour: 100,
+  // And over 24 hours, for a slow drip that stays under the hourly one (14.2 guardrails review):
+  // each number gets at most 10 links a day, so links to a crew's numbers spread through the day
+  // could run to hundreds. A casual stays logged in for 30 days, so even a firm of 300 needs far
+  // fewer in a day. Also a starting number.
+  loginLinksPerDay: 300,
 } as const;
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -107,6 +119,37 @@ export function sendFailureAlert(s: {
     `send:${s.firmId}`,
     `${firmLabel(s.slug, s.firmId)}: ${s.failed} of ${total} WhatsApps and texts failed to send in the last hour (${pct}%)${s.topCode ? `, mostly ${s.topCode}` : ""}.`,
   );
+}
+
+// A firm's login links by WhatsApp and text (sent or tried) over the last hour, and over the last
+// 24 hours: an alert for each over its threshold (each its own key, so one never hides the other).
+export function loginLinkAlerts(s: {
+  firmId: string;
+  slug: string;
+  lastHour: number;
+  lastDay: number;
+}): OpsAlert[] {
+  const label = firmLabel(s.slug, s.firmId);
+  const alerts: OpsAlert[] = [];
+  if (s.lastHour > THRESHOLDS.loginLinksPerHour) {
+    alerts.push(
+      alert(
+        "login_links",
+        `logins:${s.firmId}`,
+        `${label}: ${s.lastHour} login links by WhatsApp and text in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.`,
+      ),
+    );
+  }
+  if (s.lastDay > THRESHOLDS.loginLinksPerDay) {
+    alerts.push(
+      alert(
+        "login_links",
+        `logins-day:${s.firmId}`,
+        `${label}: ${s.lastDay} login links by WhatsApp and text in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.`,
+      ),
+    );
+  }
+  return alerts;
 }
 
 export type HealthResult = { ok: true } | { ok: false; detail: string };

@@ -12871,3 +12871,73 @@ Key facts:
 
 `npm test -- tests/integration/push.test.ts` runs the push's own tests. Real pushes on a phone wait
 for the server ("Connect the real web push").
+
+## 2026-10-19 — Login safety and the log's filters (14.2)
+
+**Time spent:** about 0.6 hours (11:13 to 11:49 UTC on 19 Oct).
+
+**Result:** `VERIFIED tree=e2d2a59b61fc5212 e2e=true`: typecheck, lint, the production build,
+4,952 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor: `VERDICT: DONE` (first round).
+
+### What was built
+
+1. **An alert when a firm sends far more login links than usual.** Since 13.5, one internet
+   address may ask for 60 login links every 15 minutes, so a briefing on a venue's Wi-Fi isn't
+   locked out. Each link is a paid WhatsApp or text, and nothing watched the total. The worker's
+   checks (every 5 minutes) now count each firm's login links:
+   - more than **100 in the last hour** sends you an alert ("acme: 101 login links by WhatsApp and
+     text in the last hour…");
+   - more than **300 in the last 24 hours** sends another, for a slow drip that never reaches 100 in
+     an hour (each phone number can get 10 a day, so links to a crew's numbers spread through the
+     day could run to hundreds).
+
+   It's an **alert, not a ceiling**. A ceiling would let a handful of known numbers lock a whole
+   firm's casuals out on an event morning. The alert says only the firm's short name and a count,
+   never a number or a name. Until the phone sender is connected, alerts are a line in the server's
+   log ("Alerts from the app" in `docs/runbooks.md`).
+2. **The office's action log files each limit by what it limits.** When a limit stops someone, the
+   log records it. All of these used to be under "Logins", even "Too many taps on Take shift". Now:
+   - too many "Take shift" taps → **Bookings**;
+   - too many saves of a phone's notifications → **Workers**;
+   - the planner's API key, and the strikes team's confirmation links → **Firm settings and office
+     team**;
+   - everything else (login links, codes, office links) → **Logins**.
+
+   The Type filter and the label on each line agree.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| An alert, not a firm-wide ceiling | A ceiling could lock every casual out; the per-number limits already cap what one person can be sent | A daily ceiling per firm (the Parking lot's other option) |
+| 100 an hour, 300 a day | A briefing of about 50 is the busiest real hour; casuals stay logged in for 30 days | Lower numbers (alerts on normal mornings); one threshold only (misses a slow drip, the review's finding) |
+| Count links sent or tried, WhatsApp and text only | Each is a paid message; office links go by email | Counting office email links |
+| Strikes team links under Firm settings | Their other events are there (the review's finding) | Leaving them in Logins |
+
+### What the new tests prove
+
+- The alert's thresholds on both sides (100 and 300 don't alert, 101 and 301 do), its exact words,
+  its length with the longest firm name, and a firm name that looks like a phone number.
+- On the real database: only this firm's links, only WhatsApp and text, only the last hour (or the
+  last 24 hours for the day's alert); a slow drip over a day alerts; and the day's links never water
+  down the last hour's failure rate.
+- Every limit the app has lands in a group, so a new one can't slip in unfiled; on the real database
+  each Type shows exactly its limits.
+- 11 deliberate breaks, each caught: each threshold one lower, the alert left out, failed links not
+  counted, the day's count with no 24-hour edge or only an hour's, the day's links counted into the
+  hour's sends, "Take shift" or the strikes links left unfiled, the Logins catch-all left out of the
+  filter, and the label ignoring the limit's name.
+- The guardrails review found two things worth fixing, both fixed: the strikes team's links were
+  filed under Logins, and a slow drip of links (never 100 in an hour) would never alert.
+
+### What's parked or needs Dylan
+
+- The two numbers (100 an hour, 300 a day) are starting points: look again with a pilot firm's real
+  mornings.
+
+### How to see it working
+
+`npm test -- tests/integration/ops.alerts.test.ts` and
+`npm test -- tests/integration/office.action-log.test.ts`. In the running app: Action log, Type
+"Bookings", shows a "Too many taps on Take shift" line once a casual has tapped it 21 times in 15
+minutes.

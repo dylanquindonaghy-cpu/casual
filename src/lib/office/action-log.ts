@@ -10,7 +10,15 @@ import { dayLabel } from "../rules/reasons";
 import { addDays, localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { eventWords } from "./event-words";
 import { decodeLogCursor, encodeLogCursor, isLogCursor } from "./log-cursor";
-import { isLogType, LOG_TYPES, logTypeLabel, type LogType } from "./log-types";
+import {
+  isLogType,
+  LIMIT_TYPES,
+  limitsFiledUnder,
+  LOG_TYPES,
+  logTypeLabel,
+  RATE_LIMITED,
+  type LogType,
+} from "./log-types";
 
 // The office's action log (docs/screens.md `/office/log`; golden rule 5; product spec "every action
 // logged so that disputes are settled in seconds"). Admins and resourcers: the session and role are
@@ -182,13 +190,30 @@ export async function loadActionLog(
   }
   if (before) where.push(sql`e.id < ${before}`);
   if (query.type) {
-    const actions = [...LOG_TYPES[query.type].actions];
-    where.push(
-      sql`e.action in (${sql.join(
-        actions.map((a) => sql`${a}`),
+    // A limit reached goes by the limit's name, not its action (14.2: log-types.ts).
+    const list = (values: readonly string[]) =>
+      sql.join(
+        values.map((v) => sql`${v}`),
         sql`, `,
-      )})`,
+      );
+    const actions = (LOG_TYPES[query.type].actions as readonly string[]).filter(
+      (a) => a !== RATE_LIMITED,
     );
+    const limits = limitsFiledUnder(query.type);
+    const parts: SQL[] = [];
+    if (actions.length > 0) parts.push(sql`e.action in (${list(actions)})`);
+    if (limits.names.length > 0) {
+      parts.push(
+        sql`(e.action = ${RATE_LIMITED} and e.data ->> 'limit' in (${list(limits.names)}))`,
+      );
+    }
+    if (limits.others) {
+      parts.push(
+        sql`(e.action = ${RATE_LIMITED}
+             and coalesce(e.data ->> 'limit', '') not in (${list(Object.keys(LIMIT_TYPES))}))`,
+      );
+    }
+    where.push(parts.length > 0 ? sql`(${sql.join(parts, sql` or `)})` : sql`false`);
   }
   if (query.worker) where.push(eventsAboutWorker(query.worker));
   if (query.shift) {
@@ -343,7 +368,7 @@ export async function loadActionLog(
     return {
       id: Number(r.id),
       at: new Date(r.created_at),
-      type: logTypeLabel(r.action),
+      type: logTypeLabel(r.action, r.data),
       words: eventWords(
         {
           action: r.action,

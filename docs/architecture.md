@@ -108,8 +108,9 @@ the jobs role owns the pgboss tables and isn't firm-restricted there, so payload
    (`sessions.stepped_up_until`).
 6. Rate limits (`src/lib/auth/throttle.ts`), in fixed 15-minute windows per firm: 60 link
    requests per IP (anything typed, junk included; raised from 10 in 13.5 so a team briefed on one
-   venue's Wi-Fi isn't locked out) and 3 per number, plus at most 10 per number a day (Phase 10,
-   audit L49: each link is a billed message); 20 failed link uses per IP
+   venue's Wi-Fi isn't locked out; the backstop is an ops alert when a firm sends more than 100
+   login links by WhatsApp and text in an hour, or 300 in a day, 14.2) and 3 per number, plus at most 10 per number
+   a day (Phase 10, audit L49: each link is a billed message); 20 failed link uses per IP
    (successful logins don't count; the strikes team's confirmation links count here too, 12B.7).
    Those confirmation links are emails too: a firm sends at most 3 every 15 minutes and 10 a day
    (`STRIKES_LINK_LIMITS`, `src/lib/office/strikes-email.ts`). Checked IP first, stopping at the first refusal, so a refused
@@ -457,11 +458,13 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   the portal "{Firm} shifts" on the home screen.
 - Offline: a service worker (`public/sw.js`, ADR-016) keeps the last copy of My shifts, so it
   opens without signal, marked "No signal. These are your shifts from {time}".
-- Web push (Phase 4, built short of real sends): the profile subscribes this phone
-  (`POST /api/push/subscribe`, `push_subscriptions`); offer waves push each urgent offer to the
-  worker's phones as well as WhatsApp/SMS; the same service worker shows the notification and
-  opens the shift (our own pages only). The sender is a console transport: the real one (VAPID
-  keys, the `web-push` library, Google/Apple push services) is parked.
+- Web push: the profile subscribes this phone (`POST /api/push/subscribe`,
+  `push_subscriptions`); offers, reminders and the office's notices push to the worker's phones as
+  well as WhatsApp/SMS; the same service worker shows the notification and opens the page (our own
+  pages only). The real sender (13.3: the `web-push` library, the deployment's VAPID keys, the
+  browser makers' push services) is `PUSH_TRANSPORT=webpush`; each push goes after its message,
+  with no transaction open (14.1). Production keeps `none` until the keys are made on the server
+  (PLAN.md Parking lot, "Connect the real web push").
 - WhatsApp: business-initiated messages must use approved templates (utility category for
   offers and login links). From 1 October 2026 Meta charges per service message beyond the
   free tier of 1,000 per number per month, and a payment method must be on file.

@@ -16,7 +16,7 @@ import {
   shiftUrgentSms,
   urgentPush,
 } from "../messaging/templates";
-import { pushToWorker, sendToWorker } from "../notify/send";
+import { pushToWorker, recordPushes, sendToWorker } from "../notify/send";
 import { dayWords } from "../portal/format";
 import { getPushTransport } from "../push/transport";
 import { officeCanPlace } from "../roster/book";
@@ -366,9 +366,9 @@ async function claimOfficeOffer(
 }
 
 // At most once, like the waves (a firm task, never a transaction held across a message): (1) the
-// claim above; (2) the message by the worker's channel, outside any transaction; (3) a short
-// transaction records it: the push, then offer.sent, or the offer marked failed and
-// offer.send_failed. A retried job finds the offer and sends nothing (offer.office_not_sent
+// claim above; (2) the message by the worker's channel, then the push, outside any transaction;
+// (3) a short transaction records it: offer.sent with the push's count, or the offer marked failed
+// and offer.send_failed. A retried job finds the offer and sends nothing (offer.office_not_sent
 // {duplicate}).
 export async function runOfficeOffer(
   payload: OfficeOfferPayload,
@@ -389,6 +389,14 @@ export async function runOfficeOffer(
     body: claim.body,
     from: claim.line,
   });
+  // The push once the message has gone (no use once the shift has started), with no transaction open.
+  const pushed = sent.ok
+    ? await pushToWorker(inFirm, deps, payload.workerId, {
+        ...claim.push,
+        url: `/shifts/${claim.shiftId}`,
+        until: claim.startsAt,
+      })
+    : null;
 
   // (3) The outcome.
   return inFirm(async (tx): Promise<OfficeOfferResult> => {
@@ -419,12 +427,7 @@ export async function runOfficeOffer(
       });
       return { status: "failed" };
     }
-    // The push once the message has gone: no use once the shift has started.
-    const pushes = await pushToWorker(tx, deps, payload.workerId, {
-      ...claim.push,
-      url: `/shifts/${claim.shiftId}`,
-      until: claim.startsAt,
-    });
+    const pushes = await recordPushes(tx, pushed);
     if (sent.fellBackFrom) {
       await tx.update(offers).set({ channel: sent.channel }).where(eq(offers.id, claim.offerId));
     }

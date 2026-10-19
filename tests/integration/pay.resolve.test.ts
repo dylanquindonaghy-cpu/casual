@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ActiveSession } from "@/lib/auth/sessions";
-import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { activeFirmId, createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import {
@@ -273,6 +273,7 @@ describe("telling the worker (the pay-query-update job)", () => {
   async function notices() {
     const sent: OutboundMessage[] = [];
     const pushed: PushPayload[] = [];
+    const pushedInTransaction: boolean[] = []; // a transaction open as each push went (14.1: never)
     const state = { fail: false, refuseWhatsApp: false };
     const deps = (when: Date): PayQueryUpdateDeps => ({
       transport: {
@@ -289,6 +290,7 @@ describe("telling the worker (the pay-query-update job)", () => {
       push: {
         name: "capture",
         async send(_target, payload) {
+          pushedInTransaction.push(activeFirmId() !== undefined);
           pushed.push(payload);
           return { status: "sent" };
         },
@@ -302,7 +304,7 @@ describe("telling the worker (the pay-query-update job)", () => {
         { id: "job", data },
         withFirm,
       );
-    return { sent, pushed, state, run };
+    return { sent, pushed, pushedInTransaction, state, run };
   }
   const bodies = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
   const ref = (id: string) => id.slice(0, 8).toUpperCase();
@@ -335,6 +337,8 @@ describe("telling the worker (the pay-query-update job)", () => {
         url: "/pay",
       },
     ]);
+    // With no transaction open (14.1): a slow push service holds no database connection.
+    expect(n.pushedInTransaction).toEqual([false]);
     expect(await n.run(job ?? {})).toMatchObject({ output: { status: "already" } });
     expect(n.sent).toHaveLength(1);
     const logged = await t.eventsOf("pay_query.update%");

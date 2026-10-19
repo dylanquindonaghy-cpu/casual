@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSession } from "@/lib/auth/sessions";
-import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { activeFirmId, createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import {
@@ -53,6 +53,7 @@ async function offerFirm(settings: Record<string, unknown> = {}) {
   ).rows[0]?.slug;
   const sent: OutboundMessage[] = [];
   const pushed: PushPayload[] = [];
+  const pushedInTransaction: boolean[] = []; // a transaction open as each push went (14.1: never)
   const state = { refuseWhatsApp: false, fail: false };
   const deps = (when = NOW): OfferDeps => ({
     transport: {
@@ -69,6 +70,7 @@ async function offerFirm(settings: Record<string, unknown> = {}) {
     push: {
       name: "capture",
       async send(_target, payload) {
+        pushedInTransaction.push(activeFirmId() !== undefined);
         pushed.push(payload);
         return { status: "sent" };
       },
@@ -114,6 +116,7 @@ async function offerFirm(settings: Record<string, unknown> = {}) {
     slug,
     sent,
     pushed,
+    pushedInTransaction,
     state,
     ctx,
     jobs,
@@ -225,6 +228,8 @@ describe("queueing the offer", () => {
         until: hoursFromNow(30),
       },
     ]);
+    // With no transaction open (14.1): a slow push service holds no database connection.
+    expect(t.pushedInTransaction).toEqual([false]);
     expect((await t.offersOf())[0]).toMatchObject({ channel: "sms" });
   });
 

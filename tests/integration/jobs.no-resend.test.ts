@@ -27,8 +27,10 @@ import { createTenant } from "../helpers/tenant-rows";
 // by pg-boss, and the retry must send nothing. Each sender claims its work in a committed
 // transaction before the message, so the retry finds the claim; the retry also logs what the failed
 // run couldn't (the send, marked unconfirmed), so the action log and the notice report keep it.
-// The transaction-runner here fails any transaction a message was sent during, and the first one
-// started after a message (the record step). Real database, app role, nothing sent anywhere.
+// The transaction-runner here fails any transaction a message was sent during, and every one
+// started after a message (the database gone from then on: the record step fails, whatever comes
+// before it; since 14.1 the push's short read of the phones comes first, and a push never fails a
+// job). Real database, app role, nothing sent anywhere.
 
 let su: Pool;
 let app: Pool;
@@ -53,7 +55,7 @@ const noPush: PushTransport = {
 };
 
 // A transport that remembers what went (or throws, when `down`), and a runner that fails the
-// record step: any transaction a message was sent during, and the first one after a message.
+// record step: any transaction a message was sent during, and every one after a message.
 function harness(o: { down?: boolean } = {}) {
   const sent: OutboundMessage[] = [];
   const transport: MessagingTransport = {
@@ -66,7 +68,7 @@ function harness(o: { down?: boolean } = {}) {
   };
   let tripped = false;
   const failingAfterSend: WithFirm = async (firmId, fn) => {
-    if (!tripped && sent.length > 0) {
+    if (sent.length > 0) {
       tripped = true;
       throw new Error("the record step failed");
     }
@@ -214,6 +216,8 @@ describe("a job that fails after its message is sent never sends it again, and l
     expect(logged.map((e) => e.data)).toEqual([
       expect.objectContaining({ days: 7, expiresOn: "2026-11-09", unconfirmed: true }),
     ]);
+    // Which channel it went by isn't known (the claim doesn't keep it): not guessed (14.3).
+    expect(logged[0]?.data).not.toHaveProperty("channel");
   });
 
   it("the credential expiry notice: the expiry logged with the claim, the notice once, unconfirmed", async () => {

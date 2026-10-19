@@ -4,6 +4,7 @@ import {
   firmLabel,
   healthAlert,
   jobFailureAlert,
+  loginLinkAlerts,
   sendFailureAlert,
   signatureAlert,
   syncAlert,
@@ -91,6 +92,36 @@ describe("the alerts", () => {
       sendFailureAlert({ firmId: FIRM, slug: "acme", sent: 0, failed: 20, topCode: null })?.text,
     ).toBe(
       "ShiftDesk alert: acme: 20 of 20 WhatsApps and texts failed to send in the last hour (100%).",
+    );
+  });
+
+  it("login links: more than 100 in the hour, or more than 300 in 24 hours (14.2)", () => {
+    const links = (lastHour: number, lastDay: number, slug = "acme") =>
+      loginLinkAlerts({ firmId: FIRM, slug, lastHour, lastDay });
+    expect(THRESHOLDS).toMatchObject({ loginLinksPerHour: 100, loginLinksPerDay: 300 });
+    expect(links(0, 0)).toEqual([]);
+    expect(links(100, 300)).toEqual([]); // exactly at each: not more than
+    const hour = {
+      kind: "login_links",
+      key: `logins:${FIRM}`,
+      text: "ShiftDesk alert: acme: 101 login links by WhatsApp and text in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.",
+    };
+    const day = {
+      kind: "login_links",
+      key: `logins-day:${FIRM}`,
+      text: "ShiftDesk alert: acme: 301 login links by WhatsApp and text in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.",
+    };
+    expect(links(101, 101)).toEqual([hour]);
+    // A slow drip: never 100 in an hour, but over 300 in the day.
+    expect(links(40, 301)).toEqual([day]);
+    expect(links(101, 301)).toEqual([hour, day]);
+    // Within the alert's length with the longest slug (20 characters), and passes the masker.
+    for (const a of links(10_000, 100_000, "a".repeat(20))) {
+      expect(a.text.length).toBeLessThanOrEqual(320);
+    }
+    // A slug that looks like a phone number: named by the firm's id instead.
+    expect(links(101, 0, "acme07700900123")[0]?.text).toMatch(
+      /^ShiftDesk alert: firm 0f8fad5b: 101 /,
     );
   });
 

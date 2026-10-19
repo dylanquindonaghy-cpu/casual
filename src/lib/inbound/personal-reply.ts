@@ -320,10 +320,13 @@ export function shiftsReplyText(
 }
 
 // Only the link, when nothing else fits (a firm's name or a link far longer than any real one).
+// Always signed (golden rule 8): when even this is too long, the text is cut to leave the sign-off
+// room. (A sign-off is short: a firm's name is 2 to 80 characters, scripts/firm-create.ts and
+// firm-brand.ts, and its own sign-off keeps SIGN_OFF_RULE, src/lib/tenancy/sign-off.ts.)
 function lastResort(input: ShiftsReplyInput, channel: Channel): string {
   const text = `Shifts you can take: ${input.links.take} ${AUTOMATIC}`;
-  const body = signed(input.firm, channel, text);
-  return body.length <= MAX_BODY ? body : cutUnits(text, MAX_BODY);
+  const room = MAX_BODY - signed(input.firm, channel, "").length;
+  return signed(input.firm, channel, cutUnits(text, Math.max(0, room)));
 }
 
 export interface CancelReplyInput {

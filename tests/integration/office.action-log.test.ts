@@ -321,6 +321,35 @@ describe("the action log", () => {
     );
   });
 
+  it("a limit reached is filed by the limit's name: Take shift under Bookings, phones under Workers, the planner's key under Firm settings, the rest under Logins (14.2)", async () => {
+    const t = await logFirm();
+    const limit = (name: string | null, hours: number) =>
+      t.event({
+        action: "auth.rate_limited",
+        at: at(hours),
+        entityType: "worker",
+        data: name === null ? {} : { limit: name },
+      });
+    // Oldest first, as events arrive (the log lists the newest first).
+    const booked = await t.event({ action: "shift.assigned", at: at(-6), entityId: t.shiftId });
+    const unnamed = await limit(null, -5);
+    const ip = await limit("login:ip", -4);
+    const strikes = await limit("strikes_link:firm", -3.5);
+    const key = await limit("api:key", -3);
+    const phones = await limit("push:worker", -2);
+    const take = await limit("take:worker", -1);
+    const ids = async (type: string) => (await t.log({ type })).entries.map((e) => e.id);
+    expect(await ids("bookings")).toEqual([take, booked]);
+    expect(await ids("workers")).toEqual([phones]);
+    expect(await ids("firm")).toEqual([key, strikes]);
+    expect(await ids("logins")).toEqual([ip, unnamed]);
+    // Each line says its group too.
+    const all = (await t.log()).entries;
+    expect(
+      [take, phones, key, ip, unnamed].map((id) => all.find((e) => e.id === id)?.type),
+    ).toEqual(["Bookings", "Workers", "Firm settings and office team", "Logins", "Logins"]);
+  });
+
   it("100 at a time; Older carries on from the last one", async () => {
     const t = await logFirm();
     const ids: number[] = [];

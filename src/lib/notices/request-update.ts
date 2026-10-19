@@ -10,6 +10,7 @@ import { getTransport } from "../messaging";
 import { requestUpdateMessage, requestUpdatePush } from "../messaging/templates";
 import {
   pushToWorker,
+  recordPushes,
   sendToWorker,
   type NotifyDeps,
   type WorkerChannel,
@@ -27,8 +28,8 @@ import { signOffFor } from "../tenancy/sign-off";
 //
 // At most once, like the other notices: (1) a short transaction claims it (request.update_notice,
 // under an advisory lock on the request) and commits; (2) the message goes outside any
-// transaction, by the worker's channel with the WhatsApp-to-text fallback; (3) a second short
-// transaction pushes to their phones and logs request.update_sent or _failed. A job that stops
+// transaction, by the worker's channel with the WhatsApp-to-text fallback, then the push to their
+// phones; (3) a second short transaction logs request.update_sent or _failed. A job that stops
 // part-way leaves the claim: the message may have gone, so it's never sent again.
 //
 // Quiet hours: a reply waits for them to end (logged request.update_held and queued again, never
@@ -200,6 +201,10 @@ export async function runRequestUpdate(
     body: { whatsapp: c.body, sms: c.body },
     from: c.from,
   });
+  // The push once the message has gone, with no transaction open.
+  const pushed = sent.ok
+    ? await pushToWorker((fn) => run(payload.firmId, fn), deps, c.workerId, c.push)
+    : null;
   await run(payload.firmId, async (tx) => {
     if (!sent.ok) {
       await recordEvent(tx, {
@@ -211,7 +216,7 @@ export async function runRequestUpdate(
       });
       return;
     }
-    const pushes = await pushToWorker(tx, deps, c.workerId, c.push);
+    const pushes = await recordPushes(tx, pushed);
     await recordEvent(tx, {
       actorType: "system",
       action: "request.update_sent",

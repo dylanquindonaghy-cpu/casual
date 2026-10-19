@@ -125,6 +125,57 @@ describe("a firm's signals", () => {
     await source(t, "last_attempted_at = now(), enabled = false");
     expect(await alertsFor(t)).toEqual([]);
   });
+
+  it("login links: more than 100 by WhatsApp and text in the last hour, this firm's (14.2)", async () => {
+    const t = await createTenant(su);
+    const other = await createTenant(su);
+    const logins = async (firm: Tenant) =>
+      (await alertsFor(firm)).filter((a) => a.kind === "login_links");
+    // Sent or tried: 100 in the hour is not more than the threshold.
+    await events(t, "auth.link_sent", 90);
+    await events(t, "auth.link_send_failed", 10, { code: "timeout" });
+    // Not counted: the office's links (by email), links over an hour ago, another firm's.
+    await events(t, "auth.link_sent", 50, { channel: "email" });
+    await events(t, "auth.link_sent", 50, { minutesAgo: 70 });
+    await events(other, "auth.link_sent", 200);
+    expect(await logins(t)).toEqual([]);
+    await events(t, "auth.link_sent", 1, { channel: "sms" });
+    expect(await logins(t)).toEqual([
+      {
+        kind: "login_links",
+        key: `logins:${t.firmId}`,
+        text: `ShiftDesk alert: ${t.slug}: 101 login links by WhatsApp and text in the last hour. A big briefing can do that; if not, someone may be running up the firm's messages. Check the action log's Logins.`,
+      },
+    ]);
+    // The other firm's 200 are its own alert.
+    expect((await logins(other)).map((a) => a.key)).toEqual([`logins:${other.firmId}`]);
+  });
+
+  it("login links: a slow drip, more than 300 over 24 hours though never 100 in an hour (14.2)", async () => {
+    const t = await createTenant(su);
+    const logins = async () => (await alertsFor(t)).filter((a) => a.kind === "login_links");
+    // 300 through the day, at most 60 in any hour; and 100 more, but over 24 hours ago.
+    for (const hoursAgo of [2, 5, 9, 14, 20])
+      await events(t, "auth.link_sent", 60, { minutesAgo: hoursAgo * 60 });
+    await events(t, "auth.link_sent", 100, { minutesAgo: 25 * 60 });
+    // And other sends from earlier in the day: not read for this.
+    await events(t, "offer.send_failed", 40, { minutesAgo: 3 * 60, code: "old" });
+    expect(await logins()).toEqual([]);
+    await events(t, "auth.link_send_failed", 1, { minutesAgo: 23 * 60, code: "timeout" });
+    expect(await logins()).toEqual([
+      {
+        kind: "login_links",
+        key: `logins-day:${t.firmId}`,
+        text: `ShiftDesk alert: ${t.slug}: 301 login links by WhatsApp and text in the last 24 hours, far more than a firm needs. Someone may be running up the firm's messages. Check the action log's Logins.`,
+      },
+    ]);
+    // The day's links never count in the last hour's sends: 2 of this hour's 20 failed, 10%.
+    await events(t, "offer.sent", 18);
+    await events(t, "offer.send_failed", 2, { code: "twilio_21610" });
+    expect((await alertsFor(t)).find((a) => a.kind === "send_failures")?.text).toBe(
+      `ShiftDesk alert: ${t.slug}: 2 of 20 WhatsApps and texts failed to send in the last hour (10%), mostly twilio_21610.`,
+    );
+  });
 });
 
 describe("failed jobs", () => {

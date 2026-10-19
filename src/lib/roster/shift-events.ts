@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { shiftEvents, sites, type SHIFT_SOURCES } from "../db/schema";
 import type { FirmTx } from "../db/scoped";
 import { dayLabel } from "../rules/reasons";
+import { cutChars } from "../text/cut";
 import { localDateOf } from "../time/zoned";
 
 // Events (shift_events, docs/office-v2.md 3.3): every shift belongs to one. "Shifts for an event"
@@ -11,7 +12,7 @@ import { localDateOf } from "../time/zoned";
 // again by its key, `auto:{site id or none}:{yyyy-mm-dd}`, held in planner_ref. The day is the
 // shift's start in the firm's time zone, so a night shift belongs to the day it starts. A unique
 // index allows one automatic event per firm, site and day, whoever makes it. The migration's SQL
-// makes the same names and keys (tests/integration/db.event-backfill.test.ts).
+// made the same names and keys (tests/integration/db.event-backfill.test.ts).
 
 export const EVENT_NAME_MAX = 200;
 // 200, less " · " and the longest day label ("Wed 10 Sep"): the date always fits.
@@ -28,10 +29,12 @@ export function automaticEventKey(siteId: string | null, day: string): string {
   return `auto:${siteId ?? "none"}:${day}`;
 }
 
-// Cut by characters (code points), as Postgres's left() counts them.
+// The site's name cut to SITE_PART_MAX characters as Postgres counts them (code points), between
+// whole characters (14.3), so a flag or a skin tone at the cut is never split. Migration 0035's
+// backfill cut with left() (code points): the same name, unless a split one stood at the cut.
 export function automaticEventName(siteName: string | null, day: string): string {
   const label = dayLabel(day);
-  return siteName === null ? label : `${[...siteName].slice(0, SITE_PART_MAX).join("")} · ${label}`;
+  return siteName === null ? label : `${cutChars(siteName, SITE_PART_MAX)} · ${label}`;
 }
 
 export async function automaticEventId(

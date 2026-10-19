@@ -11,6 +11,7 @@ import { getTransport } from "../messaging";
 import { bookedPush, shiftConfirmedMessage } from "../messaging/templates";
 import {
   pushToWorker,
+  recordPushes,
   sendToWorker,
   smsAllowedFor,
   type NotifyDeps,
@@ -33,7 +34,7 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 // At most once, like the office's change notices (src/lib/notices/firm-change.ts): a short
 // transaction claims it (the shift.booked_notice event, under an advisory lock on the booking) and
 // commits; the message goes outside any transaction (shift_confirmed, by the worker's channel with
-// the WhatsApp-to-text fallback); a second short transaction pushes to their phones and logs
+// the WhatsApp-to-text fallback), then the push to their phones; a second short transaction logs
 // shift.booked_notice_sent or _failed. A job that stops part-way leaves the claim: the message may
 // have gone, so it's never sent again.
 //
@@ -271,6 +272,10 @@ export async function runShiftConfirmed(
     body: { whatsapp: claim.body, sms: claim.body },
     from: claim.from,
   });
+  // The push once the message has gone, with no transaction open.
+  const pushed = sent.ok
+    ? await pushToWorker((fn) => run(payload.firmId, fn), deps, claim.workerId, claim.push)
+    : null;
   await run(payload.firmId, async (tx) => {
     if (!sent.ok) {
       await recordEvent(tx, {
@@ -287,7 +292,7 @@ export async function runShiftConfirmed(
       });
       return;
     }
-    const pushes = await pushToWorker(tx, deps, claim.workerId, claim.push);
+    const pushes = await recordPushes(tx, pushed);
     await recordEvent(tx, {
       actorType: "system",
       action: "shift.booked_notice_sent",

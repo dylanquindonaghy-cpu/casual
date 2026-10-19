@@ -360,7 +360,8 @@ async function claimCredential(
         type: c.type,
         expiresOn: c.expiresOn,
         days: c.warnedDays,
-        channel: firstChannel(c),
+        // No channel: the claim doesn't keep the one it went by, and the worker may have changed
+        // theirs since (14.3).
         unconfirmed: true,
       },
     });

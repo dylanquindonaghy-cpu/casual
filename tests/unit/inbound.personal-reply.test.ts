@@ -327,6 +327,24 @@ describe("never over the limit, whatever the names", () => {
       expect(huge.text).toContain(LINK);
     }
   });
+  it("the last resort, when even the link alone is too long, is still signed (14.3; golden rule 8)", () => {
+    const huge = `${LINK}?${"x".repeat(1700)}`;
+    for (const [channel, end] of [
+      ["whatsapp", "\n— Acme Events Shift Team"],
+      ["sms", " - Acme Events Shift Team"],
+    ] as const) {
+      for (const shifts of [[arena], []]) {
+        const { text, listed } = shiftsReplyText(
+          base({ shifts, links: { take: huge, profile: PROFILE } }),
+          channel,
+        );
+        expect(listed).toBe(0);
+        expect(text.length).toBeLessThanOrEqual(MAX_BODY);
+        expect(text.startsWith(`Shifts you can take: ${LINK}?xxx`)).toBe(true);
+        expect(text.endsWith(end)).toBe(true);
+      }
+    }
+  });
   it('a text\'s cut names end with three dots (GSM-7), never "…"', () => {
     const long = { ...arena, siteName: "S".repeat(200), role: "r".repeat(100) };
     const { text } = shiftsReplyText(base({ shifts: [long] }), "sms");

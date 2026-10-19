@@ -196,7 +196,7 @@ export async function removePushSubscription(
   });
 }
 
-// Where to push to for a worker (inside the sender's transaction).
+// Where to push to for a worker (read in its own short transaction: src/lib/notify/send.ts).
 export async function pushTargets(tx: FirmTx, workerId: string): Promise<PushTarget[]> {
   return tx
     .select({
@@ -209,9 +209,22 @@ export async function pushTargets(tx: FirmTx, workerId: string): Promise<PushTar
     .where(eq(pushSubscriptions.workerId, workerId));
 }
 
-// The push service said this subscription no longer exists: forget it.
-export async function forgetPushTarget(tx: FirmTx, id: string): Promise<void> {
-  await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.id, id));
+// The push service said this subscription no longer exists: forget it, if it's still the one that
+// was pushed to. The push went with no transaction open (14.1), so meanwhile a new login on that
+// phone may have taken the row over with new keys: then it's kept. True if it was forgotten.
+export async function forgetPushTarget(tx: FirmTx, target: PushTarget): Promise<boolean> {
+  const gone = await tx
+    .delete(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.id, target.id),
+        eq(pushSubscriptions.endpoint, target.endpoint),
+        eq(pushSubscriptions.p256dh, target.p256dh),
+        eq(pushSubscriptions.auth, target.auth),
+      ),
+    )
+    .returning({ id: pushSubscriptions.id });
+  return gone.length > 0;
 }
 
 // Counts one save that writes, by this worker (the auth throttle, LIMITS.pushPerWorker), in its own

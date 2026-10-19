@@ -768,7 +768,8 @@ create table events (
 -- roster.sheet_booking_refused (shift; {source, workerId, codes}) for a sheet name (codes may
 -- include settings_invalid when the firm's rules settings are broken).
 -- Credential expiry (actor system): credential.expiry_warning (credential; {type, expiresOn, days,
--- daysLeft, channel, providerMessageId}), credential.expired (credential; {type, expiresOn,
+-- daysLeft, channel, providerMessageId}; one caught up after a crash: {type, expiresOn, days,
+-- unconfirmed: true}, no channel, 14.3), credential.expired (credential; {type, expiresOn,
 -- notified, superseded?, channel, providerMessageId}), credential.weekly_list_sent (firm; {date,
 -- recipients, skipped, expiring, expired}: counts only, never the names in the email).
 

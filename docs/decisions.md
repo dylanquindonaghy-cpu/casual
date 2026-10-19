@@ -286,8 +286,8 @@ sync), and shifts can move.
 open or filled shifts with a reminder due, and queues one `shift-reminders` job per firm that has
 any. The job is a firm task: per reminder, one short transaction claims it in `shift_reminders`
 (status `sending`, unique per booking, reminder and start time, only if the booking is still
-there) and commits; the message goes outside any transaction; a second short transaction records
-`sent` (with the push and the event) or `failed`. A job that stops between the two leaves
+there) and commits; the message, then the push, go outside any transaction (the push since 14.1);
+a second short transaction records `sent` (with the push's count and the event) or `failed`. A job that stops between the two leaves
 `sending`, meaning "may have gone": it's never sent again. (The first version held one transaction
 across every send, so a failure after a message went rolled back its record and a retry resent it:
 caught in review.) The rules for when are pure functions (`src/lib/rules/reminders.ts`):

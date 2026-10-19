@@ -320,7 +320,7 @@ describe("the settings for web push", () => {
     VAPID_SUBJECT: keys.subject,
   };
 
-  it("webpush needs the three keys, as a pair, and is refused in tests", () => {
+  it("webpush needs the three keys, as a pair; refused in tests, taken in production", () => {
     expect(() => parseWorkerEnv(worker)).toThrow(
       /VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT/,
     );
@@ -348,10 +348,17 @@ describe("the settings for web push", () => {
     expect(() => parseWorkerEnv({ ...worker, ...all, NODE_ENV: "test" })).toThrow(
       /tests never reach a push service/,
     );
-    // Nor production yet: the push must first go outside the record's transaction.
-    const production = () =>
+    // Production takes it (14.1: each push goes with no transaction open). What else production
+    // asks for (a real messaging sender) isn't this test's: the parse runs production's checks, and
+    // none of them is about the push.
+    let problems = "";
+    try {
       parseWorkerEnv({ ...worker, ...all, NODE_ENV: "production", PUSH_TRANSPORT: "webpush" });
-    expect(production).toThrow(/webpush waits on one more build step/);
+    } catch (error) {
+      problems = String(error);
+    }
+    expect(problems).toMatch(/MESSAGING_TRANSPORT/);
+    expect(problems).not.toMatch(/PUSH_TRANSPORT|webpush|VAPID/);
     // The test setup itself keeps it off (tests/setup/env.ts).
     expect(process.env.PUSH_TRANSPORT).toBe("console");
     expect(process.env.VAPID_PRIVATE_KEY).toBe("");

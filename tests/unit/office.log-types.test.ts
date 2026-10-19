@@ -5,10 +5,14 @@ import { eventWords } from "@/lib/office/event-words";
 import {
   ALL_LOGGED_ACTIONS,
   isLogType,
+  LIMIT_TYPES,
+  limitsFiledUnder,
   LOG_TYPE_KEYS,
   LOG_TYPES,
   logTypeLabel,
 } from "@/lib/office/log-types";
+import { LIMITS } from "@/lib/auth/throttle";
+import { STRIKES_LINK_LIMITS } from "@/lib/office/strikes-email";
 
 // The action log (docs/screens.md `/office/log`) shows every event the app records, each in a plain
 // group for the "type" filter (src/lib/office/log-types.ts) and in plain words
@@ -350,6 +354,29 @@ describe("the action log's types and words", () => {
     expect(isLogType("offers")).toBe(true);
     expect(isLogType("toString")).toBe(false);
     expect(isLogType("")).toBe(false);
+  });
+
+  it("a limit reached is filed by the limit's name (14.2)", () => {
+    const limit = (name: string) => logTypeLabel("auth.rate_limited", { limit: name });
+    expect(limit("take:worker")).toBe("Bookings");
+    expect(limit("push:worker")).toBe("Workers");
+    expect(limit("api:key")).toBe("Firm settings and office team");
+    expect(limit("strikes_link:firm")).toBe("Firm settings and office team");
+    expect(limit("strikes_link:firm_day")).toBe("Firm settings and office team");
+    expect(limit("login:ip")).toBe("Logins");
+    expect(limit("otp:worker")).toBe("Logins");
+    // An older entry without a name, or one not known here: Logins.
+    expect(logTypeLabel("auth.rate_limited")).toBe("Logins");
+    expect(limit("toString")).toBe("Logins");
+    // Every limit there is: the casuals' own, the planner's and the strikes team's links have their
+    // place; the rest are about logging in (links, codes, office links).
+    for (const { name } of [...Object.values(LIMITS), ...STRIKES_LINK_LIMITS]) {
+      if (Object.hasOwn(LIMIT_TYPES, name)) continue;
+      expect(name).toMatch(/^(login|link_fail|office|otp):/);
+    }
+    expect(limitsFiledUnder("bookings")).toEqual({ names: ["take:worker"], others: false });
+    expect(limitsFiledUnder("logins")).toEqual({ names: [], others: true });
+    expect(limitsFiledUnder("offers")).toEqual({ names: [], others: false });
   });
 });
 

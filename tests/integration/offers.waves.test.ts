@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MINUTE } from "@/lib/auth/clock";
-import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { activeFirmId, createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import {
   ESCALATE_SHIFT_QUEUE,
@@ -98,11 +98,14 @@ async function waveFirm(settings: Record<string, unknown> = {}, startsInHours = 
     },
   };
   // Pushes are captured too; `gone` makes the push service say a subscription no longer exists.
+  // `pushedInTransaction`: whether a transaction was open as each push went (14.1: never).
   const pushed: { endpoint: string; title: string; body: string; url: string }[] = [];
+  const pushedInTransaction: boolean[] = [];
   const pushState = { gone: false };
   const push: PushTransport = {
     name: "capture",
     async send(target, payload) {
+      pushedInTransaction.push(activeFirmId() !== undefined);
       if (pushState.gone) return { status: "gone" };
       pushed.push({ endpoint: target.endpoint, ...payload });
       return { status: "sent" };
@@ -136,6 +139,7 @@ async function waveFirm(settings: Record<string, unknown> = {}, startsInHours = 
     off,
     sent,
     pushed,
+    pushedInTransaction,
     pushState,
     sendState,
     wave,
@@ -372,6 +376,8 @@ describe("a wave", () => {
         until: start[0]?.starts_at,
       },
     ]);
+    // With no transaction open (14.1): a slow push service holds no database connection.
+    expect(t.pushedInTransaction).toEqual([false]);
     const { rows } = await su.query(
       "select data ->> 'workerId' as worker, (data ->> 'pushes')::int as pushes from events where firm_id = $1 and action = 'offer.sent'",
       [t.f.firmId],

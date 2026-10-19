@@ -12760,3 +12760,247 @@ Eight small items, most from your decisions of 16 October.
 All five tasks are ticked, each with a verified stamp that includes the browser tests, and the
 auditor checked the phase's "Done when" line. Phase 13 took about 7.6 hours over 16 October
 (1.8, 1.1, 1.8, 1.4 and 1.5).
+
+## 2026-10-19 — A walkthrough page for Dylan's boss (not a PLAN task)
+
+**Time spent:** about 0.2 hours (09:56 to 10:10 UTC on 19 Oct).
+
+You asked for a simple preview showing how ShiftDesk would work, to show your boss. There was
+already a gallery of 20 screens (15 Oct). This adds a story you can scroll through: one urgent gap
+at the made-up firm Acme Events, from the office spotting it to a casual taking it.
+
+- **How it was made:** a script drove the real app (a production build on its own freshly seeded
+  demo database, the same setup as the walkthrough's browser test) and took 12 screenshots along
+  the way: the office's dashboard, the offer list (only people the rules allow), a casual with an
+  expired licence being stopped, another taking the shift from the WhatsApp link, the dashboard
+  and the shift's log afterwards, a cancellation with its notice, and payroll's grouped queries.
+  The WhatsApp messages are the exact words the app wrote (the demo prints messages instead of
+  sending them).
+- **Where it is:** a private page (an "artifact") on your Claude account, "ShiftDesk Walkthrough".
+  Share it from the page's Share menu. Every person, number and site in it is made up.
+- **Noticed on the way:** the shifts line's reply listed three identical Arena shifts as three
+  lines (three separate seeded shifts at the same time). The page uses a cleaner reply; grouping
+  identical shifts in replies is parked in PLAN.md.
+
+## 2026-10-19 — Pushes after the record's transaction (14.1)
+
+**Time spent:** about 1.1 hours (10:10 to 11:13 UTC on 19 Oct, three full checks included).
+
+**Result:** `VERIFIED tree=e412caa400540c36 e2e=true`: typecheck, lint, the production build,
+4,947 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor: `VERDICT: DONE` (first round).
+
+### What was built
+
+A **push** is the free notification that pops up on a casual's phone (like an app's alert), sent
+through Google's, Apple's or Mozilla's push service. Every message the app sends a casual (an
+offer, a reminder, a booking, a change, an answer) is followed by a push to each phone they turned
+notifications on for.
+
+Until now the push was sent while a **database transaction** was open. (A transaction is a small
+bundle of database changes that are saved together or not at all. While one is open it holds one
+of the worker's database connections. The worker has only 10 to share between all its jobs.) A
+push service that was slow to answer could hold a connection for up to 5 seconds per message, and
+across an offer wave that adds up. That's why the worker refused to send real pushes in
+production.
+
+Now each of the 7 senders works in this order:
+
+1. **Claim** the message in the database (so a retry never sends it twice).
+2. **Send** the WhatsApp or text, with no transaction open.
+3. **Push** to the casual's phones, with no transaction open. The phones are looked up in a short
+   transaction of their own first.
+4. **Record** what happened in one short transaction: the message's event, with how many phones
+   took the push, and any phone the push service says is gone is forgotten.
+
+The worker now accepts `PUSH_TRANSPORT=webpush` in production. Real pushes still need the keys
+made on the server ("Connect the real web push" in PLAN.md's Parking lot).
+
+Key facts:
+
+- **A push can't undo the record of a message that went.** If a push throws an error, even before
+  it starts, it counts as a failed push and is logged. If the phones can't be looked up, nothing
+  is pushed and "push not tried" is logged. If forgetting a gone phone fails, that's logged and
+  kept apart (a savepoint: a mark inside the transaction that lets one part be undone without the
+  rest), so the message's record still saves.
+- **A phone is only forgotten if it's still the one that was pushed to.** If a casual logs in again
+  on that phone while the push is out, the phone gets new keys and is kept.
+- **Calling the push with a transaction open is refused at once**, before anything is pushed, so
+  a future sender can't slip back into the old way.
+- **Nothing that could hold a phone's push address is logged.** An error's name could hold it, so
+  only a short safe code is kept ("unknown" otherwise).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Look the phones up in their own short transaction | One shape for all 7 senders | Reading them in each sender's claim (7 different claims to change) |
+| Push before recording, not after | Keeps the push count in the message's event, as before | Recording first, then pushing (the count would need a second write) |
+| Forget gone phones in a savepoint | A failed delete can't roll back the message's record | Leaving it as before (a rare deadlock could lose the record) |
+| Refuse a call made inside a transaction | Makes "no transaction during a push" true when the app runs, not just in tests | A warning only |
+
+### What the new tests prove
+
+- **Every sender** (offer waves, the office's offer, reminders, booking notices, change notices,
+  request answers, pay answers): at the moment each push goes, no transaction is open.
+- A push that throws, one that throws before it starts, and one whose error name is the phone's
+  address: each is a failed push with a safe code, and the message is still recorded as sent.
+- A phone saved again with new keys while the push went is kept; unchanged, it's forgotten.
+- A forget that fails is logged, and the transaction it's in still saves.
+- Production now accepts webpush (with its keys); tests still refuse it.
+- One older reminder test made "the record fails after the message went" happen by making the push
+  throw. A push can't do that any more, so the test now makes the database go away instead. It
+  still checks the same thing: the reminder stays "sending" and is never sent twice.
+- The "never sends twice" tests (`jobs.no-resend`) make the record step fail after a message went,
+  then retry. Their fault used to hit "the first transaction after a message", which was the record
+  step. Now the push's short lookup comes first, and a failed lookup doesn't fail the job, so four
+  of them stopped reaching the record step (the first full check caught it). They now fail every
+  transaction after a message, as if the database went away: the record step fails again, and the
+  retry still sends nothing.
+- 9 deliberate breaks, each caught: pushing inside a transaction again (8 tests fail, one or more
+  per sender), no catch on a throwing push, forgetting a phone whatever its keys, a lookup failure
+  that throws, the old production refusal, no guard against an open transaction, a push that throws
+  before it starts, logging an error's raw name, and forgetting without the savepoint.
+
+### What's parked or needs Dylan
+
+- Nothing new for Dylan. From the review: a job that dies between the push and the record loses the
+  message's provider id (as it did before). That matters only once Twilio's delivery reports are
+  connected (parked with "Connect Twilio").
+
+### How to see it working
+
+`npm test -- tests/integration/push.test.ts` runs the push's own tests. Real pushes on a phone wait
+for the server ("Connect the real web push").
+
+## 2026-10-19 — Login safety and the log's filters (14.2)
+
+**Time spent:** about 0.6 hours (11:13 to 11:49 UTC on 19 Oct).
+
+**Result:** `VERIFIED tree=e2d2a59b61fc5212 e2e=true`: typecheck, lint, the production build,
+4,952 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor: `VERDICT: DONE` (first round).
+
+### What was built
+
+1. **An alert when a firm sends far more login links than usual.** Since 13.5, one internet
+   address may ask for 60 login links every 15 minutes, so a briefing on a venue's Wi-Fi isn't
+   locked out. Each link is a paid WhatsApp or text, and nothing watched the total. The worker's
+   checks (every 5 minutes) now count each firm's login links:
+   - more than **100 in the last hour** sends you an alert ("acme: 101 login links by WhatsApp and
+     text in the last hour…");
+   - more than **300 in the last 24 hours** sends another, for a slow drip that never reaches 100 in
+     an hour (each phone number can get 10 a day, so links to a crew's numbers spread through the
+     day could run to hundreds).
+
+   It's an **alert, not a ceiling**. A ceiling would let a handful of known numbers lock a whole
+   firm's casuals out on an event morning. The alert says only the firm's short name and a count,
+   never a number or a name. Until the phone sender is connected, alerts are a line in the server's
+   log ("Alerts from the app" in `docs/runbooks.md`).
+2. **The office's action log files each limit by what it limits.** When a limit stops someone, the
+   log records it. All of these used to be under "Logins", even "Too many taps on Take shift". Now:
+   - too many "Take shift" taps → **Bookings**;
+   - too many saves of a phone's notifications → **Workers**;
+   - the planner's API key, and the strikes team's confirmation links → **Firm settings and office
+     team**;
+   - everything else (login links, codes, office links) → **Logins**.
+
+   The Type filter and the label on each line agree.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| An alert, not a firm-wide ceiling | A ceiling could lock every casual out; the per-number limits already cap what one person can be sent | A daily ceiling per firm (the Parking lot's other option) |
+| 100 an hour, 300 a day | A briefing of about 50 is the busiest real hour; casuals stay logged in for 30 days | Lower numbers (alerts on normal mornings); one threshold only (misses a slow drip, the review's finding) |
+| Count links sent or tried, WhatsApp and text only | Each is a paid message; office links go by email | Counting office email links |
+| Strikes team links under Firm settings | Their other events are there (the review's finding) | Leaving them in Logins |
+
+### What the new tests prove
+
+- The alert's thresholds on both sides (100 and 300 don't alert, 101 and 301 do), its exact words,
+  its length with the longest firm name, and a firm name that looks like a phone number.
+- On the real database: only this firm's links, only WhatsApp and text, only the last hour (or the
+  last 24 hours for the day's alert); a slow drip over a day alerts; and the day's links never water
+  down the last hour's failure rate.
+- Every limit the app has lands in a group, so a new one can't slip in unfiled; on the real database
+  each Type shows exactly its limits.
+- 11 deliberate breaks, each caught: each threshold one lower, the alert left out, failed links not
+  counted, the day's count with no 24-hour edge or only an hour's, the day's links counted into the
+  hour's sends, "Take shift" or the strikes links left unfiled, the Logins catch-all left out of the
+  filter, and the label ignoring the limit's name.
+- The guardrails review found two things worth fixing, both fixed: the strikes team's links were
+  filed under Logins, and a slow drip of links (never 100 in an hour) would never alert.
+
+### What's parked or needs Dylan
+
+- The two numbers (100 an hour, 300 a day) are starting points: look again with a pilot firm's real
+  mornings.
+
+### How to see it working
+
+`npm test -- tests/integration/ops.alerts.test.ts` and
+`npm test -- tests/integration/office.action-log.test.ts`. In the running app: Action log, Type
+"Bookings", shows a "Too many taps on Take shift" line once a casual has tapped it 21 times in 15
+minutes.
+
+## 2026-10-19 — Small fixes (14.3)
+
+**Time spent:** about 0.5 hours (11:49 to 12:19 UTC on 19 Oct).
+
+**Result:** `VERIFIED tree=20af433f582fa925 e2e=true`: typecheck, lint, the production build,
+4,954 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor: `VERDICT: DONE` (first round), with Phase 14's whole "Done when" line checked.
+
+### What was built
+
+Three small leftovers from the 13.5 review:
+
+1. **The shifts line's very last reply is now signed.** When a casual asks the shifts line for
+   shifts and nothing else fits in a message, the reply falls back to just the link. If even that
+   was too long, it used to go without the "Acme Events Shift Team" sign-off, breaking golden rule
+   8 (every reply is signed by the firm's Shift Team). Now the text is cut to leave room for the
+   sign-off. It can't happen with real names and links, but the rule now holds everywhere.
+2. **Automatic event names never split a character.** An event the app makes for a site and a day
+   is named "{site} · {day}", and a very long site name is cut to fit the database's 200
+   characters. The cut counted single code points, so a flag (two code points) at the cut could
+   lose half and show as a broken symbol. It now uses the shared cut from 13.5, which only cuts
+   between whole characters. (The same names were once built in the database by migration 0035,
+   a one-off that ran over the demo data of the time; nothing builds them there now.)
+3. **A licence warning caught up after a crash doesn't guess its channel.** If the expiry scan
+   stops between claiming a warning and logging it, the next scan logs it as "unconfirmed". It
+   used to record the casual's current channel (WhatsApp or text), which might not be the one it
+   went by. The claim doesn't keep that, so now no channel is recorded rather than a guess.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Sign the last resort by cutting the text before the sign-off | Keeps golden rule 8 with the fewest changes | Keeping the automatic-reply line and cutting only the link (more code for a case that can't happen) |
+| Leave migration 0035 as it is | It has run; changing an applied migration rewrites history | Editing it to match |
+| No channel rather than the current one | An honest "unknown" beats a possible wrong answer | Storing the channel with the claim (a schema change for a rare case) |
+
+### What the new tests prove
+
+- A link of over 1,700 characters gives a reply within 1,600 characters, on WhatsApp and by text,
+  with shifts and without, that still ends with the firm's sign-off.
+- A site name with a flag across the cut drops the whole flag; a name that fits keeps it.
+- A licence warning caught up after a crash is logged once, unconfirmed, with no channel.
+- 5 deliberate breaks, each caught: the last resort unsigned again, or signed with no room left for
+  the sign-off; the event name cut by code point again (twice: in the new test file, then in the
+  existing one after merging); and the warning's guessed channel put back.
+- The review noted my new event-name test file duplicated an existing one: its cases now live in
+  `tests/unit/shift-events.test.ts`, whose header no longer says the migration still makes names.
+
+### What's parked or needs Dylan
+
+- From the review (small): an error's name is logged without masking (`src/lib/log/mask.ts`), so an
+  error named with a phone number would log it. Parked in PLAN.md.
+
+### How to see it working
+
+`npm test -- tests/unit/shift-events.test.ts` and
+`npm test -- tests/unit/inbound.personal-reply.test.ts`.
+
+### Phase 14 is finished
+
+All three tasks are ticked, each with a verified stamp that includes the browser tests, and the
+auditor checked the phase's "Done when" line. Phase 14 took about PHASE_about 0.5 hours (11:49 to 12:19 UTC on 19 Oct). hours on 19
+October.

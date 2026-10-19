@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { activeFirmId, createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import { createFirmChangeNoticeTask, FIRM_CHANGE_NOTICE_QUEUE } from "@/lib/notices/firm-change";
@@ -78,6 +78,7 @@ const eventsOf = async (firmId: string, like: string) =>
 function capture() {
   const sent: OutboundMessage[] = [];
   const pushes: { title: string; body: string; url: string }[] = [];
+  const pushedInTransaction: boolean[] = []; // a transaction open as each push went (14.1: never)
   const state = { fail: false, refuseWhatsApp: false };
   const deps = (when: Date): ConfirmedDeps => ({
     transport: {
@@ -93,6 +94,7 @@ function capture() {
     push: {
       name: "capture",
       async send(_target, payload) {
+        pushedInTransaction.push(activeFirmId() !== undefined);
         pushes.push(payload);
         return { status: "sent" };
       },
@@ -114,7 +116,7 @@ function capture() {
       { id: "job", data },
       withFirm,
     );
-  return { sent, pushes, state, run, runChange, bodies };
+  return { sent, pushes, pushedInTransaction, state, run, runChange, bodies };
 }
 
 describe("the office books a worker: they're told", () => {
@@ -154,6 +156,8 @@ describe("the office books a worker: they're told", () => {
         url: `/shifts/${t.shiftId}`,
       },
     ]);
+    // With no transaction open (14.1): a slow push service holds no database connection.
+    expect(n.pushedInTransaction).toEqual([false]);
     expect(await n.run(job ?? {})).toMatchObject({ output: { status: "already" } });
     expect(n.sent).toHaveLength(1);
     const logged = await eventsOf(t.f.firmId, "shift.booked_notice%");
@@ -380,6 +384,11 @@ describe("the office books a worker: they're told", () => {
 
     it("moved after the booking message went: the change notice starts from the times it gave", async () => {
       const t = await placingFirm();
+      await su.query(
+        `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+         values ($1, $2, 'https://push.example/ann-moved', 'key', 'auth')`,
+        [t.f.firmId, t.ann],
+      );
       await assignWorker(t.ctx(), t.shiftId, t.ann, null);
       const n = capture();
       await n.run((await jobsOf(t.f.firmId))[0] ?? {});
@@ -389,6 +398,9 @@ describe("the office books a worker: they're told", () => {
       expect(n.bodies()[1]).toMatch(
         /^Change to your shift on Sat 7 Nov at Riverside Arena: the times have changed\. New time: 10:00–18:00\./,
       );
+      // Both pushed (the booking, then the change), each with no transaction open (14.1).
+      expect(n.pushes).toHaveLength(2);
+      expect(n.pushedInTransaction).toEqual([false, false]);
     });
 
     it("cancelled before the booking message went (both held for the night): neither goes", async () => {

@@ -13,7 +13,13 @@ import {
   shiftReminder24hMessage,
   shiftReminder2hMessage,
 } from "../messaging/templates";
-import { pushToWorker, sendToWorker, type NotifyDeps, type WorkerChannel } from "../notify/send";
+import {
+  pushToWorker,
+  recordPushes,
+  sendToWorker,
+  type NotifyDeps,
+  type WorkerChannel,
+} from "../notify/send";
 import { dayWords } from "../portal/format";
 import { getPushTransport } from "../push/transport";
 import { quietHours } from "../rules/quiet-hours";
@@ -39,8 +45,8 @@ import { wallTimeOf } from "../time/zoned";
 // - shift-reminders (a firm task: several short transactions, never one held across a send). Per
 //   due reminder: (1) claim it: its shift_reminders row, `sending`, if the booking is still there
 //   (unique per booking, reminder and start time), committed before anything is sent; (2) send it by
-//   the worker's channel (src/lib/notify/send.ts), outside any transaction; (3) record `sent` with
-//   the push, or `failed`, and the event. A job that stops after a send (a crash, a failed record)
+//   the worker's channel (src/lib/notify/send.ts), then the push, outside any transaction; (3)
+//   record `sent` (with the push's count) or `failed`, and the event. A job that stops after a send (a crash, a failed record)
 //   leaves the row `sending`: it may have gone, so it's never sent again. A retried or doubled job
 //   finds the row and sends nothing. A failed send is never retried either (it may have arrived).
 //   One quiet hours would hold past its window is recorded `skipped`. Logged shift.reminder_sent /
@@ -272,8 +278,17 @@ export async function runShiftReminders(
       body: { whatsapp: body, sms: body },
       from: firm.line,
     });
+    // The push once the message has gone, with no transaction open: not delivered once the shift
+    // has started.
+    const pushed = sent.ok
+      ? await pushToWorker(inFirm, deps, b.workerId, {
+          ...reminderPush({ kind, site: b.siteName, day, start, end }),
+          url: `/shifts/${b.shiftId}`,
+          until: b.startsAt,
+        })
+      : null;
 
-    // (3) The outcome, the push and the event.
+    // (3) The outcome and the event.
     await inFirm(async (tx) => {
       if (!sent.ok) {
         await tx
@@ -295,12 +310,7 @@ export async function runShiftReminders(
         });
         return;
       }
-      // Not delivered once the shift has started.
-      const pushes = await pushToWorker(tx, deps, b.workerId, {
-        ...reminderPush({ kind, site: b.siteName, day, start, end }),
-        url: `/shifts/${b.shiftId}`,
-        until: b.startsAt,
-      });
+      const pushes = await recordPushes(tx, pushed);
       await tx
         .update(shiftReminders)
         .set({ status: "sent", channel: sent.channel })

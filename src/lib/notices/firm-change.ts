@@ -15,6 +15,7 @@ import {
 } from "../messaging/templates";
 import {
   pushToWorker,
+  recordPushes,
   sendToWorker,
   type NotifyDeps,
   type WorkerChannel,
@@ -35,8 +36,8 @@ import { localDateOf, wallTimeOf } from "../time/zoned";
 //
 // At most once, like shift reminders: (1) a short transaction claims the notice (the
 // shift.change_notice event, under an advisory lock on the booking) and commits; (2) the message goes
-// outside any transaction, by the worker's channel with the WhatsApp-to-text fallback; (3) a second
-// short transaction pushes to their phones and logs shift.change_notice_sent or _failed. A job that
+// outside any transaction, by the worker's channel with the WhatsApp-to-text fallback, then the
+// push to their phones; (3) a second short transaction logs shift.change_notice_sent or _failed. A job that
 // stops part-way leaves the claim: the notice may have gone, so it's never sent again.
 //
 // Quiet hours: a change to a shift starting within the firm's urgent window (as it was, or as it is
@@ -359,6 +360,10 @@ export async function runFirmChangeNotice(
     body: { whatsapp: claim.body, sms: claim.body },
     from: claim.from,
   });
+  // The push once the message has gone, with no transaction open.
+  const pushed = sent.ok
+    ? await pushToWorker((fn) => run(payload.firmId, fn), deps, claim.workerId, claim.push)
+    : null;
   await run(payload.firmId, async (tx) => {
     if (!sent.ok) {
       await recordEvent(tx, {
@@ -375,7 +380,7 @@ export async function runFirmChangeNotice(
       });
       return;
     }
-    const pushes = await pushToWorker(tx, deps, claim.workerId, claim.push);
+    const pushes = await recordPushes(tx, pushed);
     await recordEvent(tx, {
       actorType: "system",
       action: "shift.change_notice_sent",

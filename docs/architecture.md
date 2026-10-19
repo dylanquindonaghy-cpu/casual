@@ -457,11 +457,13 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   the portal "{Firm} shifts" on the home screen.
 - Offline: a service worker (`public/sw.js`, ADR-016) keeps the last copy of My shifts, so it
   opens without signal, marked "No signal. These are your shifts from {time}".
-- Web push (Phase 4, built short of real sends): the profile subscribes this phone
-  (`POST /api/push/subscribe`, `push_subscriptions`); offer waves push each urgent offer to the
-  worker's phones as well as WhatsApp/SMS; the same service worker shows the notification and
-  opens the shift (our own pages only). The sender is a console transport: the real one (VAPID
-  keys, the `web-push` library, Google/Apple push services) is parked.
+- Web push: the profile subscribes this phone (`POST /api/push/subscribe`,
+  `push_subscriptions`); offers, reminders and the office's notices push to the worker's phones as
+  well as WhatsApp/SMS; the same service worker shows the notification and opens the page (our own
+  pages only). The real sender (13.3: the `web-push` library, the deployment's VAPID keys, the
+  browser makers' push services) is `PUSH_TRANSPORT=webpush`; each push goes after its message,
+  with no transaction open (14.1). Production keeps `none` until the keys are made on the server
+  (PLAN.md Parking lot, "Connect the real web push").
 - WhatsApp: business-initiated messages must use approved templates (utility category for
   offers and login links). From 1 October 2026 Meta charges per service message beyond the
   free tier of 1,000 per number per month, and a payment method must be on file.

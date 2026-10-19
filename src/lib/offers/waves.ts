@@ -24,7 +24,7 @@ import {
   urgentPush,
 } from "../messaging/templates";
 import { dayWords, shiftWhen } from "../portal/format";
-import { pushToWorker, sendToWorker, type NotifyDeps } from "../notify/send";
+import { pushToWorker, recordPushes, sendToWorker, type NotifyDeps } from "../notify/send";
 import { getPushTransport } from "../push/transport";
 import { parseAllocationSettings } from "../roster/allocation-input";
 import { previewBooking } from "../roster/book";
@@ -77,8 +77,8 @@ import { travelSettings } from "../travel/settings";
 //      from the shift as it is now) and (fair rotation) the wave isn't full; then the worker as
 //      they are now: still reachable and wanting offers, not offered or booked it since the list
 //      was read, and allowed by the rules; then writes their `offers` row and commits. Only then
-//      the message (to their contact as read in the claim), outside any transaction, then the push
-//      and `offer.sent` (or `offer.send_failed`) in a short one. A row claimed but never recorded
+//      the message (to their contact as read in the claim) and the push, each outside any
+//      transaction, then `offer.sent` (or `offer.send_failed`) in a short one. A row claimed but never recorded
 //      (a crash just after the claim) means the message may have gone: like a `sending` reminder,
 //      it's never sent again. If the shift fills while the wave is going out, the rest aren't
 //      messaged;
@@ -547,6 +547,8 @@ export async function runOfferWave(
       body,
       from: firm.line,
     });
+    // The push once the message has gone, with no transaction open.
+    const pushOutcome = result.ok ? await pushToWorker(inFirm, deps, c.workerId, pushed) : null;
 
     // The outcome. A failure doesn't stop the wave: that offer is marked failed and logged, the
     // rest still go, and the worker can be offered it again in a later wave.
@@ -580,8 +582,7 @@ export async function runOfferWave(
         });
         return;
       }
-      // The push once the message has gone.
-      const pushes = await pushToWorker(tx, deps, c.workerId, pushed);
+      const pushes = await recordPushes(tx, pushOutcome);
       if (result.fellBackFrom) {
         await tx
           .update(offers)

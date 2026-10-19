@@ -1,7 +1,8 @@
+import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
-import { pushToWorker } from "@/lib/notify/send";
+import { activeFirmId, createWithFirm, type FirmTx, type WithFirm } from "@/lib/db/scoped";
+import { pushToWorker, recordPushes } from "@/lib/notify/send";
 import {
   pushSubscriptionSchema,
   pushTargets,
@@ -10,7 +11,7 @@ import {
   throttlePushChanges,
 } from "@/lib/push/subscriptions";
 import webpush from "web-push";
-import { createWebPushTransport, type WebPushSend } from "@/lib/push/transport";
+import { createWebPushTransport, type PushTransport, type WebPushSend } from "@/lib/push/transport";
 import { bookingFirm, type BookingFirm } from "../helpers/booking-fixture";
 import { appRolePool, superuserPool } from "../helpers/db";
 import { keptLog } from "../helpers/planner-api";
@@ -32,6 +33,10 @@ afterAll(async () => {
 });
 
 const ctxFor = (f: BookingFirm) => ({ firm: { id: f.firmId }, run: withFirm });
+const inFirmOf =
+  (f: BookingFirm) =>
+  <T>(fn: (tx: FirmTx) => Promise<T>) =>
+    withFirm(f.firmId, fn);
 // A phone's keys as a browser gives them (a P-256 public key, a 16-byte auth secret): made up here.
 const PHONE_KEY =
   "BMjKn90ImxFVU1zSHNEtruyhx0HMcUneBp1ALg-PY6_yI87c_6dAPQLNPXaYzumNeXGAWfJ_VLuP-VKZbmUba3Q";
@@ -252,6 +257,7 @@ describe("pushing to a worker's phones (13.3)", () => {
     // stand-in waits until all four phones' pushes have started: pushed one after another, the
     // first would wait in vain (then go on, noting it).
     const called: string[] = [];
+    const inTransaction: boolean[] = [];
     let waitedInVain = false;
     let started = 0;
     let allStarted: () => void = () => undefined;
@@ -259,6 +265,7 @@ describe("pushing to a worker's phones (13.3)", () => {
     const send: WebPushSend = async (subscription) => {
       const phone = subscription.endpoint.split("/").pop() ?? "";
       called.push(phone);
+      inTransaction.push(activeFirmId() !== undefined);
       if (++started === 4) allStarted();
       const met = await Promise.race([
         everyoneStarted.then(() => true),
@@ -281,11 +288,16 @@ describe("pushing to a worker's phones (13.3)", () => {
       { send },
     );
     const kept = keptLog();
-    const pushes = await withFirm(f.firmId, (tx) =>
-      pushToWorker(tx, { push, logger: kept.logger }, sam, { title: "t", body: "b", url: "/" }),
-    );
-    // All four were under way at once.
+    // The push, with no transaction open (14.1), then its record in the sender's own transaction.
+    const outcome = await pushToWorker(inFirmOf(f), { push }, sam, {
+      title: "t",
+      body: "b",
+      url: "/",
+    });
+    const pushes = await withFirm(f.firmId, (tx) => recordPushes(tx, outcome, kept.logger));
+    // All four were under way at once, none inside a transaction.
     expect(waitedInVain).toBe(false);
+    expect(inTransaction).toEqual([false, false, false, false]);
     expect(pushes).toBe(2);
     // The made-up host was never contacted.
     expect(called.sort()).toEqual(["phone-down", "phone-gone", "phone-ok", "phone-ok-2"]);
@@ -311,5 +323,172 @@ describe("pushing to a worker's phones (13.3)", () => {
       },
     ]);
     expect(JSON.stringify(kept.lines)).not.toContain("phone-down");
+  });
+
+  // A push service that says each phone is gone; or a transport breaking its promise never to
+  // throw: `throws` (a rejected promise), `throwsAtOnce` (before it returns one), `addressInName`
+  // (an error whose name is the phone's push address).
+  const pushService = (
+    opts: { throws?: boolean; throwsAtOnce?: boolean; addressInName?: boolean } = {},
+  ): PushTransport => ({
+    name: "stand-in",
+    send(target) {
+      if (opts.throwsAtOnce) throw new RangeError("not a promise");
+      if (opts.addressInName) {
+        const odd = new Error("x");
+        odd.name = target.endpoint;
+        return Promise.reject(odd);
+      }
+      if (opts.throws) return Promise.reject(new TypeError("socket hang up"));
+      return Promise.resolve({ status: "gone" });
+    },
+  });
+  const forgottenOf = async (firmId: string) =>
+    (
+      await su.query("select data from events where firm_id = $1 and action = 'push.forgotten'", [
+        firmId,
+      ])
+    ).rows;
+
+  it("a phone saved again with new keys while the push went is kept (14.1)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    await savePushSubscription(ctxFor(f), sam, subscription());
+    const outcome = await pushToWorker(inFirmOf(f), { push: pushService() }, sam, {
+      title: "t",
+      body: "b",
+      url: "/",
+    });
+    expect(outcome.forget).toHaveLength(1);
+    // Meanwhile a new login on that phone takes the row over with new keys.
+    await su.query("update push_subscriptions set auth = 'new-auth' where firm_id = $1", [
+      f.firmId,
+    ]);
+    expect(await withFirm(f.firmId, (tx) => recordPushes(tx, outcome))).toBe(0);
+    expect(await rowsFor(f.firmId)).toHaveLength(1);
+    expect(await forgottenOf(f.firmId)).toEqual([]);
+    // Unchanged, it's forgotten.
+    const again = await pushToWorker(inFirmOf(f), { push: pushService() }, sam, {
+      title: "t",
+      body: "b",
+      url: "/",
+    });
+    await withFirm(f.firmId, (tx) => recordPushes(tx, again));
+    expect(await rowsFor(f.firmId)).toEqual([]);
+    expect(await forgottenOf(f.firmId)).toEqual([{ data: { reason: "gone" } }]);
+  });
+
+  it("a push that throws counts as failed and keeps the phone; phones that can't be read: nothing pushed (14.1)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    await savePushSubscription(ctxFor(f), sam, subscription());
+    const payload = { title: "t", body: "b", url: "/" };
+    const thrown = await pushToWorker(
+      inFirmOf(f),
+      { push: pushService({ throws: true }) },
+      sam,
+      payload,
+    );
+    expect(thrown).toEqual({
+      pushes: 0,
+      forget: [],
+      failed: [{ host: "fcm.googleapis.com", code: "TypeError" }],
+    });
+    // One that throws before it returns a promise is the same; and an error whose name is the
+    // phone's address never puts it in the log: only "unknown".
+    for (const [opts, code] of [
+      [{ throwsAtOnce: true }, "RangeError"],
+      [{ addressInName: true }, "unknown"],
+    ] as const) {
+      expect(await pushToWorker(inFirmOf(f), { push: pushService(opts) }, sam, payload)).toEqual({
+        pushes: 0,
+        forget: [],
+        failed: [{ host: "fcm.googleapis.com", code }],
+      });
+    }
+    // The database gone: the push isn't tried, and that's noted, never thrown.
+    const down = await pushToWorker(
+      async () => {
+        throw new Error("connection terminated");
+      },
+      { push: pushService() },
+      sam,
+      payload,
+    );
+    expect(down).toEqual({ pushes: 0, forget: [], failed: [], readFailed: "Error" });
+    const kept = keptLog();
+    expect(
+      await withFirm(
+        f.firmId,
+        async (tx: FirmTx) =>
+          (await recordPushes(tx, thrown, kept.logger)) +
+          (await recordPushes(tx, down, kept.logger)),
+      ),
+    ).toBe(0);
+    expect(kept.lines).toEqual([
+      {
+        level: "warn",
+        msg: "push not delivered",
+        fields: { firmId: f.firmId, host: "fcm.googleapis.com", code: "TypeError" },
+      },
+      { level: "warn", msg: "push not tried", fields: { firmId: f.firmId, code: "Error" } },
+    ]);
+    expect(await rowsFor(f.firmId)).toHaveLength(1);
+    // Nothing pushed: nothing to record.
+    expect(await withFirm(f.firmId, (tx) => recordPushes(tx, null))).toBe(0);
+  });
+
+  it("never with a transaction open: a caller holding one is refused before anything is pushed (14.1)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    await savePushSubscription(ctxFor(f), sam, subscription());
+    let pushed = 0;
+    const counting: PushTransport = {
+      name: "counting",
+      async send() {
+        pushed += 1;
+        return { status: "sent" };
+      },
+    };
+    await expect(
+      withFirm(f.firmId, () =>
+        pushToWorker(inFirmOf(f), { push: counting }, sam, { title: "t", body: "b", url: "/" }),
+      ),
+    ).rejects.toThrow(/no transaction open/);
+    expect(pushed).toBe(0);
+  });
+
+  it("a phone that can't be forgotten is logged and kept: the sender's record still commits (14.1)", async () => {
+    const f = await bookingFirm(su, withFirm);
+    const sam = await f.worker();
+    await savePushSubscription(ctxFor(f), sam, subscription());
+    const [phone] = await withFirm(f.firmId, (tx) => pushTargets(tx, sam));
+    if (!phone) throw new Error("no phone saved");
+    const kept = keptLog();
+    // The first can't be deleted (an id the database refuses); the second can.
+    const outcome = {
+      pushes: 1,
+      forget: [
+        { target: { ...phone, id: "not-a-uuid" }, reason: "gone" as const },
+        { target: phone, reason: "gone" as const },
+      ],
+      failed: [],
+    };
+    const recorded = await withFirm(f.firmId, async (tx) => {
+      const pushes = await recordPushes(tx, outcome, kept.logger);
+      // The transaction is still usable afterwards: the sender's own record goes in it.
+      await tx.execute(sql`select 1`);
+      return pushes;
+    });
+    expect(recorded).toBe(1);
+    expect(kept.lines).toEqual([
+      {
+        level: "warn",
+        msg: "push phone not forgotten",
+        fields: { firmId: f.firmId, code: "22P02" },
+      },
+    ]);
+    expect(await rowsFor(f.firmId)).toEqual([]);
+    expect(await forgottenOf(f.firmId)).toEqual([{ data: { reason: "gone" } }]);
   });
 });

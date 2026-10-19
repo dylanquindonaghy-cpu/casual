@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HOUR } from "@/lib/auth/clock";
-import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { activeFirmId, createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import type { PushTransport } from "@/lib/push/transport";
 import {
@@ -51,12 +51,15 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
   ).rows[0]?.slug;
   const { transport: capture, sent } = captureTransport();
   // `refuseWhatsApp`: the provider refuses WhatsApp; `fail`: every send fails another way;
-  // `pushThrows`: the push sender throws (after the message has gone); `onSend`: runs as each
-  // message goes (to change the rows mid-run).
+  // `pushThrows`: the push sender throws (after the message has gone); `loseDatabaseOnSend`: the
+  // database goes away as a message goes, so every transaction after it fails (`databaseGone`);
+  // `onSend`: runs as each message goes (to change the rows mid-run).
   const state = {
     refuseWhatsApp: false,
     fail: false,
     pushThrows: false,
+    loseDatabaseOnSend: false,
+    databaseGone: false,
     onSend: async (): Promise<void> => {},
   };
   const transport: typeof capture = {
@@ -67,13 +70,18 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
       if (state.refuseWhatsApp && message.channel === "whatsapp") {
         throw new ChannelRefusedError("whatsapp");
       }
-      return capture.send(message);
+      const sent = await capture.send(message);
+      if (state.loseDatabaseOnSend) state.databaseGone = true;
+      return sent;
     },
   };
+  // `pushedInTransaction`: whether a transaction was open as each push went (14.1: never).
   const pushed: { title: string; body: string; url: string }[] = [];
+  const pushedInTransaction: boolean[] = [];
   const push: PushTransport = {
     name: "capture",
     async send(_target, payload) {
+      pushedInTransaction.push(activeFirmId() !== undefined);
       if (state.pushThrows) throw new Error("push service down");
       pushed.push(payload);
       return { status: "sent" };
@@ -85,13 +93,15 @@ async function reminderFirm(settings: Record<string, unknown> = NO_QUIET) {
     baseDomain: "localhost:3000",
     clock: { now: () => when },
   });
+  const inFirm: WithFirm = (firmId, fn) =>
+    state.databaseGone ? Promise.reject(new Error("database went away")) : withFirm(firmId, fn);
   const run = (when: Date) =>
     runShiftReminders(
       { firmId: f.firmId, idempotencyKey: "shift-reminders:1" },
-      withFirm,
+      inFirm,
       deps(when),
     );
-  return { f, workerId, mobile, slug, sent, pushed, state, run };
+  return { f, workerId, mobile, slug, sent, pushed, pushedInTransaction, state, run };
 }
 
 const bodies = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
@@ -248,14 +258,17 @@ describe("the 24-hour and 2-hour reminders", () => {
       t.workerId,
       await t.f.shift({ startsAt: hoursFromNow(20) }),
     );
-    t.state.pushThrows = true; // recording the outcome fails, after the message has gone
-    await expect(t.run(NOW)).rejects.toThrow("push service down");
+    // Recording the outcome fails, after the message has gone. (Until 14.1 a throwing push did
+    // this; now a push can't stop the record, so the database goes away instead.)
+    t.state.loseDatabaseOnSend = true;
+    await expect(t.run(NOW)).rejects.toThrow("database went away");
     expect(t.sent).toHaveLength(1);
+    t.state.loseDatabaseOnSend = false;
+    t.state.databaseGone = false;
     expect(await reminderRows(bookingId)).toEqual([
       expect.objectContaining({ kind: "24h", status: "sending", channel: "whatsapp" }),
     ]);
     // The retry, and later runs: nothing more.
-    t.state.pushThrows = false;
     expect(await t.run(NOW)).toEqual({ sent: 0, failed: 0, skipped: 0 });
     expect(await t.run(hoursFromNow(1))).toEqual({ sent: 0, failed: 0, skipped: 0 });
     expect(t.sent).toHaveLength(1);
@@ -311,6 +324,38 @@ describe("how a reminder goes", () => {
       },
     ]);
     expect((await eventsOf(t.f.firmId))[0]?.data).toMatchObject({ channel: "sms", pushes: 1 });
+    // With no transaction open (14.1): a slow push service holds no database connection.
+    expect(t.pushedInTransaction).toEqual([false]);
+  });
+
+  it("a push that throws never stops the record of the message that went (14.1)", async () => {
+    const t = await reminderFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/rae-3', 'k', 'a')`,
+      [t.f.firmId, t.workerId],
+    );
+    const bookingId = await t.f.booking(
+      t.workerId,
+      await t.f.shift({ startsAt: hoursFromNow(20) }),
+    );
+    t.state.pushThrows = true;
+    expect(await t.run(NOW)).toEqual({ sent: 1, failed: 0, skipped: 0 });
+    expect(await reminderRows(bookingId)).toEqual([
+      expect.objectContaining({ kind: "24h", status: "sent", channel: "whatsapp" }),
+    ]);
+    expect(await eventsOf(t.f.firmId)).toEqual([
+      expect.objectContaining({
+        action: "shift.reminder_sent",
+        data: expect.objectContaining({ pushes: 0 }),
+      }),
+    ]);
+    // The phone is kept: a push that failed this time may go next time.
+    const { rows } = await su.query(
+      "select count(*)::int as n from push_subscriptions where worker_id = $1",
+      [t.workerId],
+    );
+    expect(rows).toEqual([{ n: 1 }]);
   });
 
   it("a WhatsApp the provider refuses goes by text, and the record says so", async () => {

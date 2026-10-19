@@ -1138,6 +1138,37 @@ with `RUN_E2E=1` prints VERIFIED, with the production build in it; no test or br
 real push service, Twilio, an email server or Anthropic; the `claims-auditor` checks the phase
 against this line.
 
+## Phase 14 — The last code before the accounts
+
+Added 2026-10-19, Dylan's choice ("yes add phase 14 and build it"): the Parking lot's code that
+needs no outside account, after Phase 13. Docs: `docs/api-and-jobs.md`, `docs/runbooks.md`,
+`docs/architecture.md`, `docs/screens.md`, `docs/messaging-templates.md`.
+
+- [x] Pushes after the record's transaction (Parking lot "Pushes inside the record's transaction";
+      "Connect the real web push" step 0): each of the 7 senders reads the worker's phones in a
+      short transaction of its own, pushes with none open, then forgets the gone phones and logs
+      the count in its outcome transaction; a push that throws never loses the record of a message
+      that went; a phone is only forgotten if it still has the keys that were pushed to; the
+      worker no longer refuses `PUSH_TRANSPORT=webpush` in production. Tests: no transaction open
+      during a push, for every sender; a push that throws; a phone saved again meanwhile is kept;
+      production accepts webpush with its keys. Docs: `docs/api-and-jobs.md`, the Parking lot's
+      "Connect the real web push" (14.1)
+- [ ] Login safety and the log's filters (Parking lot "13.5 guardrails review" 1 and 2): an ops
+      alert when a firm sends more login links in an hour than a set number (the backstop for the
+      60-per-address limit; an alert, not a firm-wide ceiling, so nobody is locked out); the
+      office log files each limit reached by its name ("Take shift" under Bookings, phones under
+      Workers, the planner's key under Firm settings, the rest under Logins), in the filter and the
+      list. Tests: the alert's threshold both sides, its words pass the log masker; each limit in
+      its group. Docs: `docs/api-and-jobs.md`, `docs/runbooks.md`, `docs/screens.md` (14.2)
+- [ ] Small fixes (Parking lot "13.5 guardrails review" 3 to 5): the shifts reply's last resort is
+      signed (golden rule 8) with a shorter cut; automatic event names cut the site's name between
+      whole characters; a licence warning caught up after a crash doesn't guess the channel it went
+      by. Tests: each one's own, each break-checked (14.3)
+
+Done when: every task above is ticked with a stamp that includes the browser tests; `scripts/verify.sh`
+with `RUN_E2E=1` prints VERIFIED; no test or browser test calls a real push service, Twilio, an
+email server or Anthropic; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -2462,13 +2493,11 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   phones; no account or money). Most of Claude's steps were built in 13.3: the sender (`web-push`,
   `PUSH_TRANSPORT=webpush`, 404/410 forget the phone, an address that isn't a push service's in a
   browser's own form is never contacted), the worker's settings in the compose file, the rate limit
-  on `POST /api/push/subscribe`, and the compliance and privacy wording. One is left:
-  0. **Claude, before step 2:** push outside the record's transaction (the Parking lot item "Pushes
-     inside the record's transaction" below). Until then the worker refuses `PUSH_TRANSPORT=webpush`
-     in production; that build round lifts it.
-  The rest is yours, on the server. The worker sends the pushes, and in production it only runs once
-  Twilio is connected (`COMPOSE_PROFILES=worker`: docs/runbooks.md), so do these after "Connect
-  Twilio":
+  on `POST /api/push/subscribe`, and the compliance and privacy wording. The last of Claude's, each
+  push sent with no transaction open, was built in 14.1, and the worker now takes
+  `PUSH_TRANSPORT=webpush` in production. The rest is yours, on the server. The worker sends the
+  pushes, and in production it only runs once Twilio is connected (`COMPOSE_PROFILES=worker`:
+  docs/runbooks.md), so do these after "Connect Twilio":
   1. **You:** on the server, in the app's folder, type
      `docker compose run --rm --no-deps web node_modules/.bin/web-push generate-vapid-keys`. (It
      uses the copy of web-push inside the app's image, the version the app was tested with.) It
@@ -2486,9 +2515,23 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
      phone, even when it's locked. Nothing arrives? `docker compose logs worker | grep push` shows
      "push not delivered" with the push service's host and a code (an `http_403` means the keys in
      `.env` don't match the ones the phone subscribed with: turn notifications off and on again).
+     "push not tried" with a code means the worker couldn't read the phones from the database at
+     that moment.
   Also: push the office's escalation alert, and the push-first-then-WhatsApp order (the `notify`
   task).
-- Pushes inside the record's transaction (13.3, 2026-10-16; **before web push is switched on**):
+- A job that stops between its push and its record (14.1 guardrails review, small): the message
+  and the push went, and the retry logs it unconfirmed, without the provider's message id (as before
+  14.1). With real pushes that window is up to 5 seconds longer per message. It matters once
+  Twilio's delivery reports are connected (they match on that id): record first and push after, or
+  keep the id in the claim. With "Connect Twilio".
+- Identical shifts in the shifts line's reply (seen on 2026-10-19, making the boss walkthrough):
+  "Any shifts this weekend?" listed three Arena steward shifts with the same site and times as
+  three lines (three separate shifts in the seed). Grouping them ("Steward · Acme Demo Arena · Sat
+  24 Oct 12:00–18:30 (3 places)") would read better and leave room for more; the casual app's Open
+  shifts shows them as separate cards too. Small; copy and `src/lib/inbound/personal-reply.ts`.
+- ~~Pushes inside the record's transaction~~ **Done in 14.1**: each sender reads the phones in a
+  short transaction of its own, pushes with none open, then records the outcome
+  (`pushToWorker()`, `recordPushes()`). Was (13.3, 2026-10-16; **before web push is switched on**):
   every sender pushes after its message has gone, inside the short transaction that records it
   (`pushToWorker(tx, …)`, 7 callers: offer waves, the office's offer, reminders, the firm's change
   notices, booked notices, request updates, pay query updates). A worker's phones are pushed at
@@ -3353,3 +3396,5 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 2026-10-16 | 13 | 1.8 | Web push sender (13.3): `web-push` behind `PUSH_TRANSPORT=webpush` (refused in tests, and in production until the push leaves the record's transaction: "Connect the real web push" step 0); each push encrypted for its phone, signed with the VAPID keys, kept 12 hours at most or until the shift starts, urgent ones at high urgency, cut off at 5 seconds (connection closed), a worker's phones pushed at once; 404 and 410 forget the phone, other failures keep it and log the host and a code; push addresses only in the exact form a browser gives, to the browser makers' push services (guardrails found a `%2E` host that web-push would have sent elsewhere: fixed); 10 saves every 15 minutes per casual (429); compliance and privacy notice; a fake HTTPS push service that checks the signature and decrypts; guardrails FIX FIRST ×2 over three rounds; 4,912 tests + 91 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
 | 2026-10-16 | 13 | 1.4 | Privacy switches (13.4): travel areas per firm (`travel.enabled`, off unless the owner switches them on; on for the demo firm): off, no "Where you work" (its page not found, saving refused, even mid-look-up), no prompt, travel lines, "further" line or help on it, nothing filtered or ordered by distance (lists, urgent board, shifts line, waves), no travel-time search (and a running job stops), the office's column and card hidden, an enquiry's check says so; `pay_query_update` now says payroll has answered with the pay page's link, the note only on the pay page; both states tested (unit, integration, a browser test), 24 break checks; guardrails FIX FIRST ×2 (docs) over two rounds; CI's one failure, a webhook test reading a job's state before pg-boss finished it (offWork without `wait`), reproduced and fixed; saved areas when switched off parked for Dylan; 4,927 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
 | 2026-10-16 | 13 | 1.5 | Tidy-ups (13.5): "Cancel with the link" in the 24-hour reminder; login links 60 per address every 15 minutes (was 10; per number unchanged); one shared cut between whole characters (`src/lib/text/cut.ts`) at both webhooks, the voicemail, the AI's input and four more places; "Take shift" 20 taps per casual every 15 minutes; licence expiry messages by the casual's own channel (`sendToWorker`); the image with production dependencies only (2.22 GB to 1.73 GB locally; `tsx` a dependency, a build-time check); Open shifts batching and the flaky sheets test found already done (Phase 10; 2026-10-06), both now pinned by tests; 18 break checks; guardrails no FIX FIRST, 2 SHOULDs fixed, over two rounds; a container restart mid-task (its 2.6 hours not counted); 4,942 tests + 92 e2e + the walkthrough's 3; audit DONE first round, with Phase 13's Done-when line (see docs/work-log.md) |
+| 2026-10-19 | — | 0.2 | Not a PLAN task: "ShiftDesk Walkthrough", a page for Dylan's boss telling one urgent gap's story in 12 real screenshots of a production build (the office offers it, a casual without a valid licence is stopped, one with it takes it from the WhatsApp link, the office sees it filled and logged, a cancellation with its notice, the shifts line, payroll's groups), taken by a script on the walkthrough's own seeded demo; published as a private artifact (see docs/work-log.md) |
+| 2026-10-19 | 14 | 1.1 | Pushes after the record's transaction (14.1): all 7 senders push once the message has gone, the phones read in a short transaction of their own and pushed with none open, the outcome (gone phones forgotten, only if their keys are unchanged, in a savepoint; the count) recorded in the sender's own transaction; a push that throws, even at once, or a lookup that fails never loses the record; an error's name never logged; a call with a transaction open refused; production now takes `PUSH_TRANSPORT=webpush`; every sender's test checks no transaction is open at each push; guardrails no FIX FIRST, 5 SHOULDs fixed; the first full check caught 4 no-resend tests whose fault now hit the push's lookup (harness now fails every transaction after a send); 9 break checks; 4,947 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |

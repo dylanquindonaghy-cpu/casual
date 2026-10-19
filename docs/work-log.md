@@ -12760,3 +12760,114 @@ Eight small items, most from your decisions of 16 October.
 All five tasks are ticked, each with a verified stamp that includes the browser tests, and the
 auditor checked the phase's "Done when" line. Phase 13 took about 7.6 hours over 16 October
 (1.8, 1.1, 1.8, 1.4 and 1.5).
+
+## 2026-10-19 — A walkthrough page for Dylan's boss (not a PLAN task)
+
+**Time spent:** about 0.2 hours (09:56 to 10:10 UTC on 19 Oct).
+
+You asked for a simple preview showing how ShiftDesk would work, to show your boss. There was
+already a gallery of 20 screens (15 Oct). This adds a story you can scroll through: one urgent gap
+at the made-up firm Acme Events, from the office spotting it to a casual taking it.
+
+- **How it was made:** a script drove the real app (a production build on its own freshly seeded
+  demo database, the same setup as the walkthrough's browser test) and took 12 screenshots along
+  the way: the office's dashboard, the offer list (only people the rules allow), a casual with an
+  expired licence being stopped, another taking the shift from the WhatsApp link, the dashboard
+  and the shift's log afterwards, a cancellation with its notice, and payroll's grouped queries.
+  The WhatsApp messages are the exact words the app wrote (the demo prints messages instead of
+  sending them).
+- **Where it is:** a private page (an "artifact") on your Claude account, "ShiftDesk Walkthrough".
+  Share it from the page's Share menu. Every person, number and site in it is made up.
+- **Noticed on the way:** the shifts line's reply listed three identical Arena shifts as three
+  lines (three separate seeded shifts at the same time). The page uses a cleaner reply; grouping
+  identical shifts in replies is parked in PLAN.md.
+
+## 2026-10-19 — Pushes after the record's transaction (14.1)
+
+**Time spent:** about 1.1 hours (10:10 to 11:13 UTC on 19 Oct, three full checks included).
+
+**Result:** `VERIFIED tree=e412caa400540c36 e2e=true`: typecheck, lint, the production build,
+4,947 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor: `VERDICT: DONE` (first round).
+
+### What was built
+
+A **push** is the free notification that pops up on a casual's phone (like an app's alert), sent
+through Google's, Apple's or Mozilla's push service. Every message the app sends a casual (an
+offer, a reminder, a booking, a change, an answer) is followed by a push to each phone they turned
+notifications on for.
+
+Until now the push was sent while a **database transaction** was open. (A transaction is a small
+bundle of database changes that are saved together or not at all. While one is open it holds one
+of the worker's database connections. The worker has only 10 to share between all its jobs.) A
+push service that was slow to answer could hold a connection for up to 5 seconds per message, and
+across an offer wave that adds up. That's why the worker refused to send real pushes in
+production.
+
+Now each of the 7 senders works in this order:
+
+1. **Claim** the message in the database (so a retry never sends it twice).
+2. **Send** the WhatsApp or text, with no transaction open.
+3. **Push** to the casual's phones, with no transaction open. The phones are looked up in a short
+   transaction of their own first.
+4. **Record** what happened in one short transaction: the message's event, with how many phones
+   took the push, and any phone the push service says is gone is forgotten.
+
+The worker now accepts `PUSH_TRANSPORT=webpush` in production. Real pushes still need the keys
+made on the server ("Connect the real web push" in PLAN.md's Parking lot).
+
+Key facts:
+
+- **A push can't undo the record of a message that went.** If a push throws an error, even before
+  it starts, it counts as a failed push and is logged. If the phones can't be looked up, nothing
+  is pushed and "push not tried" is logged. If forgetting a gone phone fails, that's logged and
+  kept apart (a savepoint: a mark inside the transaction that lets one part be undone without the
+  rest), so the message's record still saves.
+- **A phone is only forgotten if it's still the one that was pushed to.** If a casual logs in again
+  on that phone while the push is out, the phone gets new keys and is kept.
+- **Calling the push with a transaction open is refused at once**, before anything is pushed, so
+  a future sender can't slip back into the old way.
+- **Nothing that could hold a phone's push address is logged.** An error's name could hold it, so
+  only a short safe code is kept ("unknown" otherwise).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Look the phones up in their own short transaction | One shape for all 7 senders | Reading them in each sender's claim (7 different claims to change) |
+| Push before recording, not after | Keeps the push count in the message's event, as before | Recording first, then pushing (the count would need a second write) |
+| Forget gone phones in a savepoint | A failed delete can't roll back the message's record | Leaving it as before (a rare deadlock could lose the record) |
+| Refuse a call made inside a transaction | Makes "no transaction during a push" true when the app runs, not just in tests | A warning only |
+
+### What the new tests prove
+
+- **Every sender** (offer waves, the office's offer, reminders, booking notices, change notices,
+  request answers, pay answers): at the moment each push goes, no transaction is open.
+- A push that throws, one that throws before it starts, and one whose error name is the phone's
+  address: each is a failed push with a safe code, and the message is still recorded as sent.
+- A phone saved again with new keys while the push went is kept; unchanged, it's forgotten.
+- A forget that fails is logged, and the transaction it's in still saves.
+- Production now accepts webpush (with its keys); tests still refuse it.
+- One older reminder test made "the record fails after the message went" happen by making the push
+  throw. A push can't do that any more, so the test now makes the database go away instead. It
+  still checks the same thing: the reminder stays "sending" and is never sent twice.
+- The "never sends twice" tests (`jobs.no-resend`) make the record step fail after a message went,
+  then retry. Their fault used to hit "the first transaction after a message", which was the record
+  step. Now the push's short lookup comes first, and a failed lookup doesn't fail the job, so four
+  of them stopped reaching the record step (the first full check caught it). They now fail every
+  transaction after a message, as if the database went away: the record step fails again, and the
+  retry still sends nothing.
+- 9 deliberate breaks, each caught: pushing inside a transaction again (8 tests fail, one or more
+  per sender), no catch on a throwing push, forgetting a phone whatever its keys, a lookup failure
+  that throws, the old production refusal, no guard against an open transaction, a push that throws
+  before it starts, logging an error's raw name, and forgetting without the savepoint.
+
+### What's parked or needs Dylan
+
+- Nothing new for Dylan. From the review: a job that dies between the push and the record loses the
+  message's provider id (as it did before). That matters only once Twilio's delivery reports are
+  connected (parked with "Connect Twilio").
+
+### How to see it working
+
+`npm test -- tests/integration/push.test.ts` runs the push's own tests. Real pushes on a phone wait
+for the server ("Connect the real web push").

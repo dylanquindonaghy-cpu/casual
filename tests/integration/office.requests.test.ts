@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
+import { activeFirmId, createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { runFirmTask } from "@/lib/jobs/firm-job";
 import { ChannelRefusedError, type OutboundMessage } from "@/lib/messaging/transport";
 import {
@@ -322,6 +322,8 @@ describe("answering a request", () => {
 describe("telling the worker (the request-update job)", () => {
   async function notices(t: Awaited<ReturnType<typeof requestFirm>>) {
     const sent: OutboundMessage[] = [];
+    // A transaction open as each push went (14.1: never).
+    const pushedInTransaction: boolean[] = [];
     const state = { fail: false, refuseWhatsApp: false };
     const deps = (when: Date): RequestUpdateDeps => ({
       transport: {
@@ -335,9 +337,10 @@ describe("telling the worker (the request-update job)", () => {
         },
       },
       push: {
-        name: "none",
+        name: "capture",
         async send() {
-          return { status: "skipped" };
+          pushedInTransaction.push(activeFirmId() !== undefined);
+          return { status: "sent" };
         },
       },
       clock: { now: () => when },
@@ -351,13 +354,18 @@ describe("telling the worker (the request-update job)", () => {
     const slug = (
       await su.query<{ slug: string }>("select slug from firms where id = $1", [t.f.firmId])
     ).rows[0]?.slug;
-    return { sent, state, run, slug };
+    return { sent, pushedInTransaction, state, run, slug };
   }
   const bodies = (sent: OutboundMessage[]) => sent.map((m) => ("body" in m ? m.body : ""));
   const ref = (id: string) => id.slice(0, 8).toUpperCase();
 
   it("the words, with the note on one line; once only; logged", async () => {
     const t = await requestFirm();
+    await su.query(
+      `insert into push_subscriptions (firm_id, worker_id, endpoint, p256dh, auth)
+       values ($1, $2, 'https://push.example.test/ben', 'k', 'a')`,
+      [t.f.firmId, t.ben],
+    );
     const n = await notices(t);
     await answerRequest(t.ctx(), t.swap, "declined", "Cal isn't free.\n\nTry   Dee?");
     const [job] = await jobsOf(t.f.firmId);
@@ -375,6 +383,9 @@ describe("telling the worker (the request-update job)", () => {
       ["request.update_notice", "sending"],
       ["request.update_sent", "whatsapp"],
     ]);
+    // Ben's phone got a push, with no transaction open (14.1).
+    expect(logged[1]?.data.pushes).toBe(1);
+    expect(n.pushedInTransaction).toEqual([false]);
     // The office's page says they were told.
     const answered = (await withFirm(t.f.firmId, (tx) => loadRequestQueue(tx, NOW))).answered;
     expect(answered.map((r) => r.answer?.told)).toEqual(["sent"]);

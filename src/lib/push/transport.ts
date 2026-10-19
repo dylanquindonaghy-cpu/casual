@@ -152,8 +152,9 @@ export function createWebPushTransport(keys: VapidKeys, opts: WebPushOptions = {
 }
 
 // The push service's HTTP status, or "timeout", or the network error's code (ECONNRESET), or the
-// error's class.
-function pushFailureCode(error: unknown, status: unknown): string {
+// error's class: never anything else from the error (an error's name or message can hold the
+// phone's push address).
+export function pushFailureCode(error: unknown, status?: unknown): string {
   if (typeof status === "number") return `http_${status}`;
   if (error instanceof Error && error.message === "Socket timeout") return "timeout";
   const code =

@@ -13002,5 +13002,78 @@ Three small leftovers from the 13.5 review:
 ### Phase 14 is finished
 
 All three tasks are ticked, each with a verified stamp that includes the browser tests, and the
-auditor checked the phase's "Done when" line. Phase 14 took about PHASE_about 0.5 hours (11:49 to 12:19 UTC on 19 Oct). hours on 19
-October.
+auditor checked the phase's "Done when" line. Phase 14 took about 2.2 hours on 19 October (14.1:
+1.1, 14.2: 0.6, 14.3: 0.5).
+
+## 2026-10-19 — The full walkthrough page, and no WhatsApp (not a PLAN task)
+
+**Time spent:** about 1.3 hours (13:27 to 14:50 UTC on 19 Oct).
+
+**Result:** `walkthrough-site/` (a static page: `index.html` and 82 screenshots, 7.6 MB), also
+published as a private artifact. Not a code change, so no verify stamp: `npm run lint` and
+`scripts/invariants.sh` were run on the change; CI runs the full check on the pull request.
+
+### What was built
+
+Dylan asked for "a proper walkthrough": something to host (like Vercel) or a much more in-depth
+page that shows everything the app does and how. The earlier page (12 screenshots, one story) was
+too thin. The new one:
+
+1. **One scripted run of the real app.** A Playwright tour (a script that drives a browser) does
+   the demo's steps from `docs/walkthrough.md` on a production build with its own freshly seeded,
+   made-up database, and takes a screenshot of each screen: 86 in all (35 on a phone, 51 in the
+   office); the page uses 82.
+   Every casual was switched to texts first (Dylan's decision below). Each message the app "sent"
+   (printed, not sent) was kept, so the page shows the real words.
+2. **The page.** A 10-step story (a dropout, the office's offer, a licence that stops one casual,
+   another taking the shift, the log, a cancellation and its record, the shifts line, payroll's
+   groups); then every feature for each person (casual, resourcer, payroll, admin), each with what
+   it does, its screens and how it works; the real texts and the phone notifications' words; the
+   rules in the order the code checks them; records and the law; and what's left before going live.
+   Phone frames scroll and open at the part that matters; office screens have tabs; any screen can
+   be enlarged.
+3. **Hostable.** `walkthrough-site/README.md` gives the steps for Vercel (Root Directory
+   `walkthrough-site`, no build). The same page is a private artifact for sharing from Claude.
+
+**Dylan's decision, recorded:** no WhatsApp and no Twilio. Texts go through the firm's own text
+system, and notifications through the app. PLAN.md has it under "Decided on 2026-10-19", and a
+proposed Phase 15 (texts only; a sender for the text system; replies by text if the system can pass
+them on). It waits for Dylan's go-ahead and the text system's details.
+
+### What the run turned up
+
+- **No real phone sender exists yet.** `MESSAGING_TRANSPORT` only takes `console`: in the demo, texts
+  are printed. A sender for the firm's text system is Phase 15's second task.
+- **Three messages are WhatsApp only today:** the login link, the pay code and the reply to an
+  unknown number. The page labels the first two "WhatsApp (today)".
+- **By text, a number nobody has gets no reply** (only a WhatsApp did); the office is emailed. And
+  "When's my next shift?" has no keyword, so it goes to a person while AI sorting is off.
+- **No "shift changed" text** when the office moved a shift whose booking confirmation hadn't gone
+  yet: the confirmation went with the new times instead. That's right (one message, not two).
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One static page, hostable anywhere | The real app needs a database and a worker running all the time, which Vercel doesn't run | Putting the real app on Vercel (needs accounts and a hosted database; the worker still can't run there) |
+| Screens from one scripted run | Every screen and message is real and consistent | Hand-made mock-ups (could drift from the app) |
+| Texts in the demo, WhatsApp labelled where it's still used | Matches the decision, without hiding what the code does today | Showing WhatsApp as built |
+| The page's generator stays out of the repo for now | It's a one-off; adding it means tests and checks for scripts | Committing it now (parked in PLAN.md) |
+
+### Fixed on the way
+
+- The 14.3 entry's last line had a half-replaced placeholder ("about PHASE_about 0.5 hours …"). It
+  now says Phase 14 took about 2.2 hours.
+
+### What's parked or needs Dylan
+
+- **Your go-ahead on Phase 15**, and your text system's details: how a text is sent, whether
+  incoming texts can be passed on, delivery reports, the sending number or name.
+- **Messages 2:** the app's notification first and a text only when there's no notification (fewer
+  texts), or both, as now.
+- Keep the page's generator in the repo (Parking lot), so the page can be rebuilt as the app changes.
+
+### How to see it
+
+Open `walkthrough-site/index.html` in Chrome or Edge, or follow `walkthrough-site/README.md` to put
+it on Vercel.

@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { automaticEventKey, automaticEventName, EVENT_NAME_MAX } from "@/lib/roster/shift-events";
 import { localDateOf } from "@/lib/time/zoned";
 
-// Automatic events' names and keys (src/lib/roster/shift-events.ts; migration 0035 makes the same,
-// tests/integration/db.event-backfill.test.ts).
+// Automatic events' names and keys (src/lib/roster/shift-events.ts; migration 0035's one-off
+// backfill made the same for the shifts there then, tests/integration/db.event-backfill.test.ts).
+// A name is at most 200 characters as Postgres counts them (code points: shift_events_name_length).
 
 describe("an automatic event's name", () => {
   it("is the site and the day, as in the spec", () => {
@@ -31,6 +32,18 @@ describe("an automatic event's name", () => {
     const name = automaticEventName(site, "2026-12-10");
     expect([...name]).toHaveLength(EVENT_NAME_MAX);
     expect(name.endsWith(" · Thu 10 Dec")).toBe(true);
+  });
+
+  it("cuts between whole characters: never half a flag (14.3)", () => {
+    // The flag is two code points, the 187th and 188th: the most the site part may have is 187.
+    const site = `${"x".repeat(186)}\u{1F1EC}\u{1F1E7} Arena`;
+    const name = automaticEventName(site, "2026-10-24");
+    expect(name).toBe(`${"x".repeat(186)} · Sat 24 Oct`);
+    expect([...name].length).toBeLessThanOrEqual(EVENT_NAME_MAX);
+    // A name that fits keeps its flag.
+    expect(automaticEventName("Arena \u{1F1EC}\u{1F1E7}", "2026-10-24")).toBe(
+      "Arena \u{1F1EC}\u{1F1E7} · Sat 24 Oct",
+    );
   });
 });
 

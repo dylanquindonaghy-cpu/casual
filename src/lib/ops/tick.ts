@@ -36,7 +36,9 @@ export const OPS_ALERT_REPEAT_SECONDS = 60 * 60;
 
 const HOUR_MS = 60 * 60 * 1000;
 
-// WhatsApp and text sends, and the failures, as the senders log them (each carries its channel).
+// WhatsApp and text sends, and the failures, as the senders log them, each with its channel (a
+// licence warning caught up after a crash has none since 14.3, so it isn't counted: it went in an
+// earlier hour, if at all).
 // Only senders that log their failures too, so the rate compares like with like. Since Phase 10
 // every sender claims, sends, then records (a failed send is logged, never retried), so the login
 // links and codes and the credential messages are counted here too.

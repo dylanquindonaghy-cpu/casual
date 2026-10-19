@@ -216,6 +216,8 @@ describe("a job that fails after its message is sent never sends it again, and l
     expect(logged.map((e) => e.data)).toEqual([
       expect.objectContaining({ days: 7, expiresOn: "2026-11-09", unconfirmed: true }),
     ]);
+    // Which channel it went by isn't known (the claim doesn't keep it): not guessed (14.3).
+    expect(logged[0]?.data).not.toHaveProperty("channel");
   });
 
   it("the credential expiry notice: the expiry logged with the claim, the notice once, unconfirmed", async () => {

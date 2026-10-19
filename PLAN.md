@@ -1161,7 +1161,7 @@ needs no outside account, after Phase 13. Docs: `docs/api-and-jobs.md`, `docs/ru
       settings, the rest under Logins), in the filter and the list. Tests: the alert's threshold
       both sides, its words pass the log masker; each limit in its group. Docs:
       `docs/api-and-jobs.md`, `docs/runbooks.md`, `docs/screens.md` (14.2)
-- [ ] Small fixes (Parking lot "13.5 guardrails review" 3 to 5): the shifts reply's last resort is
+- [x] Small fixes (Parking lot "13.5 guardrails review" 3 to 5): the shifts reply's last resort is
       signed (golden rule 8) with a shorter cut; automatic event names cut the site's name between
       whole characters; a licence warning caught up after a crash doesn't guess the channel it went
       by. Tests: each one's own, each break-checked (14.3)
@@ -2525,6 +2525,10 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   14.1). With real pushes that window is up to 5 seconds longer per message. It matters once
   Twilio's delivery reports are connected (they match on that id): record first and push after, or
   keep the id in the claim. With "Connect Twilio".
+- An error's name goes into the log unmasked (14.3 guardrails review, small): `redactError`
+  (`src/lib/log/mask.ts`) masks an error's message but not its `name`, so an error whose name holds
+  a phone number or an address would log it (`tests/integration/inbound.last-try.test.ts` sets one
+  on purpose, with a made-up number). `maskText(err.name)` would close it; its tests with it.
 - Identical shifts in the shifts line's reply (seen on 2026-10-19, making the boss walkthrough):
   "Any shifts this weekend?" listed three Arena steward shifts with the same site and times as
   three lines (three separate shifts in the seed). Grouping them ("Steward · Acme Demo Arena · Sat
@@ -3191,14 +3195,13 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   - ~~A backstop for the higher per-address login limit~~ **Done in 14.2**: an ops alert when a firm
     sends more than 100 login links by WhatsApp and text in an hour, or 300 in a day (an alert, not
     a ceiling). Both are starting numbers: revisit them with a pilot firm's real mornings.
-  - The shifts reply's last resort (`lastResort`, `src/lib/inbound/personal-reply.ts`) sends the
-    unsigned text when even the signed link is too long (golden rule 8). It can't happen with real
-    names; signing a shorter cut would be cleaner.
-  - Automatic event names cut the site's name by code point, to match Postgres's `left()` in the
-    same name built in SQL (`src/lib/roster/shift-events.ts`): a flag at the cut can lose half.
-    Changing it needs both sides changed together.
-  - A warning claimed before 13.5 and caught up after logs the worker's channel now, not the
-    WhatsApp it was sent by (one deploy's window; the entry is marked unconfirmed).
+  - ~~The shifts reply's last resort sends the unsigned text~~ **Done in 14.3**: it's signed, with
+    the text cut to leave the sign-off room.
+  - ~~Automatic event names cut the site's name by code point~~ **Done in 14.3**: cut between whole
+    characters (`cutChars`). Only the app builds these names now: migration 0035's `left()` ran
+    once, over the demo data of the time.
+  - ~~A warning caught up after a crash logs the worker's channel now~~ **Done in 14.3**: it logs no
+    channel, since the claim doesn't keep the one it went by.
 - ~~Text cuts that count UTF-16 units~~ **Done in 13.5**: one shared cut, `src/lib/text/cut.ts`
   (`cutChars` for the database's character count, `cutUnits` for UTF-16 limits), cutting only
   between whole characters; used at both webhooks, the voicemail, the AI's input, the Enquiries
@@ -3400,3 +3403,4 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 2026-10-19 | — | 0.2 | Not a PLAN task: "ShiftDesk Walkthrough", a page for Dylan's boss telling one urgent gap's story in 12 real screenshots of a production build (the office offers it, a casual without a valid licence is stopped, one with it takes it from the WhatsApp link, the office sees it filled and logged, a cancellation with its notice, the shifts line, payroll's groups), taken by a script on the walkthrough's own seeded demo; published as a private artifact (see docs/work-log.md) |
 | 2026-10-19 | 14 | 1.1 | Pushes after the record's transaction (14.1): all 7 senders push once the message has gone, the phones read in a short transaction of their own and pushed with none open, the outcome (gone phones forgotten, only if their keys are unchanged, in a savepoint; the count) recorded in the sender's own transaction; a push that throws, even at once, or a lookup that fails never loses the record; an error's name never logged; a call with a transaction open refused; production now takes `PUSH_TRANSPORT=webpush`; every sender's test checks no transaction is open at each push; guardrails no FIX FIRST, 5 SHOULDs fixed; the first full check caught 4 no-resend tests whose fault now hit the push's lookup (harness now fails every transaction after a send); 9 break checks; 4,947 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
 | 2026-10-19 | 14 | 0.6 | Login safety and the log's filters (14.2): an ops alert when a firm sends more than 100 login links by WhatsApp and text in an hour, and another over 300 in 24 hours (the review's slow drip), each its own key; an alert, not a ceiling; the words only the firm's short name and a count, through the masker; the office log files each limit reached by its name (Take shift under Bookings, phones under Workers, the planner's key and the strikes team's links under Firm settings, the rest under Logins), the filter and the list agreeing, every limit the app has covered by a test; a stale doc line on login-link failures corrected; guardrails no FIX FIRST, 2 SHOULDs fixed (the strikes links, the day count); 11 break checks; 4,952 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
+| 2026-10-19 | 14 | 0.5 | Small fixes (14.3): the shifts line's last-resort reply always signed (golden rule 8), its text cut to leave the sign-off room; automatic event names cut the site's name between whole characters (never half a flag); a licence warning caught up after a crash logs no channel rather than guessing; the new event-name cases folded into the existing test file; guardrails no FIX FIRST or SHOULD, its notes acted on (two comments and a doc line, an unmasked error name parked); 5 break checks; 4,954 tests + 92 e2e + the walkthrough's 3; audit DONE first round, with Phase 14's Done-when line; Phase 14 in all 2.2 h (see docs/work-log.md) |

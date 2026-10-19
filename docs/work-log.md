@@ -12941,3 +12941,66 @@ for the server ("Connect the real web push").
 `npm test -- tests/integration/office.action-log.test.ts`. In the running app: Action log, Type
 "Bookings", shows a "Too many taps on Take shift" line once a casual has tapped it 21 times in 15
 minutes.
+
+## 2026-10-19 — Small fixes (14.3)
+
+**Time spent:** about 0.5 hours (11:49 to 12:19 UTC on 19 Oct).
+
+**Result:** `VERIFIED tree=20af433f582fa925 e2e=true`: typecheck, lint, the production build,
+4,954 tests, 92 browser tests, the walkthrough's 3, and the invariants all passed. Auditor: `VERDICT: DONE` (first round), with Phase 14's whole "Done when" line checked.
+
+### What was built
+
+Three small leftovers from the 13.5 review:
+
+1. **The shifts line's very last reply is now signed.** When a casual asks the shifts line for
+   shifts and nothing else fits in a message, the reply falls back to just the link. If even that
+   was too long, it used to go without the "Acme Events Shift Team" sign-off, breaking golden rule
+   8 (every reply is signed by the firm's Shift Team). Now the text is cut to leave room for the
+   sign-off. It can't happen with real names and links, but the rule now holds everywhere.
+2. **Automatic event names never split a character.** An event the app makes for a site and a day
+   is named "{site} · {day}", and a very long site name is cut to fit the database's 200
+   characters. The cut counted single code points, so a flag (two code points) at the cut could
+   lose half and show as a broken symbol. It now uses the shared cut from 13.5, which only cuts
+   between whole characters. (The same names were once built in the database by migration 0035,
+   a one-off that ran over the demo data of the time; nothing builds them there now.)
+3. **A licence warning caught up after a crash doesn't guess its channel.** If the expiry scan
+   stops between claiming a warning and logging it, the next scan logs it as "unconfirmed". It
+   used to record the casual's current channel (WhatsApp or text), which might not be the one it
+   went by. The claim doesn't keep that, so now no channel is recorded rather than a guess.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Sign the last resort by cutting the text before the sign-off | Keeps golden rule 8 with the fewest changes | Keeping the automatic-reply line and cutting only the link (more code for a case that can't happen) |
+| Leave migration 0035 as it is | It has run; changing an applied migration rewrites history | Editing it to match |
+| No channel rather than the current one | An honest "unknown" beats a possible wrong answer | Storing the channel with the claim (a schema change for a rare case) |
+
+### What the new tests prove
+
+- A link of over 1,700 characters gives a reply within 1,600 characters, on WhatsApp and by text,
+  with shifts and without, that still ends with the firm's sign-off.
+- A site name with a flag across the cut drops the whole flag; a name that fits keeps it.
+- A licence warning caught up after a crash is logged once, unconfirmed, with no channel.
+- 5 deliberate breaks, each caught: the last resort unsigned again, or signed with no room left for
+  the sign-off; the event name cut by code point again (twice: in the new test file, then in the
+  existing one after merging); and the warning's guessed channel put back.
+- The review noted my new event-name test file duplicated an existing one: its cases now live in
+  `tests/unit/shift-events.test.ts`, whose header no longer says the migration still makes names.
+
+### What's parked or needs Dylan
+
+- From the review (small): an error's name is logged without masking (`src/lib/log/mask.ts`), so an
+  error named with a phone number would log it. Parked in PLAN.md.
+
+### How to see it working
+
+`npm test -- tests/unit/shift-events.test.ts` and
+`npm test -- tests/unit/inbound.personal-reply.test.ts`.
+
+### Phase 14 is finished
+
+All three tasks are ticked, each with a verified stamp that includes the browser tests, and the
+auditor checked the phase's "Done when" line. Phase 14 took about PHASE_about 0.5 hours (11:49 to 12:19 UTC on 19 Oct). hours on 19
+October.

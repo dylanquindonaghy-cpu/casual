@@ -213,6 +213,36 @@ describe("the demo server's services (deploy/docker-compose.demo.yml with docker
     expect(services.worker?.profiles ?? []).toEqual([]);
   });
 
+  it("each secret goes only where it's needed: the superuser's password, the site password; no shifts line", () => {
+    const holders = (value: string) =>
+      Object.entries(services)
+        .filter(([, svc]) => JSON.stringify(svc.environment ?? {}).includes(value))
+        .map(([name]) => name)
+        .sort();
+    // The superuser's password: Postgres itself and the three one-offs that log in as it.
+    expect(holders(FILLED.DEMO_DB_PASSWORD ?? "")).toEqual([
+      "demo-reset",
+      "migrate",
+      "owner",
+      "postgres",
+    ]);
+    for (const name of ["web", "worker", "caddy"]) {
+      expect(Object.keys(services[name]?.environment ?? {}), name).not.toContain(
+        "DATABASE_ADMIN_URL",
+      );
+    }
+    expect(holders(FILLED.DEMO_SITE_PASSWORD ?? "")).toEqual(["web"]);
+    // Caddy never reaches the database.
+    expect(services.caddy?.volumes?.map((v) => v.source)).not.toContain("pgsocket");
+    // Twilio's webhooks refuse everything on a demo server, whatever .env says.
+    const withToken =
+      filledExample().replace(/^TWILIO_AUTH_TOKEN=.*$/m, "") +
+      "\nTWILIO_AUTH_TOKEN=made-up-token\n";
+    const svc = config(withToken);
+    expect(svc.web?.environment?.TWILIO_AUTH_TOKEN).toBe("");
+    expect(svc.worker?.environment?.TWILIO_AUTH_TOKEN).toBe("");
+  });
+
   it("the demo reset: one-off, the owner's login, demo mode, the outbox it empties", () => {
     const reset = services["demo-reset"];
     expect(reset?.profiles).toEqual(["demo-reset"]);
@@ -322,6 +352,7 @@ describe("deploy/demo-reset.sh, run", () => {
 echo "$*" >> "$FAKE_LOG"
 case "$*" in
   "compose --profile demo-reset config --services")
+    [ -z "$FAKE_CONFIG_FAILS" ] || { echo "required variable DEMO_DB_PASSWORD is missing" >&2; exit 1; }
     if [ -n "$FAKE_DEMO" ]; then printf 'postgres\\nweb\\nworker\\ncaddy\\ndemo-reset\\n'; else printf 'web\\ncaddy\\n'; fi ;;
   "compose stop web worker") ;;
   "compose run --rm demo-reset") [ -z "$FAKE_RESET_FAILS" ] || { echo "refused" >&2; exit 1; } ;;
@@ -329,7 +360,7 @@ case "$*" in
   *) echo "unexpected docker command: $*" >&2; exit 99 ;;
 esac
 `;
-  function reset(opts: { demo?: boolean; fails?: boolean } = {}) {
+  function reset(opts: { demo?: boolean; fails?: boolean; configFails?: boolean } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "demo-reset-sh-"));
     writeFileSync(join(dir, "docker"), FAKE_DOCKER);
     chmodSync(join(dir, "docker"), 0o755);
@@ -344,6 +375,7 @@ esac
         FAKE_LOG: log,
         FAKE_DEMO: opts.demo === false ? "" : "yes",
         FAKE_RESET_FAILS: opts.fails ? "yes" : "",
+        FAKE_CONFIG_FAILS: opts.configFails ? "yes" : "",
       },
     });
     const calls = readFileSync(log, "utf8").split("\n").filter(Boolean);
@@ -374,6 +406,14 @@ esac
     expect(r.status).toBe(1);
     expect(r.calls).toEqual(["compose --profile demo-reset config --services"]);
     expect(r.err).toContain("Not a demo server");
+  });
+
+  it("settings Compose can't read: says so, and stops before stopping anything", () => {
+    const r = reset({ configFails: true });
+    expect(r.status).toBe(1);
+    expect(r.calls).toEqual(["compose --profile demo-reset config --services"]);
+    expect(r.err).toContain("Docker Compose couldn't read the settings");
+    expect(r.err).not.toContain("Not a demo server");
   });
 
   it("is valid bash, stops at the first error, and never runs during a deploy (the same lock)", () => {

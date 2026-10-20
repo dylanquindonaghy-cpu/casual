@@ -200,7 +200,8 @@ Nothing real happens on it:
 - **The whole site asks for one password** (user name `demo`), and the browser remembers it for
   each address (`acme.…` and `northline.…` ask once each).
 - **Made-up people only.** The demo's database refuses real phone numbers and email addresses, and
-  the worker stops if one ever gets in (so never try a real import on it).
+  the worker stops if one ever gets in. Names, notes and photos aren't checked, so never type,
+  import or upload anything real on it (golden rule 7), and say so to whoever you show it to.
 - **Loaded afresh every night** at 04:00 UK time: the demo's dates move on with the calendar and
   whatever visitors did is cleared. No backups: there's nothing to keep.
 
@@ -299,6 +300,12 @@ The steps are done once, in this order. Where a step says "on the server", you'r
 password. **Changing the password:** on the server, `nano /opt/shiftdesk/.env`, change
 `DEMO_SITE_PASSWORD`, save, then `/opt/shiftdesk/deploy.sh --now` ("Applied the settings in .env").
 **Loading it afresh now** (say, before a meeting): `/opt/shiftdesk/demo-reset.sh`.
+**Updating Postgres** (its security fixes; the deploy only updates the app): every month or so,
+`cd /opt/shiftdesk && docker compose pull postgres && ./demo-reset.sh`.
+**The database's passwords** (`DEMO_DB_PASSWORD` and the other two) are set when its volume is
+first made. To change them: `cd /opt/shiftdesk && docker compose down && docker volume rm
+shiftdesk_pgdata` (only the demo's database, which is made up; the certificates stay), edit `.env`,
+then `./demo-reset.sh`.
 
 **If something's wrong:**
 - The site doesn't open, or the browser warns about the certificate: DNS isn't pointing at the
@@ -310,8 +317,9 @@ password. **Changing the password:** on the server, `nano /opt/shiftdesk/.env`, 
 - The worker stopped, saying "demo mode refuses to run": a firm that isn't a demo firm, or a
   person with a real number or email, got into the database. `./demo-reset.sh` loads the demo
   afresh (it refuses if a firm that isn't a demo firm is there: ask Claude).
-- A reset that failed leaves the demo as it was and running: `journalctl -u shiftdesk-demo-reset`
-  shows why.
+- `journalctl -u shiftdesk-demo-reset` shows why a night's reset failed. A refused one (it isn't
+  sure this is a demo server) leaves the demo as it was; one that stopped part-way (after the
+  database was emptied) can leave it empty or half-loaded: run `./demo-reset.sh` again.
 
 ## Rollback
 

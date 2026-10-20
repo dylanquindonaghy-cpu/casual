@@ -53,7 +53,7 @@ fi
 # docker-compose.demo.yml on a demo server (docs/runbooks.md "A demo server"). The app's image is
 # every service's but Caddy's and, on a demo server, Postgres'.
 compose=(docker compose)
-image="$("${compose[@]}" config --images | grep -v -e '^caddy:' -e '^postgres:' | head -n 1)"
+image="$("${compose[@]}" config --images | grep -v -E '^(caddy|postgres)[:@]' | head -n 1)"
 "${compose[@]}" pull --quiet web
 target="$(docker image inspect --format '{{.Id}}' "$image")"
 # What the app's containers are actually running (none: not started, or a failed deploy).

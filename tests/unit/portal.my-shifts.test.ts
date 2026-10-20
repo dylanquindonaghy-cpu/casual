@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HomeView, type HomeViewProps } from "@/app/home-view";
 import { BookedView, type BookedViewProps } from "@/app/shifts/booked-view";
 import { TabBar } from "@/app/tab-bar";
-import { headingGap, rows, staffBtn, staffBtnSmall } from "@/app/ui/classes";
+import { headingGap, rows, staffBtn, staffBtnSmall, switchTrack } from "@/app/ui/classes";
 import { payWords, roleAndEvent } from "@/lib/portal/format";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
@@ -143,6 +143,10 @@ describe("Home and Booked: the empty pages", () => {
     expect(html).toContain('href="/shifts?view=past"');
     expect(text(html)).toContain("No shifts booked yet.");
     expect(text(html)).toContain("See all open shifts");
+    // Both switches in the one shared pale track (Phase 17), the Open | Booked one first.
+    expect(html).toContain(`<nav aria-label="Open or booked" class="mb-4 ${switchTrack}">`);
+    expect(html).toContain(`<nav aria-label="Which shifts" class="${switchTrack}">`);
+    expect(html.split(switchTrack)).toHaveLength(3);
   });
 });
 

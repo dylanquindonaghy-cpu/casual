@@ -45,6 +45,10 @@ export const staffBtn = {
 export const staffBtnSmall =
   "flex min-h-12 items-center justify-center rounded-xl border-2 border-line-strong bg-card px-3 py-2 text-center text-base font-semibold text-ink hover:bg-quiet-soft";
 
+// A two-way switch's pale track (Open | Booked, Upcoming | Past 30 days on the Shifts tab): two
+// halves, the current one a raised pill (src/app/my-shifts-view.tsx Toggle).
+export const switchTrack = "grid grid-cols-2 gap-1 rounded-xl bg-quiet-soft p-1";
+
 // Inputs, selects and textareas (office). Add w-full or a width where you use it.
 export const field =
   "min-h-11 rounded-lg border border-line-strong bg-card px-3 py-2 text-base font-normal text-ink pointer-coarse:text-lg";

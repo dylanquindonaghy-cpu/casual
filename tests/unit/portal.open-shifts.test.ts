@@ -1,7 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { OpenShiftsList } from "@/lib/portal/open-shifts";
+import { card } from "@/app/ui/classes";
+import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
 
 // Open shifts (docs/screens.md, `/shifts/open`): the page body and the answers after "Take shift",
@@ -50,6 +51,33 @@ describe("Open shifts page body", () => {
     expect(words).toContain("Nothing open right now. We'll message you when something matches.");
     // No "Back" button: the tab bar under every casual page goes there (Phase 17).
     expect(words).not.toContain("Back to my shifts");
+  });
+
+  it("each shift is a plain hairline card, urgent or not: no red edge, the urgent one tagged (Phase 17)", () => {
+    const shift = (shiftId: string, isUrgent: boolean): OpenShift => ({
+      shiftId,
+      role: "steward",
+      startsAt: at("2026-11-07T14:00:00Z"),
+      endsAt: at("2026-11-07T22:00:00Z"),
+      placesLeft: 2,
+      opensAt: null,
+      isUrgent,
+      site: arena,
+      casualEvent: "Riverside Festival",
+      payRatePence: 1260,
+      post: null,
+      requirements: [],
+    });
+    const html = render(list({ shifts: [shift("u1", true), shift("n1", false)] }));
+    const items = [...html.matchAll(/<li class="([^"]*)">/g)].map((m) => m[1]);
+    expect(items).toEqual([card, card]);
+    expect(card).toContain("border border-line");
+    expect(card).not.toMatch(/(?<![\w-])border-(?:l|2|4|urgent)(?:-[\w-]+)?(?![\w-])/);
+    // The urgent one says so in a pale tag, not a red frame.
+    expect(html.match(/>Urgent<\/span>/g)).toHaveLength(1);
+    expect(html).toMatch(
+      /<span class="[^"]*bg-urgent-soft[^"]*"><svg[\s\S]*?<\/svg>Urgent<\/span>/,
+    );
   });
 
   it("only promises a message to workers who want open shift messages", () => {

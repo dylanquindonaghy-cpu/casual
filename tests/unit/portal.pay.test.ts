@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -209,6 +211,35 @@ describe("showing pay", () => {
     // Still with payroll: no note.
     expect(words).toContain("With payroll");
     expect(words.match(/Payroll says/g)).toHaveLength(1);
+  });
+
+  it('no "Back to my shifts" anywhere on Pay: the tab bar goes there (Phase 17)', () => {
+    const line: PayLine = {
+      periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
+      hours: 8,
+      ratePence: 1260,
+      grossPence: 10080,
+      payDate: "2026-11-06",
+    };
+    const pages = [
+      renderToStaticMarkup(createElement(PayView, { firmName: "Acme Events", lines: [line] })),
+      renderToStaticMarkup(createElement(PayView, { firmName: "Acme Events", lines: [] })),
+      renderToStaticMarkup(
+        createElement(PayQueries, {
+          queries: [{ ref: "3F2A9C1B", issue: "wrong_rate", day: "2026-10-31", status: "open" }],
+        }),
+      ),
+      renderToStaticMarkup(createElement(PayQueries, { queries: [] })),
+    ];
+    for (const html of pages) {
+      expect(text(html)).not.toMatch(/Back to/);
+      expect(html).not.toContain('href="/shifts"');
+    }
+    // Nor on the page around them (the code gate, the page itself).
+    for (const file of ["src/app/pay/page.tsx", "src/app/pay/code-gate.tsx"]) {
+      expect(readFileSync(join(process.cwd(), file), "utf8")).not.toContain("Back to my shifts");
+    }
   });
 
   it("says so plainly when there's nothing yet", () => {

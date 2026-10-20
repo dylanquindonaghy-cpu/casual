@@ -13220,12 +13220,11 @@ settings filled in, and the guide's own command.
 
 ## 2026-10-20 · Phase 17: easier to scan (17.1 the look and the casual app, 17.2 the office)
 
-**Time:** 2.6 hours. **Result:** `VERIFIED tree=e368ef4954ed6065 e2e=true` (5,099 unit and
-integration tests, 93 browser tests and the 6-step walkthrough, all passing). The `claims-auditor`
-said **DONE for 17.2** (the office), which is ticked, and **NOT DONE for 17.1** (the look and the
-casual app) after its third and last round, so 17.1 is not ticked: three small gaps in its tests
-are still open (below). Committed and pushed on `claude/wizardly-faraday-8lg4g0`, with a new draft
-pull request.
+**Time:** 3.1 hours (2.6, then 0.5 for the fourth audit round). **Result:**
+`VERIFIED tree=f41c7029251632aa e2e=true` (5,101 unit and integration tests, 93 browser tests and
+the 6-step walkthrough, all passing). The `claims-auditor` said **DONE for 17.2** (the office) and,
+in a fourth round you allowed, **DONE for 17.1** (the look and the casual app). Both are ticked.
+Committed and pushed on `claude/wizardly-faraday-8lg4g0`, pull request #17.
 
 You asked for the app to be "easy for both office and casuals to scan and see where they are
 looking to go", with less showing at once and better graphics and colours. Nothing the app does
@@ -13326,6 +13325,8 @@ is laid out and how it looks.
 - The Casuals list's rule: a valid licence and an up-to-date photo are plain grey words with no
   tag; a missing photo is the small dot and "Missing"; expiring, expired, due soon, overdue and
   waiting keep their coloured tag.
+- Pay shows no "Back to my shifts" anywhere; the two Shifts-tab switches share one style; every
+  Open shifts card is a thin-line card with no red edge, the urgent one tagged in a pale tint.
 - Flat everywhere: a scan of all the app's code finds a shadow only on the two floating menus, and
   every office button and field (and the Menu button) has a 1px border. Adding a shadow anywhere
   else, or a thick border to an office control, fails this test.
@@ -13340,12 +13341,15 @@ is laid out and how it looks.
 
 ### What's parked or needs Dylan
 
-- **17.1 is not ticked.** The rules (`CLAUDE.md` rule 13) allow three audit rounds, then stop and
-  report. The app itself passed every check; what the auditor still wants is three more tests:
-  that Pay has no "Back to my shifts" button, that the Booked screen's Upcoming / Past switch uses
-  the same shared style as the Open | Booked one (today the same classes are written twice), and
-  that an Open shifts card is a thin-line card with no red edge. Each is small. Dylan decides
-  whether to allow a fourth round for them.
+- **17.1 needed a fourth audit round, which you allowed.** The rules (`CLAUDE.md` rule 13) allow
+  three, then stop and report. After the third, the app passed every check but the auditor wanted
+  three more tests. They were added: Pay has no "Back to my shifts" button; both Shifts-tab
+  switches use one shared style (`switchTrack`; it had been written out twice); every Open shifts
+  card is a thin-line card with no red edge, urgent or not. The fourth round said DONE.
+- The auditor's last notes, not blocking: the error and "not found" pages keep their larger
+  titles (the 24px rule is for app screens); no test checks the order of Home's shift facts after
+  the address; no database test loads a week paid at two rates through the pay loader (the screen
+  test feeds lines in the loader's real order).
 - **#16 was merged at its work-in-progress commit.** This pull request brings the checked version
   (the pay fix, the enquiry fix and the review's fixes) onto `main`.
 - Parked (PLAN.md Parking lot): the dashboard still reads 2 sessions per event it no longer shows;

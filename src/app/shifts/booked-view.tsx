@@ -10,7 +10,17 @@ import {
   ShiftsSwitch,
   Toggle,
 } from "../my-shifts-view";
-import { count, h2, headingGap, muted, row, rows, sectionGap, staffBtn } from "../ui/classes";
+import {
+  count,
+  h2,
+  headingGap,
+  muted,
+  row,
+  rows,
+  sectionGap,
+  staffBtn,
+  switchTrack,
+} from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
 import { StatusChip, type StatusTone } from "../ui/status-chip";
 
@@ -43,10 +53,7 @@ export function BookedView(props: BookedViewProps) {
       </PageHeader>
       <OfflineNotice updated={updated} />
       <ShiftsSwitch current="booked" />
-      <nav
-        aria-label="Which shifts"
-        className="grid grid-cols-2 gap-1 rounded-xl bg-quiet-soft p-1"
-      >
+      <nav aria-label="Which shifts" className={switchTrack}>
         <Toggle href={BOOKED_PATH} current={view === "upcoming"}>
           Upcoming
         </Toggle>

@@ -13154,3 +13154,66 @@ Key facts:
 
 - Nothing to do yet: 16.2 (the server's files and the step-by-step guide) comes next, in the same
   pull request. Don't merge until it's ready.
+
+## 2026-10-20 — Phase 16, task 16.2: the demo server
+
+**Time:** 1.1 hours (Phase 16 in all: 2.8 hours). **Result:** `RUN_E2E=1 ./scripts/verify.sh`
+printed `VERIFIED tree=9fc30c992f63cd44 e2e=true` (5,071 unit and integration tests, 93 browser
+tests, and the walkthrough run's 6). The `claims-auditor` said **DONE** on the first round, checking
+the whole phase against its "Done when" line.
+
+### What was built, in plain words
+
+Everything your Hetzner server needs to run the demo from 16.1, plus the step-by-step guide
+(`docs/runbooks.md`, "A demo server").
+
+1. **One extra settings file for the server** (`deploy/docker-compose.demo.yml`). It's used together
+   with the real one, so the two can't drift apart. It:
+   - runs the database (Postgres) on the server itself, reachable only through a file on the server
+     (a "socket"), with no network address at all;
+   - switches demo mode on, and every sender off or to printing, itself (not left to your settings);
+   - shares the outbox between the worker (which writes it) and the web app (which only reads it).
+2. **One command loads the demo afresh** (`./demo-reset.sh`), by hand the first time, then every
+   night at 04:00 UK time, so the demo's dates move on and whatever visitors did is cleared. It
+   deletes and rebuilds the whole demo database, so it refuses unless:
+   - it's a demo server (demo mode on, the database on the server itself);
+   - it logs in as the database's superuser (the only login that can see every firm);
+   - an existing database is one it made itself (it tags the ones it makes) and holds nothing but
+     the two made-up firms.
+3. **The demo's database refuses real people itself.** A database rule (a "trigger") refuses any
+   casual's phone number outside Ofcom's drama range, and any email address outside the example
+   domains, however it's written: a page, an import or the planner API. The app can't switch it off.
+4. **The site password is the web app's own rule now.** Without it, a production demo server turns
+   every visitor away with a message and reports itself unhealthy, so the setup says so.
+
+### How it was checked, beyond the tests
+
+A full **rehearsal in Docker** on this machine: the real image, both settings files, the example
+settings filled in, and the guide's own command.
+- Every part came up healthy, and the password was asked for.
+- A browser logged a casual and the office in from the Demo phone, and Northline's showed nothing
+  of Acme's.
+- The database refused a real number.
+- A firm that isn't a demo firm stopped the worker in 33 seconds, and the reset then refused to
+  delete the database.
+- The rehearsal also found a real bug before it reached your server: the worker crashed because the
+  settings demanded the site password, which only the web app gets. Fixed by moving that rule into
+  the web app.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| One extra compose file used with the real one | Only what differs is written; the two can't drift | A separate demo compose file (two to keep in step) |
+| Postgres on the server, not a hosted database | Costs nothing more; the data is made up and rebuilt nightly | The host's managed Postgres (more money for made-up data) |
+| The reset only drops a database it made (a tag) and only as the superuser | Its last line of defence can't be fooled by a login that sees no firms | Trusting the firm check alone (the safety review showed how that could pass) |
+| A database rule refusing real people | Covers every way in at once; the app can't remove it | Checks in each form and import (many places to keep in step) |
+| Gate B left as it is, parked | Changing it breaks the browser tests' imports; it only matters for a future real server with a local database | Changing it now (PLAN.md Parking lot, "Connect hosting") |
+
+### What's parked or needs Dylan
+
+- **Merge pull request #14**, then follow `docs/runbooks.md` "A demo server" on your Hetzner server.
+  You'll need: the server's IP address, access to your domain's DNS, a GitHub token
+  (`read:packages`), and a password you choose for the site.
+- Parked: Gate B must learn the difference between a development database and a real server's
+  local one, before any real server runs Postgres locally (PLAN.md, "Connect hosting").

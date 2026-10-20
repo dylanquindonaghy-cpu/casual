@@ -642,8 +642,16 @@ page" over showing the link on the login page.
   database is anything but a demo firm (checked before anything is dropped); then it recreates the
   database, migrates, adds the demo database's own rule refusing real numbers and emails (a
   trigger on `workers` and `office_users`, the same rule as `src/lib/demo/made-up.ts`), loads the
-  seed (allowed in production only from here) and empties the outbox. No backups: there's nothing
-  to keep.
+  seed (allowed in production only from here) and empties the outbox. It logs in as the database's
+  superuser (the only login row security hides no firm from: any other would see none and pass the
+  check), and drops an existing database only if it made it (a comment on the database it creates).
+  On a demo server the one-off steps (migrate, owner, the reset) log in as that superuser with the
+  owner's role switched on, where a real server uses a non-superuser owner: fine for made-up data.
+  No backups: there's nothing to keep. Gate B (no real staff data before an agreement) counts a
+  database on the same machine as development's, so it's off on a demo server; the demo database's
+  own rule and the worker's check stand in for it there (names, notes and photos aren't checked:
+  the runbook says never to enter anything real). Before a real server runs Postgres on the same
+  machine, Gate B must learn the difference (PLAN.md Parking lot, "Connect hosting").
 **Options:**
 | Option | Verdict |
 |---|---|

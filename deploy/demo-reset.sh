@@ -16,7 +16,11 @@ exec 9>"${SHIFTDESK_LOCK:-/run/lock/shiftdesk-deploy.lock}"
 flock -w 900 9 || { echo "A deploy has been running for 15 minutes: the demo wasn't reset." >&2; exit 1; }
 
 compose=(docker compose)
-if ! "${compose[@]}" --profile demo-reset config --services | grep -qx demo-reset; then
+if ! services="$("${compose[@]}" --profile demo-reset config --services)"; then
+  echo "Docker Compose couldn't read the settings (see above): a value missing in .env?" >&2
+  exit 1
+fi
+if ! grep -qx demo-reset <<<"$services"; then
   echo "Not a demo server: .env needs COMPOSE_FILE=docker-compose.yml:docker-compose.demo.yml (deploy/env.demo.example)." >&2
   exit 1
 fi

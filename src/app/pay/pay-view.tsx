@@ -16,14 +16,19 @@ import { ISSUE_LABELS, PAY_QUERY_STATUS_WORDS, type PayIssue } from "@/lib/porta
 import { dayLabel } from "@/lib/rules/reasons";
 
 // The pay page once the code has been checked (docs/screens.md, `/pay`): the last 8 weeks of pay
-// lines as payroll sent them. The newest first and largest (Phase 17: what she opens Pay to see),
-// then the earlier weeks as compact rows, the amount and pay date on the right. Only what the
-// payroll file had: a gross that wasn't in it isn't worked out here.
+// lines as payroll sent them (newest period first: src/lib/portal/pay.ts). The newest period first
+// and largest, every line of it (a week can have a line per rate), then the earlier periods' lines
+// as compact rows, the amount and pay date on the right (Phase 17: what she opens Pay to see). Only
+// what the payroll file had: a gross that wasn't in it isn't worked out here.
 export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: string }) {
-  if (lines.length === 0) {
+  const first = lines[0];
+  if (!first) {
     return <p>No pay data yet for this period.</p>;
   }
-  const [latest, ...earlier] = lines as [PayLine, ...PayLine[]];
+  const samePeriod = (line: PayLine) =>
+    line.periodStart === first.periodStart && line.periodEnd === first.periodEnd;
+  const latest = lines.filter(samePeriod);
+  const earlier = lines.filter((line) => !samePeriod(line));
   return (
     <>
       <p className={meta}>The last 8 weeks, from {firmName}&apos;s payroll.</p>
@@ -32,23 +37,30 @@ export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: strin
         className={`${headingGap} rounded-2xl border border-line bg-card p-4 ${nums}`}
       >
         <h2 id="latest-pay" className="text-base font-semibold">
-          {dayLabel(latest.periodStart)} to {dayLabel(latest.periodEnd)}
+          {dayLabel(first.periodStart)} to {dayLabel(first.periodEnd)}
         </h2>
-        {latest.grossPence !== null && (
-          <p className="mt-1 flex flex-col">
-            <span className="text-sm font-semibold text-ink-muted">Gross pay</span>
-            <span className="text-3xl font-bold">
-              <span className="sr-only">Gross pay: </span>
-              {pounds(latest.grossPence)}
-            </span>
-          </p>
-        )}
-        <p className="mt-1 text-base">
-          {hoursText(latest.hours)} at {pounds(latest.ratePence)} an hour
-        </p>
-        {latest.payDate && (
-          <p className="mt-1 text-base font-semibold">Pay date: {dayLabel(latest.payDate)}</p>
-        )}
+        {latest.map((line) => (
+          <div key={line.ratePence} className="mt-2 first-of-type:mt-1">
+            {line.grossPence !== null && (
+              <p className="flex flex-col">
+                {/* Seen, not read out: the amount below carries "Gross pay: " for screen readers. */}
+                <span aria-hidden="true" className="text-sm font-semibold text-ink-muted">
+                  Gross pay
+                </span>
+                <span className="text-3xl font-bold">
+                  <span className="sr-only">Gross pay: </span>
+                  {pounds(line.grossPence)}
+                </span>
+              </p>
+            )}
+            <p className="mt-1 text-base">
+              {hoursText(line.hours)} at {pounds(line.ratePence)} an hour
+            </p>
+            {line.payDate && (
+              <p className="mt-1 text-base font-semibold">Pay date: {dayLabel(line.payDate)}</p>
+            )}
+          </div>
+        ))}
       </section>
       {earlier.length > 0 && (
         <section aria-labelledby="earlier-pay" className={sectionGap.staff}>

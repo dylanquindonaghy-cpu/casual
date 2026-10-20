@@ -49,9 +49,15 @@ No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palett
 value in a class or a style): the firm's brand colour, which the brand bar and the root layout read
 from the firm's settings, is the one exception (`tests/unit/ui.theme.test.ts`).
 
+**A firm's own colour on buttons.** Its words are black or white, whichever reads better (at
+least 4.58:1), so a button in any firm colour can be read. Against the page, a pale firm colour
+(yellow on the white card) or a dark one in the dark theme can show little edge: the button is
+still named by its words, which is what identifies it, so no edge is added for now (Phase 17's
+guardrails review, S5; revisit if a pilot firm's colour reads poorly).
+
 **Easier to scan (Phase 17).** Flat surfaces: no shadows on anything at rest (only what floats, a
-menu or a dialog, has one), one hairline (`line`) on cards, a 1px border on office controls and
-fields. No label above a page's heading and no divider under the header (the firm's bar or the
+menu or a dialog, has one; `tests/unit/ui.flat.test.ts` holds it), one hairline (`line`) on cards,
+a 1px border on office controls and fields. No label above a page's heading and no divider under the header (the firm's bar or the
 office's top bar names the firm). Lists are rows in one card rather than a stack of cards, and an
 empty list keeps its place as a dashed frame with one sentence. Colour goes on what needs someone:
 a valid licence or an up-to-date photo is quiet grey words, not a green tag.
@@ -166,8 +172,8 @@ you on to `/office` as before.
   | Configuration | Office team, Settings, Data requests |
   | Help | How-to guide |
 
-- The current page's link has `aria-current="page"`, bold text on the soft background, a 3px dark
-  bar at the menu's edge and its icon filled in. On a page inside a section, the section's link
+- The current page's link has `aria-current="page"`, bold text on a pale tint of the firm's colour
+  (`brand-soft`; Phase 17, no bar at the menu's edge) and its icon filled in. On a page inside a section, the section's link
   looks the same but has `aria-current="true"` (it isn't the page you're on): a shift or a new
   shift marks Events & sessions, the offer page marks Dashboard, a casual marks Casuals, a
   cancellation's record marks Cancellations, a worker's data page marks Data requests.
@@ -212,11 +218,13 @@ you on to `/office` as before.
 - **Imports** (shifts and pay records): one card with the same layout and the same answer box as
   the shift forms. The next step is always the dark button: "Check the file", then "Import these
   …", then the link on ("See the shifts", "Go to pay queries").
-- **Dashboard** (12E.1; "Today" until then): four counts at the top, each a link to its filtered
-  list, the first ("Urgent shifts not filled") tinted red and larger; then the sections, each a
-  heading with a muted hint under it: urgent shifts not filled (a card per event, a red edge),
-  showing to casuals (two columns of event cards from 1024px, each with its switch), the latest
-  cancellations, the latest enquiries, and Needs attention (its parts as h3s with a count chip).
+- **Dashboard** (12E.1; "Today" until then; laid out again in Phase 17): four counts at the top in
+  one strip split by hairlines, each a link to its filtered list (label, number, line), the first
+  ("Urgent shifts not filled") with its number in red when there are some; then the sections,
+  each a heading with a muted hint under it, what needs someone first: from 1280px a main column
+  (urgent shifts not filled, a card per event; then Needs attention, its parts as h3s with a count
+  chip) beside a 384px column (the latest cancellations, the latest enquiries), one column below
+  that; then showing to casuals across the page, a table with a row per event and its switch.
   A section that can't load shows its own error and the rest of the page still shows. The bell in
   the top bar counts Needs attention's items and links to it.
 

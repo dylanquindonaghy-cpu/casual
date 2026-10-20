@@ -59,7 +59,7 @@ export function ShowingSwitch({
           className={`${track} inline-flex items-center rounded-full p-0.75 ${showing ? "bg-done" : "bg-switch-off"}`}
         >
           <span
-            className={`${knob} rounded-full bg-card shadow-sm transition-transform motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}
+            className={`${knob} rounded-full bg-card transition-transform motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}
           />
         </span>
       </button>

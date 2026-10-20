@@ -176,7 +176,7 @@ export function TravelForm({
         <div className="mt-6 rounded-xl border-2 border-line-strong p-3">
           <p>Remove it? You&apos;ll see shifts wherever they are.</p>
           <div className="mt-3 flex flex-wrap gap-3">
-            <button type="button" disabled={busy} onClick={remove} className={staffBtn.danger}>
+            <button type="button" disabled={busy} onClick={remove} className={staffBtn.dangerSolid}>
               Yes, remove it
             </button>
             <button

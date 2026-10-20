@@ -124,7 +124,7 @@ export function OfficeFrame({
             aria-haspopup="dialog"
             disabled={!hydrated}
             onClick={() => setOpen(true)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border-2 border-line-strong bg-card px-3 font-semibold text-ink hover:bg-quiet-soft disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line-strong bg-card px-3 font-semibold text-ink hover:bg-quiet-soft disabled:cursor-not-allowed disabled:opacity-60 lg:hidden"
           >
             <Icon name="menu" />
             Menu

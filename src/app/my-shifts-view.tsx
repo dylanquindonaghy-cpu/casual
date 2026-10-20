@@ -2,7 +2,7 @@ import Link from "next/link";
 import { mapLink, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import { CancelShift } from "./shifts/cancel-shift";
-import { muted, staffBtn } from "./ui/classes";
+import { muted, staffBtn, switchTrack } from "./ui/classes";
 
 // Pieces Home and Booked share (12H.1): the no-signal notice, the Shifts tab's Open | Booked switch,
 // the segmented links, a booking's details and what she can do about it. Booked itself is
@@ -33,10 +33,7 @@ export const BOOKED_PATH = "/shifts";
 // The Shifts tab's two lists: Open (`/shifts/open`) and Booked (`/shifts`), as a segmented switch.
 export function ShiftsSwitch({ current }: { current: "open" | "booked" }) {
   return (
-    <nav
-      aria-label="Open or booked"
-      className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-quiet-soft p-1"
-    >
+    <nav aria-label="Open or booked" className={`mb-4 ${switchTrack}`}>
       <Toggle href="/shifts/open" current={current === "open"}>
         Open
       </Toggle>

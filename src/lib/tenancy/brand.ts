@@ -4,6 +4,7 @@ import { brandColours, safeLogoUrl } from "./brand-values";
 
 export {
   brandColours,
+  brandStyle,
   contrastRatio,
   DEFAULT_BRAND_COLOUR,
   isBrandColour,

@@ -151,6 +151,37 @@ describe("the themes (src/app/globals.css)", () => {
     });
   }
 
+  // The firm colour's pale tint behind the current tab and the office's current menu item
+  // (Phase 17): brand-soft mixes 12% of the brand into the card. A firm may set any #rrggbb
+  // (on <body>, in either theme), so ink must read on the tint of every colour: the default,
+  // both demo firms', and the corners of the colour cube.
+  it("ink reads on brand-soft for any firm colour, in both themes", () => {
+    expect(css).toMatch(
+      /--color-brand-soft: color-mix\(in srgb, var\(--color-brand\) 12%, var\(--color-card\)\);/,
+    );
+    const mix = (brand: string, base: string) =>
+      `#${[1, 3, 5]
+        .map((i) =>
+          Math.round(
+            parseInt(brand.slice(i, i + 2), 16) * 0.12 + parseInt(base.slice(i, i + 2), 16) * 0.88,
+          )
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("")}`;
+    const levels = ["00", "80", "ff"];
+    const cube = levels.flatMap((r) => levels.flatMap((g) => levels.map((b) => `#${r}${g}${b}`)));
+    const failing = Object.entries(THEMES).flatMap(([name, theme]) =>
+      [theme.get("brand")!, "#1d4ed8", "#0f766e", ...cube]
+        .map(
+          (brand) => [brand, contrast(theme.get("ink")!, mix(brand, theme.get("card")!))] as const,
+        )
+        .filter(([, ratio]) => !(ratio >= 4.5))
+        .map(([brand, ratio]) => `${name}: ink on ${brand}'s tint: ${ratio.toFixed(2)}`),
+    );
+    expect(failing).toEqual([]);
+  });
+
   it("every token but the decorative line and scrim is in a checked pair", () => {
     const checked = new Set([...TEXT, ...CONTROLS].flat());
     const unchecked = [...light.keys()].filter((t) => !checked.has(t));

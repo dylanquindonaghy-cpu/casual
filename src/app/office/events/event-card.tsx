@@ -8,6 +8,7 @@ import {
   eventSummary,
   eventSwitchLabel,
   eventWhereWhen,
+  isFull,
   spansDays,
   uniqueSessionNames,
 } from "@/lib/office/events-copy";
@@ -26,8 +27,9 @@ export function EventCard({ event: e, timeZone }: { event: EventCardData; timeZo
   const href = `/office/events/${e.eventId}`;
   // An automatic event's name is its place and day already ("Acme Demo Arena · Sat 10 Oct").
   const whereWhen = eventWhereWhen(e, timeZone);
-  const open = e.sessions.filter((s) => s.booked < s.headcount);
-  const full = e.sessions.filter((s) => s.booked >= s.headcount);
+  // Full as the summary counts it: every place booked, or marked filled by the office.
+  const open = e.sessions.filter((s) => !isFull(s));
+  const full = e.sessions.filter(isFull);
   const item = (s: EventCardData["sessions"][number]) => (
     <SessionItem
       key={s.shiftId}
@@ -67,7 +69,7 @@ export function EventCard({ event: e, timeZone }: { event: EventCardData; timeZo
         </ul>
       )}
       {full.length > 0 && (
-        <details className="group rounded-lg border border-line">
+        <details data-filled-sessions="" className="group rounded-lg border border-line">
           <summary className="flex min-h-11 items-center gap-2 px-3 text-base font-semibold text-ink">
             <Icon name="chevron" className="h-4 w-4 transition-transform group-open:rotate-90" />
             {full.length === 1 ? "1 filled session" : `${full.length} filled sessions`}

@@ -77,7 +77,7 @@ export function ShiftActions({
                 Mark as filled
                 <Chevron />
               </summary>
-              <div className="mt-2 w-64 max-w-full rounded-lg border border-line bg-card p-3 shadow-sm">
+              <div className="mt-2 w-64 max-w-full rounded-lg border border-line bg-card p-3">
                 <p className="text-sm">
                   Only if you&apos;ve filled it another way. Nobody else will be offered it.
                 </p>

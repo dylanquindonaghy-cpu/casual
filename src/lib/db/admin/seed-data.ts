@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { seedId } from "../../demo/seed-id";
 import { localDateOf, zonedToUtc } from "../../time/zoned";
 
 // The two demo firms from docs/testing.md. Fake data only (golden rule 7): invented firms,
@@ -6,13 +6,9 @@ import { localDateOf, zonedToUtc } from "../../time/zoned";
 // example.com; credential numbers that start with TEST-. Deterministic, so every run (and every
 // machine) produces the same ids and rows. Later phases add shifts, requests and pay data.
 
-// A stable UUID (version 4 layout) derived from a name, so re-running the seed updates rows
-// instead of duplicating them.
-export function seedId(name: string): string {
-  const h = createHash("sha256").update(`shiftdesk-seed:${name}`).digest("hex");
-  const variant = ((parseInt(h[16] ?? "0", 16) & 0x3) | 0x8).toString(16);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
-}
+// A stable UUID derived from a name (src/lib/demo/seed-id.ts, shared with demo mode), so re-running
+// the seed updates rows instead of duplicating them.
+export { seedId };
 
 // A small seeded random generator (mulberry32), for varied but repeatable data.
 export function rng(seed: number): () => number {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { maskPhone, maskText } from "../log/mask";
+import { jobFirmId } from "../tenancy/job-firm";
 import {
   attachmentBytes,
   outboundMessageSchema,
@@ -13,18 +14,20 @@ type Print = (line: string) => void;
 
 // Each printed message starts with CONSOLE_PRINT_START and ends with its own line,
 // CONSOLE_PRINT_END. The print shows the whole body, login links included: in development that's
-// how you get your link, and production refuses this transport. The end line lets the e2e log
-// check (tests/e2e/teardown.ts, scripts/logs-scan.ts) leave these deliberate prints out when it
-// looks for login tokens anywhere else.
+// how you get your link, and production refuses this transport except on a demo server, whose
+// people are all made up (DEMO_MODE=on; ADR-025). The end line lets the e2e log check
+// (tests/e2e/teardown.ts, scripts/logs-scan.ts) leave these deliberate prints out when it looks
+// for login tokens anywhere else.
 export const CONSOLE_PRINT_START = "[messaging:console] ";
 export const CONSOLE_PRINT_END = "[messaging:console] end of message";
 
-// Dev and test transport: prints the message instead of sending it. Never reaches Twilio.
-// With an outbox file (CONSOLE_OUTBOX_FILE, dev and e2e only) it also appends each message as a
-// JSON line, so an end-to-end test can open the link a worker would have received. That file
-// holds real message bodies (links and attachments included): it lives in the gitignored .dev/
-// folder. An attachment is printed as its name and size only (the payroll list holds names and
-// what workers wrote).
+// Dev, test and demo transport: prints the message instead of sending it. Never reaches Twilio.
+// With an outbox file (CONSOLE_OUTBOX_FILE: dev, e2e and demo mode only) it also appends each
+// message as a JSON line, so an end-to-end test can open the link a worker would have received,
+// and a demo server's Demo phone page can show it. Each line names the firm whose job sent it
+// (src/lib/tenancy/job-firm.ts; none outside a job). That file holds real message bodies (links
+// and attachments included): it lives in the gitignored .dev/ folder. An attachment is printed as
+// its name and size only (the payroll list holds names and what workers wrote).
 export function createConsoleTransport(
   print: Print = console.log,
   outboxFile?: string,
@@ -65,7 +68,13 @@ export function createConsoleTransport(
                 ),
               }
             : msg;
-        const line = { at: new Date().toISOString(), providerMessageId, ...saved };
+        const firmId = jobFirmId();
+        const line = {
+          at: new Date().toISOString(),
+          providerMessageId,
+          ...saved,
+          ...(firmId ? { firmId } : {}),
+        };
         await appendFile(outboxFile, `${JSON.stringify(line)}\n`);
       }
       return { providerMessageId };

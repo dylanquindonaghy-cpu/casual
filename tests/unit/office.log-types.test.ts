@@ -33,6 +33,10 @@ function sourceFiles(dir: string): string[] {
 // that isn't one must be listed in NOT_EVENTS here on purpose.
 const ACTION = /"([a-z_]+\.[a-z_]+)"/g;
 const NOT_EVENTS = new Set<string>([
+  // The domains reserved for examples, demo mode's made-up email addresses
+  // (src/lib/demo/made-up.ts, 16.1).
+  "example.com",
+  "example.org",
   // Column names in the pilot metrics rollup's SQL (src/lib/metrics/rollup.ts).
   "e.created_at",
   "r.created_at",

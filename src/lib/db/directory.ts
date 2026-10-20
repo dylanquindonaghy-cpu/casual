@@ -1,8 +1,15 @@
 import { sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { z } from "zod";
+import { onlyDemoFirms } from "../demo/scope";
+import { appEnv } from "../env";
 import { signOffFor } from "../tenancy/sign-off";
 import { appPool, assertSafeAppConnection, drizzleFor } from "./pool";
+
+// The app's own look-ups below (the defaults) know the made-up demo firms alone in demo mode
+// (src/lib/demo/scope.ts; ADR-025). listFirmIds isn't one: the demo worker's check needs them all.
+const demoMode = () => appEnv().DEMO_MODE;
+const firmOf = (f: FirmDirectoryEntry) => f.id;
 
 // Host -> firm lookup, before any firm is known. The app role can't read firms without a firm
 // set, so this calls app_resolve_firm() (drizzle/0003_firm_directory.sql), which returns only
@@ -52,7 +59,7 @@ export function createDirectory(pool: Pool): ResolveFirmBySlug {
 let defaultDirectory: ResolveFirmBySlug | undefined;
 
 export function resolveFirmBySlug(slug: string): Promise<FirmDirectoryEntry | null> {
-  defaultDirectory ??= createDirectory(appPool());
+  defaultDirectory ??= onlyDemoFirms(createDirectory(appPool()), firmOf, demoMode);
   return defaultDirectory(slug);
 }
 
@@ -90,7 +97,7 @@ export function createLineDirectory(pool: Pool): ResolveFirmByLine {
 let defaultLineDirectory: ResolveFirmByLine | undefined;
 
 export function resolveFirmByLine(number: string): Promise<FirmDirectoryEntry | null> {
-  defaultLineDirectory ??= createLineDirectory(appPool());
+  defaultLineDirectory ??= onlyDemoFirms(createLineDirectory(appPool()), firmOf, demoMode);
   return defaultLineDirectory(number);
 }
 
@@ -126,7 +133,7 @@ export function createDomainDirectory(pool: Pool): ResolveFirmByDomain {
 let defaultDomainDirectory: ResolveFirmByDomain | undefined;
 
 export function resolveFirmByDomain(domain: string): Promise<FirmDirectoryEntry | null> {
-  defaultDomainDirectory ??= createDomainDirectory(appPool());
+  defaultDomainDirectory ??= onlyDemoFirms(createDomainDirectory(appPool()), firmOf, demoMode);
   return defaultDomainDirectory(domain);
 }
 
@@ -188,6 +195,6 @@ export function createKeyDirectory(pool: Pool): ResolveApiKey {
 let defaultKeyDirectory: ResolveApiKey | undefined;
 
 export function resolveApiKey(hash: Buffer): Promise<ApiKeyEntry | null> {
-  defaultKeyDirectory ??= createKeyDirectory(appPool());
+  defaultKeyDirectory ??= onlyDemoFirms(createKeyDirectory(appPool()), (k) => k.firmId, demoMode);
   return defaultKeyDirectory(hash);
 }

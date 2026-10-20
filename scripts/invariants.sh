@@ -90,6 +90,12 @@ done
 for pin in 'PUSH_TRANSPORT: "console",' 'VAPID_PRIVATE_KEY: "",'; do
   has_pin playwright.config.ts "$pin" || pins_missing="$pins_missing playwright.config.ts:'$pin'"
 done
+# And demo mode off (16.1; ADR-025): the main runs are a real server's, whatever .env says (only the
+# walkthrough's run turns it on, in its own config).
+has_pin tests/setup/env.ts 'process.env.DEMO_MODE = "";' ||
+  pins_missing="$pins_missing tests/setup/env.ts:DEMO_MODE"
+has_pin playwright.config.ts 'DEMO_MODE: "",' ||
+  pins_missing="$pins_missing playwright.config.ts:DEMO_MODE"
 if [ -n "$pins_missing" ]; then
   echo "FAIL: a test setup no longer keeps a real sender off:$pins_missing"; fail=1
 else echo "ok: the test setups keep every real sender off"; fi

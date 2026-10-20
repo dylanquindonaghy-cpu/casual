@@ -584,3 +584,57 @@ have no file store today, and ADR-021 rules out S3.
 | Files on the server's disk | Lost with the container, outside RLS, and missed by the database backup |
 | Keeping the phone's original file | Keeps location and camera details, and an unchecked file type |
 | Photo renewal every 2 years (the mock-up) | Doesn't match the SIA licence's three years |
+
+## ADR-025: Demo mode: messages shown on a Demo phone page, only for the made-up demo firms
+
+**Context:** Dylan wants his boss to click through the real app online (Phase 16, 2026-10-20). No
+real text or email sender exists yet (Phase 15 waits for the firm's own text system), production
+refuses printed messages, and logging in needs a link by text or email. Dylan chose a "Demo phone
+page" over showing the link on the login page.
+**Decision:**
+- **`DEMO_MODE=on`**, a server setting (16.1): the worker prints texts and emails into the outbox
+  file (`CONSOLE_OUTBOX_FILE`) instead of sending them, even in production. Without it, production
+  still refuses printed messages.
+- **Nothing leaves the server:** in demo mode the settings refuse every sender that could reach a
+  real person or service: texts, email and the planner's webhooks are printed (console); web push,
+  Google Sheets and AI are off (none); postcodes and travel times are the made-up ones (fake).
+- **Only the made-up demo firms** (Acme Events and Northline Rail Labour, known by their fixed ids:
+  `src/lib/demo/firms.ts`), **and only made-up people in them**: every casual's number in Ofcom's
+  drama range (07700 900000–900999) and every email address on a reserved example domain
+  (`src/lib/demo/made-up.ts`). The worker refuses to start, and stops within a minute, while any
+  firm isn't a demo firm or anyone in one isn't made up, e.g. after a visitor imports real staff
+  (`src/lib/demo/guard.ts`); a check that can't run three times in a row stops it too. Between two
+  checks, a job for any other firm is refused before it runs (`onlyRunJobsFor`), and the message
+  sender refuses any message to someone who isn't made up. The web app finds no other firm at all:
+  the look-ups that turn an address, a shifts line's number or a planner key into a firm
+  (`src/lib/db/directory.ts`) know the demo firms alone (`src/lib/demo/scope.ts`), so any other
+  firm's pages, server actions, route handlers, webhooks and planner calls are not found (a check
+  in a layout couldn't do it: the page under it still runs). A real firm's casuals would otherwise
+  get nothing, with nobody told; a real person's messages would be shown to visitors (golden
+  rule 7).
+- **The Demo phone** (`/demo` on a demo firm's address): the messages that firm sent its own
+  people, newest first, links back to the firm's address tappable. Each outbox line is stamped with
+  the firm whose job sent it (`src/lib/tenancy/job-firm.ts`) and a firm's page shows only its own
+  lines: one number can belong to a casual in both firms, so who a message went to can't say which
+  firm sent it (golden rule 2; the guardrails review's finding F1). The people (and their names)
+  are read inside the firm's withFirm transaction. The login itself is unchanged: the link works
+  once, for 15 minutes, as a real one. Not found without demo mode or on any other firm. A demo bar
+  on every page of a demo firm says it's a demo and links to it.
+- **One password for the whole site**, the app's own check (`src/lib/demo/gate.ts`, run first by
+  the proxy for every page, server action and API route): HTTP Basic, user name `demo`, password
+  `DEMO_SITE_PASSWORD` (12+ characters; required in production with demo mode). The Demo phone
+  needs no login of its own: the password is what keeps strangers from its login links. Let
+  through without it: the health check and Caddy's certificate check (callers inside the server),
+  and the planner API, which refuses anyone without one of a firm's own keys (its
+  `Authorization: Bearer` header can't be sent alongside the password; a key is made by a firm's
+  admin, logged in behind the password). Being the app's own, the check holds whatever is in front
+  of it (the walkthrough's browser test runs behind it, planner step included).
+**Options:**
+| Option | Verdict |
+|---|---|
+| The login link shown on the login page | Simpler, but further from the real thing, and only for logins: offers, reminders and answers would still go nowhere |
+| A real SMS and email sender for the demo | Needs the text system's details (Phase 15) and costs per message, for made-up people |
+| Demo mode for any firm | A real firm's messages would be printed instead of sent |
+| Matching outbox lines to a firm by recipient only | A number in both firms (a visitor's import) showed one firm's texts and login links on the other's Demo phone |
+| The password in Caddy alone | Gone if the web app's port were ever published or the Caddyfile wrong; and not tested by the browser tests |
+| Refusing real numbers at every place people are added (forms, imports, the planner API) | Many places to keep in step; the worker's check covers them all, and 16.2's demo database refuses them itself |

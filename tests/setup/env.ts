@@ -37,3 +37,7 @@ process.env.WEBHOOK_TRANSPORT = "console";
 // own stand-in. scripts/invariants.sh checks these lines stay.
 process.env.PUSH_TRANSPORT = "console";
 process.env.VAPID_PRIVATE_KEY = "";
+// Demo mode off (16.1; ADR-025), whatever .env says: tests that want it set it themselves.
+// scripts/invariants.sh checks this line stays.
+process.env.DEMO_MODE = "";
+process.env.DEMO_SITE_PASSWORD = "";

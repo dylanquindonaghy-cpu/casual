@@ -1201,6 +1201,40 @@ Done when: every task above is ticked with a stamp that includes the browser tes
 with `RUN_E2E=1` prints VERIFIED; no test or browser test sends a real text; the `claims-auditor`
 checks the phase against this line.
 
+## Phase 16 — The demo online
+
+Added 2026-10-20, Dylan's choice (he bought a Hetzner server and a domain, and picked the "Demo
+phone page"): the made-up demo on a small server, so his boss can click through it online. No real
+text or email sender exists yet (Phase 15), so in demo mode every message the app would send shows
+on a "Demo phone" page instead: only ever for the made-up demo firms, behind one password. Built
+before Phase 15. Docs: `docs/runbooks.md`, `docs/screens.md`, `docs/architecture.md`,
+`docs/decisions.md`.
+
+- [x] Demo mode in the app: `DEMO_MODE=on` lets production print texts and emails into the outbox
+      file instead of sending them (refused without it, as now), and nothing else leaves the server
+      (webhooks printed; push, Sheets and AI off; made-up postcodes); the worker refuses to start,
+      and stops, while any firm in the database isn't one of the made-up demo firms or anyone in
+      one has a real number or email, and refuses other firms' jobs; the "Demo phone" page (`/demo`
+      on a firm's address): the texts and emails that firm sent its own people (each outbox line
+      stamped with the sending firm), newest first, its links tappable, checked again every few
+      seconds; not found without demo mode or on any other firm; a demo bar on every page of a
+      demo firm, linking to it; any other firm not found at all (its addresses, shifts line and
+      planner keys); the whole site behind one password, the app's own check. Tests: the settings both ways, the guard, one firm never sees
+      another's messages (a number in both firms included), the password, the page's words, and a
+      browser test on the production build, worker included (a casual and the office log in from
+      the Demo phone) (16.1)
+- [ ] The demo server: Postgres in Compose over a socket only (`deploy/docker-compose.demo.yml`),
+      the outbox shared by the web app and the worker, demo mode and its site password (16.1) set
+      by that file and the server's `.env`, the demo loaded and reset by one command (refused
+      unless demo mode, a database on the server itself and only the demo firms) and again every
+      night so its dates stay fresh, its database refusing real numbers and emails;
+      `docs/runbooks.md` "A demo server": the Hetzner server and the domain's DNS, step by step.
+      Tests: the compose files checked by Docker itself, the reset's refusals and a real reset (16.2)
+
+Done when: both tasks are ticked with a stamp that includes the browser tests; `scripts/verify.sh`
+with `RUN_E2E=1` prints VERIFIED; no test sends a real message; demo mode can't run with a firm
+that isn't a made-up demo firm; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -3454,3 +3488,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-19 | 14 | 0.6 | Login safety and the log's filters (14.2): an ops alert when a firm sends more than 100 login links by WhatsApp and text in an hour, and another over 300 in 24 hours (the review's slow drip), each its own key; an alert, not a ceiling; the words only the firm's short name and a count, through the masker; the office log files each limit reached by its name (Take shift under Bookings, phones under Workers, the planner's key and the strikes team's links under Firm settings, the rest under Logins), the filter and the list agreeing, every limit the app has covered by a test; a stale doc line on login-link failures corrected; guardrails no FIX FIRST, 2 SHOULDs fixed (the strikes links, the day count); 11 break checks; 4,952 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
 | 2026-10-19 | 14 | 0.5 | Small fixes (14.3): the shifts line's last-resort reply always signed (golden rule 8), its text cut to leave the sign-off room; automatic event names cut the site's name between whole characters (never half a flag); a licence warning caught up after a crash logs no channel rather than guessing; the new event-name cases folded into the existing test file; guardrails no FIX FIRST or SHOULD, its notes acted on (two comments and a doc line, an unmasked error name parked); 5 break checks; 4,954 tests + 92 e2e + the walkthrough's 3; audit DONE first round, with Phase 14's Done-when line; Phase 14 in all 2.2 h (see docs/work-log.md) |
 | 2026-10-19 | — | 1.3 | Not a PLAN task: the full walkthrough (`walkthrough-site/`, also a private artifact): 82 real screenshots of a production build from one scripted run of the demo with every casual on texts (the casual's app, the office, payroll, the admin, a second firm), a 10-step story, every feature with what it does and how, the real texts the run sent, the rules, the records, and what's left; a static page any host can serve (Vercel: Root Directory `walkthrough-site`); Dylan's no-WhatsApp/Twilio decision recorded and Phase 15 proposed; the 14.3 work-log entry's broken last line fixed (see docs/work-log.md) |
+| 2026-10-20 | 16 | 1.7 | Demo mode in the app (16.1): with `DEMO_MODE=on` production prints texts, emails and planner webhooks into the outbox and nothing else leaves the server; the worker refuses to start, and stops, unless every firm is a made-up demo firm and everyone in them made up, refuses other firms' jobs, and stops after 3 missed checks; each outbox line stamped with the sending firm, each demo firm's Demo phone (`/demo`) showing only its own; the app's look-ups find no other firm in demo mode; the whole site behind one password (the app's own check; the planner API checks its own key); two guardrails rounds (F1 shared-number isolation, then the layout-only refusal, both fixed); the walkthrough's browser run now production demo mode behind the password; a weekday bug in the demo seed's story test fixed (Tuesdays and Wednesdays); 5,037 tests + 93 e2e + the walkthrough run's 6; audit DONE first round (see docs/work-log.md) |

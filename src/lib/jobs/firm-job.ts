@@ -3,6 +3,7 @@ import { fromDrizzle, PgBoss, type JobResult, type SendOptions } from "pg-boss";
 import { z } from "zod";
 import { activeFirmId, withFirm, type FirmTx, type WithFirm } from "../db/scoped";
 import { log, type Logger } from "../log";
+import { runAsFirm } from "../tenancy/job-firm";
 
 // Firm jobs: every payload extends this envelope, and every handler runs inside
 // withFirm(payload.firmId), so RLS scopes all of its work to that firm.
@@ -125,6 +126,15 @@ export async function runFirmTask<P extends FirmJobEnvelope>(
   });
 }
 
+// Demo mode (16.1; ADR-025): the worker runs jobs for the made-up demo firms only. Set once, before
+// the first job (src/worker/index.ts); a job for any other firm then fails without running, so
+// nothing is printed instead of sent for a real firm even in the minute before the worker's own
+// check stops it (src/lib/demo/guard.ts). Unset (null): every firm's jobs run.
+let firmAllowed: ((firmId: string) => boolean) | null = null;
+export function onlyRunJobsFor(allowed: ((firmId: string) => boolean) | null): void {
+  firmAllowed = allowed;
+}
+
 async function runValidated<P extends FirmJobEnvelope>(
   job: { queue: string; schema: z.ZodType<P> },
   input: { id: string; data: unknown },
@@ -139,8 +149,15 @@ async function runValidated<P extends FirmJobEnvelope>(
     return { id: input.id, status: "deadletter", output: { error: "invalid_payload", issues } };
   }
   const payload = parsed.data;
+  if (firmAllowed && !firmAllowed(payload.firmId)) {
+    jobLog.error("job refused: this worker runs jobs for the demo firms only", {
+      firmId: payload.firmId,
+    });
+    return { id: input.id, status: "failed", output: { error: "firm_not_allowed" } };
+  }
   try {
-    const output = await work(payload);
+    // Inside its firm's context: what it sends is stamped with this firm (src/lib/tenancy/job-firm.ts).
+    const output = await runAsFirm(payload.firmId, () => work(payload));
     return { id: input.id, status: "completed", output: output ?? null };
   } catch (err) {
     const code = errorCode(err);

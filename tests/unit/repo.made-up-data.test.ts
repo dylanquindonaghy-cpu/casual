@@ -35,6 +35,17 @@ const ALLOWED = [
     domain: "example-project.iam.gserviceaccount.com",
     why: "a made-up Google service account, in the form Google's key files use",
   },
+  ...[
+    ["boss", "firm.co.uk"],
+    ["a", "example.co.uk"],
+    ["a", "notexample.com"],
+    ["a", "example.com.evil.io"],
+  ].map(([local = "", domain = ""]) => ({
+    file: "tests/helpers/look-alike-emails.ts",
+    local,
+    domain,
+    why: "look-alikes demo mode's made-up check must refuse (16.1); nothing is sent to them",
+  })),
   {
     file: "tests/integration/push.test.ts",
     local: "user",

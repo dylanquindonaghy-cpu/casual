@@ -118,7 +118,56 @@ const appFields = {
     (v) => (v === "" ? undefined : v),
     z.string().min(32, { message: "must be at least 32 characters" }).optional(),
   ),
+  // Demo mode (16.1; docs/decisions.md ADR-025; docs/runbooks.md "A demo server"): a server that
+  // holds only the made-up demo firms, to show the app before any real sender exists. "on": the
+  // worker prints texts and emails into the outbox file (CONSOLE_OUTBOX_FILE) instead of sending
+  // them, even in production, and refuses to run while any firm isn't a demo firm
+  // (src/lib/demo/guard.ts); the web app shows each demo firm's messages on its Demo phone page
+  // (/demo) and a demo bar on its pages. Unset (the default): no demo page or bar, and production
+  // refuses printed messages. An empty value means not set.
+  DEMO_MODE: unsetIfEmpty(z.enum(["on"]).optional()),
+  // The outbox file: the console transport also appends each message here as a JSON line
+  // (src/lib/messaging/console.ts), for development, the e2e runs and demo mode, where the web
+  // app's Demo phone page reads it. Under the gitignored .dev/; in production only with demo mode.
+  CONSOLE_OUTBOX_FILE: unsetIfEmpty(
+    z
+      .string()
+      .regex(/^\.dev\/[\w-][\w.-]*$/, { message: "must be a file directly in .dev/" })
+      .optional(),
+  ),
+  // Demo mode's one password for the whole site (16.1; ADR-025), web app only: with DEMO_MODE=on
+  // every page and request asks for it (user name "demo"; src/lib/demo/gate.ts), so the made-up
+  // demo, its Demo phone and its login links are only for the people it's shared with. Needed in
+  // production; 12+ characters. A secret: only in the server's .env, never in the repo.
+  DEMO_SITE_PASSWORD: unsetIfEmpty(
+    z.string().min(12, { message: "must be at least 12 characters" }).max(200).optional(),
+  ),
 };
+
+// Demo mode shows messages from the outbox file: it needs one.
+const demoHasOutbox = (e: { DEMO_MODE?: string; CONSOLE_OUTBOX_FILE?: string }) =>
+  e.DEMO_MODE !== "on" || !!e.CONSOLE_OUTBOX_FILE;
+const demoHasOutboxMessage = {
+  path: ["CONSOLE_OUTBOX_FILE"],
+  message: "demo mode (DEMO_MODE=on) needs CONSOLE_OUTBOX_FILE, the file its Demo phone page reads",
+};
+
+// Demo mode sends nothing outside the server (ADR-025): every sender that could reach a real
+// person or service is its printing or switched-off choice. `want` lists the settings to check
+// and the only value each may have; one issue per setting that has another.
+const demoSendsNothing =
+  (want: Record<string, string>) =>
+  (e: Record<string, unknown>, ctx: z.RefinementCtx): void => {
+    if (e.DEMO_MODE !== "on") return;
+    for (const [key, value] of Object.entries(want)) {
+      if (e[key] === value) continue;
+      ctx.addIssue({
+        code: "custom",
+        path: [key],
+        message: `demo mode sends nothing outside the server: ${key} must be ${value} (DEMO_MODE=on)`,
+      });
+    }
+  };
 
 // The VAPID public key is the private key's P-256 point: work it out and compare.
 function vapidKeysMatch(publicKey: string, privateKey: string): boolean {
@@ -167,6 +216,14 @@ export const appEnvSchema = z
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
+  .refine(demoHasOutbox, demoHasOutboxMessage)
+  // The web app looks postcodes up itself (Settings, Profile); AI only says whether it's on.
+  .superRefine(demoSendsNothing({ TRAVEL_PROVIDER: "fake", AI_TRANSPORT: "none" }))
+  // A demo server on the internet always asks for its password (src/lib/demo/gate.ts).
+  .refine((e) => e.NODE_ENV !== "production" || e.DEMO_MODE !== "on" || !!e.DEMO_SITE_PASSWORD, {
+    path: ["DEMO_SITE_PASSWORD"],
+    message: "demo mode in production needs DEMO_SITE_PASSWORD, the password for the whole site",
+  })
   // The test-only pages never on a real address, even if the switch were copied into one.
   .refine((e) => !e.E2E_TEST_PAGES || /^localhost(:\d+)?$/.test(e.APP_BASE_DOMAIN), {
     path: ["E2E_TEST_PAGES"],
@@ -179,11 +236,6 @@ export const workerEnvSchema = z
     DATABASE_JOBS_URL: connectsAs(JOBS_DB_ROLE),
     // "twilio" is added with the Twilio transport in Phase 4. Until then it is a config error.
     MESSAGING_TRANSPORT: z.enum(["console"]).default("console"),
-    // Dev and e2e only: the console transport also appends messages here (see console.ts).
-    CONSOLE_OUTBOX_FILE: z
-      .string()
-      .regex(/^\.dev\//)
-      .optional(),
     // Google Sheets sync (src/lib/roster/sheets/transport.ts). "none" (the default): no sheet is
     // ever read, and the sync's tick isn't scheduled. "google": the real client, as the service
     // account whose key file is at GOOGLE_SERVICE_ACCOUNT_JSON_PATH (in the git-ignored secrets/,
@@ -284,6 +336,7 @@ export const workerEnvSchema = z
   .refine(realIntegrationsSecret, realIntegrationsSecretMessage)
   .refine(alertsOn, alertsOnMessage)
   .refine(noRealTravelInTests, noRealTravelInTestsMessage)
+  .refine(demoHasOutbox, demoHasOutboxMessage)
   .refine((e) => e.SHEETS_TRANSPORT !== "google" || e.GOOGLE_SERVICE_ACCOUNT_JSON_PATH, {
     path: ["GOOGLE_SERVICE_ACCOUNT_JSON_PATH"],
     message: "SHEETS_TRANSPORT=google needs the path to the service account's key file",
@@ -318,15 +371,37 @@ export const workerEnvSchema = z
       message: "VAPID_PRIVATE_KEY isn't the private half of VAPID_PUBLIC_KEY (they come as a pair)",
     },
   )
-  // Production must never silently print messages instead of sending them.
-  .refine((e) => e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "console", {
-    path: ["MESSAGING_TRANSPORT"],
-    message: "console transport is not allowed when NODE_ENV=production",
-  })
-  .refine((e) => e.NODE_ENV !== "production" || e.EMAIL_TRANSPORT !== "console", {
-    path: ["EMAIL_TRANSPORT"],
-    message: "console email is not allowed when NODE_ENV=production",
-  })
+  // Production must never silently print messages instead of sending them, except in demo mode,
+  // where printing them for the Demo phone page is the point (ADR-025).
+  .refine(
+    (e) =>
+      e.NODE_ENV !== "production" || e.MESSAGING_TRANSPORT !== "console" || e.DEMO_MODE === "on",
+    {
+      path: ["MESSAGING_TRANSPORT"],
+      message:
+        "console transport is not allowed when NODE_ENV=production (except with DEMO_MODE=on)",
+    },
+  )
+  .refine(
+    (e) => e.NODE_ENV !== "production" || e.EMAIL_TRANSPORT !== "console" || e.DEMO_MODE === "on",
+    {
+      path: ["EMAIL_TRANSPORT"],
+      message: "console email is not allowed when NODE_ENV=production (except with DEMO_MODE=on)",
+    },
+  )
+  // And demo mode never sends anything real: a message to a made-up person goes nowhere, and no
+  // webhook, push, sheet, AI request or travel look-up leaves the server.
+  .superRefine(
+    demoSendsNothing({
+      MESSAGING_TRANSPORT: "console",
+      EMAIL_TRANSPORT: "console",
+      WEBHOOK_TRANSPORT: "console",
+      PUSH_TRANSPORT: "none",
+      SHEETS_TRANSPORT: "none",
+      AI_TRANSPORT: "none",
+      TRAVEL_PROVIDER: "fake",
+    }),
+  )
   .refine((e) => e.NODE_ENV !== "test" || e.EMAIL_TRANSPORT !== "smtp", {
     path: ["EMAIL_TRANSPORT"],
     message: "tests never send real email: smtp is refused when NODE_ENV=test",
@@ -339,10 +414,14 @@ export const workerEnvSchema = z
     path: ["SMTP_PASS"],
     message: "SMTP_USER and SMTP_PASS go together",
   })
-  .refine((e) => e.NODE_ENV !== "production" || e.WEBHOOK_TRANSPORT === "https", {
-    path: ["WEBHOOK_TRANSPORT"],
-    message: "webhooks must really be sent in production: WEBHOOK_TRANSPORT=https",
-  })
+  .refine(
+    (e) => e.NODE_ENV !== "production" || e.WEBHOOK_TRANSPORT === "https" || e.DEMO_MODE === "on",
+    {
+      path: ["WEBHOOK_TRANSPORT"],
+      message:
+        "webhooks must really be sent in production: WEBHOOK_TRANSPORT=https (except with DEMO_MODE=on)",
+    },
+  )
   .refine((e) => e.NODE_ENV !== "test" || e.WEBHOOK_TRANSPORT !== "https", {
     path: ["WEBHOOK_TRANSPORT"],
     message: "tests never send real webhooks: https is refused when NODE_ENV=test",

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { checksItsOwnKey, DEMO_PASSWORD_NEEDED, DEMO_REALM, demoLoginMatches } from "../demo/gate";
 import type { Logger } from "../log";
 import { capText, MAX_PATH } from "../log/mask";
 import { parseHost } from "../tenancy/host";
@@ -11,9 +12,13 @@ import { parseHost } from "../tenancy/host";
 //    getCurrentFirm(). Two paths are let through on any host, for callers inside the server:
 //    Caddy's on-demand TLS check (/api/caddy/ask, at http://web:3000) and the health check
 //    (/api/health, Docker's at http://localhost:3000). Neither reads or writes firm data.
+// 3. On a demo server (`sitePassword` gives one: src/lib/demo/gate.ts), everything else but the
+//    planner API (which checks its own key) needs the demo's password: without it, 401 and the
+//    browser's password box.
 export function createProxy(
   logger: Logger,
   baseDomain: () => string,
+  sitePassword: () => string | undefined = () => undefined,
 ): (request: NextRequest) => NextResponse {
   return (request) => {
     const requestId = crypto.randomUUID();
@@ -39,6 +44,19 @@ export function createProxy(
       return new NextResponse("Not found", {
         status: 404,
         headers: { "x-request-id": requestId, "content-type": "text/plain; charset=utf-8" },
+      });
+    }
+
+    const password = internal || checksItsOwnKey(path) ? undefined : sitePassword();
+    if (password && !demoLoginMatches(request.headers.get("authorization"), password)) {
+      return new NextResponse(DEMO_PASSWORD_NEEDED, {
+        status: 401,
+        headers: {
+          "www-authenticate": `Basic realm="${DEMO_REALM}", charset="UTF-8"`,
+          "x-request-id": requestId,
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": "no-store",
+        },
       });
     }
 

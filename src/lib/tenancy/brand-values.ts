@@ -48,3 +48,17 @@ export function brandColours(raw: unknown): { background: string; text: string; 
       : "#000000";
   return { background, text, own };
 }
+
+// The firm's own colour as the page's brand tokens (src/app/globals.css --color-brand and
+// --color-on-brand), set on <body> by the root layout: only for a colour of its own (already a
+// checked #rrggbb, with the black or white that reads on it); otherwise nothing, and the app's own
+// colours stand.
+export function brandStyle(brand: {
+  own: boolean;
+  background: string;
+  text: string;
+}): Record<"--color-brand" | "--color-on-brand", string> | undefined {
+  if (!brand.own || !isBrandColour(brand.background) || !isBrandColour(brand.text))
+    return undefined;
+  return { "--color-brand": brand.background, "--color-on-brand": brand.text };
+}

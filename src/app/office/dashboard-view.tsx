@@ -256,7 +256,8 @@ function ShowingCards({ d }: { d: Dashboard }) {
                         </Link>
                       </th>
                       <td className={`${table.td} align-middle text-ink-muted ${nums}`}>
-                        {eventWhereWhen(e, tz)}
+                        {/* An automatic event's name is its place and day already. */}
+                        {eventWhereWhen(e, tz) !== e.name ? eventWhereWhen(e, tz) : null}
                       </td>
                       <td className={`${table.td} align-middle ${nums}`}>{eventSummary(e)}</td>
                       <td className={`${table.td} text-right align-middle`}>

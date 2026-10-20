@@ -21,9 +21,19 @@ test("each firm's pages open with its own bar: name, colour and readable text", 
   await page.goto(`${acme}/office/login`);
   await expect(page.getByTestId("brand-bar")).toHaveText("Acme Events");
 
+  // The casual app's main button is in the firm's own colour too (Phase 17).
+  await page.goto(`${acme}/login`);
+  const send = page.getByRole("button", { name: "Send me a link" });
+  await expect(send).toHaveCSS("background-color", "rgb(29, 78, 216)");
+  await expect(send).toHaveCSS("color", "rgb(255, 255, 255)");
+
   await page.goto(`${northline}/login`);
   await expect(page.getByTestId("brand-bar")).toContainText("Northline");
   await expect(page.getByTestId("brand-bar")).toHaveCSS("background-color", "rgb(15, 118, 110)");
+  await expect(page.getByRole("button", { name: "Send me a link" })).toHaveCSS(
+    "background-color",
+    "rgb(15, 118, 110)",
+  );
 });
 
 test("a logo set with the owner's script shows in the bar, beside the name", async ({ page }) => {

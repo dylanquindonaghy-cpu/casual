@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { showsDemo } from "@/lib/demo/firms";
 import { FRAME_FAILS_COOKIE, frameFailsOnce } from "@/lib/e2e/fails-once";
 import { appEnv } from "@/lib/env";
+import { brandStyle } from "@/lib/tenancy/brand-values";
 import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { findCurrentFirm } from "@/lib/tenancy/current-firm";
 import { BrandBar } from "./brand-bar";
@@ -48,15 +49,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const demoMode = appEnv().DEMO_MODE;
   const firm = demoMode === "on" ? await findCurrentFirm() : null;
   const demo = showsDemo(demoMode, firm?.id ?? null);
-  // A firm's own colour for its main actions (Phase 17; globals.css --color-brand): a checked
-  // #rrggbb and the text colour that reads on it, never raw input (src/lib/tenancy/brand.ts).
-  const brandStyle = brand?.own
-    ? ({ "--color-brand": brand.background, "--color-on-brand": brand.text } as CSSProperties)
-    : undefined;
+  // A firm's own colour for its main actions (Phase 17; globals.css --color-brand): checked
+  // #rrggbb values only, never raw input (src/lib/tenancy/brand-values.ts).
+  const firmColours = brand ? (brandStyle(brand) as CSSProperties | undefined) : undefined;
   return (
     <html lang="en-GB" data-theme={theme} className={`${jakarta.variable} ${jakartaExt.variable}`}>
       <body
-        style={brandStyle}
+        style={firmColours}
         className="bg-card text-lg text-ink antialiased has-[[data-shell=office]]:flex has-[[data-shell=office]]:min-h-dvh has-[[data-shell=office]]:flex-col"
       >
         {demo && <DemoBar />}

@@ -93,7 +93,7 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
           </h2>
           <ul
             role="list"
-            className={`${rows} mt-2 xl:divide-y-0 xl:rounded-none xl:border-0 xl:border-l-2 xl:border-line xl:bg-transparent xl:shadow-none`}
+            className={`${rows} mt-2 xl:divide-y-0 xl:rounded-none xl:border-0 xl:border-l-2 xl:border-line xl:bg-transparent`}
           >
             {sections.map((s) => (
               <li key={s.id}>
@@ -114,7 +114,7 @@ export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] 
               key={s.id}
               id={s.id}
               aria-labelledby={`${s.id}-title`}
-              className="scroll-mt-6 rounded-xl border border-line bg-card p-5 shadow-sm sm:p-6"
+              className="scroll-mt-6 rounded-xl border border-line bg-card p-5 sm:p-6"
             >
               <h2 id={`${s.id}-title`} className={h2}>
                 {s.title}

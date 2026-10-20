@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PayQueries, PayView } from "@/app/pay/pay-view";
 import { importHours, importPence } from "@/lib/imports/import";
-import { hoursText, pounds } from "@/lib/portal/pay-format";
+import { hoursText, pounds, type PayLine } from "@/lib/portal/pay-format";
 
 // Pay: reading payroll's numbers exactly (no float rounding), and showing them as payroll sent them.
 
@@ -103,6 +103,60 @@ describe("showing pay", () => {
     // Never worked out: no gross for the line payroll didn't give one.
     expect(words).not.toContain("£60.00");
     expect(words).toContain("If something looks wrong, raise a pay query.");
+  });
+
+  it("the newest period on top, every line of it; only older periods under Earlier weeks (Phase 17)", () => {
+    // In the loader's order (src/lib/portal/pay.ts: period end, then start, then rate, newest and
+    // highest first): a week with a line per rate, then an older week.
+    const line = (o: Partial<PayLine>): PayLine => ({
+      periodStart: "2026-10-26",
+      periodEnd: "2026-11-01",
+      hours: 37.5,
+      ratePence: 1250,
+      grossPence: 46875,
+      payDate: "2026-11-06",
+      ...o,
+    });
+    const section = (html: string, id: string) => {
+      const at = html.indexOf(`aria-labelledby="${id}"`);
+      return at < 0 ? "" : text(html.slice(at, html.indexOf("</section>", at)));
+    };
+    const oneWeek = renderToStaticMarkup(
+      createElement(PayView, {
+        firmName: "Acme Events",
+        lines: [line({ hours: 4, ratePence: 1500, grossPence: null, payDate: null }), line({})],
+      }),
+    );
+    const top = section(oneWeek, "latest-pay");
+    expect(top).toContain("Mon 26 Oct to Sun 1 Nov");
+    expect(top).toContain("4 hours at £15.00 an hour");
+    expect(top).toContain("37.5 hours at £12.50 an hour");
+    expect(top).toContain("Gross pay: £468.75");
+    expect(text(oneWeek)).not.toContain("Earlier weeks");
+
+    const twoWeeks = renderToStaticMarkup(
+      createElement(PayView, {
+        firmName: "Acme Events",
+        lines: [
+          line({}),
+          line({
+            periodStart: "2026-10-19",
+            periodEnd: "2026-10-25",
+            hours: 24,
+            grossPence: 30000,
+            payDate: "2026-10-30",
+          }),
+        ],
+      }),
+    );
+    expect(section(twoWeeks, "latest-pay")).not.toContain("Mon 19 Oct");
+    const earlier = section(twoWeeks, "earlier-pay");
+    expect(earlier).toContain("Mon 19 Oct to Sun 25 Oct");
+    expect(earlier).toContain("Gross pay: £300.00");
+    expect(earlier).toContain("Pay date: Fri 30 Oct");
+    expect(earlier).not.toContain("Mon 26 Oct");
+    // "Gross pay" is read out once per amount, not twice.
+    expect(twoWeeks.match(/<span aria-hidden="true"[^>]*>Gross pay<\/span>/g)).toHaveLength(1);
   });
 
   it("the worker's pay queries: a way to raise one, and each one's status", () => {

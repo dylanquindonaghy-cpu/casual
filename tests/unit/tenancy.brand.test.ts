@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BrandBar } from "@/app/brand-bar";
 import {
   brandColours,
+  brandStyle,
   contrastRatio,
   DEFAULT_BRAND_COLOUR,
   isBrandColour,
@@ -63,6 +64,24 @@ describe("the colours", () => {
     expect(brandColours("#1d4ed8").text).toBe("#ffffff");
     expect(brandColours("#0f766e").text).toBe("#ffffff");
     expect(brandColours("#ffff00").text).toBe("#000000");
+  });
+
+  it("sets the page's brand colours only for a firm's own checked colour", () => {
+    expect(brandStyle(brandColours("#1D4ED8"))).toEqual({
+      "--color-brand": "#1d4ed8",
+      "--color-on-brand": "#ffffff",
+    });
+    expect(brandStyle(brandColours("#ffff00"))).toEqual({
+      "--color-brand": "#ffff00",
+      "--color-on-brand": "#000000",
+    });
+    // The default (no colour set, a bad value, or the brand couldn't be read): nothing set.
+    expect(brandStyle(brandColours(null))).toBeUndefined();
+    expect(brandStyle(brandColours("#1d4ed8; background: url(x)"))).toBeUndefined();
+    // Never a value that isn't #rrggbb, whatever the object says.
+    expect(
+      brandStyle({ own: true, background: "red; x: url(y)", text: "#ffffff" }),
+    ).toBeUndefined();
   });
 
   it("knows a firm's own colour from the default", () => {

@@ -1244,19 +1244,28 @@ screen shows at once, not of what the app does: every action, rule and log entry
 UI skills Dylan chose (Anthropic's frontend-design, design-taste-frontend, ui-ux-pro-max), read before
 use. Mock-ups: the "ShiftDesk: easier to scan" canvas. Docs: `docs/screens.md`.
 
-- [ ] The look and the casual app: colour and type tokens (light and dark, every pair still passing
-      the contrast test), the firm's own colour on the casual app's one main action and current tab;
-      Home leads with the next shift (when, where, one main action) and a short list of open shifts,
-      changing or cancelling moved to the shift's own page; open shifts as compact rows grouped by
-      day; Pay leads with the next payday; no "Back to my shifts" where the tab bar already goes
-      there; the firm's name once per screen. Tests: the changed screens' words and the browser
-      tests (17.1)
-- [ ] The office: the dashboard leads with what needs someone now (urgent shifts, attendance to
-      mark, uploads to check, casuals needing an update, enquiries needing a person), each one click
-      from its job, with what casuals can see and the recent records moved below or to their own
-      pages; the casuals list shows each person's problems only (an expired or missing credential,
-      an upload to check), "All good" otherwise. Tests: the dashboard's and the list's words and the
-      browser tests (17.2)
+- [ ] The look and the casual app: flat (no shadows at rest, hairline cards, 1px office controls),
+      24px page titles, no label above a page's heading (the firm's bar names the firm) and no
+      divider under it, a way back on a record's own page instead; the firm's own colour (checked
+      `#rrggbb`, set on the page only when the firm has one) on the casual app's main buttons, its
+      current tab and the office's current menu item, every token pair still passing the contrast
+      test; urgent tags as pale tints. Home: the next shift reads when, what, where, then its facts
+      as a list, "Open in maps" and "Ask for a change" side by side and "Cancel this shift" as
+      quiet red words; urgent and open shifts as rows in one card. Open shifts: lighter cards, no
+      "Back to my shifts" (the tab bar goes there). Pay: the newest week first and largest, every
+      line of it, the earlier weeks as compact rows, no "Back to my shifts". Booked: its next shift
+      a hairline card too, its Upcoming / Past switch in the same track as Open | Booked. Tests:
+      the changed screens' words, the look's rules (no shadows but the floating menus, hairline
+      cards, 1px office controls, the 24px title, pale tags, the current tab's tint, Home's
+      buttons and rows), pay lines grouped by week in the loader's order, the firm's colour only
+      from a checked value, and the browser tests (each firm's button in its own colour) (17.1)
+- [x] The office: the dashboard leads with what needs someone: the counts in one strip (the first
+      red only when there are urgent shifts), urgent shifts and Needs attention beside the latest
+      cancellations and enquiries, and what casuals can see last as a table, a row per event with
+      its switch; Events & sessions folds each event's full sessions under "{n} filled sessions";
+      the casuals list shows a tag only for a problem (a valid licence or an up-to-date photo as
+      quiet words, a missing photo as a small dot). Tests: the dashboard's order and words, the
+      fold, and the browser tests (17.2)
 
 Done when: both tasks are ticked with a stamp that includes the browser tests; `scripts/verify.sh`
 with `RUN_E2E=1` prints VERIFIED; no action, rule or log entry is lost (every flow's browser test
@@ -1559,6 +1568,15 @@ text system once its details are known; Messages 2 (notification first, or both)
 ## Parking lot
 
 (Ideas that came up mid-build. Not in scope until a phase includes them.)
+
+- From Phase 17 (2026-10-20): the dashboard still reads 2 sessions with each event it shows
+  casuals (`SHOWING_SESSIONS`, `src/lib/office/dashboard.ts`), though its table now shows only each
+  event's totals: read none. A firm's own colour on a button isn't checked against the page behind
+  it (a pale yellow on white, a dark colour in the dark theme): the words on the button always read
+  (4.58:1 or more), so nothing is added for now (`docs/ui-design.md`, "A firm's own colour on
+  buttons"); revisit with a pilot firm's colour. The office's other screens (a shift, a casual's
+  page, the log, pay) and the casual's Profile and shift page keep their old layout under the new
+  look: lay them out again if a pilot finds them busy.
 
 - ~~**Phase 1 blocker:** the dev/CI Postgres user is a superuser, which bypasses RLS.~~ Resolved
   in Phase 1 (ADR-011): app, jobs and owner roles; tests run as `shiftdesk_app`.
@@ -3521,3 +3539,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-19 | — | 1.3 | Not a PLAN task: the full walkthrough (`walkthrough-site/`, also a private artifact): 82 real screenshots of a production build from one scripted run of the demo with every casual on texts (the casual's app, the office, payroll, the admin, a second firm), a 10-step story, every feature with what it does and how, the real texts the run sent, the rules, the records, and what's left; a static page any host can serve (Vercel: Root Directory `walkthrough-site`); Dylan's no-WhatsApp/Twilio decision recorded and Phase 15 proposed; the 14.3 work-log entry's broken last line fixed (see docs/work-log.md) |
 | 2026-10-20 | 16 | 1.7 | Demo mode in the app (16.1): with `DEMO_MODE=on` production prints texts, emails and planner webhooks into the outbox and nothing else leaves the server; the worker refuses to start, and stops, unless every firm is a made-up demo firm and everyone in them made up, refuses other firms' jobs, and stops after 3 missed checks; each outbox line stamped with the sending firm, each demo firm's Demo phone (`/demo`) showing only its own; the app's look-ups find no other firm in demo mode; the whole site behind one password (the app's own check; the planner API checks its own key); two guardrails rounds (F1 shared-number isolation, then the layout-only refusal, both fixed); the walkthrough's browser run now production demo mode behind the password; a weekday bug in the demo seed's story test fixed (Tuesdays and Wednesdays); 5,037 tests + 93 e2e + the walkthrough run's 6; audit DONE first round (see docs/work-log.md) |
 | 2026-10-20 | 16 | 1.1 | The demo server (16.2): `deploy/docker-compose.demo.yml` with the real compose file, chosen by `COMPOSE_FILE` (Postgres in Compose over a socket only, demo mode and every sender set in the file, the outbox a shared volume, a one-off reset); `deploy/demo-reset.sh` and a 04:00 nightly timer loading the demo afresh (refused unless demo mode, a database on the server, the superuser's login and a database it made itself holding only the demo firms); the demo database refusing real numbers and emails itself (a hardened trigger); `deploy.sh` following `COMPOSE_FILE`; the site password now the web app's own rule (503 and unhealthy without it: a Docker rehearsal caught the worker crashing on the old settings rule); runbook "A demo server" step by step; a local Docker rehearsal of the whole stack; guardrails no FIX FIRST, 6 SHOULDs fixed or parked (Gate B, "Connect hosting"); 5,071 tests + 93 e2e + the walkthrough run's 6; audit DONE first round, with Phase 16's Done-when line; Phase 16 in all 2.8 h (see docs/work-log.md) |
+| 2026-10-20 | 17 | 2.6 | Easier to scan: a flat look in each firm's own colour, Home, Open shifts, Pay and Booked laid out to scan, the office dashboard leading with what needs someone, Events folding full sessions, Casuals tags only for problems; the safety review's pay fix and an enquiry confirmation fix. 17.2 audited DONE and ticked; 17.1 NOT DONE after 3 audit rounds (three test gaps open), not ticked (see docs/work-log.md) |

@@ -45,7 +45,7 @@ export function BookedView(props: BookedViewProps) {
       <ShiftsSwitch current="booked" />
       <nav
         aria-label="Which shifts"
-        className="grid grid-cols-2 divide-x-2 divide-line-strong overflow-hidden rounded-xl border-2 border-line-strong"
+        className="grid grid-cols-2 gap-1 rounded-xl bg-quiet-soft p-1"
       >
         <Toggle href={BOOKED_PATH} current={view === "upcoming"}>
           Upcoming
@@ -110,7 +110,7 @@ function NextShift({ shift, timeZone, now }: BookedViewProps & { shift: MyShift 
   return (
     <section
       aria-labelledby="next-heading"
-      className="mt-6 rounded-2xl border-2 border-ink bg-card p-4"
+      className="mt-6 rounded-2xl border border-line bg-card p-4"
     >
       <h2 id="next-heading" className="text-base font-semibold text-ink-muted">
         {isOnNow(shift, now) ? "On now" : "Your next shift"}

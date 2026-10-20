@@ -165,6 +165,62 @@ describe("an event card's words", () => {
   });
 });
 
+describe("the card's sessions (Phase 17)", () => {
+  it("lists the ones with a place free; folds the full ones, and the ones marked filled", () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({
+          sessions: [
+            session({ shiftId: "a1111111-1111-4111-8111-111111111111", booked: 1, headcount: 4 }),
+            session({ shiftId: "b1111111-1111-4111-8111-111111111111", booked: 4, headcount: 4 }),
+            session({
+              shiftId: "c1111111-1111-4111-8111-111111111111",
+              booked: 2,
+              headcount: 4,
+              status: "filled",
+            }),
+          ],
+        }),
+        timeZone: TZ,
+      }),
+    );
+    const [before, folded = ""] = html.split("data-filled-sessions");
+    expect(before).toContain("1/4 filled");
+    expect(before).not.toContain("4/4 filled");
+    expect(before).not.toContain("2/4 filled");
+    expect(text(folded.slice(folded.indexOf("<summary")))).toMatch(/^2 filled sessions/);
+    expect(folded).toContain("4/4 filled");
+    expect(folded).toContain("2/4 filled");
+    // Every session keeps its "…" menu, folded or not.
+    expect(html.match(/aria-label="More for /g)).toHaveLength(3);
+  });
+
+  it("no fold when nothing is full; one filled session is said so", () => {
+    const none = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ sessions: [session({ booked: 0, headcount: 2 })] }),
+        timeZone: TZ,
+      }),
+    );
+    expect(none).not.toContain("data-filled-sessions");
+    const one = text(
+      renderToStaticMarkup(
+        createElement(EventCard, {
+          event: event({
+            sessions: [
+              session({ booked: 0, headcount: 2 }),
+              session({ shiftId: "z", booked: 2, headcount: 2 }),
+            ],
+          }),
+          timeZone: TZ,
+        }),
+      ),
+    );
+    expect(one).toContain("1 filled session");
+    expect(one).not.toContain("1 filled sessions");
+  });
+});
+
 describe("each session's switch label", () => {
   it("names the role and times, unique on the page", () => {
     const sessions = [

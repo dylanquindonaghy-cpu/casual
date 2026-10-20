@@ -13217,3 +13217,144 @@ settings filled in, and the guide's own command.
   (`read:packages`), and a password you choose for the site.
 - Parked: Gate B must learn the difference between a development database and a real server's
   local one, before any real server runs Postgres locally (PLAN.md, "Connect hosting").
+
+## 2026-10-20 · Phase 17: easier to scan (17.1 the look and the casual app, 17.2 the office)
+
+**Time:** 2.6 hours. **Result:** `VERIFIED tree=e368ef4954ed6065 e2e=true` (5,099 unit and
+integration tests, 93 browser tests and the 6-step walkthrough, all passing). The `claims-auditor`
+said **DONE for 17.2** (the office), which is ticked, and **NOT DONE for 17.1** (the look and the
+casual app) after its third and last round, so 17.1 is not ticked: three small gaps in its tests
+are still open (below). Committed and pushed on `claude/wizardly-faraday-8lg4g0`, with a new draft
+pull request.
+
+You asked for the app to be "easy for both office and casuals to scan and see where they are
+looking to go", with less showing at once and better graphics and colours. Nothing the app does
+changed: every button, rule and log entry is still there. What changed is how each main screen
+is laid out and how it looks.
+
+### How it was done
+
+- **The UI skills you chose.** Anthropic's `frontend-design`, `design-taste-frontend` (which now
+  includes `redesign-existing-projects`) and `ui-ux-pro-max`, read through before use and installed
+  for this session only (not into the project).
+- **Measured first.** The design skill's inspector (a tool that opens a page in a real browser and
+  measures it) looked at the screens as they were. The office dashboard showed only 7 of its 17
+  sections on the first screen, and every page title was the size of a website's headline.
+- **A style chosen for this product.** The skill's "accent ladder": the firm's own colour used
+  only on a few small things (its main buttons, the current tab), pale tints of it for areas, and
+  everything else calm and neutral. Each firm sees its own colour, which is what a branded portal
+  promises.
+
+### What changed, in plain words
+
+**Everywhere:**
+- Flat: no shadows (soft grey glows under boxes) except on the two menus that float over the page,
+  thin lines, smaller page titles.
+- No small firm name above every page title (the coloured bar at the top already names the firm).
+  Three office pages that used that spot as a link back to their list ("Cancellations",
+  "Enquiries") now have a proper "‹ back" link instead.
+- The firm's own colour (Acme's blue, Northline's teal) on the casual app's main buttons, its
+  current tab and the office's current menu item. Only a checked colour code (`#rrggbb`) can ever
+  reach the page; without one, the app's own dark ink stands.
+- Red, amber and green only where something needs someone: an urgent tag is a pale tint now, not
+  a solid red block.
+
+**Casual app:**
+- **Home:** the next shift reads top to bottom: when (big), what, where, then the details as a
+  short list. "Open in maps" and "Ask for a change" sit side by side; "Cancel this shift" is quiet
+  red words (it still opens the same confirmation). Urgent and open shifts are rows in one card.
+- **Open shifts:** lighter cards; no "Back to my shifts" button (the tab bar does that).
+- **Pay:** the newest week first and big, every line of it (payroll can send a line per rate),
+  then earlier weeks as tidy rows.
+
+**Office:**
+- **Dashboard:** the four counts are one strip (the first number red only when there are urgent
+  shifts). What needs someone comes first: urgent shifts and "Needs attention" side by side with
+  the latest cancellations and enquiries. What casuals can see is a compact table at the bottom,
+  one row per event with its switch.
+- **Events & sessions:** each event's full sessions fold away under "18 filled sessions" (and so
+  on); the ones still needing people show first. The page went from 4,631 to 2,971 pixels tall.
+- **Casuals:** a coloured tag only for a problem (an expired licence stands out in red); valid
+  licences and up-to-date photos are quiet grey words; a missing photo is a small amber dot.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| Keep every action, move nothing off Home | Your tests and walkthrough rely on them, and casuals need them on the day | Moving "Ask for a change" and "Cancel" to the shift's page (fewer buttons on Home, but an extra tap on the day) |
+| The firm's own colour on main buttons only | Each firm sees its own brand, while the screens stay calm | Colour on every button and heading (louder), or no brand colour at all (generic) |
+| Fold filled sessions on Events, don't hide them | Everything stays one tap away, including each session's menu | Showing only open sessions (a full one would need its own page to reach) |
+| A pale firm colour isn't given an outline | The words on the button always read (4.58:1 or more), which is what identifies a button | Adding an outline when the colour is close to the page (parked, revisit with a pilot firm) |
+
+### Found and fixed along the way
+
+- **The safety review (guardrails) found a real pay mistake** before it reached anyone: a week
+  that payroll sends with two pay rates would have shown one of its lines under "Earlier weeks".
+  Fixed (every line of the newest week shows together), with a test in the order the app really
+  loads pay lines, which would have failed before the fix. Your demo's made-up pay has one rate per
+  week, so it never showed there.
+- 12 smaller points from the same review: the Events fold now uses the app's own "is it full?"
+  check (a session the office marked filled folds too); the final "Yes, remove it" for a travel
+  area is solid red again; the current tab's icon is filled in, so it doesn't rely on colour;
+  "Gross pay" isn't read out twice to screen readers; automatic events don't repeat their name in
+  the dashboard table; and the docs describe what was built.
+- **The browser tests caught a vanishing confirmation** on an enquiry's page. After the office
+  answered a message, the page refreshed itself, and since the message was no longer waiting the
+  page dropped the whole "Answer it" section, taking "Closed. No reply was sent." with it. Now the
+  form draws that section itself and keeps it, with its confirmation, after the refresh. A new test
+  pins both cases (waiting: the forms; answered and loaded fresh: no section).
+- **The independent auditor's first round said "not done" on both tasks**, for honest reasons:
+  three boxes still had a soft shadow, the office's Menu button still had a thick border, and two
+  rules had no test holding them. Fixed: the shadows are gone (only the two menus that float over
+  the page keep one), the Menu button is thin like every office control, and two new tests hold the
+  rules in place (below). Its second round passed the office task and asked for tests on the rest
+  of the look (the 24px title, Home's buttons and rows, pale tags, the current tab's tint), which
+  were added. It also spotted that the Booked screen's next-shift card still had a thick black
+  frame: it is now a thin-line card like Home's, and its Upcoming / Past switch matches the
+  Open | Booked one above it.
+
+### What the new tests prove
+
+- Pay lines are grouped by week, in the loader's order (the bug above).
+- The firm's colour reaches the page only as a checked `#rrggbb`, only for a firm with its own
+  colour, and never when the brand couldn't be read.
+- In a real browser, Acme's "Send me a link" button is Acme's blue and Northline's is teal.
+- The dashboard's new order, its one-strip counts (red only with urgent shifts) and its table.
+- The Events fold: open sessions listed, full and marked-filled ones folded, every session keeping
+  its menu, and "1 filled session" (not "sessions").
+- The page header's back link.
+- The Casuals list's rule: a valid licence and an up-to-date photo are plain grey words with no
+  tag; a missing photo is the small dot and "Missing"; expiring, expired, due soon, overdue and
+  waiting keep their coloured tag.
+- Flat everywhere: a scan of all the app's code finds a shadow only on the two floating menus, and
+  every office button and field (and the Menu button) has a 1px border. Adding a shadow anywhere
+  else, or a thick border to an office control, fails this test.
+- The enquiry page's "Answer it" section stays with its confirmation after the page refreshes.
+- The rest of the look: every page title 24px with no line under it; tags are pale tints for every
+  status (urgent too), never a solid fill; the current tab sits on the firm colour's pale tint;
+  Home's "Open in maps" and "Ask for a change" sit side by side with "Cancel this shift" as quiet
+  red words under them; urgent and open shifts are rows in one card; every card has one thin line.
+- Dark text stays readable on the firm colour's pale tint whatever colour a firm picks: checked
+  against 30 colours (the default, both demo firms and 27 spread across all colours) in light and
+  dark.
+
+### What's parked or needs Dylan
+
+- **17.1 is not ticked.** The rules (`CLAUDE.md` rule 13) allow three audit rounds, then stop and
+  report. The app itself passed every check; what the auditor still wants is three more tests:
+  that Pay has no "Back to my shifts" button, that the Booked screen's Upcoming / Past switch uses
+  the same shared style as the Open | Booked one (today the same classes are written twice), and
+  that an Open shifts card is a thin-line card with no red edge. Each is small. Dylan decides
+  whether to allow a fourth round for them.
+- **#16 was merged at its work-in-progress commit.** This pull request brings the checked version
+  (the pay fix, the enquiry fix and the review's fixes) onto `main`.
+- Parked (PLAN.md Parking lot): the dashboard still reads 2 sessions per event it no longer shows;
+  a pale firm colour's button edge; the office's other screens and the casual's Profile and shift
+  page keep their old layout under the new look.
+
+### How to see it
+
+After merging, your demo server picks it up within a few minutes of the image being built. Open
+`https://acme.staffingresourcingtest.uk` on your phone (Home, Shifts, Pay) and
+`https://acme.staffingresourcingtest.uk/office` on a laptop (Dashboard, Events & sessions,
+Casuals).

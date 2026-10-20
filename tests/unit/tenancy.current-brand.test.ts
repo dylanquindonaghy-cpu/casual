@@ -64,7 +64,7 @@ describe("the brand lookup", () => {
   it("the firm found but its brand unreadable: its name in the default colours, logged", async () => {
     findCurrentFirm.mockResolvedValue({ id: "f1", name: "Acme Events" });
     firmBrand.mockRejectedValue(new Error("connection reset"));
-    expect(await brand()).toMatchObject({ name: "Acme Events", logoUrl: null });
+    expect(await brand()).toMatchObject({ name: "Acme Events", logoUrl: null, own: false });
     expect(logged).toHaveLength(1);
   });
 });

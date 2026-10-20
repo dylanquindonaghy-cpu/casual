@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
-import { btn, field, label, meta } from "@/app/ui/classes";
+import { btn, card, field, h2, headingGap, label, meta, sectionGap } from "@/app/ui/classes";
 import { useHydrated } from "@/app/use-hydrated";
 import {
   CLOSE_REASON_WORDS,
@@ -18,15 +18,20 @@ import { closeEnquiryAction, replyToEnquiryAction } from "../actions";
 // `/office/enquiries/[id]`; 12D.1): a reply in your own words (the line above the box says how it
 // will go), or "Close without a reply" with a reason from the fixed list. The server checks
 // everything again. Once one is done, both forms go and the answer stays; the page refreshes
-// under it. Waits for the page (docs/ui-design.md).
+// under it. This component draws the "Answer it" section itself: the page passes whether the
+// message is still waiting, and once it's answered here the section stays with its confirmation
+// after the refresh (the page alone would drop it, the confirmation with it, as soon as it's no
+// longer waiting). Waits for the page (docs/ui-design.md).
 
 const failed = { status: "error" as const };
 
 export function EnquiryForms({
+  waiting,
   messageId,
   canReply,
   planLine,
 }: {
+  waiting: boolean; // still waiting for a person (the page's reading)
   messageId: string;
   canReply: boolean; // false: a withheld number, or texts off
   planLine: string;
@@ -47,14 +52,9 @@ export function EnquiryForms({
       router.refresh();
     }
   };
-  if (finished) {
-    return (
-      <p role="status" className="mt-3 font-semibold">
-        {message}
-      </p>
-    );
-  }
-  return (
+  if (!waiting && !finished) return null;
+  // Plain markup, not a component defined in here (that would remount the fields on every key).
+  const forms = (
     <div className="mt-3 flex flex-col gap-6">
       <form
         className="flex flex-col gap-2"
@@ -129,5 +129,21 @@ export function EnquiryForms({
         {message}
       </p>
     </div>
+  );
+  return (
+    <section aria-labelledby="answer" className={sectionGap.office}>
+      <h2 id="answer" className={h2}>
+        Answer it
+      </h2>
+      <div className={`${card} ${headingGap}`}>
+        {finished ? (
+          <p role="status" className="mt-3 font-semibold">
+            {message}
+          </p>
+        ) : (
+          forms
+        )}
+      </div>
+    </section>
   );
 }

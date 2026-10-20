@@ -117,8 +117,10 @@ describe("the shared pieces (src/app/ui/)", () => {
       const html = renderToStaticMarkup(StatusChip({ tone, children: "Open" }));
       const className = html.match(/^<span class="([^"]+)">/)?.[1] ?? "";
       expect(className).toBe(`${chip.base} ${chip[tone]}`);
-      // Urgent fills with its colour; the others use their soft background and dark ink.
-      expect(className).toContain(tone === "quiet" ? "bg-quiet-soft" : `bg-${tone}`);
+      // Every tone, urgent too (Phase 17), is a pale tint with dark words: never a solid fill.
+      expect(className.split(" ")).toContain(`bg-${tone}-soft`);
+      expect(className.split(" ")).toContain(`text-${tone}-ink`);
+      expect(className).not.toMatch(/(?<![\w-])bg-\w+-fill(?![\w-])/);
       expect(html.match(/<svg\b/g)).toHaveLength(1);
       return { className, icon: html.match(/<svg[^>]*>(.*)<\/svg>/)?.[1] ?? "" };
     });

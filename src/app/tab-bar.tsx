@@ -4,8 +4,8 @@ import { Icon, type IconName } from "./ui/icons";
 // The casual app's bottom tab bar (docs/office-v2.md 4.1; docs/screens.md "Casual app"; 12H.1):
 // Home · Shifts · Pay · Profile, four links (not a list: a page's own lists are counted alone), each with its icon and its word, on every page a logged-in
 // casual uses (not Help, which anyone may open, nor the login pages). The current tab is marked
-// (aria-current="page"; bold, with its icon on a pale tint of the firm's colour, not by colour
-// alone). Profile carries a dot, with
+// (aria-current="page"; bold, its icon filled in, on a pale tint of the firm's colour: not by
+// colour alone, as a pale firm colour's tint can barely show). Profile carries a dot, with
 // words for screen readers, when something there needs her (a qualification to sort out, or her
 // photo overdue or due soon). Fixed to the bottom of the screen; <TabBarSpace /> at the end of the
 // page keeps the last of it clear. Plain links: it works with no JavaScript, and in the offline
@@ -55,7 +55,7 @@ export function TabBar({
                   here ? "bg-brand-soft" : ""
                 }`}
               >
-                <Icon name={icon} className="h-6 w-6" />
+                <Icon name={icon} className={here ? "h-6 w-6 fill-current/15" : "h-6 w-6"} />
                 {dot && (
                   <span
                     data-profile-dot=""

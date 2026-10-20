@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HomeView, type HomeViewProps } from "@/app/home-view";
 import { BookedView, type BookedViewProps } from "@/app/shifts/booked-view";
 import { TabBar } from "@/app/tab-bar";
+import { headingGap, rows, staffBtn, staffBtnSmall } from "@/app/ui/classes";
 import { payWords, roleAndEvent } from "@/lib/portal/format";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
@@ -173,6 +174,10 @@ describe("Booked: the bookings themselves", () => {
     });
     const html = render({ shifts: [next, later] });
     const words = text(html);
+    // A hairline card, like Home's (Phase 17), not a heavy dark frame.
+    expect(html).toMatch(
+      /<section aria-labelledby="next-heading" class="mt-6 rounded-2xl border border-line bg-card p-4">/,
+    );
     expect(words).toContain("Your next shift");
     expect(words).toContain("Sat 7 Nov, 14:00 to 22:00");
     expect(words).toContain("Door supervisor");
@@ -255,6 +260,11 @@ describe("Booked: the bookings themselves", () => {
       expect(marked).toEqual([
         { home: "/", shifts: "/shifts", pay: "/pay", profile: "/profile" }[current],
       ]);
+      // Its icon on a pale tint of the firm's colour (Phase 17), filled in: not colour alone.
+      const here = links.find((m) => m[0].includes('aria-current="page"'))?.[0] ?? "";
+      expect(here).toMatch(/<span class="[^"]*(?<![\w-])bg-brand-soft(?![\w-])/);
+      expect(here).toContain("fill-current/15");
+      expect(html.match(/bg-brand-soft/g)).toHaveLength(1);
       expect(html).toContain('aria-label="Main"');
       expect(html).not.toContain("data-profile-dot");
     }
@@ -422,11 +432,15 @@ describe("Home: what she can take, and her next shift in full", () => {
       "Steward · Raceday Riverside Arena Sat 7 Nov, 09:30 to 17:30 · £12.60/hour · Gate B 2 places left",
     );
     expect(urgent).toContain('href="/urgent"');
+    // Rows in one card (Phase 17), for the urgent ones and the rest.
+    expect(urgent).toContain(`<ul role="list" class="${headingGap} ${rows}">`);
     expect(html).toContain('href="/shifts/u1"');
     // The top 3 of the rest: a1, a2, a3 (not the urgent one again, not a4).
     const apply = html.slice(html.indexOf('aria-labelledby="apply-heading"'));
     const links = [...apply.matchAll(/href="\/shifts\/([a-z]\d)"/g)].map((m) => m[1]);
     expect(links).toEqual(["a1", "a2", "a3"]);
+    expect(apply).toContain(`<ul role="list" class="${rows}">`);
+    expect(rows).toContain("divide-y");
     expect(text(apply)).toContain(
       "Only shifts your licences and hours allow, up to 45 minutes from your home area.",
     );
@@ -486,6 +500,22 @@ describe("Home: what she can take, and her next shift in full", () => {
     expect(words).toContain("Cancel this shift");
     expect(words).toContain("Ask for the steward lead.");
     expect(words).not.toContain("No shifts booked yet.");
+    // Phase 17: a hairline card; "Open in maps" and "Ask for a change" side by side, the same
+    // smaller button; "Cancel this shift" as quiet red words under them.
+    expect(card).toMatch(/^aria-labelledby="next-heading" class="rounded-2xl border border-line /);
+    const pair = /<div class="mt-3 grid grid-cols-2 gap-2">(.*?)<\/div>/.exec(card)?.[1] ?? "";
+    expect(
+      [...pair.matchAll(/<a [^>]*class="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map((m) => [m[2], m[1]]),
+    ).toEqual([
+      ["Open in maps", staffBtnSmall],
+      ["Ask for a change", staffBtnSmall],
+    ]);
+    const cancel = /<button [^>]*class="([^"]*)"[^>]*>Cancel this shift<\/button>/.exec(card)?.[1];
+    expect(cancel).toBe(staffBtn.danger);
+    expect(cancel?.split(" ")).toEqual(
+      expect.arrayContaining(["text-urgent-ink", "bg-transparent", "border-transparent"]),
+    );
+    expect(card.indexOf("Cancel this shift")).toBeGreaterThan(card.indexOf("Ask for a change"));
   });
 
   it("puts pay and the event into words", () => {

@@ -427,8 +427,8 @@ no hard-coded colours; today there are 29 `bg-white` uses in 16 files under `src
 **Header:** "Dashboard", with the firm's shifts-line number under it, as today
 (`src/app/office/page.tsx:31`).
 
-**Counts** (each is a link to a filtered list; the first is tinted and larger, the other three
-muted):
+**Counts** (each is a link to a filtered list; one strip split by hairlines, each its label, its
+number and its line, the first number red when there are urgent shifts: Phase 17):
 
 | Count | What it counts | Small line under it | Links to |
 |---|---|---|---|
@@ -440,7 +440,8 @@ muted):
 "Today" means the London calendar day. Today's page used the last 24 hours instead
 (`src/lib/office/today.ts:25`).
 
-**Sections, in this order:**
+**Sections, in this order** (Phase 17: what needs someone first; from 1280px, 1 and 2 in the
+main column with 3 and 4 beside them, and 5 across the page):
 1. **Urgent shifts not filled** ("Casuals see these first, and get an alert"). Event cards
    (section 3.3) showing only their urgent sessions with a gap.
    - Each card has a line written by code: "Offered to {n} casuals" (from the session's offers),
@@ -448,11 +449,7 @@ muted):
    - If a hidden event has an urgent gap, the card warns: "Hidden from casuals: nobody can see this
      gap."
    - When empty: "Every urgent shift is filled."
-2. **Showing to casuals** ("Switch an event off to hide all its sessions from casuals"). Events
-   that are switched on, by date.
-   - Compact cards: 2 sessions, then "+ N more".
-   - Switching an event off shows a status message: "Hidden from casuals. Booked casuals keep their
-     shifts."
+2. **Needs attention** (section 3.9).
 3. **Cancellations** ("Recorded automatically, never approved or declined"). The latest three.
    Each shows:
    - who cancelled, or "The office cancelled {name}";
@@ -465,7 +462,12 @@ muted):
    - an outcome chip;
    - the first line of the reply;
    - a link "All enquiries".
-5. **Needs attention** (section 3.9).
+5. **Showing to casuals** ("Switch an event off to hide all its sessions from casuals"). Events
+   that are switched on, by date.
+   - A table, a row per event: its name, where and when, its sessions and places free, its
+     switch (Phase 17; each event's sessions are on its own page).
+   - Switching an event off shows a status message: "Hidden from casuals. Booked casuals keep their
+     shifts."
 
 **Who sees it.** Admins and resourcers. Payroll is sent to the Pay dashboard.
 

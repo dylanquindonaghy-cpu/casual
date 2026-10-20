@@ -359,6 +359,24 @@ describe("shared pieces add no words", () => {
     expect(html).toMatch(/<h1 id="page-title"[^>]*>Shifts<\/h1>/);
     expect(text(html)).toBe("Shifts 0 of 2 booked · Open New shift");
     expect(html.indexOf("<h1")).toBeLessThan(html.indexOf("<p"));
+    // Phase 17: a 24px title (text-2xl) and no divider under the header (space separates).
+    expect(html).toMatch(/<h1 id="page-title" class="[^"]*(?<![\w-])text-2xl(?![\w-])/);
+    expect(html).not.toMatch(/text-(?:3xl|4xl)/);
+    expect(html).not.toMatch(/(?<![\w-])(?:border-b|divide-y)(?![\w-])/);
+  });
+
+  it("PageHeader's way back: a link above the heading, named by its words alone", () => {
+    const html = renderToStaticMarkup(
+      createElement(PageHeader, {
+        back: { href: "/office/cancellations", label: "Cancellations" },
+        title: "Cancellation A1B2C3D4",
+      }),
+    );
+    expect(html).toMatch(
+      /^<header[^>]*><a href="\/office\/cancellations"[^>]*><svg aria-hidden="true"[\s\S]*?<\/svg>Cancellations<\/a><h1[^>]*>Cancellation A1B2C3D4<\/h1>/,
+    );
+    expect(text(html)).toBe("Cancellations Cancellation A1B2C3D4");
+    expect(html.match(/<h[1-6]\b/g)).toEqual(["<h1"]);
   });
 
   it("StatusChip: its text is exactly the word; the icon is hidden", () => {

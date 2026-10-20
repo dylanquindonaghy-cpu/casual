@@ -302,20 +302,12 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         )}
       </section>
 
-      {e.waiting && (
-        <section aria-labelledby="answer" className={sectionGap.office}>
-          <h2 id="answer" className={h2}>
-            Answer it
-          </h2>
-          <div className={`${card} ${headingGap}`}>
-            <EnquiryForms
-              messageId={e.messageId}
-              canReply={e.plan.ok}
-              planLine={planLine(e.plan)}
-            />
-          </div>
-        </section>
-      )}
+      <EnquiryForms
+        waiting={e.waiting}
+        messageId={e.messageId}
+        canReply={e.plan.ok}
+        planLine={planLine(e.plan)}
+      />
 
       <p className={sectionGap.office}>
         <Link href="/office/enquiries" className={btn.link}>

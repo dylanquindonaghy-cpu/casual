@@ -38,7 +38,7 @@ export default async function UploadPage({ params }: { params: Promise<{ type: s
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader eyebrow={firm.name} title={`Upload your ${q.name}`} />
+      <PageHeader title={`Upload your ${q.name}`} />
       <section className={card} aria-label={name}>
         <p className={`text-base ${nums}`}>
           <StatusChip tone={STATUS_TONES[q.status]}>{statusLabel(q)}</StatusChip>

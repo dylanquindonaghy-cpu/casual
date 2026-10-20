@@ -20,7 +20,7 @@ export default async function OfficeDataPage() {
   const keep = await firmRetention({ firm, officeUserId: officeUser.id });
   return (
     <main className={page.officeForm}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Data requests">
+      <PageHeader title="Data requests">
         <p>
           When someone asks for their data, or asks to be deleted, find them here. Send their data
           within a month of the request. Every download and deletion goes in the action log.

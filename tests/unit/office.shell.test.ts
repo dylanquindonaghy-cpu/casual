@@ -162,7 +162,8 @@ describe("the menu's markup", () => {
     expect(marked(html, "true")).toEqual([]);
     expect(marked(html, "page")).toHaveLength(1);
     expect(marked(html, "page")[0]).toContain('href="/office/events"');
-    expect(marked(html, "page")[0]).toMatch(/bg-quiet-soft.*before:w-\[3px\].*before:bg-ink/);
+    expect(marked(html, "page")[0]).toMatch(/bg-brand-soft.*font-semibold/);
+    expect(marked(html, "page")[0]).not.toMatch(/before:/);
   });
 
   it("the offer page marks the Dashboard as the section it's in", () => {
@@ -342,12 +343,11 @@ describe("the account button's initials and the theme cookie", () => {
 });
 
 describe("shared pieces add no words", () => {
-  it("PageHeader: the one <h1>, the eyebrow, the lines and actions as given", () => {
+  it("PageHeader: the one <h1>, the lines and actions as given, nothing above the heading", () => {
     const html = renderToStaticMarkup(
       createElement(
         PageHeader,
         {
-          eyebrow: "Acme Events office",
           title: "Shifts",
           titleId: "page-title",
           actions: createElement("a", { href: "/office/shifts/new" }, "New shift"),
@@ -357,7 +357,8 @@ describe("shared pieces add no words", () => {
     );
     expect(html.match(/<h[1-6]\b/g)).toEqual(["<h1"]);
     expect(html).toMatch(/<h1 id="page-title"[^>]*>Shifts<\/h1>/);
-    expect(text(html)).toBe("Acme Events office Shifts 0 of 2 booked · Open New shift");
+    expect(text(html)).toBe("Shifts 0 of 2 booked · Open New shift");
+    expect(html.indexOf("<h1")).toBeLessThan(html.indexOf("<p"));
   });
 
   it("StatusChip: its text is exactly the word; the icon is hidden", () => {

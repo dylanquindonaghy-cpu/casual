@@ -23,7 +23,7 @@ export default async function OfficeTeamPage() {
   if (!team) notFound();
   return (
     <main className={page.officeForm}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Office team">
+      <PageHeader title="Office team">
         <p>
           Everyone who can log in to the office. Someone leaving: turn off their access. A lost
           laptop or phone: log them out on every device, and turn off their access too if their

@@ -63,6 +63,12 @@ describe("the colours", () => {
     expect(brandColours("#1d4ed8").text).toBe("#ffffff");
     expect(brandColours("#0f766e").text).toBe("#ffffff");
     expect(brandColours("#ffff00").text).toBe("#000000");
+  });
+
+  it("knows a firm's own colour from the default", () => {
+    expect(brandColours("#1d4ed8").own).toBe(true);
+    expect(brandColours(null).own).toBe(false);
+    expect(brandColours("#1d4ed8; background: url(x)").own).toBe(false);
     expect(brandColours("#ffffff").text).toBe("#000000");
     expect(brandColours("#f59e0b").text).toBe("#000000");
   });
@@ -93,7 +99,7 @@ describe("the bar", () => {
   const render = (logoUrl: string | null) =>
     renderToStaticMarkup(
       createElement(BrandBar, {
-        brand: { name: "Acme Events", logoUrl, background: "#1d4ed8", text: "#ffffff" },
+        brand: { name: "Acme Events", logoUrl, background: "#1d4ed8", text: "#ffffff", own: true },
       }),
     );
 

@@ -23,7 +23,7 @@ export default async function OfficeHome() {
   if (!dashboard) notFound();
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Dashboard">
+      <PageHeader title="Dashboard">
         <p className={meta}>{shiftsLineText(await firmShiftsLine({ firm }))}</p>
       </PageHeader>
       <DashboardContent d={dashboard} isAdmin={officeUser.role === "admin"} />

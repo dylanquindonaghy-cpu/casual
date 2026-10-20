@@ -37,12 +37,14 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 // The firm's colour (or the default) and black or white text on it, whichever contrasts more:
-// for any colour that's at least 4.58:1 (WCAG AA for normal text is 4.5:1).
-export function brandColours(raw: unknown): { background: string; text: string } {
-  const background = isBrandColour(raw) ? raw.toLowerCase() : DEFAULT_BRAND_COLOUR;
+// for any colour that's at least 4.58:1 (WCAG AA for normal text is 4.5:1). `own`: the firm set a
+// colour of its own (then its pages use it for their main action too: src/app/layout.tsx).
+export function brandColours(raw: unknown): { background: string; text: string; own: boolean } {
+  const own = isBrandColour(raw);
+  const background = own ? raw.toLowerCase() : DEFAULT_BRAND_COLOUR;
   const text =
     contrastRatio(background, "#ffffff") >= contrastRatio(background, "#000000")
       ? "#ffffff"
       : "#000000";
-  return { background, text };
+  return { background, text, own };
 }

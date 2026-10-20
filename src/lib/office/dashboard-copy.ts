@@ -124,9 +124,6 @@ export function urgentLine(s: Pick<UrgentSessionCard, "offered" | "stopped">): s
 // On a hidden event's card when it has an urgent gap.
 export const HIDDEN_WARNING = "Hidden from casuals: nobody can see this gap.";
 
-// Showing to casuals: a card's sessions past the first few (SHOWING_SESSIONS, dashboard.ts).
-export const moreSessionsText = (n: number) => `+ ${n} more`;
-
 // The bell in the top bar: its accessible name and the number it shows.
 export const bellLabel = (n: number | null, more: boolean) =>
   n === null ? "Needs attention" : `Needs attention, ${more ? `${n}+` : n}`;

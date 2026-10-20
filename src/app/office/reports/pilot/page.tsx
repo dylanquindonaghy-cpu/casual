@@ -53,7 +53,7 @@ export default async function PilotMetricsPage({
   const year = f.to.slice(0, 4);
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Pilot metrics">
+      <PageHeader title="Pilot metrics">
         <p>The week-0 baseline against the app&apos;s own figures.</p>
       </PageHeader>
 

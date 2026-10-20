@@ -24,7 +24,6 @@ export default async function ProfilePage() {
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <ProfileView
-        eyebrow={firm.name}
         profile={profile}
         signOff={firm.signOff}
         push={{ publicKey: appEnv().VAPID_PUBLIC_KEY ?? null, firmName: firm.name }}

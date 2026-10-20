@@ -23,7 +23,7 @@ export default async function TravelPage() {
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader eyebrow={firm.name} title={TRAVEL_TITLE}>
+      <PageHeader title={TRAVEL_TITLE}>
         <p>{TRAVEL_INTRO}</p>
       </PageHeader>
       <section className={card} aria-label={TRAVEL_TITLE}>

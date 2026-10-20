@@ -87,7 +87,6 @@ export default async function ShiftsPage({
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={`${firm.name} office`}
         title="Shifts"
         actions={
           <>

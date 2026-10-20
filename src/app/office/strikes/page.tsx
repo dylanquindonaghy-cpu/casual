@@ -60,7 +60,7 @@ export default async function StrikesPage({
   const tz = list.timeZone;
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Strikes">
+      <PageHeader title="Strikes">
         <p>{strikesIntro(list.noticeHours, list.liveDays)}</p>
       </PageHeader>
 

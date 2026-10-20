@@ -10,10 +10,10 @@ export const metadata: Metadata = { title: "Import shifts from a file" };
 // "Import from a file" (docs/screens.md `/office/shifts`). Admins and resourcers; the import
 // checks the office user again inside its transaction.
 export default async function ImportPage() {
-  const { firm } = await requireOfficeArea("shifts");
+  await requireOfficeArea("shifts");
   return (
     <main className={page.officeForm}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Import shifts from a file">
+      <PageHeader title="Import shifts from a file">
         <p>
           A spreadsheet with one shift per row. Columns: Date, Start, End and Role (needed), and
           Site, Needed (places), Instructions and Shift ID if you have them.

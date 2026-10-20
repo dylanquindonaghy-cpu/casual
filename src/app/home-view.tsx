@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { NeedsItem } from "@/lib/credentials/status";
-import type { FirmVoice } from "@/lib/messaging/templates";
 import {
   isOnNow,
+  mapLink,
   payWords,
   perHour,
   roleAndEvent,
@@ -18,10 +18,21 @@ import { travelLineText } from "@/lib/travel/line-copy";
 import { wallTimeOf } from "@/lib/time/zoned";
 import type { StaffPhoto } from "@/lib/uploads/photo";
 import { HomeScreenHint } from "./home-screen-hint";
-import { OfflineNotice, ShiftActions, ShiftMapAndInstructions } from "./my-shifts-view";
+import { OfflineNotice } from "./my-shifts-view";
+import { CancelShift } from "./shifts/cancel-shift";
 import { AreaPrompt, FurtherNote } from "./shifts/open/travel-notes";
 import { RequirementChips } from "./shifts/requirement-chips";
-import { card, h2, headingGap, muted, sectionGap, staffBtn } from "./ui/classes";
+import {
+  h2,
+  headingGap,
+  meta,
+  muted,
+  rows,
+  sectionGap,
+  staffBtn,
+  staffBtnSmall,
+} from "./ui/classes";
+import { Icon } from "./ui/icons";
 import { PageHeader } from "./ui/page-header";
 import { StatusChip } from "./ui/status-chip";
 
@@ -42,7 +53,6 @@ export const APPLY_HEADING = "Shifts you can apply for";
 
 export interface HomeViewProps {
   firstName: string;
-  voice: FirmVoice;
   timeZone: string;
   now: Date;
   next: MyShift | null; // her next booking (or the one on now)
@@ -55,35 +65,37 @@ export interface HomeViewProps {
 export const applyLimitText = (maxMinutes: number) =>
   `Only shifts your licences and hours allow, up to ${maxMinutes} minutes from your home area.`;
 
-const emptyBox = "rounded-xl bg-quiet-soft p-4 text-ink";
+// An empty list keeps its place: a dashed frame and one sentence (Phase 17).
+const emptyBox = "rounded-xl border border-dashed border-line-strong p-4 text-base text-ink-muted";
 
 export function HomeView(props: HomeViewProps) {
-  const { firstName, voice, timeZone, now, open } = props;
+  const { firstName, timeZone, now, open } = props;
   const updated = timeOnDay(now, timeZone);
   const urgent = open.shifts.filter((s) => s.isUrgent).slice(0, HOME_URGENT_MAX);
   const shown = new Set(urgent.map((s) => s.shiftId));
   const apply = open.shifts.filter((s) => !shown.has(s.shiftId)).slice(0, HOME_APPLY_MAX);
   return (
     <>
-      <PageHeader eyebrow={voice.name} title={`Hello ${firstName}`}>
-        <p className={muted}>Updated {updated}</p>
+      <PageHeader title={`Hello ${firstName}`}>
+        <p className={meta}>Updated {updated}</p>
       </PageHeader>
       <OfflineNotice updated={updated} />
       <NeedsUpdating needs={props.needs} photo={props.photo} timeZone={timeZone} now={now} />
       {urgent.length > 0 && (
-        <section
-          aria-labelledby="urgent-heading"
-          className="mb-6 rounded-xl border-2 border-urgent bg-urgent-soft p-4"
-        >
-          <h2 id="urgent-heading" className="text-lg font-bold text-urgent-ink">
+        <section aria-labelledby="urgent-heading" className="mb-8">
+          <h2
+            id="urgent-heading"
+            className="flex items-center gap-2 text-lg font-bold text-urgent-ink"
+          >
+            <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full bg-urgent" />
             {URGENT_HEADING}
           </h2>
-          <ul role="list" className="mt-3 flex flex-col gap-3">
+          <ul role="list" className={`${headingGap} ${rows}`}>
             {urgent.map((s) => (
               <ShiftSummary key={s.shiftId} shift={s} timeZone={timeZone} />
             ))}
           </ul>
-          <Link href="/urgent" className={`${staffBtn.primary} mt-3`}>
+          <Link href="/urgent" className={`${staffBtn.secondary} mt-3`}>
             See urgent shifts
           </Link>
         </section>
@@ -97,7 +109,7 @@ export function HomeView(props: HomeViewProps) {
         <h2 id="apply-heading" className={h2}>
           {APPLY_HEADING}
         </h2>
-        {open.area && <p className={`mt-1 ${muted}`}>{applyLimitText(open.area.maxMinutes)}</p>}
+        {open.area && <p className={`mt-1 ${meta}`}>{applyLimitText(open.area.maxMinutes)}</p>}
         <div className={headingGap}>
           <AreaPrompt list={open} />
         </div>
@@ -108,7 +120,7 @@ export function HomeView(props: HomeViewProps) {
               : "Nothing else open right now. Check back later."}
           </p>
         ) : (
-          <ul role="list" className="flex flex-col gap-3">
+          <ul role="list" className={rows}>
             {apply.map((s) => (
               <ShiftSummary key={s.shiftId} shift={s} timeZone={timeZone} />
             ))}
@@ -190,7 +202,7 @@ function NeedsUpdating({
   return (
     <section
       aria-labelledby="needs-heading"
-      className={`mb-6 rounded-xl border-2 p-4 ${
+      className={`mb-6 rounded-xl border p-4 ${
         urgent
           ? "border-urgent bg-urgent-soft text-urgent-ink"
           : "border-attention bg-attention-soft text-attention-ink"
@@ -209,8 +221,9 @@ function NeedsUpdating({
   );
 }
 
-// A shift she could take, in short: role · event, site; when · pay · post; what it needs (chips,
-// 12H.2); places left; the travel line. The whole card opens the shift's page, where she can take it.
+// A shift she could take, in short, as one row of a list: role · event, site; when · pay · post;
+// what it needs (chips, 12H.2); places left; the travel line. The whole row opens the shift's
+// page, where she can take it (the arrow says so).
 function ShiftSummary({ shift: s, timeZone }: { shift: OpenShift; timeZone: string }) {
   const facts = [
     shiftWhen(s.startsAt, s.endsAt, timeZone),
@@ -218,35 +231,44 @@ function ShiftSummary({ shift: s, timeZone }: { shift: OpenShift; timeZone: stri
     s.post ?? null,
   ].filter(Boolean);
   return (
-    <li className={`${card}${s.isUrgent ? " border-l-4 border-l-urgent" : ""}`}>
-      <Link href={`/shifts/${s.shiftId}`} className="block rounded-md focus-visible:outline-2">
-        {s.isUrgent && (
-          <span className="mb-2 flex">
-            <StatusChip tone="urgent">Urgent</StatusChip>
+    <li>
+      <Link
+        href={`/shifts/${s.shiftId}`}
+        className="flex items-center gap-3 px-4 py-3 hover:bg-quiet-soft focus-visible:-outline-offset-2"
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {s.isUrgent && (
+            <span className="mb-1 flex">
+              <StatusChip tone="urgent">Urgent</StatusChip>
+            </span>
+          )}
+          <span className="font-semibold text-ink">{roleAndEvent(s.role, s.casualEvent)}</span>
+          {s.site && <span className="text-base text-ink">{s.site.name}</span>}
+          <span className={`${muted} tabular-nums`}>{facts.join(" · ")}</span>
+          <RequirementChips requirements={s.requirements} as="span" className="mt-1" />
+          <span className={muted}>
+            {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
           </span>
-        )}
-        <span className="block font-semibold text-ink underline decoration-line-strong underline-offset-4">
-          {roleAndEvent(s.role, s.casualEvent)}
+          {s.travel && (
+            <span className={muted} data-travel-line="">
+              {travelLineText(s.travel, timeZone)}
+            </span>
+          )}
         </span>
-        {s.site && <span className="block">{s.site.name}</span>}
-        <span className={`block ${muted} tabular-nums`}>{facts.join(" · ")}</span>
-        <RequirementChips requirements={s.requirements} as="span" className="mt-1" />
-        <span className={`block ${muted}`}>
-          {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
-        </span>
-        {s.travel && (
-          <span className={`block ${muted}`} data-travel-line="">
-            {travelLineText(s.travel, timeZone)}
-          </span>
-        )}
+        <Icon name="chevron" className="h-5 w-5 text-ink-muted" />
       </Link>
     </li>
   );
 }
 
-// Her next shift, in full (§4.2 item 4).
+// Her next shift, in full (§4.2 item 4): when first and largest, then what and where, then the
+// facts as a list she can scan (the labels quiet, the answers in ink), the instructions, "Open in
+// maps" and "Ask for a change" side by side, and "Cancel this shift" in quiet red words.
 function NextShift({ shift, timeZone, now }: { shift: MyShift; timeZone: string; now: Date }) {
   const address = shift.site ? siteAddress(shift.site) : null;
+  const map = shift.site ? mapLink(shift.site) : null;
+  // What she can still do before it starts (as on Booked: src/app/my-shifts-view.tsx ShiftActions).
+  const canAct = shift.status === "confirmed" && shift.startsAt.getTime() > now.getTime();
   const facts: [label: string, value: string][] = [];
   if (shift.post) facts.push(["Post", shift.post]);
   if (shift.payRatePence != null) {
@@ -256,8 +278,8 @@ function NextShift({ shift, timeZone, now }: { shift: MyShift; timeZone: string;
   if (shift.uniform) facts.push(["Bring and wear", shift.uniform]);
   if (shift.travel) facts.push(["Getting there", travelLineText(shift.travel, timeZone)]);
   return (
-    <section aria-labelledby="next-heading" className="rounded-2xl border-2 border-ink bg-card p-4">
-      <h2 id="next-heading" className="text-base font-semibold text-ink-muted">
+    <section aria-labelledby="next-heading" className="rounded-2xl border border-line bg-card p-4">
+      <h2 id="next-heading" className="text-sm font-semibold text-ink-muted">
         {isOnNow(shift, now) ? "On now" : "Your next shift"}
       </h2>
       <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
@@ -265,16 +287,16 @@ function NextShift({ shift, timeZone, now }: { shift: MyShift; timeZone: string;
       </p>
       <p className="mt-1 font-semibold">{roleAndEvent(shift.role, shift.eventName)}</p>
       {shift.site && (
-        <div className="mt-2">
-          <p className="font-semibold">{shift.site.name}</p>
+        <div className="mt-1">
+          <p className="text-base font-semibold">{shift.site.name}</p>
           {address && <p className={muted}>{address}</p>}
         </div>
       )}
       {facts.length > 0 && (
-        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-base">
+        <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-line pt-3 text-base">
           {facts.map(([label, value]) => (
             <div key={label} className="contents">
-              <dt className="font-semibold">{label}</dt>
+              <dt className="text-ink-muted">{label}</dt>
               <dd
                 className="break-words"
                 {...(label === "Getting there" ? { "data-travel-line": "" } : {})}
@@ -285,8 +307,33 @@ function NextShift({ shift, timeZone, now }: { shift: MyShift; timeZone: string;
           ))}
         </dl>
       )}
-      <ShiftMapAndInstructions shift={shift} />
-      <ShiftActions shift={shift} now={now} />
+      {shift.instructions && (
+        <div className="mt-3 rounded-xl bg-quiet-soft p-3 text-base">
+          <h3 className="font-semibold">Instructions</h3>
+          <p className="mt-1 whitespace-pre-line">{shift.instructions}</p>
+        </div>
+      )}
+      {(map || canAct) && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {map && (
+            <a href={map} target="_blank" rel="noopener noreferrer" className={staffBtnSmall}>
+              Open in maps
+            </a>
+          )}
+          {canAct && (
+            <Link href={`/requests/new?shift=${shift.shiftId}`} className={staffBtnSmall}>
+              Ask for a change
+            </Link>
+          )}
+        </div>
+      )}
+      {canAct && (
+        <div className="mt-1">
+          {/* Keyed by the booking: after a cancellation the next shift moves into this card with
+              its own, empty cancel state. */}
+          <CancelShift key={shift.assignmentId} shiftId={shift.shiftId} />
+        </div>
+      )}
     </section>
   );
 }

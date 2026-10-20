@@ -22,7 +22,7 @@ export default async function SettingsPage() {
   const s = data.strikesEmail;
   return (
     <main className={page.officeForm}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Settings" />
+      <PageHeader title="Settings" />
 
       <section aria-labelledby="strikes-email">
         <h2 id="strikes-email" className={h2}>

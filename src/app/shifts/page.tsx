@@ -31,13 +31,7 @@ export default async function BookedPage({
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} page="/shifts" />
-      <BookedView
-        eyebrow={firm.name}
-        timeZone={firm.timezone}
-        now={now}
-        view={view}
-        shifts={shifts}
-      />
+      <BookedView timeZone={firm.timezone} now={now} view={view} shifts={shifts} />
       <TabBarSpace />
       <TabBar current="shifts" profileDot={dot} />
     </main>

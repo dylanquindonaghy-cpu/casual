@@ -11,10 +11,10 @@ export const metadata: Metadata = { title: "Import pay records" };
 // the office user again inside its transaction. The header says what the file needs; the form is
 // one card: choose the file, check it, then import it.
 export default async function PayImportPage() {
-  const { firm } = await requireOfficeArea("pay");
+  await requireOfficeArea("pay");
   return (
     <main className={page.officeForm}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Import pay records">
+      <PageHeader title="Import pay records">
         <p>
           A spreadsheet from your payroll with one line per person, pay period and rate. Columns:
           Staff ID (or Mobile), Period start, Period end, Hours and Rate (needed), and Gross pay and

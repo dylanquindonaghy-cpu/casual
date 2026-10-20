@@ -81,9 +81,19 @@ function PhotoCell({ row, year }: { row: CasualRow; year: number }) {
       {row.photo.current && (
         <span className={nums}>{shortDate(row.photo.current.uploadedOn, year)}</span>
       )}
-      <StatusChip tone={PHOTO_TONES[row.photo.status]}>
-        {OFFICE_PHOTO_WORDS[row.photo.status]}
-      </StatusChip>
+      {row.photo.status === "up_to_date" ? (
+        <span className="text-sm text-ink-muted">{OFFICE_PHOTO_WORDS.up_to_date}</span>
+      ) : row.photo.status === "missing" ? (
+        // Most rows of a new firm say this: a small dot and words, not a tag on every row.
+        <span className="inline-flex items-center gap-1.5 text-sm text-ink">
+          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-attention" />
+          {OFFICE_PHOTO_WORDS.missing}
+        </span>
+      ) : (
+        <StatusChip tone={PHOTO_TONES[row.photo.status]}>
+          {OFFICE_PHOTO_WORDS[row.photo.status]}
+        </StatusChip>
+      )}
     </span>
   );
 }
@@ -128,7 +138,8 @@ function UploadsList({
   );
 }
 
-// Each qualification as a tag, the worst first.
+// Each qualification, the worst first: a tag only when something's wrong or coming up; a valid one
+// as quiet words (Phase 17: the problems stand out, a list of green tags doesn't).
 function Tags({ row }: { row: CasualRow }) {
   if (row.qualifications.length === 0) {
     return (
@@ -140,12 +151,18 @@ function Tags({ row }: { row: CasualRow }) {
     );
   }
   return (
-    <span className="flex flex-wrap gap-1">
-      {row.qualifications.map((q) => (
-        <StatusChip key={q.type} tone={STATUS_TONES[q.status]}>
-          {`${qualificationTitle(q.name)}: ${STATUS_WORDS[q.status]}`}
-        </StatusChip>
-      ))}
+    <span className="flex flex-col items-start gap-1">
+      {row.qualifications.map((q) =>
+        q.status === "valid" ? (
+          <span key={q.type} className="text-sm text-ink-muted">
+            {`${qualificationTitle(q.name)}: ${STATUS_WORDS[q.status]}`}
+          </span>
+        ) : (
+          <StatusChip key={q.type} tone={STATUS_TONES[q.status]}>
+            {`${qualificationTitle(q.name)}: ${STATUS_WORDS[q.status]}`}
+          </StatusChip>
+        ),
+      )}
     </span>
   );
 }
@@ -173,7 +190,7 @@ export default async function OfficeCasualsPage({
   const year = Number(localDateOf(new Date(), timeZone).slice(0, 4));
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={<>{firm.name} office</>} title="Casuals">
+      <PageHeader title="Casuals">
         <p>
           {list.travelOn
             ? "Their qualifications, travel areas and strikes."

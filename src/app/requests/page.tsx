@@ -15,7 +15,7 @@ export default async function RequestsPage() {
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <RequestsList requests={requests} timeZone={firm.timezone} eyebrow={firm.name} />
+      <RequestsList requests={requests} timeZone={firm.timezone} />
       <CasualTabBar firm={firm} workerId={worker.id} current="profile" />
     </main>
   );

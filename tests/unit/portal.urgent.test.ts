@@ -100,7 +100,6 @@ describe("Home", () => {
       renderToStaticMarkup(
         createElement(HomeView, {
           firstName: "Sam",
-          voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
           timeZone: TZ,
           now: NOW,
           next: null,

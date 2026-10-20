@@ -28,7 +28,7 @@ block; the dark values redefine the same tokens. Every pair a page uses meets it
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `ink` | `#0f172a` | `#e8edf7` | Main text, primary buttons, the current menu item, the focus ring |
-| `ink-muted` | `#475569` | `#a3b0c8` | Secondary text, meta lines, eyebrows (7.6:1 on white; 6.8:1 on the dark card) |
+| `ink-muted` | `#475569` | `#a3b0c8` | Secondary text, meta lines, table headers (7.6:1 on white; 6.8:1 on the dark card) |
 | `ink-hover` / `on-ink` | `#334155` / `#ffffff` | `#c3cddf` / `#0f1626` | A primary button under the pointer; text on an `ink` fill |
 | `line` | `#e2e8f0` | `#2c3a5c` | Dividers and card borders (decorative only) |
 | `line-strong` | `#64748b` | `#7c8aa8` | Input and secondary button borders (at least 3:1) |
@@ -38,15 +38,23 @@ block; the dark values redefine the same tokens. Every pair a page uses meets it
 | `raised` | `#f4f6fa` | `#22304f` | Something lifted off a card |
 | `switch-off` | `#7a8396` | `#7c8aa8` | A switch's track when off (at least 3.5:1) |
 | `scrim` | `#0f172a` | `#000000` | Behind the open menu drawer, at half strength (decorative only) |
+| `brand` / `on-brand` | `#0f172a` / `#ffffff` | `#e8edf7` / `#0f1626` | The firm's own colour (Phase 17): the casual app's main buttons. A firm with a colour of its own sets both on `<body>` (`src/app/layout.tsx`: its checked `#rrggbb` and the black or white that reads on it, at least 4.58:1); these are the values without one. Its pale tint, `brand-soft` (12% of it over `card`), marks the casual app's current tab and the office's current menu item, with `ink` on it |
 | `urgent` / `urgent-soft` / `urgent-ink` | `#b91c1c` / `#fef2f2` / `#7f1d1d` | `#ff8b80` / `#3d1d26` / `#ffc7c0` | Act now |
-| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#b91c1c` / `#7f1d1d` / `#ffffff` | `#d92d20` / `#b42318` / `#ffffff` | Count badges, urgent chips, the final destructive button (white on `#d92d20`: 4.83:1) |
+| `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#b91c1c` / `#7f1d1d` / `#ffffff` | `#d92d20` / `#b42318` / `#ffffff` | Count badges and the final destructive button (white on `#d92d20`: 4.83:1). Urgent chips are the pale pair (`urgent-soft` with `urgent-ink`), so a list of urgent rows doesn't shout |
 | `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fffbeb` / `#78350f` | `#f2a541` / `#36291a` / `#ffd699` | Someone needs to act |
 | `done` / `done-soft` / `done-ink` | `#15803d` / `#f0fdf4` / `#14532d` | `#4ccb83` / `#132f22` / `#b0efca` | Fine, finished |
 | `quiet-soft` / `quiet-ink` | `#f1f5f9` / `#334155` | `#26324f` / `#d0d8e6` | Information, closed |
 
 No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palette shade, no colour
-value in a class or a style): the firm's brand colour, which the brand bar reads from the firm's
-settings, is the one exception (`tests/unit/ui.theme.test.ts`).
+value in a class or a style): the firm's brand colour, which the brand bar and the root layout read
+from the firm's settings, is the one exception (`tests/unit/ui.theme.test.ts`).
+
+**Easier to scan (Phase 17).** Flat surfaces: no shadows on anything at rest (only what floats, a
+menu or a dialog, has one), one hairline (`line`) on cards, a 1px border on office controls and
+fields. No label above a page's heading and no divider under the header (the firm's bar or the
+office's top bar names the firm). Lists are rows in one card rather than a stack of cards, and an
+empty list keeps its place as a dashed frame with one sentence. Colour goes on what needs someone:
+a valid licence or an up-to-date photo is quiet grey words, not a green tag.
 
 **Light or dark.** The `sd-theme` cookie (`light` or `dark`; none, or anything else, means follow
 the device) is read by the root layout (`src/app/layout.tsx`, `src/app/theme.ts`), which writes
@@ -64,7 +72,8 @@ times, counts, money and notice hours line up.
 
 **Type.** One scale, and Tailwind offers no other size: 12px (`text-xs`), 13px (`text-sm`), 15px
 (`text-base`), 18px (`text-lg`), 24px (`text-2xl`), 30px (`text-3xl`). Office pages use 15px body
-(the shell sets `text-base`), 13px meta, 18px section headings, 30px page titles. Staff pages keep
+(the shell sets `text-base`), 13px meta, 18px section headings, 24px page titles (Phase 17: an app
+screen's title, not a landing page's), and 30px for the dashboard's counts. Staff pages keep
 18px body and their big buttons, with 24px for a page's result ("You're booked."). Office fields
 are 18px on a touch screen (`pointer-coarse:text-lg`), because iPhones zoom in on a field under
 16px.
@@ -90,8 +99,9 @@ AI-boundary and client-boundary tests (they import nothing from `src/lib/`).
   `loginCard` (framed from 640px up, frameless on a phone) and `loginTitle` for their one `<h1>`.
 - `status-chip.tsx`: `<StatusChip tone="urgent|attention|done|quiet">word</StatusChip>`, with a
   small inline SVG icon that is `aria-hidden`. The word is the existing word from the copy module.
-- `page-header.tsx`: `<PageHeader eyebrow title meta actions>`. Restyles the page's one `<h1>`;
-  never adds a second heading.
+- `page-header.tsx`: `<PageHeader back title meta actions>`. Restyles the page's one `<h1>`;
+  never adds a second heading. `back` (`{ href, label }`) is the way back to the list a record's
+  page belongs to ("‹ Cancellations"), above the heading; nothing else goes there.
 - `icons.tsx`: the few inline SVG icons the office's top bar and menu, the office guide and the
   staff home's "Log out" use, and the arrow (`chevron`) on each link of the office guide's
   contents below 1280px and on the account button (no icon library; inline SVG also works offline in
@@ -174,8 +184,9 @@ you on to `/office` as before.
 
 ## Page patterns
 
-- **Page header:** eyebrow ("{firm} office"), the `<h1>`, a meta line (status chips, times,
-  counts), the intro sentence, then actions (the main one first). A divider, then the content.
+- **Page header:** the way back on a record's own page, the `<h1>`, a meta line (status chips,
+  times, counts), the intro sentence, then actions (the main one first). Space, then the content
+  (no label above the heading and no divider: Phase 17).
 - **Section:** `<section aria-labelledby>` with an `<h2>` and, where useful, a count. The count
   sits beside the `<h2>` (both in one row), never inside it, on staff and office pages alike, so
   the section's name is only its heading's words ("Coming up", not "Coming up 3"). 40px between

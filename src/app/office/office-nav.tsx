@@ -48,12 +48,12 @@ export function ariaCurrent(href: string, pathname: string): "page" | "true" {
   return exact ? "page" : "true";
 }
 
-// A full-width row with an icon. The current one: bold on the soft background, with a 3px bar at
-// the menu's edge and its icon filled in.
+// A full-width row with an icon. The current one: bold on a pale tint of the firm's colour, its icon
+// filled in (Phase 17: no bar at the menu's edge as well).
 const LINK =
   "relative flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-base text-ink hover:bg-quiet-soft";
 const IDLE = `${LINK} font-medium`;
-const ACTIVE = `${LINK} bg-quiet-soft font-semibold before:absolute before:inset-y-1.5 before:-left-3 before:w-[3px] before:rounded-r-full before:bg-ink`;
+const ACTIVE = `${LINK} bg-brand-soft font-semibold`;
 
 export function OfficeNav({ groups }: { groups: MenuGroup[] }) {
   const pathname = usePathname();

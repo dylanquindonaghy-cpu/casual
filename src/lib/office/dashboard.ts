@@ -42,7 +42,7 @@ import { webhookStatus } from "./webhook-settings";
 export const LATEST_CANCELLATIONS = 3;
 export const LATEST_ENQUIRIES = 4;
 export const SHOWING_EVENTS = 6; // cards in "Showing to casuals"; the count links to them all
-export const SHOWING_SESSIONS = 2; // sessions on each of those cards, then "+ N more"
+export const SHOWING_SESSIONS = 2; // sessions read with each of those events (its row shows only the totals)
 export const NEEDS_MAX = 50; // each Needs attention list stops here ("more" says there were others)
 
 const CANCELLED = sql.raw(CANCELLED_ASSIGNMENT_STATUSES.map((s) => `'${s}'`).join(", "));

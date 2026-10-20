@@ -141,11 +141,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={
-          <Link href="/office/enquiries" className={textLink}>
-            Enquiries
-          </Link>
-        }
+        back={{ href: "/office/enquiries", label: "Enquiries" }}
         title={
           e.who.kind === "casual"
             ? `Message from ${name}`

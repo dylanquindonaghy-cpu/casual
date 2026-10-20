@@ -4,7 +4,8 @@ import { Icon, type IconName } from "./ui/icons";
 // The casual app's bottom tab bar (docs/office-v2.md 4.1; docs/screens.md "Casual app"; 12H.1):
 // Home · Shifts · Pay · Profile, four links (not a list: a page's own lists are counted alone), each with its icon and its word, on every page a logged-in
 // casual uses (not Help, which anyone may open, nor the login pages). The current tab is marked
-// (aria-current="page", bold and underlined, not by colour alone). Profile carries a dot, with
+// (aria-current="page"; bold, with its icon on a pale tint of the firm's colour, not by colour
+// alone). Profile carries a dot, with
 // words for screen readers, when something there needs her (a qualification to sort out, or her
 // photo overdue or due soon). Fixed to the bottom of the screen; <TabBarSpace /> at the end of the
 // page keeps the last of it clear. Plain links: it works with no JavaScript, and in the offline
@@ -46,17 +47,19 @@ export function TabBar({
               // ("Profile , something…"), as the browser puts space around them.
               aria-label={dot ? `${words}, ${PROFILE_DOT_WORDS}` : undefined}
               className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-sm focus-visible:-outline-offset-4 ${
-                here
-                  ? "font-bold text-ink underline decoration-2 underline-offset-4"
-                  : "font-semibold text-ink-muted hover:text-ink"
+                here ? "font-bold text-ink" : "font-semibold text-ink-muted hover:text-ink"
               }`}
             >
-              <span className="relative">
+              <span
+                className={`relative flex h-8 w-14 items-center justify-center rounded-full ${
+                  here ? "bg-brand-soft" : ""
+                }`}
+              >
                 <Icon name={icon} className="h-6 w-6" />
                 {dot && (
                   <span
                     data-profile-dot=""
-                    className="absolute -top-0.5 -right-1 h-2.5 w-2.5 rounded-full bg-urgent-fill ring-2 ring-card"
+                    className="absolute top-0.5 right-3 h-2.5 w-2.5 rounded-full bg-urgent-fill ring-2 ring-card"
                   />
                 )}
               </span>

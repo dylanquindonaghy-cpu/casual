@@ -52,7 +52,6 @@ export default async function CancellationsPage({
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={`${firm.name} office`}
         title="Cancellations"
         actions={
           <a

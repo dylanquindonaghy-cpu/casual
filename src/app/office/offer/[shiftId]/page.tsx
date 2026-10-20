@@ -17,7 +17,7 @@ export default async function OfferPage({ params }: { params: Promise<{ shiftId:
   if (!page) notFound();
   return (
     <main className={width.officeForm}>
-      <OfferView page={page} eyebrow={`${firm.name} office`} />
+      <OfferView page={page} />
       <p className={sectionGap.office}>
         <Link href="/office" className={btn.link}>
           Back to the dashboard

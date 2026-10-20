@@ -49,7 +49,7 @@ export default async function ActionLogPage({
   const f = log.filters;
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={<>{firm.name} office</>} title="Action log">
+      <PageHeader title="Action log">
         <p>Everything that happened, newest first.</p>
       </PageHeader>
 

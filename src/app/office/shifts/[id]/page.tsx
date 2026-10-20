@@ -83,7 +83,6 @@ export default async function OfficeShiftPage({
   return (
     <main className={width.officeForm}>
       <PageHeader
-        eyebrow={`${firm.name} office`}
         title={
           <>
             {roleLabel(shift.role)}

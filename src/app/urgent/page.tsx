@@ -18,7 +18,7 @@ export default async function UrgentPage() {
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <UrgentView list={list} timeZone={firm.timezone} now={now} eyebrow={firm.name} />
+      <UrgentView list={list} timeZone={firm.timezone} now={now} />
       <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
     </main>
   );

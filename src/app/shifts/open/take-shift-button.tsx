@@ -64,7 +64,7 @@ export function TakeShiftButton({
     );
   }
   return (
-    <button type="button" disabled={pending} onClick={take} className={`${staffBtn.primary} mt-4`}>
+    <button type="button" disabled={pending} onClick={take} className={`${staffBtn.primary} mt-3`}>
       {pending ? "Booking…" : "Take shift"}
     </button>
   );

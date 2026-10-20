@@ -38,20 +38,18 @@ import { ReviewForm } from "./review-form";
 function Header({
   shift,
   timeZone,
-  eyebrow,
   facts,
   children,
 }: {
   shift: ShiftSummary | MyShift;
   timeZone: string;
-  eyebrow?: string;
   facts?: ShiftFacts;
   children?: ReactNode;
 }) {
   const address = shift.site ? siteAddress(shift.site) : null;
   const place = [shift.site?.name, facts?.eventName].filter(Boolean).join(" · ");
   return (
-    <PageHeader eyebrow={eyebrow} title={roleLabel(shift.role)}>
+    <PageHeader title={roleLabel(shift.role)}>
       {(facts?.isUrgent || (facts?.requirements.length ?? 0) > 0) && (
         <div className="flex flex-wrap gap-2">
           {facts?.isUrgent && <StatusChip tone="urgent">Urgent</StatusChip>}
@@ -205,7 +203,6 @@ function FullShift({
   facts,
   placesLeft,
   timeZone,
-  eyebrow,
   status,
   children,
 }: {
@@ -213,14 +210,13 @@ function FullShift({
   facts: ShiftFacts;
   placesLeft: number | null;
   timeZone: string;
-  eyebrow?: string;
   status?: ReactNode;
   children: ReactNode;
 }) {
   const year = wallTimeOf(shift.startsAt, timeZone).year;
   return (
     <>
-      <Header shift={shift} timeZone={timeZone} eyebrow={eyebrow} facts={facts}>
+      <Header shift={shift} timeZone={timeZone} facts={facts}>
         {status}
       </Header>
       <Facts shift={shift} facts={facts} placesLeft={placesLeft} timeZone={timeZone} />
@@ -244,18 +240,16 @@ export function ShiftView({
   page,
   timeZone,
   now,
-  eyebrow,
 }: {
   page: ShiftPage;
   timeZone: string;
   now: Date;
-  eyebrow?: string; // the firm's name above the heading
 }) {
   switch (page.state) {
     case "missing":
       return (
         <>
-          <PageHeader eyebrow={eyebrow} title="This shift isn't available.">
+          <PageHeader title="This shift isn't available.">
             <p>It may have been removed, or the link is wrong.</p>
           </PageHeader>
           {openShiftsLink}
@@ -268,7 +262,6 @@ export function ShiftView({
           facts={page.facts}
           placesLeft={null}
           timeZone={timeZone}
-          eyebrow={eyebrow}
           status={
             <p>
               <StatusChip tone="done">You&apos;re booked on this shift</StatusChip>
@@ -293,7 +286,6 @@ export function ShiftView({
           facts={page.facts}
           placesLeft={page.shift.placesLeft}
           timeZone={timeZone}
-          eyebrow={eyebrow}
         >
           {page.state === "open" ? (
             <>
@@ -313,7 +305,7 @@ export function ShiftView({
     case "filled":
       return (
         <>
-          <Header shift={page.shift} timeZone={timeZone} eyebrow={eyebrow} />
+          <Header shift={page.shift} timeZone={timeZone} />
           <p className={stateBox}>This shift has been filled.</p>
           {openShiftsLink}
         </>
@@ -321,7 +313,7 @@ export function ShiftView({
     case "started":
       return (
         <>
-          <Header shift={page.shift} timeZone={timeZone} eyebrow={eyebrow} />
+          <Header shift={page.shift} timeZone={timeZone} />
           <p className={stateBox}>This shift has already started.</p>
           {openShiftsLink}
         </>
@@ -329,7 +321,7 @@ export function ShiftView({
     case "cancelled":
       return (
         <>
-          <Header shift={page.shift} timeZone={timeZone} eyebrow={eyebrow} />
+          <Header shift={page.shift} timeZone={timeZone} />
           <p className={stateBox}>This shift was cancelled.</p>
           {openShiftsLink}
         </>

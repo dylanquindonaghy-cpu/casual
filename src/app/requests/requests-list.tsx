@@ -18,19 +18,10 @@ const TONES: Record<string, StatusTone> = {
 
 // My requests (docs/screens.md, `/requests`): each request's status first, then its kind and
 // shift, the office's note, when it was sent and its reference; "New request" at the top.
-export function RequestsList({
-  requests,
-  timeZone,
-  eyebrow,
-}: {
-  requests: MyRequest[];
-  timeZone: string;
-  eyebrow?: string; // the firm's name above the heading
-}) {
+export function RequestsList({ requests, timeZone }: { requests: MyRequest[]; timeZone: string }) {
   return (
     <>
       <PageHeader
-        eyebrow={eyebrow}
         title="My requests"
         actions={
           <Link href="/requests/new" className={staffBtn.primary}>

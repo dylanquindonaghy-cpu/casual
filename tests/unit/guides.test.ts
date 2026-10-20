@@ -27,9 +27,7 @@ const HELP_FACTS = { noticeHours: 48, liveDays: 90, photoRenewalMonths: 36, trav
 type Role = "admin" | "resourcer" | "payroll";
 
 const guide = (role: Role) =>
-  renderToStaticMarkup(
-    createElement(GuideView, { firmName: "Acme Events", role, menu: officeMenu(role) }),
-  );
+  renderToStaticMarkup(createElement(GuideView, { role, menu: officeMenu(role) }));
 const help = () =>
   renderToStaticMarkup(
     createElement(HelpView, { firmName: "Acme Events", facts: HELP_FACTS, year: 2026 }),
@@ -253,10 +251,10 @@ describe("the workers' help page", () => {
     expect(longSentences(html)).toEqual([]);
   });
 
-  it("opens with the shared page header: the firm's name, then Help, then one line", () => {
+  it("opens with the shared page header: Help first (the firm's bar names the firm), then one line", () => {
     const html = help();
     expect(html.match(/<header[\s>]/g)).toHaveLength(1);
-    expect(html).toMatch(/<header[^>]*><p[^>]*>Acme Events<\/p><h1[^>]*>Help<\/h1>/);
+    expect(html).toMatch(/<header[^>]*><h1[^>]*>Help<\/h1>/);
     expect(words(html)).toContain("Help. How your shifts pages work, step by step.");
     // The contents come after the header, not inside it.
     expect(html.indexOf("</header>")).toBeLessThan(html.indexOf("<nav"));

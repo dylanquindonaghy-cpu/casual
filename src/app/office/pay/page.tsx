@@ -86,7 +86,6 @@ export default async function PayDashboardPage() {
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={`${firm.name} office`}
         title="Pay dashboard"
         actions={
           <>

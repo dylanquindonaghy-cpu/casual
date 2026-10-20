@@ -22,6 +22,7 @@ export interface Brand {
   logoUrl: string | null;
   background: string; // #rrggbb: the firm's colour, or the default
   text: string; // #000000 or #ffffff, whichever reads better on it
+  own: boolean; // the firm set its own colour (not the default)
 }
 
 // The firm's brand, from its own row (withFirm: another firm's is invisible).

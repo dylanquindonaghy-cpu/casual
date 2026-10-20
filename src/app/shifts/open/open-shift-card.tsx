@@ -8,7 +8,7 @@ import { RequirementChips } from "../requirement-chips";
 import { TakeShiftButton } from "./take-shift-button";
 
 // One shift on Open shifts or the urgent board (docs/office-v2.md 4.3; 12H.2): an "Urgent" label
-// (and a red edge) when marked urgent, then role · event (a link to the shift's page), the site,
+// when marked urgent, then role · event (a link to the shift's page), the site,
 // "date and time · £/hour · post", what it needs as chips, places left, the travel line (both
 // times, whichever ways she chose; "Distance not known yet" when it isn't: 12G.3), then "Take
 // shift" (or, under fair rotation, when it opens). The address is on the shift's page.
@@ -29,33 +29,33 @@ export function OpenShiftCard({
     s.post ?? null,
   ].filter(Boolean);
   return (
-    <li className={`${card}${s.isUrgent ? " border-l-4 border-l-urgent" : ""}`}>
+    <li className={card}>
       {s.isUrgent && (
         <div className="mb-2 flex">
           <StatusChip tone="urgent">Urgent</StatusChip>
         </div>
       )}
-      <p className="text-lg font-bold">
+      <p className="font-bold">
         <Link
           href={`/shifts/${s.shiftId}`}
-          className="underline decoration-line-strong underline-offset-4"
+          className="underline decoration-line underline-offset-4 hover:decoration-ink"
         >
           {roleAndEvent(s.role, s.casualEvent)}
         </Link>
       </p>
-      {s.site && <p className="mt-1">{s.site.name}</p>}
-      <p className="mt-1 font-semibold tabular-nums">{facts.join(" · ")}</p>
-      <RequirementChips requirements={s.requirements} className="mt-2" />
-      <p className={`mt-2 ${muted}`}>
+      {s.site && <p className="text-base">{s.site.name}</p>}
+      <p className="text-base tabular-nums">{facts.join(" · ")}</p>
+      <RequirementChips requirements={s.requirements} className="mt-1.5" />
+      <p className={`mt-1.5 ${muted}`}>
         {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
       </p>
       {s.travel && (
-        <p className={`mt-1 ${muted}`} data-travel-line="">
+        <p className={muted} data-travel-line="">
           {travelLineText(s.travel, timeZone)}
         </p>
       )}
       {s.opensAt ? (
-        <div className="mt-4 rounded-xl bg-quiet-soft p-3">
+        <div className="mt-3 rounded-xl bg-quiet-soft p-3 text-base">
           <p>
             Offered first to people with fewer hours that week. You can take it from{" "}
             {soonLabel(s.opensAt, now, timeZone)}.

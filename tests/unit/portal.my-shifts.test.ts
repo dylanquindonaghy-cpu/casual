@@ -103,7 +103,6 @@ const noOpen: OpenShiftsList = {
 };
 const homeBase: HomeViewProps = {
   firstName: "Sam",
-  voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
   timeZone: TZ,
   now: at("2026-11-02T09:00:00Z"),
   next: null,

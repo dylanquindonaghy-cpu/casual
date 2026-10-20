@@ -38,7 +38,6 @@ export default async function PayQueriesPage() {
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={`${firm.name} office`}
         title="Pay queries"
         actions={
           <Link href="/office/pay/import" className={btn.secondary}>

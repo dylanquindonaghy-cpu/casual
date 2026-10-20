@@ -1,0 +1,15 @@
+# A demo server only (16.2; docs/runbooks.md "A demo server"): runs /opt/shiftdesk/demo-reset.sh
+# once, loading the made-up demo afresh. Started every night by shiftdesk-demo-reset.timer. Its
+# output is in `journalctl -u shiftdesk-demo-reset`.
+[Unit]
+Description=ShiftDesk demo: load the made-up demo afresh
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/shiftdesk
+ExecStart=/opt/shiftdesk/demo-reset.sh
+# A hung step mustn't block every later night.
+TimeoutStartSec=30min

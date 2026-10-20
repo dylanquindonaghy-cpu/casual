@@ -622,13 +622,28 @@ page" over showing the link on the login page.
   on every page of a demo firm says it's a demo and links to it.
 - **One password for the whole site**, the app's own check (`src/lib/demo/gate.ts`, run first by
   the proxy for every page, server action and API route): HTTP Basic, user name `demo`, password
-  `DEMO_SITE_PASSWORD` (12+ characters; required in production with demo mode). The Demo phone
+  `DEMO_SITE_PASSWORD` (12+ characters). It's the web app's own rule: a production demo server
+  without it turns every request away (503) and its health check fails, so the deploy says so; the
+  worker reads the same settings and never gets the password. The Demo phone
   needs no login of its own: the password is what keeps strangers from its login links. Let
   through without it: the health check and Caddy's certificate check (callers inside the server),
   and the planner API, which refuses anyone without one of a firm's own keys (its
   `Authorization: Bearer` header can't be sent alongside the password; a key is made by a firm's
   admin, logged in behind the password). Being the app's own, the check holds whatever is in front
   of it (the walkthrough's browser test runs behind it, planner step included).
+- **The demo server** (16.2; docs/runbooks.md "A demo server"): the real compose file plus
+  `deploy/docker-compose.demo.yml`, both chosen by `COMPOSE_FILE` in the server's `.env`, so every
+  `docker compose` command there (`deploy.sh`'s too) reads them. The demo file runs Postgres in
+  Compose over a socket only (no network address; a password on the socket too), sets demo mode
+  and every sender for the web app and the worker itself (not left to `.env`), and shares the
+  outbox as a volume (the worker writes it, the web app only reads it). `demo-reset`
+  (`scripts/demo-reset.ts`, run by `deploy/demo-reset.sh` by hand and every night at 04:00 UK)
+  refuses unless demo mode is on, every database address is on the server and no firm in the
+  database is anything but a demo firm (checked before anything is dropped); then it recreates the
+  database, migrates, adds the demo database's own rule refusing real numbers and emails (a
+  trigger on `workers` and `office_users`, the same rule as `src/lib/demo/made-up.ts`), loads the
+  seed (allowed in production only from here) and empties the outbox. No backups: there's nothing
+  to keep.
 **Options:**
 | Option | Verdict |
 |---|---|
@@ -637,4 +652,6 @@ page" over showing the link on the login page.
 | Demo mode for any firm | A real firm's messages would be printed instead of sent |
 | Matching outbox lines to a firm by recipient only | A number in both firms (a visitor's import) showed one firm's texts and login links on the other's Demo phone |
 | The password in Caddy alone | Gone if the web app's port were ever published or the Caddyfile wrong; and not tested by the browser tests |
-| Refusing real numbers at every place people are added (forms, imports, the planner API) | Many places to keep in step; the worker's check covers them all, and 16.2's demo database refuses them itself |
+| Refusing real numbers at every place people are added (forms, imports, the planner API) | Many places to keep in step; the worker's check covers them all, and the demo database refuses them itself |
+| A demo compose file of its own, copying the real one | Two files to keep in step; the demo file changes only what differs |
+| The demo's database at the host (managed Postgres) | Costs more for made-up data loaded afresh every night |

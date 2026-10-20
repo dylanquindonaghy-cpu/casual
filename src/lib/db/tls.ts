@@ -5,9 +5,9 @@ import { parse } from "pg-connection-string";
 // the host's CA certificate (sslrootcert=/app/db-ca.pem, mounted read-only by
 // deploy/docker-compose.yml). The address is read as pg reads it (a ?host= elsewhere, or a later
 // repeated parameter, counts), so nothing slips past. Not needed for a database on the same machine
-// (a loopback address or a socket: development and the browser tests' production build; Postgres in
-// Compose over a socket, if a host has no managed Postgres, would need its own compose file without
-// the CA mount). src/lib/env.ts refuses a production address without it.
+// (a loopback address or a socket: development, the browser tests' production build, and a demo
+// server's Postgres in Compose over a socket: deploy/docker-compose.demo.yml, without the CA
+// mount). src/lib/env.ts refuses a production address without it.
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
 

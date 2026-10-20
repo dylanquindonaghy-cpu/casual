@@ -20,11 +20,27 @@ export const DEMO_PASSWORD_NEEDED =
 export const checksItsOwnKey = (path: string): boolean =>
   path === "/api/v1" || path.startsWith("/api/v1/");
 
-// The site password when the gate is on: demo mode with a password set; otherwise none.
-export const demoSitePassword = (env: {
+// Shown, with a 503, for every request on a demo server that has no password set.
+export const DEMO_NOT_SET_UP =
+  "This demo isn't set up yet: its password is missing (DEMO_SITE_PASSWORD).";
+
+// What the gate does: off without demo mode; on, with its password, in demo mode. In production,
+// demo mode without a password turns every request away ("missing"; the health check fails too,
+// so the deploy says so), never runs open. It's the web app's own rule, checked here rather than
+// in the settings: the worker reads the same settings and has no use for the password, so a demo
+// server gives it to the web app alone (deploy/docker-compose.demo.yml). On a computer of your own
+// (development) demo mode may go without one.
+export type DemoGate = { kind: "off" } | { kind: "on"; password: string } | { kind: "missing" };
+
+export function demoGate(env: {
+  NODE_ENV: string;
   DEMO_MODE?: string;
   DEMO_SITE_PASSWORD?: string;
-}): string | undefined => (env.DEMO_MODE === "on" ? env.DEMO_SITE_PASSWORD : undefined);
+}): DemoGate {
+  if (env.DEMO_MODE !== "on") return { kind: "off" };
+  if (env.DEMO_SITE_PASSWORD) return { kind: "on", password: env.DEMO_SITE_PASSWORD };
+  return env.NODE_ENV === "production" ? { kind: "missing" } : { kind: "off" };
+}
 
 // Whether an Authorization header carries the demo's user name and password.
 export function demoLoginMatches(header: string | null, password: string): boolean {

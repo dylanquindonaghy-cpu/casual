@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { checksItsOwnKey, DEMO_PASSWORD_NEEDED, DEMO_REALM, demoLoginMatches } from "../demo/gate";
+import {
+  checksItsOwnKey,
+  DEMO_NOT_SET_UP,
+  DEMO_PASSWORD_NEEDED,
+  DEMO_REALM,
+  demoLoginMatches,
+  type DemoGate,
+} from "../demo/gate";
 import type { Logger } from "../log";
 import { capText, MAX_PATH } from "../log/mask";
 import { parseHost } from "../tenancy/host";
@@ -12,13 +19,14 @@ import { parseHost } from "../tenancy/host";
 //    getCurrentFirm(). Two paths are let through on any host, for callers inside the server:
 //    Caddy's on-demand TLS check (/api/caddy/ask, at http://web:3000) and the health check
 //    (/api/health, Docker's at http://localhost:3000). Neither reads or writes firm data.
-// 3. On a demo server (`sitePassword` gives one: src/lib/demo/gate.ts), everything else but the
-//    planner API (which checks its own key) needs the demo's password: without it, 401 and the
-//    browser's password box.
+// 3. On a demo server (`demoGate`: src/lib/demo/gate.ts), everything else but the planner API
+//    (which checks its own key) needs the demo's password: without it, 401 and the browser's
+//    password box. A production demo server with no password set turns it all away (503).
+const GATE_OFF: DemoGate = { kind: "off" };
 export function createProxy(
   logger: Logger,
   baseDomain: () => string,
-  sitePassword: () => string | undefined = () => undefined,
+  demoGate: () => DemoGate = () => GATE_OFF,
 ): (request: NextRequest) => NextResponse {
   return (request) => {
     const requestId = crypto.randomUUID();
@@ -47,8 +55,21 @@ export function createProxy(
       });
     }
 
-    const password = internal || checksItsOwnKey(path) ? undefined : sitePassword();
-    if (password && !demoLoginMatches(request.headers.get("authorization"), password)) {
+    const gate = internal || checksItsOwnKey(path) ? GATE_OFF : demoGate();
+    if (gate.kind === "missing") {
+      return new NextResponse(DEMO_NOT_SET_UP, {
+        status: 503,
+        headers: {
+          "x-request-id": requestId,
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      });
+    }
+    if (
+      gate.kind === "on" &&
+      !demoLoginMatches(request.headers.get("authorization"), gate.password)
+    ) {
       return new NextResponse(DEMO_PASSWORD_NEEDED, {
         status: 401,
         headers: {

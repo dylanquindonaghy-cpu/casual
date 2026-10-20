@@ -631,8 +631,10 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   (`/demo`) shows only its own lines, to its own people, read inside its withFirm transaction
   (`src/lib/demo/phone.ts`), so a login link can be tapped there as it would be on a phone; a demo
   bar on every page links to it. The web app and the worker share the outbox file. The whole site
-  needs one password, the app's own check (`src/lib/demo/gate.ts`). Steps: docs/runbooks.md "A demo
-  server" (16.2).
+  needs one password, the app's own check (`src/lib/demo/gate.ts`). The server runs
+  `deploy/docker-compose.demo.yml` with the real compose file (Postgres in Compose over a socket,
+  the outbox a shared volume) and loads the demo afresh every night (`deploy/demo-reset.sh`); its
+  database refuses real numbers and emails itself. Steps: docs/runbooks.md "A demo server".
 - Monitoring: an outside uptime check on `/api/health` (a free one, with its phone app), plus the
   host's own alerts (the server down, CPU, database storage, as far as the host offers them) and
   its billing alert at £50. Steps: docs/runbooks.md "Monitoring and alerts (once)"; PLAN.md Parking

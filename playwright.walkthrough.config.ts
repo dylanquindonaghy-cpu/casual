@@ -32,9 +32,9 @@ const env = {
   SESSION_SECRET: "walkthrough-e2e-only-secret-not-for-any-real-use",
   // Likewise the planner integration secret (12J.1): its own, never .env.example's.
   INTEGRATIONS_SECRET: "walkthrough-e2e-only-integrations-secret-not-real",
-  // Demo mode, for the web app and the worker alike (the outbox is serverEnv's), and its password.
+  // Demo mode, for the web app and the worker alike (the outbox is serverEnv's). Its password goes
+  // to the web app alone, as on a demo server (deploy/docker-compose.demo.yml): below.
   DEMO_MODE: "on",
-  DEMO_SITE_PASSWORD: WALKTHROUGH_SITE_PASSWORD,
   // Demo mode sends nothing outside the server: no pushes either (serverEnv's console sender is
   // for development; production refuses it).
   PUSH_TRANSPORT: "none",
@@ -92,7 +92,7 @@ export default defineConfig({
       url: `http://localhost:${WALKTHROUGH_PORT}`,
       // .env's NODE_ENV=development (loaded by playwright.config.ts) would reach the build, which
       // then can't prerender its pages ("non-standard NODE_ENV"): `env` says production.
-      env,
+      env: { ...env, DEMO_SITE_PASSWORD: WALKTHROUGH_SITE_PASSWORD },
       reuseExistingServer: false,
       timeout: 600_000,
     },

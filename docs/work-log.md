@@ -13077,3 +13077,80 @@ them on). It waits for Dylan's go-ahead and the text system's details.
 
 Open `walkthrough-site/index.html` in Chrome or Edge, or follow `walkthrough-site/README.md` to put
 it on Vercel.
+
+## 2026-10-20 — Phase 16, task 16.1: demo mode in the app
+
+**Time:** 1.7 hours. **Result:** `RUN_E2E=1 ./scripts/verify.sh` printed
+`VERIFIED tree=609d8c1542f3868f e2e=true` (5,037 unit and integration tests, 93 browser tests, and
+the walkthrough run's 6). The `claims-auditor` said **DONE** on the first round. Committed and
+pushed to the Phase 16 pull request.
+
+### What was built, in plain words
+
+You bought a Hetzner server and a domain so your boss can click through the app online. But the
+app has no real text or email sender yet (that's Phase 15), and logging in needs a link sent by
+text or email. **Demo mode** (`DEMO_MODE=on`, a server setting) solves that, safely:
+
+1. **Nothing is sent; everything is shown.** Every text and email the app would send is printed
+   into a file (the "outbox") instead. Each demo firm has a **Demo phone** page
+   (`https://acme.<your domain>/demo`) that lists them, newest first, and checks for new ones every
+   4 seconds. Tap a login link there, as you would on a phone. A yellow **demo bar** on every page
+   says it's a demo and links to the Demo phone.
+2. **Nothing leaves the server.** In demo mode the settings refuse every real sender: texts, email
+   and the planner's webhooks are printed; web push, Google Sheets and AI are off; postcodes are the
+   made-up ones.
+3. **One password for the whole site.** The app itself asks for it (the browser's own password box;
+   user name `demo`). It's the app's own check, so it holds whatever sits in front of the app. Only
+   the health check, Caddy's certificate check and the planner API (which checks its own key) skip
+   it.
+4. **Made-up firms and people only.** The job worker (the background program that sends messages)
+   refuses to start, and stops within a minute, if the database holds any firm other than the two
+   made-up ones, or anyone in them with a real phone number or email address. Made up means:
+   numbers in Ofcom's drama range (07700 900000 to 900999) and emails on the example domains. In
+   between its checks it refuses any other firm's job, and refuses any message to someone who isn't
+   made up. And the web app can't find any other firm at all in demo mode: its address, shifts line
+   and planner keys all come up "not found".
+
+Key facts:
+- **Each message is stamped with the firm that sent it** (every job now runs inside its firm's
+  context, which the printer reads). Each firm's Demo phone shows only its own stamped messages.
+  This came from the safety review: a casual can work for two firms with one phone number, so "who
+  it went to" can't say which firm sent it.
+- The browser tests now run the walkthrough exactly as a demo server will: a production build,
+  both programs in production demo mode, behind the password.
+
+### Decisions made
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| A "Demo phone" page (Dylan's choice) | The real login flow stays as it is; offers, reminders and replies show too | The login link shown on the login page |
+| Stamp each outbox line with the sending firm | One number can be in two firms; matching by recipient leaked one firm's texts to the other's page | Matching by recipient only (the first version) |
+| The password is the app's own check | Holds even if the server's front door (Caddy) were set up wrong; the browser tests prove it | Only in Caddy |
+| In demo mode the app finds no other firm | A check in the page layout can't stop the page under it running (Next's own guide says so) | "Not on this server" in the layout (the first fix; the second review caught it) |
+| The planner API skips the password | It has its own key, and a request can't carry both | No planner API on a demo server |
+
+### Fixed on the way
+
+- **A weekday bug in the demo seed's test** (already on `main`): the story books Zoe at a festival
+  3 days from today, 14:00 to 22:00, and the walkthrough's urgent dropout is next Saturday at
+  08:00. On Tuesdays her shift ends 10 hours before it; on Wednesdays it's the same day. The rules
+  rightly stop her taking it (11 hours' rest), but the test assumed she always could, so it failed
+  every Tuesday and Wednesday. It now checks the rule both ways, and a new test pins which days
+  clash.
+
+### What the new tests prove
+
+- The settings: production refuses printed messages without demo mode, and demo mode refuses every
+  real sender; production demo mode needs the password.
+- The worker's checks: other firms, real people, three missed checks, and other firms' jobs.
+- Isolation: two firms, one number in both, each sees only its own messages (on the real
+  database); the app's look-ups find no other firm in demo mode.
+- The password: wrong, missing or odd headers refused; the health check and planner API let through.
+- In the browser, on the production build: the password is asked everywhere; a casual and the
+  office each log in from the Demo phone; neither firm sees the other's messages. And on a normal
+  server: no Demo phone and no demo bar.
+
+### What's parked or needs Dylan
+
+- Nothing to do yet: 16.2 (the server's files and the step-by-step guide) comes next, in the same
+  pull request. Don't merge until it's ready.

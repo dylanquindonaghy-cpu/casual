@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { DemoBar, NotOnDemoServer } from "@/app/demo-bar";
+import { DemoBar } from "@/app/demo-bar";
 import { DemoPhoneView, displayNumber, withLinks } from "@/app/demo/demo-phone-view";
 import type { DemoPhoneMessage } from "@/lib/demo/phone";
 
@@ -86,13 +86,6 @@ describe("the Demo phone", () => {
     );
     expect(parts).not.toContain("<a");
     expect(parts).toContain(`${origin}@evil.example/l#x`);
-  });
-
-  it("the not-on-this-server page says so plainly", () => {
-    const html = renderToStaticMarkup(createElement(NotOnDemoServer));
-    expect(html).toContain("<h1");
-    expect(html).toContain("Not on this server");
-    expect(html).toContain("This server only runs a demo with made-up people.");
   });
 
   it("writes UK mobiles as people do; anything else as it is", () => {

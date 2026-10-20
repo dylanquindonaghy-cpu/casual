@@ -604,9 +604,14 @@ page" over showing the link on the login page.
   (`src/lib/demo/made-up.ts`). The worker refuses to start, and stops within a minute, while any
   firm isn't a demo firm or anyone in one isn't made up, e.g. after a visitor imports real staff
   (`src/lib/demo/guard.ts`); a check that can't run three times in a row stops it too. Between two
-  checks, a job for any other firm is refused before it runs (`onlyRunJobsFor`). The web app shows
-  any other firm's pages as "Not on this server". A real firm's casuals would otherwise get
-  nothing, with nobody told; a real person's messages would be shown to visitors (golden rule 7).
+  checks, a job for any other firm is refused before it runs (`onlyRunJobsFor`), and the message
+  sender refuses any message to someone who isn't made up. The web app finds no other firm at all:
+  the look-ups that turn an address, a shifts line's number or a planner key into a firm
+  (`src/lib/db/directory.ts`) know the demo firms alone (`src/lib/demo/scope.ts`), so any other
+  firm's pages, server actions, route handlers, webhooks and planner calls are not found (a check
+  in a layout couldn't do it: the page under it still runs). A real firm's casuals would otherwise
+  get nothing, with nobody told; a real person's messages would be shown to visitors (golden
+  rule 7).
 - **The Demo phone** (`/demo` on a demo firm's address): the messages that firm sent its own
   people, newest first, links back to the firm's address tappable. Each outbox line is stamped with
   the firm whose job sent it (`src/lib/tenancy/job-firm.ts`) and a firm's page shows only its own

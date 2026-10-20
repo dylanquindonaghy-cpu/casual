@@ -4,6 +4,7 @@ import { qualificationsFor } from "@/lib/credentials/qualifications";
 import { seed } from "@/lib/db/admin/seed";
 import { acmePastEvent, acmePayQueries } from "@/lib/db/admin/seed-extras";
 import { seedFirms, seedId, STRIKES_TEAM } from "@/lib/db/admin/seed-data";
+import { acmeSaturday } from "@/lib/db/admin/seed-saturday";
 import { acmeStory } from "@/lib/db/admin/seed-story";
 import { withFirm } from "@/lib/db/scoped";
 import { previewBooking } from "@/lib/roster/book";
@@ -173,10 +174,14 @@ describe("the demo story", () => {
     const list = await openShiftsFor(ctx, who("zoe"));
     const ofStory = (id: string) => STORY.sessions.find((x) => x.id === id);
     // Urgent first, the nearest first (a shift with no estimate last): the product's rule, on the
-    // whole urgent list. She can also take the walkthrough's Saturday dropout at the Arena (08:00
-    // next Saturday). Estimates are kept per postcode, site and arrival time, so on a Friday, when
-    // the story's "tomorrow 08:00" at the Arena is that same Saturday, the dropout shares its 12
-    // minutes and can come between the story's two. Any other day it has none and comes last.
+    // whole urgent list. The walkthrough's Saturday dropout at the Arena (08:00 next Saturday) is
+    // hers to take too, except on the days her own Riverside shift (three days from today, 14:00 to
+    // 22:00) is too close to it: on a Tuesday it ends 10 hours before (11 hours' rest needed), on a
+    // Wednesday it's that same Saturday (tests/unit/seed.story-days.test.ts pins which days). Then
+    // the rules rightly keep it off her list. Estimates are kept per postcode, site and arrival
+    // time, so on a Friday, when the story's "tomorrow 08:00" at the Arena is that same Saturday,
+    // the dropout shares its 12 minutes and can come between the story's two. Any other day it has
+    // none and comes last.
     const urgent = list.shifts.filter((s) => s.isUrgent);
     const nearest = (t: (typeof urgent)[number]["travel"]) =>
       t?.kind === "estimated"
@@ -184,9 +189,20 @@ describe("the demo story", () => {
         : Infinity;
     const minutes = urgent.map((s) => nearest(s.travel));
     expect(minutes).toEqual([...minutes].sort((a, b) => a - b));
-    expect(urgent.some((s) => !ofStory(s.shiftId) && s.site?.name === "Acme Demo Arena")).toBe(
-      true,
+    const now = new Date();
+    const dropout = acmeSaturday(acmeFirm().workers, acmeFirm().sites, now).urgentShiftId;
+    const verdict = await withFirm(ACME, (tx) =>
+      previewBooking(tx, { shiftId: dropout, workerId: who("zoe"), now }),
     );
+    const listed = urgent.filter((s) => s.shiftId === dropout);
+    if (verdict?.ok) {
+      expect(listed.map((s) => s.site?.name)).toEqual(["Acme Demo Arena"]);
+    } else {
+      expect(verdict?.codes.filter((c) => c === "rest" || c === "overlap").length).toBeGreaterThan(
+        0,
+      );
+      expect(listed).toEqual([]);
+    }
     // The story's urgent ones: the Arena door supervisors (12 min), then Northgate's night patrols
     // (21 min).
     const storyUrgent = urgent.filter((s) => ofStory(s.shiftId));

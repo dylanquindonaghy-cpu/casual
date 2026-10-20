@@ -20,13 +20,3 @@ export function DemoBar() {
     </aside>
   );
 }
-
-// Instead of the page, for a firm that isn't a demo firm on a demo server (src/app/layout.tsx).
-export function NotOnDemoServer() {
-  return (
-    <main className="mx-auto max-w-md px-6 py-12">
-      <h1 className="text-2xl font-semibold">Not on this server</h1>
-      <p className="mt-3">This server only runs a demo with made-up people.</p>
-    </main>
-  );
-}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { demoViewFor } from "@/lib/demo/firms";
+import { showsDemo } from "@/lib/demo/firms";
 import { demoPhoneMessages } from "@/lib/demo/phone";
 import { appEnv } from "@/lib/env";
 import { getCurrentFirm, withCurrentFirm } from "@/lib/tenancy/current-firm";
@@ -21,7 +21,7 @@ export default async function DemoPhonePage() {
   const outbox = env.CONSOLE_OUTBOX_FILE;
   if (env.DEMO_MODE !== "on" || !outbox) notFound();
   const firm = await getCurrentFirm();
-  if (demoViewFor(env.DEMO_MODE, firm.id) !== "demo") notFound();
+  if (!showsDemo(env.DEMO_MODE, firm.id)) notFound();
   const messages = await withCurrentFirm((tx) => demoPhoneMessages(tx, outbox));
   return (
     <main className={page.staff}>

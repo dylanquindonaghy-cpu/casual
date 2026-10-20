@@ -625,7 +625,8 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   outbox file instead of sending it (production refuses that without demo mode), and nothing else
   leaves the server either (push, Sheets and AI off, made-up postcodes). It refuses to run, and
   stops within a minute, while any firm isn't a demo firm or anyone in one has a real number or
-  email (`src/lib/demo/guard.ts`), and refuses any other firm's job. Each outbox line is stamped
+  email (`src/lib/demo/guard.ts`), and refuses any other firm's job and any message to someone
+  who isn't made up; the web app finds no other firm (`src/lib/demo/scope.ts`). Each outbox line is stamped
   with the firm whose job sent it (`src/lib/tenancy/job-firm.ts`); each demo firm's Demo phone
   (`/demo`) shows only its own lines, to its own people, read inside its withFirm transaction
   (`src/lib/demo/phone.ts`), so a login link can be tapped there as it would be on a phone; a demo

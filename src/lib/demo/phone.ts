@@ -1,4 +1,3 @@
-import { isNotNull } from "drizzle-orm";
 import { officeUsers, workers } from "../db/schema";
 import { activeFirmId, type FirmTx } from "../db/scoped";
 import { parseOutbox, readOutboxTail, type OutboxMessage } from "./outbox";
@@ -39,8 +38,7 @@ export async function demoPhoneMessages(
       mobile: workers.mobileE164,
       email: workers.email,
     })
-    .from(workers)
-    .where(isNotNull(workers.mobileE164));
+    .from(workers);
   for (const c of casuals) {
     const name = `${c.first} ${c.last}`;
     if (c.mobile) people.set(c.mobile, name);

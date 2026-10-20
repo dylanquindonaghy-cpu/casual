@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { seedFirms, seedId as seedDataSeedId } from "@/lib/db/admin/seed-data";
-import { DEMO_FIRM_SLUGS, demoViewFor, isDemoFirm } from "@/lib/demo/firms";
+import { DEMO_FIRM_SLUGS, isDemoFirm, showsDemo } from "@/lib/demo/firms";
 import {
   assertDemoServer,
   NotADemoServer,
@@ -11,8 +11,8 @@ import {
 } from "@/lib/demo/guard";
 import { seedId } from "@/lib/demo/seed-id";
 
-// Which firms demo mode runs with (16.1; ADR-025), what it does on each firm's address, and the
-// worker's check that only the demo firms and their made-up people are there.
+// Which firms demo mode runs with (16.1; ADR-025), which pages show it, and the worker's check that
+// only the demo firms and their made-up people are there.
 
 const [acme, northline] = seedFirms(new Date("2026-10-20T09:00:00Z"));
 const realFirm = "0f3c2b8e-9a41-4d7e-8b2a-5c6d7e8f9a0b";
@@ -32,17 +32,16 @@ describe("the demo firms", () => {
   });
 });
 
-describe("what demo mode does on an address", () => {
-  it("a demo firm's pages: the demo bar and the Demo phone; any other firm's: not served", () => {
-    expect(demoViewFor("on", acme!.id)).toBe("demo");
-    expect(demoViewFor("on", northline!.id)).toBe("demo");
-    expect(demoViewFor("on", realFirm)).toBe("refused");
+describe("what shows the demo bar and the Demo phone", () => {
+  it("a demo firm's pages, on a demo server", () => {
+    expect(showsDemo("on", acme!.id)).toBe(true);
+    expect(showsDemo("on", northline!.id)).toBe(true);
   });
 
-  it("without demo mode, or on the platform's own address: as usual", () => {
-    expect(demoViewFor(undefined, acme!.id)).toBe("off");
-    expect(demoViewFor(undefined, realFirm)).toBe("off");
-    expect(demoViewFor("on", null)).toBe("off");
+  it("no other firm's (which a demo server doesn't find at all: demo.scope tests), none without demo mode, nor the platform's own address", () => {
+    expect(showsDemo("on", realFirm)).toBe(false);
+    expect(showsDemo(undefined, acme!.id)).toBe(false);
+    expect(showsDemo("on", null)).toBe(false);
   });
 });
 

@@ -88,9 +88,8 @@ Parking lot, "Travel areas").
 
 **Demo bar** (16.1; ADR-025; `src/app/demo-bar.tsx`): on a demo server only, the first thing on every page of a demo
 firm, staff and office alike: "A demo with made-up people. No real texts or emails go out: see them on the Demo phone."
-("Demo phone" → `/demo`), in the attention colours. On a demo server, any other firm's address shows only
-"Not on this server" and "This server only runs a demo with made-up people." (demo mode never runs a real firm's
-pages).
+("Demo phone" → `/demo`), in the attention colours. On a demo server any other firm's address is not found, as
+an address nobody has (`src/lib/demo/scope.ts`).
 
 ## Office dashboard (`/office/...`)
 

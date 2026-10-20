@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedFirms } from "@/lib/db/admin/seed-data";
 import { isMadeUpEmail, isMadeUpMobile } from "@/lib/demo/made-up";
+import { LOOK_ALIKE_EMAILS } from "../helpers/look-alike-emails";
 
 // What counts as a made-up number or email (16.1; ADR-025; golden rule 7): demo mode's worker
 // stops if anyone in a demo firm has anything else (src/lib/demo/guard.ts).
@@ -16,7 +17,8 @@ describe("made-up numbers", () => {
     for (const n of [
       "+447700901000",
       "+447700800122",
-      "+447911123456",
+      "+441134960101",
+      "+442079460102",
       "+4477009001222",
       "+44770090012",
       "07700900122",
@@ -32,7 +34,6 @@ describe("made-up emails", () => {
     for (const e of [
       "acme.admin@example.com",
       "Payroll@EXAMPLE.ORG",
-      "a@example.net",
       "zoe@mail.example.com",
       "office@acme-events.example",
       "x@shifts.test",
@@ -44,17 +45,7 @@ describe("made-up emails", () => {
   });
 
   it("anything else is real, including look-alikes", () => {
-    for (const e of [
-      "zoe@gmail.com",
-      "boss@firm.co.uk",
-      "a@example.co.uk",
-      "a@notexample.com",
-      "a@example.com.evil.io",
-      "a@examples.com",
-      "a@test.com",
-      "example.com",
-      "@example.com",
-    ]) {
+    for (const e of [...Object.values(LOOK_ALIKE_EMAILS), "example.com", "@example.com", "a@"]) {
       expect(isMadeUpEmail(e), e).toBe(false);
     }
   });

@@ -77,7 +77,7 @@ export function DemoPhoneView({
       {messages.length === 0 ? (
         <p className={muted}>No messages yet. Ask for a login link and it shows here.</p>
       ) : (
-        <ul className="flex flex-col gap-4" aria-label="Messages, newest first">
+        <ul role="list" className="flex flex-col gap-4" aria-label="Messages, newest first">
           {messages.map((m, i) => (
             <li key={`${m.at.getTime()}-${i}`} className={card}>
               <p className="font-semibold">

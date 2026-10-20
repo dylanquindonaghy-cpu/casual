@@ -8,6 +8,7 @@ import { createWithFirm, type WithFirm } from "@/lib/db/scoped";
 import { realPeopleIn } from "@/lib/demo/people";
 import { demoPhoneMessages } from "@/lib/demo/phone";
 import { appRolePool, superuserPool, uniqueSlug } from "../helpers/db";
+import { LOOK_ALIKE_EMAILS } from "../helpers/look-alike-emails";
 
 // The Demo phone's messages (16.1; ADR-025), on the real database as the app role, inside each
 // firm's own withFirm transaction: a firm sees what it sent its own casuals and office team, and
@@ -178,13 +179,13 @@ describe("the made-up people check", () => {
     // an office user with a real email: 3.
     await su.query(
       `insert into workers (firm_id, first_name, last_name, mobile_e164, email) values
-         ($1, 'Real', 'One', '+447911123456', 'one@gmail.com'),
-         ($1, 'Real', 'Two', '+447700900767', 'two@firm.co.uk')`,
-      [a.firmId],
+         ($1, 'Real', 'One', '+441134960101', $2),
+         ($1, 'Real', 'Two', '+447700900767', $3)`,
+      [a.firmId, LOOK_ALIKE_EMAILS.work, LOOK_ALIKE_EMAILS.otherEnding],
     );
     await su.query(
-      "insert into office_users (firm_id, email, name, role) values ($1, 'boss@firm.co.uk', 'Boss', 'admin')",
-      [a.firmId],
+      "insert into office_users (firm_id, email, name, role) values ($1, $2, 'Boss', 'admin')",
+      [a.firmId, LOOK_ALIKE_EMAILS.sameLetters],
     );
     expect(await withFirm(a.firmId, realPeopleIn)).toBe(3);
     // Another firm's real people aren't this one's.

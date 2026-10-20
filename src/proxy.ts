@@ -1,4 +1,4 @@
-import { demoSitePassword } from "./lib/demo/gate";
+import { demoGate } from "./lib/demo/gate";
 import { appEnv } from "./lib/env";
 import { log } from "./lib/log";
 import { createProxy } from "./lib/http/proxy";
@@ -9,7 +9,7 @@ import { createProxy } from "./lib/http/proxy";
 export const proxy = createProxy(
   log,
   () => appEnv().APP_BASE_DOMAIN,
-  () => demoSitePassword(appEnv()),
+  () => demoGate(appEnv()),
 );
 
 export const config = {

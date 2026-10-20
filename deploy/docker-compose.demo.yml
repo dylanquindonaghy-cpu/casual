@@ -1,0 +1,133 @@
+# The demo server (16.2; docs/runbooks.md "A demo server"; ADR-025): the made-up demo on one small
+# server, to show the app before any real text or email sender exists. Used together with
+# docker-compose.yml: the demo server's .env says COMPOSE_FILE=docker-compose.yml:docker-compose.demo.yml
+# (deploy/env.demo.example), so every `docker compose` command in /opt/shiftdesk, deploy.sh's
+# included, reads both. What it changes:
+# - Postgres runs here, in Compose, reached over a Unix socket only (no network port at all, so no
+#   TLS and no CA file: src/lib/db/tls.ts), in a volume shared with the app's containers. The
+#   socket needs a password too (scram-sha-256).
+# - Demo mode, set here rather than in .env, for the web app and the worker alike: every text,
+#   email and planner webhook is printed into the outbox (a volume: the worker writes it, the web
+#   app's Demo phone page only reads it); nothing else leaves the server; the worker refuses to run
+#   while any firm isn't a made-up demo firm or anyone in one isn't made up; the whole site asks
+#   for DEMO_SITE_PASSWORD (from .env).
+# - The worker always runs (no profile needed).
+# - demo-reset: loads the made-up demo afresh (scripts/demo-reset.ts). deploy/demo-reset.sh runs it,
+#   by hand the first time and then every night (shiftdesk-demo-reset.timer).
+# The `!override` and `!reset` tags replace a list from docker-compose.yml instead of adding to it
+# (Docker Compose 2.24.4 or later).
+
+x-db-socket: &db-socket
+  type: volume
+  source: pgsocket
+  target: /var/run/postgresql
+
+x-outbox-read: &outbox-read
+  type: volume
+  source: outbox
+  target: /app/.dev
+  read_only: true
+
+x-outbox-write: &outbox-write
+  type: volume
+  source: outbox
+  target: /app/.dev
+
+x-after-postgres: &after-postgres
+  postgres:
+    condition: service_healthy
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    # No network address at all (listen_addresses empty): only the socket.
+    command: ["postgres", "-c", "listen_addresses="]
+    # A clean shutdown before Docker gives up (a cut-off one replays its log on the next start).
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:?set DEMO_DB_PASSWORD in .env (deploy/env.demo.example)}
+      # Logins over the socket need their password too (Postgres' default there is "trust").
+      POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - *db-socket
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-h", "/var/run/postgresql", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging: *logging
+
+  web:
+    environment:
+      DEMO_MODE: "on"
+      CONSOLE_OUTBOX_FILE: .dev/outbox.jsonl
+      DEMO_SITE_PASSWORD: ${DEMO_SITE_PASSWORD:?set DEMO_SITE_PASSWORD in .env (deploy/env.demo.example)}
+      TRAVEL_PROVIDER: fake
+      AI_TRANSPORT: none
+    volumes: !override
+      - *db-socket
+      - *outbox-read
+    depends_on: *after-postgres
+
+  worker:
+    profiles: !reset []
+    environment:
+      DEMO_MODE: "on"
+      CONSOLE_OUTBOX_FILE: .dev/outbox.jsonl
+      MESSAGING_TRANSPORT: console
+      EMAIL_TRANSPORT: console
+      WEBHOOK_TRANSPORT: console
+      PUSH_TRANSPORT: none
+      SHEETS_TRANSPORT: none
+      AI_TRANSPORT: none
+      TRAVEL_PROVIDER: fake
+    volumes: !override
+      - *db-socket
+      - *outbox-write
+    depends_on: *after-postgres
+
+  migrate:
+    volumes: !override
+      - *db-socket
+    depends_on: *after-postgres
+
+  owner:
+    volumes: !override
+      - *db-socket
+    depends_on: *after-postgres
+
+  # One-off: deploy/demo-reset.sh runs `docker compose run --rm demo-reset` (never started by `up`:
+  # its profile). The owner's login, as migrate; it refuses unless this is a demo server
+  # (scripts/demo-reset.ts).
+  demo-reset:
+    image: ${SHIFTDESK_IMAGE:?}:${SHIFTDESK_TAG:-main}
+    profiles: ["demo-reset"]
+    command: ["node", "--import", "tsx", "scripts/demo-reset.ts"]
+    environment:
+      NODE_ENV: production
+      DEMO_MODE: "on"
+      CONSOLE_OUTBOX_FILE: .dev/outbox.jsonl
+      # The demo's links (the seeded shifts line's answers) are on this domain.
+      APP_BASE_DOMAIN: ${APP_BASE_DOMAIN:?}
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?}
+      DATABASE_URL: ${DATABASE_URL:?}
+      DATABASE_JOBS_URL: ${DATABASE_JOBS_URL:?}
+    volumes:
+      - *db-socket
+      - *outbox-write
+    depends_on: *after-postgres
+    logging: *logging
+
+volumes:
+  pgdata: # the demo's database: made-up data, loaded afresh every night (no backups needed)
+  pgsocket: # Postgres' socket, shared with the app's containers
+  outbox: # the printed messages: written by the worker, read by the Demo phone page

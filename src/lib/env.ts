@@ -137,8 +137,10 @@ const appFields = {
   ),
   // Demo mode's one password for the whole site (16.1; ADR-025), web app only: with DEMO_MODE=on
   // every page and request asks for it (user name "demo"; src/lib/demo/gate.ts), so the made-up
-  // demo, its Demo phone and its login links are only for the people it's shared with. Needed in
-  // production; 12+ characters. A secret: only in the server's .env, never in the repo.
+  // demo, its Demo phone and its login links are only for the people it's shared with. 12+
+  // characters. Without it, a production demo server turns every request away (the web app's own
+  // rule, src/lib/demo/gate.ts: the worker reads these settings too and never gets it). A secret:
+  // only in the server's .env, never in the repo.
   DEMO_SITE_PASSWORD: unsetIfEmpty(
     z.string().min(12, { message: "must be at least 12 characters" }).max(200).optional(),
   ),
@@ -219,11 +221,6 @@ export const appEnvSchema = z
   .refine(demoHasOutbox, demoHasOutboxMessage)
   // The web app looks postcodes up itself (Settings, Profile); AI only says whether it's on.
   .superRefine(demoSendsNothing({ TRAVEL_PROVIDER: "fake", AI_TRANSPORT: "none" }))
-  // A demo server on the internet always asks for its password (src/lib/demo/gate.ts).
-  .refine((e) => e.NODE_ENV !== "production" || e.DEMO_MODE !== "on" || !!e.DEMO_SITE_PASSWORD, {
-    path: ["DEMO_SITE_PASSWORD"],
-    message: "demo mode in production needs DEMO_SITE_PASSWORD, the password for the whole site",
-  })
   // The test-only pages never on a real address, even if the switch were copied into one.
   .refine((e) => !e.E2E_TEST_PAGES || /^localhost(:\d+)?$/.test(e.APP_BASE_DOMAIN), {
     path: ["E2E_TEST_PAGES"],
@@ -455,6 +452,12 @@ export const adminEnvSchema = z
     message: "must be the owner, not the app or jobs role",
   });
 
+// A demo server's reset (16.2; scripts/demo-reset.ts): the owner's settings, plus demo mode and the
+// outbox it empties.
+export const demoResetEnvSchema = adminEnvSchema.and(
+  z.object({ DEMO_MODE: appFields.DEMO_MODE, CONSOLE_OUTBOX_FILE: appFields.CONSOLE_OUTBOX_FILE }),
+);
+
 export type AppEnv = z.infer<typeof appEnvSchema>;
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 export type AdminEnv = z.infer<typeof adminEnvSchema>;
@@ -470,6 +473,7 @@ function parseWith<T>(schema: z.ZodType<T>, source: Source): T {
 export const parseAppEnv = (source: Source): AppEnv => parseWith(appEnvSchema, source);
 export const parseWorkerEnv = (source: Source): WorkerEnv => parseWith(workerEnvSchema, source);
 export const parseAdminEnv = (source: Source): AdminEnv => parseWith(adminEnvSchema, source);
+export const parseDemoResetEnv = (source: Source) => parseWith(demoResetEnvSchema, source);
 
 let app: AppEnv | undefined;
 let worker: WorkerEnv | undefined;

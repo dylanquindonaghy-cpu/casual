@@ -97,10 +97,11 @@ is chosen, Claude adds where each thing is in its control panel.)
 Then the deploy steps below.
 
 **If the host has no managed Postgres:** Postgres runs in Docker Compose on the server instead,
-over a Unix socket (no TLS or CA file needed; ADR-021). The compose file doesn't have it yet: skip
-steps 5, 6 and 8, and ask Claude to add it, with its nightly backup, before the first deploy
-(PLAN.md "Connect hosting"). Until then Deploy steps 2 and 5 below don't apply to this case:
-today's compose file won't start without the CA file.
+over a Unix socket (no TLS or CA file needed; ADR-021). The real server's compose file doesn't have
+it yet: skip steps 5, 6 and 8, and ask Claude to add it, with its nightly backup, before the first
+deploy (PLAN.md "Connect hosting"; `deploy/docker-compose.demo.yml` already runs Postgres that way
+for a demo server, which needs no backup). Until then Deploy steps 2 and 5 below don't apply to
+this case: today's compose file won't start without the CA file.
 
 ## Deploy
 
@@ -186,6 +187,131 @@ container). Without `--now`, the timer applies it within 2 minutes (after 09:00 
 **Never deploy** between 05:30 and 09:00 UK on an event day for any pilot firm, or during a live
 event (the script enforces the first; for the second, pin the current version, below, until the
 event is over).
+
+## A demo server
+
+The made-up demo (Acme Events and Northline Rail Labour, from the seed) on a small server of your
+own, so you, or someone you show it to, can click through the real app online (Phase 16; ADR-025).
+Nothing real happens on it:
+
+- **No texts or emails go out.** Each firm's **Demo phone** page (`https://acme.<your domain>/demo`,
+  linked from the yellow demo bar on every page) shows what would have been sent, newest first.
+  Tap a login link there, as you would on a phone.
+- **The whole site asks for one password** (user name `demo`), and the browser remembers it for
+  each address (`acme.…` and `northline.…` ask once each).
+- **Made-up people only.** The demo's database refuses real phone numbers and email addresses, and
+  the worker stops if one ever gets in (so never try a real import on it).
+- **Loaded afresh every night** at 04:00 UK time: the demo's dates move on with the calendar and
+  whatever visitors did is cleared. No backups: there's nothing to keep.
+
+It costs the server (Hetzner CX23: about €5.49 a month, plus €0.50 for its IPv4 address) and your
+domain. Nothing else: no text or email account, no database service.
+
+The steps are done once, in this order. Where a step says "on the server", you're logged in to it
+(step 3) as root.
+
+1. **The server.** In the Hetzner Cloud console, open your project and check the server you made:
+   Ubuntu 24.04, type **CX23** (Intel/AMD). A CAX server (Arm) won't run the app's image: if yours
+   is CAX, delete it and make a CX23 instead. If you pasted `deploy/cloud-init.sh` into "Cloud
+   config" when making it, it has already installed Docker and the security updates; if not,
+   step 3 runs it. Write down its IPv4 address (on the server's page).
+2. **Its firewall.** Hetzner Cloud console → **Firewalls** → **Create Firewall**. Inbound rules:
+   - TCP port 22 from your own IP address only (search "what is my IP" to see it; change the rule
+     if your address changes);
+   - TCP port 80 and TCP port 443 from anywhere (Any IPv4 and Any IPv6);
+   - nothing else.
+
+   Under **Apply to**, pick the server, then **Create Firewall**.
+3. **Log in to it**, from your computer (in WSL on Windows): `ssh root@<the server's IPv4>` (the
+   SSH key you gave Hetzner; type `yes` the first time). Then:
+   - if you didn't paste the cloud-init script: open `deploy/cloud-init.sh` on GitHub, copy all of
+     it, then on the server `nano /root/cloud-init.sh`, paste, save (Ctrl+O, Enter, Ctrl+X) and
+     run `sh /root/cloud-init.sh` (a few minutes of install messages);
+   - check: `docker compose version` prints 2.24.4 or later, and `ls -ld /opt/shiftdesk` starts
+     `drwx------`.
+4. **Your domain's DNS.** Where you bought the domain (on Cloudflare: your domain → **DNS** →
+   **Records**), add two **A** records, both to the server's IPv4 address:
+   - name `@` (the domain itself);
+   - name `*` (every firm's address: `acme.<your domain>`, `northline.<your domain>`).
+
+   On Cloudflare set both to **DNS only** (the grey cloud, not the orange one): the server gets
+   its own certificates. Check from your computer, after a few minutes:
+   `ping acme.<your domain>` shows the server's address.
+5. **The app's image.** GitHub builds it each time a change is merged to `main` (the repository's
+   **Actions** tab → "Deploy image", green). It's private, so the server needs a key to download
+   it: on GitHub → your picture → **Settings** → **Developer settings** → **Personal access
+   tokens** → **Tokens (classic)** → **Generate new token (classic)**, tick only `read:packages`,
+   no expiry or a long one, **Generate**, and copy it (keep a copy in your password manager). On
+   the server: `echo <the token> | docker login ghcr.io -u <your GitHub user name> --password-stdin`
+   says "Login Succeeded".
+6. **The server's files**, copied out of the image itself (so they match it), on the server (the
+   image's name is `ghcr.io/<owner>/<repo>` in lowercase; this repository's is
+   `ghcr.io/dylanquindonaghy-cpu/casual`):
+
+   ```
+   cd /opt/shiftdesk
+   docker pull ghcr.io/dylanquindonaghy-cpu/casual:main
+   id=$(docker create ghcr.io/dylanquindonaghy-cpu/casual:main)
+   docker cp "$id":/app/deploy/. /opt/shiftdesk/
+   docker rm "$id"
+   chmod 700 deploy.sh demo-reset.sh
+   ```
+
+   `ls` now shows `docker-compose.yml`, `docker-compose.demo.yml`, `Caddyfile`, `deploy.sh`,
+   `demo-reset.sh`, `env.demo.example` and four `.service` and `.timer` files.
+7. **The settings**, on the server: `cp env.demo.example .env && chmod 600 .env && nano .env`, then
+   fill in each empty value (the comments say what each is):
+   - `SHIFTDESK_IMAGE=ghcr.io/dylanquindonaghy-cpu/casual`;
+   - `APP_BASE_DOMAIN` (your domain, e.g. `shiftdesk-demo.co.uk`) and `ACME_EMAIL` (your email);
+   - `DEMO_SITE_PASSWORD`: the password you'll give people, 12 characters or more;
+   - `SESSION_SECRET`: the output of `openssl rand -base64 32` (run it in a second window);
+   - `DEMO_DB_PASSWORD`, `DEMO_DB_APP_PASSWORD`, `DEMO_DB_JOBS_PASSWORD`: three different outputs
+     of `openssl rand -hex 24`.
+
+   Leave the rest as it is (the three database addresses are made from those passwords). Save.
+8. **Load the demo and start it**, on the server: `./demo-reset.sh`. The first time it downloads
+   Postgres and Caddy (a few minutes), makes the database, loads the demo, starts everything and
+   waits until it's healthy. It ends with "The demo is loaded afresh." Check: `docker compose ps`
+   shows postgres, web and worker "healthy" and caddy "Up".
+9. **Keep it fresh and up to date**, on the server:
+
+   ```
+   cp shiftdesk-deploy.service shiftdesk-deploy.timer shiftdesk-demo-reset.service shiftdesk-demo-reset.timer /etc/systemd/system/
+   systemctl daemon-reload
+   systemctl enable --now shiftdesk-deploy.timer shiftdesk-demo-reset.timer
+   ```
+
+   `systemctl list-timers 'shiftdesk*'` shows both. A change merged to `main` reaches the server
+   within a few minutes of its image being built (never between 05:30 and 09:00 UK time; "Deploy"
+   above), and the demo is loaded afresh at 04:00 every night.
+10. **Try it** on your phone: `https://acme.<your domain>`. The browser asks for a user name and
+    password: `demo` and your `DEMO_SITE_PASSWORD`. The yellow bar says it's a demo. (The first
+    visit to each address takes a few seconds longer: the server gets its certificate then.)
+    - As a casual: enter `07700 900101` (Zoe) and tap **Send me a link**, then **Demo phone** in
+      the bar: the text with the link shows within a few seconds. Tap the link, then **Log me in**.
+    - As the office: `https://acme.<your domain>/office/login` with `acme.admin@example.com`
+      (or `acme.resourcer@…`, `acme.payroll@…`); the email shows on the Demo phone.
+    - Northline: `https://northline.<your domain>` (asks for the password again, once), with
+      `northline.admin@example.com`.
+    - The full tour, step by step: docs/walkthrough.md (its numbers and logins are the demo's).
+
+**Showing it to someone:** send them `https://acme.<your domain>`, the user name `demo` and the
+password. **Changing the password:** on the server, `nano /opt/shiftdesk/.env`, change
+`DEMO_SITE_PASSWORD`, save, then `/opt/shiftdesk/deploy.sh --now` ("Applied the settings in .env").
+**Loading it afresh now** (say, before a meeting): `/opt/shiftdesk/demo-reset.sh`.
+
+**If something's wrong:**
+- The site doesn't open, or the browser warns about the certificate: DNS isn't pointing at the
+  server yet (`ping`, step 4), or Cloudflare's orange cloud is on. `docker compose logs --tail 50
+  caddy` (in `/opt/shiftdesk`) says why.
+- `https://<your domain>/api/health` says `{"ok":true}` (no password needed) when the app is up.
+- `docker compose ps` shows what's running; `docker compose logs --tail 50 web worker` shows why
+  one isn't.
+- The worker stopped, saying "demo mode refuses to run": a firm that isn't a demo firm, or a
+  person with a real number or email, got into the database. `./demo-reset.sh` loads the demo
+  afresh (it refuses if a firm that isn't a demo firm is there: ask Claude).
+- A reset that failed leaves the demo as it was and running: `journalctl -u shiftdesk-demo-reset`
+  shows why.
 
 ## Rollback
 

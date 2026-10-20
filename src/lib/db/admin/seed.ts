@@ -60,11 +60,15 @@ export async function seed(opts: {
   adminUrl: string;
   appUrl: string;
   nodeEnv: string;
+  // "on" only from a demo server's reset (src/lib/db/admin/demo-reset.ts, 16.2), which has already
+  // checked it's a demo server and recreated the database.
+  demoMode?: "on";
   today?: Date;
 }): Promise<SeedSummary> {
-  // Checked before any connection is made (golden rule 7: fake data, never near real data).
-  if (opts.nodeEnv === "production")
-    throw new Error("The seed never runs with NODE_ENV=production");
+  // Checked before any connection is made (golden rule 7: fake data, never near real data). In
+  // production only on a demo server, whose database holds the made-up demo alone (ADR-025).
+  if (opts.nodeEnv === "production" && opts.demoMode !== "on")
+    throw new Error("The seed never runs with NODE_ENV=production (except a demo server's reset)");
   if (!isLocalHost(opts.adminUrl) || !isLocalHost(opts.appUrl)) {
     throw new Error("The seed only runs against a database on this machine");
   }

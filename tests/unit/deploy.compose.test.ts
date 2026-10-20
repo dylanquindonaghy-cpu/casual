@@ -320,10 +320,13 @@ describe("the image (Dockerfile)", () => {
     expect(runtime).toContain('CMD ["node_modules/.bin/next", "start", "-p", "3000"]');
   });
 
-  it("the app's code is root's (the app can't change it); only Next's cache is the app user's", () => {
+  it("the app's code is root's (the app can't change it); only Next's cache and the empty .dev folder are the app user's", () => {
     expect(runtime).toContain("COPY --from=build /app /app");
     expect(runtime).not.toMatch(/--chown=node/);
     expect(runtime).toContain("chown -R node:node /app/.next/cache");
+    // The demo server's outbox volume (16.2): an empty folder, not recursive.
+    expect(runtime).toContain("RUN mkdir -p /app/.dev && chown node:node /app/.dev");
+    expect([...runtime.matchAll(/chown/g)]).toHaveLength(2);
   });
 
   it("loads sharp's native image library in the runtime image (12F.2), so a missing one fails the build", () => {

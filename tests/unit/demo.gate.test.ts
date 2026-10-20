@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 import {
   checksItsOwnKey,
+  DEMO_NOT_SET_UP,
   DEMO_PASSWORD_NEEDED,
   DEMO_SITE_USER,
+  demoGate,
   demoLoginMatches,
-  demoSitePassword,
 } from "@/lib/demo/gate";
 import { createProxy } from "@/lib/http/proxy";
 import { createLogger } from "@/lib/log";
@@ -18,10 +19,20 @@ const basic = (user: string, password: string) =>
   `Basic ${Buffer.from(`${user}:${password}`, "utf8").toString("base64")}`;
 
 describe("the demo's password", () => {
-  it("is on only in demo mode with a password set", () => {
-    expect(demoSitePassword({ DEMO_MODE: "on", DEMO_SITE_PASSWORD: PASSWORD })).toBe(PASSWORD);
-    expect(demoSitePassword({ DEMO_MODE: "on" })).toBeUndefined();
-    expect(demoSitePassword({ DEMO_SITE_PASSWORD: PASSWORD })).toBeUndefined();
+  it("is asked in demo mode; without demo mode, never", () => {
+    for (const NODE_ENV of ["production", "development"]) {
+      expect(demoGate({ NODE_ENV, DEMO_MODE: "on", DEMO_SITE_PASSWORD: PASSWORD })).toEqual({
+        kind: "on",
+        password: PASSWORD,
+      });
+      expect(demoGate({ NODE_ENV, DEMO_SITE_PASSWORD: PASSWORD })).toEqual({ kind: "off" });
+    }
+  });
+
+  it("a production demo server with no password set turns everyone away; your own computer may go without", () => {
+    expect(demoGate({ NODE_ENV: "production", DEMO_MODE: "on" })).toEqual({ kind: "missing" });
+    expect(demoGate({ NODE_ENV: "development", DEMO_MODE: "on" })).toEqual({ kind: "off" });
+    expect(demoGate({ NODE_ENV: "test", DEMO_MODE: "on" })).toEqual({ kind: "off" });
   });
 
   it("matches only the user name demo with the password, exactly", () => {
@@ -57,7 +68,7 @@ describe("the proxy on a demo server", () => {
   const handle = createProxy(
     createLogger({ write: () => undefined }),
     () => "demo.example.co.uk",
-    () => PASSWORD,
+    () => ({ kind: "on", password: PASSWORD }),
   );
   const send = (path: string, headers: Record<string, string> = {}) =>
     handle(
@@ -119,6 +130,27 @@ describe("the proxy on a demo server", () => {
       }),
     );
     expect(res.status).toBe(404);
+  });
+
+  it("with no password set (production): every request turned away, but the server's own checks", async () => {
+    const unset = createProxy(
+      createLogger({ write: () => undefined }),
+      () => "demo.example.co.uk",
+      () => ({ kind: "missing" }),
+    );
+    const get = (path: string, headers: Record<string, string> = {}) =>
+      unset(
+        new NextRequest(`https://acme.demo.example.co.uk${path}`, {
+          headers: { host: "acme.demo.example.co.uk", ...headers },
+        }),
+      );
+    for (const path of ["/", "/login", "/demo", "/office"]) {
+      const res = get(path, { authorization: basic("demo", "anything-at-all-12") });
+      expect(res.status, path).toBe(503);
+      expect(await res.text(), path).toBe(DEMO_NOT_SET_UP);
+    }
+    expect(get("/api/health").status).toBe(200);
+    expect(get("/api/caddy/ask").status).toBe(200);
   });
 
   it("without demo mode (no password): no password asked, as before", () => {

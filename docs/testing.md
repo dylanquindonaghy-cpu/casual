@@ -224,6 +224,19 @@ conventions). Each one has a stand-in, the settings (`src/lib/env.ts`) refuse th
   who holds each come in (one read per sync, columns by header); bookings made here go back in one
   batch write; the three-way merge (office and portal changes at once), sheet names through the
   rules, conflicts, bad rows, failures, leases and deadlock retries; the shared roster contract.
+- `deploy.demo.test.ts` and `demo.reset.test.ts` — the demo server (16.2; ADR-025). The demo
+  compose file read by Docker Compose itself, laid out as the server is (both files chosen by
+  `COMPOSE_FILE` in the example `.env`, its database addresses filled in from its passwords):
+  Postgres over its socket only, with no port and a password on the socket; only Caddy reachable;
+  demo mode, every sender and the password set for the web app and the worker; the outbox written
+  by the worker and only read by the web app; the one-off reset; the app's own settings accepting
+  what each service gets, in production; no Postgres or demo without the demo file; `deploy.sh`'s
+  own image line picking the app's image either way. `deploy/demo-reset.sh` run with a stand-in
+  `docker` (refuses on a server that isn't a demo one before stopping anything; starts everything
+  again after a failed reset). The reset for real, as production, on a database of its own: its
+  refusals (before anything is dropped, a firm that isn't a demo firm included), the demo loaded
+  afresh and the outbox emptied, and the demo database refusing real numbers and emails from any
+  role, by the same rule as the worker's check (case by case).
 - `repo.made-up-data.test.ts` — golden rule 7: every email address in `src/`, `drizzle/`,
   `tests/`, `docs/` and the seed uses a reserved example domain (`.example`, `example.com`,
   `example.org`, `.test`, `.invalid`, `.localhost`), apart from a short reviewed allow-list of

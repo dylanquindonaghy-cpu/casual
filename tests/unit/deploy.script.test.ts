@@ -18,14 +18,14 @@ const IMAGE = "ghcr.io/owner/repo:main";
 const FAKE_DOCKER = `#!/usr/bin/env bash
 echo "$*" >> "$FAKE_LOG"
 case "$*" in
-  "compose -f docker-compose.yml config --images") printf '%s\\ncaddy:2.10\\n' "${IMAGE}" ;;
-  "compose -f docker-compose.yml pull --quiet web") ;;
+  "compose config --images") printf 'caddy:2.10\\npostgres:16\\n%s\\n' "${IMAGE}" ;;
+  "compose pull --quiet web") ;;
   "image inspect --format {{.Id}} ${IMAGE}") echo "$FAKE_TARGET" ;;
-  "compose -f docker-compose.yml ps --status running --quiet web worker")
+  "compose ps --status running --quiet web worker")
     if [ -n "$FAKE_RUNNING" ]; then printf '%s\\n' $FAKE_RUNNING; fi ;;
   "inspect --format {{.Image}} "*) echo "$FAKE_RUNNING_IMAGE" ;;
-  "compose -f docker-compose.yml run --rm migrate") ;;
-  "compose -f docker-compose.yml up -d --remove-orphans --wait --wait-timeout 180")
+  "compose run --rm migrate") ;;
+  "compose up -d --remove-orphans --wait --wait-timeout 180")
     printf '%s\\n' "$FAKE_UP_OUTPUT" >&2
     [ -z "$FAKE_UP_FAILS" ] || exit 1 ;;
   "image prune -f") ;;
@@ -70,8 +70,8 @@ function deploy(c: Case) {
   return { status: run.status, out: run.stdout, err: run.stderr, calls };
 }
 
-const MIGRATE = "compose -f docker-compose.yml run --rm migrate";
-const UP = "compose -f docker-compose.yml up -d --remove-orphans --wait --wait-timeout 180";
+const MIGRATE = "compose run --rm migrate";
+const UP = "compose up -d --remove-orphans --wait --wait-timeout 180";
 
 describe("deploy.sh, run", () => {
   it("a new image: the migration step, then the new version, and the commit it came from", () => {

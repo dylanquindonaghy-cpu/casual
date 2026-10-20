@@ -1,0 +1,13 @@
+# A demo server only (16.2; docs/runbooks.md "A demo server"): loads the made-up demo afresh
+# every night at 04:00 UK time (after the 02:30 UTC security-update restart, summer and winter),
+# so its dates stay current (shiftdesk-demo-reset.service). A night missed while the server was
+# off runs when it's next on.
+[Unit]
+Description=ShiftDesk demo: load the made-up demo afresh every night
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Europe/London
+Persistent=true
+
+[Install]
+WantedBy=timers.target

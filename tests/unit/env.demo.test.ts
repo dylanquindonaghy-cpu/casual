@@ -77,18 +77,16 @@ describe("demo mode settings", () => {
     );
   });
 
-  it("in production, the whole site needs its password: 12 characters or more", () => {
-    expect(problems(() => parseAppEnv({ ...app, ...demo }))).toMatch(
-      /demo mode in production needs DEMO_SITE_PASSWORD/,
-    );
+  it("the site password: 12 characters or more; the settings don't demand it (the web app's own gate does)", () => {
     expect(problems(() => parseAppEnv({ ...demoApp, DEMO_SITE_PASSWORD: "short-pass" }))).toMatch(
       /DEMO_SITE_PASSWORD/,
     );
     expect(parseAppEnv(demoApp).DEMO_SITE_PASSWORD).toBe("made-up-demo-password");
-    // On a computer of your own (development) demo mode may go without one.
-    expect(
-      parseAppEnv({ ...app, ...demo, NODE_ENV: "development" }).DEMO_SITE_PASSWORD,
-    ).toBeUndefined();
+    // The worker reads the app's settings too, in production, and never gets the password
+    // (deploy/docker-compose.demo.yml): they must take demo mode without it. A web app without it
+    // turns every request away instead (src/lib/demo/gate.ts; tests/unit/demo.gate.test.ts).
+    expect(parseAppEnv({ ...app, ...demo }).DEMO_SITE_PASSWORD).toBeUndefined();
+    expect(parseAppEnv(demoWorker).DEMO_MODE).toBe("on");
   });
 
   it("demo mode needs an outbox file, for the web app and the worker", () => {

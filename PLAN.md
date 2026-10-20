@@ -1170,6 +1170,37 @@ Done when: every task above is ticked with a stamp that includes the browser tes
 with `RUN_E2E=1` prints VERIFIED; no test or browser test calls a real push service, Twilio, an
 email server or Anthropic; the `claims-auditor` checks the phase against this line.
 
+## Phase 15 — Texts through our own system (proposed, not started)
+
+Proposed 2026-10-19 after Dylan's decision ("we wont need whatsapp or twillio notifications will
+come through our own text system and app"; see "Decided on 2026-10-19" under Decisions). Not
+started: it waits for Dylan's go-ahead and the text system's details (how a text is sent, whether
+incoming texts can be passed on, delivery reports, the sending number or name). It replaces
+Phases 4 and 7's unticked WhatsApp, Twilio and call items, "Connect Twilio" and "Submit the
+WhatsApp templates".
+Docs: `docs/messaging-templates.md`, `docs/architecture.md`, `docs/screens.md`.
+
+- [ ] Texts only: every casual reached by text (the `notify_channel` default and the rows already
+      there), no WhatsApp choice on Profile; the login link, the pay code and the reply to an
+      unknown number by text (`src/lib/auth/send-portal-link.ts`, `src/lib/auth/send-login-code.ts`,
+      `src/lib/inbound/reply.ts`: WhatsApp only today); a casual who replied STOP gets the app's
+      notifications only (today they'd switch to WhatsApp); every "WhatsApp or text" on screen
+      says "text" (login, pay code, Profile, Help, the office's offer list, Enquiries, the
+      dashboard's shifts line, the guide). Tests: each message by text, STOP, the words
+- [ ] Our text system's sender: a `MessagingTransport` (`src/lib/messaging/transport.ts`) for the
+      firm's text provider (`MESSAGING_TRANSPORT` takes only `console` today, so nothing is sent
+      for real), refused in tests like every real sender; its delivery reports if it has them
+- [ ] Replies by text, only if the text system can pass incoming texts on: its webhook (signature
+      checked, one row per message id, a fast 200), into the shifts line (`receiveSms`,
+      `src/lib/inbound/receive.ts`) with STOP and START. Call-to-text goes (it needed Twilio voice)
+
+Dylan to decide with it (Messages 2): the app's notification first and a text only when the phone
+has no notifications on (fewer texts to pay for), or both, as now.
+
+Done when: every task above is ticked with a stamp that includes the browser tests; `scripts/verify.sh`
+with `RUN_E2E=1` prints VERIFIED; no test or browser test sends a real text; the `claims-auditor`
+checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -1210,6 +1241,13 @@ switched on per firm (13.4); resourcers keep seeing pay messages' words in Enqui
 reply's log entry keeps the travel minutes; the hand-written TravelTime answers stand until the live
 check. Every other row that confirms what's built stays as it is for now ("keep, and revisit with a
 pilot firm"): rows tagged **Before a pilot** still need that look then.
+
+**Decided on 2026-10-19** (Dylan, in chat): "we wont need whatsapp or twillio notifications will
+come through our own text system and app". No WhatsApp and no Twilio: casuals are reached by text,
+through the firm's own text system, and by the app's notifications (web push). Phase 15 (proposed,
+waiting for the go-ahead) has the work. Rows tagged **Before submitting the WhatsApp templates**
+and **When you create the accounts** that name Twilio or WhatsApp need a fresh look against the
+text system once its details are known; Messages 2 (notification first, or both) is still open.
 
 **When each one matters** (every row with that tag):
 1. **Before any real data** (the pilot firm's staff, even a check of a file): Legal 1, 2, 4 and 6;
@@ -2165,7 +2203,10 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   decided in Phase 8), so nothing needs to SSH in; and the server reboots itself at 02:30 UTC when
   an update needs it, so every compose service needs `restart: unless-stopped`.
 - **Connect Twilio** (the Phase 4 "WhatsApp utility templates via Twilio…" task is blocked on it:
-  an account, a UK number, approved templates and money):
+  an account, a UK number, approved templates and money). **Not needed now** (Dylan, 2026-10-19:
+  no WhatsApp or Twilio; texts go through the firm's own text system: Phase 15). Kept for its
+  steps that still apply to any text provider (the sending number, opt-outs, deleting the
+  provider's copies):
   **Who does what:** steps marked **You** are yours (an account, a console, a phone, a decision).
   Steps marked **Claude** are code still to write after yours: the real sender for this service
   doesn't exist yet (the app has only a console or fake one), so each is a build round with its own
@@ -2456,7 +2497,8 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
     the office sees the sheet's change on Today instead); the profile's booked days count only
     `confirmed` bookings, so a day marked as worked loses its "booked" flag on the unavailable-days
     list.
-- **Submit the WhatsApp templates** (the Phase 4 "All copy … templates submitted to Meta" task is
+- **Submit the WhatsApp templates** (**not needed now**: Dylan, 2026-10-19, no WhatsApp; the words
+  still matter as the texts' words) (the Phase 4 "All copy … templates submitted to Meta" task is
   blocked on it: needs the Twilio account and WhatsApp sender from "Connect Twilio", step 1). The
   pack is `src/lib/messaging/whatsapp-templates.ts`: 20 templates (13 messages, plus 6 "no site"
   variants and a "no note" one), each
@@ -3254,6 +3296,13 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
   reported, the next commit or push is refused until it's undone, and the commit itself can be
   reverted. To close it: have `plan-bash-snapshot.sh` refuse, before it runs, a command that both
   writes `PLAN.md` and commits or pushes.
+- The walkthrough page (`walkthrough-site/`, 2026-10-19) is built from a screenshot run that isn't
+  in the repo (a Playwright tour on the walkthrough's own demo, then a page builder, both in
+  Claude's scratch space). After the app changes, its screens go stale. To keep it fresh: add the
+  tour and the builder under `scripts/`, run on demand (not in verify). Its run also showed two
+  things worth knowing: a text from a number nobody has gets no reply (only a WhatsApp did; the
+  office is emailed), and "When's my next shift?" has no keyword, so it goes to a person until
+  AI sorting is on.
 
 ## Hours log
 
@@ -3404,3 +3453,4 @@ pilot firm"): rows tagged **Before a pilot** still need that look then.
 | 2026-10-19 | 14 | 1.1 | Pushes after the record's transaction (14.1): all 7 senders push once the message has gone, the phones read in a short transaction of their own and pushed with none open, the outcome (gone phones forgotten, only if their keys are unchanged, in a savepoint; the count) recorded in the sender's own transaction; a push that throws, even at once, or a lookup that fails never loses the record; an error's name never logged; a call with a transaction open refused; production now takes `PUSH_TRANSPORT=webpush`; every sender's test checks no transaction is open at each push; guardrails no FIX FIRST, 5 SHOULDs fixed; the first full check caught 4 no-resend tests whose fault now hit the push's lookup (harness now fails every transaction after a send); 9 break checks; 4,947 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
 | 2026-10-19 | 14 | 0.6 | Login safety and the log's filters (14.2): an ops alert when a firm sends more than 100 login links by WhatsApp and text in an hour, and another over 300 in 24 hours (the review's slow drip), each its own key; an alert, not a ceiling; the words only the firm's short name and a count, through the masker; the office log files each limit reached by its name (Take shift under Bookings, phones under Workers, the planner's key and the strikes team's links under Firm settings, the rest under Logins), the filter and the list agreeing, every limit the app has covered by a test; a stale doc line on login-link failures corrected; guardrails no FIX FIRST, 2 SHOULDs fixed (the strikes links, the day count); 11 break checks; 4,952 tests + 92 e2e + the walkthrough's 3; audit DONE first round (see docs/work-log.md) |
 | 2026-10-19 | 14 | 0.5 | Small fixes (14.3): the shifts line's last-resort reply always signed (golden rule 8), its text cut to leave the sign-off room; automatic event names cut the site's name between whole characters (never half a flag); a licence warning caught up after a crash logs no channel rather than guessing; the new event-name cases folded into the existing test file; guardrails no FIX FIRST or SHOULD, its notes acted on (two comments and a doc line, an unmasked error name parked); 5 break checks; 4,954 tests + 92 e2e + the walkthrough's 3; audit DONE first round, with Phase 14's Done-when line; Phase 14 in all 2.2 h (see docs/work-log.md) |
+| 2026-10-19 | — | 1.3 | Not a PLAN task: the full walkthrough (`walkthrough-site/`, also a private artifact): 82 real screenshots of a production build from one scripted run of the demo with every casual on texts (the casual's app, the office, payroll, the admin, a second firm), a 10-step story, every feature with what it does and how, the real texts the run sent, the rules, the records, and what's left; a static page any host can serve (Vercel: Root Directory `walkthrough-site`); Dylan's no-WhatsApp/Twilio decision recorded and Phase 15 proposed; the 14.3 work-log entry's broken last line fixed (see docs/work-log.md) |

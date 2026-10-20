@@ -16,7 +16,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   return (
     <main className={pageWidth.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <ShiftView page={page} timeZone={firm.timezone} now={now} eyebrow={firm.name} />
+      <ShiftView page={page} timeZone={firm.timezone} now={now} />
       <Link href="/" className={`${staffBtn.secondary} mt-8`}>
         Back to my shifts
       </Link>

@@ -69,6 +69,9 @@ const TEXT: [string, string][] = [
   ["quiet-ink", "quiet-soft"],
   ["on-ink", "ink"],
   ["on-ink", "ink-hover"],
+  // The default brand (a firm with its own colour gets the text colour that reads on it:
+  // tests/unit/tenancy.brand.test.ts).
+  ["on-brand", "brand"],
   ["on-urgent", "urgent-fill"],
   ["on-urgent", "urgent-fill-hover"],
 ];
@@ -89,6 +92,7 @@ const CONTROLS: [string, string][] = [
   ["ink", "canvas"],
   ["ink", "card"],
   ["ink", "panel"],
+  ["brand", "card"],
 ];
 
 describe("the themes (src/app/globals.css)", () => {

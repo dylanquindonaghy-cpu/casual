@@ -52,6 +52,7 @@ describe("the brand on the portal", () => {
       logoUrl: null,
       background: DEFAULT_BRAND_COLOUR,
       text: "#ffffff",
+      own: false,
     });
   });
 
@@ -68,6 +69,7 @@ describe("the brand on the portal", () => {
       logoUrl: "https://logo.example.invalid/a.png",
       background: "#ffff00",
       text: "#000000",
+      own: true,
     });
     expect(await brandOf(b.f.firmId)).toMatchObject({
       name: b.name,

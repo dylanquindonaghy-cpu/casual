@@ -20,11 +20,11 @@ const RESPONSE: Record<NonNullable<OfferPage["offered"][number]["response"]>, st
   failed: "couldn't be sent",
 };
 
-export function OfferView({ page, eyebrow }: { page: OfferPage; eyebrow: string }) {
+export function OfferView({ page }: { page: OfferPage }) {
   const { shift, timeZone } = page;
   return (
     <>
-      <PageHeader eyebrow={eyebrow} title="Offer this shift">
+      <PageHeader title="Offer this shift">
         <p className="text-lg font-semibold">
           <Link
             href={`/office/shifts/${shift.shiftId}`}

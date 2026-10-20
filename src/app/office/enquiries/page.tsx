@@ -74,7 +74,7 @@ export default async function EnquiriesPage({
   const now = new Date();
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={<>{firm.name} office</>} title="Enquiries" />
+      <PageHeader title="Enquiries" />
       <p className={`${nums} -mt-2`}>{countsLine(list.today, list.needPerson, now)}</p>
       {appEnv().AI_TRANSPORT === "none" && (
         <p className="mt-4 rounded-md border-l-4 border-attention bg-attention-soft px-3 py-2 text-attention-ink">

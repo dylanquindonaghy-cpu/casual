@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { page, staffBtn } from "@/app/ui/classes";
+import { page } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireWorker, steppedUpWorker } from "@/lib/auth/current-worker";
 import { hasLiveCode } from "@/lib/auth/step-up";
@@ -36,7 +35,7 @@ export default async function PayPage() {
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader eyebrow={firm.name} title="Your pay" />
+      <PageHeader title="Your pay" />
       {lines ? (
         <>
           <PayView lines={lines} firmName={firm.name} />
@@ -45,9 +44,6 @@ export default async function PayPage() {
       ) : (
         <CodeGate codeWaiting={await hasLiveCode({ firm }, session)} />
       )}
-      <Link href="/" className={`${staffBtn.secondary} mt-8`}>
-        Back to my shifts
-      </Link>
       <CasualTabBar firm={firm} workerId={worker.id} current="pay" />
     </main>
   );

@@ -24,7 +24,6 @@ import { StatusChip, type StatusTone } from "../ui/status-chip";
 // shift in full (src/app/home-view.tsx).
 
 export interface BookedViewProps {
-  eyebrow?: string; // the firm's name above the heading
   timeZone: string;
   now: Date;
   view: ShiftsView;
@@ -39,7 +38,7 @@ export function BookedView(props: BookedViewProps) {
   const updated = timeOnDay(now, timeZone);
   return (
     <>
-      <PageHeader eyebrow={props.eyebrow} title="Booked shifts">
+      <PageHeader title="Booked shifts">
         <p className={muted}>Updated {updated}</p>
       </PageHeader>
       <OfflineNotice updated={updated} />

@@ -69,7 +69,7 @@ export default async function OfficeCasualPage({ params }: { params: Promise<{ i
   const thisYear = localDateOf(new Date(), tz).slice(0, 4);
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={<>{firm.name} office</>} title={worker.name}>
+      <PageHeader title={worker.name}>
         {worker.erased ? (
           <p>Their details were deleted. There&apos;s nothing to change here.</p>
         ) : (

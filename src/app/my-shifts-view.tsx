@@ -35,7 +35,7 @@ export function ShiftsSwitch({ current }: { current: "open" | "booked" }) {
   return (
     <nav
       aria-label="Open or booked"
-      className="mb-4 grid grid-cols-2 divide-x-2 divide-line-strong overflow-hidden rounded-xl border-2 border-line-strong"
+      className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-quiet-soft p-1"
     >
       <Toggle href="/shifts/open" current={current === "open"}>
         Open
@@ -47,9 +47,9 @@ export function ShiftsSwitch({ current }: { current: "open" | "booked" }) {
   );
 }
 
-// The Upcoming / Past 30 days switch: a segmented control, not a button. The current half is
-// shaded, bold and underlined (and aria-current); the words sit directly in the link. The focus
-// ring is drawn inside, as the rounded frame clips anything outside.
+// The Upcoming / Past 30 days switch: a segmented control, not a button. The current half is a
+// raised white pill with bold words (and aria-current); the words sit directly in the link. The
+// focus ring is drawn inside the pill.
 export function Toggle({
   href,
   current,
@@ -63,39 +63,14 @@ export function Toggle({
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
-      className={`flex min-h-12 items-center justify-center border-b-4 px-3 text-center focus-visible:-outline-offset-4 ${
+      className={`flex min-h-11 items-center justify-center rounded-lg border px-3 text-center focus-visible:-outline-offset-4 ${
         current
-          ? "border-b-ink bg-quiet-soft font-bold text-ink"
-          : "border-b-transparent font-semibold text-ink-muted hover:bg-quiet-soft hover:text-ink"
+          ? "border-line bg-card font-bold text-ink"
+          : "border-transparent font-semibold text-ink-muted hover:text-ink"
       }`}
     >
       {children}
     </Link>
-  );
-}
-
-// The maps button and the instructions, for a card that names the site itself (Home's next shift).
-export function ShiftMapAndInstructions({ shift }: { shift: MyShift }) {
-  const map = shift.site ? mapLink(shift.site) : null;
-  return (
-    <>
-      {map && (
-        <a
-          href={map}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${staffBtn.secondary} mt-3`}
-        >
-          Open in maps
-        </a>
-      )}
-      {shift.instructions && (
-        <div className="mt-4 rounded-xl bg-quiet-soft p-4">
-          <h3 className="font-semibold">Instructions</h3>
-          <p className="mt-1 whitespace-pre-line">{shift.instructions}</p>
-        </div>
-      )}
-    </>
   );
 }
 
@@ -122,7 +97,7 @@ export function ShiftDetails({ shift }: { shift: MyShift }) {
         </div>
       )}
       {shift.instructions && (
-        <div className="mt-4 rounded-xl bg-quiet-soft p-4">
+        <div className="mt-3 rounded-xl bg-quiet-soft p-3 text-base">
           <h3 className="font-semibold">Instructions</h3>
           <p className="mt-1 whitespace-pre-line">{shift.instructions}</p>
         </div>
@@ -133,11 +108,11 @@ export function ShiftDetails({ shift }: { shift: MyShift }) {
 
 // What the worker can still do about a confirmed booking before it starts: ask the office for a
 // change (a time change or a swap), or cancel it. Once it has started, both are the office's.
-// Set apart from the details by a line; cancelling looks destructive.
+// Cancelling is quiet red words under the change button: there, but not shouting.
 export function ShiftActions({ shift, now }: { shift: MyShift; now: Date }) {
   if (shift.status !== "confirmed" || shift.startsAt.getTime() <= now.getTime()) return null;
   return (
-    <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+    <div className="mt-3 flex flex-col gap-1">
       <Link href={`/requests/new?shift=${shift.shiftId}`} className={staffBtn.secondary}>
         Ask for a change
       </Link>

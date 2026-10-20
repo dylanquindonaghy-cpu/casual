@@ -9,7 +9,6 @@ import {
   COUNTS,
   expiredText,
   HIDDEN_WARNING,
-  moreSessionsText,
   NEEDS_HEADINGS,
   noticeChip,
   plannerRefusedText,
@@ -22,14 +21,7 @@ import {
   type NeedsKey,
   type SectionKey,
 } from "@/lib/office/dashboard-copy";
-import {
-  eventSummary,
-  eventSwitchLabel,
-  eventWhereWhen,
-  filledText,
-  sessionName,
-  spansDays,
-} from "@/lib/office/events-copy";
+import { eventSummary, eventSwitchLabel, eventWhereWhen } from "@/lib/office/events-copy";
 import {
   placesText,
   sheetChangeText,
@@ -39,17 +31,28 @@ import {
 } from "@/lib/office/today-copy";
 import { noticeText } from "@/lib/portal/cancel-reasons";
 import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
-import { card, h2, headingGap, meta, nums, row, rows, sectionGap, textLink } from "../ui/classes";
+import {
+  card,
+  h2,
+  headingGap,
+  meta,
+  nums,
+  row,
+  rows,
+  sectionGap,
+  table,
+  textLink,
+} from "../ui/classes";
 import { StatusChip } from "../ui/status-chip";
 import { EnquiryItem } from "./enquiries/enquiry-row";
 import { ShowingSwitch } from "./events/showing-switch";
 import { BookingToCheckActions } from "./keep-booking";
 import { ShiftActions } from "./shift-actions";
 
-// The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`). Pure: the page
-// loads the data. The four counts first, each a link to its list (the first tinted and larger),
-// then the sections in the spec's order, each with its hint, its empty words and, when its data
-// couldn't be read, its error words. Needs attention holds the to-dos in parts (the regions the
+// The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`; Phase 17). Pure: the
+// page loads the data. The four counts first, in one strip, each a link to its list (the first in
+// red when there are urgent shifts), then the sections (DashboardContent's order), each with its
+// hint, its empty words and, when its data couldn't be read, its error words. Needs attention holds the to-dos in parts (the regions the
 // browser tests find them by); the bell in the top bar counts its items.
 
 // --- The counts ------------------------------------------------------------------------------
@@ -57,26 +60,26 @@ import { ShiftActions } from "./shift-actions";
 function Counts({ d }: { d: Dashboard }) {
   return (
     <nav aria-label="Counts">
-      <ul role="list" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <ul
+        role="list"
+        className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line lg:grid-cols-4"
+      >
         {COUNTS.map((c, i) => {
           const n = countNumber(c.key, d.counts);
-          const first = i === 0;
+          // The first count (urgent shifts not filled) is red only when there are some.
+          const alarm = i === 0 && (n ?? 0) > 0;
           return (
-            <li key={c.key}>
+            <li key={c.key} className="bg-card">
               <Link
                 href={c.href}
-                className={`flex h-full flex-col gap-1 rounded-xl border-2 p-3 shadow-sm hover:border-ink sm:p-4 ${
-                  first ? "border-urgent bg-urgent-soft" : "border-line bg-card"
-                }`}
+                className="flex h-full flex-col gap-1 p-4 hover:bg-quiet-soft focus-visible:-outline-offset-4"
               >
+                <span className="text-sm leading-snug font-semibold text-ink">{c.label}</span>
                 <span
-                  className={`leading-none font-bold ${nums} ${
-                    first ? "text-3xl text-urgent" : "text-2xl text-ink-muted"
-                  }`}
+                  className={`text-3xl leading-none font-bold ${nums} ${alarm ? "text-urgent" : "text-ink"}`}
                 >
                   {n ?? "–"}
                 </span>
-                <span className="text-sm leading-snug font-semibold text-ink">{c.label}</span>
                 <span className={`text-sm leading-snug text-ink-muted ${nums}`}>
                   {countLine(c.key, d.counts, d.timeZone)}
                 </span>
@@ -91,11 +94,19 @@ function Counts({ d }: { d: Dashboard }) {
 
 // --- Sections --------------------------------------------------------------------------------
 
-function Section({ id, children }: { id: SectionKey; children: ReactNode }) {
+function Section({
+  id,
+  children,
+  className = "",
+}: {
+  id: SectionKey;
+  children: ReactNode;
+  className?: string;
+}) {
   const s = SECTIONS[id];
   const headingId = id === "needs" ? "needs-attention" : id;
   return (
-    <section className={sectionGap.office} aria-labelledby={headingId}>
+    <section className={className} aria-labelledby={headingId}>
       <h2 id={headingId} className={`${h2} scroll-mt-20`}>
         {s.heading}
       </h2>
@@ -138,10 +149,10 @@ function UrgentCards({ d }: { d: Dashboard }) {
               <article
                 key={e.eventId}
                 aria-labelledby={`urgent-${e.eventId}`}
-                className={`${card} flex flex-col gap-3 border-l-4 border-l-urgent`}
+                className={`${card} flex flex-col gap-3`}
               >
                 <div>
-                  <h3 id={`urgent-${e.eventId}`} className="text-lg font-bold">
+                  <h3 id={`urgent-${e.eventId}`} className="font-bold">
                     <Link href={`/office/events/${e.eventId}`} className={textLink}>
                       {e.name}
                     </Link>
@@ -157,12 +168,11 @@ function UrgentCards({ d }: { d: Dashboard }) {
                   {e.sessions.map((s) => (
                     <li
                       key={s.shiftId}
-                      className="flex flex-col gap-3 border-t border-line pt-3 first:border-t-0 first:pt-0 lg:flex-row lg:items-start lg:justify-between lg:gap-6"
+                      className="flex flex-col gap-3 border-t border-line pt-3 first:border-t-0 first:pt-0"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <StatusChip tone="urgent">Urgent</StatusChip>
-                          <StatusChip tone="attention">
+                          <StatusChip tone="urgent">
                             {placesText(s.placesLeft, s.headcount)}
                           </StatusChip>
                           {s.fromSheet && (
@@ -189,7 +199,6 @@ function UrgentCards({ d }: { d: Dashboard }) {
                         isUrgent
                         fromSheet={s.fromSheet}
                         fromPlanner={s.fromPlanner}
-                        className="lg:shrink-0"
                       />
                     </li>
                   ))}
@@ -204,6 +213,8 @@ function UrgentCards({ d }: { d: Dashboard }) {
   );
 }
 
+// What casuals can see, one row per event (Phase 17): its name, where and when, how many sessions
+// and places are free, and its switch. Each event's sessions are on its own page.
 function ShowingCards({ d }: { d: Dashboard }) {
   const tz = d.timeZone;
   return (
@@ -213,28 +224,42 @@ function ShowingCards({ d }: { d: Dashboard }) {
           <Empty>{SECTIONS.showing.empty}</Empty>
         ) : (
           <div className={headingGap}>
-            <ul role="list" className="grid gap-3 lg:grid-cols-2">
-              {sh.events.map((e) => {
-                const withDay = spansDays(e, tz);
-                return (
-                  <li key={e.eventId}>
-                    <article
-                      aria-labelledby={`showing-${e.eventId}`}
-                      className={`${card} flex h-full flex-col gap-2`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 id={`showing-${e.eventId}`} className="font-bold">
-                            <Link href={`/office/events/${e.eventId}`} className={textLink}>
-                              {e.name}
-                            </Link>
-                          </h3>
-                          <p className={`${meta} ${nums}`}>
-                            {[eventWhereWhen(e, tz), eventSummary(e)]
-                              .filter((x) => x !== e.name)
-                              .join(" · ")}
-                          </p>
-                        </div>
+            <div
+              role="region"
+              aria-label="Events showing to casuals"
+              tabIndex={0}
+              className={table.wrap}
+            >
+              <table className={table.table}>
+                <thead>
+                  <tr>
+                    <th scope="col" className={table.th}>
+                      Event
+                    </th>
+                    <th scope="col" className={table.th}>
+                      Where and when
+                    </th>
+                    <th scope="col" className={table.th}>
+                      Sessions
+                    </th>
+                    <th scope="col" className={`${table.th} text-right`}>
+                      Showing
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sh.events.map((e) => (
+                    <tr key={e.eventId}>
+                      <th scope="row" className={`${table.td} align-middle font-semibold`}>
+                        <Link href={`/office/events/${e.eventId}`} className={textLink}>
+                          {e.name}
+                        </Link>
+                      </th>
+                      <td className={`${table.td} align-middle text-ink-muted ${nums}`}>
+                        {eventWhereWhen(e, tz)}
+                      </td>
+                      <td className={`${table.td} align-middle ${nums}`}>{eventSummary(e)}</td>
+                      <td className={`${table.td} text-right align-middle`}>
                         <ShowingSwitch
                           target="event"
                           id={e.eventId}
@@ -242,22 +267,12 @@ function ShowingCards({ d }: { d: Dashboard }) {
                           label={eventSwitchLabel(e)}
                           small
                         />
-                      </div>
-                      <ul role="list" className={`flex flex-col gap-1 text-sm ${nums}`}>
-                        {e.sessions.map((s) => (
-                          <li key={s.shiftId}>
-                            {sessionName(s, tz, withDay)} · {filledText(s)}
-                          </li>
-                        ))}
-                      </ul>
-                      {e.moreSessions > 0 && (
-                        <p className={`${meta} text-sm`}>{moreSessionsText(e.moreSessions)}</p>
-                      )}
-                    </article>
-                  </li>
-                );
-              })}
-            </ul>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {sh.more > 0 && (
               <p className={`${meta} mt-3`}>
                 And {sh.more} more.{" "}
@@ -585,26 +600,35 @@ function NeedsItems({
   );
 }
 
+// What needs someone now comes first (Phase 17): the counts, then urgent shifts and Needs
+// attention in the main column, the latest cancellations and enquiries beside them (below them on
+// narrower screens), and what casuals can see last.
 export function DashboardContent({ d, isAdmin = false }: { d: Dashboard; isAdmin?: boolean }) {
   return (
     <>
       <Counts d={d} />
-      <Section id="urgent">
-        <UrgentCards d={d} />
-      </Section>
-      <Section id="showing">
+      <div className="mt-8 grid gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="flex min-w-0 flex-col gap-10">
+          <Section id="urgent">
+            <UrgentCards d={d} />
+          </Section>
+          <Section id="needs">
+            <Loaded part={d.needs}>
+              {(n) => <NeedsItems n={n} timeZone={d.timeZone} today={d.today} isAdmin={isAdmin} />}
+            </Loaded>
+          </Section>
+        </div>
+        <div className="flex min-w-0 flex-col gap-10">
+          <Section id="cancellations">
+            <LatestCancellations d={d} />
+          </Section>
+          <Section id="enquiries">
+            <LatestEnquiries d={d} />
+          </Section>
+        </div>
+      </div>
+      <Section id="showing" className={sectionGap.office}>
         <ShowingCards d={d} />
-      </Section>
-      <Section id="cancellations">
-        <LatestCancellations d={d} />
-      </Section>
-      <Section id="enquiries">
-        <LatestEnquiries d={d} />
-      </Section>
-      <Section id="needs">
-        <Loaded part={d.needs}>
-          {(n) => <NeedsItems n={n} timeZone={d.timeZone} today={d.today} isAdmin={isAdmin} />}
-        </Loaded>
       </Section>
     </>
   );

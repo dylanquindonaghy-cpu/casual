@@ -67,7 +67,7 @@ export function DemoPhoneView({
 }) {
   return (
     <>
-      <PageHeader eyebrow={firmName} title="Demo phone">
+      <PageHeader title="Demo phone">
         <p>
           This demo sends no real texts or emails. Everything {firmName} would send to its casuals
           and office team shows here instead, newest first.

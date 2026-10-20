@@ -29,7 +29,7 @@ export default async function PayQueryPage() {
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader eyebrow={firm.name} title="Raise a pay query">
+      <PageHeader title="Raise a pay query">
         {shifts ? (
           <p>Payroll will look at it. You&apos;ll see its status on your pay page.</p>
         ) : null}

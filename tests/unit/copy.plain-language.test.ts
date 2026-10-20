@@ -262,7 +262,6 @@ const openList = (o: Partial<Parameters<typeof OpenShiftsView>[0]["list"]> = {})
 const homeScreen = (o: Partial<Parameters<typeof HomeView>[0]>) =>
   createElement(HomeView, {
     firstName: "Sam",
-    voice,
     timeZone: TZ,
     now: NOW,
     next: null,

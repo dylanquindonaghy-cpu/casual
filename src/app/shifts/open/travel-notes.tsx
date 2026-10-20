@@ -16,7 +16,7 @@ import { btn, muted } from "../../ui/classes";
 export function AreaPrompt({ list }: { list: OpenShiftsList }) {
   if (!list.travelOn || list.area) return null;
   return (
-    <div className="mb-6 rounded-xl bg-quiet-soft p-4">
+    <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3 text-base">
       <p>{AREA_PROMPT}</p>
       <Link href={TRAVEL_PATH} className={btn.link}>
         {AREA_PROMPT_LINK}

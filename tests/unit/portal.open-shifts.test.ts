@@ -48,7 +48,8 @@ describe("Open shifts page body", () => {
     const words = text(render(list()));
     expect(words).toContain("Open shifts");
     expect(words).toContain("Nothing open right now. We'll message you when something matches.");
-    expect(words).toContain("Back to my shifts");
+    // No "Back" button: the tab bar under every casual page goes there (Phase 17).
+    expect(words).not.toContain("Back to my shifts");
   });
 
   it("only promises a message to workers who want open shift messages", () => {

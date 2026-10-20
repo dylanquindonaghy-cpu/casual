@@ -3,8 +3,10 @@
 // Every class is written out in full so Tailwind finds it. Add spacing (mt-4, self-start, w-full)
 // where you use one: `${btn.primary} mt-4`.
 
+// Phase 17's look ("easier to scan"): flat (no shadows), one hairline on cards, a 1px border on
+// office controls; on the casual app the main action takes the firm's own colour (`brand`).
 const office =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border-2 px-4 py-2 text-center text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-center text-base font-semibold disabled:cursor-not-allowed disabled:opacity-60";
 const staff =
   "flex w-full min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-center text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -30,17 +32,22 @@ export const textLink = "underline decoration-line-strong underline-offset-4 hov
 export const textLinkInGroup =
   "underline decoration-line-strong underline-offset-4 group-hover:decoration-ink";
 
-// Staff buttons: full width, at least 56px tall, for thumbs.
+// Staff buttons: full width, at least 56px tall, for thumbs. The main one in the firm's colour.
 export const staffBtn = {
-  primary: `${staff} border-ink bg-ink text-on-ink hover:border-ink-hover hover:bg-ink-hover`,
-  secondary: `${staff} border-ink bg-card text-ink hover:bg-quiet-soft`,
-  danger: `${staff} border-urgent bg-card text-urgent-ink hover:bg-urgent-soft`,
+  primary: `${staff} border-brand bg-brand text-on-brand hover:brightness-110`,
+  secondary: `${staff} border-line-strong bg-card text-ink hover:bg-quiet-soft`,
+  // Opens a destructive step: quiet red words, so it doesn't compete with the main action.
+  danger: `${staff} border-transparent bg-transparent text-urgent-ink hover:bg-urgent-soft`,
   dangerSolid: `${staff} border-urgent-fill bg-urgent-fill text-on-urgent hover:border-urgent-fill-hover hover:bg-urgent-fill-hover`,
 };
 
+// A smaller staff button, two to a row ("Open in maps" beside "Ask for a change" on Home).
+export const staffBtnSmall =
+  "flex min-h-12 items-center justify-center rounded-xl border-2 border-line-strong bg-card px-3 py-2 text-center text-base font-semibold text-ink hover:bg-quiet-soft";
+
 // Inputs, selects and textareas (office). Add w-full or a width where you use it.
 export const field =
-  "min-h-11 rounded-lg border-2 border-line-strong bg-card px-3 py-2 text-base font-normal text-ink pointer-coarse:text-lg";
+  "min-h-11 rounded-lg border border-line-strong bg-card px-3 py-2 text-base font-normal text-ink pointer-coarse:text-lg";
 // Staff inputs: full width and bigger.
 export const staffField =
   "min-h-14 w-full rounded-xl border-2 border-line-strong bg-card px-4 py-3 text-lg font-normal text-ink";
@@ -51,9 +58,9 @@ export const labelStack = "flex flex-col gap-1 font-semibold text-ink";
 export const hint = "text-sm text-ink-muted";
 
 // A white card on the canvas, for an item with buttons.
-export const card = "rounded-xl border border-line bg-card p-4 shadow-sm";
+export const card = "rounded-xl border border-line bg-card p-4";
 // One card holding compact rows (read-only or repeated items): <ul className={rows}><li className={row}>.
-export const rows = "divide-y divide-line rounded-xl border border-line bg-card shadow-sm";
+export const rows = "divide-y divide-line rounded-xl border border-line bg-card";
 export const row = "px-4 py-3";
 
 // Section heading (h2), and the space between sections and under a heading.
@@ -82,23 +89,24 @@ export const page = {
 
 // The login card, inside `page.login`: framed from 640px up; on a phone there's no frame (the
 // page is the card), with the same 24px edge as the brand bar. Its one <h1> is `loginTitle`.
-export const loginCard = "sm:rounded-xl sm:border sm:border-line sm:bg-card sm:p-6 sm:shadow-sm";
-export const loginTitle = "text-3xl font-bold tracking-tight text-balance text-ink";
+export const loginCard = "sm:rounded-xl sm:border sm:border-line sm:bg-card sm:p-6";
+export const loginTitle = "text-2xl font-bold tracking-tight text-balance text-ink";
 
 // Report tables: the wrapper scrolls sideways on small screens. Give it role="region",
-// tabIndex={0} and an aria-label. Numbers right aligned (`num`).
+// tabIndex={0} and an aria-label. Numbers right aligned (`num`). Grey headers with no band.
 export const table = {
-  wrap: "overflow-x-auto rounded-xl border border-line bg-card shadow-sm",
+  wrap: "overflow-x-auto rounded-xl border border-line bg-card",
   table: "w-full border-collapse text-left text-sm",
-  th: "border-b border-line bg-quiet-soft px-3 py-2 font-semibold text-ink",
+  th: "border-b border-line px-3 py-2 font-semibold text-ink-muted",
   td: "border-b border-line px-3 py-2 align-top",
   num: "text-right tabular-nums",
 };
 
 // Status chips (used by <StatusChip>, src/app/ui/status-chip.tsx). Colour always has its word.
+// Pale tints with dark words of the same hue, so a list of urgent rows doesn't shout.
 export const chip = {
   base: "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 align-middle text-sm font-semibold leading-5",
-  urgent: "border-urgent-fill bg-urgent-fill text-on-urgent",
+  urgent: "border-urgent bg-urgent-soft text-urgent-ink",
   attention: "border-attention bg-attention-soft text-attention-ink",
   done: "border-done bg-done-soft text-done-ink",
   quiet: "border-line-strong bg-quiet-soft text-quiet-ink",

@@ -32,7 +32,7 @@ export default async function IntegrationsPage() {
   const tz = firm.timezone;
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Integrations">
+      <PageHeader title="Integrations">
         <p>Connect your planner, so it can send its sessions to ShiftDesk.</p>
       </PageHeader>
 

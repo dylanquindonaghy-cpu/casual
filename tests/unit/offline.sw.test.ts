@@ -853,7 +853,6 @@ describe("My shifts and the kept copy together", () => {
         which === "Home"
           ? createElement(HomeView, {
               firstName: "Sam",
-              voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
               timeZone: "Europe/London",
               now,
               next: null,

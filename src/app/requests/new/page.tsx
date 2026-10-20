@@ -27,7 +27,7 @@ export default async function NewRequestPage({
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <PageHeader eyebrow={firm.name} title="New request" />
+      <PageHeader title="New request" />
       {shifts.length === 0 ? (
         <p>You have no upcoming shifts to ask about.</p>
       ) : (

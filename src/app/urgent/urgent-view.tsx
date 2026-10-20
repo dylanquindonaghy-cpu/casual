@@ -14,16 +14,14 @@ export function UrgentView({
   list,
   timeZone,
   now,
-  eyebrow,
 }: {
   list: OpenShiftsList;
   timeZone: string;
   now: Date;
-  eyebrow?: string; // the firm's name above the heading
 }) {
   return (
     <>
-      <PageHeader eyebrow={eyebrow} title="Urgent shifts">
+      <PageHeader title="Urgent shifts">
         <p>Shifts starting soon that need someone now.</p>
       </PageHeader>
       <AreaPrompt list={list} />

@@ -54,21 +54,19 @@ export function ProfileView({
   profile,
   signOff,
   push = null,
-  eyebrow,
   strikes = null,
   travel = null,
 }: {
   profile: Profile;
   signOff: string;
   push?: { publicKey: string | null; firmName: string } | null;
-  eyebrow?: string; // the firm's name above the heading
   strikes?: MyStrikes | null;
   travel?: MyTravel | null;
 }) {
   const year = Number(profile.today.slice(0, 4));
   return (
     <>
-      <PageHeader eyebrow={eyebrow} title={`${profile.firstName} ${profile.lastName}`} />
+      <PageHeader title={`${profile.firstName} ${profile.lastName}`} />
 
       <section aria-labelledby="contact-heading" className={card}>
         <h2 id="contact-heading" className={h2}>

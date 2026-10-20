@@ -51,7 +51,6 @@ const home = (shifts: OpenShift[]) => {
   return renderToStaticMarkup(
     createElement(HomeView, {
       firstName: "Zoe",
-      voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
       timeZone: TZ,
       now: NOW,
       next: null,
@@ -92,7 +91,6 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     const html = renderToStaticMarkup(
       createElement(HomeView, {
         firstName: "Zoe",
-        voice: { name: "Acme Events", signOff: "Acme Events Shift Team" },
         timeZone: TZ,
         now: NOW,
         next: null,

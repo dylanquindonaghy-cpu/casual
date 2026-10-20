@@ -1,37 +1,91 @@
 import Link from "next/link";
-import { h2, headingGap, muted, nums, row, rows, sectionGap, staffBtn } from "@/app/ui/classes";
+import {
+  h2,
+  headingGap,
+  meta,
+  muted,
+  nums,
+  row,
+  rows,
+  sectionGap,
+  staffBtn,
+} from "@/app/ui/classes";
 import { StatusChip, type StatusTone } from "@/app/ui/status-chip";
 import { hoursText, pounds, type PayLine } from "@/lib/portal/pay-format";
 import { ISSUE_LABELS, PAY_QUERY_STATUS_WORDS, type PayIssue } from "@/lib/portal/pay-query-kinds";
 import { dayLabel } from "@/lib/rules/reasons";
 
 // The pay page once the code has been checked (docs/screens.md, `/pay`): the last 8 weeks of pay
-// lines as payroll sent them, one row each. Only what the payroll file had: a gross that wasn't
-// in it isn't worked out here.
+// lines as payroll sent them. The newest first and largest (Phase 17: what she opens Pay to see),
+// then the earlier weeks as compact rows, the amount and pay date on the right. Only what the
+// payroll file had: a gross that wasn't in it isn't worked out here.
 export function PayView({ lines, firmName }: { lines: PayLine[]; firmName: string }) {
   if (lines.length === 0) {
     return <p>No pay data yet for this period.</p>;
   }
+  const [latest, ...earlier] = lines as [PayLine, ...PayLine[]];
   return (
     <>
-      <p className={muted}>The last 8 weeks, from {firmName}&apos;s payroll.</p>
-      <ul role="list" className={`${rows} ${headingGap} ${nums}`}>
-        {lines.map((line) => (
-          <li key={`${line.periodStart}:${line.periodEnd}:${line.ratePence}`} className={row}>
-            <p className="font-semibold">
-              {dayLabel(line.periodStart)} to {dayLabel(line.periodEnd)}
-            </p>
-            <p className="mt-1">
-              {hoursText(line.hours)} at {pounds(line.ratePence)} an hour
-            </p>
-            {line.grossPence !== null && (
-              <p className="mt-1 text-2xl font-bold">Gross pay: {pounds(line.grossPence)}</p>
-            )}
-            {line.payDate && <p className="mt-1 text-base">Pay date: {dayLabel(line.payDate)}</p>}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-6">If something looks wrong, raise a pay query.</p>
+      <p className={meta}>The last 8 weeks, from {firmName}&apos;s payroll.</p>
+      <section
+        aria-labelledby="latest-pay"
+        className={`${headingGap} rounded-2xl border border-line bg-card p-4 ${nums}`}
+      >
+        <h2 id="latest-pay" className="text-base font-semibold">
+          {dayLabel(latest.periodStart)} to {dayLabel(latest.periodEnd)}
+        </h2>
+        {latest.grossPence !== null && (
+          <p className="mt-1 flex flex-col">
+            <span className="text-sm font-semibold text-ink-muted">Gross pay</span>
+            <span className="text-3xl font-bold">
+              <span className="sr-only">Gross pay: </span>
+              {pounds(latest.grossPence)}
+            </span>
+          </p>
+        )}
+        <p className="mt-1 text-base">
+          {hoursText(latest.hours)} at {pounds(latest.ratePence)} an hour
+        </p>
+        {latest.payDate && (
+          <p className="mt-1 text-base font-semibold">Pay date: {dayLabel(latest.payDate)}</p>
+        )}
+      </section>
+      {earlier.length > 0 && (
+        <section aria-labelledby="earlier-pay" className={sectionGap.staff}>
+          <h2 id="earlier-pay" className={h2}>
+            Earlier weeks
+          </h2>
+          <ul role="list" className={`${rows} ${headingGap} ${nums}`}>
+            {earlier.map((line) => (
+              <li
+                key={`${line.periodStart}:${line.periodEnd}:${line.ratePence}`}
+                className={`${row} flex items-start justify-between gap-3`}
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    {dayLabel(line.periodStart)} to {dayLabel(line.periodEnd)}
+                  </p>
+                  <p className={muted}>
+                    {hoursText(line.hours)} at {pounds(line.ratePence)} an hour
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  {line.grossPence !== null && (
+                    <p className="font-bold">
+                      <span className="sr-only">Gross pay: </span>
+                      {pounds(line.grossPence)}
+                    </p>
+                  )}
+                  {line.payDate && <p className={muted}>Pay date: {dayLabel(line.payDate)}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <p className={`${sectionGap.staff} text-base`}>
+        If something looks wrong, raise a pay query.
+      </p>
     </>
   );
 }

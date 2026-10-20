@@ -46,7 +46,7 @@ const page = (hidden: boolean): OfferPage => ({
 });
 
 const render = (hidden: boolean) =>
-  text(renderToStaticMarkup(createElement(OfferView, { page: page(hidden), eyebrow: "Acme" })));
+  text(renderToStaticMarkup(createElement(OfferView, { page: page(hidden) })));
 
 describe("the offer page and the casuals' switches", () => {
   it("a hidden shift: nobody listed, and why", () => {

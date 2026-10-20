@@ -53,7 +53,7 @@ export function HelpView({
 }) {
   return (
     <>
-      <PageHeader eyebrow={firmName} title="Help">
+      <PageHeader title="Help">
         <p>How your shifts pages work, step by step.</p>
       </PageHeader>
 

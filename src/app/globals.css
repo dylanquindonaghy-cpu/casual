@@ -5,7 +5,7 @@
    the light theme's values; the dark theme (navy, D7) redefines every one of them below. */
 @theme {
   --color-ink: #0f172a; /* main text, primary buttons, the current menu item, the focus ring */
-  --color-ink-muted: #475569; /* secondary text, meta lines, eyebrows (7.6:1 on white) */
+  --color-ink-muted: #475569; /* secondary text, meta lines, table headers (7.6:1 on white) */
   --color-ink-hover: #334155; /* a primary button under the pointer */
   --color-on-ink: #ffffff; /* text on an ink fill (primary buttons, the current menu item) */
   --color-line: #e2e8f0; /* dividers and card borders (decorative only) */
@@ -16,6 +16,11 @@
   --color-raised: #f4f6fa; /* something lifted off a card */
   --color-switch-off: #7a8396; /* a switch's track when off */
   --color-scrim: #0f172a; /* behind the open menu drawer, at half strength (decorative) */
+  /* The firm's own colour (Phase 17): the casual app's main action. A firm with a colour of its
+     own sets both on <body> (src/app/layout.tsx, from src/lib/tenancy/brand.ts, whose text colour
+     is at least 4.58:1 on it); without one, the app's ink. Its pale tint is brand-soft (below). */
+  --color-brand: #0f172a;
+  --color-on-brand: #ffffff;
 
   --color-urgent: #b91c1c; /* act now */
   --color-urgent-soft: #fef2f2;
@@ -53,6 +58,9 @@
   --font-sans:
     var(--font-jakarta), var(--font-jakarta-ext), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Arial, sans-serif;
+  /* The firm's colour as a pale tint of the card it sits on (the current tab, the office's current
+     menu item): ink reads on it in both themes, as on the card itself. */
+  --color-brand-soft: color-mix(in srgb, var(--color-brand) 12%, var(--color-card));
 }
 
 /* Light unless dark is chosen: by the sd-theme cookie (data-theme on <html>, set by the server so
@@ -76,6 +84,8 @@
   --color-raised: #22304f;
   --color-switch-off: #7c8aa8;
   --color-scrim: #000000;
+  --color-brand: #e8edf7;
+  --color-on-brand: #0f1626;
   --color-urgent: #ff8b80;
   --color-urgent-soft: #3d1d26;
   --color-urgent-ink: #ffc7c0;
@@ -107,6 +117,8 @@
     --color-raised: #22304f;
     --color-switch-off: #7c8aa8;
     --color-scrim: #000000;
+    --color-brand: #e8edf7;
+    --color-on-brand: #0f1626;
     --color-urgent: #ff8b80;
     --color-urgent-soft: #3d1d26;
     --color-urgent-ink: #ffc7c0;

@@ -44,13 +44,7 @@ export default async function OpenShiftsPage({
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
-      <OpenShiftsView
-        list={list}
-        filters={filters}
-        timeZone={firm.timezone}
-        now={new Date()}
-        eyebrow={firm.name}
-      />
+      <OpenShiftsView list={list} filters={filters} timeZone={firm.timezone} now={new Date()} />
       <CasualTabBar firm={firm} workerId={worker.id} current="shifts" />
     </main>
   );

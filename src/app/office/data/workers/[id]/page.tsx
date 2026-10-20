@@ -26,7 +26,7 @@ export default async function OfficeWorkerDataPage({
   const canErase = !worker.erasedAt && worker.upcoming === 0;
   return (
     <main className={page.officeForm}>
-      <PageHeader eyebrow={`${firm.name} office`} title={worker.name}>
+      <PageHeader title={worker.name}>
         {worker.mobile && <p className="tabular-nums">{worker.mobile}</p>}
       </PageHeader>
 

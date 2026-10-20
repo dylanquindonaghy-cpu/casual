@@ -79,7 +79,7 @@ export default async function NoticeReportPage({
   const tz = report.timeZone;
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firm.name} office`} title="Notice and cancellation report">
+      <PageHeader title="Notice and cancellation report">
         <p>
           Every offer, booking, move, shortening and cancellation: when, who started it, and how
           much notice the worker had.

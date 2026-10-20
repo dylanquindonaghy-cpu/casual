@@ -516,7 +516,7 @@ describe("the words", () => {
 });
 
 describe("the page", () => {
-  it("the four counts, labelled exactly, each a link to its list; the first tinted and larger", () => {
+  it("the four counts, labelled exactly, each a link to its list; one strip; the first red when there are some", () => {
     const nav = /<nav aria-label="Counts">([\s\S]*?)<\/nav>/.exec(render(full))?.[1] ?? "";
     const tiles = links(nav);
     expect(tiles.map((t) => t.href)).toEqual([
@@ -525,23 +525,34 @@ describe("the page", () => {
       "/office/cancellations?day=today",
       "/office/enquiries?day=today",
     ]);
+    // The label, then the number, then its line.
     expect(tiles.map((t) => t.name)).toEqual([
-      "2 Urgent shifts not filled 3 places · first starts Wed 10:30",
-      "8 Events showing to casuals 26 open places across 12 sessions",
-      "2 Cancellations today 1 under 48 hours · 1 strike issued",
-      "18 Enquiries today 16 answered automatically · 2 need a person",
+      "Urgent shifts not filled 2 3 places · first starts Wed 10:30",
+      "Events showing to casuals 8 26 open places across 12 sessions",
+      "Cancellations today 2 1 under 48 hours · 1 strike issued",
+      "Enquiries today 18 16 answered automatically · 2 need a person",
     ]);
-    const anchors = [...nav.matchAll(/<a [^>]*class="([^"]*)"/g)].map((m) => m[1] ?? "");
-    expect(anchors[0]).toContain("bg-urgent-soft");
-    for (const other of anchors.slice(1)) {
-      expect(other).not.toContain("bg-urgent-soft");
-      expect(other).toContain("bg-card");
+    // One container split by hairlines (Phase 17), not four tiles.
+    expect(nav.match(/<ul [^>]*class="[^"]*gap-px[^"]*bg-line/g)).toHaveLength(1);
+    const numbers = [...nav.matchAll(/<span class="([^"]*text-3xl[^"]*)">/g)].map(
+      (m) => m[1] ?? "",
+    );
+    expect(numbers).toHaveLength(4);
+    expect(numbers[0]).toContain("text-urgent");
+    for (const other of numbers.slice(1)) {
+      expect(other).not.toContain("text-urgent");
+      expect(other).toContain("text-ink");
     }
-    expect(nav).toMatch(/text-3xl text-urgent/);
-    expect(nav.match(/text-2xl text-ink-muted/g)).toHaveLength(3);
+    // No urgent shifts: the first number is in ink too.
+    const none: Dashboard = {
+      ...full,
+      counts: { ...full.counts, urgent: ok({ sessions: 0, places: 0, firstStartsAt: null }) },
+    };
+    const calm = /<nav aria-label="Counts">([\s\S]*?)<\/nav>/.exec(render(none))?.[1] ?? "";
+    expect(calm).not.toContain("text-urgent");
   });
 
-  it("the sections in order, each with its hint", () => {
+  it("the sections in order (what needs someone first, what casuals can see last), each with its hint", () => {
     const html = render(full);
     const headings = [...html.matchAll(/<h2 id="([^"]+)"[^>]*>([^<]*)<\/h2>/g)].map((m) => [
       m[1],
@@ -549,10 +560,10 @@ describe("the page", () => {
     ]);
     expect(headings).toEqual([
       ["urgent", "Urgent shifts not filled"],
-      ["showing", "Showing to casuals"],
+      ["needs-attention", "Needs attention"],
       ["cancellations", "Cancellations"],
       ["enquiries", "Enquiries"],
-      ["needs-attention", "Needs attention"],
+      ["showing", "Showing to casuals"],
     ]);
     for (const s of Object.values(SECTIONS)) expect(words(html)).toContain(s.hint);
     expect(words(html)).toContain("Recorded automatically, never approved or declined");
@@ -588,7 +599,7 @@ describe("the page", () => {
     expect(words(section(html, "cancellations"))).toContain("Ben Carter cancelled");
     expect(words(section(html, "cancellations"))).not.toContain(SECTION_ERROR);
     const nav = /<nav aria-label="Counts">([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? "";
-    expect(links(nav)[1]?.name).toBe("– Events showing to casuals Couldn't load");
+    expect(links(nav)[1]?.name).toBe("Events showing to casuals – Couldn't load");
   });
 
   it("each urgent card: only its urgent gaps, each with its line; a hidden event warns", () => {
@@ -598,7 +609,9 @@ describe("the page", () => {
     );
     expect(cards).toHaveLength(2);
     expect(cards[0]).toContain("Northern Lights Live");
-    expect(cards[0]).toContain("Urgent 2 of 3 places free");
+    // No "Urgent" tag inside the urgent list: the places free, in red, say it.
+    expect(cards[0]).toContain("2 of 3 places free");
+    expect(cards[0]).not.toMatch(/\bUrgent\b/);
     expect(cards[0]).toContain("Door supervisor, Sat 7 Nov, 06:00 to 14:00");
     expect(cards[0]).toContain("Offered to 4 casuals");
     expect(cards[0]).not.toContain("Hidden from casuals");
@@ -636,16 +649,16 @@ describe("the page", () => {
     expect(words(urgent).match(/Hidden from casuals/g)).toHaveLength(1);
   });
 
-  it("showing: two sessions, then how many more; the event's switch; more events", () => {
-    const showing = words(section(render(full), "showing"));
+  it("showing: one row per event, its sessions and places free, its switch; more events", () => {
+    const html = section(render(full), "showing");
+    const showing = words(html);
     expect(showing).toContain("Riverside Food Festival");
-    expect(showing).toContain("Steward 10:00–18:00 · 1/2 filled");
-    expect(showing).toContain("Steward 14:00–18:00 · 1/2 filled");
-    expect(showing).toContain("+ 3 more");
     expect(showing).toContain("5 sessions · 6 places free");
-    expect(section(render(full), "showing")).toContain(
-      'aria-label="Show Riverside Food Festival to casuals"',
-    );
+    // A table: one row per event, the sessions themselves on the event's own page.
+    expect(html).toMatch(/<table[\s>]/);
+    expect(html).toMatch(/<th scope="row"[^>]*>[\s\S]*?Riverside Food Festival/);
+    expect(showing).not.toContain("Steward 10:00–18:00 · 1/2 filled");
+    expect(html).toContain('aria-label="Show Riverside Food Festival to casuals"');
     expect(showing).toContain("And 2 more. All events showing");
   });
 

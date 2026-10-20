@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { btn, nums, page, row, rows, textLink } from "@/app/ui/classes";
+import { btn, nums, page, row, rows } from "@/app/ui/classes";
 import { PageHeader } from "@/app/ui/page-header";
 import { requireOfficeArea } from "@/lib/auth/current-office";
 import { canAccess } from "@/lib/auth/roles";
@@ -57,11 +57,7 @@ export default async function CancellationRecordPage({
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={
-          <Link href="/office/cancellations" className={textLink}>
-            Cancellations
-          </Link>
-        }
+        back={{ href: "/office/cancellations", label: "Cancellations" }}
         title={`Cancellation ${record.row.ref}`}
         actions={
           <a
@@ -121,11 +117,7 @@ function ChooseOne({ shared }: { shared: SharedReference }) {
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={
-          <Link href="/office/cancellations" className={textLink}>
-            Cancellations
-          </Link>
-        }
+        back={{ href: "/office/cancellations", label: "Cancellations" }}
         title={`Cancellation ${shared.ref}`}
       >
         <p>{shared.choices.length} cancellations have this reference. Choose the one you want.</p>

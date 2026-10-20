@@ -31,7 +31,6 @@ export default async function EventsPage({
   return (
     <main className={page.office}>
       <PageHeader
-        eyebrow={`${firm.name} office`}
         title="Events & sessions"
         actions={
           list.hasPlanner ? undefined : (
@@ -74,7 +73,7 @@ export default async function EventsPage({
       {list.events.length === 0 ? (
         <p className={`${card} mt-6 text-ink-muted`}>{EVENT_VIEW_EMPTY[view]}</p>
       ) : (
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="mt-6 grid items-start gap-4 lg:grid-cols-2">
           {list.events.map((e) => (
             <EventCard key={e.eventId} event={e} timeZone={list.timeZone} />
           ))}

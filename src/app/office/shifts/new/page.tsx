@@ -19,7 +19,7 @@ export default async function Page() {
   if (!form) notFound();
   return (
     <main className={page.officeForm}>
-      <PageHeader eyebrow={`${firm.name} office`} title="New shift" />
+      <PageHeader title="New shift" />
       <ShiftCreateForm
         mode="single"
         sites={form.sites}

@@ -1235,6 +1235,34 @@ Done when: both tasks are ticked with a stamp that includes the browser tests; `
 with `RUN_E2E=1` prints VERIFIED; no test sends a real message; demo mode can't run with a firm
 that isn't a made-up demo firm; the `claims-auditor` checks the phase against this line.
 
+## Phase 17 — Easier to scan
+
+Added 2026-10-20, Dylan's ask after clicking through the demo online: "easy for both office and
+casuals to scan and see where they are looking to go; right now there is too much information
+showing at once; graphics and colours need work." A redesign of the look and of how much each main
+screen shows at once, not of what the app does: every action, rule and log entry stays. Guided by the
+UI skills Dylan chose (Anthropic's frontend-design, design-taste-frontend, ui-ux-pro-max), read before
+use. Mock-ups: the "ShiftDesk: easier to scan" canvas. Docs: `docs/screens.md`.
+
+- [ ] The look and the casual app: colour and type tokens (light and dark, every pair still passing
+      the contrast test), the firm's own colour on the casual app's one main action and current tab;
+      Home leads with the next shift (when, where, one main action) and a short list of open shifts,
+      changing or cancelling moved to the shift's own page; open shifts as compact rows grouped by
+      day; Pay leads with the next payday; no "Back to my shifts" where the tab bar already goes
+      there; the firm's name once per screen. Tests: the changed screens' words and the browser
+      tests (17.1)
+- [ ] The office: the dashboard leads with what needs someone now (urgent shifts, attendance to
+      mark, uploads to check, casuals needing an update, enquiries needing a person), each one click
+      from its job, with what casuals can see and the recent records moved below or to their own
+      pages; the casuals list shows each person's problems only (an expired or missing credential,
+      an upload to check), "All good" otherwise. Tests: the dashboard's and the list's words and the
+      browser tests (17.2)
+
+Done when: both tasks are ticked with a stamp that includes the browser tests; `scripts/verify.sh`
+with `RUN_E2E=1` prints VERIFIED; no action, rule or log entry is lost (every flow's browser test
+still passes); `docs/screens.md` says what each changed screen shows; the `claims-auditor` checks
+the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

@@ -72,19 +72,11 @@ export function guideSections(role: OfficeRole): Section[] {
   return SECTIONS.filter((s) => s.areas.length === 0 || s.areas.some((a) => canAccess(role, a)));
 }
 
-export function GuideView({
-  firmName,
-  role,
-  menu,
-}: {
-  firmName: string;
-  role: OfficeRole;
-  menu: MenuGroup[];
-}) {
+export function GuideView({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) {
   const sections = guideSections(role);
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firmName} office`} title="How-to guide">
+      <PageHeader title="How-to guide">
         <p>The everyday jobs, step by step, in the order of a working day.</p>
         <p className={meta}>It shows only the parts of the office you can open.</p>
       </PageHeader>

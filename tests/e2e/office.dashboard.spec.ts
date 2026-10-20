@@ -55,13 +55,14 @@ test("a resourcer's dashboard: the counts, the sections in order, and nothing to
   await expect(page.getByText("This couldn't load. Reload the page to try again.")).toHaveCount(0);
   await expect(page.getByText("Couldn't load", { exact: true })).toHaveCount(0);
 
-  // The sections, in order, and the Cancellations hint.
+  // The sections, in order (what needs someone first, what casuals can see last: Phase 17), and
+  // the Cancellations hint.
   await expect(page.getByRole("main").getByRole("heading", { level: 2 })).toHaveText([
     "Urgent shifts not filled",
-    "Showing to casuals",
+    "Needs attention",
     "Cancellations",
     "Enquiries",
-    "Needs attention",
+    "Showing to casuals",
   ]);
   await expect(
     page

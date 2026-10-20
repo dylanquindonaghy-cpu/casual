@@ -32,7 +32,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
   const names = uniqueSessionNames(e.sessions, timeZone, withDay);
   return (
     <main className={page.office}>
-      <PageHeader eyebrow={`${firm.name} office`} title={e.name}>
+      <PageHeader title={e.name}>
         {eventWhereWhen(e, timeZone) !== e.name && <p>{eventWhereWhen(e, timeZone)}</p>}
       </PageHeader>
 

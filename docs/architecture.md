@@ -620,6 +620,18 @@ Order: web push (free) → WhatsApp template → SMS fallback.
   as the owner is no backup: forced RLS hides every firm's rows from it (ADR-011). With Postgres in
   Compose, backups are a `pg_dump` run as the `postgres` superuser (ADR-011 as amended). Steps:
   docs/runbooks.md "Restore the database", "Restore drill (monthly)".
+- A demo server (Phase 16; ADR-025): the same image with `DEMO_MODE=on`, holding only the made-up
+  demo firms and people. The worker prints every text and email (and planner webhook) into the
+  outbox file instead of sending it (production refuses that without demo mode), and nothing else
+  leaves the server either (push, Sheets and AI off, made-up postcodes). It refuses to run, and
+  stops within a minute, while any firm isn't a demo firm or anyone in one has a real number or
+  email (`src/lib/demo/guard.ts`), and refuses any other firm's job. Each outbox line is stamped
+  with the firm whose job sent it (`src/lib/tenancy/job-firm.ts`); each demo firm's Demo phone
+  (`/demo`) shows only its own lines, to its own people, read inside its withFirm transaction
+  (`src/lib/demo/phone.ts`), so a login link can be tapped there as it would be on a phone; a demo
+  bar on every page links to it. The web app and the worker share the outbox file. The whole site
+  needs one password, the app's own check (`src/lib/demo/gate.ts`). Steps: docs/runbooks.md "A demo
+  server" (16.2).
 - Monitoring: an outside uptime check on `/api/health` (a free one, with its phone app), plus the
   host's own alerts (the server down, CPU, database storage, as far as the host offers them) and
   its billing alert at £50. Steps: docs/runbooks.md "Monitoring and alerts (once)"; PLAN.md Parking

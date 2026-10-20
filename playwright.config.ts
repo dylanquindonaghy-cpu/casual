@@ -70,15 +70,20 @@ export const serverEnv = (port: number, outbox: string, opts: { testPages?: bool
   // Never a real webhook address (12J.2): the e2e worker doesn't run with NODE_ENV=test, so this
   // pin is what keeps the console transport on if .env switches https on.
   WEBHOOK_TRANSPORT: "console",
+  // Demo mode off (16.1; ADR-025), whatever .env says: the main run is a real server's. Only the
+  // walkthrough's run turns it on (playwright.walkthrough.config.ts). scripts/invariants.sh checks
+  // this line stays.
+  DEMO_MODE: "",
+  DEMO_SITE_PASSWORD: "",
 });
 const env = serverEnv(PORT, OUTBOX);
 
 export default defineConfig({
   testDir: "tests/e2e",
   testMatch: "**/*.spec.ts",
-  // The walkthrough runs on its own, against a fresh database and a production build
-  // (playwright.walkthrough.config.ts; `npm run e2e` runs both).
-  testIgnore: "**/walkthrough.spec.ts",
+  // The walkthrough runs on its own, against a fresh database and a production build in demo mode
+  // (playwright.walkthrough.config.ts, with demo.spec.ts; `npm run e2e` runs both).
+  testIgnore: ["**/walkthrough.spec.ts", "**/demo.spec.ts"],
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   workers: 1,

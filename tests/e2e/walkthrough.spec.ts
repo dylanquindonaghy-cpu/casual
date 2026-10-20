@@ -3,7 +3,11 @@ import { devices, expect, test, type Browser, type Page } from "@playwright/test
 import { fakeCall, fakeSms, fakeWhatsApp } from "../../scripts/fake-phone";
 import { walkthroughFiles } from "../../scripts/walkthrough-files";
 import { E2E_TWILIO_AUTH_TOKEN } from "../../playwright.config";
-import { WALKTHROUGH_OUTBOX, WALKTHROUGH_PORT } from "../../playwright.walkthrough.config";
+import {
+  WALKTHROUGH_OUTBOX,
+  WALKTHROUGH_PORT,
+  WALKTHROUGH_SITE_PASSWORD,
+} from "../../playwright.walkthrough.config";
 import { seedFirms } from "../../src/lib/db/admin/seed-data";
 import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
 import { setFirmSetting } from "./db";
@@ -25,6 +29,8 @@ const ACME_LINE = "+447700900000";
 const phoneTarget = {
   baseDomain: `localhost:${WALKTHROUGH_PORT}`,
   authToken: E2E_TWILIO_AUTH_TOKEN,
+  // This run is a demo server's (playwright.walkthrough.config.ts): every request needs the password.
+  sitePassword: WALKTHROUGH_SITE_PASSWORD,
 };
 
 const ZOE = { typed: "07700 900122", e164: "+447700900122", name: "Zoe Usman" };

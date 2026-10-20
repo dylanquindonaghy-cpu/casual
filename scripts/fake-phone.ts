@@ -13,6 +13,9 @@ import { platformUrl } from "../src/lib/tenancy/portal-url";
 export interface FakePhoneTarget {
   baseDomain: string; // APP_BASE_DOMAIN, e.g. localhost:3000
   authToken: string; // TWILIO_AUTH_TOKEN
+  // In demo mode, the demo's password (DEMO_SITE_PASSWORD; src/lib/demo/gate.ts), given as Twilio
+  // gives one written into a webhook's address: an HTTP Basic login.
+  sitePassword?: string;
 }
 
 export interface Answer {
@@ -43,6 +46,11 @@ async function post(
     headers: {
       "content-type": "application/x-www-form-urlencoded",
       "x-twilio-signature": twilioSignature(target.authToken, url, fields),
+      ...(target.sitePassword
+        ? {
+            authorization: `Basic ${Buffer.from(`demo:${target.sitePassword}`).toString("base64")}`,
+          }
+        : {}),
     },
     body: new URLSearchParams(fields).toString(),
   });

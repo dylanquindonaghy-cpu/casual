@@ -1,4 +1,10 @@
+import { listFirmIds } from "../lib/db/directory";
+import { withFirm } from "../lib/db/scoped";
+import { isDemoFirm } from "../lib/demo/firms";
+import { assertDemoServer, watchDemoServer, type DemoServerChecks } from "../lib/demo/guard";
+import { realPeopleIn } from "../lib/demo/people";
 import { workerEnv } from "../lib/env";
+import { onlyRunJobsFor } from "../lib/jobs/firm-job";
 import { log } from "../lib/log";
 import { routeConsoleThroughMasking } from "../lib/log/console";
 import { alertTransport } from "../lib/ops/alerts";
@@ -31,6 +37,28 @@ async function shutdown(signal: string): Promise<void> {
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+// Demo mode (ADR-025) prints messages instead of sending them: only ever with the made-up demo
+// firms and their made-up people alone (src/lib/demo/guard.ts). Checked before any job starts,
+// then every minute; a firm that isn't a demo firm, or a real person in one, stops the worker (its
+// container then can't start again until they're gone). And a job for any other firm is refused
+// before it runs, even between two checks.
+if (env.DEMO_MODE === "on") {
+  const checks: DemoServerChecks = {
+    listFirmIds,
+    realPeople: (firmId) => withFirm(firmId, realPeopleIn),
+  };
+  await assertDemoServer(checks);
+  onlyRunJobsFor(isDemoFirm);
+  watchDemoServer(checks, {
+    stop: (err) => {
+      log.error("demo mode stopped the worker", { error: err });
+      process.exit(1);
+    },
+    missed: (err) => log.warn("demo mode's check didn't run", { error: err }),
+  });
+  log.info("demo mode: every message is printed to the outbox, none is sent");
+}
 
 await boss.start();
 await registerJobs(boss, {

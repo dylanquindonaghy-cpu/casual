@@ -171,6 +171,21 @@ describe("the fake phone", () => {
     }
   });
 
+  // 16.1: on a demo-mode server (the walkthrough's run) every request needs the demo's password.
+  it("with the demo's password, logs in to the site as Twilio would; without one, sends none", async () => {
+    const seen = serve(async () => new Response("<Response/>", { status: 200 }));
+    await fakeSms(
+      { ...target, sitePassword: "made-up-demo-password" },
+      { from: "+447700900121", to: "+447700900000", text: "STOP" },
+    );
+    await fakeSms(target, { from: "+447700900121", to: "+447700900000", text: "START" });
+    expect(seen.map((r) => r.headers.get("authorization"))).toEqual([
+      `Basic ${Buffer.from("demo:made-up-demo-password").toString("base64")}`,
+      null,
+    ]);
+    expect(seen.every((r) => r.headers.get("x-twilio-signature"))).toBe(true);
+  });
+
   it("reads what the caller hears out of the TwiML", () => {
     expect(
       spokenWords(

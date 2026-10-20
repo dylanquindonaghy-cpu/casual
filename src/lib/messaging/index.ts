@@ -9,9 +9,16 @@ type TransportConfig = Pick<WorkerEnv, "MESSAGING_TRANSPORT" | "NODE_ENV"> &
   Partial<
     Pick<
       WorkerEnv,
-      "EMAIL_TRANSPORT" | "SMTP_HOST" | "SMTP_PORT" | "SMTP_USER" | "SMTP_PASS" | "SMTP_FROM"
+      | "EMAIL_TRANSPORT"
+      | "SMTP_HOST"
+      | "SMTP_PORT"
+      | "SMTP_USER"
+      | "SMTP_PASS"
+      | "SMTP_FROM"
+      | "CONSOLE_OUTBOX_FILE"
+      | "DEMO_MODE"
     >
-  > & { CONSOLE_OUTBOX_FILE?: string };
+  >;
 
 // WhatsApp and texts go by MESSAGING_TRANSPORT; email by EMAIL_TRANSPORT. With both on console
 // (development and tests) one console transport carries everything, as before.
@@ -35,10 +42,13 @@ export function getTransport(config: TransportConfig): MessagingTransport {
 function phoneTransport(config: TransportConfig): MessagingTransport {
   switch (config.MESSAGING_TRANSPORT) {
     case "console":
-      // The outbox file holds full message bodies: never in production.
+      // The outbox file holds full message bodies: never in production, except in demo mode
+      // (made-up people only; its Demo phone page reads the file: ADR-025).
       return createConsoleTransport(
         console.log,
-        config.NODE_ENV === "production" ? undefined : config.CONSOLE_OUTBOX_FILE,
+        config.NODE_ENV === "production" && config.DEMO_MODE !== "on"
+          ? undefined
+          : config.CONSOLE_OUTBOX_FILE,
       );
   }
 }

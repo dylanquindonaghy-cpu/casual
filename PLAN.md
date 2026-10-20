@@ -1201,6 +1201,40 @@ Done when: every task above is ticked with a stamp that includes the browser tes
 with `RUN_E2E=1` prints VERIFIED; no test or browser test sends a real text; the `claims-auditor`
 checks the phase against this line.
 
+## Phase 16 — The demo online
+
+Added 2026-10-20, Dylan's choice (he bought a Hetzner server and a domain, and picked the "Demo
+phone page"): the made-up demo on a small server, so his boss can click through it online. No real
+text or email sender exists yet (Phase 15), so in demo mode every message the app would send shows
+on a "Demo phone" page instead: only ever for the made-up demo firms, behind one password. Built
+before Phase 15. Docs: `docs/runbooks.md`, `docs/screens.md`, `docs/architecture.md`,
+`docs/decisions.md`.
+
+- [ ] Demo mode in the app: `DEMO_MODE=on` lets production print texts and emails into the outbox
+      file instead of sending them (refused without it, as now), and nothing else leaves the server
+      (webhooks printed; push, Sheets and AI off; made-up postcodes); the worker refuses to start,
+      and stops, while any firm in the database isn't one of the made-up demo firms or anyone in
+      one has a real number or email, and refuses other firms' jobs; the "Demo phone" page (`/demo`
+      on a firm's address): the texts and emails that firm sent its own people (each outbox line
+      stamped with the sending firm), newest first, its links tappable, checked again every few
+      seconds; not found without demo mode or on any other firm; a demo bar on every page of a
+      demo firm, linking to it; any other firm's pages not served; the whole site behind one
+      password, the app's own check. Tests: the settings both ways, the guard, one firm never sees
+      another's messages (a number in both firms included), the password, the page's words, and a
+      browser test on the production build, worker included (a casual and the office log in from
+      the Demo phone) (16.1)
+- [ ] The demo server: Postgres in Compose over a socket only (`deploy/docker-compose.demo.yml`),
+      the outbox shared by the web app and the worker, demo mode and its site password (16.1) set
+      by that file and the server's `.env`, the demo loaded and reset by one command (refused
+      unless demo mode, a database on the server itself and only the demo firms) and again every
+      night so its dates stay fresh, its database refusing real numbers and emails;
+      `docs/runbooks.md` "A demo server": the Hetzner server and the domain's DNS, step by step.
+      Tests: the compose files checked by Docker itself, the reset's refusals and a real reset (16.2)
+
+Done when: both tasks are ticked with a stamp that includes the browser tests; `scripts/verify.sh`
+with `RUN_E2E=1` prints VERIFIED; no test sends a real message; demo mode can't run with a firm
+that isn't a made-up demo firm; the `claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify

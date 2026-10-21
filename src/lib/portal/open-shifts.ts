@@ -55,6 +55,9 @@ export interface OpenShift {
   startsAt: Date;
   endsAt: Date;
   placesLeft: number;
+  // The session's places in all (Phase 18: the seats, "1 of 4 places left"; always set here,
+  // optional for the pages' own fixtures).
+  headcount?: number;
   site: (NonNullable<MyShift["site"]> & { id: string }) | null;
   // Fair rotation: held for workers with fewer hours that week (the shift's own Monday-to-Sunday week) until then (null: takeable now).
   opensAt: Date | null;
@@ -360,6 +363,7 @@ export async function openShiftsFor(
         startsAt: c.startsAt,
         endsAt: c.endsAt,
         placesLeft: c.headcount - c.held,
+        headcount: c.headcount,
         opensAt: gate.ok ? null : gate.opensAt,
         isUrgent: c.isUrgent,
         ...(travelOf ? { travel: travelOf.get(c.shiftId) ?? { kind: "unknown" } } : {}),

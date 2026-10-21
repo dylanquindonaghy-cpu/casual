@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { THEME_COOKIE, themeFromCookie } from "@/app/theme";
 
-// The theme, the type scale and the font (docs/office-v2.md 3.1; PLAN.md 12A.1): the sd-theme
-// cookie's reading and its wiring into <html>, no colour or text size outside the tokens anywhere
-// in src/, and Plus Jakarta Sans served from the app itself. tests/e2e/theme.spec.ts checks the
+// The theme, the type scale and the fonts (docs/office-v2.md 3.1; PLAN.md 12A.1, Phase 18): the
+// sd-theme cookie's reading and its wiring into <html>, no colour or text size outside the tokens
+// anywhere in src/, and Public Sans and Barlow Condensed served from the app itself. tests/e2e/theme.spec.ts checks the
 // pages a browser gets.
 
 const ROOT = process.cwd();
@@ -72,20 +72,27 @@ describe("colours: tokens only", () => {
     // In the CSS, a colour value only defines a token.
     const css = read("src/app/globals.css");
     const hasColour = new RegExp(HEX.source, "i");
-    const outside = css
-      .split("\n")
-      .filter((line) => hasColour.test(line) && !/^\s*--color-[a-z-]+: #[0-9a-f]{6};/.test(line));
+    const outside = css.split("\n").filter(
+      (line) =>
+        hasColour.test(line) &&
+        !/^\s*--color-[a-z-]+: #[0-9a-f]{6};/.test(line) &&
+        // The pass's shadow (Phase 18): a token too, in the ink's own colour.
+        !/^\s*--shadow-pass: [^;]+;$/.test(line),
+    );
     expect(outside).toEqual([]);
   });
 
-  it("a style colour only from the firm's brand (the brand bar)", () => {
+  // Phase 18: the firm's bar takes the firm's colour from the page's tokens too, so no page sets
+  // a colour in a style; the firm's colour reaches the page only as <body>'s --firm-* values.
+  it("no style colour anywhere: the firm's colour arrives as <body>'s checked values", () => {
     const styled = SOURCE.filter((f) => /style=\{\{[^}]*\b(color|background)/i.test(read(f)));
-    expect(styled).toEqual(["src/app/brand-bar.tsx"]);
+    expect(styled).toEqual([]);
+    expect(read("src/app/layout.tsx")).toMatch(/style=\{firmColours\}/);
   });
 });
 
 describe("one type scale", () => {
-  it("the only sizes are 12, 13, 15, 18, 24 and 30px", () => {
+  it("the only sizes are 12, 13, 15, 18, 24, 30 and 40px", () => {
     const theme = read("src/app/globals.css").match(/@theme\s*\{([^}]*)\}/)?.[1] ?? "";
     expect(theme).toContain("--text-*: initial;");
     const sizes = Object.fromEntries(
@@ -94,18 +101,34 @@ describe("one type scale", () => {
         Number(m[2]) * 16,
       ]),
     );
-    expect(sizes).toEqual({ xs: 12, sm: 13, base: 15, lg: 18, "2xl": 24, "3xl": 30 });
+    expect(sizes).toEqual({ xs: 12, sm: 13, base: 15, lg: 18, "2xl": 24, "3xl": 30, "4xl": 40 });
   });
 
   it("no page uses a size outside it", () => {
     const outside = SOURCE.flatMap((file) =>
       [
         ...read(file).matchAll(
-          /(?<![\w-])(?:[a-z0-9-]+:)*text-(?:xl|[4-9]xl|\[[\d.]+(?:px|rem|em)\])(?![\w-])/g,
+          /(?<![\w-])(?:[a-z0-9-]+:)*text-(?:xl|[5-9]xl|\[[\d.]+(?:px|rem|em)\])(?![\w-])/g,
         ),
       ].map((m) => `${file}: ${m[0]}`),
     );
     expect(outside).toEqual([]);
+  });
+
+  it("40px only for the sign figures (a shift's time, its date tile)", () => {
+    const uses = SOURCE.flatMap((file) =>
+      [...read(file).matchAll(/"[^"\n]*(?<![\w-])text-4xl(?![\w-])[^"\n]*"/g)].map((m) => [
+        file,
+        m[0],
+      ]),
+    );
+    expect(uses.length).toBeGreaterThan(2);
+    // The date tile's sizes live in a table beside its font-sign day.
+    const notSign = uses.filter(
+      ([file, cls]) => !/(?<![\w-])font-sign(?![\w-])/.test(cls!) && file !== "src/app/ui/sign.tsx",
+    );
+    expect(notSign).toEqual([]);
+    expect(read("src/app/ui/sign.tsx")).toMatch(/className=\{`block font-sign [^`]*\$\{t\.day\}/);
   });
 
   it("every digit fixed-width; office fields don't make a phone zoom in", () => {
@@ -119,17 +142,32 @@ describe("one type scale", () => {
 });
 
 describe("the font", () => {
-  it("Plus Jakarta Sans from its npm package, through next/font/local, latin and latin-ext", () => {
+  it("Public Sans and Barlow Condensed from their npm packages, through next/font/local", () => {
     const fonts = read("src/app/fonts.ts");
     expect(fonts).toMatch(/^import localFont from "next\/font\/local";/m);
     const sources = [...fonts.matchAll(/src: "([^"]+)"/g)].map((m) => m[1]);
     expect(sources).toEqual([
-      "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2",
-      "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2",
+      "../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2",
+      "../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-ext-wght-normal.woff2",
+      "../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2",
+      "../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-ext-700-normal.woff2",
     ]);
+    for (const src of sources)
+      expect(statSync(join(ROOT, "src/app", src!)).size).toBeGreaterThan(5000);
     const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(read("src/app/layout.tsx")).toContain("${jakarta.variable} ${jakartaExt.variable}");
+    expect(pkg.dependencies["@fontsource-variable/public-sans"]).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pkg.dependencies["@fontsource/barlow-condensed"]).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pkg.dependencies["@fontsource-variable/plus-jakarta-sans"]).toBeUndefined();
+    // Only the latin faces are fetched before they're needed.
+    expect(fonts.match(/preload: false/g)).toHaveLength(2);
+    expect(read("src/app/layout.tsx")).toContain("className={fontVariables}");
+    expect(read("src/app/global-error.tsx")).toContain("className={fontVariables}");
+    // Words in Public Sans, the sign figures in Barlow Condensed with fixed-width digits.
+    const css = read("src/app/globals.css");
+    expect(css).toMatch(/--font-sans:\s*var\(--font-public\), var\(--font-public-ext\),/);
+    expect(css).toMatch(
+      /@utility font-sign \{\s*font-family:\s*var\(--font-barlow\), var\(--font-barlow-ext\),[^}]*font-weight: 700;\s*font-variant-numeric: tabular-nums;/,
+    );
   });
 
   it("nothing from Google: no Google font loader and no Google font address in src/", () => {

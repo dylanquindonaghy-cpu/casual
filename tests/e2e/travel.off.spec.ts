@@ -34,7 +34,10 @@ test("travel areas off: no Where you work, no prompt or travel lines, no help on
 
     await page.goto(`${acme}/shifts/open`);
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Take shift" }).first()).toBeVisible();
+    // Her shifts, a card each (each opens the shift's page, where she takes it).
+    await expect(
+      page.locator('main li a[href^="/shifts/"]:not([href^="/shifts/open"])').first(),
+    ).toBeVisible();
     await expect(page.getByText("Add your home area")).toHaveCount(0);
     await expect(page.locator("[data-travel-line]")).toHaveCount(0);
 

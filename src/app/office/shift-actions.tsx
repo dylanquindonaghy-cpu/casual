@@ -13,21 +13,28 @@ import { closeShiftAction, reopenShiftAction, setUrgentAction } from "./today-ac
 // places are changed there). Results show in place. On an urgent shift
 // "Offer to someone" is the main button; on a gap every button looks the same, so the urgent
 // ones stand out.
+// Phase 18 (the dashboard's urgent place): "Offer to someone" filled, "Mark as filled" outlined,
+// "Not urgent" in words. `onMessage`: the answers go there (the dashboard's confirmation, which
+// stays while the place leaves) instead of under the buttons.
 export function ShiftActions({
   shiftId,
   isUrgent,
   fromSheet,
   fromPlanner,
   className,
+  onMessage,
 }: {
   shiftId: string;
   isUrgent: boolean;
   fromSheet: boolean;
   fromPlanner: boolean;
   className?: string; // where it sits in its card or row
+  onMessage?: (message: string) => void;
 }) {
   const router = useRouter();
-  const [message, setMessage] = useState<string | null>(null);
+  const [shown, setShown] = useState<string | null>(null);
+  const setMessage = (m: string) => (onMessage ? onMessage(m) : setShown(m));
+  const message = onMessage ? null : shown;
   const [closed, setClosed] = useState(false);
   const [pending, startTransition] = useTransition();
   const failed = { status: "error" as const };
@@ -68,16 +75,13 @@ export function ShiftActions({
           >
             Offer to someone
           </Link>
-          <button type="button" className={btn.secondary} disabled={pending} onClick={toggleUrgent}>
-            {isUrgent ? "Not urgent" : "Mark urgent"}
-          </button>
           {!fromSheet && !fromPlanner && (
             <details className="group">
               <summary className={`${btn.secondary} ${summaryButton} group-open:bg-quiet-soft`}>
                 Mark as filled
                 <Chevron />
               </summary>
-              <div className="mt-2 w-64 max-w-full rounded-lg border border-line bg-card p-3">
+              <div className="mt-2 w-64 max-w-full animate-in rounded-lg border border-line bg-card p-3">
                 <p className="text-sm">
                   Only if you&apos;ve filled it another way. Nobody else will be offered it.
                 </p>
@@ -92,6 +96,14 @@ export function ShiftActions({
               </div>
             </details>
           )}
+          <button
+            type="button"
+            className={isUrgent ? btn.text : btn.secondary}
+            disabled={pending}
+            onClick={toggleUrgent}
+          >
+            {isUrgent ? "Not urgent" : "Mark urgent"}
+          </button>
         </div>
       )}
       {message && (

@@ -174,7 +174,17 @@ export const somethingNeedsUpdating = (n: { needs: NeedsItem[]; photo: StaffPhot
 export const photoNeedsUpdating = (photo: StaffPhoto): boolean =>
   photo.status === "overdue" || photo.status === "due_soon";
 
+// How many things on Profile need her (Phase 18: the tab bar's Profile count): each
+// qualification to sort out, and her photo when it's overdue or due soon.
+export const needsDoingCount = (n: { needs: NeedsItem[]; photo: StaffPhoto }): number =>
+  n.needs.length + (photoNeedsUpdating(n.photo) ? 1 : 0);
+
 // The tab bar's Profile dot (12H.1), for the pages that don't load Needs updating themselves.
 export async function profileNeedsYou(ctx: PortalContext, workerId: string): Promise<boolean> {
   return somethingNeedsUpdating(await myNeedsAndPhoto(ctx, workerId));
+}
+
+// Its count (Phase 18), for the same pages.
+export async function profileNeedsCount(ctx: PortalContext, workerId: string): Promise<number> {
+  return needsDoingCount(await myNeedsAndPhoto(ctx, workerId));
 }

@@ -12,7 +12,7 @@ import { sentTo } from "./outbox";
 
 // The evidence email to the strikes team in a real browser (12C.4): a casual of this spec's own
 // cancels a session a day away (a strike); its evidence email is marked failed, as the job leaves
-// one that may have arrived. A resourcer sees it on the dashboard under "Strike evidence" (Needs attention; the bell counts it), opens the record
+// one that may have arrived. A resourcer sees it in Needs attention under "Strike evidence" (the bell counts it and opens it), opens the record
 // from there and selects "Resend evidence". Nothing on the way offers Approve, Decline or Deny. The
 // session, its site, the casual and the resourcer are made up and this spec's own; a retry makes a
 // new session (the run's suffix).
@@ -67,13 +67,12 @@ test("a failed evidence email shows on the dashboard, and its record resends it"
     await failEvidence("acme", assignmentId);
     await officeLogin(page);
 
+    // The bell in the top bar counts it, and goes to Needs attention.
+    const bell = page.getByRole("link", { name: /^Needs attention, \d+\+?$/ });
+    await expect(bell).toHaveAttribute("href", "/office/needs-attention");
+    await bell.click();
     const section = page.getByRole("region", { name: "Strike evidence" });
     await expect(section).toContainText("Erin Evidence's strike record couldn't be emailed");
-    // The bell in the top bar counts it, and goes to Needs attention.
-    await expect(page.getByRole("link", { name: /^Needs attention, \d+\+?$/ })).toHaveAttribute(
-      "href",
-      "/office#needs-attention",
-    );
     await noSidewaysScroll(page);
     await section.locator(`a[href="/office/cancellations/${assignmentId}"]`).click();
     await expect(page).toHaveURL(`${acme}/office/cancellations/${assignmentId}`);

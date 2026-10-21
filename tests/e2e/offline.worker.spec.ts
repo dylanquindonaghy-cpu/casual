@@ -67,7 +67,14 @@ test("Home (her next shift) and Booked open with no signal, marked as copies; lo
   await page.reload();
   await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
   await expect(page.getByText("No signal.")).toBeVisible();
-  await expect(page.getByText(/^These are your shifts from \d\d:\d\d on /)).toBeVisible();
+  await expect(
+    page.getByText(
+      /^This is your saved copy from \d\d:\d\d on .+\. It updates when you're back online\.$/,
+    ),
+  ).toBeVisible();
+  // The parts that need signal say so instead (Phase 18: For you's offline row; the header's plate).
+  await expect(page.getByText("Open shifts need signal")).toBeVisible();
+  await expect(page.getByTestId("brand-bar").getByText("Offline")).toBeVisible();
   await expect(page.getByText("Taking or cancelling a shift needs signal.")).toBeVisible();
   // The copy still has her next shift in full.
   await expect(page.getByRole("region", { name: "Your next shift" })).toContainText(site);

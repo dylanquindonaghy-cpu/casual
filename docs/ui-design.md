@@ -14,10 +14,56 @@ Principles, in order:
    destructive.
 4. **Colour is never the only signal.** Every coloured status carries its word. Contrast meets
    WCAG AA (text 4.5:1, borders and controls 3:1).
-5. **No decoration.** No gradients, glows, textures or animations beyond a colour change on hover
-   and a focus ring. The firm's brand colour stays in the brand bar and is never used for status.
+5. **No decoration.** No gradients, glows or textures. Motion only to show what changed, as Phase
+   18's spec (below). The firm's colour marks its main actions and where you are, never a status.
 6. **Works without JavaScript** where pages already do (server-action forms, `<details>`
    confirmations, GET filter forms, anchor links).
+
+## Phase 18: the redesign's type, colour, parts and motion
+
+The Claude Design "ShiftDesk redesign" gave the layouts and parts (`docs/screens.md` "The
+redesign"); its fonts and colours were reworked with the UI skills (frontend-design,
+design-taste-frontend's app-screen rules, ui-ux-pro-max), compared side by side on the pass at its
+real sizes before building:
+
+- **Type: two faces, one job each.** Public Sans for words (built for public services: open,
+  sturdy shapes that read at a glance and in sunlight), and Barlow Condensed bold for the **sign
+  figures** (`font-sign`: a shift's time and date, a gate or post, a count, a pill), drawn from
+  road signs so they read like the venue's own. Both have real fixed-width digits (checked in a
+  browser). Half the download of the design's Archivo with its width axis (about 49KB against
+  90KB, for the latin set), which matters on a venue's weak signal. One scale of seven sizes, the
+  six before plus 40px (`text-4xl`) for the time and the date tile only; the design's ten sizes on
+  one phone screen came down to six. Three weights: 400, 600, 700 (the sign figures).
+- **Colour: the safety signs' roles.** Red to act now (`urgent`), sign yellow for what needs doing
+  (`hivis`, with navy words), exit-sign green for done (`done`, `done-fill`), navy ink (the
+  uniform's colour), and the firm's colour for its main action and where you are. The dark theme
+  stays D7's navy exactly. A status colour always travels with its word or icon.
+- **The firm's colour per theme** (`firmPalette` in `src/lib/tenancy/brand-values.ts`, set on
+  `<body>` as `--firm-*` with `data-firm-colour`; globals.css picks the theme's set): its band
+  (`brand-bar`) is its colour darkened until white or navy reads on it at 4.5:1; in light its
+  button and words (`brand`, `brand-ink`) are its colour darkened until it reads on the canvas and
+  the card, with white on it; in dark, lightened until it reads on the card and the raised track,
+  with navy on it (or white), lightened further if neither reads yet. Every pair is at least
+  4.5:1 for any `#rrggbb` (`tests/unit/tenancy.brand.test.ts`). Acme's blue and Northline's teal
+  pass as they are in light.
+- **One filled button per screen**, in the firm's colour, in the casual app and the office
+  (`btn.primary`, `staffBtn.primary`); words-only actions in the firm's colour (`btn.text`,
+  `staffBtn.text`: "Not urgent", "Keep my shift"). Phone buttons 52px, office ones 44px.
+- **The parts** (`src/app/ui/sign.tsx`, `plate.tsx`; the sheet in `src/app/shifts/sheet.tsx`): the **date tile** (a calendar
+  page: the weekday on an ink band, red when urgent; the day in sign figures; the month), the
+  **sign plate** (light on dark, like a venue's sign: "Gate 2"), the **seats** (a square per place:
+  filled when taken, dashed when free, red when urgent; none past 16 places), the solid **plate**
+  for a status that must catch the eye (red urgent, sign-yellow needs doing, green done, grey
+  waiting; elsewhere statuses stay the pale `StatusChip`, now square-ish), and the **sheet** that
+  rises from the bottom of the phone (a modal `<dialog>`).
+- **The pass is the only thing with a shadow at rest** (`shadow-pass`; in dark a 1px line).
+- **Motion** (globals.css `--animate-*`, `--ease-sd`): one easing, `cubic-bezier(.2,.8,.2,1)`;
+  150ms for fades, the sheet's dim and switches, 200ms for items arriving or leaving, 250ms for
+  cards opening and the sheet. A card opening rises 8px and fades in, its body 60ms after; a taken
+  shift moves into Your shifts from 48px above, marked "New"; the next urgent place slides in from
+  the side; the sheet rises from the bottom; a confirmation drops in and stays 3 seconds. Only
+  transform and opacity move; nothing loops. With reduced motion every movement is a 150ms fade and
+  transitions stop.
 
 ## Tokens (`src/app/globals.css`, Tailwind v4 `@theme`)
 
@@ -27,27 +73,31 @@ block; the dark values redefine the same tokens. Every pair a page uses meets it
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `ink` | `#0f172a` | `#e8edf7` | Main text, primary buttons, the current menu item, the focus ring |
-| `ink-muted` | `#475569` | `#a3b0c8` | Secondary text, meta lines, table headers (7.6:1 on white; 6.8:1 on the dark card) |
-| `ink-hover` / `on-ink` | `#334155` / `#ffffff` | `#c3cddf` / `#0f1626` | A primary button under the pointer; text on an `ink` fill |
-| `line` | `#e2e8f0` | `#2c3a5c` | Dividers and card borders (decorative only) |
-| `line-strong` | `#64748b` | `#7c8aa8` | Input and secondary button borders (at least 3:1) |
-| `canvas` | `#f8fafc` | `#0f1626` | Office page background behind cards (D7's "page") |
-| `card` | `#ffffff` | `#1b2642` | Cards, fields, and the page behind staff pages |
-| `panel` | `#ffffff` | `#16203a` | The office menu and its footer |
-| `raised` | `#f4f6fa` | `#22304f` | Something lifted off a card |
+| `ink` | `#13233a` | `#e8edf7` | Main text (navy, the uniform's colour: Phase 18), the date tile's band, sign plates, the focus ring |
+| `ink-muted` | `#3e4c60` | `#a3b0c8` | Secondary text, labels, meta lines, table headers (8.7:1 on white; 6.8:1 on the dark card) |
+| `ink-hover` / `on-ink` | `#26364f` / `#ffffff` | `#c3cddf` / `#0f1626` | An ink fill under the pointer; text on an `ink` fill |
+| `line` | `#dbe1e8` | `#2c3a5c` | Dividers and card borders (decorative only) |
+| `line-strong` | `#6b7789` | `#7c8aa8` | Input and secondary button borders (at least 3:1) |
+| `canvas` | `#f2f4f7` | `#0f1626` | The page behind cards: the casual app, and the office's menu (D7's "page") |
+| `card` | `#ffffff` | `#1b2642` | Cards, fields, the office's page |
+| `panel` | `#ffffff` | `#16203a` | The office's top bar |
+| `raised` | `#e8ecf1` | `#22304f` | A sunk track: the empty pass's band, a waiting tile, a full pill, the week's bar |
 | `switch-off` | `#7a8396` | `#7c8aa8` | A switch's track when off (at least 3.5:1) |
-| `scrim` | `#0f172a` | `#000000` | Behind the open menu drawer, at half strength (decorative only) |
-| `brand` / `on-brand` | `#0f172a` / `#ffffff` | `#e8edf7` / `#0f1626` | The firm's own colour (Phase 17): the casual app's main buttons. A firm with a colour of its own sets both on `<body>` (`src/app/layout.tsx`: its checked `#rrggbb` and the black or white that reads on it, at least 4.58:1); these are the values without one. Its pale tint, `brand-soft` (12% of it over `card`), marks the casual app's current tab and the office's current menu item, with `ink` on it |
+| `scrim` | `#0d1520` | `#000000` | Behind the open menu drawer and a sheet, at half strength (decorative only) |
+| `brand` / `on-brand` | `#13233a` / `#ffffff` | `#e8edf7` / `#0f1626` | The firm's own colour (Phase 17; per theme in Phase 18): the main buttons, in the casual app and the office. A firm with a colour of its own gets a set for each theme on `<body>` (`src/app/layout.tsx`, `firmPalette`: each pair at least 4.5:1); these are the values without one. Its pale tint, `brand-soft` (12% of it over `card`), marks the casual app's current tab and its "shifts to apply for" tile, with `ink` (or `brand-ink`) on it |
 | `urgent` / `urgent-soft` / `urgent-ink` | `#b91c1c` / `#fef2f2` / `#7f1d1d` | `#ff8b80` / `#3d1d26` / `#ffc7c0` | Act now |
 | `urgent-fill` / `urgent-fill-hover` / `on-urgent` | `#b91c1c` / `#7f1d1d` / `#ffffff` | `#d92d20` / `#b42318` / `#ffffff` | Count badges and the final destructive button (white on `#d92d20`: 4.83:1). Urgent chips are the pale pair (`urgent-soft` with `urgent-ink`), so a list of urgent rows doesn't shout |
 | `attention` / `attention-soft` / `attention-ink` | `#b45309` / `#fffbeb` / `#78350f` | `#f2a541` / `#36291a` / `#ffd699` | Someone needs to act |
 | `done` / `done-soft` / `done-ink` | `#15803d` / `#f0fdf4` / `#14532d` | `#4ccb83` / `#132f22` / `#b0efca` | Fine, finished |
-| `quiet-soft` / `quiet-ink` | `#f1f5f9` / `#334155` | `#26324f` / `#d0d8e6` | Information, closed |
+| `quiet-soft` / `quiet-ink` | `#eef1f5` / `#3e4c60` | `#26324f` / `#d0d8e6` | Information, closed |
+| `hivis` / `on-hivis` | `#f5b301` / `#13233a` | `#f5b301` / `#13233a` | Sign yellow (Phase 18): what needs doing, as a plate or a tile, with navy words (8.5:1) |
+| `done-fill` / `on-done` | `#15803d` / `#ffffff` | `#15803d` / `#ffffff` | The booked tick, a "sorted" tile (white on it 5.0:1) |
+| `brand-ink`, `brand-bar` / `on-brand-bar` | `#13233a`, `#13233a` / `#ffffff` | `#e8edf7`, `#2b3d63` / `#ffffff` | The firm's colour as words; its band (the pass's top, its initial) with the words on it (Phase 18; a firm's own set below) |
+| `demo` / `on-demo` | `#3d2e0a` / `#fde7b0` | `#3d2e0a` / `#fde7b0` | The demo bar |
 
 No other colour is written anywhere in `src/` (no `bg-white`, no Tailwind palette shade, no colour
-value in a class or a style): the firm's brand colour, which the brand bar and the root layout read
-from the firm's settings, is the one exception (`tests/unit/ui.theme.test.ts`).
+value in a class or a style): the firm's colour, which the root layout works out from the firm's
+settings and sets on `<body>`, is the one exception (`tests/unit/ui.theme.test.ts`).
 
 **A firm's own colour on buttons.** Its words are black or white, whichever reads better (at
 least 4.58:1), so a button in any firm colour can be read. Against the page, a pale firm colour
@@ -55,8 +105,8 @@ least 4.58:1), so a button in any firm colour can be read. Against the page, a p
 still named by its words, which is what identifies it, so no edge is added for now (Phase 17's
 guardrails review, S5; revisit if a pilot firm's colour reads poorly).
 
-**Easier to scan (Phase 17).** Flat surfaces: no shadows on anything at rest (only what floats, a
-menu or a dialog, has one; `tests/unit/ui.flat.test.ts` holds it), one hairline (`line`) on cards,
+**Easier to scan (Phase 17).** Flat surfaces: no shadows on anything at rest but Phase 18's pass
+(only what floats, a menu or a dialog, has one; `tests/unit/ui.flat.test.ts` holds it), one hairline (`line`) on cards,
 a 1px border on office controls and fields. No label above a page's heading and no divider under the header (the firm's bar or the
 office's top bar names the firm). Lists are rows in one card rather than a stack of cards, and an
 empty list keeps its place as a dashed frame with one sentence. Colour goes on what needs someone:
@@ -69,7 +119,7 @@ a `prefers-color-scheme: dark` block gives the dark values, guarded so an explic
 `data-theme="light"` wins. Each theme sets `color-scheme`, and the page carries `<meta
 name="color-scheme" content="light dark">`, so the browser's own controls and scrollbars match.
 The office's moon/sun button sets the cookie (12A.2); casual pages follow the device. The firm's
-brand bar stays exactly as it is in both.
+colour has a set for each theme (Phase 18, above).
 
 Focus: every focusable element shows a 2px `ink` outline with a 2px offset on `:focus-visible`.
 Buttons get `cursor: pointer`. File inputs get a visible "choose" button
@@ -77,17 +127,19 @@ Buttons get `cursor: pointer`. File inputs get a visible "choose" button
 times, counts, money and notice hours line up.
 
 **Type.** One scale, and Tailwind offers no other size: 12px (`text-xs`), 13px (`text-sm`), 15px
-(`text-base`), 18px (`text-lg`), 24px (`text-2xl`), 30px (`text-3xl`). Office pages use 15px body
+(`text-base`), 18px (`text-lg`), 24px (`text-2xl`), 30px (`text-3xl`), and 40px (`text-4xl`,
+Phase 18) for a shift's time and its date tile only. Office pages use 15px body
 (the shell sets `text-base`), 13px meta, 18px section headings, 24px page titles (Phase 17: an app
 screen's title, not a landing page's), and 30px for the dashboard's counts. Staff pages keep
 18px body and their big buttons, with 24px for a page's result ("You're booked."). Office fields
 are 18px on a touch screen (`pointer-coarse:text-lg`), because iPhones zoom in on a field under
 16px.
 
-**Font.** Plus Jakarta Sans, self-hosted with `next/font/local` from its npm package
-(`@fontsource-variable/plus-jakarta-sans`, SIL Open Font License), latin and latin-ext (for names
-such as Łukasz; downloaded only when a page has such a letter), then the system's font. Nothing is
-fetched from Google, while building or while running (`src/app/fonts.ts`).
+**Font.** Public Sans (`@fontsource-variable/public-sans`) and Barlow Condensed bold
+(`@fontsource/barlow-condensed`, for `font-sign`), self-hosted with `next/font/local` from their
+npm packages (SIL Open Font License), each latin and latin-ext (for names such as Łukasz;
+downloaded only when a page has such a letter), then the system's font. Nothing is fetched from
+Google, while building or while running (`src/app/fonts.ts`).
 
 ## Shared components (`src/app/ui/`)
 
@@ -182,8 +234,9 @@ you on to `/office` as before.
   stays exactly its label.
 - **Session keeper:** in the frame, so a session is kept alive on every office page.
 - **Test rules the shell must keep:** the menu is built from plain links (no list items, headings,
-  regions, `status`, `note` or `menu` roles, fieldsets or `<details>`); it sits outside `<main>`;
-  link names stay word for word; nothing else on a page may repeat a menu link's name (the account
+  regions, `status`, `note` or `menu` roles, fieldsets or `<details>`: Phase 18's folded "Admin and
+  records" is a button that shows or hides its links, and `menuLink()` opens it); it sits outside
+  `<main>`; link names stay word for word; nothing else on a page may repeat a menu link's name (the account
   menu's "How-to guide" is hidden until opened); its `aria-label` ("Office menu") contains no
   field label used on a page. The browser tests reach menu links through `menuLink(page, name)`
   and "Log out" through `accountMenu(page)` (`tests/e2e/fixtures.ts`).

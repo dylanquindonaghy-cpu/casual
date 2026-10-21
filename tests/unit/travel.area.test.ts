@@ -133,23 +133,25 @@ const list = (o: Partial<OpenShiftsList> = {}): OpenShiftsList => ({
 });
 const open = (l: OpenShiftsList) =>
   renderToStaticMarkup(
-    createElement(OpenShiftsView, { list: l, filters: {}, timeZone: TZ, now: NOW }),
+    createElement(OpenShiftsView, { list: l, filters: {}, strip: [], timeZone: TZ, now: NOW }),
   );
 const urgent = (l: OpenShiftsList) =>
   renderToStaticMarkup(createElement(UrgentView, { list: l, timeZone: TZ, now: NOW }));
 
 describe("Open shifts and the urgent board", () => {
-  it("every card has the travel line after the places left: both times, whatever she chose", () => {
+  it("every card has the travel line under where it is: both times, whatever she chose", () => {
     for (const html of [open(list()), urgent(list({ shifts: [shift({ isUrgent: true })] }))]) {
+      // Phase 18: under the role and the place, then the seats (she takes it on its page).
       expect(text(html)).toContain(
-        "1 place left 7.2 miles · 18 min by car · 41 min by public transport Take shift",
+        "Door supervisor Demo Arena 7.2 miles · 18 min by car · 41 min by public transport 1 place left",
       );
+      expect(html.match(/data-travel-line=""/g)).toHaveLength(1);
     }
   });
 
   it("an unknown distance is shown and labelled, never hidden", () => {
     const words = text(open(list({ shifts: [shift({ travel: { kind: "unknown" } })] })));
-    expect(words).toContain("1 place left Distance not known yet");
+    expect(words).toContain("Demo Arena Distance not known yet 1 place left");
   });
 
   it("no travel area: the prompt, linking to Where you work, and no 'further' line", () => {
@@ -215,7 +217,7 @@ describe("Booked (My shifts' upcoming)", () => {
       "Door supervisor 7.2 miles · 18 min by car · 41 min by public transport Demo Arena",
     );
     expect(words).toContain(
-      "Door supervisor at Demo Arena about 7 miles (straight line) · Travel time not known yet",
+      "Door supervisor Demo Arena about 7 miles (straight line) · Travel time not known yet",
     );
   });
 });
@@ -234,7 +236,7 @@ describe("travel areas switched off for the firm (13.4)", () => {
       expect(html).not.toContain(`href="${TRAVEL_PATH}"`);
       expect(html).not.toContain("data-travel-line");
       expect(words).not.toMatch(/miles|min by car|Distance not known/);
-      expect(words).toContain("1 place left Take shift");
+      expect(words).toContain("Door supervisor Demo Arena 1 place left");
     }
     // Even with a "further" count somehow set, nothing about distance.
     expect(text(open({ ...off(), further: { count: 2, atLeast: false } }))).not.toContain(

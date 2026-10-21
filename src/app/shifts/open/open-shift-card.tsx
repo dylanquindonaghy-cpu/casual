@@ -1,72 +1,69 @@
 import Link from "next/link";
-import { perHour, roleAndEvent, shiftWhen, soonLabel } from "@/lib/portal/format";
+import { perHour, roleLabel, soonLabel } from "@/lib/portal/format";
 import type { OpenShift } from "@/lib/portal/open-shifts";
+import { dateParts, placesLeftText, timeRange } from "@/lib/portal/sign-copy";
 import { travelLineText } from "@/lib/travel/line-copy";
-import { btn, card, muted } from "../../ui/classes";
-import { StatusChip } from "../../ui/status-chip";
-import { RequirementChips } from "../requirement-chips";
-import { TakeShiftButton } from "./take-shift-button";
+import { Icon } from "../../ui/icons";
+import { DateTile, Seats } from "../../ui/sign";
 
-// One shift on Open shifts or the urgent board (docs/office-v2.md 4.3; 12H.2): an "Urgent" label
-// when marked urgent, then role · event (a link to the shift's page), the site,
-// "date and time · £/hour · post", what it needs as chips, places left, the travel line (both
-// times, whichever ways she chose; "Distance not known yet" when it isn't: 12G.3), then "Take
-// shift" (or, under fair rotation, when it opens). The address is on the shift's page.
+// One shift on Open shifts or the urgent board (docs/office-v2.md 4.3; 12H.2; Phase 18), a card
+// that opens the shift's page (where she reads it in full and takes it): its date tile (red when
+// urgent), the time in sign figures, the role, the event and post, the travel line (both times,
+// whichever ways she chose, so no one is shown only a drive; "Distance not known yet" when it
+// isn't: 12G.3), then its seats with the places left and the pay per hour; under fair rotation,
+// when she can take it.
 export function OpenShiftCard({
   shift: s,
   timeZone,
   now,
-  checkAgainHref,
 }: {
   shift: OpenShift;
   timeZone: string;
   now: Date;
-  checkAgainHref: string; // the board it's on, to look again after a hold
 }) {
-  const facts = [
-    shiftWhen(s.startsAt, s.endsAt, timeZone),
-    s.payRatePence != null ? perHour(s.payRatePence) : null,
-    s.post ?? null,
-  ].filter(Boolean);
+  const day = dateParts(s.startsAt, timeZone);
+  const t = timeRange(s.startsAt, s.endsAt, timeZone);
+  const total = s.headcount ?? s.placesLeft;
+  const place = [s.casualEvent ?? s.site?.name, s.post].filter(Boolean).join(", ");
   return (
-    <li className={card}>
-      {s.isUrgent && (
-        <div className="mb-2 flex">
-          <StatusChip tone="urgent">Urgent</StatusChip>
-        </div>
-      )}
-      <p className="font-bold">
-        <Link
-          href={`/shifts/${s.shiftId}`}
-          className="underline decoration-line underline-offset-4 hover:decoration-ink"
-        >
-          {roleAndEvent(s.role, s.casualEvent)}
-        </Link>
-      </p>
-      {s.site && <p className="text-base">{s.site.name}</p>}
-      <p className="text-base tabular-nums">{facts.join(" · ")}</p>
-      <RequirementChips requirements={s.requirements} className="mt-1.5" />
-      <p className={`mt-1.5 ${muted}`}>
-        {s.placesLeft === 1 ? "1 place left" : `${s.placesLeft} places left`}
-      </p>
-      {s.travel && (
-        <p className={muted} data-travel-line="">
-          {travelLineText(s.travel, timeZone)}
-        </p>
-      )}
-      {s.opensAt ? (
-        <div className="mt-3 rounded-xl bg-quiet-soft p-3 text-base">
-          <p>
-            Offered first to people with fewer hours that week. You can take it from{" "}
-            {soonLabel(s.opensAt, now, timeZone)}.
-          </p>
-          <Link href={checkAgainHref} className={btn.link}>
-            Check again
-          </Link>
-        </div>
-      ) : (
-        <TakeShiftButton shiftId={s.shiftId} />
-      )}
+    <li className="animate-in">
+      <Link
+        href={`/shifts/${s.shiftId}`}
+        className="flex items-start gap-3.5 rounded-xl border border-line bg-card p-3.5 hover:bg-quiet-soft focus-visible:-outline-offset-2"
+      >
+        <DateTile dow={day.dow} day={day.day} urgent={s.isUrgent} />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {s.isUrgent && <span className="sr-only">Urgent. </span>}
+          <span className="font-sign text-2xl leading-tight text-ink">{t.range}</span>
+          <span className="text-lg leading-snug font-semibold">{roleLabel(s.role)}</span>
+          {t.endsNote && <span className="text-base text-ink-muted">{t.endsNote}</span>}
+          {place && <span className="text-base text-ink-muted">{place}</span>}
+          {s.travel && (
+            <span className="text-base text-ink-muted" data-travel-line="">
+              {travelLineText(s.travel, timeZone)}
+            </span>
+          )}
+          <span className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <Seats taken={total - s.placesLeft} total={total} urgent={s.isUrgent} />
+            <span className={`text-base font-semibold ${s.isUrgent ? "text-urgent" : "text-ink"}`}>
+              {placesLeftText(s.placesLeft)}
+            </span>
+            {s.payRatePence != null && (
+              <span className="ml-auto text-base text-ink-muted tabular-nums">
+                {perHour(s.payRatePence)}
+              </span>
+            )}
+          </span>
+          {s.opensAt && (
+            <span className="mt-1.5 flex items-center gap-2 text-base">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded bg-hivis text-on-hivis">
+                <Icon name="clock" size={16} />
+              </span>
+              You can take it from {soonLabel(s.opensAt, now, timeZone)}
+            </span>
+          )}
+        </span>
+      </Link>
     </li>
   );
 }

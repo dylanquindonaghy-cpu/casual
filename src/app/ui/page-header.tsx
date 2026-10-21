@@ -31,7 +31,7 @@ export function PageHeader({
           {back.label}
         </a>
       ) : null}
-      <h1 id={titleId} className="text-2xl font-bold tracking-tight text-balance text-ink">
+      <h1 id={titleId} className="text-2xl font-semibold tracking-tight text-balance text-ink">
         {title}
       </h1>
       {children ? <div className="mt-2 flex max-w-prose flex-col gap-2">{children}</div> : null}

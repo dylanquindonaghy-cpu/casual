@@ -199,6 +199,68 @@ const PATHS = {
       <path d="M10 20.5a2 2 0 0 0 4 0" />
     </>
   ),
+  // Phase 18's: urgent (a warning sign), done (a tick), a photo to take, what to bring and wear,
+  // the maps button, a wait, no signal, the shifts line, add, shown to casuals.
+  urgent: (
+    <>
+      <path d="M12 3.5 2.5 20h19z" />
+      <path d="M12 10v4.5M12 17.2v.01" />
+    </>
+  ),
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  camera: (
+    <>
+      <path d="M4 7.5h3.5L9 5h6l1.5 2.5H20a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8.5a1 1 0 0 1 1-1z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </>
+  ),
+  tabard: (
+    <>
+      <path d="M8 3 4 6v15h16V6l-4-3" />
+      <path d="M8 3l4 5 4-5" />
+      <path d="M4 12h16M4 16h16" />
+    </>
+  ),
+  trousers: <path d="M7 3h10l1 18h-4.5L12 10l-1.5 11H6z" />,
+  shoe: (
+    <>
+      <path d="M3 16V8h5l2 3 7 1.5a3.5 3.5 0 0 1 3.5 3.5v1H3z" />
+      <path d="M3 19h17.5" />
+    </>
+  ),
+  garment: (
+    <>
+      <path d="M9 3.5 4 6l1.5 4.5L8 9.5V20.5h8V9.5l2.5 1L20 6l-5-2.5a3 3 0 0 1-6 0z" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  offline: (
+    <>
+      <path d="M3 3l18 18" />
+      <path d="M8.5 6.2A6 6 0 0 1 17.6 10H18a4 4 0 0 1 2.4 7.2M17 19H7a4.5 4.5 0 0 1-1.6-8.7" />
+    </>
+  ),
+  phone: (
+    <path d="M5 3.5h4l2 5-2.5 1.5a11 11 0 0 0 5.5 5.5L15.5 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5.5a2 2 0 0 1 2-2z" />
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
+  eye: (
+    <>
+      <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
   // ShiftDesk's own mark, in the office's top bar: a calendar with a tick.
   mark: (
     <>
@@ -210,14 +272,23 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, className }: { name: IconName; className?: string }) {
+// 20px unless `size` says otherwise (the casual app's tiles use 24 and 28).
+export function Icon({
+  name,
+  className,
+  size = 20,
+}: {
+  name: IconName;
+  className?: string;
+  size?: number;
+}) {
   return (
     <svg
       aria-hidden="true"
       focusable="false"
       viewBox="0 0 24 24"
-      width="20"
-      height="20"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.75"

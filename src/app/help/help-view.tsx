@@ -108,8 +108,8 @@ export function HelpView({
         </p>
         <Points>
           <li>
-            Home shows your next shift in full: the day and times, the site, your pay and any
-            instructions.
+            Home shows your next shift as a pass: the day and times, the site and your gate. Tap it
+            to see the rest: getting there, your pay and any instructions.
           </li>
           <li>
             Tap <Name>Open in maps</Name> for directions to the site.
@@ -128,13 +128,14 @@ export function HelpView({
       <Section id="taking-a-shift">
         <Steps>
           <Step>
-            On Home, tap <Name>See all open shifts</Name>.
+            Tap <Name>Shifts</Name>, then <Name>Open</Name>.
           </Step>
           <Step>
-            To narrow the list, choose a day, site or role. Then tap <Name>Show shifts</Name>.
+            To see one day, tap it at the top. To narrow the list, tap{" "}
+            <Name>Choose a day, site or role</Name>, then <Name>Show shifts</Name>.
           </Step>
           <Step>
-            Tap <Name>Take shift</Name> on the one you want.
+            Tap the shift you want. Read it, then tap <Name>Take shift</Name>.
           </Step>
           <Step>
             You&apos;ll see “You&apos;re booked.” and a reference. The shift is now in your booked
@@ -161,15 +162,13 @@ export function HelpView({
 
       <Section id="urgent-shifts">
         <p className="mt-3">
-          When a shift you could take starts soon and needs someone, Home shows it in a red box near
-          the top.
+          When a shift you could take starts soon and needs someone, Home shows it in red under{" "}
+          <Name>For you</Name>.
         </p>
         <Steps>
+          <Step>Tap it to see the urgent shifts.</Step>
           <Step>
-            Tap <Name>See urgent shifts</Name>.
-          </Step>
-          <Step>
-            Tap <Name>Take shift</Name>.
+            Tap the one you want, then <Name>Take shift</Name>.
           </Step>
         </Steps>
         <p className="mt-4">You may get a message about it too.</p>
@@ -179,11 +178,11 @@ export function HelpView({
         <Steps>
           <Step>
             On Home or under <Name>Shifts</Name>, find the shift and tap{" "}
-            <Name>Cancel this shift</Name>.
+            <Name>Can&apos;t make it?</Name>
           </Step>
           <Step>Choose why you can&apos;t make it.</Step>
           <Step>
-            Tap <Name>Confirm cancellation</Name>.
+            Tap <Name>Cancel this shift</Name>.
           </Step>
         </Steps>
         <p className="mt-4">
@@ -191,7 +190,7 @@ export function HelpView({
           screenshot.
         </p>
         <p className="mt-3">
-          Changed your mind? Tap <Name>Keep this shift</Name> instead.
+          Changed your mind? Tap <Name>Keep my shift</Name> instead.
         </p>
         <p className="mt-3">
           A shift that has started can&apos;t be cancelled here. Contact the office.

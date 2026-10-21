@@ -15,7 +15,7 @@ import { loginLinkSentTo, sentTo } from "./outbox";
 // this spec's own (12I.1's demo seed brings the persona's full set) is a door supervisor, a steward
 // and a CSAS officer, with her SIA licence valid, her steward qualification expiring in 12 days and
 // no CSAS accreditation. Profile shows each status with its date line and what it means, then right
-// to work; My shifts' "Needs updating" lists the two to sort out. Never "credential". Then the
+// to work; Home's For you counts the two to sort out (Phase 18). Never "credential". Then the
 // office's side (docs/office-v2.md 3.7): with one strike of hers (a session of this spec's own,
 // cancelled inside 48 hours), a resourcer sees her on Casuals' Need updating (stacked cards on a
 // phone, the table's columns on a computer; each view's count is the number it lists) and opens her
@@ -58,18 +58,15 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page.getByRole("heading", { name: "Hello Zoe" })).toBeVisible();
 
-  // My shifts' "Needs updating": the expiring one (level 3) before the missing one (level 4).
-  const needs = page.getByRole("region", { name: "Needs updating" });
-  // One she can upload ends "Upload it" (12F.2); CSAS is recorded by the office, so it doesn't.
-  await expect(needs.getByRole("listitem")).toHaveText([
-    /^Level 2 spectator safety qualification expires on \d{1,2} \w{3}( \d{4})?\. Renew it to keep getting steward shifts\. Upload it$/,
-    "CSAS accreditation is missing. Needed for CSAS officer shifts.",
-  ]);
-  await expect(
-    needs.getByRole("link", { name: "Upload your Level 2 spectator safety qualification" }),
-  ).toHaveAttribute("href", "/profile/upload/STEWARD_L2");
-  await expect(needs.getByRole("link", { name: /CSAS/ })).toHaveCount(0);
-  await needs.getByRole("link", { name: "See your qualifications" }).click();
+  // Home's For you (Phase 18): what needs doing as one row, the expiring one (level 3) first, then
+  // how many more (the missing one, level 4), to Profile, where each is listed.
+  const needs = page.getByRole("region", { name: "For you" }).locator('[data-for-you="needs"]');
+  await expect(needs).toContainText("Needs doing");
+  await expect(needs).toContainText("2 things need doing");
+  await expect(needs).toContainText(
+    /Level 2 spectator safety qualification expires on \d{1,2} \w{3}( \d{4})?\. Renew it to keep getting steward shifts\. And 1 more\./,
+  );
+  await needs.getByRole("link").click();
 
   await expect(page).toHaveURL(`${acme}/profile`);
   const qualifications = page.getByRole("region", { name: "Qualifications" });
@@ -85,16 +82,22 @@ test("Profile shows Zoe's qualifications: one Valid, one Expiring soon, one Miss
   await expect(items.nth(1)).toContainText(/Expiring soon · Expires \d{1,2} \w{3}/);
   await expect(items.nth(2)).toContainText("SIA door supervisor licence");
   await expect(items.nth(2)).toContainText(/Valid · Valid until \d{1,2} \w{3}/);
+  // One she can upload has its link (12F.2); CSAS is recorded by the office, so it doesn't.
+  await expect(items.nth(1).getByRole("link", { name: "Upload a certificate" })).toHaveAttribute(
+    "href",
+    "/profile/upload/STEWARD_L2",
+  );
+  await expect(items.nth(0).getByRole("link")).toHaveCount(0);
   await expect(qualifications).toContainText("Right to work");
   await expect(qualifications).toContainText("Not checked yet: ask the office");
   expect((await page.locator("body").innerText()).toLowerCase()).not.toContain("credential");
   await noSidewaysScroll(page);
 });
 
-// Home (12H.1; docs/office-v2.md 4.2): the photo row in Needs updating with its seeded upload date,
-// the urgent card and the next shift each with their site and both travel times, the next shift's
-// facts, and the tab bar with the Profile dot.
-test("Home shows Holly's photo row, the urgent card and her next shift in full", async ({
+// Home (12H.1; docs/office-v2.md 4.2; Phase 18): For you's photo row (its date), the urgent row to
+// the urgent board (where the card has its site and both travel times), her next shift as a pass
+// that opens into its facts and actions, and the tab bar with the Profile count.
+test("Home shows Holly's photo row, the urgent row and her next shift in full", async ({
   page,
 }) => {
   const scene = await homeScene("acme", HOLLY);
@@ -106,7 +109,7 @@ test("Home shows Holly's photo row, the urgent card and her next shift in full",
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page.getByRole("heading", { name: "Hello Holly" })).toBeVisible();
 
-  // Needs updating: her photo, overdue, with the date it was uploaded (the firm's calendar).
+  // The date her photo was uploaded (the firm's calendar), as Profile's photo card says it.
   // ("3 Sep 2023": the app's own short months, not the browser's "Sept".)
   const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" })
     .format(scene.photoOn)
@@ -114,63 +117,71 @@ test("Home shows Holly's photo row, the urgent card and her next shift in full",
     .map(Number);
   const months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
   const uploaded = `${d} ${months[(m ?? 1) - 1]} ${y}`;
-  const needs = page.getByRole("region", { name: "Needs updating" });
-  await expect(needs.getByRole("listitem")).toHaveText([
-    new RegExp(
-      `^Your staff photo is overdue\\. Last uploaded ${uploaded} · renew by ${DAY}\\. Take a new photo$`,
-    ),
-  ]);
-  await expect(needs.getByRole("link", { name: "Take a new photo" })).toHaveAttribute(
+  // For you: her photo, overdue (it stops her working, so "Needs doing now"), to Profile's photo.
+  const forYou = page.getByRole("region", { name: "For you" });
+  const needs = forYou.locator('[data-for-you="needs"]');
+  await expect(needs).toContainText("Needs doing now");
+  await expect(needs).toContainText("Renew your staff photo");
+  await expect(needs).toContainText(/It was due by \d{1,2} [A-Z][a-z]{2}\. Take a new photo\./);
+  await expect(needs.getByRole("link")).toHaveAttribute("href", "/profile#photo-heading");
+
+  // The urgent row: how many and when, the top rate, to the urgent board.
+  const urgentRow = forYou.getByRole("link", { name: /^Urgent 1 shift you can take / });
+  await expect(urgentRow).toContainText("up to £13.00 an hour");
+  await expect(urgentRow).toHaveAttribute("href", "/urgent");
+  // Nothing else in her role is open, so the apply row says so (to Open shifts).
+  await expect(forYou.getByRole("link", { name: /^No other shifts open/ })).toHaveAttribute(
     "href",
-    "/profile#photo-heading",
+    "/shifts/open",
   );
 
-  // The urgent card: role · event, the site, and both travel times.
-  const urgent = page.getByRole("region", { name: "Urgent: needed now, and you can take them" });
-  await expect(urgent.getByRole("listitem")).toHaveCount(1);
-  await expect(urgent).toContainText("Home check");
-  await expect(urgent).toContainText(scene.urgent.site);
-  await expect(urgent).toContainText("£13.00/hour");
-  await expect(urgent).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
-
-  // Her next shift, in full.
+  // Her next shift: a pass, closed (when, what, where, the gate), opening into the rest.
   const next = page.getByRole("region", { name: "Your next shift" });
   await expect(next).toContainText("Home check");
   await expect(next).toContainText(scene.booked.site);
   await expect(next).toContainText("Gate 3");
+  await expect(next.getByRole("link", { name: "Ask for a change" })).toBeHidden();
+  await next.locator("summary").click();
   await expect(next).toContainText(/£12\.60 an hour, about £100\.80/);
   await expect(next).toContainText("Staff entrance on Mill Lane");
   await expect(next).toContainText("Black trousers and your hi-vis");
   await expect(next).toContainText("5.0 miles · 15 min by car · 30 min by public transport");
   await expect(next.getByRole("link", { name: "Ask for a change" })).toBeVisible();
-  await expect(next.getByRole("button", { name: "Cancel this shift" })).toBeVisible();
+  await expect(next.getByRole("button", { name: "Can't make it?" })).toBeVisible();
 
-  // Nothing else in her role is open, so the apply list says so.
-  const apply = page.getByRole("region", { name: "Shifts you can apply for" });
-  await expect(apply).toContainText(
-    "Only shifts your licences and hours allow, up to 45 minutes from your home area.",
-  );
-  await expect(apply.getByRole("link", { name: "See all open shifts" })).toBeVisible();
-
-  // The tab bar: Home is current; Profile carries the dot for her photo.
+  // The tab bar: Home is current; Profile carries the count for her photo.
   const tabs = page.getByRole("navigation", { name: "Main" });
   await expect(tabs.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
-  await expect(tabs.getByRole("link", { name: "Profile, something needs updating" })).toBeVisible();
+  await expect(tabs.getByRole("link", { name: "Profile, 1 thing needs doing" })).toBeVisible();
   await noSidewaysScroll(page);
 
   // The theme follows the phone (§4.1; 12H.1 audit): no cookie set, so a dark phone gets the navy
-  // page and tab bar, a light one white. The firm's own bar keeps its colour.
-  const WHITE = "rgb(255, 255, 255)";
-  const NAVY_CARD = "rgb(27, 38, 66)"; // #1b2642, the dark theme's card (the staff pages' page)
+  // page and tab bar, a light one the canvas grey and a white tab bar (Phase 18).
+  const LIGHT = { page: "rgb(242, 244, 247)", bar: "rgb(255, 255, 255)" }; // #f2f4f7, #ffffff
+  const DARK = { page: "rgb(15, 22, 38)", bar: "rgb(27, 38, 66)" }; // #0f1626, #1b2642
   await page.emulateMedia({ colorScheme: "dark" });
-  await expect(page.locator("body")).toHaveCSS("background-color", NAVY_CARD);
-  await expect(tabs).toHaveCSS("background-color", NAVY_CARD);
+  await expect(page.locator("body")).toHaveCSS("background-color", DARK.page);
+  await expect(tabs).toHaveCSS("background-color", DARK.bar);
   await page.emulateMedia({ colorScheme: "light" });
-  await expect(page.locator("body")).toHaveCSS("background-color", WHITE);
-  await expect(tabs).toHaveCSS("background-color", WHITE);
+  await expect(page.locator("body")).toHaveCSS("background-color", LIGHT.page);
+  await expect(tabs).toHaveCSS("background-color", LIGHT.bar);
+
+  // The urgent board's card: the site and both travel times.
+  await urgentRow.click();
+  const urgent = page.getByRole("main").getByRole("listitem");
+  await expect(urgent).toHaveCount(1);
+  await expect(urgent).toContainText("Home check");
+  await expect(urgent).toContainText("£13.00/hour");
+  await expect(urgent).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
+  // Open shifts says how far she travels.
+  await page.goto(`${acme}/shifts/open`);
+  await expect(
+    page.getByText("Only shifts your licences and hours allow, up to 45 minutes from home."),
+  ).toBeVisible();
 
   // Profile's staff photo card (12H.3; §4.6): the photo, its dates and its status.
-  await tabs.getByRole("link", { name: "Profile, something needs updating" }).click();
+  await page.goto(`${acme}/`);
+  await tabs.getByRole("link", { name: "Profile, 1 thing needs doing" }).click();
   await expect(page).toHaveURL(`${acme}/profile`);
   const photo = page.getByRole("region", { name: "Staff photo" });
   await expect(photo.getByRole("img", { name: "Staff photo of Holly Grant" })).toBeVisible();
@@ -180,10 +191,10 @@ test("Home shows Holly's photo row, the urgent card and her next shift in full",
   await noSidewaysScroll(page);
 });
 
-// The shifts list and shift page (12H.2; docs/office-v2.md 4.3, 4.4): Zoe's Open row for the Arena
-// session (role · event, site, date and time · £/hour · post, the chip, places, the travel line),
-// the site filter narrowing the list, the shift's page in full, and a session she can't take with
-// her status for each thing it needs.
+// The shifts list and shift page (12H.2; docs/office-v2.md 4.3, 4.4; Phase 18): Zoe's card for the
+// Arena session (the time, role, event and post, the travel line, places, £/hour; what it needs is
+// on its page), the site filter narrowing the list, the shift's page in full, and a session she
+// can't take with her status for each thing it needs.
 test("Shifts: Zoe sees the Arena shift with its travel line, and its page in full", async ({
   page,
 }) => {
@@ -199,22 +210,23 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   // Open: two of her three sessions (the third needs what she hasn't got).
   await page.goto(`${acme}/shifts/open`);
   const rows = page
+    .getByRole("main")
     .getByRole("listitem")
-    .filter({ has: page.getByRole("button", { name: "Take shift" }) });
+    .filter({ has: page.locator('a[href^="/shifts/"]:not([href^="/shifts/open"])') });
   await expect(rows).toHaveCount(2);
   const arena = rows.filter({ hasText: "Gate A" });
-  await expect(arena).toContainText(`Arena check · ${scene.event}`);
-  await expect(arena).toContainText(scene.arena);
-  await expect(arena).toContainText(
-    /\d{1,2} [A-Z][a-z]{2}, \d\d:\d\d to \d\d:\d\d · £15\.50\/hour · Gate A/,
-  );
-  await expect(arena).toContainText("Needs: SIA DS");
+  await expect(arena).toContainText(/\d\d:\d\d–\d\d:\d\d/);
+  await expect(arena).toContainText("Arena check");
+  await expect(arena).toContainText(`${scene.event}, Gate A`);
+  await expect(arena).toContainText("£15.50/hour");
   await expect(arena).toContainText("4 places left");
   await expect(arena).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
   await expect(page.getByText("Manual handling")).toHaveCount(0);
   await noSidewaysScroll(page);
 
-  // The site filter, as built, narrows the list: the other hall, then the Arena.
+  // The site filter, as built (folded away under "Choose a day, site or role"), narrows the list:
+  // the other hall, then the Arena.
+  await page.getByText("Choose a day, site or role").click();
   await page.getByLabel("Site").selectOption({ label: scene.arena.replace("Arena", "Other Hall") });
   await page.getByRole("button", { name: "Show shifts" }).click();
   await expect(rows).toHaveCount(1);
@@ -225,29 +237,28 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   await expect(rows).toContainText("Gate A");
 
   // Its page in full.
-  await rows.getByRole("link", { name: `Arena check · ${scene.event}` }).click();
+  await rows.getByRole("link").click();
   await expect(page).toHaveURL(`${acme}/shifts/${scene.takeable}`);
   await expect(page.getByRole("heading", { level: 1, name: "Arena check" })).toBeVisible();
-  await expect(page.getByText(`${scene.arena} · ${scene.event}`)).toBeVisible();
+  const card = page.getByRole("region", { name: "Arena check" });
+  await expect(card).toContainText("Gate A");
+  await expect(card).toContainText(scene.event);
+  await expect(card).toContainText(scene.arena);
   await expect(page.getByText("1 Example Road, Exampleton, ZZ1 1AA")).toBeVisible();
-  const fact = (label: string) =>
-    page.getByRole("term").filter({ hasText: new RegExp(`^${label}$`) });
-  await expect(fact("Pay")).toBeVisible();
-  await expect(page.getByText("£15.50 an hour, about £124.00")).toBeVisible();
+  await expect(card.getByText("Pay", { exact: true })).toBeVisible();
+  await expect(card.getByText("£15.50 an hour, about £124.00").first()).toBeVisible();
+  await expect(card.getByText("Report to", { exact: true })).toBeVisible();
   await expect(page.getByText("Staff entrance on Mill Lane")).toBeVisible();
-  await expect(fact("Post")).toBeVisible();
   await expect(page.getByText("Black trousers and your hi-vis")).toBeVisible();
-  await expect(page.getByText("4 of 4 left")).toBeVisible();
-  const there = page.getByRole("region", { name: "Getting there" });
-  await expect(there.getByRole("listitem")).toHaveText([
-    "3.1 miles away",
-    "About 12 min by car",
-    "About 24 min by public transport",
-  ]);
+  await expect(page.getByText("4 of 4 places left")).toBeVisible();
+  const there = page.getByRole("region", { name: "Getting there, from your home area" });
+  await expect(there).toContainText("3.1 miles · 12 min by car · 24 min by public transport");
+  await expect(there).toContainText("12 min");
+  await expect(there).toContainText("24 min");
   await expect(there.getByRole("link", { name: "Open in maps" })).toBeVisible();
-  const needs = page.getByRole("region", { name: "What it needs" });
+  const needs = page.getByRole("region", { name: "You need" });
   await expect(needs.getByRole("listitem")).toHaveText([
-    new RegExp(`^SIA door supervisor licenceYou have it, valid until ${DAY}$`),
+    new RegExp(`^SIA door supervisor licence\\s*You have it, valid until ${DAY}$`),
   ]);
   await expect(page.getByRole("button", { name: "Take shift" })).toBeVisible();
   await expect(
@@ -258,13 +269,13 @@ test("Shifts: Zoe sees the Arena shift with its travel line, and its page in ful
   // A session she can't take, from a direct link: her status for each thing it needs.
   await page.goto(`${acme}/shifts/${scene.blocked}`);
   await expect(page.getByRole("heading", { name: "You can't take this shift:" })).toBeVisible();
-  const blockedNeeds = page.getByRole("region", { name: "What it needs" }).getByRole("listitem");
+  const blockedNeeds = page.getByRole("region", { name: "You need" }).getByRole("listitem");
   await expect(blockedNeeds).toHaveText([
-    new RegExp(`^SIA door supervisor licenceYou have it, valid until ${DAY}$`),
+    new RegExp(`^SIA door supervisor licence\\s*You have it, valid until ${DAY}$`),
     // Not one her roles need, so she can't send it herself: the office.
-    /^Level 2 spectator safety qualificationExpires before this shift: ask the office\.$/,
-    /^CSAS accreditationMissing: ask the office\.$/,
-    /^Manual handling certificateMissing: upload it$/,
+    /^Level 2 spectator safety qualification\s*Expires before this shift: ask the office\.$/,
+    /^CSAS accreditation\s*Missing: ask the office\.$/,
+    /^Manual handling certificate\s*Missing: upload it$/,
   ]);
   // "upload it" opens a page that takes it (her second role needs it).
   await page.getByRole("link", { name: "Upload your manual handling certificate" }).click();

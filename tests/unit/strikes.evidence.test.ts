@@ -18,7 +18,7 @@ import { EVIDENCE_MAX_ATTEMPTS, strikeEvidencePayload } from "@/lib/strikes/evid
 
 // The evidence email to the strikes team (12C.4; docs/office-v2.md 5.6): its words (§5.6's own
 // example, word for word), the job's payload and retries, its log entries, and the Needs attention
-// item on the dashboard. tests/integration/strikes.evidence.test.ts runs the job on the database.
+// item (Phase 18: a row in the dashboard's "After that", in full on the Needs attention page). tests/integration/strikes.evidence.test.ts runs the job on the database.
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 vi.mock("@/app/office/today-actions", () => ({
@@ -35,6 +35,7 @@ vi.mock("@/app/office/shifts/actions", () => ({
   moveShiftAction: vi.fn(),
 }));
 const { DashboardContent } = await import("@/app/office/dashboard-view");
+const { NeedsItems } = await import("@/app/office/needs-items");
 
 const ACME = { name: "Acme Events", signOff: "Acme Events Shift Team" };
 const facts = {
@@ -307,7 +308,7 @@ describe("the log", () => {
   });
 });
 
-describe("the Needs attention item on the dashboard (12E.1)", () => {
+describe("the Needs attention item: the dashboard's row and the Needs attention page (12E.1)", () => {
   const needs = (evidence: NeedsAttention["evidence"]): NeedsAttention => ({
     toCheck: [],
     toCheckMore: false,
@@ -337,9 +338,23 @@ describe("the Needs attention item on the dashboard (12E.1)", () => {
     cancellations: { ok: true, data: { rows: [], threshold: 48 } },
     enquiries: { ok: true, data: { rows: [], replies: {}, days: 90 } },
     needs: { ok: true, data: needs(evidence) },
+    week: { ok: true, data: [] },
   });
+  // The dashboard's rows are the same for admins and resourcers.
+  const dashboard = (v: Dashboard) =>
+    renderToStaticMarkup(createElement(DashboardContent, { d: v }));
+  // The Needs attention page's items (the page around them only loads the data).
   const render = (v: Dashboard, isAdmin: boolean) =>
-    renderToStaticMarkup(createElement(DashboardContent, { d: v, isAdmin }));
+    renderToStaticMarkup(
+      createElement(NeedsItems, {
+        n: v.needs.ok
+          ? v.needs.data
+          : needs({ addressConfirmed: true, waiting: 0, failed: [], failedMore: false }),
+        timeZone: v.timeZone,
+        today: v.today,
+        isAdmin,
+      }),
+    );
   const text = (html: string) =>
     html
       .replace(/<[^>]+>/g, " ")
@@ -362,6 +377,9 @@ describe("the Needs attention item on the dashboard (12E.1)", () => {
       true,
     );
     expect(html).not.toContain("Strike evidence");
+    expect(
+      dashboard(view({ addressConfirmed: true, waiting: 0, failed: [], failedMore: false })),
+    ).not.toContain("Strike evidence");
   });
 
   it("an unconfirmed address and a failed email: its part, its count (the bell's too), each linking where it's dealt with", () => {
@@ -371,6 +389,11 @@ describe("the Needs attention item on the dashboard (12E.1)", () => {
     expect(admin).toContain('<h3 id="evidence"');
     expect(text(admin)).toContain("Strike evidence 2");
     expect(needsCount(needs(evidence))).toEqual({ count: 2, more: false });
+    // On the dashboard, a row in "After that" with its count, to its part of Needs attention.
+    expect(text(dashboard(v))).toContain(
+      "Strike evidence Strike records the strikes team hasn't had 2",
+    );
+    expect(dashboard(v)).toMatch(/<a class="[^"]*" href="\/office\/needs-attention#evidence">/);
     expect(text(admin)).toContain(
       "The strikes team's email isn't set and confirmed, so strike records can't be emailed to them. 2 records wait for it.",
     );

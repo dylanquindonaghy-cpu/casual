@@ -87,11 +87,11 @@ describe("ShiftView", () => {
       review: null,
     });
     const words = text(html);
-    expect(words).toContain("Sat 7 Nov, 14:00 to 22:00");
-    // The title is the role; then the place (site · event) and its address (12H.2).
-    expect(html).toMatch(/<h1[^>]*>Door supervisor<\/h1>/);
-    expect(words).toContain("Demo Arena · Riverside Festival");
-    expect(words).toContain("1 Test Road, Leeds, LS1 1AA");
+    expect(words).toContain("Sat 7 Nov 14:00–22:00");
+    // The heading is the role (Phase 18: on the card, under the time); then the event, the site
+    // and its address (12H.2).
+    expect(html).toMatch(/<h1 id="shift-heading"[^>]*>Door supervisor<\/h1>/);
+    expect(words).toContain("Gate A Riverside Festival Demo Arena 1 Test Road, Leeds, LS1 1AA");
     expect(words).toContain(
       "You can't take this shift: Your SIA door supervisor licence expired on 3 Oct. Renew it, then send the new number to the office.",
     );
@@ -120,11 +120,20 @@ describe("ShiftView", () => {
     expect(words).not.toContain("Anything the office should know");
   });
 
-  it("open: places left, Take shift and the strike note with the firm's notice", () => {
-    const words = text(render({ state: "open", shift: summary, facts }));
-    expect(words).toContain("Places 2 of 4 left");
-    expect(words).toContain("Take shift");
-    expect(words).toContain("Cancelling less than 48 hours before the start gives you a strike.");
+  it("open: places as seats, Take shift in the bar and the strike note with the firm's notice", () => {
+    const html = render({ state: "open", shift: summary, facts });
+    const words = text(html);
+    expect(words).toContain("Places 2 of 4 places left");
+    expect(html.match(/data-seat="taken"/g)).toHaveLength(2);
+    expect(html.match(/data-seat="free"/g)).toHaveLength(2);
+    // The bar that stays at the bottom of the screen, above the tab bar.
+    const bar = html.slice(html.indexOf("data-action-bar"));
+    expect(bar).toMatch(
+      /^data-action-bar="" class="sticky bottom-\[calc\(4\.75rem\+env\(safe-area-inset-bottom\)\)\]/,
+    );
+    expect(text(bar)).toContain(
+      "Take shift Cancelling less than 48 hours before the start gives you a strike.",
+    );
     const firmOf24 = text(
       render({
         state: "open",
@@ -132,34 +141,54 @@ describe("ShiftView", () => {
         facts: { ...facts, noticeHours: 24 },
       }),
     );
-    expect(firmOf24).toContain("Places 1 of 4 left");
+    expect(firmOf24).toContain("Places 1 of 4 places left");
     expect(firmOf24).toContain(
       "Cancelling less than 24 hours before the start gives you a strike.",
     );
   });
-
-  it("open, in full (§4.4): chips, the facts, Getting there and What it needs, in that order", () => {
+  it("open, in full (§4.4; Phase 18): the shift as a card, then getting there, places, what it needs, report to, bring and wear, pay", () => {
     const html = render({ state: "open", shift: summary, facts });
     const words = text(html);
-    // Chips: Urgent, then what it needs.
-    expect(words).toMatch(/Urgent Needs: SIA DS , CSAS/);
-    expect(words).toContain("When Sat 7 Nov, 14:00 to 22:00");
+    // Back to the list, then the card: urgent on a red band, the date tile, time and role.
+    expect(html).toMatch(/<a class="[^"]*" href="\/shifts\/open">.*All open shifts<\/a>/);
+    expect(html).toMatch(
+      /<section aria-labelledby="shift-heading" class="[^"]*rounded-2xl[^"]*shadow-pass">/,
+    );
+    expect(words).toContain("Urgent, needed now Sat 7 Nov 14:00–22:00 Door supervisor");
+    expect(html).toContain('role="img" aria-label="Saturday 7 November"');
+    expect(words).toContain(
+      "Getting there, from your home area 3.1 miles · 12 min by car · 24 min by public transport 12 min by car 24 min by public transport 3.1 mi away Open in maps",
+    );
+    expect(words).toContain(
+      "You need SIA door supervisor licence You have it, valid until 3 Mar 2027 CSAS accreditation Missing: ask the office.",
+    );
+    // Each requirement a tag in its status's colours: green when she has it, red when not.
+    expect(html).toMatch(
+      /<li data-requirement="SIA_DS"[^>]*><span class="[^"]*bg-done-soft text-done-ink"/,
+    );
+    expect(html).toMatch(
+      /<li data-requirement="CSAS"[^>]*><span class="[^"]*bg-urgent-soft text-urgent-ink"/,
+    );
+    expect(words).toContain("Report to Staff entrance on Mill Lane");
+    expect(words).toContain("Bring and wear Black trousers and your hi-vis");
     expect(words).toContain("Pay £15.50 an hour, about £124.00");
-    expect(words).toContain("Meet Staff entrance on Mill Lane");
-    expect(words).toContain("Post Gate A");
-    expect(words).toContain("Uniform Black trousers and your hi-vis");
-    expect(words).toContain(
-      "Getting there From your home area 3.1 miles away About 12 min by car About 24 min by public transport Open in maps",
-    );
-    expect(words).toContain(
-      "What it needs SIA door supervisor licence You have it, valid until 3 Mar 2027 CSAS accreditation Missing: ask the office.",
-    );
-    const order = ["Places 2 of 4 left", "Getting there", "What it needs", "Take shift"];
+    const order = [
+      "Getting there",
+      "Places",
+      "You need",
+      "Report to",
+      "Bring and wear",
+      "Pay",
+      "Take shift",
+    ];
     const at = order.map((w) => words.indexOf(w));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
+    // Not urgent: no band, an ink tile.
+    const calm = render({ state: "open", shift: summary, facts: { ...facts, isUrgent: false } });
+    expect(text(calm)).not.toContain("Urgent, needed now");
+    expect(calm).not.toContain("border-urgent-fill");
   });
-
   it("What it needs: an upload link where she can send it herself", () => {
     const html = render({
       state: "open",
@@ -182,17 +211,24 @@ describe("ShiftView", () => {
     expect(link).toContain('aria-label="Upload your first aid at work certificate"');
   });
 
-  it("held: when it can be taken", () => {
-    const words = text(
-      render({ state: "held", shift: summary, facts, opensAt: new Date("2026-11-02T09:15:00Z") }),
-    );
+  it("held: when it can be taken, over a dashed button that can't be tapped yet", () => {
+    const html = render({
+      state: "held",
+      shift: summary,
+      facts,
+      opensAt: new Date("2026-11-02T09:15:00Z"),
+    });
+    const words = text(html);
     expect(words).toContain(
       "Offered first to people with fewer hours that week. You can take it from 09:15.",
     );
-    expect(words).not.toContain("Take shift");
+    expect(html).toMatch(
+      /<button type="button" disabled="" class="[^"]*border-dashed">Take shift from 09:15<\/button>/,
+    );
+    // "Check again" reloads the page (the help page says to tap it then).
+    expect(html).toMatch(/<a class="[^"]*" href="\/shifts\/[0-9a-f-]+">Check again<\/a>/);
   });
-
-  it("booked: the instructions, Ask for a change and Cancel this shift", () => {
+  it("booked: the instructions, Ask for a change and Can't make it?", () => {
     const words = text(
       render({
         state: "booked",
@@ -211,12 +247,14 @@ describe("ShiftView", () => {
     );
     expect(words).toContain("You're booked on this shift");
     // Getting there too: every shift page she can open shows how far it is (12H.2).
-    expect(words).toContain("3.1 miles away About 12 min by car About 24 min by public transport");
+    expect(words).toContain("3.1 miles · 12 min by car · 24 min by public transport");
     expect(words).not.toContain("Places");
     expect(words).toContain("Meet at gate C.");
     expect(words).toContain("Open in maps");
     expect(words).toContain("Ask for a change");
-    expect(words).toContain("Cancel this shift");
+    // Phase 18: "Can't make it?" opens the sheet that cancels it; the way back is to her shifts.
+    expect(words).toContain("Can't make it?");
+    expect(words).toContain("Your shifts");
   });
 
   it("filled, started, cancelled and missing: a plain sentence and See open shifts", () => {

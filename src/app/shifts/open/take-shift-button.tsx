@@ -44,27 +44,28 @@ export function TakeShiftButton({
     const refresh =
       outcome.status === "filled" || outcome.status === "gone" || outcome.status === "not_yet";
     return (
-      <div className="mt-4">
+      <div>
         <TakeShiftResult
           outcome={outcome}
           reviewHref={onShiftPage ? undefined : `/shifts/${shiftId}`}
+          shiftId={shiftId}
         />
         {onShiftPage && outcome.status === "not_eligible" && <ReviewForm shiftId={shiftId} />}
         {(retry || refresh) && (
           <button
             type="button"
             disabled={pending}
-            onClick={retry ? take : () => router.refresh()}
-            className={`${staffBtn.secondary} mt-3`}
+            onClick={retry ? take : () => router.push("/shifts/open")}
+            className={`${retry ? staffBtn.secondary : staffBtn.primary} mt-3`}
           >
-            {retry ? "Try again" : onShiftPage ? "Reload this shift" : "See other open shifts"}
+            {retry ? "Try again" : "See other shifts"}
           </button>
         )}
       </div>
     );
   }
   return (
-    <button type="button" disabled={pending} onClick={take} className={`${staffBtn.primary} mt-3`}>
+    <button type="button" disabled={pending} onClick={take} className={staffBtn.primary}>
       {pending ? "Booking…" : "Take shift"}
     </button>
   );

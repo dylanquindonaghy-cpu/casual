@@ -42,8 +42,19 @@ describe("office pages", () => {
         "src/app/office/today/page.tsx",
         "src/app/office/workers/page.tsx",
         "src/app/office/workers/[id]/page.tsx",
+        // Phase 18: the dashboard's heading is its headline ("3 things need you", in
+        // dashboard-view.tsx), and Events & sessions has its title with its buttons beside it
+        // over the rota board. Each has its one <h1> (below).
+        "src/app/office/page.tsx",
+        "src/app/office/events/page.tsx",
       ].sort(),
     );
+  });
+
+  it("the dashboard and Events & sessions each have their one <h1>", () => {
+    for (const file of ["src/app/office/dashboard-view.tsx", "src/app/office/events/page.tsx"]) {
+      expect(readFileSync(join(ROOT, file), "utf8").match(/<h1\b/g), file).toHaveLength(1);
+    }
   });
 
   it('a list whose bullets are styled away keeps role="list"', () => {

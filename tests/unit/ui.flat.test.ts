@@ -24,6 +24,11 @@ const SHADOW =
 const FLOATING: Record<string, number> = {
   "src/app/office/office-frame.tsx": 1, // the account menu (popover)
   "src/app/office/events/session-menu.tsx": 1, // a session's menu (absolute, over the list)
+  // Phase 18: the pass (Home's next shift, and the shift's page drawn like it) is the one thing
+  // with a shadow at rest, its own token.
+  "src/app/globals.css": 1, // --shadow-pass, the token (light; the dark one is a 1px line)
+  "src/app/home-view.tsx": 1,
+  "src/app/shifts/[id]/shift-view.tsx": 1,
 };
 
 describe("flat: no shadows at rest", () => {
@@ -40,6 +45,14 @@ describe("flat: no shadows at rest", () => {
       ),
     );
     expect(counts).toEqual(FLOATING);
+  });
+
+  it("the pass's shadow is its own token, and nothing else uses it", () => {
+    expect(read("src/app/globals.css")).toMatch(/^\s*--shadow-pass: [^;]+;$/m);
+    for (const file of ["src/app/home-view.tsx", "src/app/shifts/[id]/shift-view.tsx"]) {
+      expect(read(file).match(SHADOW), file).toEqual(["shadow-pass"]);
+      expect(read(file), file).toMatch(/className="[^"]*rounded-2xl[^"]*shadow-pass/);
+    }
   });
 
   it("each of those sits over the page", () => {

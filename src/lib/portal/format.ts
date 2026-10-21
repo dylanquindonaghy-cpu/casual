@@ -41,9 +41,12 @@ export function payWords(ratePence: number, startsAt: Date, endsAt: Date): strin
 // "£12.60/hour", for a line of facts.
 export const perHour = (ratePence: number): string => `${pounds(ratePence)}/hour`;
 
-// "door_supervisor" -> "Door supervisor".
+// "door_supervisor" -> "Door supervisor"; an acronym stays in capitals ("csas_officer" -> "CSAS
+// officer").
 export function roleLabel(role: string): string {
-  const words = role.replace(/_/g, " ");
+  const words = role
+    .replace(/_/g, " ")
+    .replace(/\b(csas|sia|cctv|pts|cscs)\b/g, (a) => a.toUpperCase());
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

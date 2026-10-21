@@ -14,6 +14,10 @@ export const test = base.extend({
 });
 export { expect } from "@playwright/test";
 
+// The office dashboard's heading (Phase 18): how many things need you, every part loaded ("At
+// least …" is a part that couldn't load, which no test expects).
+export const DASHBOARD_HEADING = /^(Nothing needs you right now|\d+ things? needs? you)$/;
+
 // A link in the office menu (docs/office-v2.md 3.1). The browser tests run at phone width, where
 // the menu is a drawer: this opens it with "Menu" first (waiting for the page to be ready), then
 // finds the link by its exact name inside the menu. On a wide screen the sidebar is already there.
@@ -27,7 +31,12 @@ export async function menuLink(page: Page, name: string): Promise<Locator> {
     await open.click();
     await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
   }
-  return menu.getByRole("link", { name, exact: true });
+  const link = menu.getByRole("link", { name, exact: true });
+  // A link in the folded group ("Admin and records", Phase 18) is hidden until its button opens
+  // it (the button waits for the page; the click waits for the button).
+  const fold = menu.locator('button[aria-expanded="false"]');
+  if (!(await link.isVisible()) && (await fold.count()) > 0) await fold.click();
+  return link;
 }
 
 // The office's account menu (the account button at the top right): How-to guide and Log out.

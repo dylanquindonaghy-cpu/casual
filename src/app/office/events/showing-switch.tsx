@@ -56,10 +56,10 @@ export function ShowingSwitch({
       >
         <span
           aria-hidden="true"
-          className={`${track} inline-flex items-center rounded-full p-0.75 ${showing ? "bg-done" : "bg-switch-off"}`}
+          className={`${track} inline-flex items-center rounded-full p-0.75 ${showing ? "bg-ink" : "bg-switch-off"}`}
         >
           <span
-            className={`${knob} rounded-full bg-card transition-transform motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}
+            className={`${knob} rounded-full bg-card transition-transform duration-150 ease-sd motion-reduce:transition-none ${showing ? on : "translate-x-0"}`}
           />
         </span>
       </button>

@@ -10,6 +10,7 @@ import {
   isBrandColour,
   safeLogoUrl,
 } from "@/lib/tenancy/brand";
+import { firmPalette } from "@/lib/tenancy/brand-values";
 
 // A firm's brand (src/lib/tenancy/brand.ts, src/app/brand-bar.tsx): only checked values reach the
 // page, and the bar's text is readable on any colour.
@@ -66,22 +67,69 @@ describe("the colours", () => {
     expect(brandColours("#ffff00").text).toBe("#000000");
   });
 
-  it("sets the page's brand colours only for a firm's own checked colour", () => {
+  it("sets the page's --firm-* values only for a firm's own checked colour, a set per theme", () => {
+    // Acme's blue reads on the canvas and the card as it is: its button keeps it, with white words.
     expect(brandStyle(brandColours("#1D4ED8"))).toEqual({
-      "--color-brand": "#1d4ed8",
-      "--color-on-brand": "#ffffff",
+      "--firm-fill": "#1d4ed8",
+      "--firm-on-fill": "#ffffff",
+      "--firm-ink": "#1d4ed8",
+      "--firm-bar": "#1d4ed8",
+      "--firm-on-bar": "#ffffff",
+      "--firm-dark-fill": expect.stringMatching(/^#[0-9a-f]{6}$/),
+      "--firm-dark-on-fill": "#13233a",
+      "--firm-dark-ink": expect.stringMatching(/^#[0-9a-f]{6}$/),
     });
-    expect(brandStyle(brandColours("#ffff00"))).toEqual({
-      "--color-brand": "#ffff00",
-      "--color-on-brand": "#000000",
-    });
+    // Yellow is too pale for words or a white-worded button in light: darkened until it reads.
+    const yellow = brandStyle(brandColours("#ffff00"));
+    expect(yellow?.["--firm-fill"]).not.toBe("#ffff00");
+    expect(contrastRatio(yellow!["--firm-fill"]!, "#ffffff")).toBeGreaterThanOrEqual(4.5);
     // The default (no colour set, a bad value, or the brand couldn't be read): nothing set.
     expect(brandStyle(brandColours(null))).toBeUndefined();
     expect(brandStyle(brandColours("#1d4ed8; background: url(x)"))).toBeUndefined();
     // Never a value that isn't #rrggbb, whatever the object says.
-    expect(
-      brandStyle({ own: true, background: "red; x: url(y)", text: "#ffffff" }),
-    ).toBeUndefined();
+    expect(brandStyle({ own: true, background: "red; x: url(y)" })).toBeUndefined();
+  });
+
+  it("every firm colour gives readable pairs in both themes, across the whole colour cube", () => {
+    const LIGHT = ["#f2f4f7", "#ffffff"]; // canvas, card
+    const DARK = ["#1b2642", "#22304f", "#0f1626"]; // card, raised, canvas
+    const failing: string[] = [];
+    for (let r = 0; r <= 255; r += 17) {
+      for (let g = 0; g <= 255; g += 17) {
+        for (let b = 0; b <= 255; b += 17) {
+          const hex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+          const { light, dark } = firmPalette(hex);
+          const pairs: [string, string, string][] = [
+            ["light fill", light.onFill, light.fill],
+            ["band", light.onBar, light.bar],
+            ["dark fill", dark.onFill, dark.fill],
+            ...LIGHT.map((g2): [string, string, string] => ["light words", light.ink, g2]),
+            ...DARK.map((g2): [string, string, string] => ["dark words", dark.ink, g2]),
+          ];
+          for (const [what, a, c] of pairs) {
+            if (!(contrastRatio(a, c) >= 4.5))
+              failing.push(`${hex} ${what}: ${contrastRatio(a, c).toFixed(2)}`);
+          }
+        }
+      }
+    }
+    expect(failing).toEqual([]);
+  });
+
+  it("the demo firms' colours: as they are in light, lightened for words on dark", () => {
+    const acme = firmPalette("#1d4ed8");
+    expect(acme.light).toEqual({
+      fill: "#1d4ed8",
+      onFill: "#ffffff",
+      ink: "#1d4ed8",
+      bar: "#1d4ed8",
+      onBar: "#ffffff",
+    });
+    expect(contrastRatio(acme.dark.ink, "#22304f")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(acme.dark.fill, "#1d4ed8")).toBeGreaterThan(1); // lighter than the colour
+    const northline = firmPalette("#0f766e");
+    expect(northline.light.fill).toBe("#0f766e");
+    expect(northline.light.bar).toBe("#0f766e");
   });
 
   it("knows a firm's own colour from the default", () => {
@@ -115,25 +163,34 @@ describe("the colours", () => {
 });
 
 describe("the bar", () => {
-  const render = (logoUrl: string | null) =>
+  const render = (logoUrl: string | null, name = "Acme Events") =>
     renderToStaticMarkup(
       createElement(BrandBar, {
-        brand: { name: "Acme Events", logoUrl, background: "#1d4ed8", text: "#ffffff", own: true },
+        brand: { name, logoUrl, background: "#1d4ed8", text: "#ffffff", own: true },
       }),
     );
 
-  it("the name on the firm's colour, with the readable text colour", () => {
+  it("the firm's initial on its colour (from the page's tokens, no style of its own), then its name", () => {
     const html = render(null);
-    expect(html).toContain("Acme Events");
-    expect(html).toContain("background-color:#1d4ed8");
-    expect(html).toContain("color:#ffffff");
+    expect(html).toContain('<span data-testid="brand-name"');
+    expect(html).toContain(">Acme Events</span>");
+    expect(html).toMatch(
+      /<span aria-hidden="true" data-testid="brand-mark" class="[^"]*bg-brand-bar[^"]*text-on-brand-bar[^"]*">A<\/span>/,
+    );
+    expect(html).not.toContain("style=");
     expect(html).not.toContain("<img");
+    expect(render(null, "  northline")).toContain(">N</span>");
   });
 
-  it("the logo: decorative (the name is beside it), and the firm's site isn't told the page", () => {
+  it("the logo instead of the initial: decorative (the name is beside it), and the firm's site isn't told the page", () => {
     const html = render("https://www.acme-events.example/logo.png");
     expect(html).toMatch(/<img[^>]*src="https:\/\/www\.acme-events\.example\/logo\.png"/);
     expect(html).toMatch(/<img[^>]*alt=""/);
     expect(html).toMatch(/<img[^>]*referrerPolicy="no-referrer"/i);
+    expect(html).not.toContain('data-testid="brand-mark"');
+  });
+
+  it("an Offline plate that only the copy kept for no signal shows", () => {
+    expect(render(null)).toMatch(/<span data-offline-only="" class="[^"]*">Offline<\/span>/);
   });
 });

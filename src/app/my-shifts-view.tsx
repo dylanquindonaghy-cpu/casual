@@ -2,7 +2,9 @@ import Link from "next/link";
 import { mapLink, siteAddress } from "@/lib/portal/format";
 import type { MyShift } from "@/lib/portal/my-shifts";
 import { CancelShift } from "./shifts/cancel-shift";
-import { muted, staffBtn, switchTrack } from "./ui/classes";
+import { dateParts, shiftLine } from "@/lib/portal/sign-copy";
+import { muted, staffBtn, staffBtnSmall, switchTrack } from "./ui/classes";
+import { Icon } from "./ui/icons";
 
 // Pieces Home and Booked share (12H.1): the no-signal notice, the Shifts tab's Open | Booked switch,
 // the segmented links, a booking's details and what she can do about it. Booked itself is
@@ -19,11 +21,16 @@ export function OfflineNotice({ updated }: { updated: string }) {
       hidden
       suppressHydrationWarning
       role="status"
-      className="mb-6 rounded-xl border-2 border-attention bg-attention-soft p-4 text-attention-ink"
+      className="flex items-start gap-3 rounded-xl border border-line-strong bg-card p-3.5 text-base"
     >
-      <p className="font-semibold">No signal.</p>
-      <p>These are your shifts from {updated}. They may have changed.</p>
-      <p>Taking or cancelling a shift needs signal.</p>
+      <Icon name="offline" size={24} className="mt-px" />
+      <div>
+        <p className="text-lg font-semibold">No signal.</p>
+        <p className="text-ink-muted">
+          This is your saved copy from {updated}. It updates when you&apos;re back online.
+        </p>
+        <p className="text-ink-muted">Taking or cancelling a shift needs signal.</p>
+      </div>
     </div>
   );
 }
@@ -104,18 +111,36 @@ export function ShiftDetails({ shift }: { shift: MyShift }) {
 }
 
 // What the worker can still do about a confirmed booking before it starts: ask the office for a
-// change (a time change or a swap), or cancel it. Once it has started, both are the office's.
-// Cancelling is quiet red words under the change button: there, but not shouting.
-export function ShiftActions({ shift, now }: { shift: MyShift; now: Date }) {
+// change (a time change or a swap), or say she can't make it (the sheet that cancels it). Once it
+// has started, both are the office's.
+export function ShiftActions({
+  shift,
+  now,
+  timeZone,
+}: {
+  shift: MyShift;
+  now: Date;
+  timeZone: string;
+}) {
   if (shift.status !== "confirmed" || shift.startsAt.getTime() <= now.getTime()) return null;
+  const day = dateParts(shift.startsAt, timeZone);
   return (
-    <div className="mt-3 flex flex-col gap-1">
-      <Link href={`/requests/new?shift=${shift.shiftId}`} className={staffBtn.secondary}>
+    <div className="mt-3 grid grid-cols-2 gap-2.5">
+      <Link href={`/requests/new?shift=${shift.shiftId}`} className={staffBtnSmall}>
         Ask for a change
       </Link>
       {/* Keyed by the booking: after a cancellation the list reloads and the next shift moves
           into this card; a fresh key means it starts with its own, empty cancel state. */}
-      <CancelShift key={shift.assignmentId} shiftId={shift.shiftId} />
+      <CancelShift
+        key={shift.assignmentId}
+        shiftId={shift.shiftId}
+        opener="small"
+        summary={{
+          dow: day.dow,
+          day: day.day,
+          line: shiftLine(shift.role, shift.startsAt, shift.endsAt, timeZone),
+        }}
+      />
     </div>
   );
 }

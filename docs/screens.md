@@ -4,9 +4,144 @@ Mobile first for staff. Desktop first for the office (resourcers work on laptops
 on a phone for 6am problems.
 
 Every page on a firm's address, staff and office, opens with the firm's bar (Phase 8,
-`src/app/brand-bar.tsx`): its logo (when it has one; decorative, the name is beside it) and its
-name, on its brand colour with black or white text, whichever reads better. The platform's own
-address has no bar.
+`src/app/brand-bar.tsx`; Phase 18's header): its logo, or its initial on a square of the firm's
+colour (darkened until white or navy reads on it at 4.5:1), then its name, on the card colour with
+a hairline under it; in the copy kept for no signal, an "Offline" plate at its end. The platform's
+own address has no bar.
+
+## The redesign (Phase 18)
+
+The Claude Design "ShiftDesk redesign" (PLAN.md Phase 18) with its fonts and colours reworked:
+each main screen answers one question, and shows less at once. Where a screen's row below says
+otherwise about layout or words, this section wins; the rules, data and every action are as the
+rows say. The look (fonts, colours, the firm's colour per theme, motion, the shared parts: the
+date tile, the sign plate, the seats, the plates) is in `docs/ui-design.md` "Phase 18".
+
+**Casual app** (16px side edges on a phone, the page on the canvas grey, cards white):
+
+- **Home** (`/`, `src/app/home-view.tsx`): "Hello {Zoe}" with "Updated {14:49}" beside it. The
+  no-signal card when it's the kept copy ("No signal." "This is your saved copy from {14:49 on Wed
+  21 Oct}. It updates when you're back online." "Taking or cancelling a shift needs signal.": with
+  the day, as the copy can be opened days later; Booked's says the same). Her next shift
+  as a **pass** (the only thing with a shadow): a band in the firm's colour with a lanyard slot,
+  "Your next shift" ("On now") and "In 3 days" ("Today", "Tomorrow"); the date tile ("Sat", "24",
+  "Oct"), the time in sign figures ("14:00–22:00"; a night shift adds "Finishes Sunday morning"),
+  the role; then the event, the site ("Riverside Demo Park"; no travel time while it's closed: a
+  drive alone would mislead someone without a car, so all three figures are inside), the post on a
+  sign plate ("Gate 2") and "Details". The pass opens in place (a `<details>`: no
+  JavaScript needed, and it works in the offline copy) into: the post plate with the event and
+  address; getting there as three figures ("15 min" by car, "31 min" by public transport, "5.0 mi"
+  away; the full travel line for screen readers); "Report to"; "Bring and wear" as tiles (the
+  uniform split at its commas, hi-vis first in sign yellow, "We provide it" from its brackets);
+  "Pay" ("£12.60 an hour, about £100.80"); "Instructions"; then "Open in maps" (filled), "Ask for a
+  change" and "Can't make it?" side by side; "Hide details" closes it. Nothing booked: a dashed
+  pass, "No shifts booked", "Take a shift and it shows up here as your pass, with the time and the
+  gate.", "Find a shift" (→ `/shifts/open`). Then **For you**, one card of at most four rows, each
+  a link with a tile: "Urgent" "{2} shifts you can take" "{Thu 22 and Fri 23 Oct}, up to {£15.50}
+  an hour" (→ `/urgent`; in the kept copy instead: "Open shifts need signal" "{2} were urgent at
+  {14:49 on Wed 21 Oct}. We'll check again when you're online."); "Needs doing" (or "Needs doing now", red,
+  when it stops her working) with the one thing ("Renew your staff photo" "Due by {10 Nov}. Take a
+  new photo."; a qualification: "Renew your {SIA door supervisor licence}", "Add your …", "Send your
+  … again", with the Needs updating sentence under it; several: "{3} things need doing" "{first},
+  and {2} more.") → where she sorts it; with no travel area, "Add your home area" with its prompt;
+  "{3} more shifts you can apply for" "{Sun 25, Tue 27 and Wed 28 Oct}" (→ `/shifts/open`; none:
+  "No open shifts right now" / "No other shifts open", "We'll message you when something
+  matches." or "Check back later.").
+- **Can't make it?** (`src/app/shifts/cancel-shift.tsx`, on the pass, Booked and a booked shift's
+  page): a sheet rising from the bottom (a modal dialog: Escape or a tap on the dim closes it):
+  the date tile, "Can't make it?", "{Steward, Sat 24 Oct, 14:00–22:00}"; the strike warning (green
+  with a tick when no strike, red when one; the same words as before); "Why can't you make it?"
+  with the reasons; "Cancel this shift" (red, the final step), "Ask for a change instead",
+  "Keep my shift"; "Your cancellation is recorded the moment you confirm. Nobody needs to approve
+  it." The confirmation shows in the sheet, then "Done" closes it and reloads the page.
+- **The tab bar**: words at 15px, the current tab's word in the firm's colour with its icon on a
+  pill of the firm's tint; Profile's count of what needs doing on a sign-yellow plate ("Profile, 1
+  thing needs doing").
+- **Open shifts** (`/shifts/open`): "Open shifts", "Only shifts your licences and hours allow, up
+  to {45} minutes from home."; the Open | Booked switch; **your next 8 days** as a strip ("Today"
+  first; a booked day filled in the firm's colour with a tick, a red count on days with urgent
+  shifts, an outlined count on days with open ones; a day with shifts a link to that day:
+  `?day=`), with its key ("You're booked", "Urgent", "Open"); "Urgent, needed now" then "More
+  shifts you can apply for" (just "Shifts you can apply for" with none urgent), one card each,
+  each opening the shift's page: the date tile (red when urgent), the time in sign figures, the
+  role, "{event}, {post}", the travel line ("{3.1 miles} · {12 min by car} · {24 min by public
+  transport}", both ways whatever she chose, as on Booked: 12G.3), the seats with "{1} place left"
+  and "{£15.50}/hour", under fair rotation "You can take it from {18:00}". What a shift needs is on
+  its page ("You need"), not the card: every card is one she can take. "{2} more shifts are further than you travel."
+  → "Change how far"; "Choose a day, site or role" (the form, folded away).
+- **A shift's page** (`/shifts/[id]`): "All open shifts" (← back; "Your shifts" on her booking), the
+  shift as a card like the pass ("Urgent, needed now" on a red band when it is; the date tile, the
+  time, the role as the page's heading; the post plate, event, site and address; "Getting there,
+  from your home area" as three figures and "Open in maps"; "Places" as seats and "{1} of {4}
+  places left"; "You need" as a tag per requirement, green with a tick when she has it, with her
+  status words under it and "upload it" where she can; "Report to"; "Bring and wear"; "Pay"). Then
+  a bar that stays at the bottom of the screen: "Take shift" and the strike note; held: "Offered
+  first to people with fewer hours that week. You can take it from {18:00}." over a dashed "Take
+  shift from {18:00}" and "Check again" (reloads the page). After "Take shift": a green tick, "You're booked.", the day and times, role
+  at site, "Reference: …", the sign-off, "See my shifts" (→ `/shifts?new=…`, where the shift moves
+  into its place marked "New"); someone else first: "Someone else took it first. You haven't been
+  booked." → "See other shifts".
+- **Booked** (`/shifts`): the next shift with its date tile and time in sign figures; "Coming up"
+  rows with a date tile each; the shift just taken marked "New" with the firm's colour round it.
+
+**Office**:
+
+- **The frame**: the top bar holds the pay week, the bell (→ `/office/needs-attention`), the theme
+  button and the account; the firm's initial, name and "Office" top the menu (on the canvas grey,
+  the page white). **The menu**: "Today" (Dashboard, Events & sessions, Cancellations, Enquiries),
+  "Pay" (Pay dashboard, Pay queries, Import pay records), "People" (Casuals, Strikes, Notice
+  report), "Admin and records" folded (Action log, Pilot metrics, Office team, Settings,
+  Integrations, Data requests; a button that shows them, already shown when you're on one: not a
+  `<details>`, which the browser tests would count as a group), and "How-to guide" at the bottom. A count
+  is sign yellow when it needs this person (enquiries that need a person, uploads to check, pay
+  queries for payroll), grey otherwise. The current page: bold, white with a hairline.
+- **Dashboard** (`/office`): the heading is how many things need you ("{3} things need you",
+  "1 thing needs you", "Nothing needs you right now"), with "Start with the urgent places. Casuals
+  see these first and get an alert." (or "Urgent places are sorted. The rest is below.") and the
+  shifts line under it. **This week**, Monday to Sunday: each day's date in sign figures, "Today"
+  marked, a bar of how full it is, and one note ("{1} urgent" on a red plate with "{2} open",
+  "{5} to mark" on a sign-yellow plate, "{3} open", "All filled", "{4} of {6} filled" once its
+  sessions have started with places unfilled, "Nothing on"), all in places: places in open or
+  filled sessions (not drafts), and "open" only for places that can still be filled (open
+  sessions not started, as "Need people" counts them); each day links to its shifts (a day to
+  mark, to Who worked). **Next up**: one urgent place at a time on a red band
+  ("Urgent place to fill", "1 of 3", previous and next): the date tile, time, role (→ the shift),
+  "{event}, {site}", the seats with "{1} of {4} places free", "Not offered to anyone yet" (or who it
+  went to), then "Offer to someone" (filled), "Mark as filled" and "Not urgent"; their answers as a
+  confirmation at the foot of the screen for 3 seconds; "All urgent places on Events & sessions".
+  None: "Every urgent place is filled." **After that**: a row per kind of to-do with its count (Who
+  worked?, Uploads to check, Bookings to check, From your rota sheet, Qualifications out of date on
+  a booking, Strike evidence, Your planner's change was refused, Your planner's webhook is failing,
+  Enquiries that need a person), each → where it's dealt with. **Waiting on others** (admins):
+  "Pay queries" "With payroll, nothing for you to do". **Sorted today**: "{1} cancellation today"
+  "{0} under 48 hours' notice, 0 strikes issued. Recorded automatically, never approved or
+  declined." (→ today's cancellations), "{5} enquiries today" "{2} answered automatically. None
+  need a person." (→ today's enquiries), "{8} events showing to casuals" "{29} open places across
+  {16} sessions" (→ `/office/events?view=showing`). A part that couldn't load says so where it
+  shows ("This couldn't load. Reload the page to try again."; a row's line "Couldn't load") and
+  the rest still shows; the heading never says all is well then: "At least {2} things need you", or
+  "Some of the dashboard couldn't load" with "Reload the page to try again. What could load is
+  below."
+- **Needs attention** (`/office/needs-attention`, new; `src/app/office/needs-items.tsx`): the
+  dashboard's old Needs attention, in full, on its own page ("Needs attention", "Each item links to
+  where it's dealt with"): every part with its heading, count and items, and what to do about each
+  (keep or cancel a booking to check, and the rest). Admins and resourcers; payroll goes to the pay
+  dashboard.
+- **Events & sessions** (`/office/events`): "Events & sessions", "{33} open places across {17}
+  sessions. {8} of {9} events are showing to casuals.", "Import shifts" and "Add shifts"; the
+  filters with their counts ("All", "Need people", "Urgent", "Hidden"; "Showing" too while it's the
+  one chosen: the dashboard links to it), the key ("Urgent gap", "Places open", "Full", "Pills show
+  places filled out of places needed."), Earlier and Later ("21 Oct to 3 Nov"; not before today). A
+  **rota board** of 14 days: an event per row, its line ("{6} open, {1} urgent", "Hidden from
+  casuals", "Full") and its "Show {event} to casuals" switch, each session a pill on its day
+  ("3/4": red for an urgent gap, outlined while places are open, grey when full; more than two on
+  a day, one pill for them all with "×{n}" under it; every session to come is placed, however many).
+  The name or a pill opens the row in place: the site, "{4} sessions to come", "Showing to
+  casuals"; a table of its sessions in these two weeks (Role → the session, When, Places as seats
+  and "3/4", Pay an hour "£12.60", Post, Meeting point, Uniform, an "Urgent" switch, the "…" menu;
+  none: "No sessions in these two weeks."), "{2} more sessions to come, outside these two weeks.";
+  "Add a session" (no planner) and "Open the event's page". The page's line counts open places
+  and their sessions over every event to come (the list itself stops at 50 events).
 
 ## Staff portal (firm domain, e.g. shifts.firmname.co.uk)
 
@@ -88,7 +223,7 @@ Parking lot, "Travel areas").
 
 **Demo bar** (16.1; ADR-025; `src/app/demo-bar.tsx`): on a demo server only, the first thing on every page of a demo
 firm, staff and office alike: "A demo with made-up people. No real texts or emails go out: see them on the Demo phone."
-("Demo phone" → `/demo`), in the attention colours. On a demo server any other firm's address is not found, as
+("Demo phone" → `/demo`), light words on a dark amber strip (the same in both themes, Phase 18). On a demo server any other firm's address is not found, as
 an address nobody has (`src/lib/demo/scope.ts`).
 
 ## Office dashboard (`/office/...`)
@@ -137,8 +272,8 @@ shows the way: each page still checks who can open it.
   (`tests/e2e/office.shifts.spec.ts`, payroll opening `/office/shifts`): those words, the link to
   `/office`, no "Go to my shifts" and no "404", and the office menu and the account menu's one
   "Log out" still there.
-- Browser tab titles read "{page} · {firm} shifts": "Dashboard", "Pay dashboard", "Events &
-  sessions", "Cancellations", "Cancellation record", "Shifts", "New shift", "Shifts for an event", "Import shifts from a file", "Offer this
+- Browser tab titles read "{page} · {firm} shifts": "Dashboard", "Needs attention", "Pay
+  dashboard", "Events & sessions", "Cancellations", "Cancellation record", "Shifts", "New shift", "Shifts for an event", "Import shifts from a file", "Offer this
   shift", "Enquiries", "Enquiry", "Strikes", "Casuals", "Action log", "Notice and cancellation report", "Pilot metrics",
   "Pay queries", "Import pay records", "Office team", "Settings", "Integrations", "Data requests",
   "How-to guide". A shift's, an event's, a casual's and a worker's data page keep "{firm} shifts".

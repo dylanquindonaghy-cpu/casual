@@ -15,13 +15,46 @@ import {
   sessionSwitchLabels,
 } from "@/lib/office/events-copy";
 
-// Events & sessions (12B.5; docs/office-v2.md 3.3): the card's words, each session's unique switch
-// label, and a session row with every field, rendered. The switches and buttons use Next's router,
-// so a stand-in is given here.
+// Events & sessions (12B.5; docs/office-v2.md 3.3; Phase 18's rota board): an event's words, its
+// row on the board and its open row's table of sessions, each session's unique switch label, and a
+// session row (the event's own page) with every field, rendered. The switches and buttons use
+// Next's router, so a stand-in is given here.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
 
-const { EventCard } = await import("@/app/office/events/event-card");
+const { EventRow } = await import("@/app/office/events/event-row");
+const { SessionsTable } = await import("@/app/office/events/sessions-table");
+const { ShowingSwitch } = await import("@/app/office/events/showing-switch");
 const { SessionItem } = await import("@/app/office/events/session-row");
+const { boardDays, eventCells, eventNote } = await import("@/lib/office/events-board");
+
+// The board's two weeks from Saturday 7 November, and an event's open row in them.
+const DAYS = boardDays("2026-11-07", "2026-11-07");
+const WINDOW = { first: "2026-11-07", last: "2026-11-20" };
+const table = (e: EventCardData, hasPlanner = false) =>
+  renderToStaticMarkup(
+    createElement(SessionsTable, { event: e, timeZone: TZ, hasPlanner, window: WINDOW }),
+  );
+const row = (e: EventCardData) =>
+  renderToStaticMarkup(
+    createElement(EventRow, {
+      eventId: e.eventId,
+      name: e.name,
+      note: eventNote(e).text,
+      urgent: eventNote(e).urgent,
+      hidden: !e.showing,
+      first: true,
+      weekend: DAYS.map((d) => d.weekend),
+      cells: eventCells(e, DAYS, TZ),
+      showingSwitch: createElement(ShowingSwitch, {
+        target: "event",
+        id: e.eventId,
+        showing: e.showing,
+        label: eventSwitchLabel(e),
+        small: true,
+      }),
+      panel: createElement("p", null, "PANEL"),
+    }),
+  );
 
 const TZ = "Europe/London";
 const text = (html: string) =>
@@ -119,105 +152,99 @@ describe("an event card's words", () => {
     expect(eventSwitchLabel(event())).toBe("Show Northern Lights Live to casuals");
   });
 
-  it("renders the card: name as a link, the switch, the tags, the sessions, View sessions", () => {
-    const html = renderToStaticMarkup(createElement(EventCard, { event: event(), timeZone: TZ }));
+  it("its row on the board: the name opens it (shut at first), its line, its switch, a pill on its day", () => {
+    const html = row(event());
     const words = text(html);
+    // The name and its line are one button that opens the row into its sessions.
+    expect(html).toMatch(
+      /<button type="button" aria-expanded="false" aria-controls="event-22222222-2222-4222-8222-222222222222-sessions"[^>]*>/,
+    );
     expect(words).toContain("Northern Lights Live");
-    expect(words).toContain("Acme Demo Arena · Sat 7 Nov");
-    expect(words).toContain("Showing to casuals");
-    expect(words).toContain("Urgent, not filled");
-    expect(words).toContain("2 sessions · 1 place free");
-    expect(words).toContain("View sessions");
-    expect(html).toContain('href="/office/events/22222222-2222-4222-8222-222222222222"');
+    expect(words).toContain(eventNote(event()).text);
     expect(html).toMatch(
       /role="switch" aria-checked="true" aria-label="Show Northern Lights Live to casuals"/,
     );
-    // The list's session rows have no switch of their own (only the event's page has them).
+    // The board's only switch is the event's (the sessions' are on the event's own page).
     expect(html.match(/role="switch"/g)).toHaveLength(1);
-    // Hidden: the tag says so, and there's no urgent tag without an urgent gap.
-    const hidden = text(
-      renderToStaticMarkup(
-        createElement(EventCard, {
-          event: event({ showing: false, urgentGap: false }),
-          timeZone: TZ,
-        }),
-      ),
+    // Both sessions are on Saturday 7: one pill each, named for screen readers.
+    const pills = [
+      ...html.matchAll(/<button type="button" aria-label="([^"]+)" aria-expanded/g),
+    ].map((m) => m[1]);
+    expect(pills).toHaveLength(2);
+    // Shut: its sessions aren't drawn until it's opened.
+    expect(html).toMatch(
+      /<div id="event-22222222-2222-4222-8222-222222222222-sessions" hidden="">/,
     );
-    expect(hidden).toContain("Hidden from casuals");
-    expect(hidden).not.toContain("Urgent, not filled");
-    expect(
-      text(
-        renderToStaticMarkup(
-          createElement(EventCard, { event: event({ moreSessions: 3 }), timeZone: TZ }),
-        ),
-      ),
-    ).toContain("+ 3 more sessions");
-    // An automatic event's name is its place and day: not said twice.
-    const automatic = text(
-      renderToStaticMarkup(
-        createElement(EventCard, {
-          event: event({ name: "Acme Demo Arena · Sat 7 Nov" }),
-          timeZone: TZ,
-        }),
-      ),
-    );
+    expect(html).not.toContain("PANEL");
+    // Hidden: its line says so, its name and pills fade.
+    const hidden = row(event({ showing: false, urgentGap: false }));
+    expect(text(hidden)).toContain("Hidden from casuals");
+    expect(hidden).toContain("opacity-50");
+    // An automatic event's name is its place and day: said once.
+    const automatic = text(row(event({ name: "Acme Demo Arena · Sat 7 Nov" })));
     expect(automatic.split("Acme Demo Arena · Sat 7 Nov")).toHaveLength(2);
   });
 });
 
-describe("the card's sessions (Phase 17)", () => {
-  it("lists the ones with a place free; folds the full ones, and the ones marked filled", () => {
-    const html = renderToStaticMarkup(
-      createElement(EventCard, {
-        event: event({
-          sessions: [
-            session({ shiftId: "a1111111-1111-4111-8111-111111111111", booked: 1, headcount: 4 }),
-            session({ shiftId: "b1111111-1111-4111-8111-111111111111", booked: 4, headcount: 4 }),
-            session({
-              shiftId: "c1111111-1111-4111-8111-111111111111",
-              booked: 2,
-              headcount: 4,
-              status: "filled",
-            }),
-          ],
-        }),
-        timeZone: TZ,
+describe("an event's open row: its sessions in the board's two weeks (Phase 18)", () => {
+  it("every one, full ones too (grey seats), each with its urgent switch and menu; the others counted", () => {
+    const html = table(
+      event({
+        sessionCount: 4,
+        sessions: [
+          session({ shiftId: "a1111111-1111-4111-8111-111111111111", booked: 1, headcount: 4 }),
+          session({ shiftId: "b1111111-1111-4111-8111-111111111111", booked: 4, headcount: 4 }),
+          session({
+            shiftId: "c1111111-1111-4111-8111-111111111111",
+            booked: 2,
+            headcount: 4,
+            status: "filled",
+          }),
+          // After the two weeks: on the event's page, counted here.
+          session({
+            shiftId: "d1111111-1111-4111-8111-111111111111",
+            startsAt: at("08:00", "2026-11-25"),
+            endsAt: at("16:00", "2026-11-25"),
+          }),
+        ],
       }),
     );
-    const [before, folded = ""] = html.split("data-filled-sessions");
-    expect(before).toContain("1/4 filled");
-    expect(before).not.toContain("4/4 filled");
-    expect(before).not.toContain("2/4 filled");
-    expect(text(folded.slice(folded.indexOf("<summary")))).toMatch(/^2 filled sessions/);
-    expect(folded).toContain("4/4 filled");
-    expect(folded).toContain("2/4 filled");
-    // Every session keeps its "…" menu, folded or not.
+    const words = text(html);
+    expect(words).toContain("Acme Demo Arena 4 sessions to come Showing to casuals");
+    const rows = [...html.matchAll(/<tr data-session="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/g)];
+    expect(rows.map((r) => r[1])).toEqual([
+      "a1111111-1111-4111-8111-111111111111",
+      "b1111111-1111-4111-8111-111111111111",
+      "c1111111-1111-4111-8111-111111111111",
+    ]);
+    // Places as seats and "filled/places" (marked filled counts as full).
+    expect(rows.map((r) => text(r[2] ?? "").match(/\d+\/4/)?.[0])).toEqual(["1/4", "4/4", "4/4"]);
+    expect(rows[0]?.[2]).toContain('data-seat="free"');
+    expect(rows[1]?.[2]).not.toContain('data-seat="free"');
+    // Every session keeps its "…" menu and its urgent switch.
     expect(html.match(/aria-label="More for /g)).toHaveLength(3);
+    expect(html.match(/role="switch"/g)).toHaveLength(3);
+    expect(words).toContain("1 more session to come, outside these two weeks.");
+    // Pay an hour; the role links to the session; its own page; Add a session (no planner).
+    expect(words).toContain("Pay an hour");
+    expect(words).toContain("£15.50");
+    expect(html).toContain('href="/office/shifts/a1111111-1111-4111-8111-111111111111"');
+    expect(html).toContain('aria-label="Open the event&#x27;s page: Northern Lights Live"');
+    expect(words).toContain("Add a session");
+    // A firm with a planner adds sessions there.
+    expect(text(table(event(), true))).not.toContain("Add a session");
   });
 
-  it("no fold when nothing is full; one filled session is said so", () => {
-    const none = renderToStaticMarkup(
-      createElement(EventCard, {
-        event: event({ sessions: [session({ booked: 0, headcount: 2 })] }),
-        timeZone: TZ,
-      }),
-    );
-    expect(none).not.toContain("data-filled-sessions");
-    const one = text(
-      renderToStaticMarkup(
-        createElement(EventCard, {
-          event: event({
-            sessions: [
-              session({ booked: 0, headcount: 2 }),
-              session({ shiftId: "z", booked: 2, headcount: 2 }),
-            ],
-          }),
-          timeZone: TZ,
-        }),
-      ),
-    );
-    expect(one).toContain("1 filled session");
-    expect(one).not.toContain("1 filled sessions");
+  it("none in these two weeks: says so", () => {
+    const later = event({
+      sessions: [
+        session({ startsAt: at("08:00", "2026-12-01"), endsAt: at("16:00", "2026-12-01") }),
+      ],
+      sessionCount: 1,
+    });
+    const words = text(table(later));
+    expect(words).toContain("No sessions in these two weeks.");
+    expect(words).toContain("1 more session to come, outside these two weeks.");
   });
 });
 
@@ -323,20 +350,19 @@ describe("a session row with every field", () => {
   });
 
   it("two sessions alike get different names for their menu and urgent buttons too", () => {
-    const html = renderToStaticMarkup(
-      createElement(EventCard, {
-        event: event({
-          sessions: [
-            session({ shiftId: "a1111111-1111-4111-8111-111111111111", role: "steward" }),
-            session({ shiftId: "a2222222-2222-4222-8222-222222222222", role: "steward" }),
-          ],
-        }),
-        timeZone: TZ,
+    // On the board's open row (Phase 18).
+    const html = table(
+      event({
+        sessions: [
+          session({ shiftId: "a1111111-1111-4111-8111-111111111111", role: "steward" }),
+          session({ shiftId: "a2222222-2222-4222-8222-222222222222", role: "steward" }),
+        ],
       }),
     );
     expect(html).toContain('aria-label="More for Steward 08:00–16:00"');
     expect(html).toContain('aria-label="More for Steward 08:00–16:00 (2)"');
     expect(html).toContain('aria-label="Not urgent: Steward 08:00–16:00 (2)"');
+    expect(html).toContain('aria-label="Urgent: Steward 08:00–16:00 (2)"');
   });
 
   it("a session hidden from casuals isn't offered from its menu", () => {

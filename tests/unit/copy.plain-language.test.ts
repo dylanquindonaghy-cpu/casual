@@ -17,6 +17,7 @@ import type { MyShift } from "@/lib/portal/my-shifts";
 import type { ShiftPage, ShiftSummary } from "@/lib/portal/shift-detail";
 import type { ShiftFacts } from "@/lib/portal/shift-facts";
 import { REASONS } from "@/lib/rules/reasons";
+import { shiftsStrip } from "@/lib/portal/shifts-strip";
 import { EVERY_LEVEL, EVERY_STATUS } from "../helpers/qualifications";
 
 // Copy is product (golden rule 11; docs/screens.md copy rules): every staff screen, in every
@@ -288,6 +289,18 @@ const urgentOpen = (n: number) =>
       post: "Gate B",
     })),
   });
+// Open shifts with its week strip (Phase 18), worked out from the list as the page does.
+const openScreen = (
+  list: ReturnType<typeof openList>,
+  filters: Parameters<typeof OpenShiftsView>[0]["filters"],
+) =>
+  createElement(OpenShiftsView, {
+    list,
+    filters,
+    strip: shiftsStrip(NOW, TZ, list.shifts, []),
+    timeZone: TZ,
+    now: NOW,
+  });
 const paragraph = (s: string) => createElement("p", null, s);
 
 const SCREENS: [string, ReactElement][] = [
@@ -332,19 +345,11 @@ const SCREENS: [string, ReactElement][] = [
       },
     }),
   ],
-  [
-    "Open shifts, no travel area (12G.3)",
-    createElement(OpenShiftsView, {
-      list: openList({ area: null }),
-      filters: {},
-      timeZone: TZ,
-      now: NOW,
-    }),
-  ],
+  ["Open shifts, no travel area (12G.3)", openScreen(openList({ area: null }), {})],
   [
     "Open shifts, a shift with its travel line and more further away (12G.3)",
-    createElement(OpenShiftsView, {
-      list: openList({
+    openScreen(
+      openList({
         further: { count: 2, atLeast: false },
         shifts: [
           {
@@ -366,10 +371,8 @@ const SCREENS: [string, ReactElement][] = [
           },
         ],
       }),
-      filters: {},
-      timeZone: TZ,
-      now: NOW,
-    }),
+      {},
+    ),
   ],
   [
     "Urgent board, at least 50 more further away (12G.3)",
@@ -383,37 +386,10 @@ const SCREENS: [string, ReactElement][] = [
     "My shifts, a booking with its travel line (12G.3)",
     myShifts({ shifts: [{ ...booked, travel: { kind: "straight", straightMetres: 12000 } }] }),
   ],
-  [
-    "Open shifts, nothing open",
-    createElement(OpenShiftsView, { list: openList(), filters: {}, timeZone: TZ, now: NOW }),
-  ],
-  [
-    "Open shifts, no alerts",
-    createElement(OpenShiftsView, {
-      list: openList({ offerAlerts: false }),
-      filters: {},
-      timeZone: TZ,
-      now: NOW,
-    }),
-  ],
-  [
-    "Open shifts, filters match nothing",
-    createElement(OpenShiftsView, {
-      list: openList(),
-      filters: { role: "steward" },
-      timeZone: TZ,
-      now: NOW,
-    }),
-  ],
-  [
-    "Open shifts, too many to check",
-    createElement(OpenShiftsView, {
-      list: openList({ truncated: true }),
-      filters: {},
-      timeZone: TZ,
-      now: NOW,
-    }),
-  ],
+  ["Open shifts, nothing open", openScreen(openList(), {})],
+  ["Open shifts, no alerts", openScreen(openList({ offerAlerts: false }), {})],
+  ["Open shifts, filters match nothing", openScreen(openList(), { role: "steward" })],
+  ["Open shifts, too many to check", openScreen(openList({ truncated: true }), {})],
   ...(
     [
       {

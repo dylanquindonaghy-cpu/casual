@@ -26,15 +26,13 @@ test("Home and the urgent board show only shifts in her travel area; a direct li
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
 
-  // Home: two urgent sessions in her role, one in her area: that one, with its travel line (12H.1).
-  const urgentOnHome = page.getByRole("region", {
-    name: "Urgent: needed now, and you can take them",
-  });
-  await expect(urgentOnHome.getByRole("listitem")).toHaveCount(1);
-  await expect(urgentOnHome).toContainText("Travel check");
-  await expect(urgentOnHome).toContainText("7.5 miles · 20 min by car · no public transport by");
-  await expect(page.getByText("1 more shift is further than you travel.")).toBeVisible();
-  await urgentOnHome.getByRole("link", { name: "See urgent shifts" }).click();
+  // Home: two urgent sessions in her role, one in her area: For you counts that one (12H.1; Phase
+  // 18: one row, to the urgent board, where each shows its travel line).
+  const urgentOnHome = page
+    .getByRole("region", { name: "For you" })
+    .getByRole("link", { name: /^Urgent 1 shift you can take / });
+  await expect(urgentOnHome).toBeVisible();
+  await urgentOnHome.click();
   await expect(page).toHaveURL(`${acme}/urgent`);
   const card = page.getByRole("listitem");
   await expect(card).toHaveCount(1);
@@ -46,9 +44,14 @@ test("Home and the urgent board show only shifts in her travel area; a direct li
     "/profile/travel",
   );
 
-  // Open shifts: the same.
+  // Open shifts: the same (one card; the strip's days are list items too).
   await page.goto(`${acme}/shifts/open`);
-  await expect(page.getByRole("listitem")).toHaveCount(1);
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("listitem")
+      .filter({ has: page.locator('a[href^="/shifts/"]:not([href^="/shifts/open"])') }),
+  ).toHaveCount(1);
   await expect(page.getByText("1 more shift is further than you travel.")).toBeVisible();
 
   // The far one, opened from a direct link: still bookable.

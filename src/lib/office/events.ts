@@ -12,7 +12,9 @@ import type { FirmTx } from "../db/scoped";
 // only, inside the firm (RLS scopes every row), for admins and resourcers (checked here as well as
 // on the page). A session's pay rate is shown; no pay record is ever read here.
 
-export const EVENT_VIEWS = ["all", "showing", "hidden", "urgent"] as const;
+// Phase 18: "need" (a session to come with a place free) joins them; "showing" stays for the
+// dashboard's link.
+export const EVENT_VIEWS = ["all", "need", "urgent", "hidden", "showing"] as const;
 export type EventView = (typeof EVENT_VIEWS)[number];
 export const EVENT_LIST_MAX = 50;
 // Sessions on one card in the list; the event's page shows them all.
@@ -74,8 +76,15 @@ export interface EventPage {
 export interface EventList {
   timeZone: string;
   view: EventView;
+  // How many events each view holds (Phase 18: the filters' counts), over every event with a
+  // session to come.
+  counts: Record<EventView, number>;
+  // Places that can still be filled (`placeFree`), and in how many sessions, over every event to
+  // come (the page's line; the list itself stops at EVENT_LIST_MAX events).
+  open: { places: number; sessions: number };
   // The firm's shifts come from a Google Sheet: no "Add shifts" or "Import shifts" here.
   hasPlanner: boolean;
+  // Each with every session to come (the rota board places them on its days).
   events: EventCardData[];
   more: boolean;
 }
@@ -102,6 +111,10 @@ async function timeZoneOf(tx: FirmTx): Promise<string> {
 // A session's urgent gap, as SQL over `s` with its booked count `b` (the dashboard's count too).
 export const urgentGap = (now: Date) =>
   sql`(s.is_urgent and s.status = 'open' and s.starts_at > ${now} and b.booked < s.headcount)`;
+
+// A session to come with a place free (Phase 18's "Need people"), over `s` with `b`.
+export const placeFree = (now: Date) =>
+  sql`(s.status = 'open' and s.starts_at > ${now} and b.booked < s.headcount)`;
 
 // Places taken per session (bookings not cancelled, in the headcount's slots).
 export const bookedJoin = sql`cross join lateral (
@@ -253,6 +266,7 @@ export async function loadEventCards(
 ): Promise<{ events: EventCardData[]; more: boolean }> {
   const having: Record<EventView, SQL> = {
     all: sql`true`,
+    need: sql`bool_or(${placeFree(now)})`,
     showing: sql`e.showing_to_casuals`,
     hidden: sql`not e.showing_to_casuals`,
     urgent: sql`bool_or(${urgentGap(now)})`,
@@ -291,16 +305,62 @@ export async function loadEventCards(
   };
 }
 
+// How many events with a session to come each view holds.
+export async function eventViewCounts(tx: FirmTx, now: Date): Promise<Record<EventView, number>> {
+  const { rows } = await tx.execute<Record<EventView, number>>(sql`
+    select count(*)::int as "all",
+           count(*) filter (where need)::int as need,
+           count(*) filter (where urgent)::int as urgent,
+           count(*) filter (where not showing)::int as hidden,
+           count(*) filter (where showing)::int as showing
+      from (
+        select e.id, e.showing_to_casuals as showing,
+               bool_or(${placeFree(now)}) as need, bool_or(${urgentGap(now)}) as urgent
+          from shift_events e
+          join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
+          ${bookedJoin}
+         where s.ends_at > ${now} and s.status <> 'cancelled'
+         group by e.id, e.showing_to_casuals
+      ) x
+  `);
+  const r = rows[0];
+  return {
+    all: r?.all ?? 0,
+    need: r?.need ?? 0,
+    urgent: r?.urgent ?? 0,
+    hidden: r?.hidden ?? 0,
+    showing: r?.showing ?? 0,
+  };
+}
+
+// Places that can still be filled in events' sessions, and how many sessions have them.
+export async function openPlaces(
+  tx: FirmTx,
+  now: Date,
+): Promise<{ places: number; sessions: number }> {
+  const { rows } = await tx.execute<{ places: number; sessions: number }>(sql`
+    select coalesce(sum(s.headcount - b.booked), 0)::int as places, count(*)::int as sessions
+      from shift_events e
+      join shifts s on s.firm_id = e.firm_id and s.event_id = e.id
+      ${bookedJoin}
+     where ${placeFree(now)}
+  `);
+  return { places: rows[0]?.places ?? 0, sessions: rows[0]?.sessions ?? 0 };
+}
+
 export async function officeEventList(
   ctx: AuthContext,
   token: string,
   view: EventView,
 ): Promise<EventList | null> {
   return asOffice(ctx, token, async (tx, now) => {
-    const { events, more } = await loadEventCards(tx, now, view);
+    // Every session to come on each event: the board shows two weeks at a time, from any day.
+    const { events, more } = await loadEventCards(tx, now, view, Number.MAX_SAFE_INTEGER);
     return {
       timeZone: await timeZoneOf(tx),
       view,
+      counts: await eventViewCounts(tx, now),
+      open: await openPlaces(tx, now),
       hasPlanner: await hasPlanner(tx),
       more,
       events,

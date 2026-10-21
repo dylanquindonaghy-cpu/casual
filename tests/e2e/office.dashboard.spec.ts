@@ -1,14 +1,15 @@
 import type { Page } from "@playwright/test";
 import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "./db";
-import { expect, test } from "./fixtures";
+import { DASHBOARD_HEADING, expect, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
-// The office dashboard in a real browser, on the demo seed (12E.1; docs/screens.md `/office`): a
-// resourcer sees the four counts labelled exactly, each a link to its list, the sections in order,
-// the shifts line, the Cancellations hint and nothing to approve, decline or deny; the bell links
-// to Needs attention; the offer page leads back here; `/office/today` redirects here; payroll is
-// sent to the pay dashboard. (Other specs change the seed's numbers, so this one checks the words
-// and the links, not the counts.) Replaces office.today.spec.ts.
+// The office dashboard in a real browser, on the demo seed (12E.1; docs/screens.md `/office`;
+// Phase 18's redesign): a resourcer sees how many things need them, the shifts line, this week's
+// seven days (each a link), "Next up", "After that" and "Sorted today" (cancellations recorded,
+// never approved), and nothing to approve, decline or deny; the bell opens Needs attention's page;
+// the offer page leads back here; `/office/today` redirects here; payroll is sent to the pay
+// dashboard. (Other specs change the seed's numbers, so this one checks the words and the links,
+// not the counts.) Replaces office.today.spec.ts.
 
 const acme = "http://acme.localhost:3100";
 
@@ -25,64 +26,59 @@ async function officeLogin(page: Page, email: string) {
   await expect(page).toHaveURL(new RegExp(`^${acme.replace(/\./g, "\\.")}/office(/pay)?$`));
 }
 
-const COUNTS = [
-  ["Urgent shifts not filled", "/office/events?view=urgent"],
-  ["Events showing to casuals", "/office/events?view=showing"],
-  ["Cancellations today", "/office/cancellations?day=today"],
-  ["Enquiries today", "/office/enquiries?day=today"],
-] as const;
-
-test("a resourcer's dashboard: the counts, the sections in order, and nothing to approve", async ({
+test("a resourcer's dashboard: what needs them, this week, where to start, and nothing to approve", async ({
   page,
 }) => {
   await officeLogin(page, "acme.resourcer@example.com");
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  // The heading says how many things need you; the page's tab still says Dashboard.
+  await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
+  await expect(page).toHaveTitle("Dashboard · Acme Events shifts");
   // Acme's shifts line (a fake number from the seed), under the heading.
   await expect(
     page.getByText("Your shifts line: +44 7700 900000 (WhatsApp, text and calls)."),
   ).toBeVisible();
 
-  // The four counts, in order, labelled exactly, each a link to its filtered list.
-  const counts = page.getByRole("navigation", { name: "Counts" }).getByRole("link");
-  await expect(counts).toHaveCount(4);
-  for (const [i, [label, href]] of COUNTS.entries()) {
-    const link = counts.nth(i);
-    await expect(link.getByText(label, { exact: true })).toBeVisible();
-    await expect(link).toHaveAttribute("href", href);
-  }
-
-  // Every count and section loaded (a failed part shows its own error and the rest still shows).
+  // Every part loaded (a part that couldn't says so where it shows, and the rest still shows).
   await expect(page.getByText("This couldn't load. Reload the page to try again.")).toHaveCount(0);
   await expect(page.getByText("Couldn't load", { exact: true })).toHaveCount(0);
 
-  // The sections, in order (what needs someone first, what casuals can see last: Phase 17), and
-  // the Cancellations hint.
-  await expect(page.getByRole("main").getByRole("heading", { level: 2 })).toHaveText([
-    "Urgent shifts not filled",
-    "Needs attention",
-    "Cancellations",
-    "Enquiries",
-    "Showing to casuals",
-  ]);
-  await expect(
-    page
-      .getByRole("region", { name: "Cancellations", exact: true })
-      .getByText("Recorded automatically, never approved or declined", { exact: true }),
-  ).toBeVisible();
-  // A cancellation is final: nothing on the page approves, declines or denies anything.
+  // This week: seven days, today first marked, each a link to its shifts (or its sessions to mark).
+  const days = page.getByRole("navigation", { name: "This week" }).getByRole("link");
+  await expect(days).toHaveCount(7);
+  for (let i = 0; i < 7; i++) {
+    await expect(days.nth(i)).toHaveAttribute(
+      "href",
+      /^\/office\/(shifts\?from=\d{4}-\d\d-\d\d|needs-attention#to-mark)$/,
+    );
+  }
+  await expect(days.filter({ hasText: "Today" })).toHaveCount(1);
+
+  // The parts, in order: where to start, then the rest of what needs you, then what's sorted.
+  const headings = page.getByRole("main").getByRole("heading", { level: 2 });
+  await expect(headings.first()).toHaveText("Next up");
+  await expect(headings.nth(1)).toHaveText("After that");
+  await expect(headings.last()).toHaveText("Sorted today");
+  // Cancellations are recorded, never approved or declined: nothing on the page does either.
+  const sorted = page.getByRole("list", { name: "Sorted today" });
+  await expect(sorted.getByRole("link", { name: /cancellations? today/ })).toContainText(
+    "Recorded automatically, never approved or declined.",
+  );
+  // (Whole words: the row's own "never approved or declined" is a statement, not an action.)
   for (const role of ["button", "link"] as const) {
-    await expect(page.getByRole(role, { name: /approve|decline|deny/i })).toHaveCount(0);
+    await expect(page.getByRole(role, { name: /\b(approve|decline|deny)\b/i })).toHaveCount(0);
   }
 
-  // The bell in the top bar goes to Needs attention.
+  // The bell in the top bar opens Needs attention's page.
   const bell = page.getByRole("link", { name: /^Needs attention/ });
-  await expect(bell).toHaveAttribute("href", "/office#needs-attention");
+  await expect(bell).toHaveAttribute("href", "/office/needs-attention");
   await bell.click();
-  await expect(page).toHaveURL(`${acme}/office#needs-attention`);
-  await expect(page.getByRole("heading", { name: "Needs attention", level: 2 })).toBeInViewport();
+  await expect(page).toHaveURL(`${acme}/office/needs-attention`);
+  await expect(page.getByRole("heading", { name: "Needs attention", level: 1 })).toBeVisible();
+  await expect(page).toHaveTitle("Needs attention · Acme Events shifts");
 
-  // A count opens its list: today's cancellations.
-  await counts.nth(2).click();
+  // A row opens its list: today's cancellations.
+  await page.goto(`${acme}/office`);
+  await sorted.getByRole("link", { name: /cancellations? today/ }).click();
   await expect(page).toHaveURL(`${acme}/office/cancellations?day=today`);
   await expect(page.getByText("Only today's.")).toBeVisible();
 });
@@ -115,7 +111,7 @@ test("the offer page leads back to the dashboard", async ({ page }, testInfo) =>
     await expect(page.getByText(`Offer on its way to ${name}.`)).toBeVisible();
     await page.getByRole("link", { name: "Back to the dashboard" }).click();
     await expect(page).toHaveURL(`${acme}/office`);
-    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
   } finally {
     await cancelOwnShift("acme", shiftId);
   }
@@ -125,7 +121,7 @@ test("/office/today opens the dashboard", async ({ page }) => {
   await officeLogin(page, "acme.admin@example.com");
   await page.goto(`${acme}/office/today`);
   await expect(page).toHaveURL(`${acme}/office`);
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
 });
 
 test("payroll doesn't get the dashboard, the bell or the offer page", async ({ page }) => {
@@ -133,8 +129,11 @@ test("payroll doesn't get the dashboard, the bell or the offer page", async ({ p
   // /office sends payroll to their pay dashboard (12A.3; tests/e2e/office.pay-dashboard.spec.ts).
   await expect(page).toHaveURL(`${acme}/office/pay`);
   await expect(page.getByRole("heading", { name: "Pay dashboard", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Urgent shifts not filled" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Next up" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^Needs attention/ })).toHaveCount(0);
   const response = await page.goto(`${acme}/office/offer/00000000-0000-4000-8000-000000000000`);
   expect(response?.status()).toBe(404);
+  // Nor Needs attention's page: their home instead.
+  await page.goto(`${acme}/office/needs-attention`);
+  await expect(page).toHaveURL(`${acme}/office/pay`);
 });

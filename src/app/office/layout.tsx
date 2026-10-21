@@ -43,12 +43,31 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
               : String(needs.count),
       }
     : null;
+  // Sign yellow when it needs this person (Phase 18): pay queries for payroll (for the others
+  // they're with payroll), enquiries that need a person, uploads to check.
+  const role = s.officeUser.role;
   const badges = {
-    ...(waiting ? { "/office/pay-queries": { count: waiting, words: `${waiting} waiting` } } : {}),
-    ...(needPerson
-      ? { "/office/enquiries": { count: needPerson, words: `${needPerson} need a person` } }
+    ...(waiting
+      ? {
+          "/office/pay-queries": {
+            count: waiting,
+            words: `${waiting} waiting`,
+            needs: role === "payroll",
+          },
+        }
       : {}),
-    ...(toCheck ? { "/office/casuals": { count: toCheck, words: `${toCheck} to check` } } : {}),
+    ...(needPerson
+      ? {
+          "/office/enquiries": {
+            count: needPerson,
+            words: `${needPerson} need a person`,
+            needs: true,
+          },
+        }
+      : {}),
+    ...(toCheck
+      ? { "/office/casuals": { count: toCheck, words: `${toCheck} to check`, needs: true } }
+      : {}),
   };
   return (
     <OfficeShell

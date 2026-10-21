@@ -1,0 +1,163 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { Plate } from "@/app/ui/plate";
+import { DateTile, Seats, SEATS_MAX, SignPlate } from "@/app/ui/sign";
+
+// Phase 18's shared parts (src/app/ui/sign.tsx, plate.tsx; docs/ui-design.md "Phase 18") and its
+// motion (src/app/globals.css): the date tile, the sign plate, the seats and the status plate as
+// the screens use them; every animation from the design's spec (150, 200 or 250ms, one easing,
+// CSS only), each one the app uses defined, and a 150ms fade in their place for anyone whose
+// device asks for less motion.
+
+const ROOT = process.cwd();
+const css = readFileSync(join(ROOT, "src/app/globals.css"), "utf8");
+const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
+
+function files(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return files(path);
+    return /\.(tsx|ts)$/.test(name) ? [path] : [];
+  });
+}
+
+describe("the date tile", () => {
+  it("the weekday on a band, the day in sign figures, the month; one image for screen readers, or none", () => {
+    const named = html(
+      createElement(DateTile, {
+        dow: "Sat",
+        day: "24",
+        month: "Oct",
+        size: "lg",
+        label: "Saturday 24 October",
+      }),
+    );
+    expect(named).toMatch(/^<span role="img" aria-label="Saturday 24 October" class="/);
+    expect(named).toContain(
+      '<span class="block py-px font-semibold text-base bg-ink text-on-ink">Sat</span>',
+    );
+    // The large tile's day is the 40px size, in the sign font.
+    expect(named).toMatch(
+      /<span class="block font-sign leading-none text-ink pt-1\.5 text-4xl ">24<\/span>/,
+    );
+    expect(named).toContain(">Oct</span>");
+    // Without a label it sits beside words that say the date: hidden from screen readers.
+    const plain = html(createElement(DateTile, { dow: "Thu", day: "22" }));
+    expect(plain).toMatch(/^<span aria-hidden="true" class="/);
+    expect(plain).toContain("text-3xl");
+    expect(plain).not.toContain("Oct");
+    // Urgent: the band and the edge in the urgent red.
+    const urgent = html(createElement(DateTile, { dow: "Thu", day: "22", urgent: true }));
+    expect(urgent).toContain("border-urgent-fill");
+    expect(urgent).toContain("bg-urgent-fill text-on-urgent");
+    expect(urgent).not.toContain("bg-ink text-on-ink");
+  });
+});
+
+// The plates are hook-free, so they're called directly (their children are a required prop).
+describe("the sign plate and the status plate", () => {
+  it("a gate as a sign: light on dark, in the sign font, two sizes", () => {
+    const md = html(SignPlate({ children: "Gate 2" }));
+    expect(md).toContain("bg-ink font-sign text-on-ink h-9 px-3 text-2xl");
+    expect(md).toContain(">Gate 2</span>");
+    expect(html(SignPlate({ size: "sm", children: "Gate 2" }))).toContain("h-7 px-2 text-lg");
+  });
+
+  it("a status plate's colours by its role, its words always there", () => {
+    const tones = {
+      urgent: "bg-urgent-fill text-on-urgent",
+      hivis: "bg-hivis text-on-hivis",
+      done: "bg-done-fill text-on-done",
+      waiting: "bg-raised text-ink-muted",
+      brand: "bg-brand text-on-brand",
+    } as const;
+    for (const [tone, classes] of Object.entries(tones)) {
+      const plate = html(Plate({ tone: tone as keyof typeof tones, children: "2 urgent" }));
+      expect(plate).toContain(classes);
+      expect(plate).toContain(">2 urgent</span>");
+    }
+  });
+});
+
+describe("the seats", () => {
+  const seats = (o: Parameters<typeof Seats>[0]) => html(createElement(Seats, o));
+  const count = (h: string, kind: "taken" | "free") =>
+    (h.match(new RegExp(`data-seat="${kind}"`, "g")) ?? []).length;
+
+  it("one square per place: taken filled, the rest free; hidden from screen readers", () => {
+    const h = seats({ taken: 3, total: 4 });
+    expect(h).toMatch(/^<span aria-hidden="true" data-seats=""/);
+    expect([count(h, "taken"), count(h, "free")]).toEqual([3, 1]);
+    // Free seats in ink, or the urgent red; dashed from the middle size up.
+    expect(h).toContain("border-2  border-ink");
+    expect(seats({ taken: 1, total: 2, urgent: true, size: "md" })).toContain(
+      "border-2 border-dashed border-urgent-fill",
+    );
+  });
+
+  it("never more taken than places, never fewer than none; nothing for no places or too many", () => {
+    const over = seats({ taken: 9, total: 4 });
+    expect([count(over, "taken"), count(over, "free")]).toEqual([4, 0]);
+    const under = seats({ taken: -2, total: 3 });
+    expect([count(under, "taken"), count(under, "free")]).toEqual([0, 3]);
+    expect(seats({ taken: 0, total: 0 })).toBe("");
+    expect(seats({ taken: 1, total: SEATS_MAX })).not.toBe("");
+    expect(seats({ taken: 1, total: SEATS_MAX + 1 })).toBe("");
+  });
+});
+
+describe("motion (the design's spec)", () => {
+  const tokens = [...css.matchAll(/--animate-([a-z-]+):\s*([^;]+);/g)].map((m) => ({
+    name: m[1] ?? "",
+    value: (m[2] ?? "").trim(),
+  }));
+
+  it("each animation: a keyframes of its own, 150, 200 or 250ms, the one easing", () => {
+    expect(tokens.map((t) => t.name).sort()).toEqual(
+      ["bar", "enter", "fade", "in", "move", "open", "open-late", "sheet", "toast"].sort(),
+    );
+    for (const t of tokens) {
+      const [keyframes, duration] = t.value.split(/\s+/);
+      expect(css, `${t.name}'s keyframes`).toContain(`@keyframes ${keyframes} {`);
+      expect(["150ms", "200ms", "250ms"], t.name).toContain(duration);
+      expect(t.value, t.name).toContain("var(--ease-sd)");
+    }
+    // One easing in the whole stylesheet.
+    expect(css.match(/cubic-bezier\(/g)).toHaveLength(1);
+    expect(css).toContain("--ease-sd: cubic-bezier(0.2, 0.8, 0.2, 1);");
+  });
+
+  it("every animation the app uses is one of them; no animation library (CSS only)", () => {
+    const used = new Set(
+      files(join(ROOT, "src/app")).flatMap((f) =>
+        [...readFileSync(f, "utf8").matchAll(/\banimate-([a-z-]+)/g)].map((m) => m[1] ?? ""),
+      ),
+    );
+    expect(used.size).toBeGreaterThan(0);
+    const defined = new Set(tokens.map((t) => t.name));
+    for (const name of used) expect(defined, `animate-${name}`).toContain(name);
+    const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+    for (const lib of ["framer-motion", "motion", "gsap", "react-spring", "@react-spring/web"]) {
+      expect(deps).not.toContain(lib);
+    }
+  });
+
+  it("with reduced motion: every animation becomes a 150ms fade, and transitions stop", () => {
+    const block = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(block).toMatch(
+      /\[class\*="animate-"\] \{\s*animation: sd-fade 150ms var\(--ease-sd\) both !important;\s*\}/,
+    );
+    expect(block).toMatch(/\* \{\s*transition-duration: 0ms !important;\s*\}/);
+    // The fade itself only changes opacity: nothing moves.
+    const fade = /@keyframes sd-fade \{([\s\S]*?)\n {2}\}/.exec(css)?.[1] ?? "";
+    expect(fade).toContain("opacity");
+    expect(fade).not.toMatch(/transform|translate/);
+  });
+});

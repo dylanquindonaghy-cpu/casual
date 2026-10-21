@@ -5,42 +5,58 @@
 
 /* Design tokens (docs/ui-design.md). Each colour becomes utilities: bg-ink, text-ink-muted,
    border-line, bg-urgent-soft and so on. Status colours always travel with their word. These are
-   the light theme's values; the dark theme (navy, D7) redefines every one of them below. */
+   the light theme's values; the dark theme (navy, D7) redefines every one of them below.
+   Phase 18's colours follow the UK safety signs' roles: red to act now (urgent), sign yellow for
+   what needs doing (hivis), exit-sign green for done; navy ink, the uniform's colour. */
 @theme {
-  --color-ink: #0f172a; /* main text, primary buttons, the current menu item, the focus ring */
-  --color-ink-muted: #475569; /* secondary text, meta lines, table headers (7.6:1 on white) */
-  --color-ink-hover: #334155; /* a primary button under the pointer */
-  --color-on-ink: #ffffff; /* text on an ink fill (primary buttons, the current menu item) */
-  --color-line: #e2e8f0; /* dividers and card borders (decorative only) */
-  --color-line-strong: #64748b; /* input and secondary button borders (4.8:1) */
-  --color-canvas: #f8fafc; /* office page background behind cards */
-  --color-card: #ffffff; /* cards, fields, and the page behind staff pages */
-  --color-panel: #ffffff; /* the office menu and its footer */
-  --color-raised: #f4f6fa; /* something lifted off a card */
+  --color-ink: #13233a; /* main text, the date tile's band, sign plates, the focus ring */
+  --color-ink-muted: #3e4c60; /* secondary text, labels, meta lines, table headers (8.7:1 on white) */
+  --color-ink-hover: #26364f; /* a primary office button under the pointer */
+  --color-on-ink: #ffffff; /* text on an ink fill (primary office buttons, plates, the date tile) */
+  --color-line: #dbe1e8; /* dividers and card borders (decorative only) */
+  --color-line-strong: #6b7789; /* input and secondary button borders (4.5:1 on white) */
+  --color-canvas: #f2f4f7; /* the page behind cards: the casual app, and the office's menu */
+  --color-card: #ffffff; /* cards, fields, the office's page */
+  --color-panel: #ffffff; /* the office's top bar and drawer */
+  --color-raised: #e8ecf1; /* a sunk track (switches, the empty pass's band, a waiting tile) */
   --color-switch-off: #7a8396; /* a switch's track when off */
-  --color-scrim: #0f172a; /* behind the open menu drawer, at half strength (decorative) */
-  /* The firm's own colour (Phase 17): the casual app's main action. A firm with a colour of its
-     own sets both on <body> (src/app/layout.tsx, from src/lib/tenancy/brand.ts, whose text colour
-     is at least 4.58:1 on it); without one, the app's ink. Its pale tint is brand-soft (below). */
-  --color-brand: #0f172a;
+  --color-scrim: #0d1520; /* behind the open menu drawer and a sheet, at half strength (decorative) */
+  /* The firm's own colour (Phase 18): a firm with a colour of its own sets these on <body>
+     (src/app/layout.tsx, data-firm-colour; worked out per theme in src/lib/tenancy/brand-values.ts,
+     each pair at least 4.5:1); without one, the app's ink. `brand` is the casual app's main
+     button, `brand-ink` the firm's colour as words (the current tab, "Details", "Keep my shift"),
+     `brand-bar` the pass's top band and the firm's initial, with `on-brand-bar` on it. Its pale
+     tint is brand-soft (below). */
+  --color-brand: #13233a;
   --color-on-brand: #ffffff;
+  --color-brand-ink: #13233a;
+  --color-brand-bar: #13233a;
+  --color-on-brand-bar: #ffffff;
 
-  --color-urgent: #b91c1c; /* act now */
+  --color-urgent: #b91c1c; /* act now: words, borders */
   --color-urgent-soft: #fef2f2;
   --color-urgent-ink: #7f1d1d;
-  --color-urgent-fill: #b91c1c; /* count badges, urgent chips, the final destructive button */
+  --color-urgent-fill: #b91c1c; /* count plates, urgent tiles and pills, the final destructive button */
   --color-urgent-fill-hover: #7f1d1d;
   --color-on-urgent: #ffffff; /* text on the urgent fill */
-  --color-attention: #b45309; /* someone needs to act */
+  --color-attention: #b45309; /* someone needs to act: a border or an icon */
   --color-attention-soft: #fffbeb;
   --color-attention-ink: #78350f;
-  --color-done: #15803d; /* fine, finished */
+  --color-hivis: #f5b301; /* sign yellow: "needs doing" plates and tiles, the Profile count */
+  --color-on-hivis: #13233a; /* navy on sign yellow, in both themes (8.5:1) */
+  --color-done: #15803d; /* fine, finished: words, borders */
   --color-done-soft: #f0fdf4;
   --color-done-ink: #14532d;
-  --color-quiet-soft: #f1f5f9; /* information, closed */
-  --color-quiet-ink: #334155;
+  --color-done-fill: #15803d; /* the booked tick, "sorted" tiles */
+  --color-on-done: #ffffff;
+  --color-quiet-soft: #eef1f5; /* information, closed */
+  --color-quiet-ink: #3e4c60;
+  /* The demo bar (16.1): the same dark amber strip in both themes. */
+  --color-demo: #3d2e0a;
+  --color-on-demo: #fde7b0;
 
-  /* One type scale (docs/office-v2.md 3.1): 12 · 13 · 15 · 18 · 24 · 30px, and no other size. */
+  /* One type scale (docs/office-v2.md 3.1; Phase 18): 12 · 13 · 15 · 18 · 24 · 30 · 40px, and no
+     other size. 40px is for the sign figures only: a shift's time and its date tile. */
   --text-*: initial;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
@@ -54,15 +70,76 @@
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.875rem;
   --text-3xl--line-height: 2.25rem;
+  --text-4xl: 2.5rem;
+  --text-4xl--line-height: 2.5rem;
+
+  /* Motion (Phase 18, the design's spec): one easing; fast 150ms (fades, scrims, switches), base
+     200ms (items entering or leaving), slow 250ms (cards opening, sheets). Only transform and
+     opacity move; nothing loops. With reduced motion every one is a 150ms fade (below). */
+  --ease-sd: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-open: sd-rise 250ms var(--ease-sd) both; /* a card opening: rise 8px and fade */
+  --animate-open-late: sd-rise 250ms var(--ease-sd) 60ms both; /* its body, just after */
+  --animate-in: sd-rise 200ms var(--ease-sd) both; /* an item arriving */
+  --animate-toast: sd-drop 200ms var(--ease-sd) both; /* a confirmation, from above */
+  --animate-move: sd-move 250ms var(--ease-sd) 120ms both; /* a taken shift, into Your shifts */
+  --animate-bar: sd-up 200ms var(--ease-sd) both; /* the bottom action bar */
+  --animate-sheet: sd-sheet 250ms var(--ease-sd) both; /* "Can't make it?" rising */
+  --animate-fade: sd-fade 150ms var(--ease-sd) both; /* a scrim */
+  --animate-enter: sd-enter 200ms var(--ease-sd) both; /* the next urgent place sliding in */
+
+  /* The pass (the casual app's next shift) is the only thing with a shadow at rest. */
+  --shadow-pass: 0 1px 0 rgb(19 35 58 / 0.06), 0 14px 28px -18px rgb(19 35 58 / 0.45);
+
+  @keyframes sd-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @keyframes sd-drop {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+  @keyframes sd-move {
+    from {
+      opacity: 0;
+      transform: translateY(-48px);
+    }
+  }
+  @keyframes sd-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+  @keyframes sd-sheet {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sd-fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes sd-enter {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+  }
 }
 
-/* Plus Jakarta Sans, self-hosted (src/app/fonts.ts sets these on <html>), then the system's. */
+/* Public Sans for words, Barlow Condensed for the sign figures (src/app/fonts.ts sets these on
+   <html>), then the system's. `font-sign` (below) comes with its own weight and fixed-width digits. */
 @theme inline {
   --font-sans:
-    var(--font-jakarta), var(--font-jakarta-ext), ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Roboto, Arial, sans-serif;
+    var(--font-public), var(--font-public-ext), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Arial, sans-serif;
   /* The firm's colour as a pale tint of the card it sits on (the current tab, the office's current
-     menu item): ink reads on it in both themes, as on the card itself. */
+     menu item, the "shifts to apply for" tile): ink reads on it in both themes, as on the card. */
   --color-brand-soft: color-mix(in srgb, var(--color-brand) 12%, var(--color-card));
 }
 
@@ -89,6 +166,9 @@
   --color-scrim: #000000;
   --color-brand: #e8edf7;
   --color-on-brand: #0f1626;
+  --color-brand-ink: #e8edf7;
+  --color-brand-bar: #2b3d63;
+  --color-on-brand-bar: #ffffff;
   --color-urgent: #ff8b80;
   --color-urgent-soft: #3d1d26;
   --color-urgent-ink: #ffc7c0;
@@ -98,11 +178,18 @@
   --color-attention: #f2a541;
   --color-attention-soft: #36291a;
   --color-attention-ink: #ffd699;
+  --color-hivis: #f5b301;
+  --color-on-hivis: #13233a;
   --color-done: #4ccb83;
   --color-done-soft: #132f22;
   --color-done-ink: #b0efca;
+  --color-done-fill: #15803d;
+  --color-on-done: #ffffff;
   --color-quiet-soft: #26324f;
   --color-quiet-ink: #d0d8e6;
+  --color-demo: #3d2e0a;
+  --color-on-demo: #fde7b0;
+  --shadow-pass: 0 0 0 1px #2c3a5c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -122,6 +209,9 @@
     --color-scrim: #000000;
     --color-brand: #e8edf7;
     --color-on-brand: #0f1626;
+    --color-brand-ink: #e8edf7;
+    --color-brand-bar: #2b3d63;
+    --color-on-brand-bar: #ffffff;
     --color-urgent: #ff8b80;
     --color-urgent-soft: #3d1d26;
     --color-urgent-ink: #ffc7c0;
@@ -131,11 +221,52 @@
     --color-attention: #f2a541;
     --color-attention-soft: #36291a;
     --color-attention-ink: #ffd699;
+    --color-hivis: #f5b301;
+    --color-on-hivis: #13233a;
     --color-done: #4ccb83;
     --color-done-soft: #132f22;
     --color-done-ink: #b0efca;
+    --color-done-fill: #15803d;
+    --color-on-done: #ffffff;
     --color-quiet-soft: #26324f;
     --color-quiet-ink: #d0d8e6;
+    --color-demo: #3d2e0a;
+    --color-on-demo: #fde7b0;
+    --shadow-pass: 0 0 0 1px #2c3a5c;
+  }
+}
+
+/* A firm's own colour, worked out for each theme on the server (src/lib/tenancy/brand-values.ts
+   firmPalette, checked #rrggbb values only) and set on <body> as --firm-*: these rules pick the
+   theme's set. Without a colour of its own, <body> has no data-firm-colour and the defaults above
+   stand. */
+body[data-firm-colour] {
+  --color-brand: var(--firm-fill);
+  --color-on-brand: var(--firm-on-fill);
+  --color-brand-ink: var(--firm-ink);
+  --color-brand-bar: var(--firm-bar);
+  --color-on-brand-bar: var(--firm-on-bar);
+}
+:root[data-theme="dark"] body[data-firm-colour] {
+  --color-brand: var(--firm-dark-fill);
+  --color-on-brand: var(--firm-dark-on-fill);
+  --color-brand-ink: var(--firm-dark-ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body[data-firm-colour] {
+    --color-brand: var(--firm-dark-fill);
+    --color-on-brand: var(--firm-dark-on-fill);
+    --color-brand-ink: var(--firm-dark-ink);
+  }
+}
+
+/* Reduced motion: every movement is a 150ms fade (and a leaving item a fade out). */
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-"] {
+    animation: sd-fade 150ms var(--ease-sd) both !important;
+  }
+  * {
+    transition-duration: 0ms !important;
   }
 }
 
@@ -180,4 +311,22 @@
     cursor: not-allowed;
     opacity: 0.6;
   }
+}
+
+/* The sign figures (times, dates, gates, counts): Barlow Condensed, bold, fixed-width digits. */
+@utility font-sign {
+  font-family:
+    var(--font-barlow), var(--font-barlow-ext), "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+
+/* The copy kept for when there's no signal (public/sw.js unhides [data-offline-notice]): what
+   needs signal says so, and what can't work offline goes (Home's urgent row, its header plate). */
+body:has([data-offline-notice]:not([hidden])) [data-online-only] {
+  display: none;
+}
+body:not(:has([data-offline-notice]:not([hidden]))) [data-offline-only] {
+  display: none;
 }

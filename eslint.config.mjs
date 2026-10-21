@@ -101,5 +101,7 @@ export default defineConfig([
     "playwright-report/**",
     "test-results/**",
     "next-env.d.ts",
+    // The UI skills: third-party files, copied as published (.claude/skills/README.md).
+    ".claude/skills/**",
   ]),
 ]);

@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Never look for classes in the UI skills' own files (.claude/skills/README.md): their examples
+   would add styles the app doesn't use. */
+@source not "../../.claude";
 
 /* Design tokens (docs/ui-design.md). Each colour becomes utilities: bg-ink, text-ink-muted,
    border-line, bg-urgent-soft and so on. Status colours always travel with their word. These are

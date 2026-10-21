@@ -5,7 +5,7 @@ import { sentTo } from "./outbox";
 
 // A worker who leaves, and one barred from a site, in a real browser (audit M22, M23, L24): a
 // resourcer finds a booked worker on Casuals (Workers until 12F.1), makes them inactive, sees their
-// booking on the dashboard (Needs attention) and cancels it with the leaver reason; then blocks another booked worker from
+// booking in Needs attention (its own page: Phase 18) and cancels it with the leaver reason; then blocks another booked worker from
 // their site (opened from the old Workers address, which still leads to their page) and keeps that
 // booking. This spec's own resourcer, workers, shifts and sites (fresh ones on a retry).
 
@@ -85,8 +85,8 @@ test("a leaver made inactive, their booking cancelled from the dashboard; anothe
     ),
   ).toBeVisible();
 
-  // The dashboard's Needs attention: both bookings to check. Cancel the leaver's; keep the other's.
-  await page.goto(`${acme}/office`);
+  // Needs attention: both bookings to check. Cancel the leaver's; keep the other's.
+  await page.goto(`${acme}/office/needs-attention`);
   const toCheck = page.getByRole("region", { name: "Bookings to check" });
   const lena = toCheck.locator("li", {
     hasText: `${lenaName} is booked, but is no longer active.`,

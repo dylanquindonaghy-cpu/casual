@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
-import { myNeedsAndPhoto, myShifts, somethingNeedsUpdating } from "@/lib/portal/my-shifts";
+import { myNeedsAndPhoto, myShifts, needsDoingCount } from "@/lib/portal/my-shifts";
 import { openShiftsFor } from "@/lib/portal/open-shifts";
 import { parseHost } from "@/lib/tenancy/host";
 import { HomeView } from "./home-view";
@@ -44,7 +44,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
           open={open}
         />
         <TabBarSpace />
-        <TabBar current="home" profileDot={somethingNeedsUpdating(needs)} />
+        <TabBar current="home" profileCount={needsDoingCount(needs)} />
       </main>
     );
   }

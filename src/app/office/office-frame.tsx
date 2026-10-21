@@ -115,8 +115,8 @@ export function OfficeFrame({
       >
         Skip to content
       </a>
-      <div data-shell="office" className="flex flex-1 flex-col bg-canvas text-base text-ink">
-        <header className="sticky top-0 z-20 flex min-h-16 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 lg:px-6">
+      <div data-shell="office" className="flex flex-1 flex-col bg-card text-base text-ink">
+        <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-panel px-3 sm:gap-3 lg:px-8">
           <button
             type="button"
             aria-controls={DRAWER_ID}
@@ -129,26 +129,16 @@ export function OfficeFrame({
             <Icon name="menu" />
             Menu
           </button>
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="hidden size-9 shrink-0 items-center justify-center rounded-lg bg-ink text-on-ink sm:flex"
-            >
-              <Icon name="mark" />
-            </span>
-            <p className="min-w-0 leading-tight">
-              <span className="block font-bold text-ink">ShiftDesk</span>
-              <span className="block truncate text-sm text-ink-muted">{firmName}</span>
-            </p>
-          </div>
-          {/* The pay week (docs/office-v2.md D8). Not on phones or tablets: no room beside Menu. */}
-          <p className="ml-4 hidden items-center rounded-full border border-line-strong bg-card px-3 py-1 text-sm font-semibold text-ink lg:flex">
-            {payWeek}
+          {/* The firm's name: in the menu from 1024px (Phase 18), here below that. */}
+          <p className="min-w-0 truncate leading-tight font-semibold text-ink lg:hidden">
+            {firmName}
           </p>
+          {/* The pay week (docs/office-v2.md D8). Not on phones or tablets: no room beside Menu. */}
+          <p className="hidden text-base text-ink-muted tabular-nums lg:block">{payWeek}</p>
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
             {bell && (
               <Link
-                href="/office#needs-attention"
+                href="/office/needs-attention"
                 aria-label={bell.label}
                 title={bell.label}
                 className="relative inline-flex size-11 items-center justify-center rounded-lg text-ink hover:bg-quiet-soft"
@@ -157,7 +147,7 @@ export function OfficeFrame({
                 {bell.shown && (
                   <span
                     aria-hidden="true"
-                    className="absolute top-1 right-0.5 min-w-5 rounded-full bg-urgent px-1 text-center text-xs leading-5 font-bold text-on-ink tabular-nums"
+                    className="absolute top-1 right-0.5 min-w-5 rounded bg-brand px-1 text-center text-xs leading-5 font-bold text-on-brand tabular-nums"
                   >
                     {bell.shown}
                   </span>
@@ -185,7 +175,7 @@ export function OfficeFrame({
             <div
               id={ACCOUNT_MENU_ID}
               popover="auto"
-              className="inset-auto top-16 right-3 m-0 w-60 rounded-xl border border-line bg-card p-2 text-base text-ink shadow-sm lg:right-6"
+              className="inset-auto top-14 right-3 m-0 w-60 rounded-xl border border-line bg-card p-2 text-base text-ink shadow-sm lg:right-6"
             >
               <p className="px-3 pt-2 pb-1 leading-tight">
                 <span className="block font-semibold break-words">{name}</span>
@@ -207,9 +197,9 @@ export function OfficeFrame({
             </div>
           </div>
         </header>
-        <div className="flex flex-1 flex-col lg:grid lg:grid-cols-[17rem_minmax(0,1fr)]">
-          <div className="hidden border-r border-line bg-panel lg:sticky lg:top-16 lg:block lg:max-h-[calc(100dvh-4rem)] lg:self-start lg:overflow-y-auto">
-            {open ? null : <OfficeNav groups={menu} />}
+        <div className="flex flex-1 flex-col lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <div className="hidden border-r border-line bg-canvas lg:sticky lg:top-14 lg:flex lg:h-[calc(100dvh-3.5rem)] lg:flex-col lg:self-start lg:overflow-y-auto">
+            {open ? null : <OfficeNav groups={menu} firmName={firmName} />}
           </div>
           <dialog
             ref={drawer}
@@ -220,7 +210,7 @@ export function OfficeFrame({
             onClick={(e) => {
               if (e.target === e.currentTarget) e.currentTarget.close();
             }}
-            className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] bg-panel p-0 text-base text-ink backdrop:bg-scrim/50"
+            className="inset-y-0 right-auto left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] bg-canvas p-0 text-base text-ink backdrop:animate-fade backdrop:bg-scrim/50"
           >
             {open ? (
               <div className="flex min-h-full flex-col">
@@ -235,7 +225,7 @@ export function OfficeFrame({
                     <Icon name="close" />
                   </button>
                 </div>
-                <OfficeNav groups={menu} />
+                <OfficeNav groups={menu} firmName={firmName} />
               </div>
             ) : null}
           </dialog>

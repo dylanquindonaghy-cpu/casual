@@ -172,10 +172,10 @@ function Links({ children }: { children: ReactNode }) {
 // What each menu link opens, by the link's words.
 const MENU_WORDS: Record<string, string> = {
   Dashboard:
-    "Urgent gaps, what casuals can see, the latest cancellations and enquiries, and what needs attention.",
+    "How many things need you, this week's days, the urgent places one at a time, and what's sorted today.",
 
   "Events & sessions":
-    "Every event with a session to come. Choose what casuals see and what's urgent.",
+    "Every event with a session to come, on a two-week board. Choose what casuals see and what's urgent.",
   Cancellations:
     "Every cancellation, by casuals and by the office, with its record and a PDF. Nothing to approve.",
   Requests: "Time changes, swaps and reviews workers have asked for.",
@@ -203,6 +203,9 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
         On a wide screen, the menu is down the left side. On a phone or tablet, select{" "}
         <Name>Menu</Name> at the top left. The menu slides in. Select <Name>Close menu</Name>, or
         anywhere outside it, to close it. The page you&apos;re on is highlighted.
+        {menu.some((g) => g.folded)
+          ? " Records and settings are under Admin and records: select it to show them."
+          : null}
       </Para>
       <div className="mt-5 sm:columns-2 sm:gap-8">
         {menu.map((group) => (
@@ -235,7 +238,7 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
         {/* The bell is drawn only for the roles with Needs attention, the "today" area
             (src/app/office/layout.tsx). */}
         {canAccess(role, "today")
-          ? " The bell counts what needs attention. Select it to see the list on the dashboard."
+          ? " The bell counts what needs attention. Select it to see the list."
           : null}
       </Para>
     </>
@@ -244,19 +247,21 @@ function GettingAround({ role, menu }: { role: OfficeRole; menu: MenuGroup[] }) 
 
 const DASHBOARD_SECTIONS: [string, ReactNode][] = [
   [
-    "The four counts",
-    "Urgent shifts not filled, events showing to casuals, cancellations today and enquiries today. Select one to open its list.",
+    "This week",
+    "Seven days. Each shows how full it is, and its urgent gaps or sessions to mark. Select a day to see its shifts.",
   ],
   [
-    "Urgent shifts not filled",
-    "Urgent sessions with a place free, on their event's card, with how many casuals were offered each one, or why offers stopped.",
+    "Next up",
+    "One urgent place at a time: its seats, who it was offered to, or why offers stopped. Offer it, mark it as filled or make it not urgent. The arrows show the next one.",
   ],
-  ["Showing to casuals", "Events casuals can see. Switch one off to hide all its sessions."],
-  ["Cancellations", "The latest three. Recorded automatically, never approved or declined."],
-  ["Enquiries", "The latest four messages to your shifts line, and the reply each one got."],
   [
-    "Needs attention",
-    "Bookings to check, changes from your rota sheet, who worked?, qualifications out of date on a booking, uploads to check and strike evidence. The bell at the top of every page counts them.",
+    "After that",
+    "The rest of what needs you, a row each: bookings to check, who worked, uploads to check, strike evidence, enquiries that need a person and more. Each opens where it's dealt with.",
+  ],
+  ["Waiting on others", "Pay queries with payroll. Nothing for you to do."],
+  [
+    "Sorted today",
+    "Today's cancellations (recorded automatically, never approved or declined), today's enquiries, and the events casuals can see. Each opens its list.",
   ],
 ];
 
@@ -283,10 +288,10 @@ function DashboardPart() {
         doing today.
       </Para>
       <Steps>
-        <Step>The four counts at the top each open their list.</Step>
+        <Step>The heading says how many things need you. Start with Next up.</Step>
         <Step>
-          <Name>Needs attention</Name>, at the bottom, is what someone has to sort out. The bell at
-          the top of every page shows how many, and takes you there.
+          <Name>Needs attention</Name> lists everything someone has to sort out, in full. The bell
+          at the top of every page shows how many, and takes you there.
         </Step>
         <Step>
           Select a shift&apos;s name to open its page, where you can change everything about it.
@@ -328,9 +333,9 @@ function FillAGap({ role }: { role: OfficeRole }) {
   return (
     <>
       <Para>
-        A gap is a shift with a place free. Urgent ones are on the dashboard, under{" "}
-        <Name>Urgent shifts not filled</Name>, with these buttons. Every session and its places free
-        is on <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
+        A gap is a shift with a place free. Urgent ones are on the dashboard, one at a time under{" "}
+        <Name>Next up</Name>, with these buttons. Every session and its places free is on{" "}
+        <Name>Events &amp; sessions</Name>, where its <Name>…</Name> menu has them too.
       </Para>
       <Task title="To offer it to someone">
         <Steps>
@@ -581,8 +586,8 @@ function AfterAShift() {
   return (
     <>
       <Para>
-        Mark who worked each shift. <Name>Who worked?</Name>, in the dashboard&apos;s{" "}
-        <Name>Needs attention</Name>, lists shifts from the last 7 days with people not marked yet.
+        Mark who worked each shift. <Name>Who worked?</Name>, in <Name>Needs attention</Name> (the
+        bell), lists shifts from the last 7 days with people not marked yet.
       </Para>
       <Steps>
         <Step>Open the shift&apos;s page.</Step>

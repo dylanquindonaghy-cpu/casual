@@ -11,7 +11,7 @@ import {
 import { seedFirms } from "../../src/lib/db/admin/seed-data";
 import { acmeSaturday } from "../../src/lib/db/admin/seed-saturday";
 import { setFirmSetting } from "./db";
-import { accountMenu, menuLink } from "./fixtures";
+import { accountMenu, DASHBOARD_HEADING, menuLink } from "./fixtures";
 import { emailSentTo, sentTo } from "./outbox";
 
 // docs/walkthrough.md, step by step (Phase 10 task 20): what Dylan does on his own computer, done
@@ -166,14 +166,17 @@ test("Part 2: as a worker", async ({ browser }) => {
   await test.step("10. Log in as Zoe Usman", async () => {
     await workerLogin(page, ZOE);
     await expect(page.getByRole("heading", { name: "Hello Zoe" })).toBeVisible();
-    await expect(page.getByText("No shifts booked yet.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
   });
 
   await test.step("11. Take a shift", async () => {
-    await page.getByRole("link", { name: "See all open shifts" }).click();
+    await page.getByRole("link", { name: "Find a shift" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
+    // A card for one at the Arena; it opens the shift's page, where "Take shift" is.
     const arena = page.getByRole("listitem").filter({ hasText: "Acme Demo Arena" }).first();
-    await arena.getByRole("button", { name: "Take shift" }).click();
+    await arena.getByRole("link").click();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "Take shift" }).click();
     await expect(page.getByText("You're booked.")).toBeVisible();
     await expect(page.getByText(/^Reference: [0-9A-F]{8}$/).first()).toBeVisible();
     await expect(page.getByText("— Acme Events Shift Team").first()).toBeVisible();
@@ -182,17 +185,19 @@ test("Part 2: as a worker", async ({ browser }) => {
   await test.step("12. Cancel it", async () => {
     await page.getByRole("link", { name: "See my shifts" }).click();
     await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
-    await page.getByRole("button", { name: "Cancel this shift" }).click();
-    await page.getByLabel("I'm unwell").check();
-    await page.getByRole("button", { name: "Confirm cancellation" }).click();
+    // "Can't make it?" opens the sheet: the warning, why, then "Cancel this shift".
+    await page.getByRole("button", { name: "Can't make it?" }).click();
+    const sheet = page.getByRole("dialog", { name: "Can't make it?" });
+    await sheet.getByLabel("I'm unwell").check();
+    await sheet.getByRole("button", { name: "Cancel this shift" }).click();
     // Whether it's a strike depends on when the run is (the notice); the words say which.
     await expect(
-      page.getByText(
+      sheet.getByText(
         /^Cancelled\. Reference [0-9A-F]{8}\. (No strike\.|A strike has been recorded\. It counts until .+\.)$/,
       ),
     ).toBeVisible();
-    await expect(page.getByText(/^You gave \d+ (hours'|days') notice\.$/)).toBeVisible();
-    await page.getByRole("button", { name: "Back to my shifts" }).click();
+    await expect(sheet.getByText(/^You gave \d+ (hours'|days') notice\.$/)).toBeVisible();
+    await sheet.getByRole("button", { name: "Done" }).click();
     await expect(page.getByText("No shifts booked yet.")).toBeVisible();
   });
 
@@ -237,7 +242,11 @@ test("Part 2: as a worker", async ({ browser }) => {
   await test.step("16. Log in as Sam Walsh: his booking, its instructions, and yesterday's race day", async () => {
     await workerLogin(page, SAM);
     await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Instructions" }).first()).toBeVisible();
+    // His pass opens into the rest: the instructions among it.
+    await page.locator("[data-pass] summary").click();
+    await expect(
+      page.locator("[data-pass]").getByText("Instructions", { exact: true }),
+    ).toBeVisible();
     // Her bookings are on the Shifts tab (12H.1).
     await page
       .getByRole("navigation", { name: "Main" })
@@ -253,6 +262,7 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("17. Ask for a change", async () => {
     await page.goto(`${acme}/`);
+    await page.locator("[data-pass] summary").click();
     await page.getByRole("link", { name: "Ask for a change" }).first().click();
     await page.getByLabel("Change the times").check();
     await page.getByLabel("New start").fill("13:00");
@@ -267,18 +277,15 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("18. Log in as Maya Morgan: her expired licence, and the urgent shift she can't take", async () => {
     await workerLogin(page, MAYA);
-    // My shifts' "Needs updating" card (12F.1), red: her licence stops her working.
-    const needs = page.getByRole("region", { name: "Needs updating" });
-    await expect(
-      needs.getByText(
-        /^SIA door supervisor licence expired on .+\. Until it's renewed you won't see door supervisor shifts\. Upload it$/,
-      ),
-    ).toBeVisible();
+    // For you's "Needs doing now" (12F.1; Phase 18), red: her licence stops her working.
+    const needs = page.getByRole("region", { name: "For you" }).locator('[data-for-you="needs"]');
+    await expect(needs).toContainText("Needs doing now");
+    await expect(needs).toContainText("Renew your SIA door supervisor licence");
+    await expect(needs).toContainText(
+      /SIA door supervisor licence expired on .+\. Until it's renewed you won't see door supervisor shifts\./,
+    );
     // Straight to its upload page (12F.2).
-    await expect(
-      needs.getByRole("link", { name: "Upload your SIA door supervisor licence" }),
-    ).toHaveAttribute("href", "/profile/upload/SIA_DS");
-    await expect(needs.getByRole("link", { name: "See your qualifications" })).toBeVisible();
+    await expect(needs.getByRole("link")).toHaveAttribute("href", "/profile/upload/SIA_DS");
     await page.goto(`${acme}/shifts/${dropout}`);
     await expect(page.getByRole("heading", { name: "You can't take this shift:" })).toBeVisible();
     await expect(page.getByText(/Your SIA door supervisor licence expired on /)).toBeVisible();
@@ -291,23 +298,24 @@ test("Part 2: as a worker", async ({ browser }) => {
     await workerLogin(page, WES);
     // One, the 08:00 dropout; two from Friday noon, when Zoe's cancelled Saturday shift (step 12)
     // is inside the urgent window too.
-    const onHome = page.getByRole("region", { name: "Urgent: needed now, and you can take them" });
-    await expect(onHome.getByRole("listitem").filter({ hasText: "08:00" })).toHaveCount(1);
-    await onHome.getByRole("link", { name: "See urgent shifts" }).click();
+    const onHome = page
+      .getByRole("region", { name: "For you" })
+      .getByRole("link", { name: /^Urgent [12] shifts? you can take / });
+    await onHome.click();
     await expect(page.getByRole("heading", { name: "Urgent shifts" })).toBeVisible();
-    await page
-      .getByRole("listitem")
-      .filter({ hasText: "08:00" })
-      .first()
-      .getByRole("button", { name: "Take shift" })
-      .click();
+    const dropout = page.getByRole("listitem").filter({ hasText: "08:00–" });
+    await expect(dropout).toHaveCount(1);
+    await dropout.getByRole("link").click();
+    await page.getByRole("button", { name: "Take shift" }).click();
     await expect(page.getByText("You're booked.")).toBeVisible();
     await logOut(page, `${acme}/`);
   });
 
   await test.step("20. Log in as Zoe Adeyemi: how far each shift is, and her travel area", async () => {
     await workerLogin(page, ZOE_A);
-    // The seed's fixed travel times: distance, then car and public transport (12G.3).
+    // The seed's fixed travel times on each open shift: distance, then car and public transport
+    // (12G.3).
+    await page.goto(`${acme}/shifts/open`);
     await expect(page.getByText(/^\d+\.\d miles · .+ by car · /).first()).toBeVisible();
     await page
       .getByRole("navigation", { name: "Main" })
@@ -331,20 +339,20 @@ test("Part 2: as a worker", async ({ browser }) => {
 
   await test.step("21. Log in as Kieran Doyle: his strikes, and where he'd upload his licence", async () => {
     await workerLogin(page, KIERAN);
-    const needs = page.getByRole("region", { name: "Needs updating" });
-    await expect(needs).toBeVisible();
+    // His licence ran out: the one thing to do, straight to its upload page (12F.2).
+    const needs = page.getByRole("region", { name: "For you" }).locator('[data-for-you="needs"]');
+    await expect(needs).toContainText("Needs doing now");
+    await expect(needs).toContainText("Renew your SIA door supervisor licence");
+    await expect(needs.getByRole("link")).toHaveAttribute("href", "/profile/upload/SIA_DS");
     await page
       .getByRole("navigation", { name: "Main" })
-      .getByRole("link", { name: "Profile" })
+      .getByRole("link", { name: /^Profile/ })
       .click();
     await expect(page.getByRole("region", { name: "Strikes", exact: true })).toContainText(
       "You have 2 strikes in the last 90 days.",
     );
     await page.goto(`${acme}/`);
-    await page
-      .getByRole("region", { name: "Needs updating" })
-      .getByRole("link", { name: "Upload your SIA door supervisor licence" })
-      .click();
+    await needs.getByRole("link").click();
     await expect(page).toHaveURL(`${acme}/profile/upload/SIA_DS`);
     await expect(
       page.getByRole("heading", { name: "Upload your SIA door supervisor licence" }),
@@ -359,33 +367,48 @@ test("Part 3: as the office", async ({ browser }) => {
 
   await test.step("22. Log in as the resourcer", async () => {
     await officeLogin(page, "acme.resourcer@example.com");
-    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
   });
 
   await test.step("23. The dashboard", async () => {
-    // The four counts, each a link to its list (12E.1).
-    await expect(page.getByRole("navigation", { name: "Counts" }).getByRole("link")).toHaveCount(4);
-    // Zoe's cancellation (step 12) is the latest; nothing there to approve or decline.
-    const cancellations = page.getByRole("region", { name: "Cancellations", exact: true });
-    await expect(cancellations.getByText(`${ZOE.name} cancelled`).first()).toBeVisible();
-    await expect(
-      cancellations.getByText("Recorded automatically, never approved or declined"),
-    ).toBeVisible();
-    // Needs attention: yesterday's racecourse shifts to mark.
+    // This week's seven days, each a link (Phase 18), and where to start.
+    await expect(page.getByRole("navigation", { name: "This week" }).getByRole("link")).toHaveCount(
+      7,
+    );
+    await expect(page.getByRole("heading", { name: "Next up", level: 2 })).toBeVisible();
+    // Today's cancellations (Zoe's, step 12, among them) are sorted: nothing to approve or decline.
+    const sorted = page.getByRole("list", { name: "Sorted today" });
+    const cancellations = sorted.getByRole("link", { name: /cancellations? today/ });
+    await expect(cancellations).toContainText(
+      "Recorded automatically, never approved or declined.",
+    );
+    await cancellations.click();
+    await expect(page).toHaveURL(`${acme}/office/cancellations?day=today`);
+    await expect(page.getByRole("link").filter({ hasText: ZOE.name }).first()).toBeVisible();
+    // After that: yesterday's racecourse shifts to mark, in full on Needs attention.
+    await page.goto(`${acme}/office`);
+    await page
+      .getByRole("list", { name: "After that" })
+      .getByRole("link", { name: /^Who worked\?/ })
+      .click();
     await expect(
       page.getByRole("region", { name: "Who worked?" }).getByText("Acme Demo Racecourse").first(),
     ).toBeVisible();
   });
 
   await test.step("24. Offer a gap", async () => {
-    // "Events showing to casuals" opens Events & sessions' Showing tab; a session's "…" menu has
-    // "Offer a place" while it has one free.
+    // "Events showing to casuals" (Sorted today) opens Events & sessions' Showing list; "Need
+    // people" has the events with places free; an event's row opens into its sessions, and a
+    // session's "…" menu has "Offer a place" while it has one free.
+    await page.goto(`${acme}/office`);
     await page
-      .getByRole("navigation", { name: "Counts" })
-      .getByRole("link")
-      .filter({ hasText: "Events showing to casuals" })
+      .getByRole("list", { name: "Sorted today" })
+      .getByRole("link", { name: /events? showing to casuals/ })
       .click();
     await expect(page).toHaveURL(`${acme}/office/events?view=showing`);
+    await page.getByRole("link", { name: /^Need people \d+$/ }).click();
+    await expect(page).toHaveURL(`${acme}/office/events?view=need`);
+    await page.locator('button[aria-controls$="-sessions"][aria-expanded="false"]').first().click();
     const menu = page.locator('details:has(a[href^="/office/offer/"])').first();
     await menu.locator("summary").click();
     await menu.getByRole("link", { name: "Offer a place" }).click();
@@ -425,7 +448,7 @@ test("Part 3: as the office", async ({ browser }) => {
   });
 
   await test.step("26. Mark who worked", async () => {
-    await page.goto(`${acme}/office`);
+    await page.goto(`${acme}/office/needs-attention`);
     const card = page
       .getByRole("region", { name: "Who worked?" })
       .locator("li", { hasText: "Acme Demo Racecourse" })

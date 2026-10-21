@@ -8,12 +8,12 @@ import { OFFICE_REPLY_PREFIX } from "../notices/enquiry-reply";
 import type { StopReason } from "../offers/waves";
 import { strikeSettings } from "../strikes/settings";
 import { rulesSettingsSchema } from "../roster/eligibility-input";
-import { localDateOf, wallTimeOf, zonedToUtc } from "../time/zoned";
+import { addDays, localDateOf, mondayOf, wallTimeOf, zonedToUtc } from "../time/zoned";
 import { loadCancellations } from "./cancellations";
 import type { CancellationRow } from "./cancellations-copy";
 import { waitingCount } from "./casuals";
 import { loadEnquiries, type EnquiryRow } from "./enquiries";
-import { bookedJoin, loadEventCards, urgentGap, type EventCardData } from "./events";
+import { bookedJoin, loadEventCards, placeFree, urgentGap, type EventCardData } from "./events";
 import { officeUserMay, parts, type OfficeContext } from "./office-context";
 import {
   loadBookingsToCheck,
@@ -135,10 +135,25 @@ export interface NeedsAttention {
   webhookFailing: { since: Date } | null;
 }
 
+// One day of this week's strip (Phase 18): the places in its sessions (not cancelled), how many
+// are filled (booked, or all of a session marked filled), and its sessions with an urgent gap.
+// One day of this week on the dashboard: its places in sessions casuals can be booked on (open or
+// filled; drafts and cancelled ones aren't), how many are filled, how many can still be filled
+// (in open sessions that haven't started: the "Need people" rule, `placeFree`), and how many of
+// those are urgent gaps. All in places.
+export interface WeekDay {
+  date: string; // yyyy-mm-dd, the firm's calendar
+  places: number;
+  filled: number;
+  open: number;
+  urgent: number;
+}
+
 export interface Dashboard {
   timeZone: string;
   today: string; // yyyy-mm-dd, the firm's calendar
   counts: DashboardCounts;
+  week: Part<WeekDay[]>; // Monday to Sunday of this week
   urgent: Part<{ events: UrgentEventCard[]; more: boolean }>;
   showing: Part<{ events: EventCardData[]; more: number }>;
   cancellations: Part<{ rows: CancellationRow[]; threshold: number }>;
@@ -195,6 +210,49 @@ async function firmFacts(tx: FirmTx) {
 
 export const midnightOf = (now: Date, timeZone: string): Date =>
   zonedToUtc({ ...wallTimeOf(now, timeZone), hour: 0, minute: 0 }, timeZone);
+
+const midnightOfDay = (day: string, timeZone: string): Date => {
+  const [year, month, d] = day.split("-").map(Number);
+  return zonedToUtc({ year: year!, month: month!, day: d!, hour: 0, minute: 0 }, timeZone);
+};
+
+// This week's strip (Monday to Sunday, the firm's calendar): each day's places, filled places and
+// urgent gaps, from its sessions that start that day.
+export async function loadWeek(tx: FirmTx, now: Date, timeZone: string): Promise<WeekDay[]> {
+  const monday = mondayOf(localDateOf(now, timeZone));
+  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const { rows } = await tx.execute<{
+    day: string;
+    places: number;
+    filled: number;
+    open: number;
+    urgent: number;
+  }>(sql`
+    select to_char(s.starts_at at time zone ${timeZone}, 'YYYY-MM-DD') as day,
+           coalesce(sum(s.headcount), 0)::int as places,
+           coalesce(sum(case when s.status = 'filled' then s.headcount else b.booked end), 0)::int
+             as filled,
+           coalesce(sum(s.headcount - b.booked) filter (where ${placeFree(now)}), 0)::int as open,
+           coalesce(sum(s.headcount - b.booked) filter (where ${urgentGap(now)}), 0)::int as urgent
+      from shifts s
+      ${bookedJoin}
+     where s.status in ('open', 'filled')
+       and s.starts_at >= ${midnightOfDay(monday, timeZone)}
+       and s.starts_at < ${midnightOfDay(addDays(monday, 7), timeZone)}
+     group by 1
+  `);
+  const byDay = new Map(rows.map((r) => [r.day, r]));
+  return days.map((date) => {
+    const r = byDay.get(date);
+    return {
+      date,
+      places: r?.places ?? 0,
+      filled: r?.filled ?? 0,
+      open: r?.open ?? 0,
+      urgent: r?.urgent ?? 0,
+    };
+  });
+}
 
 async function urgentCount(tx: FirmTx, now: Date) {
   const { rows } = await tx.execute<{
@@ -540,6 +598,7 @@ export async function loadDashboard(tx: FirmTx, now: Date): Promise<Dashboard> {
           }
         : { ok: false },
     },
+    week: await part(tx, "week", (sp) => loadWeek(sp, now, timeZone)),
     urgent: await part(tx, "urgent", (sp) => urgentCards(sp, now)),
     showing: await part(tx, "showing", async (sp) => {
       const { events } = await loadEventCards(sp, now, "showing", SHOWING_SESSIONS);
@@ -591,5 +650,25 @@ export async function needsAttentionBell(
     const { timeZone } = await firmFacts(tx);
     const needs = await part(tx, "bell", (sp) => loadNeedsAttention(sp, now, timeZone));
     return needs.ok ? needsCount(needs.data) : { count: null, more: false };
+  });
+}
+
+// Needs attention on its own page (Phase 18; the bell opens it), for an admin or resourcer, or
+// null (anyone else, or logged out): its items, or that they couldn't be read.
+export async function officeNeedsAttention(ctx: OfficeContext): Promise<{
+  timeZone: string;
+  today: string;
+  needs: Part<NeedsAttention>;
+} | null> {
+  const { run } = parts(ctx);
+  const now = (ctx.clock ?? systemClock).now();
+  return run(ctx.firm.id, async (tx) => {
+    if (!(await officeUserMay(tx, ctx.officeUserId, "today"))) return null;
+    const { timeZone } = await firmFacts(tx);
+    return {
+      timeZone,
+      today: localDateOf(now, timeZone),
+      needs: await part(tx, "needs", (sp) => loadNeedsAttention(sp, now, timeZone)),
+    };
   });
 }

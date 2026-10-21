@@ -30,7 +30,7 @@ export function CancelShiftResult({
     case "cancelled":
       return (
         <div className="flex flex-col gap-3">
-          <div role="status" className="rounded-xl border-2 border-line-strong bg-quiet-soft p-4">
+          <div role="status" className="rounded-xl bg-quiet-soft p-4">
             <p className="text-lg font-bold">{cancelledText(outcome.ref, outcome.strike)}</p>
             {outcome.when && <p className="mt-2 font-semibold tabular-nums">{outcome.when}</p>}
             {outcome.role && (

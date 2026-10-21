@@ -1,7 +1,7 @@
 "use client";
 
 import { loadPageAgain } from "./error-body";
-import { jakarta, jakartaExt } from "./fonts";
+import { fontVariables } from "./fonts";
 import { page, staffBtn } from "./ui/classes";
 import "./globals.css";
 
@@ -10,7 +10,7 @@ import "./globals.css";
 // the page again (loadPageAgain), working before the page's scripts have loaded too.
 export default function GlobalError() {
   return (
-    <html lang="en-GB" className={`${jakarta.variable} ${jakartaExt.variable}`}>
+    <html lang="en-GB" className={fontVariables}>
       <body className="bg-card text-lg text-ink antialiased">
         <main className={page.staff}>
           <h1 className="text-3xl font-bold tracking-tight text-balance text-ink">

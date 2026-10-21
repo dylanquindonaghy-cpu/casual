@@ -150,7 +150,10 @@ docs/
 
 1. Read the task in `PLAN.md` and the docs it links.
 2. Propose a short plan: files to create or change, and tests to write. Wait for approval on
-   anything touching schema, auth or tenancy.
+   anything touching schema, auth or tenancy. **Anything that changes how a screen looks: a mock-up
+   first** (a page Dylan can open on his phone and laptop, showing before and after at his real
+   sizes: a phone, and a laptop at 150% scaling, about 1,280px wide), made with the UI skills in
+   `.claude/skills/` (`.claude/skills/README.md`). Build only after Dylan approves it.
 3. Implement with tests. When something fails, state the root cause (the mechanism) before
    changing any code. Never patch the symptom. Never delete, skip or weaken a test to get green.
 4. For schema, auth, tenancy, messaging or rules changes, run the `guardrails-reviewer` agent.
@@ -159,6 +162,9 @@ docs/
    say "done", "complete" or "all tests pass" unless verify.sh printed VERIFIED on the
    current files (a hook blocks that too). If something isn't verified, say so plainly.
 6. Add anything deferred to the Parking lot. Summarise what changed and what the auditor verified.
+
+Dylan can't type slash commands where he works with Claude: run skills and commands yourself
+(the Skill tool: `close-task`, `verify`, the UI skills and so on), never ask him to.
 
 See `docs/verification.md` for how this is enforced and why.
 

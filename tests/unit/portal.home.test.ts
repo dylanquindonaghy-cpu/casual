@@ -2,10 +2,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
+import { need } from "../helpers/qualifications";
 
-// Home's shift cards (docs/office-v2.md 4.2 item 3; 12H.1 audit): an urgent shift's card shows
-// what the session needs as chips, the same chips as the shifts list (12H.2), read out as
-// "Needs: …". The urgent cards and the shifts to apply for use the one card.
+// Home's open shifts (docs/office-v2.md 4.2 item 3; 12H.1; Phase 18): in "For you", the urgent
+// shifts she can take as one row (how many, which days) to the urgent board, and the others as one
+// row to Open shifts. No shift is listed on Home, so nothing here says what a shift needs: that's on
+// the shift's own page ("You need", with her status for each: tests/unit/portal.shift-detail.test.ts).
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace() {}, refresh() {} }),
@@ -66,8 +68,8 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-describe("Home's shift cards", () => {
-  it("an urgent shift's card shows what it needs as chips; one that needs nothing shows none", () => {
+describe("Home's open shifts, in For you", () => {
+  it("the urgent ones as one row to the urgent board, the others as one row to Open shifts; no shift's requirements", () => {
     const html = home([
       shift(1, {
         isUrgent: true,
@@ -78,11 +80,24 @@ describe("Home's shift cards", () => {
       }),
       shift(2, { requirements: [] }),
     ]);
-    const urgent = html.slice(0, html.indexOf("44444442-"));
-    expect(text(urgent)).toContain("Urgent Door supervisor · Raceday Demo Arena");
-    expect(text(urgent)).toContain("Needs: SIA DS , CSAS");
-    expect(urgent.match(/data-requirements=""/g)).toHaveLength(1);
-    expect(html.match(/data-requirements=""/g)).toHaveLength(1);
+    const row = (key: string) =>
+      html.match(new RegExp(`<li[^>]*data-for-you="${key}"[^>]*>.*?</li>`))?.[0] ?? "";
+    expect(row("urgent")).toContain('href="/urgent"');
+    expect(row("urgent")).toContain("data-online-only");
+    expect(text(row("urgent"))).toBe("Urgent 1 shift you can take Sat 7 Nov");
+    expect(row("apply")).toContain('href="/shifts/open"');
+    expect(text(row("apply"))).toBe("1 more shift you can apply for Sat 7 Nov");
+    // The kept copy says they need signal instead (shown only there), with the day it was saved.
+    expect(row("offline")).toContain("data-offline-only");
+    expect(text(row("offline"))).toBe(
+      "Open shifts need signal 1 was urgent at 09:00 on Mon 2 Nov. We&#x27;ll check again when you&#x27;re online.",
+    );
+    expect(html).not.toContain("data-requirements");
+    expect(text(html)).not.toMatch(/SIA DS|CSAS/);
+    // Nothing urgent: no urgent row, and the others are "shifts you can apply for".
+    const calm = home([shift(2, {})]);
+    expect(calm).not.toContain('data-for-you="urgent"');
+    expect(text(calm)).toContain("1 shift you can apply for Sat 7 Nov");
   });
 });
 
@@ -114,6 +129,48 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     expect(words).not.toMatch(/minutes from your home area|home area|miles|min by car/);
     expect(html).not.toContain("data-travel-line");
     expect(html).not.toContain('href="/profile/travel"');
-    expect(words).toContain("Demo Arena");
+    expect(html).not.toContain('data-for-you="area"');
+    // The open shifts still show, without how far.
+    expect(words).toContain("1 shift you can take Sat 7 Nov");
+    expect(words).toContain("1 more shift you can apply for Sat 7 Nov");
+  });
+});
+
+describe("For you: at most four rows", () => {
+  it("with everything at once: urgent, needs doing, her home area, the rest; offline, one row instead of the urgent one", () => {
+    const html = renderToStaticMarkup(
+      createElement(HomeView, {
+        firstName: "Zoe",
+        timeZone: TZ,
+        now: NOW,
+        next: null,
+        needs: [need(2, { status: "expired", expiresOn: "2026-10-01" })],
+        photo: { status: "up_to_date", current: null, waiting: null },
+        open: {
+          shifts: [shift(1, { isUrgent: true }), shift(2, {})],
+          truncated: false,
+          offerAlerts: true,
+          travelOn: true,
+          area: null,
+          further: { count: 0, atLeast: false },
+          choices: { days: [], sites: [], roles: [] },
+        },
+      }),
+    );
+    const forYou = html.slice(html.indexOf('aria-labelledby="for-you-heading"'));
+    const rows = [...forYou.matchAll(/<li ([^>]*)data-for-you="([a-z]+)"/g)].map((m) => ({
+      kind: m[2],
+      online: (m[1] ?? "").includes("data-online-only"),
+      offline: (m[1] ?? "").includes("data-offline-only"),
+    }));
+    // Online (the offline row hidden): four, in this order.
+    expect(rows.filter((r) => !r.offline).map((r) => r.kind)).toEqual([
+      "urgent",
+      "needs",
+      "area",
+      "apply",
+    ]);
+    // In the kept copy (online rows hidden): the offline row and what needs doing.
+    expect(rows.filter((r) => !r.online).map((r) => r.kind)).toEqual(["offline", "needs"]);
   });
 });

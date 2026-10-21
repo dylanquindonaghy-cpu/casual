@@ -5,14 +5,13 @@ import Link from "next/link";
 // ones or waits for a text that will never come. Its link opens the Demo phone. Hook-free.
 export function DemoBar() {
   return (
-    <aside
-      aria-label="Demo"
-      data-testid="demo-bar"
-      className="border-b border-attention bg-attention-soft text-attention-ink"
-    >
-      <p className="mx-auto max-w-md px-6 py-2 text-sm">
+    <aside aria-label="Demo" data-testid="demo-bar" className="bg-demo text-on-demo">
+      <p className="mx-auto max-w-md px-4 py-2 text-sm sm:px-6 [body:has([data-shell=office])_&]:max-w-none [body:has([data-shell=office])_&]:text-center">
         A demo with made-up people. No real texts or emails go out: see them on the{" "}
-        <Link href="/demo" className="font-semibold underline underline-offset-4">
+        <Link
+          href="/demo"
+          className="font-bold underline underline-offset-4 focus-visible:outline-on-demo"
+        >
           Demo phone
         </Link>
         .

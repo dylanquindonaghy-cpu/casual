@@ -35,42 +35,72 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("button", { name: "Log me in" }).click();
     await expect(page.getByRole("heading", { name: /^Hello / })).toBeVisible();
   });
-  await expect(page.getByText("No shifts booked yet.")).toBeVisible();
+  // Home with nothing booked (Phase 18): the empty pass, and the way to the open shifts.
+  await expect(page.getByRole("heading", { name: "No shifts booked" })).toBeVisible();
 
   await timed("take a shift", async () => {
-    await page.getByRole("link", { name: "See all open shifts" }).click();
+    await page.getByRole("link", { name: "Find a shift" }).click();
     await expect(page.getByRole("heading", { name: "Open shifts" })).toBeVisible();
+    // Each card opens the shift's page, where "Take shift" is.
     const racecourse = page.getByRole("listitem").filter({ hasText: "Acme Demo Racecourse" });
     await expect(racecourse).toHaveCount(1);
-    await racecourse.getByRole("button", { name: "Take shift" }).click();
+    await racecourse.getByRole("link").click();
+    await page.getByRole("button", { name: "Take shift" }).click();
     await expect(page.getByText("You're booked.")).toBeVisible();
-    await expect(racecourse.getByText(/^Reference: [0-9A-F]{8}$/)).toBeVisible();
-    await expect(racecourse.getByText("— Acme Events Shift Team")).toBeVisible();
+    await expect(page.getByText(/^Reference: [0-9A-F]{8}$/)).toBeVisible();
+    await expect(page.getByText("— Acme Events Shift Team")).toBeVisible();
   });
 
   await timed("cancel it", async () => {
     await page.getByRole("link", { name: "See my shifts" }).click();
     await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
     await expect(page.getByText("Security officer").first()).toBeVisible();
-    await page.getByRole("button", { name: "Cancel this shift" }).click();
-    await page.getByLabel("I'm unwell").check();
-    await page.getByRole("button", { name: "Confirm cancellation" }).click();
+    // "Can't make it?" opens the sheet: the warning, why, then "Cancel this shift". "Ask for a
+    // change instead" opens the request form for this shift; "Keep my shift" closes the sheet and
+    // nothing is cancelled.
+    await page.getByRole("button", { name: "Can't make it?" }).click();
+    const sheet = page.getByRole("dialog", { name: "Can't make it?" });
+    await sheet.getByRole("link", { name: "Ask for a change instead" }).click();
+    await expect(page).toHaveURL(new RegExp(`^${acme}/requests/new\\?shift=[0-9a-f-]{36}$`));
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
+    await page.getByRole("button", { name: "Can't make it?" }).click();
+    await expect(sheet.getByRole("note")).toBeVisible();
+    await sheet.getByRole("button", { name: "Keep my shift" }).click();
+    await expect(sheet).toBeHidden();
+    await page.reload();
+    await expect(page.getByText("Security officer").first()).toBeVisible();
+    await page.getByRole("button", { name: "Can't make it?" }).click();
+    await sheet.getByLabel("I'm unwell").check();
+    // While it's being sent (held back here for a moment), the sheet can't be closed: "Keep my
+    // shift" waits and Escape leaves it, so the answer is always seen.
+    const toBooked = (url: URL) => url.pathname === "/shifts";
+    await page.route(toBooked, async (route) => {
+      if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 1500));
+      await route.continue();
+    });
+    await sheet.getByRole("button", { name: "Cancel this shift" }).click();
+    await expect(sheet.getByRole("button", { name: "Keep my shift" })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeVisible();
     // Whether it's a strike depends on when the run is (the notice); the words say which.
     await expect(
-      page.getByText(
+      sheet.getByText(
         /^Cancelled\. Reference [0-9A-F]{8}\. (No strike\.|A strike has been recorded\. It counts until .+\.)$/,
       ),
     ).toBeVisible();
-    await expect(page.getByText(/^You gave \d+ (hours'|days') notice\.$/)).toBeVisible();
+    await expect(sheet.getByText(/^You gave \d+ (hours'|days') notice\.$/)).toBeVisible();
+    await page.unroute(toBooked);
+    await sheet.getByRole("button", { name: "Done" }).click();
   });
-  await page.getByRole("button", { name: "Back to my shifts" }).click();
   await expect(page.getByText("No shifts booked yet.")).toBeVisible();
 
   await timed("ask for a change", async () => {
     await page.getByRole("link", { name: "See all open shifts" }).click();
     const centre = page.getByRole("listitem").filter({ hasText: "Acme Demo Shopping Centre" });
     await expect(centre).toHaveCount(1);
-    await centre.getByRole("button", { name: "Take shift" }).click();
+    await centre.getByRole("link").click();
+    await page.getByRole("button", { name: "Take shift" }).click();
     await expect(page.getByText("You're booked.")).toBeVisible();
     await page.getByRole("link", { name: "See my shifts" }).click();
     await page.getByRole("link", { name: "Ask for a change" }).click();

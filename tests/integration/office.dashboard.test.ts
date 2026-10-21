@@ -11,6 +11,7 @@ import {
   needsAttentionBell,
   needsCount,
   officeDashboard,
+  officeNeedsAttention,
   part,
 } from "@/lib/office/dashboard";
 import { loadCancellations } from "@/lib/office/cancellations";
@@ -879,6 +880,53 @@ describe("who may see it", () => {
     expect(await officeDashboard(ctx(await t.office("payroll")))).toBeNull();
     expect(await officeDashboard(ctx(await t.office("admin", "disabled")))).toBeNull();
     expect(await officeDashboard(ctx(await other.office("admin"), t.firmId))).toBeNull();
+    // Needs attention's own page (Phase 18): the same people.
+    expect(await officeNeedsAttention(ctx(await t.office("admin")))).toMatchObject({
+      today: "2026-11-02",
+      needs: { ok: true },
+    });
+    expect(await officeNeedsAttention(ctx(await t.office("resourcer")))).not.toBeNull();
+    expect(await officeNeedsAttention(ctx(await t.office("payroll")))).toBeNull();
+    expect(await officeNeedsAttention(ctx(await t.office("admin", "disabled")))).toBeNull();
+    expect(await officeNeedsAttention(ctx(await other.office("admin"), t.firmId))).toBeNull();
+  });
+});
+
+describe("this week (Phase 18's strip)", () => {
+  it("each London day Monday to Sunday: places in open or filled sessions, filled, still to fill, urgent", async () => {
+    const t = await dashFirm();
+    const other = await dashFirm();
+    // Monday: one started at 06:00 (2 places, 1 booked: the other can't be filled now), one
+    // urgent at 14:00 (3 places, 1 booked).
+    const started = await t.shift({ startsAt: hoursFromNow(-3), headcount: 2 });
+    await t.booking(await t.worker(), started);
+    const urgent = await t.shift({ startsAt: hoursFromNow(5), headcount: 3 });
+    await t.set("shifts", urgent, { is_urgent: true });
+    await t.booking(await t.worker(), urgent);
+    // Tuesday: a draft and a cancelled session: neither counts.
+    await t.shift({ startsAt: hoursFromNow(24), headcount: 4, status: "draft" });
+    await t.shift({ startsAt: hoursFromNow(25), headcount: 4, status: "cancelled" });
+    // Wednesday: marked filled by the office with nobody booked: full.
+    await t.shift({ startsAt: hoursFromNow(48), headcount: 2, status: "filled" });
+    // Sunday 23:30 is still this week; Monday 00:30 and last Sunday 23:00 aren't.
+    await t.shift({ startsAt: hoursFromNow(158.5) });
+    await t.shift({ startsAt: hoursFromNow(159.5) });
+    await t.shift({ startsAt: hoursFromNow(-10) });
+    // Another firm's sessions this week: never in this one's.
+    await other.shift({ startsAt: hoursFromNow(5), headcount: 9 });
+    const zero = (date: string) => ({ date, places: 0, filled: 0, open: 0, urgent: 0 });
+    expect((await t.load()).week).toEqual({
+      ok: true,
+      data: [
+        { date: "2026-11-02", places: 5, filled: 2, open: 2, urgent: 2 },
+        zero("2026-11-03"),
+        { date: "2026-11-04", places: 2, filled: 2, open: 0, urgent: 0 },
+        zero("2026-11-05"),
+        zero("2026-11-06"),
+        zero("2026-11-07"),
+        { date: "2026-11-08", places: 1, filled: 0, open: 1, urgent: 0 },
+      ],
+    });
   });
 });
 
@@ -935,6 +983,7 @@ describe("isolation", () => {
     for (const d of [mine, theirs]) {
       const parts = [
         ...Object.values(d.counts),
+        d.week,
         d.urgent,
         d.showing,
         d.cancellations,
@@ -961,6 +1010,9 @@ describe("isolation", () => {
       cancellations: { ok: true, data: { total: 0, underNotice: 0, strikes: 0, threshold: 48 } },
       enquiries: { ok: true, data: { total: 0, automatic: 0, needPerson: 0 } },
     });
+    // B's week holds its sessions; A's has none of them.
+    expect(theirs.week.ok && theirs.week.data.reduce((n, d) => n + d.places, 0)).toBeGreaterThan(0);
+    expect(mine.week.ok && mine.week.data.every((d) => d.places === 0 && d.open === 0)).toBe(true);
     const text = JSON.stringify(mine);
     for (const word of ["Firm B reply words", "Bertram", "Lenora", "shifts?", gap, b.firmId]) {
       expect(text).not.toContain(word);

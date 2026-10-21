@@ -14,3 +14,6 @@ secrets/
 
 # Dev-only files (the console transport outbox holds message bodies)
 .dev/
+
+# Python bytecode (the UI skills' scripts, .claude/skills/README.md)
+__pycache__/

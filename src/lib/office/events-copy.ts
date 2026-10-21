@@ -9,13 +9,15 @@ import type { EventCardData, EventView, SessionRow } from "./events";
 
 export const EVENT_VIEW_WORDS: Record<EventView, string> = {
   all: "All",
-  showing: "Showing",
+  need: "Need people",
+  urgent: "Urgent",
   hidden: "Hidden",
-  urgent: "Urgent, not filled",
+  showing: "Showing",
 };
 
 export const EVENT_VIEW_EMPTY: Record<EventView, string> = {
   all: "No events with a session to come.",
+  need: "Every session to come is full.",
   showing: "No events are showing to casuals.",
   hidden: "No events are hidden from casuals.",
   urgent: "Every urgent shift is filled.",

@@ -1,636 +1,298 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import type { Dashboard, NeedsAttention, Part } from "@/lib/office/dashboard";
-import { evidenceItems, needsCount } from "@/lib/office/dashboard";
+import type { Dashboard } from "@/lib/office/dashboard";
+import { SECTION_ERROR, SECTIONS } from "@/lib/office/dashboard-copy";
 import {
-  cancelledByText,
-  countLine,
-  countNumber,
-  COUNTS,
-  expiredText,
-  HIDDEN_WARNING,
-  NEEDS_HEADINGS,
-  noticeChip,
-  plannerRefusedText,
-  webhookFailingText,
-  enquiriesEmpty,
-  SECTION_ERROR,
-  SECTIONS,
-  uploadsText,
-  urgentLine,
-  type NeedsKey,
-  type SectionKey,
-} from "@/lib/office/dashboard-copy";
-import { eventSummary, eventSwitchLabel, eventWhereWhen } from "@/lib/office/events-copy";
-import {
-  placesText,
-  sheetChangeText,
-  sheetNameText,
-  toCheckText,
-  toMarkText,
-} from "@/lib/office/today-copy";
-import { noticeText } from "@/lib/portal/cancel-reasons";
-import { roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
-import {
-  card,
-  h2,
-  headingGap,
-  meta,
-  nums,
-  row,
-  rows,
-  sectionGap,
-  table,
-  textLink,
-} from "../ui/classes";
-import { StatusChip } from "../ui/status-chip";
-import { EnquiryItem } from "./enquiries/enquiry-row";
-import { ShowingSwitch } from "./events/showing-switch";
-import { BookingToCheckActions } from "./keep-booking";
-import { ShiftActions } from "./shift-actions";
+  afterRows,
+  focusItems,
+  headline,
+  sortedRows,
+  subline,
+  thingsCount,
+  weekCells,
+  type Row,
+  type WeekCell,
+} from "@/lib/office/dashboard-home";
+import { meta } from "../ui/classes";
+import { Icon, type IconName } from "../ui/icons";
+import { Plate } from "../ui/plate";
+import { FocusCard } from "./focus-card";
 
-// The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`; Phase 17). Pure: the
-// page loads the data. The four counts first, in one strip, each a link to its list (the first in
-// red when there are urgent shifts), then the sections (DashboardContent's order), each with its
-// hint, its empty words and, when its data couldn't be read, its error words. Needs attention holds the to-dos in parts (the regions the
-// browser tests find them by); the bell in the top bar counts its items.
+// The office dashboard (docs/office-v2.md 3.2, 3.9; docs/screens.md `/office`; Phase 18's redesign),
+// one question: "what needs me now, and where do I start?". The headline says how many things need
+// you (the page's heading), with the firm's shifts line under it; this week as seven days (how full
+// each is, its urgent gaps or sessions to mark); then "Next up", one urgent place at a time with
+// its seats and actions, and beside it (below it on narrower screens) "After that" (the rest of
+// what needs you, each a row to where it's dealt with: Needs attention's page, uploads,
+// enquiries), "Waiting on others" (pay queries with payroll) and "Sorted today" (cancellations,
+// recorded automatically; enquiries answered; what casuals can see). Pure: the page loads the data
+// (src/lib/office/dashboard-home.ts works out what it says).
 
-// --- The counts ------------------------------------------------------------------------------
+const WEEK_NOTE: Record<WeekCell["note"]["kind"], string> = {
+  urgent: "",
+  mark: "",
+  open: "text-ink",
+  filled: "font-semibold text-done",
+  short: "text-ink-muted",
+  none: "text-ink-muted",
+};
 
-function Counts({ d }: { d: Dashboard }) {
+function Week({ cells }: { cells: WeekCell[] }) {
   return (
-    <nav aria-label="Counts">
+    <nav aria-label="This week">
       <ul
         role="list"
-        className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line lg:grid-cols-4"
+        className="grid grid-cols-7 divide-x divide-line overflow-hidden rounded-xl border border-line"
       >
-        {COUNTS.map((c, i) => {
-          const n = countNumber(c.key, d.counts);
-          // The first count (urgent shifts not filled) is red only when there are some.
-          const alarm = i === 0 && (n ?? 0) > 0;
-          return (
-            <li key={c.key} className="bg-card">
-              <Link
-                href={c.href}
-                className="flex h-full flex-col gap-1 p-4 hover:bg-quiet-soft focus-visible:-outline-offset-4"
+        {cells.map((c) => (
+          <li key={c.date} className="min-w-0">
+            <Link
+              href={c.href}
+              aria-label={c.label}
+              className={`flex h-full flex-col gap-2 px-3 pt-2.5 pb-3 hover:bg-quiet-soft focus-visible:-outline-offset-2 ${
+                c.note.kind === "urgent" ? "bg-urgent-soft" : ""
+              } ${c.dow === "Today" ? "border-t-[3px] border-t-ink" : ""}`}
+            >
+              <span className="flex items-baseline gap-1.5">
+                <span className="font-sign text-3xl leading-none">{c.day}</span>
+                <span className="text-ink-muted">{c.dow}</span>
+              </span>
+              <span
+                aria-hidden="true"
+                className="flex h-1.5 overflow-hidden rounded-[1px] bg-raised"
               >
-                <span className="text-sm leading-snug font-semibold text-ink">{c.label}</span>
                 <span
-                  className={`text-3xl leading-none font-bold ${nums} ${alarm ? "text-urgent" : "text-ink"}`}
-                >
-                  {n ?? "–"}
-                </span>
-                <span className={`text-sm leading-snug text-ink-muted ${nums}`}>
-                  {countLine(c.key, d.counts, d.timeZone)}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
+                  className="h-full bg-ink"
+                  style={{ width: `${Math.round(c.filledShare * 100)}%` }}
+                />
+              </span>
+              <span className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                {c.note.kind === "urgent" ? (
+                  <>
+                    <Plate tone="urgent">{c.note.text}</Plate>
+                    {c.note.extra && <span className="whitespace-nowrap">{c.note.extra}</span>}
+                  </>
+                ) : c.note.kind === "mark" ? (
+                  <Plate tone="hivis">{c.note.text}</Plate>
+                ) : (
+                  <span className={WEEK_NOTE[c.note.kind]}>{c.note.text}</span>
+                )}
+              </span>
+            </Link>
+          </li>
+        ))}
       </ul>
     </nav>
   );
 }
 
-// --- Sections --------------------------------------------------------------------------------
+const ROW_ICON: Record<string, IconName> = {
+  "to-check": "workers",
+  "from-sheet": "import",
+  "to-mark": "check",
+  expired: "notice",
+  uploads: "import",
+  evidence: "strike",
+  "planner-refused": "plug",
+  webhook: "plug",
+  enquiries: "requests",
+  payQueries: "clock",
+  cancellations: "cancel",
+  showing: "eye",
+};
 
-function Section({
-  id,
-  children,
-  className = "",
+function Rows({
+  rows,
+  tone,
+  label,
 }: {
-  id: SectionKey;
-  children: ReactNode;
-  className?: string;
+  rows: Row[];
+  tone: "needs" | "waiting" | "sorted";
+  label: string;
 }) {
-  const s = SECTIONS[id];
-  const headingId = id === "needs" ? "needs-attention" : id;
   return (
-    <section className={className} aria-labelledby={headingId}>
-      <h2 id={headingId} className={`${h2} scroll-mt-20`}>
-        {s.heading}
-      </h2>
-      <p className={`${meta} mt-1`}>{s.hint}</p>
-      {children}
-    </section>
-  );
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className={`${card} ${headingGap} text-ink-muted`}>{children}</p>;
-}
-
-function Failed() {
-  return (
-    <p
-      role="status"
-      className={`${headingGap} rounded-md border-l-4 border-attention bg-attention-soft px-3 py-2 text-attention-ink`}
+    <ul
+      role="list"
+      aria-label={label}
+      className="divide-y divide-line overflow-hidden rounded-xl border border-line"
     >
-      {SECTION_ERROR}
-    </p>
-  );
-}
-
-// A part's content, or its error words.
-function Loaded<T>({ part, children }: { part: Part<T>; children: (data: T) => ReactNode }) {
-  return part.ok ? <>{children(part.data)}</> : <Failed />;
-}
-
-function UrgentCards({ d }: { d: Dashboard }) {
-  const tz = d.timeZone;
-  return (
-    <Loaded part={d.urgent}>
-      {(u) =>
-        u.events.length === 0 ? (
-          <Empty>{SECTIONS.urgent.empty}</Empty>
-        ) : (
-          <div className={`${headingGap} flex flex-col gap-3`}>
-            {u.events.map((e) => (
-              <article
-                key={e.eventId}
-                aria-labelledby={`urgent-${e.eventId}`}
-                className={`${card} flex flex-col gap-3`}
+      {rows.map((r) => (
+        <li key={r.key}>
+          <Link
+            href={r.href}
+            className={`flex gap-3 px-3.5 py-3 hover:bg-quiet-soft focus-visible:-outline-offset-2 ${
+              tone === "sorted" ? "items-start" : "items-center"
+            }`}
+          >
+            {tone === "sorted" ? (
+              <Icon name="check" size={20} className="mt-0.5 text-done" />
+            ) : (
+              <span
+                aria-hidden="true"
+                className={`flex size-8 shrink-0 items-center justify-center rounded-md ${
+                  tone === "needs" ? "bg-hivis text-on-hivis" : "bg-raised text-ink-muted"
+                }`}
               >
-                <div>
-                  <h3 id={`urgent-${e.eventId}`} className="font-bold">
-                    <Link href={`/office/events/${e.eventId}`} className={textLink}>
-                      {e.name}
-                    </Link>
-                  </h3>
-                  {e.place && e.place !== e.name && <p className={meta}>{e.place}</p>}
-                </div>
-                {!e.showing && (
-                  <p className="rounded-md border-l-4 border-urgent bg-urgent-soft px-3 py-2 font-semibold text-urgent">
-                    {HIDDEN_WARNING}
-                  </p>
-                )}
-                <ul role="list" className="flex flex-col gap-3">
-                  {e.sessions.map((s) => (
-                    <li
-                      key={s.shiftId}
-                      className="flex flex-col gap-3 border-t border-line pt-3 first:border-t-0 first:pt-0"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <StatusChip tone="urgent">
-                            {placesText(s.placesLeft, s.headcount)}
-                          </StatusChip>
-                          {s.fromSheet && (
-                            <StatusChip tone="quiet">From your Google Sheet</StatusChip>
-                          )}
-                          {s.fromPlanner && <StatusChip tone="quiet">From your planner</StatusChip>}
-                        </div>
-                        <p className="mt-2 font-semibold">
-                          <Link href={`/office/shifts/${s.shiftId}`} className={textLink}>
-                            {roleLabel(s.role)}, {shiftWhen(s.startsAt, s.endsAt, tz)}
-                          </Link>
-                        </p>
-                        {e.showing && !s.showing && (
-                          // A session hidden on its own, in an event casuals can see.
-                          <p className="mt-2 rounded-md border-l-4 border-urgent bg-urgent-soft px-3 py-2 font-semibold text-urgent">
-                            {HIDDEN_WARNING}
-                          </p>
-                        )}
-                        <p className={`mt-1 ${nums}`}>{urgentLine(s)}</p>
-                        {s.escalated && <p className={meta}>The office was emailed about it.</p>}
-                      </div>
-                      <ShiftActions
-                        shiftId={s.shiftId}
-                        isUrgent
-                        fromSheet={s.fromSheet}
-                        fromPlanner={s.fromPlanner}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-            {u.more && <p className={meta}>Showing the first 50 events.</p>}
-          </div>
-        )
-      }
-    </Loaded>
+                <Icon name={ROW_ICON[r.key] ?? "check"} size={18} />
+              </span>
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">{r.title}</span>
+              <span className="block text-sm text-ink-muted">{r.sub}</span>
+            </span>
+            {r.count !== null && (
+              <span
+                className={`font-sign text-2xl ${tone === "waiting" ? "text-ink-muted" : "text-ink"}`}
+              >
+                {r.count}
+              </span>
+            )}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-// What casuals can see, one row per event (Phase 17): its name, where and when, how many sessions
-// and places are free, and its switch. Each event's sessions are on its own page.
-function ShowingCards({ d }: { d: Dashboard }) {
-  const tz = d.timeZone;
+export function DashboardContent({
+  d,
+  shiftsLine,
+  payQueriesWaiting = 0,
+}: {
+  d: Dashboard;
+  shiftsLine?: string;
+  payQueriesWaiting?: number;
+}) {
+  const focus = focusItems(d);
+  const needs = d.needs.ok ? d.needs.data : null;
+  const needPerson = d.counts.enquiries.ok ? d.counts.enquiries.data.needPerson : 0;
+  const after = afterRows(needs, needPerson, d.timeZone);
+  const things = thingsCount(focus.length, after.length);
+  const cells = d.week.ok ? weekCells(d.week.data, needs?.toMark ?? [], d.today, d.timeZone) : null;
+  const waiting: Row[] =
+    payQueriesWaiting > 0
+      ? [
+          {
+            key: "payQueries",
+            title: "Pay queries",
+            sub: "With payroll, nothing for you to do",
+            count: String(payQueriesWaiting),
+            href: "/office/pay-queries",
+          },
+        ]
+      : [];
+  // What the headline counts could all be read (each part that couldn't says so where it shows).
+  const complete = d.urgent.ok && d.needs.ok && d.counts.enquiries.ok;
   return (
-    <Loaded part={d.showing}>
-      {(sh) =>
-        sh.events.length === 0 ? (
-          <Empty>{SECTIONS.showing.empty}</Empty>
-        ) : (
-          <div className={headingGap}>
-            <div
-              role="region"
-              aria-label="Events showing to casuals"
-              tabIndex={0}
-              className={table.wrap}
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">
+          {headline(things, complete)}
+        </h1>
+        <p className="text-ink-muted">{subline(focus.length, things, complete)}</p>
+        {shiftsLine && (
+          <p className={`${meta} flex items-center gap-1.5`}>
+            <Icon name="phone" size={16} />
+            {shiftsLine}
+          </p>
+        )}
+      </header>
+      {cells ? (
+        <Week cells={cells} />
+      ) : (
+        <p role="status" className={meta}>
+          {SECTION_ERROR}
+        </p>
+      )}
+      <div className="flex flex-wrap items-start gap-6">
+        <section
+          aria-labelledby="next-up"
+          className="flex min-w-0 flex-[1.6_1_30rem] flex-col gap-2.5"
+        >
+          <h2 id="next-up" className="text-lg font-semibold">
+            Next up
+          </h2>
+          {!d.urgent.ok ? (
+            <p
+              role="status"
+              className="rounded-xl bg-attention-soft px-3.5 py-3 text-attention-ink"
             >
-              <table className={table.table}>
-                <thead>
-                  <tr>
-                    <th scope="col" className={table.th}>
-                      Event
-                    </th>
-                    <th scope="col" className={table.th}>
-                      Where and when
-                    </th>
-                    <th scope="col" className={table.th}>
-                      Sessions
-                    </th>
-                    <th scope="col" className={`${table.th} text-right`}>
-                      Showing
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sh.events.map((e) => (
-                    <tr key={e.eventId}>
-                      <th scope="row" className={`${table.td} align-middle font-semibold`}>
-                        <Link href={`/office/events/${e.eventId}`} className={textLink}>
-                          {e.name}
-                        </Link>
-                      </th>
-                      <td className={`${table.td} align-middle text-ink-muted ${nums}`}>
-                        {/* An automatic event's name is its place and day already. */}
-                        {eventWhereWhen(e, tz) !== e.name ? eventWhereWhen(e, tz) : null}
-                      </td>
-                      <td className={`${table.td} align-middle ${nums}`}>{eventSummary(e)}</td>
-                      <td className={`${table.td} text-right align-middle`}>
-                        <ShowingSwitch
-                          target="event"
-                          id={e.eventId}
-                          showing={e.showing}
-                          label={eventSwitchLabel(e)}
-                          small
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {sh.more > 0 && (
-              <p className={`${meta} mt-3`}>
-                And {sh.more} more.{" "}
-                <Link href="/office/events?view=showing" className={textLink}>
-                  All events showing
+              {SECTION_ERROR}
+            </p>
+          ) : focus.length > 0 ? (
+            <>
+              <FocusCard items={focus} />
+              <p className={meta}>
+                <Link
+                  href="/office/events?view=urgent"
+                  className="underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+                >
+                  All urgent places on Events &amp; sessions
                 </Link>
               </p>
-            )}
-          </div>
-        )
-      }
-    </Loaded>
-  );
-}
-
-function LatestCancellations({ d }: { d: Dashboard }) {
-  const tz = d.timeZone;
-  return (
-    <Loaded part={d.cancellations}>
-      {(c) => (
-        <>
-          {c.rows.length === 0 ? (
-            <Empty>{SECTIONS.cancellations.empty}</Empty>
+            </>
           ) : (
-            <ul role="list" className={`${headingGap} ${rows}`}>
-              {c.rows.map((r) => (
-                <li key={r.assignmentId} className={row}>
-                  <p className="font-semibold">
-                    <Link href={`/office/cancellations/${r.ref}`} className={textLink}>
-                      {cancelledByText(r)}
-                    </Link>
-                  </p>
-                  <p className={`${meta} ${nums}`}>
-                    {roleLabel(r.role)}
-                    {r.eventName ? ` · ${r.eventName}` : ""}
-                    {r.siteName && r.siteName !== r.eventName ? `, ${r.siteName}` : ""} ·{" "}
-                    {shiftWhen(r.startsAt, r.endsAt, tz)}
-                  </p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2">
-                    <StatusChip tone={r.noticeHours < c.threshold ? "urgent" : "quiet"}>
-                      {noticeChip(noticeText(r.noticeHours))}
-                    </StatusChip>
-                    {r.strike && (
-                      <StatusChip tone="attention">
-                        {r.strike.status === "withdrawn" ? "Strike withdrawn" : "Strike issued"}
-                      </StatusChip>
-                    )}
-                    <span className={`${meta} ${nums}`}>
-                      Cancelled {timeOnDay(r.cancelledAt, tz)}
-                    </span>
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-3">
-            <Link href="/office/cancellations" className={textLink}>
-              All records
-            </Link>
-          </p>
-        </>
-      )}
-    </Loaded>
-  );
-}
-
-function LatestEnquiries({ d }: { d: Dashboard }) {
-  return (
-    <Loaded part={d.enquiries}>
-      {(q) => (
-        <>
-          {q.rows.length === 0 ? (
-            <Empty>{enquiriesEmpty(q.days)}</Empty>
-          ) : (
-            <ul role="list" className={`${headingGap} ${rows}`}>
-              {q.rows.map((r) => (
-                <EnquiryItem
-                  key={r.messageId}
-                  r={r}
-                  timeZone={d.timeZone}
-                  reply={q.replies[r.messageId] ?? null}
-                />
-              ))}
-            </ul>
-          )}
-          <p className="mt-3">
-            <Link href="/office/enquiries" className={textLink}>
-              All enquiries
-            </Link>
-          </p>
-        </>
-      )}
-    </Loaded>
-  );
-}
-
-// --- Needs attention -------------------------------------------------------------------------
-
-// One part of Needs attention: its heading (a region the browser tests find it by) and items.
-function Need({
-  id,
-  n,
-  more,
-  children,
-}: {
-  id: NeedsKey;
-  n: number;
-  more?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-labelledby={id} className="mt-6">
-      <h3 id={id} className="flex items-center gap-2 text-lg font-bold">
-        {NEEDS_HEADINGS[id]}
-        <span className={`rounded-full bg-attention-soft px-2 text-sm text-attention-ink ${nums}`}>
-          {more ? `${n}+` : n}
-        </span>
-      </h3>
-      {children}
-      {more && <p className={`${meta} mt-2`}>Showing the first 50.</p>}
-    </section>
-  );
-}
-
-// "Steward at Acme Demo Arena": a shift's title, a link to its page.
-function ShiftTitle({ shift }: { shift: { shiftId: string; role: string; site: string | null } }) {
-  return (
-    <Link href={`/office/shifts/${shift.shiftId}`} className={textLink}>
-      {roleLabel(shift.role)}
-      {shift.site ? ` at ${shift.site}` : ""}
-    </Link>
-  );
-}
-
-export function evidenceAddressText(waiting: number): string {
-  const base =
-    "The strikes team's email isn't set and confirmed, so strike records can't be emailed to them.";
-  if (waiting === 0) return base;
-  return `${base} ${waiting} ${waiting === 1 ? "record waits" : "records wait"} for it.`;
-}
-
-function NeedsItems({
-  n,
-  timeZone: tz,
-  today,
-  isAdmin,
-}: {
-  n: NeedsAttention;
-  timeZone: string;
-  today: string;
-  isAdmin: boolean;
-}) {
-  if (needsCount(n).count === 0) return <Empty>{SECTIONS.needs.empty}</Empty>;
-  const evidence = evidenceItems(n.evidence);
-  return (
-    <>
-      {n.toCheck.length > 0 && (
-        <Need id="to-check" n={n.toCheck.length} more={n.toCheckMore}>
-          <p className={`${headingGap} max-w-prose text-ink-muted`}>
-            These people are booked, but can&apos;t work these shifts as things stand. Cancel the
-            booking (they&apos;re told), or keep it.
-          </p>
-          <ul role="list" className={`${headingGap} flex flex-col gap-3`}>
-            {n.toCheck.map((b) => (
-              <li key={`${b.shiftId}-${b.workerId}`} className={card}>
-                <p className="font-semibold">{toCheckText(b)}</p>
-                <p className="mt-1">
-                  <ShiftTitle shift={b} />
-                  <span className={nums}>, {shiftWhen(b.startsAt, b.endsAt, tz)}</span>
+            <article className="flex animate-in flex-wrap items-center gap-4.5 rounded-xl border border-line p-5">
+              <span
+                aria-hidden="true"
+                className="flex size-13 shrink-0 items-center justify-center rounded-lg bg-done-fill text-on-done"
+              >
+                <Icon name="check" size={28} />
+              </span>
+              <div className="min-w-55 flex-1">
+                <p className="text-2xl font-semibold">
+                  {SECTIONS.urgent.empty.replace("shift", "place")}
                 </p>
-                <p className="mt-1">
-                  <Link href={`/office/casuals/${b.workerId}`} className={textLink}>
-                    {b.worker}&apos;s page
-                  </Link>
-                </p>
-                <BookingToCheckActions shiftId={b.shiftId} workerId={b.workerId} name={b.worker} />
-              </li>
-            ))}
-          </ul>
-        </Need>
-      )}
-
-      {n.fromSheet.length > 0 && (
-        <Need id="from-sheet" n={n.fromSheet.length} more={n.fromSheetMore}>
-          <p className={`${headingGap} max-w-prose text-ink-muted`}>
-            Your rota sheet asks for these, but the app couldn&apos;t do them.
-          </p>
-          <ul role="list" className={`${headingGap} ${rows}`}>
-            {n.fromSheet.map((i) => (
-              <li key={i.shiftId} className={row}>
-                <p className="font-semibold">
-                  <ShiftTitle shift={i} />
-                </p>
-                <p className={`${meta} ${nums}`}>{shiftWhen(i.startsAt, i.endsAt, tz)}</p>
-                <div className="mt-2 flex max-w-prose flex-col gap-2">
-                  {i.change && <p>{sheetChangeText(i.change)}</p>}
-                  {i.names.map((x, k) => (
-                    <p key={`${x.name}-${k}`}>{sheetNameText(x)}</p>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Need>
-      )}
-
-      {n.toMark.length > 0 && (
-        <Need id="to-mark" n={n.toMark.length} more={n.toMarkMore}>
-          <ul role="list" className={`${headingGap} ${rows}`}>
-            {n.toMark.map((t) => (
-              <li key={t.shiftId} className={`${row} flex flex-wrap items-center gap-x-4 gap-y-1`}>
-                <p className="font-semibold">
-                  <ShiftTitle shift={t} />
-                </p>
-                <p className={`${meta} ${nums}`}>{shiftWhen(t.startsAt, t.endsAt, tz)}</p>
-                <StatusChip tone="attention">{toMarkText(t.unmarked)}</StatusChip>
-              </li>
-            ))}
-          </ul>
-        </Need>
-      )}
-
-      {n.expired.length > 0 && (
-        <Need id="expired" n={n.expired.length} more={n.expiredMore}>
-          <ul role="list" className={`${headingGap} ${rows}`}>
-            {n.expired.map((e) => (
-              <li key={`${e.assignmentId}-${e.type}`} className={`${row} flex flex-col gap-1`}>
-                <p className="max-w-prose">{expiredText(e, today, tz)}</p>
-                <p className="flex flex-wrap gap-x-4 gap-y-1">
-                  <Link href={`/office/casuals/${e.workerId}`} className={textLink}>
-                    {e.worker}&apos;s page
-                  </Link>
-                  <Link href={`/office/shifts/${e.shiftId}`} className={textLink}>
-                    The {roleLabel(e.role).toLowerCase()} shift
-                  </Link>
-                </p>
-              </li>
-            ))}
-          </ul>
-        </Need>
-      )}
-
-      {n.uploads > 0 && (
-        <Need id="uploads" n={n.uploads}>
-          <p className={`${headingGap} flex flex-wrap items-center gap-x-4 gap-y-1`}>
-            <span>{uploadsText(n.uploads)}</span>
-            <Link href="/office/casuals?view=uploads" className={textLink}>
-              Check uploads
-            </Link>
-          </p>
-        </Need>
-      )}
-
-      {evidence > 0 && (
-        <Need id="evidence" n={evidence} more={n.evidence.failedMore}>
-          <ul role="list" className={`${headingGap} ${rows}`}>
-            {!n.evidence.addressConfirmed && (
-              <li className={`${row} flex max-w-prose flex-col gap-2`}>
-                <p>{evidenceAddressText(n.evidence.waiting)}</p>
-                {isAdmin ? (
-                  <Link href="/office/settings" className={`${textLink} self-start`}>
-                    Set it in Settings
-                  </Link>
-                ) : (
-                  <p className={meta}>An admin can set it in Settings.</p>
-                )}
-              </li>
-            )}
-            {n.evidence.failed.map((f) => (
-              <li key={f.assignmentId} className={`${row} flex max-w-prose flex-col gap-2`}>
-                <p>
-                  {f.casual}&apos;s strike record{" "}
-                  {f.stuck ? "hasn't been emailed to" : "couldn't be emailed to"} the strikes team
-                  (cancelled <span className={nums}>{timeOnDay(f.cancelledAt, tz)}</span>).{" "}
-                  {f.stuck
-                    ? "It's held up."
-                    : f.nothingSent
-                      ? "Nothing was sent."
-                      : "It may have arrived anyway."}
-                </p>
-                <Link
-                  href={`/office/cancellations/${f.assignmentId}`}
-                  className={`${textLink} self-start`}
-                >
-                  Open the record to resend it
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Need>
-      )}
-
-      {n.webhookFailing && (
-        <Need id="webhook" n={1} more={false}>
-          <div className={`${headingGap} ${row} flex max-w-prose flex-col gap-2`}>
-            <p className={nums}>{webhookFailingText(n.webhookFailing.since, tz)}</p>
-            {isAdmin ? (
-              <Link href="/office/settings/integrations" className={`${textLink} self-start`}>
-                Open Integrations
+                <p className="text-ink-muted">Nobody needs finding right now.</p>
+              </div>
+              <Link
+                href="/office/events"
+                className="inline-flex min-h-11 items-center rounded-lg border border-line-strong px-4 font-semibold hover:bg-quiet-soft"
+              >
+                See events
               </Link>
-            ) : (
-              <p className={meta}>An admin can check it in Integrations.</p>
+            </article>
+          )}
+        </section>
+        <div className="flex min-w-0 flex-[1_1_18rem] flex-col gap-2.5">
+          <section aria-labelledby="after-that" className="flex flex-col gap-2.5">
+            <h2 id="after-that" className="text-lg font-semibold">
+              After that
+            </h2>
+            {/* Needs attention unread: said so, with any row that could be worked out (enquiries). */}
+            {!needs && (
+              <p
+                role="status"
+                className="rounded-xl bg-attention-soft px-3.5 py-3 text-attention-ink"
+              >
+                {SECTION_ERROR}
+              </p>
             )}
-          </div>
-        </Need>
-      )}
-
-      {n.plannerRefused.length > 0 && (
-        <Need id="planner-refused" n={n.plannerRefused.length} more={n.plannerRefusedMore}>
-          <ul role="list" className={`${headingGap} ${rows}`}>
-            {n.plannerRefused.map((r) => (
-              <li key={r.shiftId} className={`${row} flex max-w-prose flex-col gap-1`}>
-                <p>{plannerRefusedText(r, tz)}</p>
-                <p>
-                  <ShiftTitle shift={r} />
-                  <span className={nums}>, {shiftWhen(r.startsAt, r.endsAt, tz)}</span>
+            {after.length > 0 ? (
+              <Rows rows={after} tone="needs" label="After that" />
+            ) : (
+              needs && (
+                <p className="rounded-xl border border-line px-3.5 py-3 text-ink-muted">
+                  {SECTIONS.needs.empty}
                 </p>
-                <p className={`${meta} ${nums}`}>Refused {timeOnDay(r.refusedAt, tz)}</p>
-              </li>
-            ))}
-          </ul>
-        </Need>
-      )}
-    </>
-  );
-}
-
-// What needs someone now comes first (Phase 17): the counts, then urgent shifts and Needs
-// attention in the main column, the latest cancellations and enquiries beside them (below them on
-// narrower screens), and what casuals can see last.
-export function DashboardContent({ d, isAdmin = false }: { d: Dashboard; isAdmin?: boolean }) {
-  return (
-    <>
-      <Counts d={d} />
-      <div className="mt-8 grid gap-x-8 gap-y-10 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div className="flex min-w-0 flex-col gap-10">
-          <Section id="urgent">
-            <UrgentCards d={d} />
-          </Section>
-          <Section id="needs">
-            <Loaded part={d.needs}>
-              {(n) => <NeedsItems n={n} timeZone={d.timeZone} today={d.today} isAdmin={isAdmin} />}
-            </Loaded>
-          </Section>
-        </div>
-        <div className="flex min-w-0 flex-col gap-10">
-          <Section id="cancellations">
-            <LatestCancellations d={d} />
-          </Section>
-          <Section id="enquiries">
-            <LatestEnquiries d={d} />
-          </Section>
+              )
+            )}
+          </section>
+          {waiting.length > 0 && (
+            <section aria-labelledby="waiting" className="mt-2.5 flex flex-col gap-2.5">
+              <h2 id="waiting" className="text-base font-semibold text-ink-muted">
+                Waiting on others
+              </h2>
+              <Rows rows={waiting} tone="waiting" label="Waiting on others" />
+            </section>
+          )}
+          <section aria-labelledby="sorted" className="mt-2.5 flex flex-col gap-2.5">
+            <h2 id="sorted" className="text-base font-semibold text-ink-muted">
+              Sorted today
+            </h2>
+            <Rows rows={sortedRows(d)} tone="sorted" label="Sorted today" />
+          </section>
         </div>
       </div>
-      <Section id="showing" className={sectionGap.office}>
-        <ShowingCards d={d} />
-      </Section>
-    </>
+    </div>
   );
 }

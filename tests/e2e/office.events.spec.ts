@@ -3,8 +3,9 @@ import { addEventWithSession, addOfficeUser, addSteward, cancelOwnShift } from "
 import { expect, menuLink, test } from "./fixtures";
 import { loginLinkSentTo, sentTo } from "./outbox";
 
-// Events & sessions in a real browser (12B.5): a resourcer switches an event off on its card and a
-// casual's Open shifts loses its session; switched back on, it's there again. The event, its site,
+// Events & sessions in a real browser (12B.5; Phase 18's rota board): a resourcer switches an event
+// off on its row and a casual's Open shifts loses its session; switched back on (from the event's
+// own page, opened from its row), it's there again. The event, its site,
 // the casual and the resourcer are this spec's own (made-up details), and its shift is cancelled
 // at the end, so nothing another spec sees changes. A retry makes its own event and site (the
 // run's suffix); the casual and the resourcer are found again.
@@ -61,40 +62,52 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   const casual = await (await browser.newContext()).newPage();
   await officeLogin(office);
   await casualLogin(casual);
-  // Its card on the casual's Open shifts (found by its site, which only it has).
-  const session = casual.getByRole("listitem").filter({ hasText: SITE });
+  // Its card on the casual's Open shifts (found by its event's name, which only it has).
+  const session = casual.getByRole("listitem").filter({ hasText: EVENT });
   await casual.goto(`${acme}/shifts/open`);
   await expect(session).toHaveCount(1);
 
-  // The resourcer finds the event's card and switches it off.
+  // The resourcer finds the event's row on the board and switches it off.
   await (await menuLink(office, "Events & sessions")).click();
   await expect(office.getByRole("heading", { name: "Events & sessions", level: 1 })).toBeVisible();
-  const card = office.getByRole("article", { name: EVENT });
-  await expect(card.getByText("Showing to casuals", { exact: true })).toBeVisible();
-  const toggle = card.getByRole("switch", { name: `Show ${EVENT} to casuals` });
+  // Two weeks at a time: Later, then Earlier back to today (nothing before it).
+  const dates = office.getByRole("navigation", { name: "Dates" });
+  await expect(dates.getByRole("link", { name: "Earlier" })).toHaveCount(0);
+  await dates.getByRole("link", { name: "Later" }).click();
+  await expect(office).toHaveURL(/\/office\/events\?from=\d{4}-\d\d-\d\d$/);
+  await dates.getByRole("link", { name: "Earlier" }).click();
+  await expect(office).toHaveURL(`${acme}/office/events`);
+  await expect(dates.getByRole("link", { name: "Earlier" })).toHaveCount(0);
+  // The row's name (it opens the row into its sessions) and its line; its switch beside it.
+  const row = office.getByRole("button", { name: new RegExp(`^${EVENT}`) });
+  await expect(row).toBeVisible();
+  await expect(row).not.toContainText("Hidden from casuals");
+  const toggle = office.getByRole("switch", { name: `Show ${EVENT} to casuals` });
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await toggle.click();
   await expect(
-    card
+    office
       .getByRole("status")
       .filter({ hasText: "Hidden from casuals. Booked casuals keep their shifts." }),
   ).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
-  await expect(card.getByText("Hidden from casuals", { exact: true })).toBeVisible();
-  // The Hidden tab has it; the Showing tab doesn't (each checked once its page has loaded).
+  await expect(row).toContainText("Hidden from casuals");
+  // The Hidden filter has it; Showing (the dashboard's link) doesn't (each checked once its page
+  // has loaded). A filter's link carries its count.
   const tab = async (name: string, view: string) => {
-    await office.getByRole("link", { name, exact: true }).click();
+    if (view === "showing") await office.goto(`${acme}/office/events?view=showing`);
+    else await office.getByRole("link", { name: new RegExp(`^${name} \\d+$`) }).click();
     await expect(office).toHaveURL(`${acme}/office/events?view=${view}`);
-    await expect(office.getByRole("link", { name, exact: true })).toHaveAttribute(
+    await expect(office.getByRole("link", { name: new RegExp(`^${name} \\d+$`) })).toHaveAttribute(
       "aria-current",
       "page",
     );
   };
   await tab("Hidden", "hidden");
-  await expect(office.getByRole("article", { name: EVENT })).toBeVisible();
+  await expect(row).toBeVisible();
   await tab("Showing", "showing");
   await expect(office.getByRole("heading", { name: "Events & sessions", level: 1 })).toBeVisible();
-  await expect(office.getByRole("article", { name: EVENT })).toHaveCount(0);
+  await expect(row).toHaveCount(0);
 
   // The casual's Open shifts no longer has it, and its page says it isn't available.
   await casual.goto(`${acme}/shifts/open`);
@@ -103,12 +116,12 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   await casual.goto(`${acme}/shifts/${shiftId}`);
   await expect(casual.getByRole("heading", { name: "This shift isn't available." })).toBeVisible();
 
-  // Switched back on, from the event's own page: the casual sees it again.
+  // Switched back on, from the event's own page (its row opens, with the way to it): the casual
+  // sees it again.
   await tab("Hidden", "hidden");
-  await office
-    .getByRole("article", { name: EVENT })
-    .getByRole("link", { name: EVENT, exact: true })
-    .click();
+  await row.click();
+  await expect(row).toHaveAttribute("aria-expanded", "true");
+  await office.getByRole("link", { name: `Open the event's page: ${EVENT}` }).click();
   await expect(office.getByRole("heading", { name: EVENT, level: 1 })).toBeVisible();
   const again = office.getByRole("switch", { name: `Show ${EVENT} to casuals` });
   await again.click();

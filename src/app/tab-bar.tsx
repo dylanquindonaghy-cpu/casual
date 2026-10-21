@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { Icon, type IconName } from "./ui/icons";
 
-// The casual app's bottom tab bar (docs/office-v2.md 4.1; docs/screens.md "Casual app"; 12H.1):
-// Home · Shifts · Pay · Profile, four links (not a list: a page's own lists are counted alone), each with its icon and its word, on every page a logged-in
-// casual uses (not Help, which anyone may open, nor the login pages). The current tab is marked
-// (aria-current="page"; bold, its icon filled in, on a pale tint of the firm's colour: not by
-// colour alone, as a pale firm colour's tint can barely show). Profile carries a dot, with
-// words for screen readers, when something there needs her (a qualification to sort out, or her
-// photo overdue or due soon). Fixed to the bottom of the screen; <TabBarSpace /> at the end of the
-// page keeps the last of it clear. Plain links: it works with no JavaScript, and in the offline
-// copy.
+// The casual app's bottom tab bar (docs/office-v2.md 4.1; docs/screens.md "Casual app"; 12H.1;
+// Phase 18): Home · Shifts · Pay · Profile, four links (not a list: a page's own lists are counted
+// alone), each with its icon and its word at 15px, on every page a logged-in casual uses (not
+// Help, which anyone may open, nor the login pages). The current tab is marked (aria-current
+// "page"): its word bold in the firm's colour, its icon on a pill of the firm's pale tint, so not
+// by colour alone. Profile carries a sign-yellow count, with words for screen readers, when
+// something there needs her (a qualification to sort out, or her photo overdue or due soon).
+// Fixed to the bottom of the screen; <TabBarSpace /> at the end of the page keeps the last of it
+// clear. Plain links: it works with no JavaScript, and in the offline copy.
 
 export type CasualTab = "home" | "shifts" | "pay" | "profile";
 
@@ -20,47 +20,52 @@ const TABS: { tab: CasualTab; href: string; words: string; icon: IconName }[] = 
   { tab: "profile", href: "/profile", words: "Profile", icon: "profile" },
 ];
 
-export const PROFILE_DOT_WORDS = "something needs updating";
+// "1 thing needs doing", "2 things need doing".
+export const profileCountWords = (n: number) =>
+  n === 1 ? "1 thing needs doing" : `${n} things need doing`;
 
 export function TabBar({
   current,
-  profileDot = false,
+  profileCount = 0,
 }: {
   current: CasualTab;
-  profileDot?: boolean;
+  profileCount?: number;
 }) {
   return (
     <nav
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-card pb-[env(safe-area-inset-bottom)]"
     >
-      <div className="mx-auto grid max-w-md grid-cols-4">
+      <div className="mx-auto grid max-w-md grid-cols-4 px-2 pt-1.5 pb-2">
         {TABS.map(({ tab, href, words, icon }) => {
           const here = tab === current;
-          const dot = tab === "profile" && profileDot;
+          const count = tab === "profile" ? profileCount : 0;
           return (
             <Link
               key={tab}
               href={href}
               aria-current={here ? "page" : undefined}
               // One name, read as written: hidden words inside the link would be read after a gap
-              // ("Profile , something…"), as the browser puts space around them.
-              aria-label={dot ? `${words}, ${PROFILE_DOT_WORDS}` : undefined}
-              className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-sm focus-visible:-outline-offset-4 ${
-                here ? "font-bold text-ink" : "font-semibold text-ink-muted hover:text-ink"
+              // ("Profile , 1 thing…"), as the browser puts space around them.
+              aria-label={count > 0 ? `${words}, ${profileCountWords(count)}` : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-base focus-visible:-outline-offset-2 ${
+                here ? "font-semibold text-brand-ink" : "font-medium text-ink-muted hover:text-ink"
               }`}
             >
               <span
-                className={`relative flex h-8 w-14 items-center justify-center rounded-full ${
+                className={`relative flex h-7.5 w-14.5 items-center justify-center rounded-full ${
                   here ? "bg-brand-soft" : ""
                 }`}
               >
-                <Icon name={icon} className={here ? "h-6 w-6 fill-current/15" : "h-6 w-6"} />
-                {dot && (
+                <Icon name={icon} size={22} />
+                {count > 0 && (
                   <span
-                    data-profile-dot=""
-                    className="absolute top-0.5 right-3 h-2.5 w-2.5 rounded-full bg-urgent-fill ring-2 ring-card"
-                  />
+                    aria-hidden="true"
+                    data-profile-count=""
+                    className="absolute -top-1 right-1.5 min-w-5 rounded border border-attention bg-hivis px-1 text-center text-sm leading-[18px] font-bold text-on-hivis"
+                  >
+                    {count}
+                  </span>
                 )}
               </span>
               <span>{words}</span>

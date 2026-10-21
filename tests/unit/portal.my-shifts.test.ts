@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HomeView, type HomeViewProps } from "@/app/home-view";
 import { BookedView, type BookedViewProps } from "@/app/shifts/booked-view";
 import { TabBar } from "@/app/tab-bar";
-import { headingGap, rows, staffBtn, staffBtnSmall, switchTrack } from "@/app/ui/classes";
+import { staffBtn, staffBtnSmall, switchTrack, tapRow } from "@/app/ui/classes";
 import { payWords, roleAndEvent } from "@/lib/portal/format";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 import { isOnNow, mapLink, roleLabel, shiftWhen, siteAddress } from "@/lib/portal/format";
@@ -125,15 +125,19 @@ describe("Home and Booked: the empty pages", () => {
   it("Home greets her, and says so plainly when nothing is booked, with a way to open shifts", () => {
     const html = home({});
     expect(text(html)).toContain("Hello Sam");
-    expect(text(html)).toContain("Updated 09:00 on Mon 2 Nov");
-    expect(text(html)).toContain("No shifts booked yet.");
-    expect(html).toContain('href="/shifts/open"');
-    expect(text(html)).toContain("See all open shifts");
+    expect(text(html)).toContain("Updated 09:00");
+    // Phase 18: an empty pass, and the way to find a shift.
     expect(text(html)).toContain(
-      "Nothing else open right now. We'll message you when something matches.",
+      "No shifts booked Take a shift and it shows up here as your pass, with the time and the gate. Find a shift",
+    );
+    expect(html).toMatch(/<a class="[^"]*bg-brand[^"]*" href="\/shifts\/open">Find a shift<\/a>/);
+    expect(text(html)).toContain(
+      "No open shifts right now We'll message you when something matches.",
+    );
+    expect(text(home({ open: { ...noOpen, offerAlerts: false } }))).toContain(
+      "No open shifts right now Check back later.",
     );
   });
-
   it("Booked is on the Shifts tab: Open | Booked, then Upcoming | Past 30 days at /shifts", () => {
     const html = render({});
     expect(text(html)).toContain("Booked shifts");
@@ -178,13 +182,14 @@ describe("Booked: the bookings themselves", () => {
     });
     const html = render({ shifts: [next, later] });
     const words = text(html);
-    // A hairline card, like Home's (Phase 17), not a heavy dark frame.
+    // A hairline card, like Home's (Phase 17), with its date tile and the time in sign figures
+    // (Phase 18).
     expect(html).toMatch(
-      /<section aria-labelledby="next-heading" class="mt-6 rounded-2xl border border-line bg-card p-4">/,
+      /<section aria-labelledby="next-heading" class="mt-6 rounded-2xl bg-card p-4 border border-line">/,
     );
     expect(words).toContain("Your next shift");
-    expect(words).toContain("Sat 7 Nov, 14:00 to 22:00");
-    expect(words).toContain("Door supervisor");
+    expect(html).toContain('role="img" aria-label="Saturday 7 November"');
+    expect(words).toContain("Sat 7 Nov 14:00–22:00 Door supervisor");
     expect(words).toContain("Demo Arena");
     expect(words).toContain("1 Test Road, Leeds, LS1 1AA");
     expect(html).toContain(
@@ -194,8 +199,7 @@ describe("Booked: the bookings themselves", () => {
     expect(words).toContain("Instructions");
     expect(words).toContain("Report to Gate C at 13:30.");
     expect(words).toContain("Coming up");
-    expect(words).toContain("Sat 14 Nov, 09:00 to 17:00");
-    expect(words).toContain("Steward at Demo Racecourse");
+    expect(words).toContain("Sat 14 09:00–17:00 Steward Demo Racecourse");
     // Every upcoming shift opens to its own details (no JavaScript: <details>).
     expect(html).toMatch(/<details>.*Demo Racecourse.*<\/details>/s);
     expect(words).not.toContain("No shifts booked yet.");
@@ -208,23 +212,25 @@ describe("Booked: the bookings themselves", () => {
     });
     expect(text(html)).toContain("On now");
     expect(text(html)).not.toContain("Your next shift");
+    expect(text(html)).not.toContain("Can't make it?");
     expect(text(html)).not.toContain("Cancel this shift");
   });
 
-  it("offers Cancel this shift on every upcoming booking that hasn't started", () => {
+  it("offers Can't make it? on every upcoming booking that hasn't started", () => {
     const html = render({
       shifts: [
         shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") }),
         shift({ startsAt: at("2026-11-08T14:00:00Z"), endsAt: at("2026-11-08T22:00:00Z") }),
       ],
     });
-    expect(html.match(/>Cancel this shift</g)).toHaveLength(2);
-    // And "Ask for a change" (a time change or swap request) for each.
+    // Phase 18: "Can't make it?" opens the sheet that cancels it.
+    expect(html.match(/>Can&#x27;t make it\?</g)).toHaveLength(2);
+    // And "Ask for a change" (a time change or swap request) for each, side by side with it.
     expect(html.match(/href="\/requests\/new\?shift=[^"]+"[^>]*>Ask for a change</g)).toHaveLength(
       2,
     );
+    expect(html.match(/<div class="mt-3 grid grid-cols-2 gap-2.5">/g)).toHaveLength(2);
   });
-
   it("shows the last 30 days with what happened, or says there's nothing", () => {
     const worked = shift({
       startsAt: at("2026-10-31T14:00:00Z"),
@@ -250,7 +256,7 @@ describe("Booked: the bookings themselves", () => {
     expect(text(render({ view: "past" }))).toContain("No shifts in the last 30 days.");
   });
 
-  it("the tab bar: Home, Shifts, Pay, Profile, the current one marked, a dot on Profile when needed", () => {
+  it("the tab bar: Home, Shifts, Pay, Profile, the current one marked, a count on Profile when needed", () => {
     for (const current of ["home", "shifts", "pay", "profile"] as const) {
       const html = renderToStaticMarkup(createElement(TabBar, { current }));
       const links = [...html.matchAll(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)];
@@ -264,24 +270,31 @@ describe("Booked: the bookings themselves", () => {
       expect(marked).toEqual([
         { home: "/", shifts: "/shifts", pay: "/pay", profile: "/profile" }[current],
       ]);
-      // Its icon on a pale tint of the firm's colour (Phase 17), filled in: not colour alone.
+      // Its icon on a pill of the firm's pale tint, its word bold in the firm's colour (Phase 18):
+      // not colour alone.
       const here = links.find((m) => m[0].includes('aria-current="page"'))?.[0] ?? "";
       expect(here).toMatch(/<span class="[^"]*(?<![\w-])bg-brand-soft(?![\w-])/);
-      expect(here).toContain("fill-current/15");
+      expect(here).toMatch(/class="[^"]*font-semibold text-brand-ink/);
       expect(html.match(/bg-brand-soft/g)).toHaveLength(1);
+      // The words at 15px.
+      expect(html.match(/text-base/g)?.length).toBeGreaterThanOrEqual(4);
       expect(html).toContain('aria-label="Main"');
-      expect(html).not.toContain("data-profile-dot");
+      expect(html).not.toContain("data-profile-count");
     }
-    const dotted = renderToStaticMarkup(
-      createElement(TabBar, { current: "home", profileDot: true }),
+    const counted = renderToStaticMarkup(
+      createElement(TabBar, { current: "home", profileCount: 2 }),
     );
-    expect(dotted).toContain("data-profile-dot");
+    expect(counted).toMatch(
+      /<span aria-hidden="true" data-profile-count="" class="[^"]*bg-hivis[^"]*">2<\/span>/,
+    );
     // The Profile link's whole name, with no gap before the comma; the other tabs keep their word.
-    const profileTag = /<a [^>]*href="\/profile"[^>]*>/.exec(dotted)?.[0] ?? "";
-    expect(profileTag).toContain('aria-label="Profile, something needs updating"');
-    expect(dotted.match(/aria-label="[^"]*something needs updating"/g)).toHaveLength(1);
+    const profileTag = /<a [^>]*href="\/profile"[^>]*>/.exec(counted)?.[0] ?? "";
+    expect(profileTag).toContain('aria-label="Profile, 2 things need doing"');
+    expect(counted.match(/aria-label="[^"]*need doing"/g)).toHaveLength(1);
+    expect(
+      renderToStaticMarkup(createElement(TabBar, { current: "home", profileCount: 1 })),
+    ).toContain('aria-label="Profile, 1 thing needs doing"');
   });
-
   it("names the later list 'Coming up', with its count beside the heading, not in it", () => {
     const html = render({
       shifts: [
@@ -317,75 +330,58 @@ describe("Booked: the bookings themselves", () => {
     }
   });
 
-  it("'Needs updating' on Home: one row per qualification, the one stopping a booked shift first (12F.1)", () => {
-    const html = home({ needs: EVERY_LEVEL });
-    const words = text(html);
-    expect(words).toContain("Needs updating");
-    const card = html.slice(html.indexOf('aria-labelledby="needs-heading"'));
-    const section = card.slice(0, card.indexOf("</section>"));
-    const items = [...section.matchAll(/<li>(.*?)<\/li>/g)].map((m) => m[1] ?? "");
-    const rows = items.map((inner) =>
-      inner
-        .replace(/<[^>]+>/g, "")
-        .replace(/&#x27;|&#39;/g, "'")
-        .replace(/\s+/g, " ")
-        .trim(),
+  it("Home's Needs doing row: the worst thing first, its own sentence, where she sorts it (12F.1)", () => {
+    const row = (html: string) => {
+      const at = html.indexOf('data-for-you="needs"');
+      return at < 0 ? null : html.slice(at, html.indexOf("</li>", at));
+    };
+    // Five things: how many, the one stopping a booked shift first (its whole sentence), Profile.
+    const many = row(home({ needs: EVERY_LEVEL })) ?? "";
+    expect(text(many)).toContain(
+      "Needs doing now 5 things need doing SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or contact the office. And 4 more.",
     );
-    // A row she can sort herself ends "Upload it" (12F.2): not a suspension (an upload can't lift
-    // it), not one the office records (CSAS).
-    expect(rows).toEqual([
-      "SIA door supervisor licence expires on 5 Nov, and your door supervisor shift on Fri 6 Nov needs it. Upload the new one, or contact the office. Upload it",
-      "SIA close protection licence is suspended. Contact the office.",
-      "First aid at work certificate expired on 1 Oct. Until it's renewed you won't see response team lead shifts. Upload it",
-      "SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts. Upload it",
-      "CSAS accreditation is missing. Needed for CSAS officer and steward shifts.",
-    ]);
-    const links = items.map((inner) => /href="([^"]+)"/.exec(inner)?.[1] ?? null);
-    expect(links).toEqual([
-      "/profile/upload/SIA_DS",
-      null,
-      "/profile/upload/FIRST_AID",
-      "/profile/upload/SIA_SG",
-      null,
-    ]);
-    expect(html).toContain('aria-label="Upload your first aid at work certificate"');
-    expect(html).toContain('href="/profile"');
-    expect(words).toContain("See your qualifications");
-    // Something that stops her working: red; otherwise amber. Nothing to update: no card.
-    expect(html).toMatch(/aria-labelledby="needs-heading"[^>]*border-urgent/);
-    expect(home({ needs: EVERY_LEVEL.slice(3) })).toMatch(
-      /aria-labelledby="needs-heading"[^>]*border-attention/,
+    expect(many).toMatch(/href="\/profile"/);
+    // Something that stops her working: a red tile; otherwise sign yellow.
+    expect(many).toContain("bg-urgent-fill");
+    // One she can sort herself: straight to its upload.
+    const one = row(home({ needs: EVERY_LEVEL.slice(3, 4) })) ?? "";
+    expect(text(one)).toContain(
+      "Needs doing Renew your SIA security guard licence SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts.",
     );
-    expect(text(home({}))).not.toContain("Needs updating");
+    expect(one).toContain('href="/profile/upload/SIA_SG"');
+    expect(one).toContain("bg-hivis");
+    // One the office records (CSAS): to Profile.
+    expect(row(home({ needs: EVERY_LEVEL.slice(4) })) ?? "").toContain('href="/profile"');
+    // Nothing to do: no row.
+    expect(row(home({}))).toBeNull();
   });
-
-  it("'Needs updating' shows her photo when it's overdue or due soon, at its level, with one action", () => {
+  it("Needs doing shows her photo when it's overdue or due soon, at its level, with one action", () => {
     const photo = (status: "overdue" | "due_soon" | "up_to_date" | "missing" | "waiting") => ({
       status,
       current: { id: "p1", uploadedOn: "2023-11-20", renewBy: "2026-11-20" },
       waiting: null,
     });
-    const rowsOf = (html: string) => {
-      const card = html.slice(html.indexOf('aria-labelledby="needs-heading"'));
-      const section = card.slice(0, card.indexOf("</section>"));
-      return [...section.matchAll(/<li[^>]*>(.*?)<\/li>/g)].map((m) => text(m[1] ?? "").trim());
+    const row = (html: string) => {
+      const at = html.indexOf('data-for-you="needs"');
+      return at < 0 ? null : text(html.slice(at, html.indexOf("</li>", at)));
     };
-    // Due soon (level 3): after the level-3 qualification, before the missing one (level 4).
-    const due = home({ needs: EVERY_LEVEL.slice(3), photo: photo("due_soon") });
-    expect(rowsOf(due)).toEqual([
-      "SIA security guard licence expires on 25 Nov. Renew it to keep getting security officer shifts. Upload it",
-      "Your staff photo is due soon. Last uploaded 20 Nov 2023 · renew by 20 Nov. Take a new photo",
-      "CSAS accreditation is missing. Needed for CSAS officer and steward shifts.",
-    ]);
+    const due = home({ photo: photo("due_soon") });
+    expect(row(due)).toContain(
+      "Needs doing Renew your staff photo Due by 20 Nov. Take a new photo.",
+    );
     expect(due).toContain('href="/profile#photo-heading"');
-    expect(due).toMatch(/aria-labelledby="needs-heading"[^>]*border-attention/);
-    // Overdue (level 2): red, before a level-3 row.
+    // Due soon (level 3) comes after a level-3 qualification, before a missing one.
+    expect(row(home({ needs: EVERY_LEVEL.slice(3), photo: photo("due_soon") }))).toContain(
+      "3 things need doing SIA security guard licence expires on 25 Nov.",
+    );
+    // Overdue (level 2): first, red.
     const overdue = home({ needs: EVERY_LEVEL.slice(3, 4), photo: photo("overdue") });
-    expect(rowsOf(overdue)[0]).toMatch(/^Your staff photo is overdue\. Last uploaded 20 Nov 2023/);
-    expect(overdue).toMatch(/aria-labelledby="needs-heading"[^>]*border-urgent/);
+    expect(row(overdue)).toContain(
+      "Needs doing now 2 things need doing It was due by 20 Nov. Take a new photo. And 1 more.",
+    );
     // Up to date, missing or waiting for the office: nothing to do on Home.
     for (const status of ["up_to_date", "missing", "waiting"] as const) {
-      expect(text(home({ photo: photo(status) }))).not.toContain("Needs updating");
+      expect(row(home({ photo: photo(status) }))).toBeNull();
     }
   });
 });
@@ -420,50 +416,57 @@ const open = (o: Partial<OpenShift> & { shiftId: string }): OpenShift => ({
 });
 
 describe("Home: what she can take, and her next shift in full", () => {
-  it("lists urgent shifts she can take, then the top 3 others, each with its facts and a link", () => {
+  it("For you: the urgent shifts she can take, then the others she can apply for, each one row", () => {
     const shifts = [
-      open({ shiftId: "u1", isUrgent: true }),
+      open({ shiftId: "u1", isUrgent: true, payRatePence: 1550 }),
+      open({ shiftId: "u2", isUrgent: true, startsAt: at("2026-11-08T09:30:00Z") }),
       open({ shiftId: "a1" }),
       open({ shiftId: "a2", eventName: null, casualEvent: null, post: null, payRatePence: null }),
-      open({ shiftId: "a3" }),
-      open({ shiftId: "a4" }),
+      open({ shiftId: "a3", startsAt: at("2026-11-10T09:30:00Z") }),
     ];
     const html = home({ open: { ...noOpen, shifts, further: { count: 2, atLeast: false } } });
-    const words = text(html);
-    expect(words).toContain("Urgent: needed now, and you can take them");
-    const urgent = html.slice(html.indexOf('aria-labelledby="urgent-heading"'));
-    expect(text(urgent.slice(0, urgent.indexOf("</section>")))).toContain(
-      "Steward · Raceday Riverside Arena Sat 7 Nov, 09:30 to 17:30 · £12.60/hour · Gate B 2 places left",
+    const section = html.slice(html.indexOf('aria-labelledby="for-you-heading"'));
+    expect(section).toContain('<h2 id="for-you-heading"');
+    const rowsOf = [...section.matchAll(/<li [^>]*data-for-you="([a-z]+)"[^>]*>(.*?)<\/li>/g)].map(
+      (m) => [m[1], text(m[2] ?? "").trim()],
     );
-    expect(urgent).toContain('href="/urgent"');
-    // Rows in one card (Phase 17), for the urgent ones and the rest.
-    expect(urgent).toContain(`<ul role="list" class="${headingGap} ${rows}">`);
-    expect(html).toContain('href="/shifts/u1"');
-    // The top 3 of the rest: a1, a2, a3 (not the urgent one again, not a4).
-    const apply = html.slice(html.indexOf('aria-labelledby="apply-heading"'));
-    const links = [...apply.matchAll(/href="\/shifts\/([a-z]\d)"/g)].map((m) => m[1]);
-    expect(links).toEqual(["a1", "a2", "a3"]);
-    expect(apply).toContain(`<ul role="list" class="${rows}">`);
-    expect(rows).toContain("divide-y");
-    expect(text(apply)).toContain(
-      "Only shifts your licences and hours allow, up to 45 minutes from your home area.",
+    expect(rowsOf).toEqual([
+      ["urgent", "Urgent 2 shifts you can take Sat 7 and Sun 8 Nov, up to £15.50 an hour"],
+      [
+        "offline",
+        "Open shifts need signal 2 were urgent at 09:00 on Mon 2 Nov. We'll check again when you're online.",
+      ],
+      ["apply", "3 more shifts you can apply for Sat 7 and Tue 10 Nov"],
+    ]);
+    expect(section).toMatch(
+      /<li data-online-only="" data-for-you="urgent"><a class="[^"]*" href="\/urgent"/,
     );
-    expect(text(apply)).toContain(
-      "Steward Riverside Arena Sat 7 Nov, 09:30 to 17:30 2 places left",
+    expect(section).toMatch(/<li data-offline-only="" data-for-you="offline">/);
+    expect(section).toMatch(
+      /<li data-online-only="" data-for-you="apply"><a class="[^"]*" href="\/shifts\/open"/,
     );
-    expect(text(apply)).toContain("2 more shifts are further than you travel. Change how far");
-    expect(apply).toContain('href="/profile/travel"');
-    expect(words).toContain("See all open shifts");
-    expect(html.match(/data-travel-line/g)?.length).toBe(4);
+    // One card of rows (Phase 17), each a big tap target with its tile.
+    expect(section).toContain(
+      '<ul role="list" class="divide-y divide-line overflow-hidden rounded-xl border border-line bg-card">',
+    );
+    expect(
+      section.match(new RegExp(tapRow.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")),
+    ).toHaveLength(2);
+    // No shift's own travel line on Home: that's on each shift.
+    expect(html).not.toContain("data-travel-line");
   });
-
-  it("with no home area: the prompt to add one instead of the limit", () => {
+  it("with no home area: a row to add one", () => {
     const html = home({ open: { ...noOpen, area: null, shifts: [open({ shiftId: "a1" })] } });
-    expect(text(html)).toContain("Add your home area to see how far each shift is");
-    expect(text(html)).not.toContain("Only shifts your licences");
+    const at = html.indexOf('data-for-you="area"');
+    expect(text(html.slice(at, html.indexOf("</li>", at)))).toContain(
+      "Add your home area Add your home area to see how far each shift is",
+    );
+    expect(html.slice(at)).toContain('href="/profile/travel"');
+    expect(text(home({ open: { ...noOpen, shifts: [open({ shiftId: "a1" })] } }))).not.toContain(
+      "Add your home area",
+    );
   });
-
-  it("shows her next shift in full: role · event, site and address, post, pay, report to, uniform, getting there, actions", () => {
+  it("her next shift as a pass that opens into its details: getting there, report to, bring and wear, pay, actions", () => {
     const next = shift({
       startsAt: at("2026-11-07T14:00:00Z"),
       endsAt: at("2026-11-07T22:00:00Z"),
@@ -472,7 +475,7 @@ describe("Home: what she can take, and her next shift in full", () => {
       post: "Gate B",
       payRatePence: 1260,
       meetingPoint: "Staff entrance, Gate B",
-      uniform: "Black trousers, boots. Hi-vis provided.",
+      uniform: "Black trousers, hi-vis tabard (we provide it)",
       instructions: "Ask for the steward lead.",
       travel: {
         kind: "estimated",
@@ -491,37 +494,51 @@ describe("Home: what she can take, and her next shift in full", () => {
     });
     const html = home({ next });
     const card = html.slice(html.indexOf('aria-labelledby="next-heading"'));
-    const words = text(card.slice(0, card.indexOf("</section>")));
-    expect(words).toContain("Your next shift Sat 7 Nov, 14:00 to 22:00 Steward · Raceday");
-    expect(words).toContain("Demo Arena 1 Test Road, Leeds, LS1 1AA");
-    expect(words).toContain("Post Gate B");
-    expect(words).toContain("Pay £12.60 an hour, about £100.80");
-    expect(words).toContain("Report to Staff entrance, Gate B");
-    expect(words).toContain("Bring and wear Black trousers, boots. Hi-vis provided.");
-    expect(words).toMatch(/Getting there \S+/);
-    expect(words).toContain("Open in maps");
-    expect(words).toContain("Ask for a change");
-    expect(words).toContain("Cancel this shift");
-    expect(words).toContain("Ask for the steward lead.");
-    expect(words).not.toContain("No shifts booked yet.");
-    // Phase 17: a hairline card; "Open in maps" and "Ask for a change" side by side, the same
-    // smaller button; "Cancel this shift" as quiet red words under them.
-    expect(card).toMatch(/^aria-labelledby="next-heading" class="rounded-2xl border border-line /);
-    const pair = /<div class="mt-3 grid grid-cols-2 gap-2">(.*?)<\/div>/.exec(card)?.[1] ?? "";
-    expect(
-      [...pair.matchAll(/<a [^>]*class="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map((m) => [m[2], m[1]]),
-    ).toEqual([
-      ["Open in maps", staffBtnSmall],
-      ["Ask for a change", staffBtnSmall],
-    ]);
-    const cancel = /<button [^>]*class="([^"]*)"[^>]*>Cancel this shift<\/button>/.exec(card)?.[1];
-    expect(cancel).toBe(staffBtn.danger);
-    expect(cancel?.split(" ")).toEqual(
-      expect.arrayContaining(["text-urgent-ink", "bg-transparent", "border-transparent"]),
+    const pass = card.slice(0, card.indexOf("</section>"));
+    // The pass: the band, then when, what and where, closed; a <details> (no JavaScript needed).
+    expect(pass).toMatch(
+      /^aria-labelledby="next-heading" data-pass="" class="overflow-hidden rounded-2xl border border-line bg-card shadow-pass">/,
     );
-    expect(card.indexOf("Cancel this shift")).toBeGreaterThan(card.indexOf("Ask for a change"));
+    const summary = pass.slice(pass.indexOf("<summary"), pass.indexOf("</summary>"));
+    expect(summary).toContain(
+      'aria-label="Steward, Saturday 7 November, 14:00 to 22:00, Raceday, Gate B. Details"',
+    );
+    expect(text(pass.slice(0, pass.indexOf("<details")))).toContain("Your next shift In 5 days");
+    expect(text(summary)).toContain("Sat 7 Nov 14:00–22:00 Steward");
+    // Closed, no travel time: a drive alone would mislead someone without a car (12G.3).
+    expect(text(summary)).toContain("Raceday Demo Arena Gate B Details Hide details");
+    expect(text(summary)).not.toContain("by car");
+    // Opened: the address, getting there as three figures, report to, the uniform as tiles (hi-vis
+    // first), the pay, the instructions, then the actions.
+    const details = text(pass.slice(pass.indexOf("</summary>")));
+    expect(details).toContain("Gate B Raceday 1 Test Road, Leeds, LS1 1AA");
+    expect(details).toContain("3.1 miles · 12 min by car · 24 min by public transport");
+    expect(details).toContain("12 min by car 24 min by public transport 3.1 mi away");
+    expect(details).toContain("Report to Staff entrance, Gate B");
+    expect(details).toContain("Bring and wear Hi-vis tabard We provide it Black trousers");
+    expect(pass).toMatch(/<li class="[^"]*col-span-2 bg-hivis text-on-hivis">/);
+    expect(details).toContain("Pay £12.60 an hour, about £100.80");
+    expect(details).toContain("Instructions Ask for the steward lead.");
+    expect(pass).toMatch(/class="[^"]*">.*Open in maps<\/a>/);
+    expect(pass).toContain(`class="${staffBtn.primary}"`);
+    const pair =
+      /<div class="grid grid-cols-2 gap-2.5">(.*?)<\/div><\/div><\/div><\/details>/.exec(
+        pass,
+      )?.[1] ?? "";
+    expect(pair).toMatch(
+      new RegExp(
+        `<a class="${staffBtnSmall.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" href="/requests/new\\?shift=[^"]+">Ask for a change</a>`,
+      ),
+    );
+    expect(pair).toMatch(
+      /<button type="button" disabled="" class="[^"]*text-urgent-ink">Can&#x27;t make it\?<\/button>/,
+    );
+    expect(text(html)).not.toContain("No shifts booked");
+    // On now: the band says so, and there's nothing to cancel.
+    const onNow = home({ next, now: at("2026-11-07T15:00:00Z") });
+    expect(text(onNow)).toContain("On now On now");
+    expect(onNow).not.toContain("Can&#x27;t make it?");
   });
-
   it("puts pay and the event into words", () => {
     expect(payWords(1260, at("2026-11-07T14:00:00Z"), at("2026-11-07T22:00:00Z"))).toBe(
       "£12.60 an hour, about £100.80",
@@ -536,13 +553,18 @@ describe("Home: what she can take, and her next shift in full", () => {
   it("gives every bullet-free list on Home role=list", () => {
     const html = home({
       needs: EVERY_LEVEL,
+      next: shift({
+        startsAt: at("2026-11-07T14:00:00Z"),
+        endsAt: at("2026-11-07T22:00:00Z"),
+        uniform: "Black trousers, hi-vis tabard",
+      }),
       open: {
         ...noOpen,
         shifts: [open({ shiftId: "u1", isUrgent: true }), open({ shiftId: "a1" })],
       },
     });
     const lists = [...html.matchAll(/<ul\b[^>]*>/g)].map((m) => m[0]);
-    expect(lists.length).toBeGreaterThanOrEqual(3);
+    expect(lists.length).toBeGreaterThanOrEqual(2);
     for (const tag of lists) expect(tag).toContain('role="list"');
   });
 });
@@ -572,10 +594,48 @@ describe("Booked: every upcoming shift's details", () => {
     const html = renderToStaticMarkup(
       createElement(BookedView, { ...base, shifts: [next, sunday, bare] }),
     );
-    const row = html.slice(html.indexOf("Sun 8 Nov"), html.indexOf("Mon 9 Nov"));
+    const rowsOf = html.split("<details>").slice(1);
+    expect(rowsOf).toHaveLength(2);
+    const row = rowsOf[0] ?? "";
+    expect(text(row)).toContain("Sun 8 10:00–18:00");
     expect(text(row)).toContain("2 Test Lane, York, YO1 1AA");
     expect(text(row)).toContain("Open in maps");
     expect(text(row)).toContain("Report to Gate C.");
-    expect(text(html.slice(html.indexOf("Mon 9 Nov")))).toContain("No site or instructions yet.");
+    expect(text(rowsOf[1] ?? "")).toContain("Mon 9 10:00–18:00");
+    expect(text(rowsOf[1] ?? "")).toContain("No site or instructions yet.");
+  });
+});
+
+describe("Booked, after taking a shift (Phase 18)", () => {
+  const first = shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") });
+  const second = shift({
+    startsAt: at("2026-11-08T10:00:00Z"),
+    endsAt: at("2026-11-08T18:00:00Z"),
+  });
+  const marked = (html: string) => (html.match(/animate-move/g) ?? []).length;
+  const news = (html: string) => (html.match(/>New<\/span>/g) ?? []).length;
+
+  it("the shift just taken moves into its place, marked New; nothing else is", () => {
+    // It's the next one: the next shift's card.
+    const next = render({ shifts: [first, second], newShiftId: first.shiftId });
+    expect([marked(next), news(next)]).toEqual([1, 1]);
+    const card = next.slice(
+      next.lastIndexOf("<section", next.indexOf("Your next shift")),
+      next.indexOf("Coming up"),
+    );
+    expect(card).toContain("animate-move border-2 border-brand-ink");
+    expect(text(card)).toContain("New");
+    // It's later: its row under Coming up.
+    const later = render({ shifts: [first, second], newShiftId: second.shiftId });
+    expect([marked(later), news(later)]).toEqual([1, 1]);
+    const rows = later.slice(later.indexOf("Coming up"));
+    expect(rows).toMatch(/<li class="px-3\.5 animate-move rounded-xl border-2 border-brand-ink">/);
+    // Not one of hers (or none given): nothing marked.
+    for (const html of [
+      render({ shifts: [first, second] }),
+      render({ shifts: [first, second], newShiftId: "s-not-hers" }),
+    ]) {
+      expect([marked(html), news(html)]).toEqual([0, 0]);
+    }
   });
 });

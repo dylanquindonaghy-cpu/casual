@@ -875,7 +875,8 @@ describe("My shifts and the kept copy together", () => {
               shifts: [],
             }),
       );
-      expect(html).toContain("Updated 09:05 on Mon 2 Nov");
+      // Home's heading says the time (Phase 18); Booked's the time and day. The notice says both.
+      expect(html).toContain(which === "Home" ? "Updated 09:05</p>" : "Updated 09:05 on Mon 2 Nov");
       const notice = html.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0] ?? "";
       expect(notice).toContain('hidden=""');
       const { sandbox } = loadWorker(async () => answer("x"));
@@ -883,7 +884,7 @@ describe("My shifts and the kept copy together", () => {
       const shown = show(html, 1000);
       expect(shown.match(/<div[^>]*data-offline-notice[^>]*>/)?.[0]).not.toContain("hidden");
       expect(shown.replace(/<[^>]+>/g, "")).toContain(
-        "No signal.These are your shifts from 09:05 on Mon 2 Nov. They may have changed.Taking or cancelling a shift needs signal.",
+        "No signal.This is your saved copy from 09:05 on Mon 2 Nov. It updates when you&#x27;re back online.Taking or cancelling a shift needs signal.",
       );
     },
   );

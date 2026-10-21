@@ -9,7 +9,7 @@ import { getCurrentBrand } from "@/lib/tenancy/current-brand";
 import { findCurrentFirm } from "@/lib/tenancy/current-firm";
 import { BrandBar } from "./brand-bar";
 import { DemoBar } from "./demo-bar";
-import { jakarta, jakartaExt } from "./fonts";
+import { fontVariables } from "./fonts";
 import { THEME_COOKIE, themeFromCookie } from "./theme";
 import "./globals.css";
 
@@ -49,14 +49,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const demoMode = appEnv().DEMO_MODE;
   const firm = demoMode === "on" ? await findCurrentFirm() : null;
   const demo = showsDemo(demoMode, firm?.id ?? null);
-  // A firm's own colour for its main actions (Phase 17; globals.css --color-brand): checked
-  // #rrggbb values only, never raw input (src/lib/tenancy/brand-values.ts).
+  // A firm's own colour, worked out for each theme (Phase 18; globals.css body[data-firm-colour]):
+  // checked #rrggbb values only, never raw input (src/lib/tenancy/brand-values.ts).
   const firmColours = brand ? (brandStyle(brand) as CSSProperties | undefined) : undefined;
   return (
-    <html lang="en-GB" data-theme={theme} className={`${jakarta.variable} ${jakartaExt.variable}`}>
+    <html lang="en-GB" data-theme={theme} className={fontVariables}>
       <body
         style={firmColours}
-        className="bg-card text-lg text-ink antialiased has-[[data-shell=office]]:flex has-[[data-shell=office]]:min-h-dvh has-[[data-shell=office]]:flex-col"
+        data-firm-colour={firmColours ? "" : undefined}
+        className="bg-canvas text-lg text-ink antialiased has-[[data-shell=office]]:flex has-[[data-shell=office]]:min-h-dvh has-[[data-shell=office]]:flex-col"
       >
         {demo && <DemoBar />}
         {brand && <BrandBar brand={brand} />}

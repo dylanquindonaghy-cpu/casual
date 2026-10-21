@@ -7,12 +7,14 @@ import type { MenuBadge, MenuGroup } from "./office-nav";
 
 type MenuItem = { area: OfficeArea; href: string; label: string; icon: IconName };
 
-// The v2 groups (3.1), holding today's pages; each later task adds its own link.
-const MENU: { label: string; items: MenuItem[] }[] = [
+// The groups (docs/office-v2.md 3.1; Phase 18's regrouping): what needs the office today first, then
+// pay, then people; the records and settings folded under "Admin and records"; the how-to guide on
+// its own at the bottom.
+const MENU: { label: string; folded?: boolean; bottom?: boolean; items: MenuItem[] }[] = [
   {
-    label: "Operations",
+    label: "Today",
     items: [
-      // The dashboard (12E.1): the bell in the top bar links to its Needs attention.
+      // The dashboard (12E.1): the bell in the top bar links to its Needs attention page.
       { area: "today", href: "/office", label: "Dashboard", icon: "home" },
       // The shift pages (/office/shifts/...) stay, inside this section (office-nav.tsx).
       { area: "shifts", href: "/office/events", label: "Events & sessions", icon: "shifts" },
@@ -36,19 +38,20 @@ const MENU: { label: string; items: MenuItem[] }[] = [
     ],
   },
   {
-    label: "Records",
+    label: "People",
     items: [
+      { area: "casuals", href: "/office/casuals", label: "Casuals", icon: "workers" },
       // No badge: strikes aren't a to-do (docs/office-v2.md 3.5).
       { area: "strikes", href: "/office/strikes", label: "Strikes", icon: "strike" },
-      { area: "casuals", href: "/office/casuals", label: "Casuals", icon: "workers" },
-      { area: "log", href: "/office/log", label: "Action log", icon: "log" },
       { area: "reports", href: "/office/reports/notice", label: "Notice report", icon: "notice" },
-      { area: "pilot", href: "/office/reports/pilot", label: "Pilot metrics", icon: "pilot" },
     ],
   },
   {
-    label: "Configuration",
+    label: "Admin and records",
+    folded: true,
     items: [
+      { area: "log", href: "/office/log", label: "Action log", icon: "log" },
+      { area: "pilot", href: "/office/reports/pilot", label: "Pilot metrics", icon: "pilot" },
       { area: "team", href: "/office/team", label: "Office team", icon: "team" },
       { area: "settings", href: "/office/settings", label: "Settings", icon: "settings" },
       // The planner's API keys (12J.1; docs/office-v2.md 5.3.4).
@@ -63,21 +66,58 @@ const MENU: { label: string; items: MenuItem[] }[] = [
   },
   {
     label: "Help",
+    bottom: true,
     items: [{ area: "guide", href: "/office/guide", label: "How-to guide", icon: "guide" }],
   },
 ];
+
+// The menu's counts (Phase 18): sign yellow when it needs this person, grey otherwise. Pay
+// queries waiting need payroll (for the others they're with payroll); enquiries that need a
+// person and uploads to check need whoever sees them. No count, no badge.
+export function menuBadges(
+  role: OfficeRole,
+  counts: { payQueries: number; needPerson: number; uploads: number },
+): Partial<Record<string, MenuBadge>> {
+  const { payQueries, needPerson, uploads } = counts;
+  return {
+    ...(payQueries
+      ? {
+          "/office/pay-queries": {
+            count: payQueries,
+            words: `${payQueries} waiting`,
+            needs: role === "payroll",
+          },
+        }
+      : {}),
+    ...(needPerson
+      ? {
+          "/office/enquiries": {
+            count: needPerson,
+            words: `${needPerson} need a person`,
+            needs: true,
+          },
+        }
+      : {}),
+    ...(uploads
+      ? { "/office/casuals": { count: uploads, words: `${uploads} to check`, needs: true } }
+      : {}),
+  };
+}
 
 // Every area the menu links to (tests/unit/office.roles.test.ts checks each against the roles).
 export const MENU_AREAS: readonly OfficeArea[] = MENU.flatMap((g) => g.items.map((i) => i.area));
 
 // The menu a role sees: only the links it can open, and no empty groups. `badges` gives a link a
-// count by its address (the layout's: Pay queries waiting).
+// count by its address (the layout's: Pay queries waiting), sign yellow when it needs this person
+// (`needs`), grey otherwise.
 export function officeMenu(
   role: OfficeRole,
   badges: Partial<Record<string, MenuBadge>> = {},
 ): MenuGroup[] {
   return MENU.map((group) => ({
     label: group.label,
+    ...(group.folded ? { folded: true } : {}),
+    ...(group.bottom ? { bottom: true } : {}),
     links: group.items
       .filter((item) => canAccess(role, item.area))
       .map((item) => {

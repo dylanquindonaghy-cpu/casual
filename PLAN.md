@@ -1272,6 +1272,62 @@ with `RUN_E2E=1` prints VERIFIED; no action, rule or log entry is lost (every fl
 still passes); `docs/screens.md` says what each changed screen shows; the `claims-auditor` checks
 the phase against this line.
 
+## Phase 18 — The redesign
+
+Added 2026-10-21, Dylan's ask: "Implement this design in this codebase" (the Claude Design
+"ShiftDesk redesign", https://claude.ai/code/artifact/f003545d-7a44-4a78-a778-16696db200a4, made
+from the hand-off after Phase 17: "less information blurting out at you … easily understanding
+with clean animations graphics and layout"), "but still the fonts and colours will still need to
+be reworked use your available skills to do so". The design is the approved mock-up for its
+layouts, parts and motion; its fonts and colours are reworked with the UI skills (frontend-design,
+design-taste-frontend, ui-ux-pro-max), shown to Dylan as a before/after picture on 2026-10-21. Like
+Phase 17, a redesign of the look and of how much each screen shows at once, not of what the app
+does: every action, rule and log entry stays reachable. Docs: `docs/screens.md`, `docs/ui-design.md`.
+
+- [x] Fonts, colours and motion: Public Sans for words and Barlow Condensed (drawn from road signs)
+      for times, dates, gates and counts, both self-hosted from their npm packages; one type scale
+      (the existing six sizes plus one 40px size for a shift's time and date); colours on the UK
+      safety-sign roles (red: act now, sign yellow: needs doing, exit-sign green: done), navy ink and
+      the navy dark theme kept (D7), every pair passing the contrast test; the firm's colour worked
+      out per theme from its checked `#rrggbb` (its top band, its main button and its text colour
+      each at least 4.5:1); the design's parts as shared components (the date tile, the sign plate,
+      the seats); motion as the design's spec (150/200/250ms, one easing, a 150ms fade with reduced
+      motion, CSS only); the firm's bar a white header with its initial or logo. Tests: the tokens'
+      contrast in both themes, the firm colours for 30 colours in both themes, the type scale, the
+      parts, reduced motion (18.1)
+- [x] The casual Home: the next shift as a pass that opens in place into its details (travel, where
+      to report, what to bring and wear, pay, "Open in maps", "Ask for a change", "Can't make it?");
+      "Can't make it?" a sheet with the notice, the reason and "Cancel this shift", "Ask for a
+      change instead" and "Keep my shift"; the cancelled confirmation; no shifts booked as an empty
+      pass with "Find a shift"; "For you" as at most four rows (urgent shifts, what needs doing, her
+      home area while she has none, shifts to apply for); the no-signal copy as the design's; the
+      tab bar's words at 15px and Profile's count. Tests: each state, the sheet's cancel (reason,
+      notice, strike), the browser tests (18.2)
+- [x] Open shifts and taking one: the next 8 days as a strip (booked, urgent and open days), urgent
+      shifts first then the rest, one card each with the date tile, time, role, place, seats and
+      pay; the shift's page as the design's detail (places as seats, what it needs, pay, travel)
+      with "Take shift" in a bar at the bottom, and its answers: booked (it moves into your
+      shifts), someone else took it, offered first to people with fewer hours. Tests: the strip,
+      the order, the seats, each answer, the browser tests (18.3)
+- [x] The office: the menu in four groups (Today, Pay, People, Admin and records folded) with the
+      How-to guide at the bottom and counts that are yellow only when they need someone; the
+      dashboard as the design's: how many things need you, this week as a strip, one urgent place
+      at a time with its seats and actions, "After that", "Waiting on others", "Sorted today"; the
+      full Needs attention items on their own page (the bell goes there). Tests: the menu's groups
+      and roles, the headline, the week, the focus card's actions, every Needs attention part still
+      reachable, the browser tests (18.4)
+- [x] Events & sessions as a two-week rota board: an event per row, its sessions as filled/needed
+      pills on their days (red: urgent gap, outlined: places open, grey: full), the filters with
+      counts (All, Need people, Urgent, Hidden), Earlier and Later; a row opens in place into its
+      sessions' table (places as seats, pay, post, meeting point, uniform, the urgent switch, the
+      "…" menu), with its showing switch, "Add a session" and the event's own page. Tests: the board's
+      days and pills, the filters, the open row, the browser tests (18.5)
+
+Done when: all five tasks are ticked with a stamp that includes the browser tests;
+`scripts/verify.sh` with `RUN_E2E=1` prints VERIFIED; no action, rule or log entry is lost (every
+flow's browser test still passes); `docs/screens.md` says what each changed screen shows; the
+`claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -3386,6 +3442,20 @@ text system once its details are known; Messages 2 (notification first, or both)
   things worth knowing: a text from a number nobody has gets no reply (only a WhatsApp did; the
   office is emailed), and "When's my next shift?" has no keyword, so it goes to a person until
   AI sorting is on.
+- Phase 18 (2026-10-21): the dashboard still loads the "Showing to casuals" event list, today's
+  cancellation rows and today's enquiry rows (`src/lib/office/dashboard.ts`: `showing`,
+  `cancellations`, `enquiries`), and `dashboard-copy.ts` still has the old four counts' words
+  (`COUNTS`, `countLine`, `countNumber`, `cancelledByText`). The redesigned dashboard shows only
+  their counts (Sorted today), so these are three queries a page load for nothing, and copy nobody
+  sees. To close it: drop the three loaders from `Dashboard` and the old words, with the
+  integration and unit tests that cover only them (the counts stay, and their tests).
+- Phase 18: the walkthrough page (`walkthrough-site/`) shows the screens from before the redesign
+  (see the line above: its tour isn't in the repo yet).
+- Phase 18 (the auditor's note): older rows in `docs/screens.md` (the office menu's "Operations /
+  Records / Configuration" groups, and the old Home, Open shifts and Events rows) still describe
+  the screens before the redesign. Its "The redesign (Phase 18)" section says it wins where they
+  differ, but a reader could be misled. To close it: rewrite those rows to match, and drop the
+  "wins where they differ" note.
 
 ## Hours log
 
@@ -3541,3 +3611,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-20 | 16 | 1.1 | The demo server (16.2): `deploy/docker-compose.demo.yml` with the real compose file, chosen by `COMPOSE_FILE` (Postgres in Compose over a socket only, demo mode and every sender set in the file, the outbox a shared volume, a one-off reset); `deploy/demo-reset.sh` and a 04:00 nightly timer loading the demo afresh (refused unless demo mode, a database on the server, the superuser's login and a database it made itself holding only the demo firms); the demo database refusing real numbers and emails itself (a hardened trigger); `deploy.sh` following `COMPOSE_FILE`; the site password now the web app's own rule (503 and unhealthy without it: a Docker rehearsal caught the worker crashing on the old settings rule); runbook "A demo server" step by step; a local Docker rehearsal of the whole stack; guardrails no FIX FIRST, 6 SHOULDs fixed or parked (Gate B, "Connect hosting"); 5,071 tests + 93 e2e + the walkthrough run's 6; audit DONE first round, with Phase 16's Done-when line; Phase 16 in all 2.8 h (see docs/work-log.md) |
 | 2026-10-20 | 17 | 2.6 | Easier to scan: a flat look in each firm's own colour, Home, Open shifts, Pay and Booked laid out to scan, the office dashboard leading with what needs someone, Events folding full sessions, Casuals tags only for problems; the safety review's pay fix and an enquiry confirmation fix. 17.2 audited DONE and ticked; 17.1 NOT DONE after 3 audit rounds (three test gaps) (see docs/work-log.md) |
 | 2026-10-20 | 17 | 0.5 | 17.1's fourth audit round (Dylan allowed it): tests that Pay has no "Back to my shifts" and every Open shifts card is a hairline with no red edge, one shared `switchTrack` for both Shifts-tab switches; audited DONE and ticked (see docs/work-log.md) |
+| 2026-10-21 | 18 | 3.5 | The redesign (18.1 to 18.5): Public Sans and Barlow Condensed self-hosted, colours on the UK safety-sign roles with every pair passing the contrast test and each firm's colour worked out per theme, the date tile, sign plate and seats; the casual Home's pass that opens in place, the "Can't make it?" sheet (held open while a cancel is sent, the safety review's fix) and For you; Open shifts' 8-day strip, cards and the shift page's bottom bar; the office menu in four groups, the dashboard as "what needs you" with its week in places, Needs attention on its own page; Events as a two-week rota board whose rows open into a sessions table; audit round 1 refused at the gate (committed after verify), round 2 DONE for 18.1 only, round 3 DONE; 2,942 unit + 2,215 integration tests + 94 e2e + the walkthrough's 6 (see docs/work-log.md) |

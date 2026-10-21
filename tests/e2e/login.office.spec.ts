@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { accountMenu, expect, menuLink, test } from "./fixtures";
+import { accountMenu, DASHBOARD_HEADING, expect, menuLink, test } from "./fixtures";
 import { sentTo } from "./outbox";
 
 // Office login in a real browser (console mode): a link by email, then the dashboard with the
@@ -30,7 +30,7 @@ test("an admin logs in by email link, sees their role and the office team, and l
 
   await officeLogin(page, "acme.admin@example.com");
   // The dashboard, and the account button names their role.
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Admin (demo) Admin" })).toBeVisible();
   // Acme's shifts line (a fake number from the seed).
   await expect(
@@ -56,7 +56,7 @@ test("an admin logs in by email link, sees their role and the office team, and l
 
 test("a resourcer can use the dashboard but not the admin-only team page", async ({ page }) => {
   await officeLogin(page, "acme.resourcer@example.com");
-  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: DASHBOARD_HEADING, level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Resourcer (demo) Resourcer" })).toBeVisible();
   // Absent from the menu itself (opened first, so the check can't pass just because it's shut).
   await expect(await menuLink(page, "Events & sessions")).toBeVisible();

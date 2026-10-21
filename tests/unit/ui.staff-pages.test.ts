@@ -46,7 +46,11 @@ describe("staff pages", () => {
       "src/app/confirm-email/page.tsx",
       "src/app/l/page.tsx",
       "src/app/login/page.tsx",
+      // Phase 18: Home's heading is the greeting with "Updated …" beside it (home-view.tsx), its
+      // one <h1> (below).
+      "src/app/page.tsx",
     ]);
+    expect(read(join(ROOT, "src/app/home-view.tsx")).match(/<h1\b/g)).toHaveLength(1);
   });
 
   it("the login pages and the error pages open with their one <h1>", () => {

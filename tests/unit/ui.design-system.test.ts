@@ -106,9 +106,12 @@ describe("the shared pieces (src/app/ui/)", () => {
     expect(unknown).toEqual([]);
   });
 
-  it("tap targets: office buttons and fields at least 44px, staff ones at least 56px", () => {
-    for (const cls of [...Object.values(btn), field]) expect(cls).toContain("min-h-11");
-    for (const cls of [...Object.values(staffBtn), staffField]) expect(cls).toContain("min-h-14");
+  // Phase 18: the design's phone buttons are 52px (still well over 44px); staff fields stay 56px.
+  it("tap targets: office buttons and fields at least 44px, staff buttons 52px, staff fields 56px", () => {
+    for (const cls of [...Object.values(btn), field])
+      expect(cls).toMatch(/(?<![\w-])min-h-11(?![\w-])/);
+    for (const cls of Object.values(staffBtn)) expect(cls).toMatch(/(?<![\w-])min-h-13(?![\w-])/);
+    expect(staffField).toMatch(/(?<![\w-])min-h-14(?![\w-])/);
   });
 
   it("StatusChip: each tone has its own colours and its own icon", () => {

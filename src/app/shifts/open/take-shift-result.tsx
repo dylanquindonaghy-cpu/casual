@@ -3,39 +3,61 @@ import type { TakeShiftOutcome } from "@/lib/portal/take-shift";
 import { tryAgainText } from "@/lib/portal/copy";
 import { TooManyTries } from "../../too-many-tries";
 import { staffBtn } from "../../ui/classes";
+import { Icon } from "../../ui/icons";
 
 // What the worker sees after tapping "Take shift" (docs/screens.md copy rules: plain words, and a
 // confirmation they can screenshot: what, when, a reference, signed by the firm).
+// Phase 18: booked is a green tick, the shift and its reference, and the way to see it among her
+// shifts (where it arrives marked "New"); someone else taking it first is a red note.
 export function TakeShiftResult({
   outcome,
   reviewHref,
+  shiftId,
 }: {
   outcome: Exclude<TakeShiftOutcome, { status: "logged_out" }>;
   reviewHref?: string; // the shift's page, where the worker can ask the office to review
+  shiftId?: string; // to mark it "New" on her shifts
 }) {
   switch (outcome.status) {
     case "booked":
       return (
-        <div role="status" className="rounded-xl border-2 border-done bg-done-soft p-4">
-          <p className="text-2xl font-bold text-done-ink">You&apos;re booked.</p>
-          {outcome.when && <p className="mt-2 font-semibold tabular-nums">{outcome.when}</p>}
-          {outcome.role && (
-            <p>
-              {outcome.role}
-              {outcome.siteName ? ` at ${outcome.siteName}` : ""}
-            </p>
-          )}
-          <p className="mt-2 font-semibold tabular-nums">Reference: {outcome.ref}</p>
-          <p className="mt-2 text-base text-ink-muted">— {outcome.signOff}</p>
-          <Link href="/" className={`${staffBtn.primary} mt-4`}>
+        <div role="status" className="flex animate-toast flex-col items-start gap-3 py-2">
+          <span
+            aria-hidden="true"
+            className="flex size-14 items-center justify-center rounded-xl bg-done-fill text-on-done"
+          >
+            <Icon name="check" size={32} />
+          </span>
+          <p className="text-2xl font-semibold">You&apos;re booked.</p>
+          <div className="text-base">
+            {outcome.when && <p className="font-semibold tabular-nums">{outcome.when}</p>}
+            {outcome.role && (
+              <p>
+                {outcome.role}
+                {outcome.siteName ? ` at ${outcome.siteName}` : ""}
+              </p>
+            )}
+            <p className="mt-1 font-semibold tabular-nums">Reference: {outcome.ref}</p>
+            <p className="mt-1 text-ink-muted">— {outcome.signOff}</p>
+          </div>
+          <Link href={shiftId ? `/shifts?new=${shiftId}` : "/shifts"} className={staffBtn.primary}>
             See my shifts
           </Link>
         </div>
       );
     case "filled":
       return (
-        <p role="alert" className="font-semibold">
-          Just filled. Someone else took this shift a moment ago.
+        <p role="alert" className="flex items-start gap-2.5 rounded-xl bg-urgent-soft p-3.5">
+          <span
+            aria-hidden="true"
+            className="flex size-6.5 shrink-0 items-center justify-center rounded-[5px] bg-urgent-fill text-on-urgent"
+          >
+            <Icon name="close" size={17} />
+          </span>
+          <span>
+            <strong className="font-semibold">Someone else took it first.</strong> You haven&apos;t
+            been booked.
+          </span>
         </p>
       );
     case "already_assigned":
@@ -55,7 +77,7 @@ export function TakeShiftResult({
       );
     case "not_eligible":
       return (
-        <div role="alert" className="rounded-xl border-2 border-urgent bg-urgent-soft p-4">
+        <div role="alert" className="rounded-xl bg-urgent-soft p-4">
           <p className="font-semibold text-urgent-ink">You can&apos;t take this shift:</p>
           <ul className="mt-1 list-disc pl-5 text-urgent-ink">
             {outcome.reasons.map((reason, i) => (

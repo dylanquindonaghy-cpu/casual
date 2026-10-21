@@ -11,7 +11,8 @@ import { sentTo } from "./outbox";
 // and again set to dark.
 
 const acme = "http://acme.localhost:3100";
-const CANVAS = { light: "rgb(248, 250, 252)", dark: "rgb(15, 22, 38)" }; // #f8fafc, #0f1626
+// The office's page: the card colour (Phase 18; the menu beside it is on the canvas grey).
+const CANVAS = { light: "rgb(255, 255, 255)", dark: "rgb(27, 38, 66)" }; // #ffffff, #1b2642
 
 // Each test logs in as a resourcer of its own (the seeded users allow 3 login links per 15
 // minutes, and this spec logs in six times).
@@ -120,14 +121,13 @@ for (const device of ["light", "dark"] as const) {
       await expect(main).toHaveCSS("background-color", CANVAS[other]);
     });
 
-    test("the top bar: ShiftDesk with the firm's name; the account menu has the name and role", async ({
+    test("the top bar: the firm's name (the menu's, on a wide screen); the account menu has the name and role", async ({
       page,
     }) => {
       await officeLogin(page, `${device}.bar`);
       // The firm's own bar gives way to the top bar on logged-in office pages.
       await expect(page.getByTestId("brand-bar")).toBeHidden();
       const bar = page.getByRole("banner");
-      await expect(bar.getByText("ShiftDesk", { exact: true })).toBeVisible();
       await expect(bar.getByText("Acme Events", { exact: true })).toBeVisible();
 
       await expect(page.getByRole("button", { name: "Sam Rota Resourcer" })).toBeVisible();
@@ -139,8 +139,15 @@ for (const device of ["light", "dark"] as const) {
       await page.keyboard.press("Escape");
       await expect(menu).toBeHidden();
 
-      // On a wide screen the name and role show on the button itself.
+      // On a wide screen the name and role show on the button itself, and the firm's name heads
+      // the menu beside the page instead of the top bar.
       await page.setViewportSize({ width: 1280, height: 900 });
+      await expect(bar.getByText("Acme Events", { exact: true })).toBeHidden();
+      await expect(
+        page
+          .getByRole("navigation", { name: "Office menu" })
+          .getByText("Acme Events", { exact: true }),
+      ).toBeVisible();
       const account = page.locator('button[popovertarget="office-account-menu"]');
       await expect(account.getByText("Sam Rota", { exact: true })).toBeVisible();
       await expect(account.getByText("SR", { exact: true })).toBeVisible();

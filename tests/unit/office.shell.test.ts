@@ -5,9 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 // The office shell (src/app/office/office-shell.tsx, office-frame.tsx, office-nav.tsx,
 // theme-button.tsx; docs/office-v2.md 3.1; docs/ui-design.md "Office shell"): which links each
 // role sees in the v2 groups, which one is the current page, the rules the browser tests need the
-// menu to keep (plain links outside <main>, no list items, headings or roles), badges outside a
-// link's name, and the top bar (Menu, ShiftDesk with the firm's name, the theme button, the
-// account menu with the one "Log out"). tests/e2e/office.shell.spec.ts drives the drawer, the
+// menu to keep (plain links outside <main>, no list items, headings or roles; the folded group a
+// button, not a <details>), badges outside a link's name, and the top bar (Menu, the firm's name
+// below 1024px, the pay week from 1024px, the theme button, the account menu with the one "Log
+// out"). Phase 18 regrouped the menu. tests/e2e/office.shell.spec.ts drives the drawer, the
 // theme and the account menu in a browser. Also the shared pieces in src/app/ui/ that add no
 // words of their own.
 
@@ -18,7 +19,8 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/office/session-actions", () => ({ refreshOfficeSessionAction: vi.fn() }));
 
-const { MENU_AREAS, officeMenu, OfficeShell } = await import("@/app/office/office-shell");
+const { MENU_AREAS, menuBadges, officeMenu, OfficeShell } =
+  await import("@/app/office/office-shell");
 const { ariaCurrent, currentHref, OfficeNav } = await import("@/app/office/office-nav");
 const { ACCOUNT_MENU_ID, DRAWER_ID, initials, redrawOnArrival } =
   await import("@/app/office/office-frame");
@@ -35,21 +37,34 @@ const text = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-describe("the office menu (v2 groups)", () => {
-  it("admins see every link, in groups", () => {
+describe("the office menu (v2 groups; Phase 18's regrouping)", () => {
+  it("admins see every link, in groups: today's first, the records and settings folded", () => {
     expect(labels("admin")).toEqual([
-      ["Operations", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
+      ["Today", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
       ["Pay", ["Pay dashboard", "Pay queries", "Import pay records"]],
-      ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
-      ["Configuration", ["Office team", "Settings", "Integrations", "Data requests"]],
+      ["People", ["Casuals", "Strikes", "Notice report"]],
+      [
+        "Admin and records",
+        ["Action log", "Pilot metrics", "Office team", "Settings", "Integrations", "Data requests"],
+      ],
       ["Help", ["How-to guide"]],
     ]);
+    expect(officeMenu("admin").map((g) => [g.label, g.folded ?? false, g.bottom ?? false])).toEqual(
+      [
+        ["Today", false, false],
+        ["Pay", false, false],
+        ["People", false, false],
+        ["Admin and records", true, false],
+        ["Help", false, true],
+      ],
+    );
   });
 
   it("resourcers don't see pay or configuration links", () => {
     expect(labels("resourcer")).toEqual([
-      ["Operations", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
-      ["Records", ["Strikes", "Casuals", "Action log", "Notice report", "Pilot metrics"]],
+      ["Today", ["Dashboard", "Events & sessions", "Cancellations", "Enquiries"]],
+      ["People", ["Casuals", "Strikes", "Notice report"]],
+      ["Admin and records", ["Action log", "Pilot metrics"]],
       ["Help", ["How-to guide"]],
     ]);
   });
@@ -73,6 +88,43 @@ describe("the office menu (v2 groups)", () => {
     expect(
       officeMenu("resourcer", { "/office/pay-queries": badge }).flatMap((g) => g.links),
     ).not.toContainEqual(expect.objectContaining({ href: "/office/pay-queries" }));
+  });
+
+  it("a count is sign yellow only when it needs this person (Phase 18), grey otherwise", () => {
+    const counts = { payQueries: 3, needPerson: 2, uploads: 4 };
+    // Pay queries need payroll; for an admin they're with payroll.
+    expect(menuBadges("payroll", counts)["/office/pay-queries"]).toEqual({
+      count: 3,
+      words: "3 waiting",
+      needs: true,
+    });
+    expect(menuBadges("admin", counts)["/office/pay-queries"]?.needs).toBe(false);
+    // Enquiries that need a person and uploads to check need whoever sees them.
+    expect(menuBadges("resourcer", counts)["/office/enquiries"]).toEqual({
+      count: 2,
+      words: "2 need a person",
+      needs: true,
+    });
+    expect(menuBadges("admin", counts)["/office/casuals"]).toEqual({
+      count: 4,
+      words: "4 to check",
+      needs: true,
+    });
+    // None: no badge.
+    expect(menuBadges("admin", { payQueries: 0, needPerson: 0, uploads: 0 })).toEqual({});
+    // Drawn: the yellow plate for one that needs you, the grey one otherwise.
+    nav.pathname = "/office";
+    const html = renderToStaticMarkup(
+      createElement(OfficeNav, { groups: officeMenu("admin", menuBadges("admin", counts)) }),
+    );
+    const badgeOf = (href: string) =>
+      new RegExp(
+        `<a [^>]*href="${href}"[^>]*>[\\s\\S]*?<span aria-hidden="true" class="([^"]*)">\\d+</span>`,
+      ).exec(html)?.[1] ?? "";
+    expect(badgeOf("/office/enquiries")).toContain("bg-hivis text-on-hivis");
+    expect(badgeOf("/office/casuals")).toContain("bg-hivis text-on-hivis");
+    expect(badgeOf("/office/pay-queries")).toContain("bg-raised text-ink-muted");
+    expect(badgeOf("/office/pay-queries")).not.toContain("bg-hivis");
   });
 
   it("links have no query strings (tests compare the address after a click)", () => {
@@ -146,8 +198,12 @@ describe("the menu's markup", () => {
     expect(html).toMatch(/^<nav aria-label="Office menu"/);
     expect(html).not.toMatch(/<(li|ul|ol|h[1-6]|details|summary|fieldset|section|output)\b/);
     expect(html).not.toMatch(/role="/);
-    // Group names are words, not headings.
-    expect(html).toContain(">Operations</p>");
+    // Group names are words, not headings; the folded group is a button (a <details> would be a
+    // "group" the page tests find form lines by).
+    expect(html).toContain(">Today</p>");
+    expect(html).toMatch(
+      /<button type="button" aria-expanded="false" aria-controls="menu-admin-and-records" disabled=""[^>]*>.*?Admin and records.*?<\/button><div id="menu-admin-and-records" hidden=""/,
+    );
     // A shift's page is inside Events & sessions, not that page itself.
     expect(html.match(/aria-current=/g)).toHaveLength(1);
     expect(marked(html, "page")).toEqual([]);
@@ -162,7 +218,8 @@ describe("the menu's markup", () => {
     expect(marked(html, "true")).toEqual([]);
     expect(marked(html, "page")).toHaveLength(1);
     expect(marked(html, "page")[0]).toContain('href="/office/events"');
-    expect(marked(html, "page")[0]).toMatch(/bg-brand-soft.*font-semibold/);
+    // Phase 18: lifted off the menu's ground, on the card colour with a hairline, in bold.
+    expect(marked(html, "page")[0]).toMatch(/bg-card font-semibold text-ink ring-1 ring-line/);
     expect(marked(html, "page")[0]).not.toMatch(/before:/);
   });
 
@@ -254,7 +311,7 @@ describe("the shell", () => {
     expect(html.match(/>Log out</g)).toHaveLength(1);
   });
 
-  it("the top bar: Menu (waits for the page), ShiftDesk with the firm's name, theme, account", () => {
+  it("the top bar: Menu (waits for the page), the firm's name, the pay week, theme, account", () => {
     const html = shell();
     const bar = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
     expect(bar).toMatch(
@@ -262,11 +319,12 @@ describe("the shell", () => {
         `<button type="button" aria-controls="${DRAWER_ID}" aria-expanded="false" aria-haspopup="dialog" disabled=""[^>]*>.*Menu</button>`,
       ),
     );
-    expect(bar).toContain('<span class="block font-bold text-ink">ShiftDesk</span>');
-    expect(bar).toContain(">Acme Events</span>");
+    // The firm's name below 1024px (from there, the menu beside the page shows it).
+    expect(bar).toMatch(/<p class="[^"]*lg:hidden[^"]*">Acme Events<\/p>/);
+    expect(html).toMatch(/<nav aria-label="Office menu"[^>]*>.*?Acme Events.*?Office/);
     // The pay week, from 1024px (hidden on phones and tablets).
     expect(bar).toMatch(
-      /<p class="[^"]*hidden[^"]*lg:flex[^"]*">Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct<\/p>/,
+      /<p class="[^"]*hidden[^"]*lg:block[^"]*">Week 41 · 5 Oct – 11 Oct · Pay Fri 16 Oct<\/p>/,
     );
     expect(bar).toMatch(/<button type="button" aria-label="Switch to dark mode" disabled=""/);
     // The theme button's words also show beside it (hidden from screen readers: they're its name).
@@ -307,13 +365,14 @@ describe("the shell", () => {
     expect(dialog?.[0]).not.toMatch(/\bopen\b=/);
     expect(dialog?.[1]).toBe("");
     // The sidebar (hidden on phones) holds the one <nav>.
-    expect(html).toMatch(/<div class="hidden [^"]*lg:block[^"]*"><nav aria-label="Office menu"/);
+    expect(html).toMatch(/<div class="hidden [^"]*lg:flex[^"]*"><nav aria-label="Office menu"/);
   });
 
   it("payroll's shell: their own menu, the same bar", () => {
     const html = shell(undefined, "payroll");
+    // The guide sits at the foot of the menu, without its group's name.
     expect(text(html)).toContain(
-      "Pay Pay dashboard Pay queries Import pay records Help How-to guide",
+      "Acme Events Office Pay Pay dashboard Pay queries Import pay records How-to guide",
     );
     expect(html).not.toContain('href="/office/events"');
     expect(html).not.toContain('href="/office/shifts"');

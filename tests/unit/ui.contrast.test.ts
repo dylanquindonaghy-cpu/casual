@@ -74,6 +74,15 @@ const TEXT: [string, string][] = [
   ["on-brand", "brand"],
   ["on-urgent", "urgent-fill"],
   ["on-urgent", "urgent-fill-hover"],
+  // Phase 18: the firm's colour as words and its band (the defaults; a firm's own set is checked
+  // in tests/unit/tenancy.brand.test.ts), sign yellow and the done fill with their words, the
+  // demo bar.
+  ["brand-ink", "canvas"],
+  ["brand-ink", "card"],
+  ["on-brand-bar", "brand-bar"],
+  ["on-hivis", "hivis"],
+  ["on-done", "done-fill"],
+  ["on-demo", "demo"],
 ];
 
 // Borders, controls and the focus ring against what's around them (3:1).

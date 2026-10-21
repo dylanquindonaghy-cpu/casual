@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
 
 // The urgent board (docs/screens.md, `/urgent`), the "Urgent" label on Open shifts and Home's
-// urgent shifts (12H.1), rendered to HTML. The "Take shift" button needs a stand-in router.
+// urgent shifts (12H.1; Phase 18: For you's row), rendered to HTML. Each card opens the shift's
+// page, where she takes it (tests/unit/portal.shift-detail.test.ts).
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
 
 const { UrgentView } = await import("@/app/urgent/urgent-view");
@@ -51,14 +52,16 @@ const urgent = (l: OpenShiftsList) =>
   renderToStaticMarkup(createElement(UrgentView, { list: l, timeZone: TZ, now: NOW }));
 
 describe("the urgent board", () => {
-  it("lists the urgent shifts with an Urgent label and Take shift", () => {
-    const words = text(urgent(list([shift()])));
+  it("lists the urgent shifts as cards, each labelled Urgent and opening the shift's page to take it", () => {
+    const html = urgent(list([shift()]));
+    const words = text(html);
     expect(words).toContain("Urgent shifts");
     expect(words).toContain("Shifts starting soon that need someone now.");
-    // §4.3's order (12H.2): the label, role · event, site, then date and time.
-    expect(words).toContain("Urgent Door supervisor Acme Demo Arena Sat 7 Nov, 08:00 to 16:00");
+    // Phase 18's card: the date tile, "Urgent." read out, the time, the role, then where.
+    expect(words).toContain("Sat 7 Urgent. 08:00–16:00 Door supervisor Acme Demo Arena");
+    expect(html).toContain('<span class="sr-only">Urgent. </span>');
     expect(words).toContain("1 place left");
-    expect(words).toContain("Take shift");
+    expect(html).toMatch(/<a class="[^"]*" href="\/shifts\/11111111-1111-4111-8111-111111111111">/);
     expect(words).toContain("Back to my shifts");
   });
 
@@ -70,10 +73,10 @@ describe("the urgent board", () => {
     expect(text(html)).not.toContain("Take shift");
   });
 
-  it("a held urgent shift says when it opens, and 'Check again' stays on this board", () => {
+  it("a held urgent shift says when it opens; its page has 'Check again'", () => {
     const html = urgent(list([shift({ opensAt: new Date("2026-11-07T06:15:00Z") })]));
-    expect(text(html)).toContain("You can take it from 06:15.");
-    expect(html).toContain('href="/urgent"');
+    expect(text(html)).toContain("You can take it from 06:15");
+    expect(html).toContain('href="/shifts/11111111-1111-4111-8111-111111111111"');
   });
 });
 
@@ -86,11 +89,22 @@ describe("Open shifts", () => {
           shift({ shiftId: "33333333-3333-4333-8333-333333333333", isUrgent: false }),
         ]),
         filters: {},
+        strip: [],
         timeZone: TZ,
         now: NOW,
       }),
     );
-    expect(text(html).match(/Urgent/g)).toHaveLength(1);
+    // Under "Urgent, needed now", the urgent one, labelled; under the rest, the other, not.
+    const urgentPart = html.slice(
+      html.indexOf('id="urgent-heading"'),
+      html.indexOf('id="more-heading"'),
+    );
+    const rest = html.slice(html.indexOf('id="more-heading"'));
+    expect(text(urgentPart)).toContain("Urgent, needed now");
+    expect(urgentPart.match(/<span class="sr-only">Urgent\. <\/span>/g)).toHaveLength(1);
+    expect(urgentPart).toContain('href="/shifts/11111111-1111-4111-8111-111111111111"');
+    expect(rest).toContain('href="/shifts/33333333-3333-4333-8333-333333333333"');
+    expect(rest).not.toContain("Urgent");
   });
 });
 
@@ -110,12 +124,24 @@ describe("Home", () => {
       ),
     );
 
-  it("shows the urgent shifts the worker could take, in plain words, then the urgent board", () => {
-    const words = home([shift(), shift({ shiftId: "33333333-3333-4333-8333-333333333333" })]);
-    expect(words).toContain("Urgent: needed now, and you can take them");
-    expect(words).toContain("Urgent Door supervisor Acme Demo Arena Sat 7 Nov, 08:00 to 16:00");
-    expect(words.match(/1 place left/g)).toHaveLength(2);
-    expect(words).toContain("See urgent shifts");
+  it("shows the urgent shifts the worker could take as one row, in plain words, to the urgent board", () => {
+    const shifts = [shift(), shift({ shiftId: "33333333-3333-4333-8333-333333333333" })];
+    const words = home(shifts);
+    expect(words).toContain("For you Urgent 2 shifts you can take Sat 7 Nov");
+    const html = renderToStaticMarkup(
+      createElement(HomeView, {
+        firstName: "Sam",
+        timeZone: TZ,
+        now: NOW,
+        next: null,
+        needs: [],
+        photo: { status: "up_to_date", current: null, waiting: null },
+        open: list(shifts),
+      }),
+    );
+    expect(html).toMatch(
+      /<li data-online-only="" data-for-you="urgent"><a class="[^"]*" href="\/urgent">/,
+    );
   });
 
   it("says nothing about urgent shifts when there are none", () => {

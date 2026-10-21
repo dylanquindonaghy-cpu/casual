@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireWorker } from "@/lib/auth/current-worker";
 import { appEnv, offlineCopyOn } from "@/lib/env";
-import { myShifts, profileNeedsYou } from "@/lib/portal/my-shifts";
+import { myShifts, profileNeedsCount } from "@/lib/portal/my-shifts";
 import { BookedView } from "./booked-view";
 import { OfflineCopy } from "../offline-copy";
 import { refreshSessionAction } from "../session-actions";
@@ -17,23 +17,32 @@ export const metadata: Metadata = { title: "Booked shifts" };
 export default async function BookedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; new?: string }>;
 }) {
   const { firm, worker, session } = await requireWorker();
-  const view = (await searchParams).view === "past" ? "past" : "upcoming";
+  const params = await searchParams;
+  const view = params.view === "past" ? "past" : "upcoming";
+  // Only ever compared with her own shifts' ids: anything else marks nothing.
+  const newShiftId = typeof params.new === "string" ? params.new : undefined;
   const now = new Date();
   const clock = { now: () => now };
-  const [shifts, dot] = await Promise.all([
+  const [shifts, needsCount] = await Promise.all([
     myShifts({ firm, clock }, worker.id, view),
-    profileNeedsYou({ firm, clock }, worker.id),
+    profileNeedsCount({ firm, clock }, worker.id),
   ]);
   return (
     <main className={page.staff}>
       <SessionKeeper rotationDue={session.rotationDue} refresh={refreshSessionAction} />
       <OfflineCopy enabled={offlineCopyOn(appEnv())} renderedAt={now.getTime()} page="/shifts" />
-      <BookedView timeZone={firm.timezone} now={now} view={view} shifts={shifts} />
+      <BookedView
+        timeZone={firm.timezone}
+        now={now}
+        view={view}
+        shifts={shifts}
+        newShiftId={newShiftId}
+      />
       <TabBarSpace />
-      <TabBar current="shifts" profileDot={dot} />
+      <TabBar current="shifts" profileCount={needsCount} />
     </main>
   );
 }

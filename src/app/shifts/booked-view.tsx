@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { isOnNow, roleLabel, shiftWhen, timeOnDay } from "@/lib/portal/format";
+import { dateParts, timeRange } from "@/lib/portal/sign-copy";
 import type { MyShift, ShiftsView } from "@/lib/portal/my-shifts";
 import { travelLineText } from "@/lib/travel/line-copy";
 import {
@@ -22,6 +23,8 @@ import {
   switchTrack,
 } from "../ui/classes";
 import { PageHeader } from "../ui/page-header";
+import { Plate } from "../ui/plate";
+import { DateTile } from "../ui/sign";
 import { StatusChip, type StatusTone } from "../ui/status-chip";
 
 // Booked (docs/office-v2.md 4.1, 4.3; docs/screens.md `/shifts`; 12H.1): her bookings, on the
@@ -38,6 +41,9 @@ export interface BookedViewProps {
   now: Date;
   view: ShiftsView;
   shifts: MyShift[];
+  // The shift she has just taken (`?new=`, from "See my shifts" after "Take shift"): it moves into
+  // its place marked "New" (Phase 18's motion).
+  newShiftId?: string;
 }
 
 // A plain grey box for "nothing here" sentences.
@@ -113,22 +119,34 @@ function Upcoming(props: BookedViewProps) {
   );
 }
 
-function NextShift({ shift, timeZone, now }: BookedViewProps & { shift: MyShift }) {
+function NextShift({ shift, timeZone, now, newShiftId }: BookedViewProps & { shift: MyShift }) {
+  const day = dateParts(shift.startsAt, timeZone);
+  const t = timeRange(shift.startsAt, shift.endsAt, timeZone);
+  const fresh = shift.shiftId === newShiftId;
   return (
     <section
       aria-labelledby="next-heading"
-      className="mt-6 rounded-2xl border border-line bg-card p-4"
+      className={`mt-6 rounded-2xl bg-card p-4 ${fresh ? "animate-move border-2 border-brand-ink" : "border border-line"}`}
     >
-      <h2 id="next-heading" className="text-base font-semibold text-ink-muted">
-        {isOnNow(shift, now) ? "On now" : "Your next shift"}
-      </h2>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-ink">
-        {shiftWhen(shift.startsAt, shift.endsAt, timeZone)}
-      </p>
-      <p className="mt-1 font-semibold">{roleLabel(shift.role)}</p>
-      <TravelLine shift={shift} timeZone={timeZone} />
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="next-heading" className="text-base font-semibold text-ink-muted">
+          {isOnNow(shift, now) ? "On now" : "Your next shift"}
+        </h2>
+        {fresh && <Plate tone="brand">New</Plate>}
+      </div>
+      <div className="mt-2 flex items-center gap-4">
+        <DateTile dow={day.dow} day={day.day} month={day.month} size="lg" label={day.long} />
+        <div className="min-w-0">
+          <p className="font-sign text-4xl text-ink">{t.range}</p>
+          <p className="mt-1 text-lg font-semibold">{roleLabel(shift.role)}</p>
+          {t.endsNote && <p className="text-base text-ink-muted">{t.endsNote}</p>}
+        </div>
+      </div>
+      <div className="mt-3">
+        <TravelLine shift={shift} timeZone={timeZone} />
+      </div>
       <ShiftDetails shift={shift} />
-      <ShiftActions shift={shift} now={now} />
+      <ShiftActions shift={shift} now={now} timeZone={timeZone} />
     </section>
   );
 }
@@ -145,22 +163,25 @@ function TravelLine({ shift, timeZone }: { shift: MyShift; timeZone: string }) {
 
 // An upcoming shift in the list: tap it to open the same details as the next shift's card. The
 // arrow turns when it's open.
-function UpcomingRow({ shift, timeZone, now }: BookedViewProps & { shift: MyShift }) {
+function UpcomingRow({ shift, timeZone, now, newShiftId }: BookedViewProps & { shift: MyShift }) {
+  const day = dateParts(shift.startsAt, timeZone);
+  const t = timeRange(shift.startsAt, shift.endsAt, timeZone);
+  const fresh = shift.shiftId === newShiftId;
   return (
-    <li className="px-4">
+    <li className={`px-3.5 ${fresh ? "animate-move rounded-xl border-2 border-brand-ink" : ""}`}>
       <details>
-        <summary className="flex min-h-14 list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-14 list-none items-center gap-3.5 py-3 [&::-webkit-details-marker]:hidden">
+          <DateTile dow={day.dow} day={day.day} />
           <span className="min-w-0 flex-1">
-            <span className="block font-semibold tabular-nums">
-              {shiftWhen(shift.startsAt, shift.endsAt, timeZone)}
-            </span>
+            <span className="block font-sign text-2xl leading-tight">{t.range}</span>
+            <span className="block font-semibold">{roleLabel(shift.role)}</span>
             <span className="block text-base text-ink-muted">
-              {roleLabel(shift.role)}
-              {shift.site ? ` at ${shift.site.name}` : ""}
+              {shift.eventName ?? shift.site?.name ?? ""}
             </span>
             <TravelLine shift={shift} timeZone={timeZone} />
             {isOnNow(shift, now) && <span className="block text-base font-semibold">On now</span>}
           </span>
+          {fresh && <Plate tone="brand">New</Plate>}
           <svg
             aria-hidden="true"
             focusable="false"
@@ -172,7 +193,7 @@ function UpcomingRow({ shift, timeZone, now }: BookedViewProps & { shift: MyShif
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="shrink-0 text-ink-muted [details[open]_&]:rotate-180"
+            className="shrink-0 text-ink-muted transition-transform duration-200 ease-sd [details[open]_&]:rotate-180"
           >
             <path d="m6 9 6 6 6-6" />
           </svg>
@@ -182,7 +203,7 @@ function UpcomingRow({ shift, timeZone, now }: BookedViewProps & { shift: MyShif
           {!shift.site && !shift.instructions && (
             <p className={`mt-1 ${muted}`}>No site or instructions yet.</p>
           )}
-          <ShiftActions shift={shift} now={now} />
+          <ShiftActions shift={shift} now={now} timeZone={timeZone} />
         </div>
       </details>
     </li>

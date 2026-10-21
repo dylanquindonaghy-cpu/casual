@@ -9,7 +9,7 @@ import { enquiriesWaiting } from "@/lib/office/enquiries";
 import { officePayQueriesWaiting } from "@/lib/office/pay-dashboard";
 import { payWeekLabel, payWeekNow } from "@/lib/pay/pay-week";
 import { THEME_COOKIE, themeFromCookie } from "../theme";
-import { OfficeShell, officeMenu } from "./office-shell";
+import { menuBadges, OfficeShell, officeMenu } from "./office-shell";
 
 // Every office page sits in the office shell (the top bar, the menu, the account menu) once
 // someone is logged in. With no session (/office/login, /office/l, or a page that's about to send
@@ -43,13 +43,12 @@ export default async function OfficeLayout({ children }: { children: ReactNode }
               : String(needs.count),
       }
     : null;
-  const badges = {
-    ...(waiting ? { "/office/pay-queries": { count: waiting, words: `${waiting} waiting` } } : {}),
-    ...(needPerson
-      ? { "/office/enquiries": { count: needPerson, words: `${needPerson} need a person` } }
-      : {}),
-    ...(toCheck ? { "/office/casuals": { count: toCheck, words: `${toCheck} to check` } } : {}),
-  };
+  // Sign yellow when it needs this person (Phase 18; office-menu.ts menuBadges).
+  const badges = menuBadges(s.officeUser.role, {
+    payQueries: waiting ?? 0,
+    needPerson: needPerson ?? 0,
+    uploads: toCheck ?? 0,
+  });
   return (
     <OfficeShell
       name={s.officeUser.name}

@@ -1328,6 +1328,31 @@ Done when: all five tasks are ticked with a stamp that includes the browser test
 flow's browser test still passes); `docs/screens.md` says what each changed screen shows; the
 `claims-auditor` checks the phase against this line.
 
+## Phase 19 — The strike's answer stays on screen
+
+Added 2026-10-21, Dylan's answer to "When should I fix it?": "Fix it first", a small task on its
+own, before any more work on the look. A bug on main since 12C.5, not from the redesign: on a
+cancellation's record, "Withdraw strike…" answers "Withdrawn. It no longer counts, and the casual
+sees it as withdrawn.", then the record refreshes. The page drew the buttons (and with them that
+answer) only while the strike was live, so the refresh removed them, and the answer went before
+anyone could read it. `tests/e2e/office.strikes.spec.ts` failed now and then because of it (a
+NOT VERIFIED on `36b7468`). "Resend evidence" already works the right way (12E.1). No change to
+what the screen shows when it works: `docs/screens.md` already promises the answer.
+
+- [x] The strike's answers outlive the refresh: on a cancellation's record, the strike's buttons
+      are always drawn in the same place for whoever may change strikes, "Withdraw strike…" only
+      while the strike is live and the casual's details aren't deleted, "Keep strike" only while
+      it's live and not reviewed, and nothing at all when there's no button and no answer; so
+      "Withdrawn. …" (and any other answer, such as "Kept, …" on a deleted casual's strike) stays
+      on screen after the record refreshes and the buttons go, and the withdraw form closes once
+      the strike can't be withdrawn. Tests: which buttons show (both, one, none), and the browser
+      test checks the answer is still there once the heading reads "Strike: Issued, then
+      withdrawn" (19.1)
+
+Done when: 19.1 is ticked with a stamp that includes the browser tests; `scripts/verify.sh` with
+`RUN_E2E=1` prints VERIFIED; `docs/screens.md` says the answer stays after the refresh; the
+`claims-auditor` checks the phase against this line.
+
 ## Stage 2 (after 3 paying firms) — not now
 
 - AI email inbox: firm forwards shifts inbox → the email provider's inbound webhook → classify
@@ -3612,3 +3637,4 @@ text system once its details are known; Messages 2 (notification first, or both)
 | 2026-10-20 | 17 | 2.6 | Easier to scan: a flat look in each firm's own colour, Home, Open shifts, Pay and Booked laid out to scan, the office dashboard leading with what needs someone, Events folding full sessions, Casuals tags only for problems; the safety review's pay fix and an enquiry confirmation fix. 17.2 audited DONE and ticked; 17.1 NOT DONE after 3 audit rounds (three test gaps) (see docs/work-log.md) |
 | 2026-10-20 | 17 | 0.5 | 17.1's fourth audit round (Dylan allowed it): tests that Pay has no "Back to my shifts" and every Open shifts card is a hairline with no red edge, one shared `switchTrack` for both Shifts-tab switches; audited DONE and ticked (see docs/work-log.md) |
 | 2026-10-21 | 18 | 3.5 | The redesign (18.1 to 18.5): Public Sans and Barlow Condensed self-hosted, colours on the UK safety-sign roles with every pair passing the contrast test and each firm's colour worked out per theme, the date tile, sign plate and seats; the casual Home's pass that opens in place, the "Can't make it?" sheet (held open while a cancel is sent, the safety review's fix) and For you; Open shifts' 8-day strip, cards and the shift page's bottom bar; the office menu in four groups, the dashboard as "what needs you" with its week in places, Needs attention on its own page; Events as a two-week rota board whose rows open into a sessions table; audit round 1 refused at the gate (committed after verify), round 2 DONE for 18.1 only, round 3 DONE; 2,942 unit + 2,215 integration tests + 94 e2e + the walkthrough's 6 (see docs/work-log.md) |
+| 2026-10-21 | 19 | 1.2 | The strike's answer stays on screen (19.1): the record always renders the strike's buttons for whoever may change strikes (nothing when there's no button and no answer), so "Withdrawn. …", "Kept, …" and "already withdrawn" outlive the refresh that takes their button away, and the withdraw form closes once the strike can't be withdrawn; which buttons show is one tested rule (`strikeButtons`); the flaky `office.strikes.spec.ts` now fails every time without the fix; two new browser tests (a deleted casual's strike kept; a strike withdrawn elsewhere while the form was open); each test seen to fail with its bug put back; 5,159 tests + 96 e2e + the walkthrough's 6; audit NOT DONE in round 1 (three behaviours untested), DONE in round 2 (see docs/work-log.md) |

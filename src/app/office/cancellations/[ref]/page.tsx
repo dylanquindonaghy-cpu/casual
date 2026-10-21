@@ -15,7 +15,7 @@ import {
   strikeSectionLines,
   strikeText,
 } from "@/lib/office/cancellations-copy";
-import { withdrawText } from "@/lib/office/strike-actions-copy";
+import { strikeButtons, withdrawText } from "@/lib/office/strike-actions-copy";
 import { roleLabel, timeOnDay } from "@/lib/portal/format";
 import { ResendEvidence } from "./resend-evidence";
 import { StrikeActions } from "./strike-actions";
@@ -87,15 +87,14 @@ export default async function CancellationRecordPage({
           {strike.status === "live" && record.row.erased && (
             <p className="text-ink-muted">{withdrawText({ status: "erased" })}</p>
           )}
-          {strike.status === "live" &&
-            canAccess(officeUser.role, "strikes") &&
-            (!record.row.erased || !strike.reviewed) && (
-              <StrikeActions
-                assignmentId={record.row.assignmentId}
-                canWithdraw={!record.row.erased}
-                canKeep={!strike.reviewed}
-              />
-            )}
+          {/* Always here for whoever may change strikes (it shows nothing without a button or an
+              answer), so an answer outlives the refresh that takes its button away (19.1). */}
+          {canAccess(officeUser.role, "strikes") && (
+            <StrikeActions
+              assignmentId={record.row.assignmentId}
+              {...strikeButtons(strike, record.row.erased ?? false)}
+            />
+          )}
         </section>
       )}
       {/* Always here (it shows nothing without a note), so a resend's answer outlives the refresh. */}

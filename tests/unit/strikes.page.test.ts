@@ -9,7 +9,7 @@ import {
 } from "@/lib/office/cancellations-copy";
 import { eventWords } from "@/lib/office/event-words";
 import { LOG_TYPES } from "@/lib/office/log-types";
-import { keepText, withdrawText } from "@/lib/office/strike-actions-copy";
+import { keepText, strikeButtons, withdrawText } from "@/lib/office/strike-actions-copy";
 import type { CasualStrike } from "@/lib/office/strikes";
 import {
   liveCountText,
@@ -37,6 +37,7 @@ import type { Profile } from "@/lib/portal/profile";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
 const { ProfileView } = await import("@/app/profile/profile-view");
+const { StrikeActions } = await import("@/app/office/cancellations/[ref]/strike-actions");
 
 const TZ = "Europe/London";
 const at = (iso: string) => new Date(iso);
@@ -207,6 +208,47 @@ describe("the record's Strike section and its buttons' answers", () => {
     );
     expect(keepText({ status: "kept" })).toBe("Kept, and marked as reviewed.");
     expect(keepText({ status: "already_kept" })).toBe("This strike has already been reviewed.");
+  });
+
+  it("which buttons a strike's record shows: by its status, a review and the casual's details", () => {
+    const reviewed = { by: "Sam Rota", at: at("2026-11-09T10:15:00Z") };
+    const both = { canWithdraw: true, canKeep: true };
+    const none = { canWithdraw: false, canKeep: false };
+    expect(strikeButtons({ status: "live", reviewed: null }, false)).toEqual(both);
+    expect(strikeButtons({ status: "live" }, false)).toEqual(both);
+    expect(strikeButtons({ status: "live", reviewed }, false)).toEqual({
+      canWithdraw: true,
+      canKeep: false,
+    });
+    // A deleted casual's strike can still be kept, never withdrawn.
+    expect(strikeButtons({ status: "live", reviewed: null }, true)).toEqual({
+      canWithdraw: false,
+      canKeep: true,
+    });
+    expect(strikeButtons({ status: "live", reviewed }, true)).toEqual(none);
+    // Withdrawn: nothing to do, reviewed or not, deleted or not.
+    expect(strikeButtons({ status: "withdrawn", reviewed: null }, false)).toEqual(none);
+    expect(strikeButtons({ status: "withdrawn", reviewed }, false)).toEqual(none);
+    expect(strikeButtons({ status: "withdrawn", reviewed: null }, true)).toEqual(none);
+  });
+
+  // The record always renders the buttons for whoever may change strikes, so an answer outlives the
+  // refresh that takes its button away (19.1; tests/e2e/office.strikes.spec.ts sees it on screen).
+  it("the buttons: both, one or none, and nothing at all when there's no button and no answer", () => {
+    const draw = (canWithdraw: boolean, canKeep: boolean) =>
+      renderToStaticMarkup(
+        createElement(StrikeActions, {
+          assignmentId: "4f2a9c1b-0000-4000-8000-000000000001",
+          canWithdraw,
+          canKeep,
+        }),
+      );
+    const buttons = (html: string) =>
+      [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
+    expect(buttons(draw(true, true))).toEqual(["Withdraw strike…", "Keep strike"]);
+    expect(buttons(draw(true, false))).toEqual(["Withdraw strike…"]);
+    expect(buttons(draw(false, true))).toEqual(["Keep strike"]);
+    expect(draw(false, false)).toBe("");
   });
 });
 

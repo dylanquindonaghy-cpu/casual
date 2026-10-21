@@ -18,10 +18,12 @@ import {
   workerTravel,
 } from "../../src/lib/db/schema";
 import { createWithFirm } from "../../src/lib/db/scoped";
+import { eraseWorker } from "../../src/lib/gdpr/worker-erase";
 import type { FirmTx } from "../../src/lib/db/scoped";
 import { bookShift } from "../../src/lib/roster/book";
 import { cancelBooking } from "../../src/lib/roster/cancel";
 import { automaticEventId, createNamedEvent } from "../../src/lib/roster/shift-events";
+import { withdrawStrike } from "../../src/lib/strikes/manage";
 import { fakePoint } from "../../src/lib/travel/geocoder";
 
 // Rows an e2e test needs that the seed doesn't have yet, written to the e2e database (never the
@@ -546,6 +548,63 @@ export async function bookAndCancel(
     if (cancelled.status !== "cancelled") throw new Error(`not cancelled: ${cancelled.status}`);
     const { assignmentId } = cancelled;
     return { ref: assignmentId.slice(0, 8).toUpperCase(), assignmentId };
+  } finally {
+    await pool.end();
+  }
+}
+
+// The office user with `email` in a seeded firm: helpers that act as one, as the app would.
+async function officeUserByEmail(
+  run: ReturnType<typeof createWithFirm>,
+  firmId: string,
+  email: string,
+): Promise<string> {
+  const [found] = await run(firmId, (tx) =>
+    tx.select({ id: officeUsers.id }).from(officeUsers).where(eq(officeUsers.email, email)),
+  );
+  if (!found) throw new Error(`no office user ${email}`);
+  return found.id;
+}
+
+// A spec's casual's personal details deleted through the real code (as "Delete … personal details"
+// on their page does), by the spec's own admin: a strike's record then shows only "Keep strike".
+export async function eraseCasual(
+  slug: string,
+  o: { workerId: string; adminEmail: string },
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const run = createWithFirm(pool);
+    const firmId = seedId(`firm/${slug}`);
+    const officeUserId = await officeUserByEmail(run, firmId, o.adminEmail);
+    const erased = await eraseWorker({ firm: { id: firmId }, officeUserId, run }, o.workerId);
+    if (erased.status !== "erased") throw new Error(`not erased: ${erased.status}`);
+  } finally {
+    await pool.end();
+  }
+}
+
+// A strike withdrawn through the real code by `byEmail`, as if someone else did it while a spec's
+// page still shows it live.
+export async function withdrawStrikeAs(
+  slug: string,
+  o: { assignmentId: string; byEmail: string; reason: string },
+): Promise<void> {
+  const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
+  try {
+    const { rows } = await pool.query<{ db: string }>("select current_database() as db");
+    if (!rows[0]?.db.endsWith("_e2e")) throw new Error(`refusing database ${rows[0]?.db ?? "?"}`);
+    const run = createWithFirm(pool);
+    const firmId = seedId(`firm/${slug}`);
+    const officeUserId = await officeUserByEmail(run, firmId, o.byEmail);
+    const done = await withdrawStrike(
+      { firm: { id: firmId }, officeUserId, run },
+      o.assignmentId,
+      o.reason,
+    );
+    if (done.status !== "withdrawn") throw new Error(`not withdrawn: ${done.status}`);
   } finally {
     await pool.end();
   }

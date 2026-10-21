@@ -13481,3 +13481,65 @@ picks it up within a few minutes of the image being built. Then open
 `https://acme.staffingresourcingtest.uk` on your phone (Home, Shifts) and
 `https://acme.staffingresourcingtest.uk/office` on a laptop (Dashboard, Needs attention, Events &
 sessions).
+
+## 2026-10-21 · Phase 19: the strike's answer stays on screen (19.1)
+
+Time spent: 1.2 hours (see the Hours log in PLAN.md).
+
+### The result
+
+- Verify: `VERIFIED tree=bace7884f6b1e3b6 e2e=true` (the check script, with the browser tests, on
+  the files the auditor read; the tick and these notes came after it).
+- Tests: 5,159 unit and integration tests pass, none skipped; 96 browser tests and the boss
+  walkthrough's 6 pass.
+- Auditor: round 1 NOT DONE: the code did what the task says, but three behaviours had no test
+  (which buttons a deleted casual's or a withdrawn strike's record shows; "Kept, …" outliving the
+  refresh on a deleted casual's strike; the withdraw form closing once the strike can't be
+  withdrawn). Round 2, after those tests: DONE, every claim proven, no fakes.
+
+### What was wrong, in plain words
+
+On a cancellation's record, "Withdraw strike…" answers "Withdrawn. It no longer counts, and the
+casual sees it as withdrawn." and then refreshes the record. The page only drew the strike's
+buttons while the strike was live, and the answer lived inside the buttons' box, so the refresh
+removed the box and the answer with it. Whether anyone saw the answer depended on how fast the
+refresh came back, which is why `tests/e2e/office.strikes.spec.ts` failed now and then (it caused
+the NOT VERIFIED on `36b7468`). "Keep strike" on a deleted casual's strike had the same problem.
+
+### What changed
+
+- `src/app/office/cancellations/[ref]/page.tsx`: the strike's buttons are always rendered, in the
+  same place, for whoever may change strikes, so React keeps their answer across the refresh (the
+  way "Resend evidence" already worked, 12E.1).
+- `src/app/office/cancellations/[ref]/strike-actions.tsx`: shows nothing when there's no button and
+  no answer; the withdraw form shows only while the strike can still be withdrawn.
+- `src/lib/office/strike-actions-copy.ts`: `strikeButtons()`, the one rule for which buttons show
+  ("Withdraw strike…" while live and the casual's details aren't deleted; "Keep strike" while live
+  and not reviewed).
+- Tests: `tests/unit/strikes.page.test.ts` (the rule for every case; the buttons both, one or none,
+  and nothing at all); `tests/e2e/office.strikes.spec.ts` (the answer still there once the heading
+  reads "Strike: Issued, then withdrawn"; a deleted casual's strike kept; a strike withdrawn
+  elsewhere while the form was open); `tests/e2e/db.ts` (`eraseCasual`, `withdrawStrikeAs`, both
+  through the real code).
+- `docs/screens.md`: the answer stays on screen after the record refreshes.
+
+### What the tests prove (each seen to fail with its bug put back)
+
+- Before the fix, the strengthened browser test failed every time, at "the answer is still there".
+- The old page rule put back: all three strike browser tests fail at the answer check.
+- The form's close rule taken out: the new form test fails at "the form has closed".
+- "Keep strike" allowed on a withdrawn strike: the rule's unit test fails.
+
+### Setup notes for a fresh container (none of this changes the repo)
+
+- Playwright 1.63 asks for browser build 1243; `/root/pw-compat` links it to the installed 1194
+  (`PLAYWRIGHT_BROWSERS_PATH=/root/pw-compat`).
+- The CI-mode browser run is a production server, which refuses `.env.example`'s
+  `SESSION_SECRET`: give the local `.env` a random one.
+- `dockerd` started by hand; `caddy:2.10` from `mirror.gcr.io` (Docker Hub answered 429).
+
+### What needs Dylan
+
+- Nothing for this task. Separately, the reference-based redesign mock-up ("ShiftDesk Pass
+  Redesign") waits for his answers: build it or not, the dark theme, the Pay day tile, one count
+  of 10 for the office, and moving the board's show/hide switch.

@@ -10,6 +10,19 @@ export type KeepOutcome =
   | { status: "kept" | "already_kept" | "not_live" | "not_found" | "not_allowed" }
   | { status: "logged_out" | "error" };
 
+// Which of a strike's buttons its cancellation record shows (19.1): "Withdraw strike…" while it's
+// live and the casual's details aren't deleted, "Keep strike" while it's live and nobody has
+// reviewed it. The record renders the buttons for whoever may change strikes either way (they show
+// nothing without a button or an answer), so an answer outlives the refresh that takes its button
+// away.
+export function strikeButtons(
+  strike: { status: "live" | "withdrawn"; reviewed?: { by: string | null; at: Date } | null },
+  erased: boolean,
+): { canWithdraw: boolean; canKeep: boolean } {
+  const live = strike.status === "live";
+  return { canWithdraw: live && !erased, canKeep: live && !strike.reviewed };
+}
+
 export function withdrawText(result: WithdrawOutcome): string {
   switch (result.status) {
     case "withdrawn":

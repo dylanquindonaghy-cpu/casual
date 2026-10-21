@@ -55,9 +55,22 @@ test("a worker logs in, takes a shift, cancels it, asks for a change and sees th
     await page.getByRole("link", { name: "See my shifts" }).click();
     await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
     await expect(page.getByText("Security officer").first()).toBeVisible();
-    // "Can't make it?" opens the sheet: the warning, why, then "Cancel this shift".
+    // "Can't make it?" opens the sheet: the warning, why, then "Cancel this shift". "Ask for a
+    // change instead" opens the request form for this shift; "Keep my shift" closes the sheet and
+    // nothing is cancelled.
     await page.getByRole("button", { name: "Can't make it?" }).click();
     const sheet = page.getByRole("dialog", { name: "Can't make it?" });
+    await sheet.getByRole("link", { name: "Ask for a change instead" }).click();
+    await expect(page).toHaveURL(new RegExp(`^${acme}/requests/new\\?shift=[0-9a-f-]{36}$`));
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Your next shift" })).toBeVisible();
+    await page.getByRole("button", { name: "Can't make it?" }).click();
+    await expect(sheet.getByRole("note")).toBeVisible();
+    await sheet.getByRole("button", { name: "Keep my shift" }).click();
+    await expect(sheet).toBeHidden();
+    await page.reload();
+    await expect(page.getByText("Security officer").first()).toBeVisible();
+    await page.getByRole("button", { name: "Can't make it?" }).click();
     await sheet.getByLabel("I'm unwell").check();
     // While it's being sent (held back here for a moment), the sheet can't be closed: "Keep my
     // shift" waits and Escape leaves it, so the answer is always seen.

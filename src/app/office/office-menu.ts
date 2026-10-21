@@ -71,6 +71,39 @@ const MENU: { label: string; folded?: boolean; bottom?: boolean; items: MenuItem
   },
 ];
 
+// The menu's counts (Phase 18): sign yellow when it needs this person, grey otherwise. Pay
+// queries waiting need payroll (for the others they're with payroll); enquiries that need a
+// person and uploads to check need whoever sees them. No count, no badge.
+export function menuBadges(
+  role: OfficeRole,
+  counts: { payQueries: number; needPerson: number; uploads: number },
+): Partial<Record<string, MenuBadge>> {
+  const { payQueries, needPerson, uploads } = counts;
+  return {
+    ...(payQueries
+      ? {
+          "/office/pay-queries": {
+            count: payQueries,
+            words: `${payQueries} waiting`,
+            needs: role === "payroll",
+          },
+        }
+      : {}),
+    ...(needPerson
+      ? {
+          "/office/enquiries": {
+            count: needPerson,
+            words: `${needPerson} need a person`,
+            needs: true,
+          },
+        }
+      : {}),
+    ...(uploads
+      ? { "/office/casuals": { count: uploads, words: `${uploads} to check`, needs: true } }
+      : {}),
+  };
+}
+
 // Every area the menu links to (tests/unit/office.roles.test.ts checks each against the roles).
 export const MENU_AREAS: readonly OfficeArea[] = MENU.flatMap((g) => g.items.map((i) => i.area));
 

@@ -10,6 +10,26 @@ import { isFull } from "./events-copy";
 
 export const BOARD_DAYS = 14;
 
+// The board's two weeks, from the page's `from` (yyyy-mm-dd, a real day after today; anything
+// else is today): `later` starts the next two weeks; `earlier` the two weeks before (`today`: back
+// to today, which needs no `from`), or null at today (nothing earlier to show).
+export function boardWindow(
+  fromParam: unknown,
+  today: string,
+): { from: string; earlier: string | "today" | null; later: string } {
+  const real =
+    typeof fromParam === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(fromParam) &&
+    addDays(fromParam, 0) === fromParam;
+  const from = real && fromParam > today ? fromParam : today;
+  const back = addDays(from, -BOARD_DAYS);
+  return {
+    from,
+    earlier: from === today ? null : back > today ? back : "today",
+    later: addDays(from, BOARD_DAYS),
+  };
+}
+
 export interface BoardDay {
   date: string;
   dow: string; // "Today" for today

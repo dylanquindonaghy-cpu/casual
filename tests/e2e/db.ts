@@ -158,10 +158,17 @@ export async function addOpenShift(
 
 // An event of a spec's own (named, as "Shifts for an event" makes) holding one open session at a
 // site of its own (`site`, so a casual's list can find it), starting `daysAhead` days from now:
-// switching it off can't hide another spec's shifts.
+// switching it off can't hide another spec's shifts. `urgent`: marked urgent by the office.
 export async function addEventWithSession(
   slug: string,
-  o: { name: string; site: string; role: string; daysAhead: number; hours?: number },
+  o: {
+    name: string;
+    site: string;
+    role: string;
+    daysAhead: number;
+    hours?: number;
+    urgent?: boolean;
+  },
 ): Promise<{ eventId: string; shiftId: string }> {
   const pool = new Pool({ connectionString: e2eAppUrl(), max: 1 });
   try {
@@ -188,6 +195,7 @@ export async function addEventWithSession(
           endsAt: new Date(startsAt.getTime() + (o.hours ?? 8) * 3_600_000),
           headcount: 1,
           status: "open",
+          isUrgent: o.urgent ?? false,
           source: "native",
         })
         .returning({ id: shifts.id });

@@ -150,7 +150,7 @@ AI-boundary and client-boundary tests (they import nothing from `src/lib/`).
   `btn.primary`, `btn.secondary`, `btn.danger` (opens a destructive step), `btn.dangerSolid` (the
   final click of a destructive change: a step's "Yes, …", or a destructive action that happens at
   once, "Block from this site"), `btn.link` (text link with a 44px target). Staff buttons have the
-  same names under `staffBtn` (full width, at least 56px tall). Links inside text or a row (a
+  same names under `staffBtn` (full width, at least 52px tall since Phase 18). Links inside text or a row (a
   shift's title, a worker's name) use `textLink` (grey underline, darker on hover), or
   `textLinkInGroup` when the whole row or card is the `group` that darkens it. The login pages
   (staff and office, outside the shell) use `page.login` (the brand bar's 448px column),

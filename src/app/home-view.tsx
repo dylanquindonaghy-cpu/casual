@@ -28,9 +28,9 @@ import { DateTile, SignPlate } from "./ui/sign";
 // her next shift as a pass (when in sign figures, the role, the event and site, the gate), which
 // opens in place into its details (getting there, where to report, what to bring and wear, pay,
 // the instructions, then "Open in maps", "Ask for a change" and "Can't make it?"); with nothing
-// booked, an empty pass and "Find a shift"; then "For you", at most three rows: the urgent shifts
-// she can take (or, offline, that they need signal), what needs doing on Profile, and the other
-// shifts she can apply for (or her travel area to add). Her other booked shifts are on the Shifts
+// booked, an empty pass and "Find a shift"; then "For you", at most four rows: the urgent shifts
+// she can take (or, offline, that they need signal), what needs doing on Profile, her travel area
+// to add (while she has none), and the other shifts she can apply for. Her other booked shifts are on the Shifts
 // tab (`/shifts`). The pass is a <details>: it opens without JavaScript, and in the offline copy.
 // Server-rendered; only "Can't make it?" and the home screen hint are client components.
 

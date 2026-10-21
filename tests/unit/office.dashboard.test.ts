@@ -852,6 +852,33 @@ describe("Needs attention's page (Phase 18: the bell opens it; the dashboard's A
     ]);
   });
 
+  it("your planner's webhook failing: since when, what to do, Integrations for an admin", () => {
+    const failing = (isAdmin: boolean) =>
+      renderToStaticMarkup(
+        createElement(NeedsItems, {
+          n: { ...noNeeds, webhookFailing: { since: at("2026-11-02T03:10:00Z") } },
+          timeZone: TZ,
+          today: "2026-11-02",
+          isAdmin,
+        }),
+      );
+    const admin = failing(true);
+    expect(admin).toContain('<h3 id="webhook"');
+    expect(words(section(admin, "webhook"))).toContain(
+      "Since 03:10 on Mon 2 Nov, bookings and cancellations haven't reached your planner by webhook.",
+    );
+    expect(
+      [...admin.matchAll(/<h3 id="([^"]+)"[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => words(m[2] ?? "")),
+    ).toEqual(["Your planner's webhook is failing 1"]);
+    expect(section(admin, "webhook")).toMatch(
+      /<a [^>]*href="\/office\/settings\/integrations"[^>]*>Open Integrations<\/a>/,
+    );
+    // A resourcer can't open Integrations: told who can.
+    const resourcer = failing(false);
+    expect(resourcer).not.toContain('href="/office/settings/integrations"');
+    expect(words(resourcer)).toContain("An admin can check it in Integrations.");
+  });
+
   it("nothing: says so", () => {
     const calm = renderToStaticMarkup(
       createElement(NeedsItems, { n: noNeeds, timeZone: TZ, today: full.today, isAdmin: true }),

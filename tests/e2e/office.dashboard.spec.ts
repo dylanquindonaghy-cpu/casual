@@ -117,6 +117,50 @@ test("the offer page leads back to the dashboard", async ({ page }, testInfo) =>
   }
 });
 
+test("Next up steps through the urgent places, one at a time", async ({ page }, testInfo) => {
+  // Two urgent places of this spec's own, in a role no casual has (no other spec sees them), and a
+  // resourcer of its own.
+  const email = `dashboard.focus${testInfo.retry || ""}@example.com`;
+  await addOfficeUser("acme", { email, name: "Focus Resourcer", role: "resourcer" });
+  const n = Date.now() % 100_000;
+  const made = [
+    await addEventWithSession("acme", {
+      name: `Focus Gala ${n}`,
+      site: `Focus Hall ${n}`,
+      role: "focus_check",
+      daysAhead: 1,
+      urgent: true,
+    }),
+    await addEventWithSession("acme", {
+      name: `Focus Fair ${n}`,
+      site: `Focus Yard ${n}`,
+      role: "focus_check",
+      daysAhead: 2,
+      urgent: true,
+    }),
+  ];
+  try {
+    await officeLogin(page, email);
+    const card = page.locator("[data-focus]");
+    const band = card.getByText(/^\d+ of \d+$/);
+    await expect(band).toHaveText(/^1 of ([2-9]|\d{2,})$/);
+    const total = ((await band.textContent()) ?? "").split(" of ")[1];
+    const first = await card.getByRole("link").first().getAttribute("href");
+    // Next: the second place, a different session; Previous: back to the first.
+    await card.getByRole("button", { name: "Next urgent place" }).click();
+    await expect(band).toHaveText(`2 of ${total}`);
+    await expect(card.getByRole("link").first()).not.toHaveAttribute("href", first ?? "");
+    await card.getByRole("button", { name: "Previous urgent place" }).click();
+    await expect(band).toHaveText(`1 of ${total}`);
+    await expect(card.getByRole("link").first()).toHaveAttribute("href", first ?? "");
+    // Previous from the first goes round to the last.
+    await card.getByRole("button", { name: "Previous urgent place" }).click();
+    await expect(band).toHaveText(`${total} of ${total}`);
+  } finally {
+    for (const m of made) await cancelOwnShift("acme", m.shiftId);
+  }
+});
+
 test("/office/today opens the dashboard", async ({ page }) => {
   await officeLogin(page, "acme.admin@example.com");
   await page.goto(`${acme}/office/today`);

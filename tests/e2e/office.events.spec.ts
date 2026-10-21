@@ -70,6 +70,14 @@ async function switchAndCheck(browser: Browser, shiftId: string) {
   // The resourcer finds the event's row on the board and switches it off.
   await (await menuLink(office, "Events & sessions")).click();
   await expect(office.getByRole("heading", { name: "Events & sessions", level: 1 })).toBeVisible();
+  // Two weeks at a time: Later, then Earlier back to today (nothing before it).
+  const dates = office.getByRole("navigation", { name: "Dates" });
+  await expect(dates.getByRole("link", { name: "Earlier" })).toHaveCount(0);
+  await dates.getByRole("link", { name: "Later" }).click();
+  await expect(office).toHaveURL(/\/office\/events\?from=\d{4}-\d\d-\d\d$/);
+  await dates.getByRole("link", { name: "Earlier" }).click();
+  await expect(office).toHaveURL(`${acme}/office/events`);
+  await expect(dates.getByRole("link", { name: "Earlier" })).toHaveCount(0);
   // The row's name (it opens the row into its sessions) and its line; its switch beside it.
   const row = office.getByRole("button", { name: new RegExp(`^${EVENT}`) });
   await expect(row).toBeVisible();

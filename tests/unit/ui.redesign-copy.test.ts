@@ -8,7 +8,14 @@ import {
   thingsCount,
   weekCells,
 } from "@/lib/office/dashboard-home";
-import { boardDays, DAY_PILLS, eventCells, eventNote, windowText } from "@/lib/office/events-board";
+import {
+  boardDays,
+  boardWindow,
+  DAY_PILLS,
+  eventCells,
+  eventNote,
+  windowText,
+} from "@/lib/office/events-board";
 import type { EventCardData, SessionRow } from "@/lib/office/events";
 import { placesFreeText } from "@/lib/office/focus-copy";
 import {
@@ -443,6 +450,43 @@ const event = (sessions: SessionRow[], o: Partial<EventCardData> = {}): EventCar
 });
 
 describe("the rota board", () => {
+  it("Earlier and Later: two weeks at a time, never before today, only real days", () => {
+    const today = "2026-10-21";
+    // Today: nothing earlier; Later starts the next two weeks.
+    expect(boardWindow(undefined, today)).toEqual({
+      from: today,
+      earlier: null,
+      later: "2026-11-04",
+    });
+    // Two weeks on: Earlier goes back to today (no `from` needed), Later on again.
+    expect(boardWindow("2026-11-04", today)).toEqual({
+      from: "2026-11-04",
+      earlier: "today",
+      later: "2026-11-18",
+    });
+    // Four weeks on: Earlier is the two weeks before.
+    expect(boardWindow("2026-11-18", today)).toMatchObject({ earlier: "2026-11-04" });
+    // A day just after today: back to today, not before it.
+    expect(boardWindow("2026-10-25", today)).toMatchObject({ earlier: "today" });
+    // Before today, today itself, not a day, not a real date: today.
+    for (const bad of [
+      "2026-10-01",
+      today,
+      "soon",
+      "2026-13-45",
+      "2026-02-30",
+      7,
+      ["2026-11-04"],
+    ]) {
+      expect(boardWindow(bad, today), String(bad)).toEqual({
+        from: today,
+        earlier: null,
+        later: "2026-11-04",
+      });
+    }
+    expect(windowText(boardDays("2026-11-04", today))).toBe("4 Nov to 17 Nov");
+  });
+
   it("14 days from the first, today and the weekend marked, and the window in words", () => {
     const days = boardDays("2026-10-21", "2026-10-21");
     expect(days).toHaveLength(14);

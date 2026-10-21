@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { OpenShift, OpenShiftsList } from "@/lib/portal/open-shifts";
+import { need } from "../helpers/qualifications";
 
 // Home's open shifts (docs/office-v2.md 4.2 item 3; 12H.1; Phase 18): in "For you", the urgent
 // shifts she can take as one row (how many, which days) to the urgent board, and the others as one
@@ -132,5 +133,44 @@ describe("Home with travel areas switched off for the firm (13.4)", () => {
     // The open shifts still show, without how far.
     expect(words).toContain("1 shift you can take Sat 7 Nov");
     expect(words).toContain("1 more shift you can apply for Sat 7 Nov");
+  });
+});
+
+describe("For you: at most four rows", () => {
+  it("with everything at once: urgent, needs doing, her home area, the rest; offline, one row instead of the urgent one", () => {
+    const html = renderToStaticMarkup(
+      createElement(HomeView, {
+        firstName: "Zoe",
+        timeZone: TZ,
+        now: NOW,
+        next: null,
+        needs: [need(2, { status: "expired", expiresOn: "2026-10-01" })],
+        photo: { status: "up_to_date", current: null, waiting: null },
+        open: {
+          shifts: [shift(1, { isUrgent: true }), shift(2, {})],
+          truncated: false,
+          offerAlerts: true,
+          travelOn: true,
+          area: null,
+          further: { count: 0, atLeast: false },
+          choices: { days: [], sites: [], roles: [] },
+        },
+      }),
+    );
+    const forYou = html.slice(html.indexOf('aria-labelledby="for-you-heading"'));
+    const rows = [...forYou.matchAll(/<li ([^>]*)data-for-you="([a-z]+)"/g)].map((m) => ({
+      kind: m[2],
+      online: (m[1] ?? "").includes("data-online-only"),
+      offline: (m[1] ?? "").includes("data-offline-only"),
+    }));
+    // Online (the offline row hidden): four, in this order.
+    expect(rows.filter((r) => !r.offline).map((r) => r.kind)).toEqual([
+      "urgent",
+      "needs",
+      "area",
+      "apply",
+    ]);
+    // In the kept copy (online rows hidden): the offline row and what needs doing.
+    expect(rows.filter((r) => !r.online).map((r) => r.kind)).toEqual(["offline", "needs"]);
   });
 });

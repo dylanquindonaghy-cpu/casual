@@ -19,7 +19,8 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/office/session-actions", () => ({ refreshOfficeSessionAction: vi.fn() }));
 
-const { MENU_AREAS, officeMenu, OfficeShell } = await import("@/app/office/office-shell");
+const { MENU_AREAS, menuBadges, officeMenu, OfficeShell } =
+  await import("@/app/office/office-shell");
 const { ariaCurrent, currentHref, OfficeNav } = await import("@/app/office/office-nav");
 const { ACCOUNT_MENU_ID, DRAWER_ID, initials, redrawOnArrival } =
   await import("@/app/office/office-frame");
@@ -87,6 +88,43 @@ describe("the office menu (v2 groups; Phase 18's regrouping)", () => {
     expect(
       officeMenu("resourcer", { "/office/pay-queries": badge }).flatMap((g) => g.links),
     ).not.toContainEqual(expect.objectContaining({ href: "/office/pay-queries" }));
+  });
+
+  it("a count is sign yellow only when it needs this person (Phase 18), grey otherwise", () => {
+    const counts = { payQueries: 3, needPerson: 2, uploads: 4 };
+    // Pay queries need payroll; for an admin they're with payroll.
+    expect(menuBadges("payroll", counts)["/office/pay-queries"]).toEqual({
+      count: 3,
+      words: "3 waiting",
+      needs: true,
+    });
+    expect(menuBadges("admin", counts)["/office/pay-queries"]?.needs).toBe(false);
+    // Enquiries that need a person and uploads to check need whoever sees them.
+    expect(menuBadges("resourcer", counts)["/office/enquiries"]).toEqual({
+      count: 2,
+      words: "2 need a person",
+      needs: true,
+    });
+    expect(menuBadges("admin", counts)["/office/casuals"]).toEqual({
+      count: 4,
+      words: "4 to check",
+      needs: true,
+    });
+    // None: no badge.
+    expect(menuBadges("admin", { payQueries: 0, needPerson: 0, uploads: 0 })).toEqual({});
+    // Drawn: the yellow plate for one that needs you, the grey one otherwise.
+    nav.pathname = "/office";
+    const html = renderToStaticMarkup(
+      createElement(OfficeNav, { groups: officeMenu("admin", menuBadges("admin", counts)) }),
+    );
+    const badgeOf = (href: string) =>
+      new RegExp(
+        `<a [^>]*href="${href}"[^>]*>[\\s\\S]*?<span aria-hidden="true" class="([^"]*)">\\d+</span>`,
+      ).exec(html)?.[1] ?? "";
+    expect(badgeOf("/office/enquiries")).toContain("bg-hivis text-on-hivis");
+    expect(badgeOf("/office/casuals")).toContain("bg-hivis text-on-hivis");
+    expect(badgeOf("/office/pay-queries")).toContain("bg-raised text-ink-muted");
+    expect(badgeOf("/office/pay-queries")).not.toContain("bg-hivis");
   });
 
   it("links have no query strings (tests compare the address after a click)", () => {

@@ -13362,3 +13362,122 @@ After merging, your demo server picks it up within a few minutes of the image be
 `https://acme.staffingresourcingtest.uk` on your phone (Home, Shifts, Pay) and
 `https://acme.staffingresourcingtest.uk/office` on a laptop (Dashboard, Events & sessions,
 Casuals).
+
+## 2026-10-21 · Phase 18: the redesign (18.1 to 18.5)
+
+Time spent: 3.5 hours (see the Hours log in PLAN.md).
+
+### The result
+
+- Verify: `VERIFIED tree=56617d45b91d8c3f e2e=true` (the check script, with the browser tests, on
+  the files the auditor read; the ticks and these notes came after it).
+- Tests: 2,942 unit tests and 2,215 integration tests pass, none skipped; 94 browser tests and
+  the boss walkthrough's 6 pass.
+- Auditor (the independent checker that reads only the code, tests and logs): three rounds.
+  Round 1 stopped at the gate, because the work had been committed after the check script ran, so
+  the stamp no longer matched the files (my mistake; the fix was to check again and commit only
+  after the audit). Round 2: 18.1 DONE, 18.2 to 18.5 not yet (gaps listed below). Round 3: all
+  four DONE, "the phase's Done when line is met".
+- Commits: `5dbef09` (the build) and the one carrying this entry (round 2's fixes and the
+  ticks), pushed to `claude/wizardly-faraday-8lg4g0` (pull request #18).
+
+### What was built, in plain words
+
+Dylan asked for the Claude Design boards to be built into the app, with the fonts and colours
+reworked using the design skills. The boards were the approved mock-up (the "before and after"
+picture was shown first, as the project's rules ask).
+
+- **The look (18.1).** Two new fonts, both stored inside the app (no font service is called):
+  Public Sans for words, and Barlow Condensed, a narrow font drawn from UK road signs, for times,
+  dates, gates and counts. Colours follow safety signs: red means act now, sign yellow means
+  something needs doing, green means done. Each firm's own colour is worked out twice, once for
+  light and once for dark, so text on it is always readable (contrast at least 4.5 to 1, the
+  accessibility standard). The top of every casual page is now white, with the firm's initial on
+  its colour. Shared parts: a **date tile** (the day of the week over a big date), a **sign
+  plate** (a gate or post on a yellow plate), **seats** (one small square per place, filled when
+  taken). Animations are short (150 to 250 thousandths of a second) and turn into a simple fade
+  for anyone whose phone asks for less motion.
+- **Casual Home (18.2).** The next shift is a **pass**, like a lanyard card: day, time, role,
+  place and gate, which opens in place to show getting there, where to report, what to bring and
+  wear, pay, and the buttons. "Can't make it?" opens a **sheet** (a panel that rises from the
+  bottom) with the strike warning, the reason, "Cancel this shift", "Ask for a change instead" and
+  "Keep my shift". Under it, **For you**: at most four rows (urgent shifts, what needs doing, her
+  home area if she hasn't set one, shifts to apply for).
+- **Open shifts and taking one (18.3).** The next 8 days as a strip at the top (booked days filled
+  in, urgent days red). Urgent shifts first, then the rest, one card each. A card opens the
+  shift's page, which looks like the pass, with "Take shift" in a bar that stays at the bottom of
+  the screen.
+- **The office (18.4).** The menu in groups: Today, Pay, People, and "Admin and records" folded
+  away. The dashboard now answers one question, "what needs me now?": a heading like "3 things
+  need you", this week as seven days, then **Next up** (one urgent place at a time, with its
+  buttons), **After that** (one row per kind of to-do), **Waiting on others** and **Sorted
+  today**. The full to-do list moved to its own page, **Needs attention**, which the bell opens.
+- **Events & sessions (18.5).** A two-week **rota board**: one row per event, each session a small
+  "3/4" pill on its day (red for an urgent gap). A row opens in place into its sessions' table.
+
+### Things found and fixed along the way
+
+| What | Why it mattered | What was done |
+|---|---|---|
+| If the urgent list failed to load, the dashboard said "Every urgent place is filled", and with Needs attention failing too, "Nothing needs you right now". | Both would be false: the office could miss an urgent gap. | A part that fails now says so where it shows, and the heading says "At least 2 things need you" or "Some of the dashboard couldn't load". A test holds this. |
+| The open-shift cards and the closed pass showed only the drive time ("15 min by car"). | Many stewards don't drive; a car time alone misleads (rule 12G.3 says show both ways). | Cards show the full travel line (miles, car and public transport); the closed pass shows none, and the open pass shows all three. |
+| The folded "Admin and records" menu group was a `<details>` element. | Browsers treat it as a "group", and the browser tests find form lines by that role, so they could pick the menu by mistake. | It's now a button that shows or hides the links. |
+| A shift held for people with fewer hours lost its "Check again" button. | The Help page tells casuals to tap it. | "Check again" is back on the shift's page. |
+| Home's no-signal note said only the time ("from 09:05"). | The saved copy can be opened days later. | It now says the day too ("from 09:05 on Mon 2 Nov"). |
+| The office guide and the casual Help page described the old screens. | Help must match the app. | Both rewritten for the new screens. |
+| The "Can't make it?" sheet could be closed while a cancel was being sent (the safety review's one must-fix). | She could leave without seeing whether she had cancelled, and with a strike. | While it sends, Escape and tapping outside do nothing and the other two buttons are greyed out; if it is closed anyway, it opens again with the answer. A browser test holds the cancel back on purpose and checks this. |
+| The dashboard's week counted sessions, not places. | A session with 4 places and 1 taken looked the same as one with 1 place. | It counts places: "3 open", "2 urgent", "All filled", and once a day's sessions have started, how many were filled ("4 of 6 filled"). |
+| An event's open row on the rota board listed every session, however many. | An event with 30 sessions made one very long table. | It lists the two weeks on the board and says how many more are to come; the event's own page has them all. The "…" menu column stays in view when the table is wider than the screen. |
+| Earlier and Later used whatever date was in the address. | A made-up date could break the board. | Only a real date is accepted; anything else shows this fortnight. |
+
+### Decisions
+
+| Decision | Why | What else was considered |
+|---|---|---|
+| What a shift needs (licences) is on its page, not on the list card. | The design shows it there, to show less at once; every card is a shift she can take anyway. | Keeping the tags on every card (more clutter, which Dylan asked to cut). |
+| The Home list of everything that needs updating became one row (the worst thing, then "and 2 more", to Profile). | The design's For you row; Profile lists every qualification with its upload link. | Keeping the full list on Home. |
+| The dashboard's heading is now the headline ("3 things need you"); the browser tab still says "Dashboard". | The design. | Keeping "Dashboard" as the heading. |
+
+### What the new tests prove
+
+- The new words (dates, times, "In 3 days", the For you rows, the week strip, the dashboard's
+  headline, rows and week, the board's pills): 19 tests in `tests/unit/ui.redesign-copy.test.ts`.
+- Every colour pair in both themes passes the contrast test; 30 firm colours in light and dark.
+- Only the pass has a shadow; 40px text only in the sign font.
+- The dashboard: the headline, each day of the week, one urgent place at a time with its warnings
+  (hidden from casuals, offers stopped, the office emailed), every After that row with its count
+  and link, a part that couldn't load, and no link repeating a menu link's name. Needs attention's
+  page: every item with its link.
+- The shared parts and motion: the date tile, the sign plate and the seats draw what they should;
+  every animation is 150, 200 or 250 thousandths of a second with one easing; every animation the
+  app uses is defined; no animation library is installed; and anyone whose phone asks for less
+  motion gets the simple fade (`tests/unit/ui.parts-motion.test.ts`).
+- The menu's counts are yellow only when they need someone (pay queries only for payroll), and
+  the board's Earlier and Later reach the right fortnight from any real date.
+- The browser tests walk each flow on the new screens: logging in, taking a shift from its page,
+  cancelling through the sheet (with and without a strike), the urgent board, travel areas, no
+  signal, the office menu and its folded group, the dashboard, Needs attention, the rota board's
+  showing switch, and the boss walkthrough.
+
+### What's parked or needs Dylan
+
+- Parked: the dashboard still loads three lists it no longer shows (only their counts); the old
+  four counts' words are unused. To remove with their tests.
+- Parked: the walkthrough page (`walkthrough-site/`) still shows the old screens.
+- Parked: some older rows in `docs/screens.md` still describe the screens before the redesign
+  (its Phase 18 section says it wins where they differ). To rewrite.
+- The auditor's notes, not blocking: "someone else took it" and "offered first to people with
+  fewer hours" are checked by unit and database tests, not in a browser; more than two sessions of
+  one event on one day share one pill with "×3" (every session is still in the open row's table).
+- Two changes the design made, to confirm: what a shift needs (licences) is on its page, not on
+  the list cards; Home's list of everything that needs updating is one "Needs doing" row leading
+  to Profile.
+- Check on your phone: the pass, the sheet, the strip and the board, in light and dark.
+
+### How to see it
+
+Nothing is on the demo server yet: pull request #18 is a draft. Once it's merged, the demo server
+picks it up within a few minutes of the image being built. Then open
+`https://acme.staffingresourcingtest.uk` on your phone (Home, Shifts) and
+`https://acme.staffingresourcingtest.uk/office` on a laptop (Dashboard, Needs attention, Events &
+sessions).

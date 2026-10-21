@@ -8,14 +8,14 @@ import { requireOfficeArea } from "@/lib/auth/current-office";
 import { readSessionToken } from "@/lib/auth/session-cookie";
 import { EVENT_LIST_MAX, EVENT_VIEWS, officeEventList, type EventView } from "@/lib/office/events";
 import {
-  BOARD_DAYS,
   boardDays,
+  boardWindow,
   eventCells,
   eventNote,
   windowText,
 } from "@/lib/office/events-board";
 import { EVENT_VIEW_EMPTY, EVENT_VIEW_WORDS, eventSwitchLabel } from "@/lib/office/events-copy";
-import { addDays, localDateOf } from "@/lib/time/zoned";
+import { localDateOf } from "@/lib/time/zoned";
 import { EventRow } from "./event-row";
 import { SessionsTable } from "./sessions-table";
 import { ShowingSwitch } from "./showing-switch";
@@ -59,19 +59,10 @@ export default async function EventsPage({
   const tz = list.timeZone;
   const today = localDateOf(systemClock.now(), tz);
   // From today, or a later day chosen with Later (anything else, or earlier, is today).
-  const from =
-    typeof fromParam === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) && fromParam > today
-      ? fromParam
-      : today;
+  const { from, earlier, later } = boardWindow(fromParam, today);
   const days = boardDays(from, today);
   const weekend = days.map((d) => d.weekend);
   const window = { first: days[0]?.date ?? from, last: days.at(-1)?.date ?? from };
-  const earlier =
-    from > today
-      ? addDays(from, -BOARD_DAYS) > today
-        ? addDays(from, -BOARD_DAYS)
-        : undefined
-      : null;
   // Over every event to come, not just the ones listed (the list stops at 50).
   const { places: openPlaces, sessions: openSessions } = list.open;
   const filters = view === "showing" ? [...FILTERS, "showing" as const] : FILTERS;
@@ -147,7 +138,7 @@ export default async function EventsPage({
         <nav aria-label="Dates" className="ml-auto flex items-center gap-1">
           {earlier !== null ? (
             <Link
-              href={viewHref(view, earlier)}
+              href={viewHref(view, earlier === "today" ? undefined : earlier)}
               aria-label="Earlier"
               className="flex size-9 items-center justify-center rounded-md border border-line hover:bg-quiet-soft"
             >
@@ -163,7 +154,7 @@ export default async function EventsPage({
           )}
           <span className="px-2 font-semibold tabular-nums">{windowText(days)}</span>
           <Link
-            href={viewHref(view, addDays(from, BOARD_DAYS))}
+            href={viewHref(view, later)}
             aria-label="Later"
             className="flex size-9 items-center justify-center rounded-md border border-line hover:bg-quiet-soft"
           >

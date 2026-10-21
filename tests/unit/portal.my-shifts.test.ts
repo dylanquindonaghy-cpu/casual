@@ -605,3 +605,37 @@ describe("Booked: every upcoming shift's details", () => {
     expect(text(rowsOf[1] ?? "")).toContain("No site or instructions yet.");
   });
 });
+
+describe("Booked, after taking a shift (Phase 18)", () => {
+  const first = shift({ startsAt: at("2026-11-07T14:00:00Z"), endsAt: at("2026-11-07T22:00:00Z") });
+  const second = shift({
+    startsAt: at("2026-11-08T10:00:00Z"),
+    endsAt: at("2026-11-08T18:00:00Z"),
+  });
+  const marked = (html: string) => (html.match(/animate-move/g) ?? []).length;
+  const news = (html: string) => (html.match(/>New<\/span>/g) ?? []).length;
+
+  it("the shift just taken moves into its place, marked New; nothing else is", () => {
+    // It's the next one: the next shift's card.
+    const next = render({ shifts: [first, second], newShiftId: first.shiftId });
+    expect([marked(next), news(next)]).toEqual([1, 1]);
+    const card = next.slice(
+      next.lastIndexOf("<section", next.indexOf("Your next shift")),
+      next.indexOf("Coming up"),
+    );
+    expect(card).toContain("animate-move border-2 border-brand-ink");
+    expect(text(card)).toContain("New");
+    // It's later: its row under Coming up.
+    const later = render({ shifts: [first, second], newShiftId: second.shiftId });
+    expect([marked(later), news(later)]).toEqual([1, 1]);
+    const rows = later.slice(later.indexOf("Coming up"));
+    expect(rows).toMatch(/<li class="px-3\.5 animate-move rounded-xl border-2 border-brand-ink">/);
+    // Not one of hers (or none given): nothing marked.
+    for (const html of [
+      render({ shifts: [first, second] }),
+      render({ shifts: [first, second], newShiftId: "s-not-hers" }),
+    ]) {
+      expect([marked(html), news(html)]).toEqual([0, 0]);
+    }
+  });
+});

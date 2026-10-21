@@ -13543,3 +13543,17 @@ the NOT VERIFIED on `36b7468`). "Keep strike" on a deleted casual's strike had t
 - Nothing for this task. Separately, the reference-based redesign mock-up ("ShiftDesk Pass
   Redesign") waits for his answers: build it or not, the dark theme, the Pay day tile, one count
   of 10 for the office, and moving the board's show/hide switch.
+
+### Follow-up: the browser test on GitHub (2026-10-21)
+
+- **What failed.** PR #19's `e2e` check failed in `office.strikes.spec.ts`: the second and third
+  tests logged in as the same office user as the first. Their login link was looked for from one
+  second before "Send me a link" (the spec's grace for clock drift), so the first test's link,
+  already used, could be picked up ("This link has expired or was already used."); Playwright's
+  retry then asked for a fourth link to that address inside 15 minutes, which the login limit
+  refuses (3 per address: "Too many tries. Try again in 14 minutes.").
+- **Fix.** Each test logs in as its own made-up office user (`strikes.resourcer`,
+  `strikes.reviewer`, `strikes.second`); nothing in the app changed.
+- **Proof.** With `--repeat-each=2` the old spec failed its second round with "Too many tries";
+  the fixed spec passed 6 of 6.
+- **Result.** `RUN_E2E=1 ./scripts/verify.sh`: VERIFIED tree=1a56724f8c7be140 e2e=true.

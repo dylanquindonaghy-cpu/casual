@@ -23,20 +23,24 @@ import { sentTo } from "./outbox";
 
 const acme = "http://acme.localhost:3100";
 const RUN = Date.now().toString(36);
+// Each test logs in as its own office user: a link sent to the same address in the test before can
+// still look new (the second's grace below), and each address gets 3 links every 15 minutes.
 const RESOURCER = "strikes.resourcer@example.com";
+const REVIEWER = { email: "strikes.reviewer@example.com", name: "Strikes Reviewer" };
+const SECOND = { email: "strikes.second@example.com", name: "Strikes Second" };
 const ADMIN = "strikes.admin@example.com";
 const CASUAL = { firstName: "Sian", lastName: "Strike", mobileE164: "+447700900617" };
 const ERASED = { firstName: "Erin", lastName: "Strike", mobileE164: "+447700900622" };
 const LATE = { firstName: "Lewis", lastName: "Strike", mobileE164: "+447700900623" };
 const REASON = "She rang the office before the cut-off; booked by mistake";
 
-async function officeLogin(page: Page) {
+async function officeLogin(page: Page, email = RESOURCER) {
   const asked = new Date(Date.now() - 1000);
   await page.goto(`${acme}/office/login`);
-  await page.getByLabel("Your work email").fill(RESOURCER);
+  await page.getByLabel("Your work email").fill(email);
   await page.getByRole("button", { name: "Send me a link" }).click();
   await expect(page.getByText("Check your email.")).toBeVisible();
-  const link = await sentTo(RESOURCER, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
+  const link = await sentTo(email, asked, /(https?:\/\/\S+\/office\/l#[A-Za-z0-9_-]{43})/);
   await page.goto(link);
   await page.getByRole("button", { name: "Log me in" }).click();
   await expect(page).toHaveURL(`${acme}/office`);
@@ -134,7 +138,7 @@ test("a deleted casual's strike is kept, and the answer stays after the refresh"
     daysAhead: 1,
   });
   const workerId = await addSteward("acme", ERASED);
-  await addOfficeUser("acme", { email: RESOURCER, name: "Strikes Resourcer", role: "resourcer" });
+  await addOfficeUser("acme", { ...REVIEWER, role: "resourcer" });
   await addOfficeUser("acme", { email: ADMIN, name: "Strikes Admin", role: "admin" });
   try {
     const { assignmentId } = await bookAndCancel("acme", {
@@ -144,7 +148,7 @@ test("a deleted casual's strike is kept, and the answer stays after the refresh"
       warning: "strike",
     });
     await eraseCasual("acme", { workerId, adminEmail: ADMIN });
-    await officeLogin(page);
+    await officeLogin(page, REVIEWER.email);
     await page.goto(`${acme}/office/cancellations/${assignmentId}`);
     await expect(
       page.getByRole("heading", { name: /^Strike: Issued \(counts until/ }),
@@ -155,7 +159,7 @@ test("a deleted casual's strike is kept, and the answer stays after the refresh"
     await expect(page.getByRole("button", { name: "Withdraw strike…" })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Keep strike" }).click();
-    await expect(page.getByText(/^Kept after a review by Strikes Resourcer at /)).toBeVisible();
+    await expect(page.getByText(/^Kept after a review by Strikes Reviewer at /)).toBeVisible();
     await expect(page.getByRole("button", { name: "Keep strike" })).toHaveCount(0);
     await expect(page.getByRole("status")).toHaveText("Kept, and marked as reviewed.");
   } finally {
@@ -175,7 +179,7 @@ test("withdrawing a strike someone else has just withdrawn says so, and the form
     daysAhead: 1,
   });
   const workerId = await addSteward("acme", LATE);
-  await addOfficeUser("acme", { email: RESOURCER, name: "Strikes Resourcer", role: "resourcer" });
+  await addOfficeUser("acme", { ...SECOND, role: "resourcer" });
   await addOfficeUser("acme", { email: ADMIN, name: "Strikes Admin", role: "admin" });
   try {
     const { assignmentId } = await bookAndCancel("acme", {
@@ -184,7 +188,7 @@ test("withdrawing a strike someone else has just withdrawn says so, and the form
       reason: "Travel problem",
       warning: "strike",
     });
-    await officeLogin(page);
+    await officeLogin(page, SECOND.email);
     await page.goto(`${acme}/office/cancellations/${assignmentId}`);
     await page.getByRole("button", { name: "Withdraw strike…" }).click();
     await page.getByLabel("Why are you withdrawing it?").fill(REASON);
